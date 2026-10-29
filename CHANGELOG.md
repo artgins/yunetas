@@ -1,6 +1,32 @@
 # **Changelog**
 
-## Unreleased
+## v7.29.3 (2026-10-29)
+
+A full release: the fixes of the review round over 7.29.2, and a Modbus master
+that answers every request, for the meter setup commands of a field gate.
+The kernel changes (`gobj-c`: `build_path()` and the date reader;
+`timeranger2`, the modules `modbus` and `mbus`), so every yuno is rebuilt. The external libraries do not change (linux-ext-libs 1.28;
+OpenSSL 3.6.5, PCRE2 10.49, nginx 1.31.8, liburing 2.15 and mbedTLS 4.2.0 are
+the latest of their lines). **`build_path()` returns NULL when the path does
+not fit** (it returned the cut path): the guards that already checked it
+work now, and a caller that ignores its return only gains the log.
+
+Suite on the dev machine only, after a clean build, under `ulimit -Sn 1024`:
+349/349 in the first pass.
+
+**Performance** (against 7.29.2, the last release with a study; 47 figures, 8
+rounds; `performance/reports/7.29.3.json`, no report page): no price. 46
+figures inside their noise. The appends with a live reader measured fewer
+outside their noise in the rotation, -3.7% (t = -4.7). They run no changed
+code: the append path has the same machine code, `build_path()` is called 82
+times in a run of 360,000 appends and the date reader never, and in the
+binary 3,003 of 3,237 functions moved. Measured again for 10 rounds, they stay
+inside their noise alternated with 7.29.2 (-1.8%, t = -2.3), and -2.5%
+(t = -3.6) in a rotation of five builds; the 7.29.3 binary relinked with the
+libraries of 7.29.2 measures as 7.29.2 (+0.9%), while swapping only its gobj-c
+or only its timeranger2 moves it +0.6% and -1.5%: placement. The TCP echoes,
+about 2% slower by placement in 7.29.2, are 1.5% faster here on the same
+machine code. The yunos are 0 to 4 KB larger (stripped).
 
 - **Modbus master** (`modules/c/modbus`, `C_PROT_MODBUS_M`): every request
   sent with `EV_SEND_MESSAGE` is answered with the new `EV_MODBUS_ANSWER`

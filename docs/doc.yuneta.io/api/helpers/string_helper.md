@@ -4,11 +4,11 @@ String utilities used throughout Yuneta: trimming, case conversion, tokenisation
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c)
 
 (all_numbers)=
-## [`all_numbers()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1059)
+## [`all_numbers()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1078)
 
 `all_numbers()` checks if a given string consists entirely of numeric characters.
 
@@ -33,7 +33,7 @@ An empty string is considered non-numeric and will return `FALSE`.
 ---
 
 (bin2hex)=
-## [`bin2hex()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L8559)
+## [`bin2hex()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L8679)
 
 `bin2hex` converts a binary buffer into a hexadecimal string representation.
 
@@ -66,7 +66,7 @@ The output buffer `bf` must be large enough to store the hexadecimal representat
 ---
 
 (build_path)=
-## [`build_path()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L911)
+## [`build_path()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L915)
 
 `build_path()` constructs a file path by concatenating multiple path segments. This makes sure of proper directory separators and removing redundant slashes.
 
@@ -115,7 +115,7 @@ if(!build_path(path, sizeof(path), topic_dir, "keys", key, NULL)) {
 ---
 
 (change_char)=
-## [`change_char()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1331)
+## [`change_char()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1350)
 
 `change_char()` replaces all occurrences of a specified character in a string with another character and returns the count of replacements.
 
@@ -146,7 +146,7 @@ The function modifies the input string in place. Make sure that `s` is a valid, 
 ---
 
 (count_char)=
-## [`count_char()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L9295)
+## [`count_char()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L9415)
 
 The function `count_char()` counts the occurrences of a specified character in a given string.
 
@@ -172,7 +172,7 @@ If `s` is NULL, the behavior is undefined. The function does not modify the inpu
 ---
 
 (delete_left_blanks)=
-## [`delete_left_blanks()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1132)
+## [`delete_left_blanks()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1151)
 
 Removes leading whitespace characters (spaces, tabs, newlines, and carriage returns) from the given string `s` by shifting the non-whitespace characters to the left.
 
@@ -197,7 +197,7 @@ If the input string is empty or contains only whitespace, it will be reduced to 
 ---
 
 (delete_left_char)=
-## [`delete_left_char()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L822)
+## [`delete_left_char()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L822)
 
 Removes all leading occurrences of the specified character `x` from the string `s`.
 
@@ -226,7 +226,7 @@ The function modifies the input string in place by shifting characters to the le
 ---
 
 (delete_right_blanks)=
-## [`delete_right_blanks()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1109)
+## [`delete_right_blanks()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1128)
 
 Removes trailing whitespace characters (spaces, tabs, carriage returns, and line feeds) from the end of the given string `s`.
 
@@ -251,7 +251,7 @@ The function modifies the input string directly by replacing trailing whitespace
 ---
 
 (delete_right_char)=
-## [`delete_right_char()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L801)
+## [`delete_right_char()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L801)
 
 `delete_right_char()` removes all trailing occurrences of the specified character `x` from the string `s`.
 
@@ -277,7 +277,7 @@ The function modifies the input string in place by replacing trailing occurrence
 ---
 
 (get_key_value_parameter)=
-## [`get_key_value_parameter()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L3890)
+## [`get_key_value_parameter()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L3909)
 
 Extracts a key-value pair from a given string, where the key and value are separated by an '=' character. The function modifies the input string by inserting null terminators and returns a pointer to the extracted value.
 
@@ -308,7 +308,7 @@ The function expects the input string to be formatted as 'key=value' or 'key="va
 ---
 
 (get_last_segment)=
-## [`get_last_segment()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L988)
+## [`get_last_segment()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1007)
 
 Extracts the last segment from a given file path by locating the last occurrence of the '/' character and returning the substring that follows it.
 
@@ -333,7 +333,7 @@ The function does not modify the input string.
 ---
 
 (get_parameter)=
-## [`get_parameter()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1349)
+## [`get_parameter()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1368)
 
 `get_parameter()` extracts a parameter from a string, delimited by blanks (`' '` or `'	'`) or quotes (`'` or `"`). The input string is modified by inserting null terminators.
 
@@ -362,7 +362,7 @@ If the parameter is enclosed in quotes (`'` or `"`), the function makes sure tha
 ---
 
 (helper_doublequote2quote)=
-## [`helper_doublequote2quote()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1044)
+## [`helper_doublequote2quote()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1063)
 
 The function `helper_doublequote2quote()` replaces all double quotes (`"`) in the given string with single quotes (`'`).
 
@@ -387,7 +387,7 @@ This function modifies the input string in place. Make sure that the input strin
 ---
 
 (helper_quote2doublequote)=
-## [`helper_quote2doublequote()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1029)
+## [`helper_quote2doublequote()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1048)
 
 The function `helper_quote2doublequote()` replaces all single quotes (`'`) in the input string with double quotes (`"`).
 
@@ -412,7 +412,7 @@ This function modifies the input string in place and does not allocate new memor
 ---
 
 (hex2bin)=
-## [`hex2bin()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L8527)
+## [`hex2bin()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L8647)
 
 `hex2bin` converts a hexadecimal string into its binary representation, storing the result in a provided buffer.
 
@@ -447,7 +447,7 @@ Returns a pointer to the output buffer `bf` containing the binary data.
 ---
 
 (idx_in_list)=
-## [`idx_in_list()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4242)
+## [`idx_in_list()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4261)
 
 The function `idx_in_list()` searches for a string in a list of strings and returns its index if found, or -1 if not found.
 
@@ -478,7 +478,7 @@ The function iterates through the list and compares each element with `str` usin
 ---
 
 (is_secret_name)=
-## [`is_secret_name()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1637)
+## [`is_secret_name()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1656)
 
 Tells, by its NAME, whether a key holds a secret -- for what cannot be known
 by a declaration ([`SDF_SECRET`](#SDF_SECRET)): the free keys of a command
@@ -606,7 +606,7 @@ is_secret_name_any("public_url", 10);       // FALSE
 ---
 
 (left_justify)=
-## [`left_justify()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1158)
+## [`left_justify()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1177)
 
 The `left_justify()` function removes leading and trailing whitespace characters from the given string `s`. This makes sure that the string is left-aligned with no extra spaces at the beginning or end.
 
@@ -631,7 +631,7 @@ If `s` is NULL, the function does nothing. The function modifies the input strin
 ---
 
 (json_mask_secrets)=
-## [`json_mask_secrets()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L3880)
+## [`json_mask_secrets()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L3899)
 
 A json as a log or a trace may show it. At any depth, the value of a key whose
 name is a secret's ([`is_secret_name()`](#is_secret_name)) is `"********"`,
@@ -716,7 +716,7 @@ JSON_DECREF(kw_shown)
 ---
 
 (mask_secrets_inline)=
-## [`mask_secrets_inline()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L3066)
+## [`mask_secrets_inline()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L3085)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
@@ -1085,7 +1085,7 @@ mask_secrets_inline_capped(shown, sizeof(shown), url_text, strlen(url_text));
 ---
 
 (json_mask_secrets_capped)=
-## [`json_mask_secrets_capped()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L3871)
+## [`json_mask_secrets_capped()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L3890)
 
 [`json_mask_secrets()`](#json_mask_secrets) on a budget of `max_bytes`
 units: every node walked costs one, a key or a string its bytes too. Once it
@@ -1127,7 +1127,7 @@ JSON_DECREF(kw_shown)
 ---
 
 (mask_secrets_in_text)=
-## [`mask_secrets_in_text()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L3658)
+## [`mask_secrets_in_text()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L3677)
 
 The bytes of a traffic dump with the credentials that can be told soundly
 written as `*`, IN PLACE, the length kept (so the offsets and the rest of the
@@ -1272,7 +1272,7 @@ dumped (`"<N bytes hidden>"`), however it is cut.
 ---
 
 (nice_size)=
-## [`nice_size()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1078)
+## [`nice_size()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1097)
 
 `nice_size()` formats a byte count into a human-readable string with appropriate units (B, KB, MB and more.), using either base-1000 or base-1024 scaling.
 
@@ -1303,7 +1303,7 @@ The function makes sure that the formatted string fits within `bfsize` and selec
 ---
 
 (pop_last_segment)=
-## [`pop_last_segment()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1010)
+## [`pop_last_segment()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1029)
 
 `pop_last_segment()` removes and returns the last segment of a given file path, modifying the original string.
 
@@ -1368,7 +1368,7 @@ and Python sides of this project already do.
 ---
 
 (replace_string)=
-## [`replace_string()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/replace_string.c#L23)
+## [`replace_string()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/replace_string.c#L23)
 
 Returns a new string: `str` with every occurrence of `old` replaced by `snew`,
 from left to right, without overlaps.
@@ -1413,7 +1413,7 @@ if(s) {
 ---
 
 (split2)=
-## [`split2()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4032)
+## [`split2()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4051)
 
 `split2()` splits a string into a list of substrings using the specified delimiters, excluding empty substrings.
 
@@ -1444,7 +1444,7 @@ A dynamically allocated array of strings containing the split substrings. The ca
 ---
 
 (split3)=
-## [`split3()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4101)
+## [`split3()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4120)
 
 Splits the input string `str` into a list of substrings using the specified delimiters `delim`. Unlike [`split2()`](#split2), this function includes empty substrings in the result.
 
@@ -1475,7 +1475,7 @@ This function differs from [`split2()`](#split2) in that it includes empty subst
 ---
 
 (split_free2)=
-## [`split_free2()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4081)
+## [`split_free2()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4100)
 
 Frees the memory allocated for a list of strings created by [`split2()`](#split2).
 
@@ -1500,7 +1500,7 @@ This function must be used to deallocate memory allocated by [`split2()`](#split
 ---
 
 (split_free3)=
-## [`split_free3()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4153)
+## [`split_free3()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4172)
 
 Frees the memory allocated for a list of strings created by `split3()`. This makes sure of proper deallocation of each string and the list itself.
 
@@ -1525,7 +1525,7 @@ This function must be used to free memory allocated by [`split3()`](#split3). It
 ---
 
 (str_concat)=
-## [`str_concat()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4170)
+## [`str_concat()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4189)
 
 `str_concat()` concatenates two strings into a newly allocated buffer and returns the result.
 
@@ -1554,7 +1554,7 @@ If either `str1` or `str2` is `NULL`, it is treated as an empty string.
 ---
 
 (str_concat3)=
-## [`str_concat3()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4199)
+## [`str_concat3()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4218)
 
 Concatenates three strings into a newly allocated buffer and returns the result. The caller must free the returned string using `str_concat_free()`.
 
@@ -1585,7 +1585,7 @@ If any of the input strings are NULL, they are treated as empty strings.
 ---
 
 (str_concat_free)=
-## [`str_concat_free()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4233)
+## [`str_concat_free()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4252)
 
 Frees memory allocated for a concatenated string created by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
 
@@ -1610,7 +1610,7 @@ This function must only be used to free memory allocated by [`str_concat()`](#st
 ---
 
 (str_in_list)=
-## [`str_in_list()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4265)
+## [`str_in_list()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4284)
 
 The function `str_in_list()` checks if a given string exists within a list of strings, with an option to perform a case-insensitive comparison.
 
@@ -1641,7 +1641,7 @@ The function iterates through the list and compares each entry with `str` using 
 ---
 
 (str_match_regex)=
-## [`str_match_regex()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L4287)
+## [`str_match_regex()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L4306)
 
 `str_match_regex()` says whether a string matches a regular expression. It compiles, matches and frees on each call: nothing is kept, so it can be called from anywhere, as often as needed.
 
@@ -1680,7 +1680,7 @@ It is what `CASES_RE` of the string switch below uses.
 ---
 
 (string-switch)=
-## [`SWITCHS` / `CASES` / `ICASES` / `CASES_RE` / `DEFAULTS` / `SWITCHS_END`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.h#L96)
+## [`SWITCHS` / `CASES` / `ICASES` / `CASES_RE` / `DEFAULTS` / `SWITCHS_END`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.h#L96)
 
 A `switch` on strings. `CASES` compares exactly, `ICASES` ignoring case, `CASES_RE` with a regular expression (through `str_match_regex()`), and `DEFAULTS` takes what nothing matched. As in a C `switch`, a case without `break` falls through to the next one, and `break` leaves the switch.
 
@@ -1717,7 +1717,7 @@ Up to 7.25.6 it was not: `SWITCHS` compiled a regex on entry and only `SWITCHS_E
 ---
 
 (strntolower)=
-## [`strntolower()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1195)
+## [`strntolower()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1214)
 
 `strntolower()` converts the first `n` characters of the input string to lowercase.
 
@@ -1746,7 +1746,7 @@ If `s` is NULL or `n` is zero, the function returns NULL without modifying the s
 ---
 
 (strntoupper)=
-## [`strntoupper()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1176)
+## [`strntoupper()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1195)
 
 Converts the first `n` characters of the string `s` to uppercase in place.
 
@@ -1775,7 +1775,7 @@ If `s` is NULL or `n` is zero, the function returns NULL without modifying the s
 ---
 
 (utf8_prefix_len)=
-## [`utf8_prefix_len()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1216)
+## [`utf8_prefix_len()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1235)
 
 The bytes of `s` that fit in `max_bytes` WITHOUT cutting a UTF-8 character:
 the precision to cap a string with, as `"%.*s"`.
@@ -1824,7 +1824,7 @@ return msg_iev_build_response(gobj,
 ---
 
 (utf8_columns)=
-## [`utf8_columns()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1235)
+## [`utf8_columns()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1254)
 
 The columns a string takes on a terminal: one per UTF-8 character, not one
 per byte.
@@ -1865,7 +1865,7 @@ pad a cell.
 ---
 
 (utf8_prefix_columns)=
-## [`utf8_prefix_columns()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1253)
+## [`utf8_prefix_columns()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1272)
 
 The bytes of the longest prefix of `s` that fits in `max_columns` columns
 without cutting a character, and the columns that prefix takes.
@@ -1910,7 +1910,7 @@ bytes) and a width of 2, it returns 3 bytes and 2 columns.
 ---
 
 (translate_string)=
-## [`translate_string()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L1286)
+## [`translate_string()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L1305)
 
 `translate_string` replaces characters in the `from` string with corresponding characters from the `mk_to` string, based on the mapping defined in `mk_from`.
 
@@ -1945,7 +1945,7 @@ Returns a pointer to the `to` buffer containing the translated string.
 ---
 
 (capitalize)=
-## [`capitalize()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L10503)
+## [`capitalize()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L10623)
 
 Converts the first character to uppercase and the remaining characters to lowercase.
 
@@ -1972,7 +1972,7 @@ The function modifies the input string in place. If `s` is NULL or empty, it is 
 ---
 
 (lower)=
-## [`lower()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L10490)
+## [`lower()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L10610)
 
 Converts all characters in the string to lowercase.
 
@@ -1999,7 +1999,7 @@ The function modifies the input string in place. If `s` is NULL, it is returned 
 ---
 
 (path_basename)=
-## [`path_basename()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L11175)
+## [`path_basename()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L11295)
 
 Extracts the filename component from a file path.
 
@@ -2026,7 +2026,7 @@ The returned pointer points into the original `path` string. No new memory is al
 ---
 
 (replace_cli_vars)=
-## [`replace_cli_vars()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L11261)
+## [`replace_cli_vars()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L11381)
 
 Replaces CLI variable placeholders in a command string with base64-encoded values.
 
@@ -2057,7 +2057,7 @@ Placeholders use the `$$(...)` syntax. The referenced values are read and base64
 ---
 
 (upper)=
-## [`upper()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/gobj-c/src/helpers.c#L10477)
+## [`upper()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L10597)
 
 Converts all characters in the string to uppercase.
 

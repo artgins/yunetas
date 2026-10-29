@@ -7,7 +7,7 @@ Functions for running external processes synchronously.
 ---
 
 (run_command)=
-## [`run_command()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/root-linux/src/run_command.c#L29)
+## [`run_command()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/run_command.c#L29)
 
 Runs a shell command synchronously via `popen()` and captures its
 combined stdout/stderr output.
@@ -33,7 +33,7 @@ gbuffer_t *run_command(const char *command);
 ---
 
 (run_process2)=
-## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/root-linux/src/run_command.c#L83)
+## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/run_command.c#L83)
 
 Runs a program and waits for its end: `posix_spawn()` and `waitpid()`, with no
 shell, so `argv` reaches the program as it is. The program inherits the signal
@@ -81,7 +81,7 @@ if(status != 0) {
 ---
 
 (pty_sync_spawn)=
-## [`pty_sync_spawn()`](https://github.com/artgins/yunetas/blob/7.29.2/kernel/c/root-linux/src/run_command.c#L134)
+## [`pty_sync_spawn()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/run_command.c#L134)
 
 Spawns a command synchronously in a pseudo-terminal (via `forkpty()`),
 providing interactive terminal I/O between parent and child.

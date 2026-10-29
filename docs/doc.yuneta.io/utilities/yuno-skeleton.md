@@ -90,4 +90,4 @@ its target gets (`run.link -> run_+yunorole+.sh_tmpl` becomes
 ## See also
 
 - [Scaffolding new yunos](../../../yunos/c/yuno_agent/SCAFFOLDING.md).
-- [`utils/c/yuno-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.29.2/utils/c/yuno-skeleton/README.md).
+- [`utils/c/yuno-skeleton/README.md`](https://github.com/artgins/yunetas/blob/7.29.3/utils/c/yuno-skeleton/README.md).
