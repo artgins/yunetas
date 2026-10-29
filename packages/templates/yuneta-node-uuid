@@ -53,11 +53,13 @@
 #       uuids, not MACs): with the interface it came from missing at a boot
 #       and another of the same box present, it is kept too. Only a box with
 #       none of them is OTHER hardware (a cloned disk) and gets its own;
-#     - in a container (Docker, Podman, LXC, systemd-nspawn) /sys is the
-#       host's, the same for every container of it: no hardware is read and
-#       the uuid is random. It belongs to the container's hostname, which the
-#       file records ("container", "hostname"): kept while the hostname is
-#       the same (a restart of the container), replaced on another one. A
+#     - in a container (Docker, Podman, LXC, systemd-nspawn, containerd, a
+#       BuildKit `RUN` step: anything out of the initial pid namespace) /sys
+#       is the host's, the same for every container of it: no hardware is
+#       read and the uuid is random. It belongs to the container's
+#       hostname, which the file records ("container", "hostname"): kept
+#       while the hostname is the same (a restart of the container),
+#       replaced on another one. A
 #       Docker or Podman container's hostname is its own id, so a uuid baked
 #       into an image (the agents started while it was built) is not taken by
 #       the containers made from it. A re-created container is a new node
@@ -74,8 +76,12 @@
 #   `docker commit` or a `docker export`, or `set` a uuid in each copy.
 #   A board written from a `docker export` is no container: it boots its own
 #   init in the initial pid namespace, so the /.dockerenv it keeps does not
-#   count, and its hardware gives its own uuid. A container run with
-#   --pid=host is not seen as one either (nor by systemd-detect-virt).
+#   count (nor systemd-detect-virt's "docker", which comes from that file),
+#   and its hardware gives its own uuid. A random it carries from the
+#   container is not its own either, whatever the hostname: with no hardware
+#   identifier it gets a new random, a copy of the old file and a warning.
+#   A container run with --pid=host is not seen as one (it runs in the
+#   initial pid namespace and reads the host's hardware).
 #
 #   The package's install runs `ensure --installing`: in a container it
 #   stores nothing and exits 3, because the install may be the build of an
@@ -107,8 +113,10 @@
 #
 #   The previous file is kept as uuid.json.replaced-<UTC time>[.<n>] whenever
 #   the uuid changes, one per change. Environment, for tests:
-#   YUNETA_NODE_UUID_DIR (default /yuneta/store/agent/uuid) and
-#   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, /run, /proc and /.dockerenv).
+#   YUNETA_NODE_UUID_DIR (default /yuneta/store/agent/uuid),
+#   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, /run, /proc and /.dockerenv)
+#   and YUNETA_NODE_UUID_DETECT_VIRT (the systemd-detect-virt to ask; none
+#   by default with a SYSROOT).
 #
 #   Copyright (c) 2026, ArtGins.
 #
@@ -117,6 +125,11 @@ set -u
 UUID_DIR="${YUNETA_NODE_UUID_DIR:-/yuneta/store/agent/uuid}"
 UUID_FILE="${UUID_DIR}/uuid.json"
 SYSROOT="${YUNETA_NODE_UUID_SYSROOT:-}"
+if [ -z "$SYSROOT" ]; then
+    DETECT_VIRT="${YUNETA_NODE_UUID_DETECT_VIRT:-systemd-detect-virt}"
+else
+    DETECT_VIRT="${YUNETA_NODE_UUID_DETECT_VIRT:-}"
+fi
 OWNER="yuneta"
 HWIDS=""
 HW_SOURCES="devicetree-serial soc-serial dmi-product-uuid ethernet-mac"
@@ -228,24 +241,55 @@ gather_ethernet_macs() {
 
 #
 #   The name of the container this runs in, if it does. The files are read
-#   under SYSROOT (tests); systemd-detect-virt only on the real system, and
-#   only its "yes": an old one answers "none" in Docker.
+#   under SYSROOT (tests); systemd-detect-virt (DETECT_VIRT) only on the real
+#   system, and only its "yes": an old one answers "none" in Docker.
 #
-#   /.dockerenv and /run/.containerenv are files, and a file stays: a board
-#   written from a `docker export` keeps /.dockerenv. They count only out of
-#   the initial pid namespace -- a system booted on its own runs in it, a
-#   container (but one run with --pid=host) does not -- or when the pid
-#   namespace cannot be read. The initial one is PROC_PID_INIT_INO, fixed by
-#   the kernel since 3.8; systemd-detect-virt asks the same question.
+#   The pid namespace decides first. The initial one is PROC_PID_INIT_INO,
+#   fixed by the kernel since 3.8: a system booted on its own runs in it, and
+#   a container does not (but one run with --pid=host). So:
+#
+#     - out of the initial pid namespace this IS a container, marker or not:
+#       a BuildKit `RUN` step has no /.dockerenv and no container=, and
+#       containerd / Kubernetes write no marker at all. The markers only name
+#       it (docker, podman), "container-other" when there is none -- the
+#       answer systemd-detect-virt gives there too;
+#     - in the initial one, /.dockerenv and /run/.containerenv do not count:
+#       they are files, and a board written from a `docker export` keeps
+#       /.dockerenv. systemd-detect-virt reads them in ANY pid namespace (and
+#       answers "docker" on that board), so its docker / podman is not taken
+#       there; its other answers (wsl, lxc, a container= of PID 1) are;
+#     - a pid namespace that cannot be read: the markers count, as before.
 #
 INIT_PID_NS="pid:[4026531836]"
 
+pid_namespace() {    # initial | other | unknown
+    local pidns
+    pidns="$(readlink "${SYSROOT}/proc/self/ns/pid" 2>/dev/null)"
+    if [ -z "$pidns" ]; then
+        printf 'unknown'
+    elif [ "$pidns" = "$INIT_PID_NS" ]; then
+        printf 'initial'
+    else
+        printf 'other'
+    fi
+}
+
 container_name() {
     local v pidns
-    if [ -z "$SYSROOT" ] && command -v systemd-detect-virt >/dev/null 2>&1; then
-        if v="$(systemd-detect-virt --container 2>/dev/null)" && [ -n "$v" ] && [ "$v" != "none" ]; then
-            printf '%s' "$v"
-            return 0
+    pidns="$(pid_namespace)"
+    if [ -n "$DETECT_VIRT" ] && command -v "$DETECT_VIRT" >/dev/null 2>&1; then
+        if v="$("$DETECT_VIRT" --container 2>/dev/null)" && [ -n "$v" ] && [ "$v" != "none" ]; then
+            case "$v" in
+                docker|podman)
+                    if [ "$pidns" = "initial" ]; then
+                        v=""    # its marker files, on a system booted on its own
+                    fi
+                    ;;
+            esac
+            if [ -n "$v" ]; then
+                printf '%s' "$v"
+                return 0
+            fi
         fi
     fi
     if [ -s "${SYSROOT}/run/systemd/container" ]; then
@@ -260,8 +304,7 @@ container_name() {
             return 0
         fi
     fi
-    pidns="$(readlink "${SYSROOT}/proc/self/ns/pid" 2>/dev/null)"
-    if [ "$pidns" = "$INIT_PID_NS" ]; then
+    if [ "$pidns" = "initial" ]; then
         return 1
     fi
     if [ -e "${SYSROOT}/.dockerenv" ]; then
@@ -270,6 +313,10 @@ container_name() {
     fi
     if [ -e "${SYSROOT}/run/.containerenv" ]; then
         printf 'podman'
+        return 0
+    fi
+    if [ "$pidns" = "other" ]; then
+        printf 'container-other'
         return 0
     fi
     return 1
@@ -392,8 +439,8 @@ write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1) 
 
 #
 #   The hardware identifiers, one "<source> <value>" per line, plus the
-#   "placeholder:", "unreadable:", "container" and "hostname" lines. Read
-#   where the privileges are (as root), used after dropping them.
+#   "placeholder:", "unreadable:", "container", "hostname" and "pidns" lines.
+#   Read where the privileges are (as root), used after dropping them.
 #
 gather_hwids() {
     local name host
@@ -401,6 +448,7 @@ gather_hwids() {
     if [ -n "$host" ]; then
         printf 'hostname %s\n' "$host"
     fi
+    printf 'pidns %s\n' "$(pid_namespace)"
     if name="$(container_name)"; then
         printf 'container %s\n' "$(safe_token "$name")"
         return 0
@@ -478,17 +526,27 @@ pick_hardware() {
 }
 
 #
-#   A stored random made in a container: is it this one's? It belongs to the
+#   A stored random made in a container: is it this one's? Not where this is
+#   no container at all, which only the initial pid namespace proves: a board
+#   written from a `docker export` of a container that read no hardware
+#   either, its hostname kept with the rest. In a container it belongs to the
 #   hostname it records, "" for none. One made with no hostname is replaced
 #   by a container that has one (a copy of it), and one of a hostname is
 #   kept where there is none now (nothing says it is not this one). A random
 #   not made in a container -- a box with no identifier, 7.29.2, node_uuid()
 #   -- records none: it is kept.
 #
-random_is_ours() {    # host_now
+random_made_in_a_container() {
+    grep -q '"container"[[:space:]]*:' "$UUID_FILE" 2>/dev/null
+}
+
+random_is_ours() {    # host_now container_now pidns_now
     local stored_host
-    if ! grep -q '"container"[[:space:]]*:' "$UUID_FILE" 2>/dev/null; then
+    if ! random_made_in_a_container; then
         return 0
+    fi
+    if [ -z "$2" ] && [ "$3" = "initial" ]; then
+        return 1
     fi
     stored_host="$(stored_field hostname)"
     if [ -z "$1" ] || [ "$stored_host" = "$1" ]; then
@@ -505,9 +563,10 @@ RESTART_NOTE="the agents and the yunos running keep the old one until they resta
 cmd_ensure() {    # installing(0|1)
     local installing="$1"
     local stored_uuid stored_source stored_ids stored_created stored_host ids_now merged picked src val new ids
-    local container host_now replaced=""
+    local container host_now pidns_now replaced="" replaced_container=""
     container="$(hw_values container)"
     host_now="$(hw_values hostname)"
+    pidns_now="$(hw_values pidns)"
     stored_uuid="$(stored_field uuid)"
     stored_source="$(stored_field source)"
     stored_created="$(stored_field created)"
@@ -578,12 +637,14 @@ cmd_ensure() {    # installing(0|1)
 
     #   No hardware identifier: the uuid already there stays, unless it is a
     #   random made in a container of another hostname (an image built with
-    #   it, a copy of another container)
+    #   it, a copy of another container), or made in a container and this is
+    #   none (a board written from a `docker export`)
     if [ -n "$stored_uuid" ]; then
-        if [ "$stored_source" != "random" ] || random_is_ours "$host_now"; then
+        if [ "$stored_source" != "random" ] || random_is_ours "$host_now" "$container" "$pidns_now"; then
             return 0
         fi
         stored_host="$(stored_field hostname)"
+        replaced_container="$(stored_field container)"
         replaced="$stored_uuid"
     fi
     if ! new="$(normalize < /proc/sys/kernel/random/uuid)" || ! [[ "$new" =~ $UUID_RE ]]; then
@@ -595,7 +656,9 @@ cmd_ensure() {    # installing(0|1)
     else
         write_uuid_file "$new" "random" "" "" 1 || return 1
     fi
-    if [ -n "$replaced" ]; then
+    if [ -n "$replaced" ] && [ -z "$container" ]; then
+        log_warning "node uuid was $replaced, made in a container (${replaced_container:-container}, hostname ${stored_host:-(none)}) and this is no container (a system written from a copy of it, a \`docker export\`): now $new, RANDOM: no hardware identifier found, a reinstall will change it; $RESTART_NOTE"
+    elif [ -n "$replaced" ]; then
         log_warning "node uuid was $replaced, made in a container of hostname ${stored_host:-(none)} (an image built with it, or a copy of that container), this is ${host_now}: now $new; $RESTART_NOTE"
     elif [ -n "$container" ] && [ -z "$host_now" ]; then
         log_warning "node uuid $new is RANDOM: this is a container ($container) with no hostname, and a copy of it with no hostname would claim the same uuid: give the container a hostname"
@@ -617,10 +680,10 @@ cmd_show() {
     if [ -n "$(hw_values container)" ]; then
         echo "hardware: none read: this is a container ($(hw_values container)), its /sys is the host's"
         stored_host="$(stored_field hostname)"
-        if [ "$stored_source" = "random" ] && grep -q '"container"[[:space:]]*:' "$UUID_FILE" 2>/dev/null; then
+        if [ "$stored_source" = "random" ] && random_made_in_a_container; then
             if [ "$stored_host" = "$(hw_values hostname)" ]; then
                 echo "hostname: ${stored_host:-(none)}, the one the uuid belongs to"
-            elif random_is_ours "$(hw_values hostname)"; then
+            elif random_is_ours "$(hw_values hostname)" "$(hw_values container)" "$(hw_values pidns)"; then
                 echo "hostname: (none), the uuid belongs to $stored_host: kept"
             else
                 echo "hostname: $(hw_values hostname), the uuid belongs to ${stored_host:-(none)}: ensure makes a new one"
@@ -639,6 +702,8 @@ cmd_show() {
     fi
     if picked="$(pick_hardware "$stored_source")"; then
         echo "hardware: ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
+    elif [ "$stored_source" = "random" ] && ! random_is_ours "$(hw_values hostname)" "" "$(hw_values pidns)"; then
+        echo "hardware: no identifier found; the uuid was made in a container and this is no container: ensure makes a new one"
     else
         echo "hardware: no identifier found"
     fi

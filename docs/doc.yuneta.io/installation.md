@@ -414,10 +414,34 @@ sudo rm -f /yuneta/store/agent/uuid/uuid.json    # in the container, before the 
 
 A board written from a `docker export` is not a container: it starts its own
 init in the initial pid namespace. Thus the `/.dockerenv` that it keeps does
-not count, and its hardware gives its own uuid on the first start.
+not count, and its hardware gives its own uuid on the first start. If the
+board has no hardware identifier, the random uuid of the container is not
+its uuid either, also with the same hostname: the board gets a new random
+uuid, keeps a copy of the old file and logs a warning.
+
+The script finds a container from the pid namespace first. A system that
+starts on its own runs in the initial pid namespace, and a container does
+not. Thus all processes out of the initial pid namespace are in a container,
+also without a marker file: a BuildKit `RUN` step (no `/.dockerenv`, no
+`container=`), and containerd or Kubernetes. The marker files
+(`/.dockerenv`, `/run/.containerenv`) only give the name. In the initial pid
+namespace they do not count, and neither does the `docker` or `podman` of
+`systemd-detect-virt`, because it reads the same files. A container that you
+start with `--pid=host` runs in the initial pid namespace: it is not found,
+and it reads the hardware of the host. To see what the script finds in a
+build step, emulate the step without Docker:
+
+```bash
+# As a normal user: a pid namespace of its own and no /.dockerenv,
+# as in a BuildKit RUN step
+unshare -Upf --mount-proc /usr/libexec/yuneta/yuneta-node-uuid show
+# hardware: none read: this is a container (container-other), ...
+readlink /proc/self/ns/pid       # pid:[4026531836] = the initial namespace
+```
 
 The package's install stores nothing in a container
-(`ensure --installing`), because the install can be the build of an image.
+(`ensure --installing`), because the install can be the build of an image
+(a `RUN` step of a `docker build` too).
 Without systemd, the install also does not start the agents there: their
 start would store a uuid in the image. Start them in the container
 (`/etc/init.d/yuneta_agent start`); their first start makes the uuid. A

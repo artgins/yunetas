@@ -324,6 +324,132 @@ out="$("$SCRIPT" show 2>&1)"
 check "docker export on a board: show reads the hardware" "$(echo "$out" | grep -c 'container')" "0"
 
 #
+#   ... and one written from a container that had no hardware identifier to
+#   read either: the random it carries was the container's. The board is no
+#   container (the initial pid namespace), so it is not ours even with the
+#   same hostname: a new random, a copy of the old file, and it says why
+#
+reset
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "c0ffee000006"
+run ensure
+exported="$(field uuid)"
+check "docker export, no identifier: the container's random" "$(field container)" "docker"
+set_pidns 4026531836
+check "docker export on a board, no identifier: show says ensure replaces it" "$("$SCRIPT" show 2>&1 | grep -c 'this is no container: ensure makes a new one')" "1"
+out="$("$SCRIPT" ensure 2>&1)"
+board="$(field uuid)"
+check "docker export on a board, no identifier: a new random" "$( [ -n "$board" ] && [ "$board" != "$exported" ] && echo changed)" "changed"
+check "docker export on a board, no identifier: source" "$(field source)" "random"
+check "docker export on a board, no identifier: no container recorded" "$(grep -c '"container"' "$FILE")" "0"
+check "docker export on a board, no identifier: copy of the container's" "$(backups)" "1"
+check "docker export on a board, no identifier: says why" "$(echo "$out" | grep -c 'this is no container')" "1"
+run ensure
+check "docker export on a board, no identifier: its random kept" "$(field uuid)" "$board"
+check "docker export on a board, no identifier: no more copies" "$(backups)" "1"
+
+#
+#   ... but the same file where the pid namespace cannot be read is still
+#   the container's: only the initial pid namespace says "no container"
+#
+reset
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "c0ffee000006"
+run ensure
+exported="$(field uuid)"
+rm -f "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+run ensure
+check "container random, pid namespace unknown, no marker: kept" "$(field uuid)" "$exported"
+
+#
+#   systemd-detect-virt reads /.dockerenv and /run/.containerenv in ANY pid
+#   namespace (and answers "docker" on that board), so its docker / podman
+#   is taken only out of the initial one. Its other answers count anywhere.
+#
+FAKE_VIRT="${WORK}/systemd-detect-virt"
+fake_virt() {
+    printf '#!/bin/sh\necho %s\n' "$1" > "$FAKE_VIRT"
+    chmod +x "$FAKE_VIRT"
+}
+for v in docker podman; do
+    reset
+    set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+    touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+    set_pidns 4026531836
+    fake_virt "$v"
+    YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
+    check "systemd-detect-virt '$v' in the initial pid namespace: the hardware" "$(field source)" "dmi-product-uuid"
+    reset
+    set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+    set_pidns 4026532512
+    fake_virt "$v"
+    YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
+    check "systemd-detect-virt '$v' in another pid namespace: a container" "$(field container)" "$v"
+done
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_pidns 4026531836
+fake_virt wsl
+YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
+check "systemd-detect-virt 'wsl' in the initial pid namespace: a container" "$(field container)" "wsl"
+
+#
+#   A pid namespace that is not the initial one, with no marker at all: a
+#   container. That is a BuildKit `RUN` step (no /.dockerenv, no container=,
+#   PID 1 is the step's shell), and containerd / Kubernetes, which write no
+#   marker: an install there must not store the build host's DMI or MAC in
+#   the image. A system booted on its own never runs out of the initial one.
+#
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+add_nic eth0 "aa:bb:cc:00:00:01" 0
+set_pidns 4026532512
+set_hostname "buildkitsandbox"
+check "another pid namespace, no marker, install: exit 3" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "3"
+check "another pid namespace, no marker, install: nothing stored" "$( [ -e "$FILE" ] && echo stored || echo none)" "none"
+run ensure
+check "another pid namespace, no marker: random" "$(field source)" "random"
+check "another pid namespace, no marker: container-other" "$(field container)" "container-other"
+
+#
+#   The same against the real kernel: a BuildKit `RUN` step emulated with an
+#   unprivileged user + pid namespace and a /proc of its own, with no
+#   /.dockerenv, no container= and an empty /run:
+#
+#       unshare -Upf --mount-proc <the script> ensure --installing
+#
+#   with YUNETA_NODE_UUID_SYSROOT a directory whose proc and sys are links
+#   to the real /proc and /sys (so the pid namespace and the hardware are
+#   the kernel's, and systemd-detect-virt is not asked: ours alone decides).
+#   Skipped where unprivileged user namespaces are refused.
+#
+EMU="${WORK}/emu"
+mkdir -p "${EMU}/run"
+ln -s /proc "${EMU}/proc"
+ln -s /sys "${EMU}/sys"
+emulated() {    # args of the script
+    env -u container YUNETA_NODE_UUID_SYSROOT="$EMU" \
+        unshare -Upf --mount-proc "$SCRIPT" "$@" >/dev/null 2>&1
+}
+if unshare -Upf --mount-proc true >/dev/null 2>&1; then
+    reset
+    check "BuildKit RUN step (unshare -Upf), install: exit 3" "$(emulated ensure --installing; echo $?)" "3"
+    check "BuildKit RUN step (unshare -Upf), install: nothing stored" "$( [ -e "$FILE" ] && echo stored || echo none)" "none"
+    emulated ensure
+    check "BuildKit RUN step (unshare -Upf): random" "$(field source)" "random"
+    check "BuildKit RUN step (unshare -Upf): container-other" "$(field container)" "container-other"
+    if [ "$(readlink /proc/self/ns/pid)" = "pid:[4026531836]" ]; then
+        reset
+        env -u container YUNETA_NODE_UUID_SYSROOT="$EMU" "$SCRIPT" ensure --installing >/dev/null 2>&1
+        check "the same SYSROOT in the initial pid namespace: no container" "$(grep -c '"container"' "$FILE")" "0"
+    else
+        echo "skip - this test does not run in the initial pid namespace"
+    fi
+else
+    echo "skip - unshare -Upf --mount-proc refused here: no BuildKit emulation"
+fi
+
+#
 #   /.dockerenv in another pid namespace: a container
 #
 reset
