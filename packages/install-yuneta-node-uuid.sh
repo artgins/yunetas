@@ -175,7 +175,9 @@ if [ "$BEFORE" != "$AFTER" ]; then
     CHANGED=1
     echo "[+] node uuid ${BEFORE:-(none)} -> ${AFTER}"
     echo "[!] The agents and the yunos keep the old uuid until they restart:"
-    echo "    'yunetas restart-agents -y', then restart the yunos."
+    echo "    'sudo systemctl restart yuneta_agent', then yuneta_agent22 (one at"
+    echo "    a time; 'yunetas restart-agents' does nothing here: the binary did"
+    echo "    not change), then the yunos ('kill-yuno' and 'run-yuno')."
 fi
 if [ "$CHANGED" = "0" ]; then
     say "Nothing changed: node uuid ${AFTER}"
