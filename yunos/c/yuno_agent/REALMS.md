@@ -175,6 +175,14 @@ Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.29.3/yunos/c/
 
 **Refusal conditions**:
 
+- If no `id` is given. Without it the filter is empty and selects every
+  realm: up to 7.29.3 `delete-realm` with no id deleted every realm that
+  had no yunos.
+
+  ```bash
+  ycommand -c 'delete-realm id=stress.central.yunovatios.es'   # one realm
+  ycommand -c 'delete-realm'                                   # refused: no id
+  ```
 - If the realm has any child yunos in its `yunos` hook (iterate the
   hook and bail if `json_array_size > 0`). The check is
   *existence*, not *running* — you must `delete-yuno` every yuno first.

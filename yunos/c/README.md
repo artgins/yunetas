@@ -98,7 +98,7 @@ Deployment:
 | `replicate-node` | Replicate realms to another node |
 | `upgrade-node` | Upgrade realms on another node |
 | `replicate-binaries` | Replicate binaries to another node |
-| `delete-public-service` | Remove a public service |
+| `delete-public-service` | Remove a public service (`id=` required) |
 
 Realm management:
 | Command | Description |
@@ -106,14 +106,14 @@ Realm management:
 | `check-realm` | Check if a realm exists |
 | `create-realm` | Create a new realm |
 | `update-realm` | Update a realm |
-| `delete-realm` | Remove a realm |
+| `delete-realm` | Remove a realm (`id=` required) |
 
 Binary management:
 | Command | Description |
 |---------|-------------|
 | `install-binary` | Install yuno binary |
 | `update-binary` | Update binary (dev only) |
-| `delete-binary` | Delete binary |
+| `delete-binary` | Delete a binary (`id=` required; `version=` one version; `record_only=1` the record, its files stay) |
 
 Configuration:
 | Command | Description |
@@ -122,14 +122,14 @@ Configuration:
 | `edit-config` | Edit configuration |
 | `view-config` | View configuration |
 | `update-config` | Update configuration |
-| `delete-config` | Delete configuration |
+| `delete-config` | Delete a configuration (`id=` required; `version=` one version) |
 
 Yuno lifecycle:
 | Command | Description |
 |---------|-------------|
 | `find-new-yunos` | Find new yunos |
 | `create-yuno` | Create yuno |
-| `delete-yuno` | Delete one release (`yuno_release=`) or the whole yuno (`whole=1`) |
+| `delete-yuno` | Delete one release (`yuno_release=`) or the whole yuno (`whole=1`); `id=` required |
 | `set-tag` | Set yuno tag |
 | `set-multiple` | Set yuno multiple instances |
 | `edit-yuno-config` | Edit yuno configuration |

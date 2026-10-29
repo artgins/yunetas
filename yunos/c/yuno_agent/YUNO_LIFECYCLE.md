@@ -211,24 +211,25 @@ Registered in the agent's command table. Yuno + binary + config commands only
 |-------------------|-------------------------------------------------------------------------|
 | `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. The `id`, the role and version the binary prints, and every tag are **safe names**: only `[A-Za-z0-9._-]`, not empty, not starting with `.`, no `..` (they name `/yuneta/repos/<tags>/<role>/<version>`, and `build_path()` drops a `.` segment, so a version `.` named the role's own directory). `update-binary` and `delete-binary` apply the same rule. |
 | `update-binary`   | Same as install but **overwrites** the row and file of the `(role, version)` the binary declares, which must be installed; a version that is not, or a binary of another role, is refused (use `install-binary`). Up to 7.28.9 it overwrote the PRIMARY row, whatever version it was sent. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete). Without it, the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`). `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir) of `/yuneta/repos/<tags>/<role>/<version>`. A record with a name that is not a safe name (one installed by 7.29.3 or older: a `^`, `@`, a space, an empty version) is refused, record and files; with `force=1` its **record** is deleted, a WARNING is logged, and no directory is removed (none is exactly its version's): remove its files by hand. See the example below the table. |
+| `delete-binary`   | `id=` is **required**: without it the filter is empty and selects every binary (up to 7.29.3, `delete-binary force=1` with no id deleted them all, those in use too). Pass `version=` to durably prune one installed version (per-instance delete). Without it, the primary of the id. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`). `force=1` overrides these two guards, and only these. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir) of `/yuneta/repos/<tags>/<role>/<version>`. `record_only=1` deletes the record and leaves the files, of any record. A record with a name that is not a safe name (one installed by 7.29.3 or older: a `^`, `@`, a space, an empty version) is refused, record and files, unless `record_only=1`: then its **record** is deleted, a WARNING is logged, and no directory is removed (none is exactly its version's): remove its files by hand. `force=1` does not delete such a record, and `record_only=1` does not pass the guards: a record that a yuno uses needs both. See the example below the table. |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
 Clean up a binary record with a name that is not a safe name. Such a record
-cannot be updated, and `delete-binary` without `force=1` refuses it:
+cannot be updated, and `delete-binary` without `record_only=1` refuses it:
 
 ```bash
 ycommand -c 'list-binaries-instances'                       # find the record
-ycommand -c 'delete-binary id=my_role version=1.0.0^old force=1'
-# -> "yuneta_agent^<node>: 1 binaries deleted, 1 of them the record only:
-#    no safe directory of its version, remove its files by hand"
+ycommand -c 'delete-binary id=my_role version=1.0.0^old record_only=1'
+# -> "yuneta_agent^<node>: 1 binaries deleted, 1 of them the record only
+#    (record_only=1): remove its files by hand"
 ls /yuneta/repos/*/my_role/                                  # then remove them
 ```
 
 A record with an **empty** version has no row in the version index, so
 `version=` cannot select it. Select it with `id=` alone: it is the primary of
-its id. `force=1` also deletes a binary that yunos use or a snap tags.
+its id. If a yuno uses the record, or a snap tags it, the command still
+refuses: add `force=1` too (the yuno then has no binary to run).
 
 ### Configurations
 
@@ -236,7 +237,7 @@ its id. `force=1` also deletes a binary that yunos use or a snap tags.
 |-----------------|-----------------------------------------------------------------|
 | `create-config` (alias `install-config`) | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. |
 | `update-config` | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. |
-| `delete-config` | Pass `version=` to durably prune one config version (per-instance delete). Without it, the primary. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). `force=1` overrides. |
+| `delete-config` | `id=` is **required** (without it the filter selects every configuration; up to 7.29.3, `delete-config force=1` with no id deleted them all). Pass `version=` to durably prune one config version (per-instance delete). Without it, the primary of the id. Fails if a yuno on **that** version references it (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). `force=1` overrides. |
 | `list-configs`  | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
 | `list-configs-instances` | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
 | `view-config`   | A ycommand console helper, not an agent command. It reads the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno sees. For that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
@@ -246,7 +247,7 @@ its id. `force=1` also deletes a binary that yunos use or a snap tags.
 | Command            | Effect                                                                      |
 |--------------------|-----------------------------------------------------------------------------|
 | `create-yuno`      | Create a row in `yunos`. Validates realm + binary + config existence.       |
-| `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (for example a superseded or higher release), or `whole=1` for the yuno and all its releases. The bare form is **refused**. It refuses if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or if `tagged`, unless `force=1`. Then it deletes the row. |
+| `delete-yuno`      | `id=` is **required** (without it, up to 7.29.3, `whole=1` deleted every yuno that was not running, and `yuno_release=` alone deleted that release of every yuno: a release is `<binary version>-<config version>`, shared by many). Pass `yuno_release=` to durably prune one release instance (for example a superseded or higher release), or `whole=1` for the yuno and all its releases. The bare form is **refused**. It refuses if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or if `tagged`, unless `force=1`. Then it deletes the row. |
 | `enable-yuno`      | `yuno_disabled := false`.                                                 |
 | `disable-yuno`     | Pauses the yuno if it plays, SIGKILLs it if it runs, then `yuno_disabled := true`. See §5.6. |
 | `run-yuno`         | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
@@ -532,7 +533,14 @@ bare form:
 delete-yuno id=<id>                      # refused
 delete-yuno id=<id> yuno_release=<rel>   # one release
 delete-yuno id=<id> whole=1              # the yuno and every release behind it
+delete-yuno whole=1                      # refused: no id
 ```
+
+The `id` is required, as in `delete-binary`, `delete-config`, `delete-realm`
+and `delete-public-service`: with no id the filter is empty and selects every
+record of the topic. Up to 7.29.3 `delete-yuno whole=1` deleted every yuno
+that was not running, and `yuno_release=<rel>` alone deleted that release of
+every yuno (a release is `<binary version>-<config version>`, shared by many).
 
 Deleting the whole yuno used to be what you got by *omitting* `yuno_release`,
 so the destructive reading was the one you reached by typing less. It cost a

@@ -407,7 +407,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_del_realm[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "realm version"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
@@ -689,7 +689,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_del_service[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "service version"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
@@ -709,9 +709,10 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_binary[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "Binary version; if given, delete that exact instance (else the primary)"),
-SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: in use, tagged by a snap, or a record with an unsafe name (its record only)"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: in use, or tagged by a snap"),
+SDATAPM (DTP_BOOLEAN,   "record_only",  0,              0,          "Delete the record only, its files stay: the way to remove a record with an unsafe name"),
 SDATA_END()
 };
 
@@ -746,7 +747,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_config[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "Config version; if given, delete that exact instance (else the primary)"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
 SDATA_END()
@@ -782,7 +783,7 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_delete_yuno[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
+SDATAPM (DTP_STRING,    "id",           0,              0,          "Id (required)"),
 SDATAPM (DTP_STRING,    "realm_id",     0,              0,          "Realm id"),
 SDATAPM (DTP_STRING,    "yuno_role",    0,              0,          "Yuno role"),
 SDATAPM (DTP_STRING,    "role_version", 0,              0,          "Role version"),
@@ -2613,6 +2614,25 @@ PRIVATE json_t *cmd_delete_public_service(hgobj gobj, const char *cmd, json_t *k
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     /*
+     *  The id is required. Without it the filter is empty and selects
+     *  every public service: up to 7.29.3 `delete-public-service` with no
+     *  id deleted them all. Checked here, not with SDF_REQUIRED: the
+     *  parser takes a required parameter by position, and refuses the
+     *  `id=X` every caller writes.
+     */
+    if(empty_string(kw_get_str(gobj, kw, "id", "", 0))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: delete-public-service needs an id: without one it selects every public service",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
      *  Get a iter of matched resources.
      */
     json_t *iter = gobj_list_nodes(
@@ -2954,6 +2974,25 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     char *resource = "realms";
 
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+
+    /*
+     *  The id is required. Without it the filter is empty and selects
+     *  every realm: up to 7.29.3 `delete-realm` with no id deleted every
+     *  realm with no yunos. Checked here, not with SDF_REQUIRED: the
+     *  parser takes a required parameter by position, and refuses the
+     *  `id=X` every caller writes.
+     */
+    if(empty_string(kw_get_str(gobj, kw, "id", "", 0))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: delete-realm needs an id: without one it selects every realm",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Get a iter of matched resources.
@@ -3874,6 +3913,26 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     char *resource = "binaries";
 
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+    BOOL record_only = kw_get_bool(gobj, kw, "record_only", 0, KW_WILD_NUMBER);
+
+    /*
+     *  The id is required. Without it the filter is empty and selects
+     *  every binary: up to 7.29.3 `delete-binary force=1` with no id
+     *  deleted them all, those in use too. Checked here, not with
+     *  SDF_REQUIRED: the parser takes a required parameter by position,
+     *  and refuses the `id=X` every caller writes.
+     */
+    if(empty_string(kw_get_str(gobj, kw, "id", "", 0))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: delete-binary needs an id: without one it selects every binary",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Get a iter of matched resources.
@@ -3965,19 +4024,24 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         BOOL with_files = binary_version_dir(
             gobj, destination, sizeof(destination), jn_tags, role, version
         )? TRUE: FALSE;
-        if(!with_files && !force) {
+        if(!with_files && !record_only) {
             /*
              *  Neither the record nor the files: an rmrdir of what a cut
              *  path (or an empty or "." version) names removes an ancestor,
-             *  every version of the role.
+             *  every version of the role. Not force=1: force passes the
+             *  guards above (in use, a snap), and up to 7.29.3 cleaning
+             *  such a record with it deleted it while a yuno used it.
              */
             jn_comment = json_sprintf(
                 "%s: binary '%s' '%s': name refused or repos path too long, not deleted "
-                "(force=1 deletes the record only, its files stay)",
+                "(record_only=1 deletes the record only, its files stay)",
                 gobj_yuno_role_plus_name(), role, version
             );
             result += -1;
             break;
+        }
+        if(record_only) {
+            with_files = FALSE;
         }
 
         if(gobj_delete_node(
@@ -3990,14 +4054,14 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             /*
              *  A record installed by 7.29.3 or older can hold a name
              *  refused now (^, @, spaces, an empty version): it cannot be
-             *  updated, and with force=1 it is deleted. No directory is
-             *  removed: none is exactly its version's.
+             *  updated, and with record_only=1 it is deleted. No directory
+             *  is removed: none is exactly its version's (and record_only=1
+             *  removes none, of any record).
              */
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Binary record deleted with force=1, its files stay: "
-                                      "no safe directory of its version",
+                "msg",          "%s", "Binary record deleted with record_only=1, its files stay",
                 "id",           "%s", role,
                 "version",      "%s", version,
                 NULL
@@ -4022,8 +4086,8 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             jn_comment = json_sprintf("%s", gobj_log_last_message());
         } else if(records_only > 0) {
             jn_comment = json_sprintf(
-                "%s: %d binaries deleted, %d of them the record only: "
-                "no safe directory of its version, remove its files by hand",
+                "%s: %d binaries deleted, %d of them the record only (record_only=1): "
+                "remove its files by hand",
                 gobj_yuno_role_plus_name(), idx, records_only
             );
         } else {
@@ -4412,6 +4476,25 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     char *resource = "configurations";
 
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+
+    /*
+     *  The id is required. Without it the filter is empty and selects
+     *  every configuration: up to 7.29.3 `delete-config force=1` with no
+     *  id deleted them all, those in use too. Checked here, not with
+     *  SDF_REQUIRED: the parser takes a required parameter by position,
+     *  and refuses the `id=X` every caller writes.
+     */
+    if(empty_string(kw_get_str(gobj, kw, "id", "", 0))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: delete-config needs an id: without one it selects every configuration",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Get a iter of matched resources.
@@ -5178,6 +5261,26 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
     char *resource = "yunos";
 
     BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
+
+    /*
+     *  The id is required. Without it the filter is empty and selects
+     *  every yuno: up to 7.29.3 `delete-yuno whole=1` with no id deleted
+     *  every yuno that was not running, and `yuno_release=` alone that
+     *  release of every yuno (a release is two versions, shared). Checked
+     *  here, not with SDF_REQUIRED: the parser takes a required parameter
+     *  by position, and refuses the `id=X` every caller writes.
+     */
+    if(empty_string(kw_get_str(gobj, kw, "id", "", 0))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: delete-yuno needs an id: without one it selects every yuno",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  A yuno_release (the pkey2) targets that exact instance; otherwise the
