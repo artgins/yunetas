@@ -780,33 +780,38 @@ PRIVATE json_t *create_topic_index(
  *  the realm's authz store as a replica had the same directory, the open of
  *  one wiped what the others had pending, and the close of one took the
  *  directory away from the rest. The yuno is the same at each start, so a
- *  restart takes its own directory back, as it did. One that does not fit
- *  `bf` is cut, and said: an id with it is longer than NAME_MAX anyway, and
- *  refused where it is used.
+ *  restart takes its own directory back, as it did.
+ *
+ *  Its parts go straight into the snprintf() of the id (LIST_ID_YUNO_FMT),
+ *  never through a buffer of their own: such a buffer cut a long yuno and
+ *  logged an ERROR at every id built, while the length of the whole id --
+ *  checked where it is used -- is what refuses it.
  ***************************************************************************/
-PRIVATE const char *list_id_yuno(char *bf, size_t bfsize)
+typedef struct {
+    const char *role;
+    const char *caret;
+    const char *name;
+    const char *dash;
+} list_id_yuno_t;
+
+#define LIST_ID_YUNO_FMT        "%s%s%s%s"
+#define LIST_ID_YUNO_ARGS(y)    (y).role, (y).caret, (y).name, (y).dash
+
+PRIVATE list_id_yuno_t list_id_yuno(void)
 {
+    list_id_yuno_t y = {"", "", "", ""};
     const char *role = gobj_yuno_role();
-    const char *name = gobj_yuno_name();
-    int len;
     if(empty_string(role)) {
-        len = snprintf(bf, bfsize, "%s", "");
-    } else if(empty_string(name)) {
-        len = snprintf(bf, bfsize, "%s-", role);
-    } else {
-        len = snprintf(bf, bfsize, "%s^%s-", role, name);
+        return y;
     }
-    if(len < 0 || (size_t)len >= bfsize) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "The yuno in the ids of the lists of a treedb was cut",
-            "role",         "%s", role? role : "",
-            "length",       "%d", len,
-            NULL
-        );
+    y.role = role;
+    y.dash = "-";
+    const char *name = gobj_yuno_name();
+    if(!empty_string(name)) {
+        y.caret = "^";
+        y.name = name;
     }
-    return bf;
+    return y;
 }
 
 /***************************************************************************
@@ -827,11 +832,10 @@ PRIVATE int build_topic_list_id(
     const char *index_key   // the tkey, or the pkey2
 )
 {
-    char yuno[NAME_MAX];
-    list_id_yuno(yuno, sizeof(yuno));
+    list_id_yuno_t yuno = list_id_yuno();
     if(gobj) {
-        return snprintf(bf, bfsize, "treedb-%s%s-%s-%s-%s-%s",
-            yuno,
+        return snprintf(bf, bfsize, "treedb-" LIST_ID_YUNO_FMT "%s-%s-%s-%s-%s",
+            LIST_ID_YUNO_ARGS(yuno),
             gobj_gclass_name(gobj),
             gobj_name(gobj),
             treedb_name,
@@ -839,8 +843,8 @@ PRIVATE int build_topic_list_id(
             index_key
         );
     }
-    return snprintf(bf, bfsize, "treedb-%s%s-%s-%s",
-        yuno,
+    return snprintf(bf, bfsize, "treedb-" LIST_ID_YUNO_FMT "%s-%s-%s",
+        LIST_ID_YUNO_ARGS(yuno),
         treedb_name,
         topic_name,
         index_key
@@ -863,19 +867,18 @@ PRIVATE int build_system_list_id(
     const char *topic_name
 )
 {
-    char yuno[NAME_MAX];
-    list_id_yuno(yuno, sizeof(yuno));
+    list_id_yuno_t yuno = list_id_yuno();
     if(gobj) {
-        return snprintf(bf, bfsize, "treedb-%s%s-%s-%s-%s",
-            yuno,
+        return snprintf(bf, bfsize, "treedb-" LIST_ID_YUNO_FMT "%s-%s-%s-%s",
+            LIST_ID_YUNO_ARGS(yuno),
             gobj_gclass_name(gobj),
             gobj_name(gobj),
             treedb_name,
             topic_name
         );
     }
-    return snprintf(bf, bfsize, "treedb-%s%s-%s",
-        yuno,
+    return snprintf(bf, bfsize, "treedb-" LIST_ID_YUNO_FMT "%s-%s",
+        LIST_ID_YUNO_ARGS(yuno),
         treedb_name,
         topic_name
     );
@@ -896,14 +899,14 @@ PRIVATE BOOL system_list_ids_fit(hgobj gobj, const char *treedb_name)
         char rt_id[2*NAME_MAX];
         int len = build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, system_topics[i]);
         if(len < 0 || len > NAME_MAX) {
-            char yuno[NAME_MAX];
+            list_id_yuno_t yuno = list_id_yuno();
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "treedb name too long for the ids of its lists",
                 "treedb_name",  "%s", treedb_name,
                 "topic_name",   "%s", system_topics[i],
-                "yuno",         "%s", list_id_yuno(yuno, sizeof(yuno)),
+                "yuno",         LIST_ID_YUNO_FMT, LIST_ID_YUNO_ARGS(yuno),
                 "length",       "%d", len,
                 "max",          "%d", NAME_MAX,
                 NULL

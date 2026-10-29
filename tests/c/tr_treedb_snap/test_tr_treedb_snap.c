@@ -32,6 +32,9 @@
  *               the open, with one ERROR: it opened without them, and
  *               with the yuno in the ids (7.28.4) a name of ~100 bytes
  *               was enough in a yuno
+ *           13. the same in a yuno whose role^name does not fit NAME_MAX:
+ *               refused with that ONE ERROR (the yuno part of the ids was
+ *               cut, and every id built logged it as an ERROR of its own)
  *
  *          The reload (treedb_close_db + treedb_open_db) is what
  *          c_agent's restart_nodes() does after toggling the snap flag.
@@ -51,6 +54,7 @@
 #include <yev_loop.h>
 #include <testing.h>
 #include <helpers.h>
+#include <g_st_kernel.h>
 
 #include "schema_sample.c"
 
@@ -743,6 +747,98 @@ PRIVATE int phase_name_too_long_for_the_list_ids(const char *path_root)
     return result;
 }
 
+/***************************************************************************
+ *  A yuno is a gobj created with gobj_create_yuno(): its role is its
+ *  attribute yuno_role, its name the name of the gobj
+ ***************************************************************************/
+#define C_LONG_YUNO "C_LONG_YUNO"
+PRIVATE sdata_desc_t long_yuno_attrs[] = {
+SDATA (DTP_STRING,  "yuno_role",            SDF_RD,     "",     "Role of the yuno"),
+SDATA (DTP_STRING,  "yuno_id",              SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "yuno_tag",             SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "yuno_role_plus_name",  SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "node_owner",           SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "realm_id",             SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "realm_owner",          SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "realm_role",           SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "realm_name",           SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "realm_env",            SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_STRING,  "bind_ip",              SDF_RD,     "",     "Read by gobj_global_variables()"),
+SDATA (DTP_BOOLEAN, "yuno_multiple",        SDF_RD,     "0",    "Read by gobj_global_variables()"),
+SDATA_END()
+};
+PRIVATE const GMETHODS long_yuno_gmt = {0};
+
+PRIVATE int phase_yuno_too_long_for_the_list_ids(const char *path_root)
+{
+    int result = 0;
+    const char *test = "13. a yuno too long for the ids of the lists: one ERROR";
+    const char *DB = "tr_snap_long_yuno";
+    char path_db[PATH_MAX];
+    build_path(path_db, sizeof(path_db), path_root, DB, NULL);
+    rmrdir(path_db);
+
+    ev_action_t st_idle[] = {
+        {0, 0, 0}
+    };
+    states_t states[] = {
+        {ST_IDLE, st_idle},
+        {0, 0}
+    };
+    event_type_t event_types[] = {
+        {0, 0}
+    };
+    if(!gclass_create(C_LONG_YUNO, event_types, states, &long_yuno_gmt, 0,
+            long_yuno_attrs, 0, 0, 0, 0, 0)) {
+        printf("%s  FAIL: gclass_create() of the yuno%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+
+    /*
+     *  "<role>^<name>-" is 262 bytes: it does not fit NAME_MAX, so no id of
+     *  a list with it can. The yuno stays to the end of the test (gobj_end)
+     */
+    char role[201];
+    memset(role, 'r', sizeof(role) - 1);
+    role[sizeof(role) - 1] = 0;
+    char name[61];
+    memset(name, 'n', sizeof(name) - 1);
+    name[sizeof(name) - 1] = 0;
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    hgobj yuno = gobj_create_yuno(name, C_LONG_YUNO, json_pack("{s:s}", "yuno_role", role));
+    if(!yuno) {
+        printf("%s  FAIL: gobj_create_yuno()%s\n", On_Red BWhite, Color_Off);
+        return -1;
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, json_pack("[{s:s}]", "msg", "Creating __timeranger2__.json"), NULL, NULL, 1);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    result += test_json(NULL);
+
+    set_expected_results(test,
+        json_pack("[{s:s}]", "msg", "treedb name too long for the ids of its lists"),
+        NULL, NULL, 1
+    );
+    helper_quote2doublequote(schema_sample);
+    json_t *treedb = treedb_open_db(tranger, "treedb_short", legalstring2json(schema_sample, TRUE), 0);
+    if(treedb) {
+        printf("%s  FAIL: a treedb whose list ids do not fit was opened%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        treedb_close_db(tranger, "treedb_short");
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    rmrdir(path_db);
+
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -835,6 +931,7 @@ PRIVATE int do_test(void)
 
     result += phase_activation_that_cannot_save(path_root);
     result += phase_name_too_long_for_the_list_ids(path_root);
+    result += phase_yuno_too_long_for_the_list_ids(path_root);    // the last: the yuno stays
 
     return result;
 }

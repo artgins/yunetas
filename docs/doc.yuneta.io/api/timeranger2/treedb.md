@@ -2569,23 +2569,35 @@ json_t *treedb = treedb_open_db(tranger, "treedb_items", jn_schema, "persistent"
 // every topic loaded: one record per key read, the links hooked
 ```
 
-**A name too long for the ids of its lists is refused.** The lists of the
-system topics have the id `treedb-<yuno>-<gclass>-<gobj>-<treedb>-__graphs__`
-(and `__snaps__`), and `tranger2_open_list()` refuses one longer than
-`NAME_MAX`. A treedb whose name makes either one longer is refused before
-anything is made, with the ERROR *"treedb name too long for the ids of its
-lists"*, and NULL is returned; up to 7.29.1 it opened without those lists
-(the active snap unknown) and each of its topics was refused. The name is
-in the id once, the yuno and the tranger's gobj too, so in a yuno such as
-`db_history_ce^1620` with the gobj `tranger_<treedb>` of `C_TREEDB` the
-limit is about 100 bytes; a name longer than `NAME_MAX` is refused too (it
-was cut).
+**A name too long for the ids of its system lists is refused.** The lists of
+the system topics have the id
+`treedb-<yuno>-<gclass>-<gobj>-<treedb>-__graphs__` (and `__snaps__`), and
+`tranger2_open_list()` refuses one longer than `NAME_MAX`. A treedb whose name
+makes either one longer is refused before anything is made, with the ERROR
+*"treedb name too long for the ids of its lists"*, and NULL is returned; up to
+7.29.1 it opened without those lists (the active snap unknown) and each of its
+topics was refused. The name is in the id once, the yuno (`<role>^<name>`) and
+the tranger's gobj too, so in a yuno such as `db_history_ce^1620` with the
+gobj `tranger_<treedb>` of `C_TREEDB` the limit is about 100 bytes; a name
+longer than `NAME_MAX` is refused too (it was cut), and so is a treedb opened
+in a yuno whose `<role>^<name>` alone is too long.
 
 ```C
 treedb_open_db(tranger, "treedb_items", jn_schema, 0);   // fits: opened
 treedb_open_db(tranger, name_of_240_bytes, jn_schema, 0);
 // out of a yuno, with no gobj: "treedb-<name>-__graphs__" is 258 bytes, NULL
 ```
+
+The open checks the system lists only. The lists of the topics,
+`treedb-<yuno>-<gclass>-<gobj>-<treedb>-<topic>-<tkey or pkey2>`, are longer
+by the topic and its key, and they are checked topic by topic, as before: a
+NEW topic whose ids do not fit `NAME_MAX` is refused at its create (the ERROR
+*"Topic refused: the id of a list of its indexes is longer than NAME_MAX"*;
+for a topic of the schema given to the open, also the CRITICAL *"Cannot create
+topic of the schema"*, which exits a yuno whose `on_critical_error` exits),
+and the rest of the treedb opens; a topic that is already on disk opens with
+its ids as they always were (cut), so a store that has lived with them keeps
+its topic.
 
 **The `impose` option.** With `"persistent,impose"`, and only on the master,
 `jn_schema` wins over a newer schema on disk too. The rule is the same at both
