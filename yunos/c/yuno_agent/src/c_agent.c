@@ -1256,6 +1256,13 @@ PRIVATE void mt_create(hgobj gobj)
     if(gobj_read_bool_attr(gobj, "use_audit_command_file")) {
         char audit_path[PATH_MAX];
         if(yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", TRUE)) {
+            /*
+             *  exit_on_fail, as the file log of every yuno: an audit file
+             *  that cannot be created or opened stops the agent at start
+             *  (stdout and syslog say why, and its watcher relaunches it
+             *  every 2 s until the cause is fixed). It does not reach the
+             *  ERROR below.
+             */
             priv->audit_file = rotatory_open(
                 audit_path,
                 0,                      // 0 = default 64K
@@ -1268,15 +1275,16 @@ PRIVATE void mt_create(hgobj gobj)
         }
         if(!priv->audit_file) {
             /*
-             *  Up to 7.29.3 the agent went on with no audit of commands
-             *  and said nothing: the path was not built (no root or
-             *  domain dir, the audit dir not created, too long), or the
-             *  file did not open.
+             *  The path was not built (no root or domain dir, the audit
+             *  dir not created, too long): the agent goes on with no
+             *  audit of commands. Up to 7.29.3 it said nothing. (With a
+             *  path, rotatory_open() opens or exits; its only other NULL
+             *  is a rotatory not started up, which entry_point does.)
              */
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Command audit OFF: the audit file cannot be built or opened",
+                "msg",          "%s", "Command audit OFF: the path of the audit file cannot be built",
                 "audit_path",   "%s", audit_path,
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
