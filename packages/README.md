@@ -15,6 +15,7 @@ install glue.
 packages/
 ├── README.md       <- this index
 ├── templates/      <- shared files: agent config samples, agent units, yuneta-node-uuid
+├── install-yuneta-node-uuid.sh <- the node uuid by hand, on a node without the package
 ├── tests/          <- tests of the shared scripts (run them from anywhere)
 ├── deb/            <- Debian packaging (AMD64/ARM32/ARMhf/RISCV64 wrappers)
 └── rpm/            <- RPM packaging (x86_64/aarch64/riscv64 wrappers)
@@ -22,6 +23,8 @@ packages/
 
 `templates/yuneta-node-uuid` writes the node uuid from the hardware (see its
 header); `tests/test-yuneta-node-uuid.sh` checks it against a fake `/sys`.
+`install-yuneta-node-uuid.sh` installs it by hand on a node that builds from
+source and does not take the package (idempotent: run it again to check).
 
 `templates/` is shared by both packagers (referenced by absolute path from
 `$YUNETAS_BASE/packages/templates/`), so it stays at this level rather than

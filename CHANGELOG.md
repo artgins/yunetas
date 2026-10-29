@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **The node uuid by hand, on a node without the package**
+  (`packages/install-yuneta-node-uuid.sh`). A node that builds from source
+  does not install the `.deb`/`.rpm` (it would replace `outputs/` with
+  archives of another glibc), so 7.29.1 left wattyzer, hidraulia, artgins and
+  the dev machine with their random uuid. The script does what the package
+  does -- `/usr/libexec/yuneta/yuneta-node-uuid`, root's, `restorecon` under
+  SELinux; the `ExecStartPre` of both agent units as a drop-in, unless the
+  unit already carries it; `ensure` -- and writes only what differs, so a
+  second run says "Nothing changed" with the same uuid. Run with `-n` it only
+  tells. Checked on the three package nodes (nothing to do, twice) and on a
+  source node.
+- **The packages no longer copy the web servers' runtime state**
+  (`copy_webserver_tree()` in both packagers). `/yuneta/bin/nginx` and
+  `/yuneta/bin/openresty` were copied whole, so the `*_temp` directories
+  nginx leaves (its worker user's, 0700) stopped every build made on a node
+  whose nginx had run: twice on the Orange Pi (`cp: cannot access
+  '/yuneta/bin/nginx/client_body_temp': Permission denied`), worked around
+  each time by opening them by hand. They, the logs (copied only to be
+  deleted: 380 MB on the dev machine) and pid files are left out; nginx
+  creates the `*_temp` ones when it starts, and `logs/` stays, empty.
+
 ## v7.29.1 (2026-10-28)
 
 The node uuid comes from the hardware, and the SDK builds on riscv64. A

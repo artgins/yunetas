@@ -159,9 +159,35 @@ copy_tree() {
     fi
 }
 
+#
+#   The web servers WITHOUT what running them left behind: the *_temp
+#   directories (nginx's, owned by its worker user and 0700, so a copy by
+#   anyone else dies on them: it did twice, building on an Orange Pi), the
+#   logs (the build machine's own, hundreds of MB, that were copied only to
+#   be deleted) and pid files.  The logs directory itself stays, empty:
+#   nginx opens its error log there before it reads the conf.  The *_temp
+#   ones nginx creates when it starts.
+#
+copy_webserver_tree() {
+    local src="$1" dst_base="$2"
+    if [ -d "$src" ]; then
+        echo "[i] Copying $(basename "$src") -> ${dst_base} (without *_temp, logs, pids)"
+        tar -C "$(dirname "$src")" --dereference \
+            --exclude='*_temp' --exclude='*/logs/*' --exclude='*.pid' \
+            -cf - "$(basename "$src")" | tar -C "$dst_base" -xpf -
+        local rc=("${PIPESTATUS[@]}")   # Read at once: the next command resets it
+        if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+            echo "[-] Cannot copy $src" >&2
+            exit 2
+        fi
+    else
+        echo "[!] Skipping missing dir: $src"
+    fi
+}
+
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
+copy_webserver_tree "/yuneta/bin/nginx"         "${WORKDIR}/yuneta/bin"
+copy_webserver_tree "/yuneta/bin/openresty"     "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
 # Sparse SDK tree: same YUNETAS_BASE path as a full source checkout, so
 # outputs/ lives at /yuneta/development/yunetas/outputs on EVERY node.
@@ -207,14 +233,12 @@ install -D -m 0644 "${YUNETAS_BASE}/THIRD-PARTY-NOTICES"  "${WORKDIR}/usr/share/
 rm -f "${WORKDIR}"/yuneta/development/yunetas/outputs/yunos/stress_* \
       "${WORKDIR}"/yuneta/development/yunetas/outputs/bin/stress_*
 
-rm -f "${WORKDIR}"/yuneta/bin/nginx/logs/* 2>/dev/null || true
-rm -f "${WORKDIR}"/yuneta/bin/openresty/nginx/logs/* 2>/dev/null || true
-
 #
 #   The web server configuration belongs to the NODE, not to the builder.
 #
-#   copy_tree ships /yuneta/bin/nginx wholesale, so without this the package
-#   carried the BUILD machine's nginx.conf and conf.d/ vhosts — and since
+#   copy_webserver_tree ships /yuneta/bin/nginx whole but for its runtime
+#   state, so without this the package carried the BUILD machine's
+#   nginx.conf and conf.d/ vhosts — and since
 #   neither lives under /etc, where the conffiles are declared, dpkg
 #   overwrote the node's own configuration on every upgrade, silently.
 #

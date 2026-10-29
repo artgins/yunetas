@@ -386,6 +386,19 @@ its first boot. `random` means that no identifier was readable: the node
 works, but a reinstall gives it a new identity. See
 [`node_uuid()`](api/helpers/misc.md#node_uuid).
 
+A node that builds from source does not install the package, so it keeps the
+random uuid until it is given the script by hand, from its checkout:
+
+```bash
+sudo packages/install-yuneta-node-uuid.sh -n   # what it would do
+sudo packages/install-yuneta-node-uuid.sh      # install, and the uuid
+```
+
+It does what the package does (the script, root's, and the `ExecStartPre` of
+both agent units, as a drop-in) and only what differs, so a second run says
+*"Nothing changed"* with the same uuid: that is also how to check any node,
+with the package or without it.
+
 If the node must **build** software, do the glibc-stamp test above too.
 
 One result looks like a fault and is correct: on RHEL,
