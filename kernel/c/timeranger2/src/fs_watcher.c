@@ -1174,7 +1174,8 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                  *  key-delete signal) is gone when its IN_CREATE is read:
                  *  there is nothing to watch, and its parent reports the
                  *  removal. A path that does not fit is not watched
-                 *  (build_path() logs it): cut, it was the parent.
+                 *  (build_path() logs it): cut by snprintf() up to 7.29.3,
+                 *  it named another entry, one whose name starts the same.
                  */
                 if(build_path(full_path, sizeof(full_path), path, filename, NULL) &&
                         is_directory(full_path)) {
@@ -1199,7 +1200,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                  */
                 if(build_path(full_path, sizeof(full_path), path, filename, NULL)) {
                     close_dir_fd_of_gone(fs_event, full_path);
-                }   // else Error already logged: a cut path is the parent, its descriptor stays
+                }   // else Error already logged: nothing is closed for a path that does not fit
 
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
