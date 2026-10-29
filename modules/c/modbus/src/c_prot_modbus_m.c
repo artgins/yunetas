@@ -4019,7 +4019,7 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(!send_request(gobj)) {
         if(next_map(gobj)<0) {
             /*
-             *  NO map or end of cycle, wait timeout_polling
+             *  NO map or end of cycle: after a timeout, wait timeout_response
              */
             set_timeout(priv->gobj_timer, priv->timeout_response*1000);
         } else {

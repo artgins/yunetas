@@ -42,20 +42,6 @@ Severity in parentheses where one was assigned.
   not come. Log: `LastTest.wattyzer-7.27.7.log`, `test_c_fs` section, kept in
   the release notes of 7.27.7.
 
-- **`check_doc_line_refs.py --repin` pins a performance report to its own
-  tag, and a report redone after its release is not in that tag** (found at
-  the 7.27.7 repin). The rule of 2026-10-22 redid the reports of 7.27.5 and
-  7.26.9 on `main`. `performance/reports/7.27.5.*` is in no tag, so the
-  link answers 404. The `7.26.9` tag holds the OLD report, so the link shows
-  the replaced study. The repin rewrote both rows of
-  `docs/doc.yuneta.io/performance.md` to their own tag. The rows were set
-  back to `blob/main` by hand, and the guard now flags them as a moving ref.
-  Fix the script: pin a report link to the first tag that holds the CURRENT
-  version of the file (e.g. compare `git rev-parse <tag>:<path>` with
-  `HEAD:<path>`). Until a tag holds the file, keep `main` without a finding.
-  The same gap applies to the `blob/<tag>` of `performance/reports/README.md`
-  and `performance/c/README.md`: pinned to 7.27.7, they do not list the
-  redone studies.
 - **timeranger2 reads a date of text as NOW, in silence** (found at 7.28.9).
   The string bounds of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`,
   in `timeranger2.c`) and a string tkey (`tkey_time_of_value()`) are read
@@ -295,15 +281,6 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ### timeranger2 and C_TRANGER
 
-- **Cache `process_start_time()` once per process (next release).** A forced
-  treedb delete costs +21% of CPU since 7.27.6 (43.6 -> 52.8 us, study of
-  7.27.7). Each deleted key is moved out of `keys/` to
-  `.deleted_key.<pid>.<start>.<n>`, and `process_start_time()` reads
-  `/proc/self/stat` at EVERY delete to build that name. The start time of a
-  process does not change, so read it once. An attribution build that did
-  this ran the delete in 47.7 us: about 5 us of the 9 us come back. The
-  other 4 us are the `rename()` itself, and that is the price of the fix.
-  Verify with an A/B against 7.27.7 (`perf_tr_treedb`, the forced delete).
 - **A replica pays about 1 us per iterator open and per page for
   `check_purge_before_read()`** (since 7.27.5, `83a771089`; study of 7.27.5
   against 7.27.0). A page of 1 row: 5.25 -> 6.20 us (+18%); a filtered page

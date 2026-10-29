@@ -95,7 +95,9 @@ On `EV_CONNECTED` the master publishes `EV_ON_OPEN` and polls 1 s later. A
 cycle reads each block of each slave in order, one request at a time; a
 response, an exception or `timeout_response` moves it to the next block.
 After the last block of the last slave it publishes, and the next cycle starts
-`timeout_polling` later. On `EV_DISCONNECTED` it publishes `EV_ON_CLOSE`; a
+`timeout_polling` later. When the last request of a cycle ends in a timeout,
+the next cycle starts `timeout_response` later instead: a slave that did not
+answer is given that time again before it is polled. On `EV_DISCONNECTED` it publishes `EV_ON_CLOSE`; a
 `C_TCP` reconnects on its own.
 
 ### What a message carries

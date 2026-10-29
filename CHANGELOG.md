@@ -377,8 +377,9 @@ t = -1.9, noise ([performance](https://doc.yuneta.io/performance)).
   could not take it came back as the START of the json, without a word. The
   ievent layer sent it, the peer refused the frame (*"frame is not json"*)
   and dropped the channel, and the log of the yuno that sent it said
-  nothing. The contract is the same (the gbuffer still comes back; no caller
-  checks for NULL); the api page said it returned NULL on error, which it
+  nothing. The contract is the same (the gbuffer still comes back; the two
+  callers that check for NULL, `c_prot_tcp4h.c` among them, never see one
+  from a failed dump); the api page said it returned NULL on error, which it
   never did. Cases added to `gbuffer/test_gbuffer_guards`.
 - **The machine trace indents four spaces per nesting level**, not two
   (`tab()` in `gobj.c`). An event sent from inside another one's action now
@@ -944,6 +945,11 @@ only: 329/329 after a clean build, under `ulimit -Sn 1024`.
       clock (RFC 6455 §5.3).
     - timeranger2 logs a NULL file id, and a file name cut at the size of
       its buffer, where `snprintf()` wrote `(null)` or cut it in silence.
+    - **A deleted key no longer reads `/proc/self/stat`**: the start time
+      of the process, which names the directory a deleted key is moved to,
+      is read once per pid (`f4cd569`). It was about 5 us of the 52 us of a
+      forced treedb delete in the study of 7.27.7. (This line was added
+      after the release; the change shipped in 7.28.0.)
 - **The web console (gui_agent 1.0.5, 1.0.6)** reads the queue of a gate
   where it is, and a click on a card of a scenario's graph highlights it,
   the cards linked to it and their links (its own CHANGELOG in `yunos/js`).
@@ -3699,15 +3705,15 @@ What a user of the SDK has to know:
   refusal, after the permission check, never before it.
 - A use after free in the consoles of both agents.
 
-Performance against 7.26.8 (`performance/reports/7.26.9.html`; each release
-built from its own tree, run alternately, 8 rounds, 24 for the timeranger2
-tests): a treedb link or unlink -12.0% of time (8.72 -> 7.67 us), deleting a
-parent -8.7%, a reopen -6.2%, a forced delete -3.9% -- the names looked up by
-key. One price: the event loop echo that appends every message
-(`perf_yev_ping_pong2`) -3.9% (87.6 -> 84.2 K msg/s, t = 3.6); the appends
-alone -1.5% (t = 2.3), at the edge of their noise. No code of that path
-changed and the perf profiles of the two binaries agree: not traced to a
-change, said as measured. Every other figure within its noise.
+Performance against 7.26.0, the last release with a study
+(`performance/reports/7.26.9.html`, redone on 2026-10-22; it replaces the
+study made at the tag against 7.26.8): a treedb link or unlink -12.2% of time
+(8.59 -> 7.54 us), deleting a parent -10.1%, an open -9.2% per node, a forced
+delete -3.7% -- the names looked up by key. Prices: the first open of 40
+treedbs +6.7% (the `__icons__` system topic, from 7.26.7, a one-time cost),
+600,000 appends to one key +4.1% (about 0.11 us per append, the hardened kw
+calls). The event loop echo the first study could not trace is not there
+against 7.26.0 (-0.2%). Every other figure within its noise.
 
 - **fix: `kw_get_dict()`, `kw_get_list()`, `kw_get_dict_value()` and
   `kw_get_subdict_value()` with `KW_CREATE` returned FREED memory when the
