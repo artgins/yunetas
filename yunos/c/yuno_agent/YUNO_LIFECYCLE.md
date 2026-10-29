@@ -209,11 +209,26 @@ Registered in the agent's command table. Yuno + binary + config commands only
 
 | Command           | Effect                                                                  |
 |-------------------|-------------------------------------------------------------------------|
-| `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. |
+| `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. The `id`, the role and version the binary prints, and every tag are **safe names**: only `[A-Za-z0-9._-]`, not empty, not starting with `.`, no `..` (they name `/yuneta/repos/<tags>/<role>/<version>`, and `build_path()` drops a `.` segment, so a version `.` named the role's own directory). `update-binary` and `delete-binary` apply the same rule. |
 | `update-binary`   | Same as install but **overwrites** the row and file of the `(role, version)` the binary declares, which must be installed; a version that is not, or a binary of another role, is refused (use `install-binary`). Up to 7.28.9 it overwrote the PRIMARY row, whatever version it was sent. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete). Without it, the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`). `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir). |
+| `delete-binary`   | Pass `version=` to durably prune one installed version (per-instance delete). Without it, the primary. Refuses if a yuno on **that** version still references it (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`). `force=1` overrides. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir) of `/yuneta/repos/<tags>/<role>/<version>`. A record with a name that is not a safe name (one installed by 7.29.3 or older: a `^`, `@`, a space, an empty version) is refused, record and files; with `force=1` its **record** is deleted, a WARNING is logged, and no directory is removed (none is exactly its version's): remove its files by hand. See the example below the table. |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
+
+Clean up a binary record with a name that is not a safe name. Such a record
+cannot be updated, and `delete-binary` without `force=1` refuses it:
+
+```bash
+ycommand -c 'list-binaries-instances'                       # find the record
+ycommand -c 'delete-binary id=my_role version=1.0.0^old force=1'
+# -> "yuneta_agent^<node>: 1 binaries deleted, 1 of them the record only:
+#    no safe directory of its version, remove its files by hand"
+ls /yuneta/repos/*/my_role/                                  # then remove them
+```
+
+A record with an **empty** version has no row in the version index, so
+`version=` cannot select it. Select it with `id=` alone: it is the primary of
+its id. `force=1` also deletes a binary that yunos use or a snap tags.
 
 ### Configurations
 

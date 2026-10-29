@@ -82,6 +82,14 @@ PRIVATE char *yuneta_repos_yuno_file(
     BOOL create
 );
 PRIVATE BOOL is_safe_binary_name(hgobj gobj, const char *what, const char *name);
+PRIVATE char *binary_version_dir(
+    hgobj gobj,
+    char *bf,
+    int bfsize,
+    json_t *jn_tags, // not owned
+    const char *role,
+    const char *version
+);
 PRIVATE json_t *get_yuno_realm(hgobj gobj, json_t *yuno);
 PRIVATE char * build_yuno_private_domain(hgobj gobj, json_t *yuno, char *bf, int bfsize);
 PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno);
@@ -703,7 +711,7 @@ PRIVATE sdata_desc_t pm_delete_binary[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "Binary version; if given, delete that exact instance (else the primary)"),
-SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete: in use, tagged by a snap, or a record with an unsafe name (its record only)"),
 SDATA_END()
 };
 
@@ -1247,16 +1255,34 @@ PRIVATE void mt_create(hgobj gobj)
      *-----------------------------*/
     if(gobj_read_bool_attr(gobj, "use_audit_command_file")) {
         char audit_path[PATH_MAX];
-        yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", TRUE);
-        priv->audit_file = rotatory_open(
-            audit_path,
-            0,                      // 0 = default 64K
-            gobj_read_integer_attr(gobj, "max_megas_audit_file"), // 0 = default 8
-            gobj_read_integer_attr(gobj, "min_free_disk_percentage"), // 0 = default 10
-            yuneta_xpermission(),   // permission for directories and executable files. 0 = default 02775
-            0660,                   // permission for regular files. 0 = default 0664
-            TRUE
-        );
+        if(yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", TRUE)) {
+            priv->audit_file = rotatory_open(
+                audit_path,
+                0,                      // 0 = default 64K
+                gobj_read_integer_attr(gobj, "max_megas_audit_file"), // 0 = default 8
+                gobj_read_integer_attr(gobj, "min_free_disk_percentage"), // 0 = default 10
+                yuneta_xpermission(),   // permission for directories and executable files. 0 = default 02775
+                0660,                   // permission for regular files. 0 = default 0664
+                TRUE
+            );
+        }
+        if(!priv->audit_file) {
+            /*
+             *  Up to 7.29.3 the agent went on with no audit of commands
+             *  and said nothing: the path was not built (no root or
+             *  domain dir, the audit dir not created, too long), or the
+             *  file did not open.
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Command audit OFF: the audit file cannot be built or opened",
+                "audit_path",   "%s", audit_path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
         if(priv->audit_file) {
             priv->audit_tty_bursts = json_object();
             rotatory_keep_all_old_files(priv->audit_file, TRUE);   // a size rotation deletes no audit
@@ -3183,7 +3209,9 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: invalid 'id': only [A-Za-z0-9._-] allowed, no '..'",
+            json_sprintf(
+                "%s: invalid 'id': only [A-Za-z0-9._-] allowed, "
+                "not starting with '.', no '..'",
                 gobj_yuno_role_plus_name()
             ),
             0,
@@ -3262,7 +3290,8 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     if(!is_safe_binary_name(gobj, "role", binary_role) ||
             !is_safe_binary_name(gobj, "version", binary_version)) {
         json_t *comment = json_sprintf(
-            "%s: the binary says role '%s' version '%s': only [A-Za-z0-9._-] allowed, no '..'",
+            "%s: the binary says role '%s' version '%s': only [A-Za-z0-9._-] allowed, "
+            "not starting with '.', no '..'",
             gobj_yuno_role_plus_name(), binary_role? binary_role: "", binary_version
         );
         JSON_DECREF(jn_basic_info);
@@ -3494,7 +3523,8 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
     if(!is_safe_binary_name(gobj, "id", role)) {
         json_t *comment = json_sprintf(
-            "%s: invalid binary id '%s': only [A-Za-z0-9._-] allowed, no '..'",
+            "%s: invalid binary id '%s': only [A-Za-z0-9._-] allowed, "
+            "not starting with '.', no '..'",
             gobj_yuno_role_plus_name(), role
         );
         json_decref(node);  // after the comment: `role` is in it
@@ -3916,6 +3946,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  Delete
      */
     int result = 0;
+    int records_only = 0;
     json_t *jn_comment = 0;
     json_t *jn_data = json_array();
     json_array_foreach(iter, idx, node) {
@@ -3923,23 +3954,18 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
         const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
         char destination[PATH_MAX];
-        if(!is_safe_binary_name(gobj, "id", role) ||
-                !is_safe_binary_name(gobj, "version", version) ||
-                !yuneta_repos_yuno_dir(
-                    destination,
-                    sizeof(destination),
-                    jn_tags,
-                    role,
-                    version,
-                    FALSE
-                )) {
+        BOOL with_files = binary_version_dir(
+            gobj, destination, sizeof(destination), jn_tags, role, version
+        )? TRUE: FALSE;
+        if(!with_files && !force) {
             /*
              *  Neither the record nor the files: an rmrdir of what a cut
-             *  path (or an empty version) names removes an ancestor, every
-             *  version of the role.
+             *  path (or an empty or "." version) names removes an ancestor,
+             *  every version of the role.
              */
             jn_comment = json_sprintf(
-                "%s: binary '%s' '%s': name refused or repos path too long, not deleted",
+                "%s: binary '%s' '%s': name refused or repos path too long, not deleted "
+                "(force=1 deletes the record only, its files stay)",
                 gobj_yuno_role_plus_name(), role, version
             );
             result += -1;
@@ -3950,6 +3976,26 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             result += -1;
             break;
+        }
+
+        if(!with_files) {
+            /*
+             *  A record installed by 7.29.3 or older can hold a name
+             *  refused now (^, @, spaces, an empty version): it cannot be
+             *  updated, and with force=1 it is deleted. No directory is
+             *  removed: none is exactly its version's.
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Binary record deleted with force=1, its files stay: "
+                                      "no safe directory of its version",
+                "id",           "%s", role,
+                "version",      "%s", version,
+                NULL
+            );
+            records_only++;
+            continue;
         }
         json_array_append_new(jn_data, json_string(destination));
 
@@ -3964,9 +4010,17 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     JSON_DECREF(iter)
 
     if(!jn_comment) {
-        jn_comment = result<0?
-            json_sprintf("%s", gobj_log_last_message()):
-            json_sprintf("%d binaries deleted", idx);
+        if(result < 0) {
+            jn_comment = json_sprintf("%s", gobj_log_last_message());
+        } else if(records_only > 0) {
+            jn_comment = json_sprintf(
+                "%s: %d binaries deleted, %d of them the record only: "
+                "no safe directory of its version, remove its files by hand",
+                gobj_yuno_role_plus_name(), idx, records_only
+            );
+        } else {
+            jn_comment = json_sprintf("%d binaries deleted", idx);
+        }
     }
     return msg_iev_build_response(
         gobj,
@@ -8475,22 +8529,40 @@ PRIVATE int exec_startup_command(hgobj gobj)
 }
 
 /***************************************************************************
- *
+ *  role^name of a yuno: the name of its run script and of its
+ *  configuration files. One that does not fit is refused (-1, logged, bf
+ *  empty): up to 7.29.3 it was cut, and the files of the yuno were written
+ *  under the cut name.
  ***************************************************************************/
 PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno)
 {
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
 
+    int n;
     if(empty_string(yuno_name)) {
-        snprintf(bf, bf_len, "%s",
+        n = snprintf(bf, bf_len, "%s",
             yuno_role
         );
     } else {
-        snprintf(bf, bf_len, "%s^%s",
+        n = snprintf(bf, bf_len, "%s^%s",
             yuno_role,
             yuno_name
         );
+    }
+    if(n < 0 || n >= bf_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "role^name of a yuno too long for a file name",
+            "yuno_role",    "%s", yuno_role,
+            "yuno_name",    "%s", yuno_name,
+            NULL
+        );
+        if(bf_len > 0) {
+            *bf = 0;
+        }
+        return -1;
     }
     return 0;
 }
@@ -8536,17 +8608,24 @@ PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno)
  *  A name of a binary (its id/role, its version, a tag): one directory or
  *  file name of /yuneta/repos/<tags>/<role>/<version>, and part of the
  *  temporary file that yuno_basic_information() runs through the shell.
- *  Only [A-Za-z0-9._-], not empty, no "..". Logged when refused.
+ *  Only [A-Za-z0-9._-], not empty, not starting with '.', no "..".
+ *  Logged when refused.
+ *
+ *  build_path() drops a "." segment: a version "." named the role's own
+ *  directory (a delete-binary of that record removed every version), a
+ *  role "." the directory of the tags, where other roles live.
  ***************************************************************************/
 PRIVATE BOOL is_safe_binary_name(hgobj gobj, const char *what, const char *name)
 {
     static const char allowed[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
-    if(empty_string(name) || strspn(name, allowed) != strlen(name) || strstr(name, "..")) {
+    if(empty_string(name) || name[0] == '.' ||
+            strspn(name, allowed) != strlen(name) || strstr(name, "..")) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Binary name refused: only [A-Za-z0-9._-], not empty, no '..'",
+            "msg",          "%s", "Binary name refused: only [A-Za-z0-9._-], not empty, "
+                                  "not starting with '.', no '..'",
             "what",         "%s", what,
             "name",         "%s", name? name: "",
             NULL
@@ -8710,6 +8789,33 @@ PRIVATE char *yuneta_repos_yuno_file(
         return 0;   // Error already logged
     }
     return bf;
+}
+
+/***************************************************************************
+ *  The directory of ONE version of a binary record,
+ *  /yuneta/repos/<tags>/<role>/<version>, or NULL (logged, bf empty) when
+ *  a name of the record is refused or the path does not fit. Never a
+ *  shorter path: a "." or an empty name dropped, or a path cut, names an
+ *  ANCESTOR -- every version of the role, or other roles.
+ ***************************************************************************/
+PRIVATE char *binary_version_dir(
+    hgobj gobj,
+    char *bf,
+    int bfsize,
+    json_t *jn_tags, // not owned
+    const char *role,
+    const char *version
+)
+{
+    if(!is_safe_binary_name(gobj, "id", role) ||
+            !is_safe_binary_name(gobj, "version", version)) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
+    /*
+     *  The tags are checked by multiple_dir() with the same rule
+     */
+    return yuneta_repos_yuno_dir(bf, bfsize, jn_tags, role, version, FALSE);
 }
 
 /***************************************************************************
@@ -9395,7 +9501,11 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     }
     const char *binary_path = kw_get_str(gobj, binary, "binary", "", KW_REQUIRED);
     char role_plus_name[NAME_MAX];
-    build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
+    if(build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno) < 0) {
+        json_decref(hs_realm);
+        json_decref(binary);
+        return 0;   // Error already logged
+    }
 
     /*
      *  Build the run script
@@ -10015,7 +10125,10 @@ PRIVATE int run_yuno(
     }
 
     char role_plus_name[NAME_MAX];
-    build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
+    if(build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno) < 0) {
+        gbuffer_decref(gbuf_sh);
+        return -1;  // Error already logged
+    }
 
     char script_name[NAME_MAX];
     char script_path[PATH_MAX];
@@ -11203,8 +11316,8 @@ PRIVATE int restart_nodes(hgobj gobj, BOOL all)
             );
             char bin_path[PATH_MAX];
             char role_plus_name[NAME_MAX];
-            build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
-            if(build_yuno_bin_path(gobj, yuno, bin_path, sizeof(bin_path), FALSE)) {
+            if(build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno) == 0 &&
+                    build_yuno_bin_path(gobj, yuno, bin_path, sizeof(bin_path), FALSE)) {
                 // Without a signature the yuno counts as changed: restarted
                 json_t *jn_launched = yuno_launched_signature(gobj, bin_path, role_plus_name);
                 if(jn_launched) {

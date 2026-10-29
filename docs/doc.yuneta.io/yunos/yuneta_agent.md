@@ -120,6 +120,10 @@ not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
 
 The agent writes every command that it runs to a daily audit file in
 `/yuneta/realms/agent/agent/audit/` (`use_audit_command_file`, on by default).
+If the agent cannot build or open that file at start, it runs with no audit
+of commands and logs one ERROR, *"Command audit OFF: the audit file cannot be
+built or opened"*, with the path and the errno (up to 7.29.3 it said
+nothing).
 
 - A read-only command (`list-*`, `view-*`, `stats`, `nodes`, `help`, …) is
   recorded with the command, the date and the user only. A command with a
