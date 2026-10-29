@@ -34,6 +34,13 @@
  *                        client puts in the kw of the check does not bring
  *                        the permissions of another service into this one
  *                        (it did up to 7.29.1)
+ *            9. kw_scoped, kw_denier  a scope on `kw` of __execute_command__
+ *                        (declared, but a json: the request as the client
+ *                        sends it, read before its parameters) is not a
+ *                        value to scope on: the grant is left out and the
+ *                        deny applies to all, with an error. Up to 7.29.1
+ *                        the grant held when the client sent exactly that
+ *                        kw, and the deny never applied to another one
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
  *          users seeded by initial_load. The checks ask the permissions of
@@ -189,6 +196,28 @@ PRIVATE char variable_config[]= "\
                             'parent_role_id': 'roles^outsider^roles' \n\
                         },                                          \n\
                         {                                           \n\
+                            'id': 'kw_scoped',                      \n\
+                            'description': 'a scope on the json kw', \n\
+                            'realm_id': '*',                        \n\
+                            'service': 'checked',                   \n\
+                            'permission': '__execute_command__',    \n\
+                            'parameters': {'kw': {'id': 'x'}}       \n\
+                        },                                          \n\
+                        {                                           \n\
+                            'id': 'kw_denier',                      \n\
+                            'description': 'a deny on the json kw', \n\
+                            'realm_id': '*',                        \n\
+                            'service': 'checked',                   \n\
+                            'permission': '__execute_command__',    \n\
+                            'permissions': [                        \n\
+                                {                                   \n\
+                                    'permission': '__execute_command__', \n\
+                                    'deny': true,                   \n\
+                                    'parameters': {'kw': {'id': 'x'}} \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        },                                          \n\
+                        {                                           \n\
                             'id': 'broken',                         \n\
                             'description': 'a scope not a dict',    \n\
                             'realm_id': '*',                        \n\
@@ -208,6 +237,8 @@ PRIVATE char variable_config[]= "\
                         {'id': 'denier', 'roles': ['roles^denier^users']}, \n\
                         {'id': 'undeclared', 'roles': ['roles^undeclared^users']}, \n\
                         {'id': 'outsider', 'roles': ['roles^outsider^users']}, \n\
+                        {'id': 'kw_scoped', 'roles': ['roles^kw_scoped^users']}, \n\
+                        {'id': 'kw_denier', 'roles': ['roles^kw_denier^users']}, \n\
                         {'id': 'broken', 'roles': ['roles^broken^users']}  \n\
                     ]                                               \n\
                 }                                                   \n\
@@ -320,6 +351,27 @@ PRIVATE void run_checks(hgobj gobj)
     );
     check_int("outsider run-scenarios s2, required_services in the kw",
         gobj_user_has_authz(gobj, "run-scenarios", kw, gobj)? 1 : 0, 0);
+
+    /*  9  */
+    errors0 = s_errors;
+    kw = json_pack("{s:s, s:s, s:{s:s}}",
+        "__username__", "kw_scoped",
+        "command", "stats",
+        "kw", "id", "x"
+    );
+    check_int("kw_scoped __execute_command__, the kw of its scope",
+        gobj_user_has_authz(gobj, "__execute_command__", kw, gobj)? 1 : 0, 0);
+    check_int("a scope on the json kw logs one error", s_errors - errors0, 1);
+
+    errors0 = s_errors;
+    kw = json_pack("{s:s, s:s, s:{s:s}}",
+        "__username__", "kw_denier",
+        "command", "stats",
+        "kw", "id", "y"
+    );
+    check_int("kw_denier __execute_command__, a kw out of its deny",
+        gobj_user_has_authz(gobj, "__execute_command__", kw, gobj)? 1 : 0, 0);
+    check_int("a deny on the json kw logs one error", s_errors - errors0, 1);
 }
 
 /***************************************************************

@@ -20,8 +20,11 @@
  *          `items` of its SDATAAUTHZ (its `parameters` in `authzs`), which
  *          say the service builds those keys of the kw itself, from what
  *          it acts on. Any other key could come from the client: a scope
- *          on it grants nothing and denies all, and logs an error. An entry of `permissions` may carry its own
- *          `parameters`, which replace the role's for that entry:
+ *          on it grants nothing and denies all, and logs an error. So
+ *          does a scope on a declared key that is not a value (a json):
+ *          the `kw` of the global authzs is the client's request. An
+ *          entry of `permissions` may carry its own `parameters`, which
+ *          replace the role's for that entry:
  *              {"id": "renfe-viewer", "service": "controlcenter",
  *               "realm_id": "...", "permission": "read-scenarios",
  *               "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}}
@@ -4071,20 +4074,39 @@ PRIVATE BOOL grant_is_asked(const char *permission, const char *authz)
 }
 
 /***************************************************************************
- *  Does the permission asked declare `key` among its parameters (the
- *  `items` of its SDATAAUTHZ)? Only those keys does the service build
- *  itself; a scope on any other could be answered by the client.
+ *  The parameter `key` of the permission asked (an item of the `items` of
+ *  its SDATAAUTHZ), or NULL when it does not declare it. Only those keys
+ *  does the service build itself; a scope on any other could be answered
+ *  by the client.
  ***************************************************************************/
-PRIVATE BOOL scope_key_declared(json_t *declared, const char *key)
+PRIVATE json_t *scope_key_declared(json_t *declared, const char *key)
 {
     size_t idx; json_t *jn_param;
     json_array_foreach(declared, idx, jn_param) {
         const char *id = json_string_value(json_object_get(jn_param, "id"));
         if(id && strcmp(id, key)==0) {
-            return TRUE;
+            return jn_param;
         }
     }
-    return FALSE;
+    return NULL;
+}
+
+/***************************************************************************
+ *  Is a declared parameter a VALUE a scope can name? A string, a number
+ *  or a boolean is. A json, a dict or a list is not: the one such key
+ *  declared is the `kw` of the global authzs (__execute_command__,
+ *  __inject_event__, __subscribe_event__, the stats ones), which is the
+ *  request as the client sends it -- for a command, read BEFORE its
+ *  parameters, so not what the command executes.
+ ***************************************************************************/
+PRIVATE BOOL scope_key_is_a_value(json_t *jn_param)
+{
+    const char *type = json_string_value(json_object_get(jn_param, "type"));
+    if(!type) {
+        return FALSE;
+    }
+    return strcmp(type, "string")==0 || strcmp(type, "integer")==0 ||
+        strcmp(type, "real")==0 || strcmp(type, "boolean")==0;
 }
 
 /***************************************************************************
@@ -4124,13 +4146,27 @@ PRIVATE BOOL kw_in_scope(
 
     const char *key; json_t *allowed;
     json_object_foreach(parameters, key, allowed) {
-        if(!scope_key_declared(declared, key)) {
+        json_t *jn_declared = scope_key_declared(declared, key);
+        if(!jn_declared) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", deny?
                     "a role scopes a permission on a key it does not declare: its deny applies to all" :
                     "a role scopes a permission on a key it does not declare: its grant is left out",
+                "role",         "%s", kw_get_str(gobj, role, "id", "", 0),
+                "key",          "%s", key,
+                NULL
+            );
+            return deny;
+        }
+        if(!scope_key_is_a_value(jn_declared)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", deny?
+                    "a role scopes a permission on a key that is not a value (the request the client sends): its deny applies to all" :
+                    "a role scopes a permission on a key that is not a value (the request the client sends): its grant is left out",
                 "role",         "%s", kw_get_str(gobj, role, "id", "", 0),
                 "key",          "%s", key,
                 NULL

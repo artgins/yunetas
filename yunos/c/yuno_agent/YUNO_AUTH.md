@@ -478,6 +478,20 @@ the permission does not declare may come from the client's own kw -- a
 client that puts the scoped key beside a request for something else would
 answer the check for it -- so a scope on it grants nothing, denies all, and
 logs an ERROR (*"a role scopes a permission on a key it does not declare"*).
+A declared key must also be a VALUE (a string, a number, a boolean): the one
+json key declared, the `kw` of the global authzs (`__execute_command__`,
+`__inject_event__`, `__subscribe_event__`, `__read_stats__`,
+`__reset_stats__`), is the request as the client sends it -- for a command,
+read before its parameters, so not what the command executes. A scope on it
+also grants nothing, denies all, and logs an ERROR (*"a role scopes a
+permission on a key that is not a value"*). Up to 7.29.1 it was compared whole:
+a grant held only when the client sent exactly that kw, and a deny never
+applied to any other one. Scope `__execute_command__` on `command`, which the
+parser builds from the command it found:
+
+```json
+{"permission": "__execute_command__", "parameters": {"command": ["list-yunos", "stats"]}}
+```
 Declaring a key is a promise: the service checks that permission with a kw it
 BUILDS from the thing it acts on, never with the client's. The control center
 declares `scenario_id` for its three scenario permissions and asks them with
