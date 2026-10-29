@@ -22,6 +22,11 @@
 #   dropped it); a destination path longer than PATH_MAX is an error that
 #   says so (the truncated path was used).
 #
+#   And one after 7.29.2: a symlink to another symlink gets the name of
+#   that link, which keeps its name, never the suffix of the file at the
+#   end of the chain (ymake-skeleton left run2.link -> run.link_tmpl
+#   dangling in the template).
+#
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
 #
@@ -115,6 +120,7 @@ printf '#!/bin/sh\necho sktcln\n' > "$SRC/run_sktcln.sh"
 chmod 0755 "$SRC/run_sktcln.sh"
 ln -s README.md "$SRC/README.link"
 ln -s run_sktcln.sh "$SRC/run.link"
+ln -s run.link "$SRC/run2.link"
 mkdir -p "$SRC/sktroot_data"
 printf 'data of sktroot\n' > "$SRC/sktroot_data/sktroot.txt"
 
@@ -137,6 +143,8 @@ if [ -d "$DST" ]; then
     [ "$(readlink "$DST/run.link" 2>/dev/null)" = "run_sktcln_two.sh" ] \
         || fail "yclone-project: a symlink to a renamed file does not follow it"
     [ -e "$DST/run.link" ] || fail "yclone-project: a symlink left dangling"
+    [ "$(readlink "$DST/run2.link" 2>/dev/null)" = "run.link" ] && [ -e "$DST/run2.link" ] \
+        || fail "yclone-project: a symlink to a symlink left dangling"
     if build "$DST"; then
         "$DST/build/sktcln_two" --print-role 2>/dev/null | grep -q '"role": "sktcln_two"' \
             || fail "the cloned yuno does not say its new role"
@@ -168,6 +176,8 @@ if [ -d "$SK/skt_clone" ]; then
     cmp -s "$SRC/sktcln.bin" "$SK/skt_clone/+yunorole+.bin" || fail "ymake-skeleton: the binary is not byte for byte"
     [ -e "$SK/skt_clone/run.link" ] || fail "ymake-skeleton: a symlink to a renamed file left dangling"
     [ -e "$SK/skt_clone/README.link" ] || fail "ymake-skeleton: a symlink to a file that got the suffix left dangling"
+    [ "$(readlink "$SK/skt_clone/run2.link" 2>/dev/null)" = "run.link" ] && [ -e "$SK/skt_clone/run2.link" ] \
+        || fail "ymake-skeleton: a symlink to a symlink left dangling ($(readlink "$SK/skt_clone/run2.link"))"
 
     python3 - "$SKELETONS/__skeletons__.json" "$SK/__skeletons__.json" <<'PY'
 import json, sys
@@ -186,6 +196,8 @@ PY
         [ "$(readlink "$R/run.link" 2>/dev/null)" = "run_sktrnd.sh" ] && [ -e "$R/run.link" ] \
             || fail "the round trip left a symlink dangling"
         [ -e "$R/README.link" ] || fail "the round trip left the README symlink dangling"
+        [ "$(readlink "$R/run2.link" 2>/dev/null)" = "run.link" ] && [ -e "$R/run2.link" ] \
+            || fail "the round trip left a symlink to a symlink dangling"
         if build "$R"; then
             "$R/build/sktrnd" --print-role 2>/dev/null | grep -q '"role": "sktrnd"' \
                 || fail "the round-trip yuno does not say its role"

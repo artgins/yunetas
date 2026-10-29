@@ -457,10 +457,17 @@ PRIVATE int join_path(char *bf, size_t bfsize, const char *dir, const char *name
 }
 
 /***************************************************************************
- *  The target of a cloned symlink. One that resolves inside the cloned
- *  tree is rendered as the names are (and gets the suffix when it is a
+ *  The target of a cloned symlink. One that names a file inside the cloned
+ *  tree is rendered as the names are (and gets the suffix when it names a
  *  text file), so it points to the file under its new name; an absolute
- *  one, one outside the tree, or a dangling one is kept as it is
+ *  one, one outside the tree, or a dangling one is kept as it is.
+ *
+ *  The file named is the target taken from the link's own directory, NOT
+ *  followed: a link to another link names that link, which is cloned under
+ *  its rendered name and with no suffix, whatever is at the end of the
+ *  chain (the suffix of the file at the end left it dangling). Joined with
+ *  snprintf(), not build_path(): build_path() clamps a "../" of the target
+ *  to the link's directory, and the target would name another file.
  ***************************************************************************/
 PRIVATE int render_link_target(
     char *bf,
@@ -470,10 +477,44 @@ PRIVATE int render_link_target(
     const char *real_root,
     clone_spec_t *spec
 ) {
+    char named[PATH_MAX];
     char resolved[PATH_MAX];
-    size_t l = strlen(real_root);
-    if(target[0] == '/' || !realpath(src_link, resolved) ||
-            strncmp(resolved, real_root, l) != 0 || resolved[l] != '/') {
+    struct stat st;
+    BOOL inside = FALSE;
+
+    if(target[0] != '/') {
+        char link_dir[PATH_MAX];
+        snprintf(link_dir, sizeof(link_dir), "%s", src_link);   // src_link is a path: it fits
+        int n = snprintf(named, sizeof(named), "%s/%s", dirname(link_dir), target);
+        if(n < 0 || (size_t)n >= sizeof(named)) {
+            fprintf(stderr, "ERROR: path too long: the target '%s' of the link '%s'\n", target, src_link);
+            return -1;
+        }
+        if(lstat(named, &st) == 0) {
+            if(S_ISLNK(st.st_mode)) {
+                /*
+                 *  Where the link named IS, not where it points: its
+                 *  directory resolved, and its own name
+                 */
+                char named_dir[PATH_MAX];
+                char named_base[PATH_MAX];
+                snprintf(named_dir, sizeof(named_dir), "%s", named);
+                snprintf(named_base, sizeof(named_base), "%s", named);
+                char dir_resolved[PATH_MAX];
+                if(realpath(dirname(named_dir), dir_resolved)) {
+                    n = snprintf(resolved, sizeof(resolved), "%s/%s", dir_resolved, basename(named_base));
+                    inside = (n >= 0 && (size_t)n < sizeof(resolved));
+                }
+            } else {
+                inside = realpath(named, resolved)? TRUE : FALSE;
+            }
+        }
+        if(inside) {
+            size_t l = strlen(real_root);
+            inside = (strncmp(resolved, real_root, l) == 0 && resolved[l] == '/');
+        }
+    }
+    if(!inside) {
         int n = snprintf(bf, bfsize, "%s", target);
         if(n < 0 || (size_t)n >= bfsize) {
             fprintf(stderr, "ERROR: link target too long: '%s'\n", target);
@@ -482,11 +523,6 @@ PRIVATE int render_link_target(
         return 0;
     }
 
-    struct stat st;
-    if(stat(resolved, &st) < 0) {
-        fprintf(stderr, "ERROR: cannot stat '%s': %s\n", resolved, strerror(errno));
-        return -1;
-    }
     BOOL is_binary = FALSE;
     if(S_ISREG(st.st_mode)) {
         if(is_binary_file(resolved, &is_binary) < 0) {

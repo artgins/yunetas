@@ -49,7 +49,7 @@ them).
 |-------|------|
 | Text file | name and content rendered, mode kept |
 | Binary file (holds a NUL byte) | copied byte for byte, name rendered, mode kept |
-| Symlink | name rendered; a target inside the tree follows its new name (`run.link -> run_old.sh` becomes `run.link -> run_new.sh`); an absolute target, or one outside the tree, is kept as it is |
+| Symlink | name rendered; a target inside the tree follows its new name (`run.link -> run_old.sh` becomes `run.link -> run_new.sh`); a target that is another link follows THAT link's name, which never gets a suffix (`run2.link -> run.link` stays so in a template); an absolute target, one outside the tree, or a dangling one is kept as it is |
 | `.git`, `.hg`, `.svn`, `build`, `cmake-build-*`, `node_modules`, `dist` | not cloned (VCS and build output) |
 
 The tool stops at the first error, says so, and exits non-zero; the

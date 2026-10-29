@@ -65,6 +65,11 @@ was left dangling); the round trip keeps the mode of a script (`yuno-skeleton`
 dropped it); a destination longer than `PATH_MAX` is an error that says so
 (the truncated path was used).
 
+And one after 7.29.2: a symlink to another symlink (`run2.link -> run.link`)
+keeps pointing to that link in all three tools; `ymake-skeleton` gave it the
+suffix of the file at the end of the chain (`run.link_tmpl`), dangling in the
+template.
+
 No template holds a `{{marker}}` that nothing fills: `yuno-skeleton` says
 each one on stderr, and the test fails on any (red with the README templates
 of 7.28.6 and their `{{yunoname}}`).
