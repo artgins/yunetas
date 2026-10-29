@@ -460,7 +460,7 @@ typedef struct _PRIVATE_DATA {
 
     hgobj run_timer;                // deadline of the step of the run in flight
     hgobj stop_timer;               // the next stop a scenario's max_run is due
-    json_t *auto_stops;             // scenario id -> {stop_at: epoch second, started_by} (max_run)
+    json_t *auto_stops;             // scenario id -> {stop_at, scheduled_at: epoch seconds, started_by} (max_run)
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -4011,7 +4011,8 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
 
     json_t *old = json_object_get(priv->auto_stops, scenario_id);
     BOOL waited = old && json_is_true(json_object_get(old, "waits_node"));
-    json_int_t waited_at = waited? kw_get_int(gobj, old, "stop_at", 0, KW_REQUIRED) : 0;
+    json_int_t old_stop_at = old? kw_get_int(gobj, old, "stop_at", 0, KW_REQUIRED) : 0;
+    json_int_t old_scheduled_at = old? kw_get_int(gobj, old, "scheduled_at", 0, KW_REQUIRED) : 0;
     json_object_del(priv->auto_stops, scenario_id);
     json_t *scenario = gobj_get_node(
         priv->gobj_treedb_controlcenter,
@@ -4049,8 +4050,10 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
             running = TRUE;
         }
         if(strcmp(action, "start")==0) {
-            json_object_set_new(priv->auto_stops, scenario_id, json_pack("{s:I, s:s}",
-                "stop_at", kw_get_int(gobj, run, "ended_at", 0, KW_WILD_NUMBER) + max_run,
+            json_int_t scheduled_at = kw_get_int(gobj, run, "ended_at", 0, KW_WILD_NUMBER) + max_run;
+            json_object_set_new(priv->auto_stops, scenario_id, json_pack("{s:I, s:I, s:s}",
+                "stop_at", scheduled_at,
+                "scheduled_at", scheduled_at,
                 "started_by", kw_get_str(gobj, run, "username", "", 0)
             ));
             break;
@@ -4059,15 +4062,21 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
     JSON_DECREF(runs)
 
     /*
-     *  The same stop (same start, same max_run) that waited for a node goes
-     *  on waiting, unless a node of it is connected now (a save may have
-     *  moved its steps): rebuilt without the wait it was due at once, and
-     *  wrote one more failed run (7.29.2).
+     *  The same stop (same start, same max_run) keeps what its failures
+     *  made of it: rebuilt bare it was due at once, and wrote one more
+     *  failed run. One that waited for a node goes on waiting, unless a node
+     *  of it is connected now (a save may have moved its steps) (7.29.2);
+     *  one tried again in a minute keeps its minute (7.29.3).
      */
     json_t *stop = json_object_get(priv->auto_stops, scenario_id);
-    if(waited && stop && kw_get_int(gobj, stop, "stop_at", 0, KW_REQUIRED) == waited_at &&
-            !stop_reaches_a_node(gobj, scenario_id)) {
-        json_object_set_new(stop, "waits_node", json_true());
+    if(old && stop && kw_get_int(gobj, stop, "scheduled_at", 0, KW_REQUIRED) == old_scheduled_at) {
+        if(waited) {
+            if(!stop_reaches_a_node(gobj, scenario_id)) {
+                json_object_set_new(stop, "waits_node", json_true());
+            }
+        } else if(old_stop_at > old_scheduled_at) {
+            json_object_set_new(stop, "stop_at", json_integer(old_stop_at));
+        }
     }
 }
 
@@ -4270,6 +4279,8 @@ PRIVATE int stop_due_scenario(hgobj gobj)
         "scenario_id",  "%s", scenario_id,
         NULL
     );
+    json_int_t scheduled_at = kw_get_int(gobj,
+        json_object_get(priv->auto_stops, scenario_id), "scheduled_at", 0, KW_REQUIRED);
     json_object_del(priv->auto_stops, scenario_id);
     char err[512];
     if(start_run(gobj, scenario_id, "stop", gobj_yuno_role_plus_name(), "", 0, NULL,
@@ -4282,8 +4293,8 @@ PRIVATE int stop_due_scenario(hgobj gobj)
             "comment",      "%s", err,
             NULL
         );
-        json_object_set_new(priv->auto_stops, scenario_id, json_pack("{s:I, s:s}",
-            "stop_at", now + 60, "started_by", started_by));
+        json_object_set_new(priv->auto_stops, scenario_id, json_pack("{s:I, s:I, s:s}",
+            "stop_at", now + 60, "scheduled_at", scheduled_at, "started_by", started_by));
         arm_stop_timer(gobj);
     }
     return 0;

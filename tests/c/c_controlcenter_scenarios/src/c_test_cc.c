@@ -1602,8 +1602,9 @@ PRIVATE int test_max_run_no_node_reached(hgobj gobj)
  *      AGENT_HOST. A (phase 5): started. B (phase 6, past the stop): the
  *      control center sent the stop step by itself, answered -1 here (one
  *      failed run, and the warning "... tried again in a minute");
- *      `scenarios` says no `stop_waits_node` and a `stop_at` a minute away.
- *      In 7.29.2 it waited for an agent to connect, so the safety stop was
+ *      `scenarios` says no `stop_waits_node` and a `stop_at` a minute away,
+ *      and a save of mrn keeps that minute (up to 7.29.3 it brought the stop
+ *      forward to at once). In 7.29.2 it waited for an agent to connect, so the safety stop was
  *      never tried again. A stop by the user then stops it: nothing is
  *      scheduled any more.
  ***************************************************************************/
@@ -1619,14 +1620,9 @@ PRIVATE json_t *mrn_scenario_of(hgobj gobj)
     return mrn;
 }
 
-PRIVATE int test_max_run_node_refuses_start(hgobj gobj)
+PRIVATE json_t *mrn_scenario(void)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    hgobj client = priv->client1;
-    int ret = 0;
-
-    json_t *kw = client_kw(gobj_name(client));
-    json_object_set_new(kw, "scenario", json_pack(
+    return json_pack(
         "{s:s, s:s, s:I, s:[{s:s}], s:{s:[{s:s, s:s}], s:[{s:s, s:s}]}}",
         "id", "mrn",
         "node", AGENT_HOST,
@@ -1635,7 +1631,17 @@ PRIVATE int test_max_run_node_refuses_start(hgobj gobj)
         "actions",
             "start", "yuno", "1234", "command", "resume-generation",
             "stop", "yuno", "1234", "command", "pause-generation"
-    ));
+    );
+}
+
+PRIVATE int test_max_run_node_refuses_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", mrn_scenario());
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
         0, "scenario created: mrn", "a scenario whose stop is on a node connected");
 
@@ -1680,8 +1686,30 @@ PRIVATE int test_max_run_node_refuses_retried(hgobj gobj)
     }
     JSON_DECREF(mrn)
 
-    /*  Stopped by the user: nothing is scheduled any more  */
+    /*
+     *  Saved again as it is, the stop keeps its minute: up to 7.29.3 the
+     *  save rebuilt it from the runs without the retry, due at once
+     */
     json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", mrn_scenario());
+    json_t *saved = gobj_command(priv->cc, "save-scenario", kw, client);
+    json_t *saved_mrn = json_array_get(kw_get_list(gobj, saved, "data", 0, 0), 0);
+    json_int_t saved_stop_at = kw_get_int(gobj, saved_mrn, "stop_at", 0, KW_WILD_NUMBER);
+    if(kw_get_int(gobj, saved, "result", -1, KW_WILD_NUMBER) < 0 || saved_stop_at != stop_at) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%lld, was %lld",
+            (long long)saved_stop_at, (long long)stop_at);
+        ret += fail(gobj, "a save of mrn keeps its stop tried again in a minute", detail);
+    }
+    JSON_DECREF(saved)
+    mrn = mrn_scenario_of(gobj);
+    if(kw_get_int(gobj, mrn, "stop_at", 0, KW_WILD_NUMBER) != stop_at) {
+        ret += fail(gobj, "after a save, scenarios still says the stop of mrn in a minute", "");
+    }
+    JSON_DECREF(mrn)
+
+    /*  Stopped by the user: nothing is scheduled any more  */
+    kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "scenario_id", json_string("mrn"));
     json_object_set_new(kw, "action", json_string("stop"));
     json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);

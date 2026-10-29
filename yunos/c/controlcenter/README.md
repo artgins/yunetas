@@ -153,7 +153,8 @@ more run, written with its own name as the user and the reason in the comment
 later if another run is in flight. A stop that could do nothing is written
 once, with a warning, and tried again. When a node of it is connected (its
 yuno refused the stop, or did not answer: restarting, perhaps), it is tried
-again in a minute. When none is, it waits for the agent of one of its nodes
+again in a minute; a save, a report or a switch inside that minute keeps
+it (up to 7.29.3 they brought the stop forward to at once). When none is, it waits for the agent of one of its nodes
 to connect, and runs again at that connection, not on a clock (up to 7.29.1
 it was tried every minute, and every try wrote a run for as long as the node
 was down; 7.29.2 made every one wait, so a stop refused on a connected node

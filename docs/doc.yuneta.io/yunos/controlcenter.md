@@ -479,7 +479,9 @@ a warning, and tried again:
 
 - **A node of it is connected** (its yuno refused the stop, or did not
   answer -- restarting, perhaps): it is tried again in a minute (*"the stop
-  of a scenario's max_run did nothing, tried again in a minute"*).
+  of a scenario's max_run did nothing, tried again in a minute"*). A save
+  of the scenario, a report or a switch inside that minute keeps it (up to
+  7.29.3 they brought the stop forward to at once).
 - **No node of it is connected:** it waits (*"the stop of a scenario's
   max_run did nothing, tried again when a node of it connects"*), and runs
   again when the agent of one of its nodes connects, not on a clock. A save
