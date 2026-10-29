@@ -166,6 +166,8 @@ PRIVATE int run_steps_done(hgobj gobj, json_t *run);
 PRIVATE BOOL run_changes_state(hgobj gobj, json_t *run);
 PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id);
 PRIVATE void retry_stops_waiting_node(hgobj gobj);
+PRIVATE BOOL steps_reach_a_node(hgobj gobj, json_t *steps);
+PRIVATE BOOL stop_reaches_a_node(hgobj gobj, const char *scenario_id);
 PRIVATE BOOL scenario_is_running(hgobj gobj, const char *scenario_id);
 PRIVATE void add_stop_at(hgobj gobj, json_t *scenario);
 PRIVATE void arm_stop_timer(hgobj gobj);
@@ -772,6 +774,19 @@ PRIVATE int mt_play(hgobj gobj)
                 json_string_value(jn_sc) : kw_get_str(gobj, jn_sc, "id", "", 0));
         }
         JSON_DECREF(scenarios)
+
+        /*
+         *  A stop already due waits for an agent of its nodes: none is
+         *  connected yet (__input_side__ starts below), and run now it
+         *  could only write a failed run (retry_stops_waiting_node()).
+         */
+        json_int_t now = (json_int_t)time_in_seconds();
+        const char *id; json_t *jn_at;
+        json_object_foreach(priv->auto_stops, id, jn_at) {
+            if(kw_get_int(gobj, jn_at, "stop_at", 0, KW_REQUIRED) <= now) {
+                json_object_set_new(jn_at, "waits_node", json_true());
+            }
+        }
     }
     arm_stop_timer(gobj);
 
@@ -3930,25 +3945,35 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
 
     /*
      *  What the run did to the stop a max_run schedules: a start sets it,
-     *  a stop cancels it. A stop of the max_run that did no step (its node
-     *  not connected) waits for an agent of one of its nodes to connect,
-     *  and is tried again then (retry_stops_waiting_node()): up to 7.29.1
-     *  it was tried every minute, and each try wrote a run (and a warning)
-     *  for as long as the node was down.
+     *  a stop cancels it. A stop of the max_run that did no step is tried
+     *  again: in a minute when a node of it is connected (its yuno refused
+     *  or did not answer, restarting perhaps); else when an agent of one of
+     *  its nodes connects (retry_stops_waiting_node()), and not every
+     *  minute, writing a run (and a warning) each time, for as long as the
+     *  node is down. 7.29.2 made every one wait for an agent: one whose
+     *  node was connected was never tried again.
      */
     if(priv->gobj_treedb_controlcenter) {
         schedule_from_runs(gobj, scenario_id);
         json_t *pending = json_object_get(priv->auto_stops, scenario_id);
         if(!empty_string(reason) && done == 0 && pending) {
+            BOOL reaches = steps_reach_a_node(gobj, steps);
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP,
-                "msg",          "%s", "the stop of a scenario's max_run did nothing, tried again when a node of it connects",
+                "msg",          "%s", reaches?
+                    "the stop of a scenario's max_run did nothing, tried again in a minute" :
+                    "the stop of a scenario's max_run did nothing, tried again when a node of it connects",
                 "scenario_id",  "%s", scenario_id,
                 "comment",      "%s", comment? comment : "",
                 NULL
             );
-            json_object_set_new(pending, "waits_node", json_true());
+            if(reaches) {
+                json_object_del(pending, "waits_node");
+                json_object_set_new(pending, "stop_at", json_integer((json_int_t)time_in_seconds() + 60));
+            } else {
+                json_object_set_new(pending, "waits_node", json_true());
+            }
         }
         arm_stop_timer(gobj);
     }
@@ -3984,6 +4009,9 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_t *old = json_object_get(priv->auto_stops, scenario_id);
+    BOOL waited = old && json_is_true(json_object_get(old, "waits_node"));
+    json_int_t waited_at = waited? kw_get_int(gobj, old, "stop_at", 0, KW_REQUIRED) : 0;
     json_object_del(priv->auto_stops, scenario_id);
     json_t *scenario = gobj_get_node(
         priv->gobj_treedb_controlcenter,
@@ -4029,6 +4057,18 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
         }
     }
     JSON_DECREF(runs)
+
+    /*
+     *  The same stop (same start, same max_run) that waited for a node goes
+     *  on waiting, unless a node of it is connected now (a save may have
+     *  moved its steps): rebuilt without the wait it was due at once, and
+     *  wrote one more failed run (7.29.2).
+     */
+    json_t *stop = json_object_get(priv->auto_stops, scenario_id);
+    if(waited && stop && kw_get_int(gobj, stop, "stop_at", 0, KW_REQUIRED) == waited_at &&
+            !stop_reaches_a_node(gobj, scenario_id)) {
+        json_object_set_new(stop, "waits_node", json_true());
+    }
 }
 
 /***************************************************************************
@@ -4268,39 +4308,7 @@ PRIVATE void retry_stops_waiting_node(hgobj gobj)
         if(!json_is_true(json_object_get(jn_at, "waits_node"))) {
             continue;
         }
-        json_t *scenario = gobj_get_node(
-            priv->gobj_treedb_controlcenter,
-            "scenarios",
-            json_pack("{s:s}", "id", id),
-            0,
-            gobj
-        );
-        char why[256];
-        snprintf(why, sizeof(why), "scenario not found");
-        json_t *steps = scenario?
-            build_run_steps(gobj, scenario, "stop", "", why, sizeof(why)) : NULL;
-        JSON_DECREF(scenario)
-        if(!steps) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP,
-                "msg",          "%s", "the stop of a scenario's max_run that waits for a node cannot run",
-                "scenario_id",  "%s", id,
-                "comment",      "%s", why,
-                NULL
-            );
-            continue;
-        }
-        BOOL reaches = FALSE;
-        size_t idx; json_t *step;
-        json_array_foreach(steps, idx, step) {
-            if(find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", 0))) {
-                reaches = TRUE;
-                break;
-            }
-        }
-        JSON_DECREF(steps)
-        if(reaches) {
+        if(stop_reaches_a_node(gobj, id)) {
             json_object_del(jn_at, "waits_node");
             json_object_set_new(jn_at, "stop_at", json_integer((json_int_t)time_in_seconds()));
             due = TRUE;
@@ -4309,6 +4317,57 @@ PRIVATE void retry_stops_waiting_node(hgobj gobj)
     if(due) {
         arm_stop_timer(gobj);
     }
+}
+
+/***************************************************************************
+ *  Is the agent of a node of these steps connected?
+ ***************************************************************************/
+PRIVATE BOOL steps_reach_a_node(hgobj gobj, json_t *steps)
+{
+    size_t idx; json_t *step;
+    json_array_foreach(steps, idx, step) {
+        if(find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", 0))) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Is the agent of a node of a scenario's stop connected? FALSE, with a
+ *  warning, when its stop cannot be built (the scenario gone, a step
+ *  with no node).
+ ***************************************************************************/
+PRIVATE BOOL stop_reaches_a_node(hgobj gobj, const char *scenario_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *scenario = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "scenarios",
+        json_pack("{s:s}", "id", scenario_id),
+        0,
+        gobj
+    );
+    char why[256];
+    snprintf(why, sizeof(why), "scenario not found");
+    json_t *steps = scenario?
+        build_run_steps(gobj, scenario, "stop", "", why, sizeof(why)) : NULL;
+    JSON_DECREF(scenario)
+    if(!steps) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "the stop of a scenario's max_run that waits for a node cannot run",
+            "scenario_id",  "%s", scenario_id,
+            "comment",      "%s", why,
+            NULL
+        );
+        return FALSE;
+    }
+    BOOL reaches = steps_reach_a_node(gobj, steps);
+    JSON_DECREF(steps)
+    return reaches;
 }
 
 

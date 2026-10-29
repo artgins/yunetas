@@ -192,12 +192,23 @@ still reported and fails the test.
     whose agent is not connected. Past its stop, the control center has run
     it once, it did nothing (one run, failed, and the warning *"the stop of
     a scenario's max_run did nothing, tried again when a node of it
-    connects"*), and `scenarios` says `stop_waits_node`. The agent of
+    connects"*), and `scenarios` says `stop_waits_node`. Saved again as it
+    is, it still waits (in 7.29.2 the save rebuilt the stop without the
+    wait, due at once, and one more failed run was written). The agent of
     `ghost` connects (`EV_ON_OPEN` from `__input_side__`): the stop goes to
     it a second later; answered, it is the second stop run, done, and no
     stop is scheduled. Up to 7.29.1 the stop was tried every minute, a run
     written each time, for as long as the node was down. It runs in phases
     3-5, between case 17 and case 11.
+20. The stop of a `max_run` whose node IS connected, and refuses it. The
+    scenario "mrn" (`max_run` 1 s) starts and stops a yuno on the agent.
+    Past its stop, the control center has sent the stop step, answered -1
+    (*"the yuno is restarting"*): one failed run, the warning *"the stop of
+    a scenario's max_run did nothing, tried again in a minute"*, no
+    `stop_waits_node`, and a `stop_at` a minute away. A stop by the user then
+    stops it, and no stop is scheduled. In 7.29.2 it waited for an agent to
+    connect, and its own was already connected: the safety stop was never
+    tried again. It runs in phases 5-6, after case 19.
 
 ## Run
 

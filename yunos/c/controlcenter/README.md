@@ -150,14 +150,18 @@ clock as it is. When it is due the control center runs `stop` itself -- one
 more run, written with its own name as the user and the reason in the comment
 (*"max_run of 2100 s reached (started by esg@hidraulia.eu); run ...: stop done,
 16 steps"*) -- a few seconds
-later if another run is in flight. A stop that could do nothing (a node not
-connected) is written once, with a warning, and then waits for the agent of
-one of its nodes to connect: it runs again at that connection, not on a
-clock (up to 7.29.1 it was tried every minute, and every try wrote a run for
-as long as the node was down). The schedule is rebuilt from the runs when
-the control center starts, so a restart does not lose it, and `scenarios`
-answers it as `stop_at` (epoch seconds), with `stop_waits_node: true` while
-it waits for a node. Every run that ends publishes
+later if another run is in flight. A stop that could do nothing is written
+once, with a warning, and tried again. When a node of it is connected (its
+yuno refused the stop, or did not answer: restarting, perhaps), it is tried
+again in a minute. When none is, it waits for the agent of one of its nodes
+to connect, and runs again at that connection, not on a clock (up to 7.29.1
+it was tried every minute, and every try wrote a run for as long as the node
+was down; 7.29.2 made every one wait, so a stop refused on a connected node
+was never tried again). A save of the scenario or another run of it does not
+end the wait. The schedule is rebuilt from the runs when the control center
+starts, so a restart does not lose it; a stop already due then waits for an
+agent, as no agent is connected yet. `scenarios` answers it as `stop_at`
+(epoch seconds), with `stop_waits_node: true` while it waits for a node. Every run that ends publishes
 `EV_SCENARIO_RUN_ENDED` (public, no data): a console watching a scenario reads
 its state again, and sees it stopped by the control center, or by anybody.
 

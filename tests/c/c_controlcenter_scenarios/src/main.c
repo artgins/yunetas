@@ -268,6 +268,8 @@ PRIVATE const char *expected_msgs[] = {
     "stopping a scenario: its max_run is reached",          // 19: mrx, its node away
     "the stop of a scenario's max_run did nothing, tried again when a node of it connects",
     "stopping a scenario: its max_run is reached",          // 19: its node connected
+    "stopping a scenario: its max_run is reached",          // 20: mrn, its node connected
+    "the stop of a scenario's max_run did nothing, tried again in a minute",    // 20: refused there
     /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",

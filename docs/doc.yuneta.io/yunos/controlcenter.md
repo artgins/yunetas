@@ -474,14 +474,24 @@ clock alone. When it is due the control center runs `stop` itself, as a run of
 its own -- user the control center, the reason in the comment (*"max_run of
 2100 s reached (started by esg@hidraulia.eu); run ...: stop done, 16 steps"*)
 -- a few seconds later if
-another run is in flight. A stop that could do nothing (no node of it
-connected) is written once, with a warning (*"the stop of a scenario's
-max_run did nothing, tried again when a node of it connects"*), and then
-waits: it runs again when the agent of one of its nodes connects, not on a
-clock. Up to 7.29.1 it was tried every minute, and every try wrote a run
-while the node was down. The schedule is rebuilt from the runs at start, so
-a restart does not lose it. `scenarios` answers it as `stop_at` (epoch
-seconds; `stop_waits_node: true` while it waits for a node), and the run in flight of
+another run is in flight. A stop that could do nothing is written once, with
+a warning, and tried again:
+
+- **A node of it is connected** (its yuno refused the stop, or did not
+  answer -- restarting, perhaps): it is tried again in a minute (*"the stop
+  of a scenario's max_run did nothing, tried again in a minute"*).
+- **No node of it is connected:** it waits (*"the stop of a scenario's
+  max_run did nothing, tried again when a node of it connects"*), and runs
+  again when the agent of one of its nodes connects, not on a clock. A save
+  of the scenario or another run of it does not end the wait.
+
+Up to 7.29.1 every one was tried every minute, and every try wrote a run
+while the node was down; 7.29.2 made every one wait for an agent, so a stop
+refused on a connected node was never tried again. The schedule is rebuilt
+from the runs at start, so a restart does not lose it; a stop already due
+then waits for an agent, because no agent is connected yet. `scenarios`
+answers it as `stop_at` (epoch seconds; `stop_waits_node: true` while it
+waits for a node), and the run in flight of
 the scenario, if any, as `run_in_flight` (`id`, `action`, `username`,
 `started_at`; 7.28.4+), so a console can say that a start is still going and
 not offer another. Every run that ends
