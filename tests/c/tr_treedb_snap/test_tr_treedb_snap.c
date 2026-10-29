@@ -818,8 +818,17 @@ PRIVATE int phase_yuno_too_long_for_the_list_ids(const char *path_root)
         "on_critical_error", LOG_OPT_TRACE_STACK), 0);
     result += test_json(NULL);
 
+    /*
+     *  The yuno is ONE key of the ERROR, "<role>^<name>": up to 7.29.3 it
+     *  went as four, and the json kept the last one, "-"
+     */
+    char role_plus_name[sizeof(role) + 1 + sizeof(name)];
+    snprintf(role_plus_name, sizeof(role_plus_name), "%s^%s", role, name);
     set_expected_results(test,
-        json_pack("[{s:s}]", "msg", "treedb name too long for the ids of its lists"),
+        json_pack("[{s:s, s:s}]",
+            "msg", "treedb name too long for the ids of its lists",
+            "yuno", role_plus_name
+        ),
         NULL, NULL, 1
     );
     helper_quote2doublequote(schema_sample);

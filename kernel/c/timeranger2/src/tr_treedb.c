@@ -899,18 +899,21 @@ PRIVATE BOOL system_list_ids_fit(hgobj gobj, const char *treedb_name)
         char rt_id[2*NAME_MAX];
         int len = build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, system_topics[i]);
         if(len < 0 || len > NAME_MAX) {
+            /*  One conversion: the logger writes the key once per conversion  */
             list_id_yuno_t yuno = list_id_yuno();
+            json_t *jn_yuno = json_sprintf("%s%s%s", yuno.role, yuno.caret, yuno.name);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "treedb name too long for the ids of its lists",
                 "treedb_name",  "%s", treedb_name,
                 "topic_name",   "%s", system_topics[i],
-                "yuno",         LIST_ID_YUNO_FMT, LIST_ID_YUNO_ARGS(yuno),
+                "yuno",         "%s", jn_yuno? json_string_value(jn_yuno) : "?",
                 "length",       "%d", len,
                 "max",          "%d", NAME_MAX,
                 NULL
             );
+            JSON_DECREF(jn_yuno)
             gobj_log_set_last_message(
                 "treedb name too long for the ids of its lists (%d bytes, %d at most)",
                 len, NAME_MAX
