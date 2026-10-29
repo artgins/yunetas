@@ -383,11 +383,25 @@ sudo /usr/libexec/yuneta/yuneta-node-uuid show   # source: not "random"
 The node uuid is written from the hardware (the SoC serial number, DMI or
 the on-board MAC), so a reinstall keeps it and a cloned disk gets its own on
 its first boot. `random` means that no identifier was readable: the node
-works, but a reinstall gives it a new identity. In a container `random` is
-correct: its `/sys` is the host's, so no hardware is read there. A uuid
-already stored is kept while the hardware still gives it (a network card
-added later does not move it). See
-[`node_uuid()`](api/helpers/misc.md#node_uuid).
+works, but a reinstall gives it a new identity. A uuid already stored is
+kept while the hardware still gives it (a network card added later does not
+move it). See [`node_uuid()`](api/helpers/misc.md#node_uuid).
+
+In a container `random` is correct: its `/sys` is the host's, so no hardware
+is read there. The uuid belongs to the container's hostname, which the file
+records: a restart of the container keeps it, and a container with another
+hostname makes its own. The package's install stores nothing in a container
+(`ensure --installing`), because the install can be the build of an image;
+the first start of the agents makes the uuid. A Docker or Podman container
+takes its own id as hostname, so a re-created container is a new node. To
+keep the identity of a re-created container, give it a fixed hostname:
+
+```bash
+docker run --hostname node-01 -v yuneta-store:/yuneta/store my-yuneta-image
+```
+
+A container that starts the agents without their units or the SysV script
+runs `/usr/libexec/yuneta/yuneta-node-uuid ensure` (as root) first.
 
 The agents and the yunos read the uuid when they start. If the uuid changes
 (a disk moved to other hardware, or `yuneta-node-uuid set <uuid>`), restart

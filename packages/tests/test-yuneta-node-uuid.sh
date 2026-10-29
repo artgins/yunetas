@@ -78,6 +78,11 @@ add_nic() {    # name mac addr_assign_type [usb]
     echo "$2" > "$d/address"
 }
 
+set_hostname() {
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/sys/kernel"
+    printf '%s\n' "$1" > "${YUNETA_NODE_UUID_SYSROOT}/proc/sys/kernel/hostname"
+}
+
 del_nic() {
     rm -rf "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1"
 }
@@ -255,11 +260,64 @@ check "random: replaced by the hardware that appears" "$(field uuid)" "$first"
 reset
 set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
 touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "c0ffee000001"
 run ensure
 check "container: source" "$(field source)" "random"
+check "container: the hostname it belongs to" "$(field hostname)" "c0ffee000001"
 cnt="$(field uuid)"
 run ensure
-check "container: random kept" "$(field uuid)" "$cnt"
+check "container: random kept across its restarts" "$(field uuid)" "$cnt"
+
+#
+#   An image built in a container: the package's install stores nothing,
+#   so the image carries no uuid for every container made from it
+#
+reset
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "buildkitsandbox"
+run ensure --installing
+check "image build: nothing stored at install" "$( [ -e "$FILE" ] && echo stored || echo none)" "none"
+run ensure --installing
+check "image build: still nothing" "$( [ -e "$FILE" ] && echo stored || echo none)" "none"
+check "ensure: refuses an unknown option" "$("$SCRIPT" ensure --bogus >/dev/null 2>&1; echo $?)" "2"
+
+#
+#   ... and a uuid made there all the same (the agents started while the
+#   image was built) is not taken by a container of another hostname: each
+#   container of the image makes its own, keeps it across its restarts, and
+#   the copy of the baked one is kept
+#
+run ensure
+baked="$(field uuid)"
+set_hostname "c0ffee000001"
+run ensure
+one="$(field uuid)"
+check "image build: the container makes its own" "$( [ "$one" != "$baked" ] && echo changed)" "changed"
+check "image build: copy of the baked one" "$(backups)" "1"
+check "image build: the hostname it belongs to" "$(field hostname)" "c0ffee000001"
+run ensure
+check "image build: its own kept across its restarts" "$(field uuid)" "$one"
+check "image build: no more copies" "$(backups)" "1"
+
+#
+#   A board written from a `docker export` of that container keeps
+#   /.dockerenv: it is taken for a container, and still gets its own
+#
+set_hostname "localhost"
+run ensure
+check "docker export on a board: its own uuid" "$( [ "$(field uuid)" != "$one" ] && echo changed)" "changed"
+
+#
+#   A random of 7.29.2 made in a container records no hostname: it is that
+#   container's own as far as anybody can tell, and it is never moved
+#
+reset
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "c0ffee000002"
+write_file "ff14fc16-2cb2-472c-9c0a-89fa43837131" "random"
+run ensure
+check "container, 7.29.2 random: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837131"
+check "container, 7.29.2 random: no copy" "$(backups)" "0"
 reset
 set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
 mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/run/systemd"
@@ -292,6 +350,25 @@ run ensure
 check "manual: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837130"
 check "manual: source" "$(field source)" "manual"
 check "set: refuses a non-uuid" "$("$SCRIPT" set nonsense >/dev/null 2>&1; echo $?)" "1"
+check "set, no file before: no copy" "$(backups)" "0"
+run set "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+check "set again, same uuid: no copy" "$(backups)" "0"
+check "set again, same uuid: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+
+#
+#   `set` of the uuid the hardware already gave: it becomes manual, and no
+#   copy is kept, the uuid did not change
+#
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+run ensure
+created_first="$(field created)"
+run set "$first"
+check "set, the uuid it had: manual" "$(field source)" "manual"
+check "set, the uuid it had: no copy" "$(backups)" "0"
+check "set, the uuid it had: created kept" "$(field created)" "$created_first"
+run set "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+check "set, another uuid: a copy" "$(backups)" "1"
 
 if [ "$FAILED" -ne 0 ]; then
     echo "FAILED"

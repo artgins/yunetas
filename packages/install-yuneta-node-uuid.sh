@@ -38,10 +38,19 @@ set -u
 
 DRY_RUN=0
 case "${1:-}" in
-    "")             ;;
-    -n|--dry-run)   DRY_RUN=1 ;;
-    -h|--help)      sed -n '2,/^#   Copyright/p' "$0" | sed 's/^#\{1\} \{0,1\}//'; exit 0 ;;
-    *)              echo "usage: $0 [-n|--dry-run]" >&2; exit 2 ;;
+    "")
+        ;;
+    -n|--dry-run)
+        DRY_RUN=1
+        ;;
+    -h|--help)
+        sed -n '2,/^#   Copyright/p' "$0" | sed 's/^#\{1\} \{0,1\}//'
+        exit 0
+        ;;
+    *)
+        echo "usage: $0 [-n|--dry-run]" >&2
+        exit 2
+        ;;
 esac
 
 if [ "$(id -u)" != "0" ]; then
@@ -67,7 +76,9 @@ if [ ! -s "$SRC" ]; then
 fi
 
 CHANGED=0
-say() { echo "[i] $*"; }
+say() {
+    echo "[i] $*"
+}
 act() {
     # A change: done, or only told in a dry run
     CHANGED=1
@@ -116,7 +127,11 @@ if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
     say "no systemd: whatever starts the agents must run '$DST ensure' first"
 else
     for unit in $UNITS; do
-        fragment="$(systemctl show -p FragmentPath --value "${unit}.service" 2>/dev/null)"
+        # A unit that does not exist answers an empty path, and no error
+        if ! fragment="$(systemctl show -p FragmentPath --value "${unit}.service")"; then
+            echo "[-] systemctl show ${unit}.service failed" >&2
+            exit 1
+        fi
         dropin_dir="/etc/systemd/system/${unit}.service.d"
         dropin="${dropin_dir}/${DROPIN_NAME}"
         if [ -z "$fragment" ] || [ ! -f "$fragment" ]; then
@@ -127,7 +142,9 @@ else
             say "${unit}: its unit already runs it ($fragment)"
             if [ -f "$dropin" ] && act "remove $dropin (the unit does it; twice is noise)"; then
                 rm -f "$dropin" || exit 1
-                rmdir --ignore-fail-on-non-empty "$dropin_dir"
+                if ! rmdir --ignore-fail-on-non-empty "$dropin_dir"; then
+                    echo "[!] cannot remove $dropin_dir: left there, empty" >&2
+                fi
                 RELOAD=1
             fi
             continue
@@ -139,7 +156,7 @@ else
         if act "write $dropin"; then
             install -d -o root -g root -m 0755 "$dropin_dir" || exit 1
             printf '%s' "$DROPIN_BODY" > "$dropin" || exit 1
-            chmod 0644 "$dropin"
+            chmod 0644 "$dropin" || exit 1
             RELOAD=1
         fi
     done
@@ -156,7 +173,13 @@ if [ "$DRY_RUN" = "1" ]; then
     # What it would give, from the new script but never run from the
     # checkout as root: a root-owned copy.
     tmp="$(mktemp)" || exit 1
-    install -m 0755 "$SRC" "$tmp" && "$tmp" show
+    if ! install -m 0755 "$SRC" "$tmp"; then
+        rm -f "$tmp"
+        exit 1
+    fi
+    if ! "$tmp" show; then
+        echo "[!] '$SRC show' failed: what it would give is unknown" >&2
+    fi
     rm -f "$tmp"
     if [ "$CHANGED" = "0" ]; then
         say "nothing would change but, maybe, the uuid: compare 'uuid' and 'hardware' above"
@@ -169,7 +192,9 @@ if ! "$DST" ensure; then
     exit 1
 fi
 AFTER="$(stored_uuid)"
-"$DST" show
+if ! "$DST" show; then
+    echo "[!] '$DST show' failed" >&2
+fi
 
 if [ "$BEFORE" != "$AFTER" ]; then
     CHANGED=1

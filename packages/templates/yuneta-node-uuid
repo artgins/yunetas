@@ -54,8 +54,23 @@
 #       and another of the same box present, it is kept too. Only a box with
 #       none of them is OTHER hardware (a cloned disk) and gets its own;
 #     - in a container (Docker, Podman, LXC, systemd-nspawn) /sys is the
-#       host's, the same for every container of it: no hardware is read, a
-#       new container gets a random uuid, and one already stored is kept.
+#       host's, the same for every container of it: no hardware is read and
+#       the uuid is random. It belongs to the container's hostname, which the
+#       file records ("container", "hostname"): kept while the hostname is
+#       the same (a restart of the container), replaced on another one. A
+#       Docker or Podman container's hostname is its own id, so a uuid baked
+#       into an image (the agents started while it was built) is not taken by
+#       the containers made from it, nor by a board written from a
+#       `docker export` (it keeps /.dockerenv). A re-created container is a
+#       new node unless it is given a fixed hostname, or the uuid is `set`.
+#       A random of 7.29.2, which records no hostname, is kept.
+#
+#   The package's install runs `ensure --installing`: in a container it
+#   stores nothing, because the install may be the build of an image, and
+#   whatever it stored would be in every container made from it. The
+#   agents' first start makes the uuid (their units, or the SysV start). A
+#   container started otherwise must run `yuneta-node-uuid ensure` before an
+#   agent: node_uuid() writes a random uuid of its own when there is none.
 #
 #   A uuid written with `set` is MANUAL and never touched: the way to keep an
 #   identity that something already uses as a key.
@@ -66,6 +81,9 @@
 #
 #   Usage:
 #       yuneta-node-uuid [ensure]     create or correct uuid.json (as root)
+#       yuneta-node-uuid ensure --installing
+#                                     the same, from the package's install:
+#                                     in a container it stores nothing
 #       yuneta-node-uuid show         what is stored and what the hardware
 #                                     gives (as root; without root it says
 #                                     which sources it could not read)
@@ -74,7 +92,7 @@
 #   The previous file is kept as uuid.json.replaced-<UTC time>[.<n>] whenever
 #   the uuid changes, one per change. Environment, for tests:
 #   YUNETA_NODE_UUID_DIR (default /yuneta/store/agent/uuid) and
-#   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, /run and /proc).
+#   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, /run, /proc and /.dockerenv).
 #
 #   Copyright (c) 2026, ArtGins.
 #
@@ -227,6 +245,29 @@ container_name() {
     return 1
 }
 
+#
+#   A value that goes into a line of HWIDS and into the json as it is: a
+#   hostname or a container name. Anything else is replaced by its hash.
+#
+safe_token() {
+    if [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        printf '%s' "$1"
+    else
+        printf 'sha256-%s' "$(printf '%s' "$1" | sha256sum | cut -c1-16)"
+    fi
+}
+
+current_hostname() {
+    local v
+    if [ ! -r "${SYSROOT}/proc/sys/kernel/hostname" ]; then
+        return 0
+    fi
+    v="$(tr -d '[:space:]' < "${SYSROOT}/proc/sys/kernel/hostname")"
+    if [ -n "$v" ]; then
+        safe_token "$v"
+    fi
+}
+
 derive_uuid() {
     local h variant
     h="$(printf 'yuneta-node-uuid:%s:%s' "$1" "$2" | sha256sum | cut -c1-32)"
@@ -271,13 +312,16 @@ keep_a_copy() {
     cp -p "$UUID_FILE" "$name"
 }
 
-write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1)
-    local uuid="$1" source="$2" ids="$3" created="$4" keep="$5" tmp ids_line=""
+write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1) [container hostname]
+    local uuid="$1" source="$2" ids="$3" created="$4" keep="$5" container="${6:-}" host="${7:-}"
+    local tmp ids_line="" container_lines=""
     if ! mkdir -p "$UUID_DIR"; then
         log_error "cannot create $UUID_DIR"
         return 1
     fi
-    chmod 2770 "$UUID_DIR" 2>/dev/null || true
+    if ! chmod 2770 "$UUID_DIR"; then
+        log_warning "cannot set mode 2770 on $UUID_DIR"
+    fi
     if [ "$keep" = "1" ] && [ -e "$UUID_FILE" ]; then
         if ! keep_a_copy; then
             log_error "cannot keep a copy of $UUID_FILE, not replacing it"
@@ -287,17 +331,26 @@ write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1)
     if [ -n "$ids" ]; then
         ids_line="    \"ethernet_ids\": [$(printf '%s\n' "$ids" | sed '/^$/d' | sed 's/.*/"&"/' | paste -sd, - | sed 's/,/, /g')],"$'\n'
     fi
+    if [ -n "$container" ]; then
+        container_lines="    \"container\": \"${container}\","$'\n'
+    fi
+    if [ -n "$host" ]; then
+        container_lines="${container_lines}    \"hostname\": \"${host}\","$'\n'
+    fi
     if ! tmp="$(mktemp "${UUID_DIR}/.uuid.json.XXXXXX")"; then
         log_error "cannot create a temporary file in $UUID_DIR"
         return 1
     fi
-    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n%s    "created": "%s"\n}\n' \
-            "$uuid" "$source" "$ids_line" "${created:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" > "$tmp"; then
+    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n%s%s    "created": "%s"\n}\n' \
+            "$uuid" "$source" "$ids_line" "$container_lines" \
+            "${created:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" > "$tmp"; then
         log_error "cannot write $tmp"
         rm -f "$tmp"
         return 1
     fi
-    chmod 0660 "$tmp" || true
+    if ! chmod 0660 "$tmp"; then
+        log_warning "cannot set mode 0660 on $tmp"
+    fi
     if ! mv -f "$tmp" "$UUID_FILE"; then
         log_error "cannot move $tmp to $UUID_FILE"
         rm -f "$tmp"
@@ -307,13 +360,17 @@ write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1)
 
 #
 #   The hardware identifiers, one "<source> <value>" per line, plus the
-#   "placeholder:", "unreadable:" and "container" lines. Read where the
-#   privileges are (as root), used after dropping them.
+#   "placeholder:", "unreadable:", "container" and "hostname" lines. Read
+#   where the privileges are (as root), used after dropping them.
 #
 gather_hwids() {
-    local name
+    local name host
+    host="$(current_hostname)"
+    if [ -n "$host" ]; then
+        printf 'hostname %s\n' "$host"
+    fi
     if name="$(container_name)"; then
-        printf 'container %s\n' "$name"
+        printf 'container %s\n' "$(safe_token "$name")"
         return 0
     fi
     gather_file_id devicetree-serial /sys/firmware/devicetree/base/serial-number
@@ -393,8 +450,12 @@ RESTART_NOTE="the agents and the yunos running keep the old one until they resta
 #
 #   Commands
 #
-cmd_ensure() {
-    local stored_uuid stored_source stored_ids stored_created ids_now merged picked src val new ids
+cmd_ensure() {    # installing(0|1)
+    local installing="$1"
+    local stored_uuid stored_source stored_ids stored_created stored_host ids_now merged picked src val new ids
+    local container host_now replaced=""
+    container="$(hw_values container)"
+    host_now="$(hw_values hostname)"
     stored_uuid="$(stored_field uuid)"
     stored_source="$(stored_field source)"
     stored_created="$(stored_field created)"
@@ -407,6 +468,15 @@ cmd_ensure() {
     fi
 
     if [ "$stored_source" = "manual" ] && [ -n "$stored_uuid" ]; then
+        return 0
+    fi
+
+    #   The install may be the build of an image: what it stored would be
+    #   in every container made from it. The agents' first start makes it.
+    if [ -n "$container" ] && [ "$installing" = "1" ]; then
+        if [ -z "$stored_uuid" ]; then
+            log_info "a container ($container): no node uuid is stored at install, the agents' first start makes it"
+        fi
         return 0
     fi
 
@@ -453,23 +523,37 @@ cmd_ensure() {
         return 0
     fi
 
+    #   No hardware identifier: the uuid already there stays, unless it is a
+    #   random made in a container of another hostname (an image built with
+    #   it, a copy of another container)
     if [ -n "$stored_uuid" ]; then
-        return 0    # no hardware identifier: the uuid already there stays
+        stored_host="$(stored_field hostname)"
+        if [ "$stored_source" != "random" ] || [ -z "$stored_host" ] ||
+                [ -z "$host_now" ] || [ "$stored_host" = "$host_now" ]; then
+            return 0
+        fi
+        replaced="$stored_uuid"
     fi
     if ! new="$(normalize < /proc/sys/kernel/random/uuid)" || ! [[ "$new" =~ $UUID_RE ]]; then
         log_error "no hardware identifier and no random uuid from the kernel"
         return 1
     fi
-    write_uuid_file "$new" "random" "" "" 1 || return 1
-    if [ -n "$(hw_values container)" ]; then
-        log_info "node uuid $new is RANDOM: this is a container ($(hw_values container)), its /sys is the host's"
+    if [ -n "$container" ]; then
+        write_uuid_file "$new" "random" "" "" 1 "$container" "$host_now" || return 1
+    else
+        write_uuid_file "$new" "random" "" "" 1 || return 1
+    fi
+    if [ -n "$replaced" ]; then
+        log_warning "node uuid was $replaced, made in a container of hostname $stored_host (an image built with it, or a copy of that container), this is ${host_now}: now $new; $RESTART_NOTE"
+    elif [ -n "$container" ]; then
+        log_info "node uuid $new is RANDOM: this is a container ($container), its /sys is the host's; it belongs to the hostname ${host_now:-(none)}"
     else
         log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
     fi
 }
 
 cmd_show() {
-    local stored_uuid stored_source picked unreadable
+    local stored_uuid stored_source stored_host picked unreadable
     stored_uuid="$(stored_field uuid)"
     stored_source="$(stored_field source)"
     echo "file:     $UUID_FILE"
@@ -478,6 +562,14 @@ cmd_show() {
     echo "created:  $(stored_field created)"
     if [ -n "$(hw_values container)" ]; then
         echo "hardware: none read: this is a container ($(hw_values container)), its /sys is the host's"
+        stored_host="$(stored_field hostname)"
+        if [ "$stored_source" = "random" ] && [ -n "$stored_host" ]; then
+            if [ "$stored_host" = "$(hw_values hostname)" ]; then
+                echo "hostname: $stored_host, the one the uuid belongs to"
+            else
+                echo "hostname: $(hw_values hostname), the uuid belongs to $stored_host: ensure makes a new one"
+            fi
+        fi
         return 0
     fi
     unreadable="$(printf '%s\n' "$HWIDS" | sed -n 's/^unreadable:\([^ ]*\) .*/\1/p' | paste -sd' ' -)"
@@ -497,11 +589,23 @@ cmd_show() {
 }
 
 cmd_set() {
-    local uuid
+    local uuid stored_uuid stored_source
     uuid="$(printf '%s' "${1:-}" | normalize)"
     if ! [[ "$uuid" =~ $UUID_RE ]]; then
         log_error "'${1:-}' is not a uuid"
         return 1
+    fi
+    stored_uuid="$(stored_field uuid)"
+    stored_source="$(stored_field source)"
+    if [ "$uuid" = "$stored_uuid" ]; then
+        if [ "$stored_source" = "manual" ]; then
+            log_info "node uuid is already $uuid, set by hand: nothing to do"
+            return 0
+        fi
+        # The same uuid: no copy, nothing for the agents and yunos to follow
+        write_uuid_file "$uuid" "manual" "" "$(stored_field created)" 0 || return 1
+        log_info "node uuid $uuid, the one it had, is now set by hand: the hardware will not change it"
+        return 0
     fi
     write_uuid_file "$uuid" "manual" "" "" 1 || return 1
     log_info "node uuid set by hand to $uuid; the hardware will not change it; $RESTART_NOTE"
@@ -512,11 +616,26 @@ cmd_set() {
 #
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 CMD="${1:-ensure}"
+USAGE="usage: yuneta-node-uuid [ensure [--installing]|show|set <uuid>]"
+INSTALLING=0
 case "$CMD" in
-    ensure|show|set)
+    ensure)
+        case "${2:-}" in
+            "")
+                ;;
+            --installing)
+                INSTALLING=1
+                ;;
+            *)
+                echo "$USAGE" >&2
+                exit 2
+                ;;
+        esac
+        ;;
+    show|set)
         ;;
     *)
-        echo "usage: yuneta-node-uuid [ensure|show|set <uuid>]" >&2
+        echo "$USAGE" >&2
         exit 2
         ;;
 esac
@@ -550,19 +669,27 @@ fi
 #   One writer at a time: the agent units, the postinst and a hand-run set
 #
 take_lock() {
-    if command -v flock >/dev/null 2>&1 && mkdir -p "$UUID_DIR" 2>/dev/null; then
-        if { exec 9>"${UUID_DIR}/.lock"; } 2>/dev/null; then
-            flock -w 10 9 || log_warning "could not lock ${UUID_DIR}/.lock, going on"
-        else
-            log_warning "cannot open ${UUID_DIR}/.lock, going on without the lock"
-        fi
+    if ! command -v flock >/dev/null 2>&1; then
+        log_warning "no flock, going on without the lock"
+        return 0
+    fi
+    if ! mkdir -p "$UUID_DIR"; then
+        log_warning "cannot create $UUID_DIR, going on without the lock"
+        return 0
+    fi
+    if ! { exec 9>"${UUID_DIR}/.lock"; } 2>/dev/null; then
+        log_warning "cannot open ${UUID_DIR}/.lock, going on without the lock"
+        return 0
+    fi
+    if ! flock -w 10 9; then
+        log_warning "could not lock ${UUID_DIR}/.lock, going on"
     fi
 }
 
 case "$CMD" in
     ensure)
         take_lock
-        cmd_ensure
+        cmd_ensure "$INSTALLING"
         ;;
     show)
         cmd_show

@@ -2228,9 +2228,10 @@ if [ -d /yuneta ]; then
     chown -R yuneta:yuneta /yuneta || true
 fi
 
-# Node uuid: from the hardware, before an agent reads it
+# Node uuid: from the hardware, before an agent reads it. --installing: in a
+# container nothing is stored, this may be the build of an image
 if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
-    /usr/libexec/yuneta/yuneta-node-uuid ensure || warn "yuneta-node-uuid failed: the node keeps the uuid it had"
+    /usr/libexec/yuneta/yuneta-node-uuid ensure --installing || warn "yuneta-node-uuid failed: the node keeps the uuid it had"
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true
