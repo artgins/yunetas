@@ -265,6 +265,9 @@ PRIVATE const char *expected_msgs[] = {
     "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
     "stopping a scenario: its max_run is reached",          // 16
     "a step of a scenario run was not answered",            // 17: one step, said once
+    "stopping a scenario: its max_run is reached",          // 19: mrx, its node away
+    "the stop of a scenario's max_run did nothing, tried again when a node of it connects",
+    "stopping a scenario: its max_run is reached",          // 19: its node connected
     /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",

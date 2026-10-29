@@ -144,7 +144,9 @@ still reported and fails the test.
     center runs itself when it is due. The scenario "mr" (`max_run` 1 s) is
     saved and started; `scenarios` says when its stop is due (`stop_at`); a
     `max_run` out of range is refused, and while it runs a user who may
-    write it but not run it cannot save it. In the next phase the control
+    write it but not run it cannot save it, nor delete it (*"deleting it
+    needs 'run-scenarios' too"*; up to 7.29.1 the delete went through and
+    took the stop with it). In the next phase the control
     center has sent the stop step by itself (*"stopping a scenario: its
     max_run is reached"*); the run is written as the control center's, with
     the reason, and the stop is no longer scheduled. Every run that ends is
@@ -185,6 +187,17 @@ still reported and fails the test.
     both steps at once, as a stop does, and another run is refused while it
     waits. The switch runs leave the scenario running: `on` goes again.
     Stopped: `on` is refused again.
+19. The stop of a `max_run` whose node is not connected. The scenario "mrx"
+    (`max_run` 1 s) starts a yuno on the agent and stops one on `ghost`,
+    whose agent is not connected. Past its stop, the control center has run
+    it once, it did nothing (one run, failed, and the warning *"the stop of
+    a scenario's max_run did nothing, tried again when a node of it
+    connects"*), and `scenarios` says `stop_waits_node`. The agent of
+    `ghost` connects (`EV_ON_OPEN` from `__input_side__`): the stop goes to
+    it a second later; answered, it is the second stop run, done, and no
+    stop is scheduled. Up to 7.29.1 the stop was tried every minute, a run
+    written each time, for as long as the node was down. It runs in phases
+    3-5, between case 17 and case 11.
 
 ## Run
 

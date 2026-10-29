@@ -407,7 +407,7 @@ What the scope does in each command:
 |---------|------------------------------------------|
 | `scenarios` | Lists only the scenarios in scope; asked by `scenario_id` for another one, `-1` *"no permission to 'read-scenarios'"* |
 | `scenario-runs`, `watch-scenario` | Only for a scenario in scope |
-| `save-scenario`, `delete-scenario` | Need `write-scenarios` on that scenario (scoped the same way, on the id saved or deleted) |
+| `save-scenario`, `delete-scenario` | Need `write-scenarios` on that scenario (scoped the same way, on the id saved or deleted), and `run-scenarios` too while it runs |
 | `run-scenario` | Needs `run-scenarios` on that scenario |
 | `command-agent`, `stats-agent`, `list-agents` | Refused: not granted |
 
@@ -474,9 +474,14 @@ clock alone. When it is due the control center runs `stop` itself, as a run of
 its own -- user the control center, the reason in the comment (*"max_run of
 2100 s reached (started by esg@hidraulia.eu); run ...: stop done, 16 steps"*)
 -- a few seconds later if
-another run is in flight, a minute later if the stop could do nothing. The
-schedule is rebuilt from the runs at start, so a restart does not lose it.
-`scenarios` answers it as `stop_at` (epoch seconds), and the run in flight of
+another run is in flight. A stop that could do nothing (no node of it
+connected) is written once, with a warning (*"the stop of a scenario's
+max_run did nothing, tried again when a node of it connects"*), and then
+waits: it runs again when the agent of one of its nodes connects, not on a
+clock. Up to 7.29.1 it was tried every minute, and every try wrote a run
+while the node was down. The schedule is rebuilt from the runs at start, so
+a restart does not lose it. `scenarios` answers it as `stop_at` (epoch
+seconds; `stop_waits_node: true` while it waits for a node), and the run in flight of
 the scenario, if any, as `run_in_flight` (`id`, `action`, `username`,
 `started_at`; 7.28.4+), so a console can say that a start is still going and
 not offer another. Every run that ends
@@ -485,7 +490,13 @@ at 18:45"* while it runs, and sees it stopped -- by the control center, or by
 anybody -- at once. While a scenario runs (a run of it in flight, or its last
 run that did anything is not a stop), saving it needs `run-scenarios` on it
 too (7.27.19): a max_run saved then schedules the stop steps saved then, so
-writing them would be running them.
+writing them would be running them. So does deleting it (after 7.29.1): the
+delete takes its stop steps and its max_run stop, and leaves its yunos as
+they are -- *"scenario 'x' runs: deleting it needs 'run-scenarios' too"*:
+
+```bash
+ycommand ... -c 'delete-scenario scenario_id=renfe-20k-hidraulia'   # stop it first, or hold run-scenarios
+```
 
 **A generator turned on or off by hand: the `switch` of a yuno** (7.28.6+).
 To climb the load one fleet at a time, a yuno may carry a switch: two lists

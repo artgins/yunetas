@@ -67,6 +67,7 @@
  *              Constants
  ***************************************************************************/
 #define AGENT_HOST  "node1"
+#define GHOST_HOST  "ghost"     // case 19: a node whose agent connects late
 #define DROPS_WAIT_MS   5000    // the most a phase waits for the drops timer
 
 GOBJ_DECLARE_EVENT(EV_PERMISSIONS_CHANGED);     // c_controlcenter.c
@@ -141,6 +142,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj agent_channel;    // the agent's channel in __input_side__
     hgobj agent_wire;       // below its C_IEVENT_SRV: what is sent to the agent
+    hgobj ghost_channel;    // case 19: the agent of GHOST_HOST, connected late
+    hgobj ghost_wire;
 
     int phase;              // the tests run in the loop: each phase a timeout
     uint64_t t_wait;        // msectimer: the deadline of what a phase waits for
@@ -1328,6 +1331,16 @@ PRIVATE int test_max_run_start(hgobj gobj, hgobj client)
         -1, "saving it needs 'run-scenarios' too", "a writer who may not run cannot save a running mr");
 
     /*
+     *  Nor delete it: its delete would take its stop steps, and the stop
+     *  its max_run schedules
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string("writer"));
+    json_object_set_new(kw, "scenario_id", json_string("mr"));
+    ret += check_response(gobj, gobj_command(priv->cc, "delete-scenario", kw, client),
+        -1, "deleting it needs 'run-scenarios' too", "a writer who may not run cannot delete a running mr");
+
+    /*
      *  Nor the scenario "scn", which runs with no max_run (case 4 started
      *  it): a max_run saved now would schedule the stop steps saved now
      */
@@ -1387,6 +1400,174 @@ PRIVATE int test_max_run_stopped(hgobj gobj)
         ret += fail(gobj, "the stop that ended is told (EV_SCENARIO_RUN_ENDED)", "");
     }
     gobj_unsubscribe_event(priv->cc, EV_SCENARIO_RUN_ENDED, 0, gobj);
+    return ret;
+}
+
+/***************************************************************************
+ *  19. The stop of a max_run whose node is not connected. The scenario
+ *      "mrx" (max_run 1 s) starts a yuno on AGENT_HOST and stops one on
+ *      GHOST_HOST, whose agent is not connected. A (phase 3): started.
+ *      B (phase 4, past the stop): the control center ran the stop, which
+ *      did nothing (one run, failed, and a warning), and the stop waits for
+ *      a node of it (`stop_waits_node` in `scenarios`), not for a minute:
+ *      up to 7.29.1 it was tried every minute, a run written each time, for
+ *      as long as the node was down. The agent of GHOST_HOST connects.
+ *      C (phase 5): the stop went to it at once; answered, the run is the
+ *      second stop, done, and nothing is scheduled any more.
+ ***************************************************************************/
+PRIVATE int ghost_connects(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->ghost_channel = create_peer("agent-2", priv->input_side);
+    priv->ghost_wire = create_peer("agent-2-wire", priv->ghost_channel);
+
+    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:{s:s, s:{s:[{s:s}]}}}",
+        "client_yuno_role", "yuneta_agent",
+        "client_yuno_name", GHOST_HOST,
+        "client_yuno_service", "agent",
+        "identity_card",
+            "id", "uuid-" GHOST_HOST,
+            "__md_iev__",
+                "ievent_gate_stack",
+                    "host", GHOST_HOST
+    );
+    hgobj srv = gobj_create("agent-2", C_IEVENT_SRV, kw_srv, priv->ghost_channel);
+    if(!srv) {
+        return fail(gobj, "ghost_connects", "cannot create the C_IEVENT_SRV");
+    }
+    gobj_set_bottom_gobj(srv, priv->ghost_wire);
+    gobj_start(srv);
+    gobj_change_state(srv, ST_SESSION);
+
+    gobj_send_event(priv->cc, EV_ON_OPEN,
+        json_pack("{s:{s:I}}", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)priv->ghost_channel),
+        priv->input_side
+    );
+    return 0;
+}
+
+/*  The runs of "mrx" that are a stop, and the newest of them (yours)  */
+PRIVATE int mrx_stops(hgobj gobj, json_t **newest_stop)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(priv->client1));
+    json_object_set_new(kw, "scenario_id", json_string("mrx"));
+    json_t *response = gobj_command(priv->cc, "scenario-runs", kw, priv->client1);
+    int n = 0;
+    *newest_stop = NULL;
+    size_t idx; json_t *run;
+    json_array_foreach(kw_get_list(gobj, response, "data", 0, 0), idx, run) {
+        if(strcmp(kw_get_str(gobj, run, "action", "", 0), "stop")!=0) {
+            continue;
+        }
+        if(!*newest_stop) {
+            *newest_stop = json_incref(run);
+        }
+        n++;
+    }
+    JSON_DECREF(response)
+    return n;
+}
+
+PRIVATE int test_max_run_no_node_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", json_pack(
+        "{s:s, s:s, s:I, s:[{s:s}, {s:s, s:s}], s:{s:[{s:s, s:s}], s:[{s:s, s:s}]}}",
+        "id", "mrx",
+        "node", AGENT_HOST,
+        "max_run", (json_int_t)1,
+        "yunos", "id", "1234", "id", "9999", "node", GHOST_HOST,
+        "actions",
+            "start", "yuno", "1234", "command", "resume-generation",
+            "stop", "yuno", "9999", "command", "pause-generation"
+    ));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: mrx", "a scenario whose stop is on a node not connected");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mrx"));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    json_t *step = agent_request(gobj, "the start step of mrx goes to the agent");
+    if(!step) {
+        return ret - 1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "generating");
+    JSON_DECREF(step)
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    return ret;
+}
+
+PRIVATE int test_max_run_no_node_waits(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *newest = NULL;
+    int n = mrx_stops(gobj, &newest);
+    if(n != 1 || kw_get_int(gobj, newest, "result", 0, KW_WILD_NUMBER) >= 0) {
+        ret += fail(gobj, "the stop of mrx ran once, and did nothing", "");
+    }
+    JSON_DECREF(newest)
+
+    json_t *kw = client_kw(gobj_name(priv->client1));
+    json_object_set_new(kw, "scenario_id", json_string("mrx"));
+    json_t *response = gobj_command(priv->cc, "scenarios", kw, priv->client1);
+    json_t *mrx = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
+    if(!json_is_true(json_object_get(mrx, "stop_waits_node"))) {
+        ret += fail(gobj, "the stop of mrx waits for a node of it (stop_waits_node)", "");
+    }
+    JSON_DECREF(response)
+
+    ret += ghost_connects(gobj);
+    return ret;
+}
+
+PRIVATE int test_max_run_no_node_reached(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *received = take_received(priv->ghost_wire);
+    size_t nr = json_array_size(received);
+    json_t *step = nr? json_incref(json_object_get(json_array_get(received, nr-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(!step) {
+        return fail(gobj, "the stop of mrx goes to the agent of its node when it connects",
+            "the agent got no request");
+    }
+    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "pause-generation")) {
+        ret += fail(gobj, "the stop step of mrx", kw_get_str(gobj, step, "__command__", "", 0));
+    }
+    json_t *kw = msg_iev_build_response(gobj, 0, json_string("paused"), 0, 0, json_deep_copy(step));
+    kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)priv->ghost_channel));
+    gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, kw, priv->input_side);
+    JSON_DECREF(step)
+
+    json_t *newest = NULL;
+    int n = mrx_stops(gobj, &newest);
+    if(n != 2 || kw_get_int(gobj, newest, "result", -1, KW_WILD_NUMBER) != 0) {
+        ret += fail(gobj, "the stop of mrx, tried again, is done", "");
+    }
+    JSON_DECREF(newest)
+
+    kw = client_kw(gobj_name(priv->client1));
+    json_object_set_new(kw, "scenario_id", json_string("mrx"));
+    json_t *response = gobj_command(priv->cc, "scenarios", kw, priv->client1);
+    json_t *mrx = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
+    if(json_object_get(mrx, "stop_at") || json_object_get(mrx, "stop_waits_node")) {
+        ret += fail(gobj, "a stopped mrx has no stop scheduled", "");
+    }
+    JSON_DECREF(response)
     return ret;
 }
 
@@ -2382,10 +2563,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             priv->result += fail(gobj, "the run with a step not answered did not end in time",
                 "phase 2");
-            priv->phase = 8;
+            priv->phase = 11;
         }
     }
-    if(priv->phase == 4 || priv->phase == 5) {
+    if(priv->phase == 7 || priv->phase == 8) {
         if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
             if(!test_msectimer(priv->t_wait)) {
                 set_timeout(priv->timer, 100);
@@ -2393,8 +2574,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 return 0;
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
-                priv->phase == 4? "phase 4" : "phase 5");
-            priv->phase = 8;
+                priv->phase == 7? "phase 7" : "phase 8");
+            priv->phase = 11;
         }
     }
 
@@ -2419,29 +2600,44 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return 0;
         case 3:
+            priv->result += test_max_run_no_node_start(gobj);
+            set_timeout(priv->timer, 2500);     // past the stop its max_run schedules
+            KW_DECREF(kw)
+            return 0;
+        case 4:
+            priv->result += test_max_run_no_node_waits(gobj);
+            set_timeout(priv->timer, 1500);     // the stop timer, at least 1 s
+            KW_DECREF(kw)
+            return 0;
+        case 5:
+            priv->result += test_max_run_no_node_reached(gobj);
+            set_timeout(priv->timer, 100);
+            KW_DECREF(kw)
+            return 0;
+        case 6:
             priv->result += test_drops_window_shortened(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 4:
+        case 7:
             priv->result += test_drops_counted_again(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 5:
+        case 8:
             priv->result += test_drops_timer_said(gobj);
             priv->result += test_rates_traffic(gobj);
             set_timeout(priv->timer, 2*RATES_TICK_MS + 500);    // past two ticks
             KW_DECREF(kw)
             return 0;
-        case 6:
+        case 9:
             priv->result += test_rates_read(gobj);
             set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
             KW_DECREF(kw)
             return 0;
-        case 7:
+        case 10:
             priv->result += test_stop_outside_shutdown(gobj);
             break;
         default:
