@@ -50,22 +50,35 @@
   empty version made the role's own directory the version's, which a later
   `delete-binary` removed whole; a version `.` did the same, because
   `build_path()` drops a `.` segment, and a role `.` named the directory of
-  the tags). In 7.29.3. **`delete-binary force=1` removes a binary record
-  whose names are refused, and leaves its files:** a record installed by
-  7.29.3 or older can hold a `^`, `@`, a space or an empty version, and could
-  then not be updated or deleted at all; with `force=1` its record is deleted
-  with a WARNING and no directory is removed (none is exactly its
-  version's).
+  the tags). In 7.29.3. **`delete-binary record_only=1` (new) removes a
+  binary record and leaves its files; it is the way to remove a record whose
+  names are refused:** a record installed by 7.29.3 or older can hold a `^`,
+  `@`, a space or an empty version, and could not be updated or deleted at
+  all. With `record_only=1` the record is deleted with a WARNING and no
+  directory is removed. `force=1` passes only the in-use and snap guards and
+  does not delete such a record; a record that a yuno uses needs both flags.
+- **BREAKING: the agent's delete commands need an `id`.** With no id, the
+  filter of `delete-binary`, `delete-config`, `delete-yuno`, `delete-realm`
+  and `delete-public-service` was empty and selected every record of the
+  topic: `delete-binary force=1` deleted every binary, those in use too;
+  `delete-config force=1` every configuration; `delete-yuno whole=1` every
+  yuno not running, and `delete-yuno yuno_release=<rel>` that release of
+  every yuno; `delete-realm` every realm with no yunos; `delete-public-service`
+  every public service. Each refuses an empty id now (*"delete-X needs an id:
+  without one it selects every X"*). In 7.29.3 and older.
 - **The agent says when a yuno's `role^name` or its command audit fails.**
   `build_role_plus_name()` cut a `role^name` longer than `NAME_MAX` without a
   log, and the run script and configuration files were written under the cut
   name: the launch is now refused with an ERROR. When the audit file path
   could not be built at start, the command audit stayed off without a log:
-  one ERROR *"Command audit OFF"* names the path and errno. In 7.29.3 and
-  older.
-- **timeranger2 reads a text time, bound or tkey, by ONE rule,
-  `tranger2_time_of_text()` (new)**, and refuses a text that is no time with
-  a WARNING that says why. The text bounds of a `match_cond` and a text tkey
+  one ERROR *"Command audit OFF"* names the path (a file that cannot be
+  created or opened stops the agent at start, as it always did: the cause
+  goes to stdout and syslog, and the watcher relaunches it every 2 s). In
+  7.29.3 and older.
+- **BREAKING: timeranger2 reads a text time, bound or tkey, by ONE rule,
+  `tranger2_time_of_text()` (new)** -- the value of a text tkey and what a
+  `before` that deletes accepts both change (see below) --, and refuses a
+  text that is no time with a WARNING that says why. The text bounds of a `match_cond` and a text tkey
   were read with `approxidate()`, which has no error flag: a text it could
   not read was NOW, in silence (every release), and a bound with no `T` was
   cut by `strtoll()` (`"2026-10-01 00:00:00 +0000"` was the time 2026;
@@ -76,19 +89,37 @@
       is an integer is that integer**: up to 7.29.3 `"5"` was the 5th of this
       month, and `"1761000000"` on a milliseconds topic was read as seconds;
     - a text written as another number is refused: `" 5"`, `"5 "`,
-      `"10.5"`, `"007"`, `"+5"`, `"0x10"`, `"1E5"` (up to 7.29.3 `strtoll()`
-      made `" 5"` 5 and `"10.5"` 10);
+      `"10.5"`, `"007"`, `"+5"`, `"1E5"`, a decimal comma (`"1,5"`,
+      `"10,5"`) and digits in groups (`"5 5"`, `"2026 10 01"`). Up to 7.29.3
+      `strtoll()` made `" 5"` 5 and `"10.5"` 10 as a bound, and
+      `approxidate()` read `"1,5"` as May 1, `"5 5"` as May 5 and
+      `"2026 10 01"` as January 10, as a tkey and as a `before`;
+    - a json string is judged whole (`tranger2_time_of_json_text()`, new):
+      a bound, a tkey or a `before` with a NUL inside is refused. In 7.29.3
+      `{"tm":"5\u0000junk"}` was read up to the NUL, and a `before` of
+      `"<date>\u0000garbage"` purged the files before that date;
     - any other text is a date read by `approxidate_careful()`, and one that
       is no date is refused: *"match_cond refused: a time bound is no date"*
       (the open answers NULL), *"Cannot append record, its tkey is a text
       that is no date"* (nothing written); C_TRANGER's `add-record` and the
       treedb say it too;
     - the `before` of `delete-key-files` / `archive-key-files` follows the
-      same rule: in 7.29.3 `"007"` there was the 7th of this month, and the
-      files before it were purged.
+      same rule: in 7.29.3 `"007"` there was the 7th of this month, and
+      `before=1,5` (left as text by the parser) May 1, and the files before
+      it were purged.
 
   A json append refused for its tkey or its pkey traces the first 256 bytes
   of the record (masked), not the whole record.
+- **The command-line tools read a TIME by timeranger2's rule, and refuse a
+  bad one saying why.** `tr2list`, `tr2search`, `stats_list`, `emu_device`
+  and `time2range` each had their own reader: `007` was 7, `10.5` / `1,5` /
+  `" 5"` were dates, `-5` was refused by `tr2search` and `stats_list`, and
+  `emu_device` and `time2range` did not check a date that failed to parse
+  (`garbage` selected nothing, or gave a year past 4,000,000). `tr2search`
+  and `emu_device` also left a date in seconds on a millisecond axis. They
+  call `tranger2_time_of_text()` now, and `tr2list`, `tr2search` and
+  `emu_device` hand the bound to the tranger as text, so each topic reads it
+  in its own unit. In 7.29.3 and older.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -101,10 +132,15 @@
       frame (they were dropped, half a frame included, and the next answer
       was lost); over RTU, which has no length to resync on, they are still
       dropped -- a noise byte after an answer (an RS485 line released) would
-      swallow the next answer -- and warned when they start, once per
-      connection and again only after a polling cycle without them (an info
-      says it came), not on every answer; each drop is counted in the stats
-      attr `rx_noise_dropped`. Over TCP a byte that is no frame drops the
+      swallow the next answer -- and so is, where a frame would start, a byte
+      that cannot start an answer: 0 (the broadcast) or 248-255 (reserved).
+      In 7.29.3 such a byte in a read of its own, before an answer, was taken
+      as the head of a frame and the answer was lost; a byte 1-247 there is
+      still taken (it may start a late frame of another slave, read whole and
+      dropped). The noise is counted in the stats attr `rx_noise_dropped`
+      before its answer is published, and warned when it starts, once per
+      connection and again only after a polling cycle that polled a block and
+      dropped nothing (an info says it came), not on every answer. Over TCP a byte that is no frame drops the
       connection: the reconnection is the resync;
     - an answer must be of the function sent, an exception included: a 0x84
       answered a 03, and over RTU the late exception of a timed-out read
@@ -121,6 +157,9 @@
       a slave id that cannot be asked) and a slave without blocks are logged
       once at start, and the cycle skips them with no log and no
       `timeout_polling` wait: the blocks after it are read sooner;
+    - a subscriber that stops the master in its `EV_MODBUS_ANSWER` (or the
+      `EV_ON_MESSAGE` of a cycle) stops the polling: in 7.29.3 the master went
+      on with its cycle on the stopped gobj;
     - `slaves` written while the master runs takes effect at the next start,
       with a warning: the write freed the map the cycle pointed into, and the
       master read freed memory;
@@ -149,12 +188,15 @@
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
 - **The node uuid** (`yuneta-node-uuid`; in 7.29.3):
-    - a board written from a `docker export` reads its hardware:
-      `/.dockerenv` and `/run/.containerenv`, and the `docker`/`podman` that
-      systemd-detect-virt reads from them, count only outside the initial
-      pid namespace (the 7.29.3 note that such a board gets its own uuid did
-      not hold, nor did the first fix of it on a system with systemd, whose
-      detect-virt answered `docker` there). A board with no hardware
+    - a board written from a `docker export` reads its hardware. In the
+      initial pid namespace only what this boot made counts: the
+      `container=` of PID 1; `/run/systemd/container` and
+      `/run/host/container-manager` only when `/run` is a tmpfs (an Ubuntu
+      image ships the first with `docker`, and a board booted without a
+      tmpfs on `/run` kept it); never `/.dockerenv` or `/run/.containerenv`;
+      and of systemd-detect-virt, which reads those files in any pid
+      namespace, only `wsl`, `openvz` and `proot`. The 7.29.3 note that such
+      a board gets its own uuid did not hold. A board with no hardware
       identifier does not keep the container's random either, same
       hostname or not: it gets a new random, a copy of the old file and a
       warning;
@@ -174,7 +216,7 @@
     - the docs no longer claim a container's uuid is never shared: two
       containers with the same hostname and the same `uuid.json` share it.
       Delete `uuid.json` before a `docker commit`/`export`, or `set` one per
-      copy. `test-yuneta-node-uuid.sh`: 104 checks (a BuildKit step emulated
+      copy. `test-yuneta-node-uuid.sh`: 116 checks (a BuildKit step emulated
       with `unshare -Upf --mount-proc`).
 - **The ERROR "treedb name too long for the ids of its lists" names the yuno
   in one key** (it carried four `yuno` keys; in 7.29.3).
