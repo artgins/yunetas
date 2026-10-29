@@ -138,6 +138,21 @@
   The target was decided by `realpath()`, which follows the whole chain, so
   ymake-skeleton gave `run2.link -> run.link` the suffix of the file at the
   end (`run.link_tmpl`), dangling in the template. `test_cloners.sh`.
+- **`build_path()` returns NULL when the path does not fit**, with the
+  ERROR *"Path too long, build_path() cannot build it"* (stack) and `errno`
+  `ENAMETOOLONG`; the buffer still holds the segments that fitted. It used
+  to syslog and return the cut path as if it were whole (every release:
+  before 7.2.0 the advanced pointer, since then the buffer), so the 63
+  `!build_path()` guards and the ~10 positive checks in timeranger2,
+  tr_treedb, tr_queue, fs_watcher, `C_TREEDB`, `C_ASSETS`, tr2q_mqtt,
+  `archive_sender` and `archive_keeper` never fired and the cut path --
+  often a parent of the directory asked for -- was used:
+  `archive_purged_files()` would have removed a key's whole archive for an
+  entry whose path did not fit. Every guard now takes its error path. Also:
+  `archive_purged_files()` no longer logs an uninitialized `dst`, and
+  `rotatory_remove_old_files()` skips such an entry instead of `lstat`-ing
+  the log directory. A caller that ignores the return only gains the log.
+  `tests/c/build_path`.
 - **gui_agent 1.1.8, gui_treedb 1.0.6** (`yunos/js`): every control of both
   SPAs carries a translatable `title` and `aria-label` (nine had only the
   `aria-label`; the login forms, the connection dialogs and others had no

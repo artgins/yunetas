@@ -414,9 +414,12 @@ Corollaries:
 
 - **Paths:** assemble filesystem paths with `build_path(bf, sizeof(bf), seg1,
   ..., NULL)` (`kernel/c/gobj-c/src/helpers.h`), never `snprintf("%s/%s")`.
-  `build_path` strips duplicate `/`, always null-terminates and logs on
-  overflow. Applies to new/modified code; don't refactor pre-existing calls
-  unprompted.
+  `build_path` strips duplicate `/`, always null-terminates, and returns
+  NULL when the path does not fit (logged with an ERROR, `errno`
+  `ENAMETOOLONG`; the buffer then holds only the segments that fitted, never
+  a path to use), so check it: `if(!build_path(...)) { return -1; // Error
+  already logged }`. Applies to new/modified code; don't refactor
+  pre-existing calls unprompted.
 - **Buffer sizes:** use the `<limits.h>` system constants — `NAME_MAX`
   (filenames), `PATH_MAX` (full paths), `HOST_NAME_MAX`, `LOGIN_NAME_MAX`,
   `PIPE_BUF` — never hand-picked numbers. The constant documents the contract;
