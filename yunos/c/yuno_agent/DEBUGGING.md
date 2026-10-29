@@ -500,13 +500,21 @@ are in the `audit/` directory of the agent realm:
 /yuneta/realms/agent/agent/audit/266-23_09_2026.log.OLD.2  # the next 500 MB
 ```
 
-An agent whose commands cannot be audited does not run: if the `audit/`
-directory or the file cannot be made at start, the agent stops, the cause goes
-to stdout and syslog, and the watcher relaunches it every 2 s. For example:
+An agent whose commands cannot be audited **at start** does not run: if the
+`audit/` directory or the file cannot be made at start, the agent stops, the
+cause goes to stdout and syslog, and the watcher relaunches it: 2 s after the
+first stop, then at a growing interval, up to one relaunch a minute
+([`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-watcher) §4.3). For example:
 
 ```
 rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit' directory, Read-only file system
 ```
+
+Once the agent runs, a failure of the audit does not stop it, and the commands
+go on running without their records. Below `min_free_disk_percentage` of free
+disk the records are dropped. When the file of a new day cannot be made or
+opened, each next record tries again. Each case puts one line in syslog when
+it starts and one when it ends.
 
 #### What a record holds
 

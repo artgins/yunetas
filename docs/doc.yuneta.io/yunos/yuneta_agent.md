@@ -120,12 +120,16 @@ not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
 
 The agent writes every command that it runs to a daily audit file in
 `/yuneta/realms/agent/agent/audit/` (`use_audit_command_file`, on by default).
-**An agent whose commands cannot be audited does not run.** If the agent
-cannot make the `audit` directory, or cannot create or open the file in it,
-at start, it stops, as a yuno whose file log cannot open. The cause goes to
-stdout and syslog, and the watcher relaunches the agent every 2 s until the
-cause is fixed (free disk, the permissions of `/yuneta/realms/agent/agent/`
-or of `audit/`, a file with the name `audit` in place of the directory):
+**An agent whose commands cannot be audited at start does not run.** If the
+agent cannot make the `audit` directory, or cannot create or open the file in
+it, at start, it stops, as a yuno whose file log cannot open. The cause goes to
+stdout and syslog, and the watcher relaunches the agent until the cause is
+fixed: 2 s after the first stop, then at a growing interval, up to one
+relaunch a minute ([Entry point §4.3](#entry-point-watcher)).
+The causes are a disk with no space left (`ENOSPC`: the
+`min_free_disk_percentage` threshold is not checked at start), a read-only
+file system, the permissions or the owner of `/yuneta/realms/agent/agent/` or
+of `audit/`, or a file with the name `audit` in place of the directory:
 
 ```text
 rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit' directory, Read-only file system
@@ -139,16 +143,49 @@ path, and the agent ran with no audit of commands; the only trace was
 of the agent. If it could not be built, the agent logs one ERROR, *"Command
 audit: the path of the audit file cannot be built, the agent does not run"*,
 with the parts of the path (`root_dir`, `domain_dir`, `subdir`, `filename`),
-and stops the same way. To run the agent with no audit, turn the audit off
-in `/yuneta/agent/yuneta_agent.json` and restart the agent:
+and stops the same way.
+
+**Once the agent runs, a failure of the audit does not stop it**: the
+commands go on running, without their records.
+
+- When the free space of the disk goes below `min_free_disk_percentage`
+  (default 20 %), the audit stops writing and drops the records. Syslog has
+  one line when it stops and one when it writes again, with the number of
+  records dropped. The free space is checked again every few records.
+- When the file of a new day (or of a size rotation) cannot be made or
+  opened, syslog has one line, and each next record tries again. Syslog has
+  one more line when the file is open again.
+
+To run the agent with no audit, set `agent.use_audit_command_file` to
+`false` **inside the `global` that `/yuneta/agent/yuneta_agent.json` already
+has**, next to the keys there, and restart the agent. Do not add a second
+`global`: a JSON object keeps only one of two keys with the same name, so the
+other keys (`agent.agent_environment`, and the log of the agent with it) are
+lost. With the keys of the packaged file:
 
 ```json
 {
     "global": {
+        "agent.agent_environment": {
+            "daemon_log_handlers": {
+                "to_file": {
+                    "filename_mask": "W.log"
+                }
+            }
+        },
+        "controlcenter.jwt": "",
+        "authz.master": true,
+        "authz.authz_service": "agent",
         "agent.use_audit_command_file": false
+    },
+
+    "environment": {
+        "node_owner": "none"
     }
 }
 ```
+
+(The rest of the file, such as `__json_config_variables__`, stays as it is.)
 
 - A read-only command (`list-*`, `view-*`, `stats`, `nodes`, `help`, …) is
   recorded with the command, the date and the user only. A command with a
