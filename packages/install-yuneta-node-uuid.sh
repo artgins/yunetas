@@ -174,10 +174,18 @@ AFTER="$(stored_uuid)"
 if [ "$BEFORE" != "$AFTER" ]; then
     CHANGED=1
     echo "[+] node uuid ${BEFORE:-(none)} -> ${AFTER}"
-    echo "[!] The agents and the yunos keep the old uuid until they restart:"
-    echo "    'sudo systemctl restart yuneta_agent', then yuneta_agent22 (one at"
-    echo "    a time; 'yunetas restart-agents' does nothing here: the binary did"
-    echo "    not change), then the yunos ('kill-yuno' and 'run-yuno')."
+    echo "[!] The agents and the yunos keep the old uuid until they restart,"
+    echo "    one agent at a time, the main one first ('yunetas restart-agents'"
+    echo "    does nothing here: the binary did not change):"
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet yuneta_agent; then
+        echo "      sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22"
+    else
+        echo "      (outside systemd: each with --stop, then --start, as yuneta)"
+        echo "      /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop"
+        echo "      /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json"
+        echo "      ... and the same for yuneta_agent22"
+    fi
+    echo "    then the yunos: ycommand -c kill-yuno; ycommand -c run-yuno"
 fi
 if [ "$CHANGED" = "0" ]; then
     say "Nothing changed: node uuid ${AFTER}"
