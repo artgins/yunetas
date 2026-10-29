@@ -383,8 +383,20 @@ sudo /usr/libexec/yuneta/yuneta-node-uuid show   # source: not "random"
 The node uuid is written from the hardware (the SoC serial number, DMI or
 the on-board MAC), so a reinstall keeps it and a cloned disk gets its own on
 its first boot. `random` means that no identifier was readable: the node
-works, but a reinstall gives it a new identity. See
+works, but a reinstall gives it a new identity. In a container `random` is
+correct: its `/sys` is the host's, so no hardware is read there. A uuid
+already stored is kept while the hardware still gives it (a network card
+added later does not move it). See
 [`node_uuid()`](api/helpers/misc.md#node_uuid).
+
+The agents and the yunos read the uuid when they start. If the uuid changes
+(a disk moved to other hardware, or `yuneta-node-uuid set <uuid>`), restart
+both agents and then every yuno: the package restarts the agents only.
+
+```bash
+sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22
+sudo -u yuneta ycommand -c 'kill-yuno'; sudo -u yuneta ycommand -c 'run-yuno'
+```
 
 A node that builds from source does not install the package, so it keeps the
 random uuid until it is given the script by hand, from its checkout:

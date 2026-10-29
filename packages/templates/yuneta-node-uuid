@@ -32,24 +32,49 @@
 #     dmi-product-uuid    /sys/class/dmi/id/product_uuid (x86, VMs)
 #     ethernet-mac        lowest permanent MAC of an on-board wired interface
 #                         (not USB, not wireless, not a random or set MAC)
-#     random              none of the above: as before, kept once written
+#     random              none of the above. Kept while there is none; an
+#                         identifier that appears later replaces it, so a
+#                         system installed where /sys was not the box's own
+#                         (an image built in a chroot) gets the box's uuid on
+#                         its first boot.
 #
 #   The uuid is a version 8 uuid (RFC 9562) made from the first 122 bits of
 #   sha256("yuneta-node-uuid:<source>:<value>"): it does not reveal the serial
-#   number it comes from.
+#   number it comes from. The formula never changes: every node holds a uuid
+#   made with it.
+#
+#   A uuid already stored is KEPT whenever this hardware still gives it:
+#
+#     - the recorded source still gives the value it was made from, even a
+#       value this script now takes for a placeholder;
+#     - ethernet-mac: ANY interface of the box gives it, not only the lowest
+#       (a card added with a lower MAC does not move the node), and the file
+#       records the uuid each interface of the box gives ("ethernet_ids",
+#       uuids, not MACs): with the interface it came from missing at a boot
+#       and another of the same box present, it is kept too. Only a box with
+#       none of them is OTHER hardware (a cloned disk) and gets its own;
+#     - in a container (Docker, Podman, LXC, systemd-nspawn) /sys is the
+#       host's, the same for every container of it: no hardware is read, a
+#       new container gets a random uuid, and one already stored is kept.
 #
 #   A uuid written with `set` is MANUAL and never touched: the way to keep an
 #   identity that something already uses as a key.
 #
+#   The agents and the yunos read the uuid once, when they start
+#   (node_uuid() keeps it in memory). After a change -- by `ensure` on other
+#   hardware, or by `set` -- restart both agents AND every yuno.
+#
 #   Usage:
 #       yuneta-node-uuid [ensure]     create or correct uuid.json (as root)
 #       yuneta-node-uuid show         what is stored and what the hardware
-#                                     gives (as root, or partial without it)
+#                                     gives (as root; without root it says
+#                                     which sources it could not read)
 #       yuneta-node-uuid set <uuid>   fix the uuid by hand (as root)
 #
-#   The previous file is kept as uuid.json.replaced-<UTC time> whenever the
-#   uuid changes. Environment, for tests: YUNETA_NODE_UUID_DIR (default
-#   /yuneta/store/agent/uuid) and YUNETA_NODE_UUID_SYSROOT (prefix of /sys).
+#   The previous file is kept as uuid.json.replaced-<UTC time>[.<n>] whenever
+#   the uuid changes, one per change. Environment, for tests:
+#   YUNETA_NODE_UUID_DIR (default /yuneta/store/agent/uuid) and
+#   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, /run and /proc).
 #
 #   Copyright (c) 2026, ArtGins.
 #
@@ -100,30 +125,47 @@ is_placeholder() {
     case "$v" in
         none|unknown|n/a|na|null|default|defaultstring|notspecified|notapplicable|\
         tobefilledbyo.e.m.|systemserialnumber|0123456789|123456789|1234567890|\
-        03000200-0400-0500-0006-000700080009)
+        03000200-0400-0500-0006-000700080009|00020003-0004-0005-0006-000700080009)
+            # The last two: one placeholder uuid, as SMBIOS 2.6+ and older
+            # versions store its first three fields (byte order)
             return 0
             ;;
     esac
     return 1
 }
 
-read_file_id() {
-    local f="${SYSROOT}$1"
-    local v
+#
+#   The lines of one file source: "<source> <value>", or, when there is
+#   something but not an identity, "placeholder:<source> <value>" (a uuid
+#   already made from it is kept) or "unreadable:<source> <file>"
+#
+gather_file_id() {
+    local source="$1" f="${SYSROOT}$2" v
+    if [ ! -e "$f" ]; then
+        return 0
+    fi
     if [ ! -r "$f" ]; then
-        return 1
+        printf 'unreadable:%s %s\n' "$source" "$2"
+        return 0
     fi
     v="$(normalize < "$f" 2>/dev/null)"
-    if is_placeholder "$v"; then
-        return 1
+    if [ -z "$v" ]; then
+        return 0
     fi
-    printf '%s' "$v"
+    if is_placeholder "$v"; then
+        printf 'placeholder:%s %s\n' "$source" "$v"
+        return 0
+    fi
+    printf '%s %s\n' "$source" "$v"
 }
 
-read_ethernet_mac() {
-    local ifdir name dev mac macs=""
+#
+#   "ethernet-mac <mac>" for every permanent MAC of an on-board wired
+#   interface, the lowest first
+#
+gather_ethernet_macs() {
+    local ifdir dev mac
     for ifdir in "${SYSROOT}"/sys/class/net/*; do
-        name="$(basename "$ifdir")"
         if [ ! -e "$ifdir/device" ]; then
             continue    # virtual: lo, bridges, tunnels, veth
         fi
@@ -146,33 +188,43 @@ read_ethernet_mac() {
         if is_placeholder "$mac"; then
             continue
         fi
-        macs="${macs}${mac}"$'\n'
-    done
-    mac="$(printf '%s' "$macs" | sed '/^$/d' | sort | head -n 1)"
-    if [ -z "$mac" ]; then
-        return 1
-    fi
-    printf '%s' "$mac"
+        printf '%s\n' "$mac"
+    done | sort -u | sed 's/^/ethernet-mac /'
 }
 
-read_source() {
-    case "$1" in
-        devicetree-serial)
-            read_file_id /sys/firmware/devicetree/base/serial-number
-            ;;
-        soc-serial)
-            read_file_id /sys/devices/soc0/serial_number
-            ;;
-        dmi-product-uuid)
-            read_file_id /sys/class/dmi/id/product_uuid
-            ;;
-        ethernet-mac)
-            read_ethernet_mac
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+#
+#   The name of the container this runs in, if it does. The files are read
+#   under SYSROOT (tests); systemd-detect-virt only on the real system
+#
+container_name() {
+    local v
+    if [ -z "$SYSROOT" ] && command -v systemd-detect-virt >/dev/null 2>&1; then
+        if v="$(systemd-detect-virt --container 2>/dev/null)" && [ -n "$v" ] && [ "$v" != "none" ]; then
+            printf '%s' "$v"
+            return 0
+        fi
+    fi
+    if [ -e "${SYSROOT}/.dockerenv" ]; then
+        printf 'docker'
+        return 0
+    fi
+    if [ -e "${SYSROOT}/run/.containerenv" ]; then
+        printf 'podman'
+        return 0
+    fi
+    if [ -s "${SYSROOT}/run/systemd/container" ]; then
+        v="$(normalize < "${SYSROOT}/run/systemd/container" 2>/dev/null)"
+        printf '%s' "${v:-container}"
+        return 0
+    fi
+    if [ -r "${SYSROOT}/proc/1/environ" ]; then
+        v="$(tr '\000' '\n' < "${SYSROOT}/proc/1/environ" 2>/dev/null | sed -n 's/^container=//p' | head -n 1)"
+        if [ -n "$v" ]; then
+            printf '%s' "$v"
+            return 0
+        fi
+    fi
+    return 1
 }
 
 derive_uuid() {
@@ -193,25 +245,54 @@ stored_field() {
     sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$UUID_FILE" | head -n 1
 }
 
-write_uuid_file() {
-    local uuid="$1" source="$2" tmp
+#
+#   The ids of "ethernet_ids": [...], one per line
+#
+stored_ethernet_ids() {
+    if [ ! -r "$UUID_FILE" ]; then
+        return 0
+    fi
+    sed -n 's/.*"ethernet_ids"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$UUID_FILE" \
+        | head -n 1 | tr -d '" ' | tr ',' '\n' | grep -E "$UUID_RE" || true
+}
+
+#
+#   A copy of the file that never overwrites another: uuid.json.replaced-<time>,
+#   or with .1, .2... when that one exists (two changes in the same second)
+#
+keep_a_copy() {
+    local base n=1 name
+    base="${UUID_FILE}.replaced-$(date -u +%Y%m%dT%H%M%SZ)"
+    name="$base"
+    while [ -e "$name" ]; do
+        name="${base}.${n}"
+        n=$((n + 1))
+    done
+    cp -p "$UUID_FILE" "$name"
+}
+
+write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1)
+    local uuid="$1" source="$2" ids="$3" created="$4" keep="$5" tmp ids_line=""
     if ! mkdir -p "$UUID_DIR"; then
         log_error "cannot create $UUID_DIR"
         return 1
     fi
     chmod 2770 "$UUID_DIR" 2>/dev/null || true
-    if [ -e "$UUID_FILE" ]; then
-        if ! cp -p "$UUID_FILE" "${UUID_FILE}.replaced-$(date -u +%Y%m%dT%H%M%SZ)"; then
+    if [ "$keep" = "1" ] && [ -e "$UUID_FILE" ]; then
+        if ! keep_a_copy; then
             log_error "cannot keep a copy of $UUID_FILE, not replacing it"
             return 1
         fi
+    fi
+    if [ -n "$ids" ]; then
+        ids_line="    \"ethernet_ids\": [$(printf '%s\n' "$ids" | sed '/^$/d' | sed 's/.*/"&"/' | paste -sd, - | sed 's/,/, /g')],"$'\n'
     fi
     if ! tmp="$(mktemp "${UUID_DIR}/.uuid.json.XXXXXX")"; then
         log_error "cannot create a temporary file in $UUID_DIR"
         return 1
     fi
-    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n    "created": "%s"\n}\n' \
-            "$uuid" "$source" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp"; then
+    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n%s    "created": "%s"\n}\n' \
+            "$uuid" "$source" "$ids_line" "${created:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" > "$tmp"; then
         log_error "cannot write $tmp"
         rm -f "$tmp"
         return 1
@@ -225,16 +306,71 @@ write_uuid_file() {
 }
 
 #
-#   The hardware identifiers, one "<source> <value>" per line. Read where the
+#   The hardware identifiers, one "<source> <value>" per line, plus the
+#   "placeholder:", "unreadable:" and "container" lines. Read where the
 #   privileges are (as root), used after dropping them.
 #
 gather_hwids() {
-    local s v
-    for s in $HW_SOURCES; do
-        if v="$(read_source "$s")"; then
-            printf '%s %s\n' "$s" "$v"
+    local name
+    if name="$(container_name)"; then
+        printf 'container %s\n' "$name"
+        return 0
+    fi
+    gather_file_id devicetree-serial /sys/firmware/devicetree/base/serial-number
+    gather_file_id soc-serial /sys/devices/soc0/serial_number
+    gather_file_id dmi-product-uuid /sys/class/dmi/id/product_uuid
+    gather_ethernet_macs
+}
+
+#
+#   The values of one kind of line, one per line
+#
+hw_values() {
+    printf '%s\n' "$HWIDS" | sed -n "s/^${1} //p"
+}
+
+#
+#   The uuid each on-board interface gives, one per line
+#
+ethernet_ids_now() {
+    local mac
+    for mac in $(hw_values ethernet-mac); do
+        derive_uuid ethernet-mac "$mac"
+    done
+}
+
+#
+#   Does this hardware still give the stored uuid from the stored source?
+#   Every value of that source counts: every MAC, a placeholder too.
+#
+hardware_gives() {
+    local uuid="$1" source="$2" v
+    case " $HW_SOURCES " in
+        *" $source "*)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    for v in $(hw_values "$source") $(hw_values "placeholder:${source}"); do
+        if [ "$(derive_uuid "$source" "$v")" = "$uuid" ]; then
+            return 0
         fi
     done
+    return 1
+}
+
+#
+#   Is any interface recorded for this box present now?
+#
+known_interface_present() {
+    local now="$1" recorded="$2" id
+    for id in $now; do
+        if printf '%s\n' "$recorded" | grep -qx "$id"; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 #
@@ -252,20 +388,44 @@ pick_hardware() {
     return 1
 }
 
+RESTART_NOTE="the agents and the yunos running keep the old one until they restart: restart both agents, then every yuno (kill-yuno, run-yuno)"
+
 #
 #   Commands
 #
 cmd_ensure() {
-    local stored_uuid stored_source picked src val new
+    local stored_uuid stored_source stored_ids stored_created ids_now merged picked src val new ids
     stored_uuid="$(stored_field uuid)"
     stored_source="$(stored_field source)"
+    stored_created="$(stored_field created)"
+    stored_ids="$(stored_ethernet_ids)"
     if [ -n "$stored_uuid" ] && ! [[ "$stored_uuid" =~ $UUID_RE ]]; then
         log_warning "$UUID_FILE holds no valid uuid ('$stored_uuid'), replacing it"
         stored_uuid=""
         stored_source=""
+        stored_ids=""
     fi
 
     if [ "$stored_source" = "manual" ] && [ -n "$stored_uuid" ]; then
+        return 0
+    fi
+
+    #   The stored uuid is this box's: kept. The interfaces of an
+    #   ethernet-mac box are recorded (added to), the uuid unchanged.
+    ids_now="$(ethernet_ids_now)"
+    if [ "$stored_source" = "ethernet-mac" ] && [ -n "$stored_uuid" ]; then
+        merged="$(printf '%s\n%s\n' "$stored_ids" "$ids_now" | sed '/^$/d' | sort -u)"
+        if hardware_gives "$stored_uuid" "$stored_source" ||
+                known_interface_present "$ids_now" "$stored_ids"; then
+            if ! hardware_gives "$stored_uuid" "$stored_source"; then
+                log_info "node uuid $stored_uuid kept: the interface it came from is missing, other interfaces of this box are present"
+            fi
+            if [ "$merged" != "$(printf '%s\n' "$stored_ids" | sed '/^$/d' | sort -u)" ]; then
+                write_uuid_file "$stored_uuid" "$stored_source" "$merged" "$stored_created" 0 || return 1
+            fi
+            return 0
+        fi
+    elif [ -n "$stored_uuid" ] && hardware_gives "$stored_uuid" "$stored_source"; then
         return 0
     fi
 
@@ -273,19 +433,22 @@ cmd_ensure() {
         src="${picked%% *}"
         val="${picked#* }"
         new="$(derive_uuid "$src" "$val")"
+        ids=""
+        if [ "$src" = "ethernet-mac" ]; then
+            ids="$ids_now"
+        fi
         if [ "$new" = "$stored_uuid" ]; then
-            if [ "$src" != "$stored_source" ]; then
-                write_uuid_file "$new" "$src" || return 1
-            fi
+            # A legacy file without its source: say it, same uuid
+            write_uuid_file "$new" "$src" "$ids" "$stored_created" 0 || return 1
             return 0
         fi
-        write_uuid_file "$new" "$src" || return 1
+        write_uuid_file "$new" "$src" "$ids" "" 1 || return 1
         if [ -z "$stored_uuid" ]; then
             log_info "node uuid $new, from $src"
         elif [ "$stored_source" = "$src" ]; then
-            log_warning "node uuid was $stored_uuid, from $src of OTHER hardware (a cloned disk or image): now $new"
+            log_warning "node uuid was $stored_uuid, from $src of OTHER hardware (a cloned disk or image): now $new; $RESTART_NOTE"
         else
-            log_warning "node uuid was $stored_uuid (${stored_source:-random}), now $new from $src"
+            log_warning "node uuid was $stored_uuid (${stored_source:-random}), now $new from $src; $RESTART_NOTE"
         fi
         return 0
     fi
@@ -297,20 +460,39 @@ cmd_ensure() {
         log_error "no hardware identifier and no random uuid from the kernel"
         return 1
     fi
-    write_uuid_file "$new" "random" || return 1
-    log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
+    write_uuid_file "$new" "random" "" "" 1 || return 1
+    if [ -n "$(hw_values container)" ]; then
+        log_info "node uuid $new is RANDOM: this is a container ($(hw_values container)), its /sys is the host's"
+    else
+        log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
+    fi
 }
 
 cmd_show() {
-    local picked
+    local stored_uuid stored_source picked unreadable
+    stored_uuid="$(stored_field uuid)"
+    stored_source="$(stored_field source)"
     echo "file:     $UUID_FILE"
-    echo "uuid:     $(stored_field uuid)"
-    echo "source:   $(stored_field source)"
+    echo "uuid:     $stored_uuid"
+    echo "source:   $stored_source"
     echo "created:  $(stored_field created)"
-    if picked="$(pick_hardware "$(stored_field source)")"; then
+    if [ -n "$(hw_values container)" ]; then
+        echo "hardware: none read: this is a container ($(hw_values container)), its /sys is the host's"
+        return 0
+    fi
+    unreadable="$(printf '%s\n' "$HWIDS" | sed -n 's/^unreadable:\([^ ]*\) .*/\1/p' | paste -sd' ' -)"
+    if [ -n "$unreadable" ]; then
+        echo "hardware: $unreadable not readable: run as root for the answer"
+        return 0
+    fi
+    if [ -n "$stored_uuid" ] && hardware_gives "$stored_uuid" "$stored_source"; then
+        echo "hardware: $stored_source of this box gives the stored uuid"
+        return 0
+    fi
+    if picked="$(pick_hardware "$stored_source")"; then
         echo "hardware: ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
     else
-        echo "hardware: no identifier found (run as root: DMI is root-only)"
+        echo "hardware: no identifier found"
     fi
 }
 
@@ -321,8 +503,8 @@ cmd_set() {
         log_error "'${1:-}' is not a uuid"
         return 1
     fi
-    write_uuid_file "$uuid" "manual" || return 1
-    log_info "node uuid set by hand to $uuid; the hardware will not change it"
+    write_uuid_file "$uuid" "manual" "" "" 1 || return 1
+    log_info "node uuid set by hand to $uuid; the hardware will not change it; $RESTART_NOTE"
 }
 
 #
@@ -364,21 +546,29 @@ else
     fi
 fi
 
+#
+#   One writer at a time: the agent units, the postinst and a hand-run set
+#
+take_lock() {
+    if command -v flock >/dev/null 2>&1 && mkdir -p "$UUID_DIR" 2>/dev/null; then
+        if { exec 9>"${UUID_DIR}/.lock"; } 2>/dev/null; then
+            flock -w 10 9 || log_warning "could not lock ${UUID_DIR}/.lock, going on"
+        else
+            log_warning "cannot open ${UUID_DIR}/.lock, going on without the lock"
+        fi
+    fi
+}
+
 case "$CMD" in
     ensure)
-        if command -v flock >/dev/null 2>&1 && mkdir -p "$UUID_DIR" 2>/dev/null; then
-            if { exec 9>"${UUID_DIR}/.lock"; } 2>/dev/null; then
-                flock -w 10 9 || log_warning "could not lock ${UUID_DIR}/.lock, going on"
-            else
-                log_warning "cannot open ${UUID_DIR}/.lock, going on without the lock"
-            fi
-        fi
+        take_lock
         cmd_ensure
         ;;
     show)
         cmd_show
         ;;
     set)
+        take_lock
         cmd_set "${2:-}"
         ;;
 esac

@@ -55,7 +55,16 @@ Returns a pointer to a string containing the unique node UUID.
 
 The returned UUID is generated once and stored persistently. On ESP32, the UUID is derived from the MAC address.
 
-On a Linux node installed from the `.deb` or `.rpm`, the file is written by `/usr/libexec/yuneta/yuneta-node-uuid`, which the package and both agent units run as root before an agent reads it. It derives the UUID from the hardware, so a reinstall gives the node the same UUID and a cloned disk gets its own on its first boot. The first source available wins: the devicetree `serial-number`, `/sys/devices/soc0/serial_number`, DMI `product_uuid`, the lowest permanent MAC of an on-board wired interface, and a random UUID when there is none. The UUID is a version 8 UUID made from a SHA-256 of the source and its value, so it does not reveal the serial number. `yuneta-node-uuid show` tells what is stored and where it came from; `yuneta-node-uuid set <uuid>` fixes it by hand, and the hardware never changes a UUID set that way.
+On a Linux node installed from the `.deb` or `.rpm`, the file is written by `/usr/libexec/yuneta/yuneta-node-uuid`, which the package and both agent units run as root before an agent reads it. It derives the UUID from the hardware, so a reinstall gives the node the same UUID and a cloned disk gets its own on its first boot. The first source available wins: the devicetree `serial-number`, `/sys/devices/soc0/serial_number`, DMI `product_uuid`, the lowest permanent MAC of an on-board wired interface, and a random UUID when there is none. The UUID is a version 8 UUID made from a SHA-256 of the source and its value, so it does not reveal the serial number. A UUID already stored is kept as long as this hardware still gives it: a network card added with a lower MAC does not move a node that got its UUID from a MAC, nor does the interface it came from missing at one boot while another interface of the same box is present (the file records the UUID each interface gives, under `ethernet_ids`); only a box with none of them is other hardware. In a container (Docker, Podman, LXC, systemd-nspawn) `/sys` is the host's and the same for every container of it, so no hardware is read: a new container gets a random UUID, and a UUID already stored is kept. `yuneta-node-uuid show` tells what is stored and where it came from; `yuneta-node-uuid set <uuid>` fixes it by hand, and the hardware never changes a UUID set that way.
+
+`node_uuid()` reads the file once per process and keeps the value in memory. When the UUID changes (a disk moved to other hardware, or `set`), the agents and the yunos that are running keep the old one: restart both agents, then every yuno (`kill-yuno`, `run-yuno`). The package restarts the agents only.
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-node-uuid show
+sudo /usr/libexec/yuneta/yuneta-node-uuid set ff14fc16-2cb2-472c-9c0a-89fa43837130
+sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22
+ycommand -c 'kill-yuno'; ycommand -c 'run-yuno'
+```
 
 Without the package (a node that builds from source and never installed it), `node_uuid()` writes a random UUID when the file is missing, as before.
 
