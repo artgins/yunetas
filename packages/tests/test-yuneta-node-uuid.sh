@@ -537,6 +537,123 @@ run ensure
 check "run/systemd/container in another pid namespace: names it" "$(field container)" "docker"
 
 #
+#   An image built in a chroot (over an exported Ubuntu rootfs, or a
+#   debootstrap) runs in the initial pid namespace and does not see the
+#   build host's /run, so no marker counts. But / is not the root of PID 1,
+#   which is what `systemd-detect-virt --chroot` asks: the install stores
+#   nothing there (exit 3), and a uuid made there all the same is not taken
+#   by a board written from the image. A board has / as the root of PID 1.
+#
+set_pid1_root() {    # "same": / is the root of PID 1; "other": it is not
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/1" "${WORK}/host-root"
+    if [ "$1" = "same" ]; then
+        ln -sfn ../.. "${YUNETA_NODE_UUID_SYSROOT}/proc/1/root"
+    else
+        ln -sfn "${WORK}/host-root" "${YUNETA_NODE_UUID_SYSROOT}/proc/1/root"
+    fi
+}
+board ""
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_marker run/systemd/container docker
+set_hostname "buildhost"
+set_pid1_root other
+check "chroot over an Ubuntu rootfs, install: exit 3" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "3"
+check "chroot over an Ubuntu rootfs, install: nothing stored" "$( [ -e "$FILE" ] && echo stored || echo none)" "none"
+run ensure
+check "chroot: the host's hardware is not read" "$(field source)" "random"
+check "chroot: recorded as a chroot" "$(field container)" "chroot"
+check "chroot: show says it" "$("$SCRIPT" show 2>&1 | grep -c 'this is a chroot')" "1"
+built="$(field uuid)"
+rm -rf "${YUNETA_NODE_UUID_SYSROOT}/sys/class/dmi"
+set_pid1_root same
+out="$("$SCRIPT" ensure 2>&1)"
+check "board from a chroot-built image, no identifier: a new random" "$( [ -n "$(field uuid)" ] && [ "$(field uuid)" != "$built" ] && echo changed)" "changed"
+check "board from a chroot-built image, no identifier: no container recorded" "$(grep -c '"container"' "$FILE")" "0"
+check "board from a chroot-built image, no identifier: copy of the image's" "$(backups)" "1"
+check "board from a chroot-built image, no identifier: says why" "$(echo "$out" | grep -c 'this is no container')" "1"
+board ""
+set_pid1_root other
+check "debootstrap chroot (no marker), install: exit 3" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "3"
+check "debootstrap chroot (no marker), install: nothing stored" "$( [ -e "$FILE" ] && echo stored || echo none)" "none"
+board ""
+set_pid1_root same
+run ensure
+check "/ is the root of PID 1: the hardware" "$(field source)" "dmi-product-uuid"
+
+#
+#   The same against the real kernel, as a normal user. The root of a user
+#   namespace is not the system's root: the kernel does not let it look at
+#   PID 1's root, which the system's root always may (with
+#   CAP_SYS_PTRACE, in the initial user namespace). That is a container run
+#   with --pid=host, as Toolbx and distrobox run theirs (rootless Podman:
+#   a user namespace), and Docker's root, which has no CAP_SYS_PTRACE:
+#
+#       unshare -Ur <the script's container_name>
+#
+#   and a chroot entered in a user and mount namespace, with and without
+#   /proc (with no /proc at all no system was booted there):
+#
+#       unshare -Urm sh -c 'mount --rbind /usr R/usr; mount --rbind /dev R/dev;
+#                           mount --rbind /proc R/proc; chroot R <its container_name>'
+#
+#   A chroot entered by the REAL root (the image build) sees PID 1's root
+#   and it is not / -- the fake "other" above; checked by hand with
+#   `sudo unshare -m` + the same mounts + chroot (it answers "chroot"), and a
+#   root with no CAP_SYS_PTRACE with
+#   `sudo setpriv --bounding-set=-sys_ptrace --inh-caps=-sys_ptrace`.
+#   Skipped where unprivileged user namespaces are refused.
+#
+probe_container() {    # the script's container_name, "none" for none
+    local v
+    v="$(bash -c 'eval "$(sed -n "1,/^RESTART_NOTE=/p" "$1")"; container_name' _ "$1" 2>/dev/null)"
+    printf '%s' "${v:-none}"
+}
+if unshare -Ur true >/dev/null 2>&1; then
+    check "a normal user in the initial pid namespace: nothing told" \
+        "$(unset container; export YUNETA_NODE_UUID_SYSROOT="$EMU"; probe_container "$SCRIPT")" "none"
+    check "--pid=host container, its root in a user namespace (Toolbx, distrobox): a container" \
+        "$(env -u container YUNETA_NODE_UUID_SYSROOT="$EMU" \
+            unshare -Ur bash -c "$(declare -f probe_container); probe_container \"\$1\"" _ "$SCRIPT")" "container-other"
+else
+    echo "skip - unshare -Ur refused here: no --pid=host emulation"
+fi
+CHR="${WORK}/chroot"
+if [ -L /bin ] && [ -L /lib ] && unshare -Urm true >/dev/null 2>&1; then
+    mkdir -p "${CHR}/usr" "${CHR}/dev" "${CHR}/proc"
+    for d in bin sbin lib lib64 lib32 libx32; do
+        if [ -L "/$d" ]; then
+            ln -s "$(readlink "/$d")" "${CHR}/$d"
+        fi
+    done
+    cp "$SCRIPT" "${CHR}/yuneta-node-uuid"
+    in_chroot() {    # with /proc (0|1)
+        local probe
+        probe="$(declare -f probe_container); probe_container /yuneta-node-uuid"
+        env -u container -u YUNETA_NODE_UUID_SYSROOT YUNETA_NODE_UUID_DETECT_VIRT=none-here \
+            unshare -Urm bash -c '
+                if ! mount --rbind /usr "$1/usr" || ! mount --rbind /dev "$1/dev"; then
+                    exit 1
+                fi
+                if [ "$2" = "1" ] && ! mount --rbind /proc "$1/proc"; then
+                    exit 1
+                fi
+                exec chroot "$1" /usr/bin/bash -c "$3"
+            ' _ "$CHR" "$1" "$probe" 2>/dev/null
+    }
+    check "chroot in a user namespace, /proc mounted: a container" "$(in_chroot 1)" "container-other"
+    check "chroot in a user namespace, no /proc: a chroot" "$(in_chroot 0)" "chroot"
+else
+    echo "skip - no merged /usr, or unshare -Urm refused here: no chroot emulation"
+fi
+
+#
+#   No here-string, no here-document: bash before 5.1 writes them to a
+#   temporary file, and a read-only /tmp (a chroot, an image build) turns
+#   that into a wrong answer
+#
+check "no here-string or here-document in the script" "$(grep -c '<<' "$SCRIPT")" "0"
+
+#
 #   The install in a container says, by its exit status, that it stored
 #   nothing (3): the package then does not start the agents, whose start
 #   would store the uuid in the image being built. With a uuid stored, or

@@ -67,6 +67,12 @@
 #       hostname (empty, or the kernel's "(none)") the file records ""; that
 #       uuid is kept across the restarts and replaced by a copy that has a
 #       hostname. A random of 7.29.2, which records no container, is kept.
+#     - in a chroot -- / is not the root of PID 1, or there is no /proc: an
+#       image built over an exported or a debootstrapped rootfs -- /sys is
+#       the build host's, or none: the same as in a container ("container":
+#       "chroot"). A board written from the image is no chroot, so a random
+#       made there is not its own: it reads its hardware, and with none it
+#       gets a new random, a copy of the old file and a warning.
 #
 #   THE LIMIT: nothing inside a container tells a copy of it from the same
 #   container re-created over its kept store. Two containers given the SAME
@@ -81,12 +87,18 @@
 #   its hardware gives its own uuid. A random it carries from the
 #   container is not its own either, whatever the hostname: with no hardware
 #   identifier it gets a new random, a copy of the old file and a warning.
-#   A container run with --pid=host is not seen as one (it runs in the
-#   initial pid namespace and reads the host's hardware).
+#   A container run with --pid=host (Toolbx and distrobox run theirs so)
+#   is in the initial pid namespace, and its root tells it: either / is not
+#   the root of PID 1 (a root that may look at it: a chroot to this script),
+#   or that root may not look at PID 1's root at all, which the system's
+#   root always may -- Docker's root has no CAP_SYS_PTRACE, rootless
+#   Podman's is in a user namespace. Without root nothing is told: only
+#   `show` runs so, and it reads what a normal user may.
 #
-#   The package's install runs `ensure --installing`: in a container it
-#   stores nothing and exits 3, because the install may be the build of an
-#   image, and whatever it stored would be in every container made from it.
+#   The package's install runs `ensure --installing`: in a container or a
+#   chroot it stores nothing and exits 3, because the install may be the
+#   build of an image, and whatever it stored would be in every container
+#   made from it.
 #   With 3 and no systemd the package does not start the agents (their
 #   start would store the uuid, by this script or by node_uuid()); the
 #   agents' first start in the container makes the uuid (their units, or
@@ -249,6 +261,12 @@ gather_ethernet_macs() {
 #   fixed by the kernel since 3.8: a system booted on its own runs in it, and
 #   a container does not (but one run with --pid=host). So:
 #
+#     - no /proc at all (the real system, not a SYSROOT): no system was
+#       booted here, a chroot;
+#     - in the initial one, / not being the root of PID 1 is a chroot (or a
+#       --pid=host container whose root may look at PID 1), and a root that
+#       may not look at it is a container's (root_of_pid1()): it goes on as
+#       out of the initial one;
 #     - out of the initial pid namespace this IS a container, marker or not:
 #       a BuildKit `RUN` step has no /.dockerenv and no container=, and
 #       containerd / Kubernetes write no marker at all. The markers only name
@@ -290,27 +308,88 @@ pid_namespace() {    # initial | other | unknown
 #   the 5th field is the mount point, the type follows the " - "
 #
 run_fstype() {
-    local line t=""
-    local -a f
+    local id parent devno root mp rest t=""
     if [ ! -r "${SYSROOT}/proc/self/mountinfo" ]; then
         return 0
     fi
-    while IFS= read -r line; do
-        if [[ "$line" != *" - "* ]]; then
+    # Split by read itself, from the file: no here-string, which bash before
+    # 5.1 writes to a temporary file (a read-only /tmp would answer "no /run")
+    while IFS=' ' read -r id parent devno root mp rest; do
+        if [ "$mp" != "/run" ] || [[ "$rest" != *" - "* ]]; then
             continue
         fi
-        read -r -a f <<< "${line%% - *}"
-        if [ "${f[4]:-}" = "/run" ]; then
-            t="${line#* - }"
-            t="${t%% *}"
-        fi
+        t="${rest#* - }"
+        t="${t%% *}"
     done < "${SYSROOT}/proc/self/mountinfo"
     printf '%s' "$t"
+}
+
+#
+#   Is / the root of PID 1? What `systemd-detect-virt --chroot` asks, from
+#   the device and inode of both (bash's -ef):
+#
+#     same     yes: the system itself
+#     other    no: a chroot -- an image built over an exported or
+#              debootstrapped rootfs -- or a container run with --pid=host
+#              whose root may look at PID 1
+#     hidden   root may not look at PID 1's root, which the system's root
+#              always may: in the initial user namespace with CAP_SYS_PTRACE
+#              only a security module can refuse it. A root in a user
+#              namespace (rootless Podman: Toolbx, distrobox) or without
+#              CAP_SYS_PTRACE (Docker's) is a container's
+#     unknown  not root (only root may look), no PID 1 in /proc, or a
+#              security module refused the system's root: as if it were the
+#              system, what was done before this check
+#
+INIT_USER_NS="user:[4026531837]"
+CAP_SYS_PTRACE=19
+
+root_is_a_containers() {
+    local userns caps
+    userns="$(readlink "${SYSROOT}/proc/self/ns/user" 2>/dev/null)"
+    if [ -n "$userns" ] && [ "$userns" != "$INIT_USER_NS" ]; then
+        return 0
+    fi
+    caps="$(sed -n 's/^CapEff:[[:space:]]*//p' "${SYSROOT}/proc/self/status" 2>/dev/null)"
+    if [[ "$caps" =~ ^[0-9a-fA-F]{1,16}$ ]] && (( ((0x$caps >> CAP_SYS_PTRACE) & 1) == 0 )); then
+        return 0
+    fi
+    return 1
+}
+
+root_of_pid1() {    # same | other | hidden | unknown
+    local p1="${SYSROOT}/proc/1/root"
+    if [ -e "$p1" ]; then
+        if [ "${SYSROOT:-/}" -ef "$p1" ]; then
+            printf 'same'
+        else
+            printf 'other'
+        fi
+    elif [ -L "$p1" ] && [ "$(id -u)" = "0" ] && root_is_a_containers; then
+        printf 'hidden'
+    else
+        printf 'unknown'
+    fi
 }
 
 container_name() {
     local v f pidns run_is_fresh=1
     pidns="$(pid_namespace)"
+    if [ "$pidns" = "unknown" ] && [ -z "$SYSROOT" ] && [ ! -e /proc/self ]; then
+        printf 'chroot'    # no /proc at all: no system was booted here
+        return 0
+    fi
+    if [ "$pidns" = "initial" ]; then
+        case "$(root_of_pid1)" in
+            other)
+                printf 'chroot'
+                return 0
+                ;;
+            hidden)
+                pidns="other"    # a container's root: its markers name it
+                ;;
+        esac
+    fi
     if [ "$pidns" = "initial" ] && [ "$(run_fstype)" != "tmpfs" ]; then
         run_is_fresh=0
     fi
@@ -363,6 +442,17 @@ container_name() {
         return 0
     fi
     return 1
+}
+
+#
+#   What a container name says in a message: a chroot is told apart
+#
+where_this_is() {
+    if [ "$1" = "chroot" ]; then
+        printf 'a chroot (/ is not the root of PID 1, or there is no /proc)'
+    else
+        printf 'a container (%s)' "$1"
+    fi
 }
 
 #
@@ -629,7 +719,7 @@ cmd_ensure() {    # installing(0|1)
     #   in every container made from it. The agents' first start makes it.
     if [ -n "$container" ] && [ "$installing" = "1" ]; then
         if [ -z "$stored_uuid" ]; then
-            log_info "a container ($container): no node uuid is stored at install (it may be the build of an image), the agents' first start makes it"
+            log_info "$(where_this_is "$container"): no node uuid is stored at install (it may be the build of an image), the agents' first start makes it"
             return 3
         fi
         return 0
@@ -700,13 +790,13 @@ cmd_ensure() {    # installing(0|1)
         write_uuid_file "$new" "random" "" "" 1 || return 1
     fi
     if [ -n "$replaced" ] && [ -z "$container" ]; then
-        log_warning "node uuid was $replaced, made in a container (${replaced_container:-container}, hostname ${stored_host:-(none)}) and this is no container (a system written from a copy of it, a \`docker export\`): now $new, RANDOM: no hardware identifier found, a reinstall will change it; $RESTART_NOTE"
+        log_warning "node uuid was $replaced, made in $(where_this_is "${replaced_container:-container}"), hostname ${stored_host:-(none)}, and this is no container (a system written from a copy of it: an image built there, a \`docker export\`): now $new, RANDOM: no hardware identifier found, a reinstall will change it; $RESTART_NOTE"
     elif [ -n "$replaced" ]; then
         log_warning "node uuid was $replaced, made in a container of hostname ${stored_host:-(none)} (an image built with it, or a copy of that container), this is ${host_now}: now $new; $RESTART_NOTE"
     elif [ -n "$container" ] && [ -z "$host_now" ]; then
-        log_warning "node uuid $new is RANDOM: this is a container ($container) with no hostname, and a copy of it with no hostname would claim the same uuid: give the container a hostname"
+        log_warning "node uuid $new is RANDOM: this is $(where_this_is "$container") with no hostname, and a copy of it with no hostname would claim the same uuid: give the container a hostname"
     elif [ -n "$container" ]; then
-        log_info "node uuid $new is RANDOM: this is a container ($container), its /sys is the host's; it belongs to the hostname ${host_now}"
+        log_info "node uuid $new is RANDOM: this is $(where_this_is "$container"), its /sys is the host's; it belongs to the hostname ${host_now}"
     else
         log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
     fi
@@ -721,7 +811,7 @@ cmd_show() {
     echo "source:   $stored_source"
     echo "created:  $(stored_field created)"
     if [ -n "$(hw_values container)" ]; then
-        echo "hardware: none read: this is a container ($(hw_values container)), its /sys is the host's"
+        echo "hardware: none read: this is $(where_this_is "$(hw_values container)"), its /sys is the host's"
         stored_host="$(stored_field hostname)"
         if [ "$stored_source" = "random" ] && random_made_in_a_container; then
             if [ "$stored_host" = "$(hw_values hostname)" ]; then

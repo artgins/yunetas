@@ -438,10 +438,32 @@ files:
 - Of `systemd-detect-virt`, only `wsl`, `openvz` and `proot` count: these
   come from the kernel. Its other answers can come from the files above.
 
-A container that you
-start with `--pid=host` runs in the initial pid namespace: it is not found,
-and it reads the hardware of the host. To see what the script finds in a
-build step, emulate the step without Docker:
+In the initial pid namespace, the script also compares `/` with the root of
+PID 1 (`/proc/1/root`), as `systemd-detect-virt --chroot` does:
+
+- If `/` is not the root of PID 1, this is a chroot. An example is an image
+  that you build in a chroot, over an exported or a debootstrapped rootfs.
+  The script treats a chroot as a container: the install stores no uuid
+  there. A board that you write from that image is not a chroot: it reads
+  its hardware, and with no identifier it gets a new random uuid.
+- If there is no `/proc` at all, no system started there: this is also a
+  chroot.
+- If root cannot look at the root of PID 1, this root is the root of a
+  container: the root of the system can always look. An example is a
+  container that you start with `--pid=host` (Toolbx and distrobox do
+  this). The root of Docker has no `CAP_SYS_PTRACE`, and the root of
+  rootless Podman is in a user namespace.
+
+Only root can look at the root of PID 1. Thus, as a normal user (`show`
+only), the script does not find a chroot or a `--pid=host` container.
+
+```bash
+# As root: the same question that the script asks
+sudo systemd-detect-virt --chroot; echo $?   # 0 = a chroot, 1 = not
+```
+
+To see what the script finds in a build step, emulate the step without
+Docker:
 
 ```bash
 # As a normal user: a pid namespace of its own and no /.dockerenv,
@@ -451,7 +473,7 @@ unshare -Upf --mount-proc /usr/libexec/yuneta/yuneta-node-uuid show
 readlink /proc/self/ns/pid       # pid:[4026531836] = the initial namespace
 ```
 
-The package's install stores nothing in a container
+The package's install stores nothing in a container or a chroot
 (`ensure --installing`), because the install can be the build of an image
 (a `RUN` step of a `docker build` too).
 Without systemd, the install also does not start the agents there: their
