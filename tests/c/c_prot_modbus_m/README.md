@@ -85,6 +85,21 @@ is in flight: it is dropped, and the echo that follows answers the write.
 Before the fix the request to 248 and the polls of 250 went out, and the late
 exception failed the write, whose echo was then dropped.
 
+(REV-CLOUD V47) Two reads are answered with noise after the answer, in the
+same bytes: `0x00`, and `0x00 0xFF`. The noise is dropped with a warning
+(*"Modbus: bytes after the answer, dropped"*), and the read sent after each is
+answered. With `226945f9c` (never released) the noise began a frame: after
+`0x00` the next answer was dropped as *"not the answer awaited"*, after
+`0x00 0xFF` the master waited for more bytes until `timeout_response`. Slave 1
+has a block B that the slave answers with 2 registers where it asked 1: it is
+logged once (*"Quantity not corresponding to the request"*), not in every
+cycle. Slave 0, the RTU broadcast, has a block in the config: it is reported
+once at start and never polled (before, it was polled and every cycle waited
+`timeout_response`). On the message of cycle 1 the slaves are written as `[]`
+while the master runs: a warning, and cycle 2 polls the map it started with
+(before, the write freed the map the cycle pointed into, and the master read
+freed memory: *"cur_slave_ NULL"* every cycle, with `slaves_` read as a string).
+
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 
 ## Run

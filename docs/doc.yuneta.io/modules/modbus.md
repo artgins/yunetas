@@ -63,11 +63,18 @@ its low word first, read over TCP:
   in RTU"*), and every cycle skips them, as any disabled block (below). An id
   out of 0-255 is refused the same way
   (*"Modbus slave id OUT OF RANGE"*). Until the fix of REV-CLOUD V46.2 both
-  were polled, the id cut to its low byte.
+  were polled, the id cut to its low byte. **Over RTU 0 is not polled
+  either**: it is the broadcast, and no slave answers it, so each cycle
+  waited `timeout_response` for it (until the fix of REV-CLOUD V47.2). A
+  request to 0 still goes out (see *Requests*). Over TCP 0 is a unit id like
+  any other.
 
   ```text
   {"modbus_protocol": "RTU", "slaves": [{"id": 250, "mapping": [...]}]}
-      -> {"msg": "Modbus slave id RESERVED in RTU", "slave_id": 250, "valid": "0-247"}
+      -> {"msg": "Modbus slave id RESERVED in RTU", "slave_id": 250, "valid": "1-247"}
+  {"modbus_protocol": "RTU", "slaves": [{"id": 0, "mapping": [...]}]}
+      -> {"msg": "Modbus slave id 0 is the BROADCAST in RTU: no slave answers it",
+          "slave_id": 0, "valid": "1-247"}
   ```
 - **`mapping`**: `type`, `address`, `size` (registers, at most 125; or bits, at
   most 2000). Each block is one read request. **A block that cannot be read**
@@ -114,9 +121,22 @@ its low word first, read over TCP:
 |---|---|---|
 | `modbus_protocol` | `"TCP"` | `TCP`, `RTU` or `ASCII` |
 | `url` | `""` | `tcp://<host>:<port>`, or the serial device |
-| `slaves` | `[]` | The map, above. Read at `mt_start` |
+| `slaves` | `[]` | The map, above. Read at `mt_start`: written while the gobj runs, it takes effect at the next start, with a warning (*"Modbus slaves written while the master runs: they take effect at the next start"*) |
 | `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
+
+To change the map of a running master, stop it, write `slaves` and start it
+again (`gobj_write_json_attr()` does not take the reference: free yours):
+
+```C
+gobj_stop(gobj_modbus);
+gobj_write_json_attr(gobj_modbus, "slaves", jn_slaves);
+JSON_DECREF(jn_slaves)
+gobj_start(gobj_modbus);
+```
+
+(Until the fix of REV-CLOUD V47.2 a write while the master ran freed the map
+that the cycle in flight pointed into.)
 
 ### The polling cycle
 
@@ -169,14 +189,20 @@ frame ends at the exception code; RTU adds its CRC, and the exception is taken
 only after its CRC is checked. An RTU answer whose CRC does not match fails
 its block the same way (*"Modbus answer with a bad CRC"*), as a warning.
 
+An answer that does not fit what the block asked -- another quantity
+(*"Quantity not corresponding to the request"*), a byte count that is not
+its length (*"byte_count != len"*), another slave (*"slave_id NOT MATCH"*) --
+fails the block too.
+
 Each failure is logged as a **warning** (`msgset` `Protocol`: the slave
 answered, or did not, and nothing is broken on our side), with the
 `slave_id`, the exception code and name, and the `block` it answered. It is
 logged **when the block starts failing**, or starts failing another way (a new
 exception code, or a timeout after an exception), **not on every cycle**: a
 unit id that does not exist answers the same exception every cycle, and that
-is one fact. When the block answers again, an info says so, with what it
-failed with:
+is one fact; so is a map whose block asks 1 register where the slave
+answers 2 (until the fix of REV-CLOUD V47.2 that one was logged every cycle).
+When the block answers again, an info says so, with what it failed with:
 
 ```json
 {"msg": "modbus exception", "slave_id": 4, "error_code": 2,
@@ -345,13 +371,43 @@ frame that does not match the request (*"Modbus answer of a request does not
 match it"*, for example an MBAP of length 3 to a read) -- fails the request as
 a warning: the bytes are the peer's.
 
-**Bytes that come after an answer in the same read** came before the next
-request went out: the frame they start is not its answer. It is read whole
-(its head may come in the next read) and dropped, with `"in_flight": 0`, and
-the answer after it is read. **An MBAP length outside 3-254** (the unit and a
-PDU of at most 253 bytes) says nowhere a frame ends: the connection is dropped
-(*"Modbus TCP: bad MBAP length, the connection is dropped"*), which answers
-what was in flight and every queued request as failed (below).
+**Bytes that come after an answer in the same read**, over TCP, came before
+the next request went out: the frame they start is not its answer. It is read
+whole (its head may come in the next read) and dropped, with `"in_flight": 0`,
+and the answer after it is read. **An MBAP length outside 3-254** (the unit
+and a PDU of at most 253 bytes) says nowhere a frame ends: the connection is
+dropped (*"Modbus TCP: bad MBAP length, the connection is dropped"*), which
+answers what was in flight and every queued request as failed (below).
+
+**A byte over TCP that is no frame drops the connection.** TCP loses and adds
+nothing, so such a byte comes from a broken slave or gateway. The head read
+across it is shifted, and its MBAP length is out of range (with one stray
+byte it reads `0`): the connection is dropped and made again. That is the
+resync, on purpose: searching the stream for something that looks like an
+MBAP head can take the bytes of a value for one.
+
+```text
+answer of the block + 0x00, in one read; the next answer 00 07 00 00 00 05 01 03 02 ...
+    -> the next head is 00 00 07 00 00 00 05 01 03: {"msg": "Modbus TCP: bad MBAP
+       length, the connection is dropped", "length": 0}
+```
+
+**Over RTU the bytes after an answer in the same read are dropped**, with a
+warning (*"Modbus: bytes after the answer, dropped"*, `len`). An RTU frame
+carries no length, and its head is all that says where it ends: a noise byte
+when the slave releases the RS485 line, taken as the head of the next frame,
+made the answer after it *"not the answer awaited"*, or kept the master
+waiting for more bytes until `timeout_response`. The next answer starts a
+read of its own: it comes after the next request goes out.
+
+```text
+01 03 02 00 46 <crc> 00          one read: the answer, then a noise byte
+    -> the answer is taken; {"msg": "Modbus: bytes after the answer, dropped", "len": 1}
+```
+
+(Between the fix of REV-CLOUD V46.2 and the fix of REV-CLOUD V47.1, never
+released, RTU kept those bytes as the start of the next frame, and lost the
+next answer to them.)
 
 (Until the fix of REV-CLOUD V46.2: an exception was taken whatever its
 function, so over RTU a late one failed the write sent after it, a write that

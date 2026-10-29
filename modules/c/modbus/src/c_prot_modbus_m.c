@@ -109,13 +109,26 @@ one sent -- the late exception of a read is not the answer of the write sent
 after it. An RTU answer is checked against its CRC before anything in it is
 taken, an exception included. Over TCP an answer of another function, an
 exception included, fails what is in flight. A broken answer fails what is
-in flight, as a warning: the bytes are the peer's. Bytes that come after an
-answer in the same read came before the next request went out: the frame
-they start is read whole and dropped, and the one after it is read. An MBAP
-length outside 3-254 (unit and PDU: 253 bytes at most) tells nowhere a
-frame ends: the connection is dropped. Over RTU the slave ids 248-255 are
-reserved: a request to one is refused, and a polled slave with one is not
+in flight, as a warning: the bytes are the peer's. Over TCP, bytes that
+come after an answer in the same read came before the next request went
+out: the frame they start is read whole and dropped, and the one after it
+is read. An MBAP length outside 3-254 (unit and PDU: 253 bytes at most)
+tells nowhere a frame ends: the connection is dropped. So are bytes that
+are no frame (TCP loses nothing: they come from a broken slave or
+gateway): the head read across them has a bad MBAP length, and a new
+connection is the one resync that cannot take data for a head. Over RTU
+the bytes after an answer in the same read are dropped, with a warning: a
+noise byte when the slave releases the line, taken as the head of a frame,
+would swallow the next answer. Over RTU the slave ids 248-255 are
+reserved, and 0 is the broadcast that no slave answers: a request to
+248-255 is refused, and a polled slave with one of them, or with 0, is not
 polled (its blocks are disabled, logged when the gobj starts).
+
+The map (`slaves`) is read at start. Written while the gobj runs, it takes
+effect at the next start, with a warning: the cycle keeps its own
+reference to the map it started with. A block whose answer does not fit
+what it asked (its quantity, its byte count) fails, logged when it starts
+failing, not every cycle.
 
 A request is valid for the connection it was queued in: when the
 connection drops, the one in flight and every queued one are answered as
@@ -389,6 +402,7 @@ PRIVATE int continue_polling(hgobj gobj, int wait_ms);
 PRIVATE int reset_frame(hgobj gobj);
 PRIVATE BOOL write_in_flight(hgobj gobj);
 PRIVATE BOOL frame_is_hidden(hgobj gobj);
+PRIVATE int drop_bytes_after_answer(hgobj gobj, gbuffer_t *gbuf, BOOL hidden);
 PRIVATE int finish_answer(hgobj gobj);
 
 PRIVATE cell_control_t *get_cell_control(
@@ -632,6 +646,19 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
             gobj_write_str_attr(gobj_bottom_gobj(gobj), "url", priv->url);
         }
     END_EQ_SET_PRIV()
+
+    if(strcmp(path, "slaves")==0 && gobj_is_running(gobj)) {
+        /*
+         *  The map is read at start: the running cycle keeps its own
+         *  reference to the one it started with (load_modbus_config())
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Modbus slaves written while the master runs: they take effect at the next start",
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -742,6 +769,10 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     free_slave_data(gobj);
+    JSON_DECREF(priv->slaves_)
+    priv->cur_slave_ = NULL;    // they pointed into slaves_
+    priv->mapping_ = NULL;
+    priv->cur_map_ = NULL;
 
     RESET_MACHINE();
     ISTREAM_DESTROY(priv->istream_head);
@@ -1667,13 +1698,17 @@ PRIVATE int build_slave_data(hgobj gobj)
 
         /*
          *  A slave that cannot be asked is not polled: its blocks are
-         *  disabled. Over RTU 248-255 are reserved.
+         *  disabled. Over RTU 248-255 are reserved, and 0 is the
+         *  broadcast, which no slave answers: polled, it would wait
+         *  timeout_response in every cycle.
          */
         const char *refused = NULL;
         if(slave_id < 0 || slave_id > 255) {
             refused = "Modbus slave id OUT OF RANGE";
         } else if(slave_id > 247 && strcasecmp(priv->modbus_protocol, "RTU")==0) {
             refused = "Modbus slave id RESERVED in RTU";
+        } else if(slave_id == 0 && strcasecmp(priv->modbus_protocol, "RTU")==0) {
+            refused = "Modbus slave id 0 is the BROADCAST in RTU: no slave answers it";
         }
         if(refused) {
             gobj_log_error(gobj, 0,
@@ -1681,7 +1716,7 @@ PRIVATE int build_slave_data(hgobj gobj)
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", refused,
                 "slave_id",     "%d", slave_id,
-                "valid",        "%s", strcasecmp(priv->modbus_protocol, "RTU")==0? "0-247" : "0-255",
+                "valid",        "%s", strcasecmp(priv->modbus_protocol, "RTU")==0? "1-247" : "0-255",
                 NULL
             );
             json_object_set_new(jn_slave, "disabled", json_true());
@@ -1902,7 +1937,13 @@ PRIVATE int load_modbus_config(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->slaves_ = gobj_read_json_attr(gobj, "slaves");
+    /*
+     *  Its own reference: `slaves` is writable, and a write while it runs
+     *  would free the map that the cycle, its blocks and its cells point
+     *  into. Released at stop.
+     */
+    JSON_DECREF(priv->slaves_)
+    priv->slaves_ = json_incref(gobj_read_json_attr(gobj, "slaves"));
     priv->idx_slaves = 0;
     priv->max_slaves = json_array_size(priv->slaves_);
 
@@ -2246,7 +2287,7 @@ PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
  *  Return the consumed size.
  *  `stale`: the bytes came before the request in flight went out (they
  *  followed an answer in the same read), so the frame they belong to is not
- *  its answer.
+ *  its answer. Only over TCP: over RTU those bytes are dropped.
  ***************************************************************************/
 PRIVATE int framehead_consume(
     hgobj gobj,
@@ -2488,6 +2529,38 @@ PRIVATE BOOL frame_is_hidden(hgobj gobj)
             break;
     }
     return write_in_flight(gobj);
+}
+
+/***************************************************************************
+ *  Over RTU, the bytes that follow an answer in the same read are dropped:
+ *  without a length in the frame, noise taken as the head of a frame would
+ *  swallow the next answer. Dumped hidden when the answer was, or when a
+ *  write is in flight now.
+ ***************************************************************************/
+PRIVATE int drop_bytes_after_answer(hgobj gobj, gbuffer_t *gbuf, BOOL hidden)
+{
+    size_t len = gbuffer_leftbytes(gbuf);
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "Modbus: bytes after the answer, dropped",
+        "len",          "%d", (int)len,
+        NULL
+    );
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        if(hidden || write_in_flight(gobj)) {
+            gobj_trace_msg(gobj, "Modbus: bytes after the answer: <%d bytes hidden>", (int)len);
+        } else {
+            gobj_trace_dump(gobj,
+                gbuffer_cur_rd_pointer(gbuf),
+                MIN(len, 64),
+                "Modbus: bytes after the answer"
+            );
+        }
+    }
+    gbuffer_get(gbuf, len);
+    return 0;
 }
 
 /***************************************************************************
@@ -2796,7 +2869,9 @@ PRIVATE int store_slave_word(
 }
 
 /***************************************************************************
- *
+ *  The answer of the block in flight, into its cells. An answer that does
+ *  not fit what the block asked fails it: logged when the block starts
+ *  failing, or fails another way (note_block_failed()), not every cycle.
  ***************************************************************************/
 PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
 {
@@ -2813,14 +2888,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
         modbus_function == MODBUS_FC_WRITE_AND_READ_REGISTERS
     ) {
         if(byte_count != len) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "byte_count != len",
-                "byte_count",   "%d", byte_count,
-                "len",          "%d", len,
-                NULL
-            );
+            note_block_failed(gobj, "byte_count != len", 0);
             return -1;
         }
     } else {
@@ -2848,26 +2916,12 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
      *      Check protocol
      *------------------------------*/
     if(req_slave_id != slave_id) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "slave_id NOT MATCH",
-            "req_slave_id", "%d", req_slave_id,
-            "slave_id",     "%d", slave_id,
-            NULL
-        );
+        note_block_failed(gobj, "slave_id NOT MATCH", 0);
         return -1;
     }
 
     if(priv->modbus_function != modbus_function) {
-        gobj_log_warning(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PROTOCOL,
-            "msg",              "%s", "modbus function NOT MATCH",
-            "function esperada","%s", modbus_function_name(priv->modbus_function),
-            "function recibida","%s", modbus_function_name(modbus_function),
-            NULL
-        );
+        note_block_failed(gobj, "modbus function NOT MATCH", 0);
         return -1;
     }
 
@@ -2922,15 +2976,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
     }
 
     if(req_nb_value != rsp_nb_value) {
-        gobj_log_warning(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PROTOCOL,
-            "msg",              "%s", "Quantity not corresponding to the request",
-            "function",         "%s", modbus_function_name(modbus_function),
-            "rsp_nb_value",     "%d", rsp_nb_value,
-            "req_nb_value",     "%d", req_nb_value,
-            NULL
-        );
+        note_block_failed(gobj, "Quantity not corresponding to the request", 0);
         return -1;
     }
 
@@ -4739,11 +4785,16 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     /*---------------------------------------------*
-     *  The bytes that follow an answer are the start of the next frame:
-     *  dropped, they would leave the stream in the middle of one, and the
-     *  answer after it lost. They came before the next request went out:
-     *  the frame they start is not its answer (stale).
+     *  Over TCP the bytes that follow an answer are the start of the next
+     *  frame: dropped, they would leave the stream in the middle of one,
+     *  and the answer after it lost. They came before the next request
+     *  went out: the frame they start is not its answer (stale).
+     *  Over RTU nothing says where a frame ends but its own head: a noise
+     *  byte after an answer (the line released by the slave) taken as the
+     *  start of a frame would swallow the next answer. There they are
+     *  dropped, as the next answer starts a read of its own.
      *---------------------------------------------*/
+    BOOL is_tcp = (strcasecmp(priv->modbus_protocol, "TCP")==0)? TRUE : FALSE;
     BOOL stale = FALSE;
     int lnn;
     BOOL fin = FALSE;
@@ -4843,6 +4894,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  */
                 reset_frame(gobj);
             } else {
+                BOOL hidden = frame_is_hidden(gobj);
                 frame_completed(gobj);
                 finish_answer(gobj);
 
@@ -4852,6 +4904,9 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  */
                 if(!gobj_is_running(gobj) || gobj_in_this_state(gobj, ST_DISCONNECTED)) {
                     fin = TRUE;
+                } else if(!is_tcp && gbuffer_leftbytes(gbuf) > 0) {
+                    fin = TRUE;
+                    drop_bytes_after_answer(gobj, gbuf, hidden);
                 }
                 stale = TRUE;
             }

@@ -170,19 +170,24 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
-        "msg", "Allocating Modbus Array of 30 B (30) bytes, 3 slaves",
+        "msg", "Allocating Modbus Array of 40 B (40) bytes, 4 slaves",
         "msg", "Modbus slave without blocks: not polled", // slave 3: once, never per cycle
         "msg", "Modbus slave id RESERVED in RTU", // slave 250 of the config
+        "msg", "Modbus slave id 0 is the BROADCAST in RTU: no slave answers it", // slave 0
         "msg", "Data filled",
+        "msg", "Quantity not corresponding to the request", // block B: once, not per cycle
         "msg", "Modbus request refused",         // slave 248
+        "msg", "Modbus slaves written while the master runs: they take effect at the next start",
         "msg", "modbus exception",               // the write the slave refuses
         "msg", "Modbus answer with a bad CRC",   // the exception with a bad CRC
         "msg", "Modbus answer with a bad CRC",   // the read with a bad CRC
         "msg", "Modbus Timeout",                 // the read never answered
         "msg", "Modbus frame dropped: not the answer awaited", // its late exception
+        "msg", "Modbus: bytes after the answer, dropped",   // 0x00 after an answer
+        "msg", "Modbus: bytes after the answer, dropped",   // 0x00 0xFF after an answer
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

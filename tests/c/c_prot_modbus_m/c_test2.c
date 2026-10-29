@@ -7,8 +7,8 @@
  *          it: the master is given its own C_TCP (as a gate does), and the
  *          raw server (C_PROT_RAW) answers RTU frames by hand, CRC included.
  *          The master polls one slave: block A (holding 0, 1 register: "a").
- *          Its config has two more, never polled: slave 3, with no block,
- *          and slave 250, a reserved id. Each is reported once, at start,
+ *          Its config has three more, never polled: slave 3, with no block,
+ *          slave 250, a reserved id, and slave 0, the broadcast. Each is reported once, at start,
  *          and no cycle logs anything for them. Up to the fix of REV-CLOUD
  *          V46 every cycle logged "slave without mapping" and "cur_map_
  *          NULL" for slave 3, and "cur_map_ DISABLED" for slave 250.
@@ -34,6 +34,19 @@
  *            and the echo that follows answers the write. Up to the fix the
  *            late exception failed the write that succeeded, and its echo
  *            was dropped.
+ *          - (REV-CLOUD V47) two reads answered with noise after the answer,
+ *            in the same bytes (0x00, and 0x00 0xFF): the noise is dropped,
+ *            and the read sent after each is answered. With 226945f9c the
+ *            noise began a frame, which swallowed the next answer.
+ *
+ *          (REV-CLOUD V47) Slave 1 has a block B (holding 10, 1 register)
+ *          that the slave answers with 2 registers every cycle: it is logged
+ *          once, not in every cycle. Slave 0, the RTU broadcast, is in the
+ *          config with a block: it is reported once at start and never
+ *          polled (before, every cycle waited timeout_response for it). And
+ *          on the message of cycle 1 the slaves are written as [] while the
+ *          master runs: a warning, and cycle 2 polls the map it started
+ *          with. Before, the write freed the map the cycle pointed into.
  *
  *          Cycle 2 ends the test.
  *
@@ -60,6 +73,9 @@
 #define LATE_ADDRESS    60      // a read never answered: its exception comes late
 #define AFTER_ADDRESS   21      // the next request, a write: the late exception comes first
 #define AFTER_VALUE     9
+#define NOISE1_ADDRESS  70      // answered with one noise byte after it, in the same bytes
+#define NOISE2_ADDRESS  71      // answered with two noise bytes after it (0x00 0xFF)
+#define BLOCKB_ADDRESS  10      // block B: 1 register asked, 2 answered, every cycle
 #define RX_SIZE         512
 
 /***************************************************************************
@@ -90,6 +106,10 @@ PRIVATE const char *requests[] = {
     "{'tag': 'r01', 'operation': 'read', 'type': 'coil', 'address': 8, 'size': 9}",
     "{'tag': 'lte', 'operation': 'read', 'type': 'holding_register', 'address': 60}",
     "{'tag': 'w21', 'type': 'holding_register', 'address': 21, 'value': 9}",
+    "{'tag': 'nz1', 'operation': 'read', 'type': 'holding_register', 'address': 70}",
+    "{'tag': 'af1', 'operation': 'read', 'type': 'holding_register', 'address': 30, 'size': 3}",
+    "{'tag': 'nz2', 'operation': 'read', 'type': 'holding_register', 'address': 71}",
+    "{'tag': 'af2', 'operation': 'read', 'type': 'holding_register', 'address': 30, 'size': 3}",
     0
 };
 PRIVATE const char *answers[] = {
@@ -105,6 +125,10 @@ PRIVATE const char *answers[] = {
     "{'tag': 'r01', 'result': 0, 'error_code': 0, 'values': [1, 0, 1, 1, 0, 0, 0, 0, 1]}",
     "{'tag': 'lte', 'result': -1, 'error_code': 0}",       // timeout_response
     "{'tag': 'w21', 'result': 0, 'error_code': 0}",        // not the late exception of lte
+    "{'tag': 'nz1', 'result': 0, 'error_code': 0, 'values': [70]}",
+    "{'tag': 'af1', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",   // not lost to the noise
+    "{'tag': 'nz2', 'result': 0, 'error_code': 0, 'values': [71]}",
+    "{'tag': 'af2', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",   // not lost to the noise
     0
 };
 
@@ -113,7 +137,8 @@ PRIVATE char slaves_config[] = "\
     {                                                               \n\
         'id': 1,                                                    \n\
         'mapping': [                                                \n\
-            {'type': 'holding_register', 'address': 0, 'size': 1}    \n\
+            {'type': 'holding_register', 'address': 0, 'size': 1},   \n\
+            {'type': 'holding_register', 'address': 10, 'size': 1}   \n\
         ],                                                          \n\
         'conversion': [                                             \n\
             {'id': 'a', 'type': 'holding_register', 'address': 0, 'format': 'uint16'} \n\
@@ -131,6 +156,15 @@ PRIVATE char slaves_config[] = "\
         ],                                                          \n\
         'conversion': [                                             \n\
             {'id': 'z', 'type': 'holding_register', 'address': 0, 'format': 'uint16'} \n\
+        ]                                                           \n\
+    },                                                              \n\
+    {                                                               \n\
+        'id': 0,                                                    \n\
+        'mapping': [                                                \n\
+            {'type': 'holding_register', 'address': 0, 'size': 1}    \n\
+        ],                                                          \n\
+        'conversion': [                                             \n\
+            {'id': 'y', 'type': 'holding_register', 'address': 0, 'format': 'uint16'} \n\
         ]                                                           \n\
     }                                                               \n\
 ]                                                                   \n\
@@ -179,6 +213,7 @@ typedef struct _PRIVATE_DATA {
     BOOL requests_queued;
     int answers_seen;           // answers of the queued requests, in order
     BOOL late_held;             // the read never answered: its exception comes late
+    int broadcast_polls;        // polls of slave 0, the RTU broadcast: none expected
     BOOL done;
 } PRIVATE_DATA;
 
@@ -310,9 +345,17 @@ PRIVATE uint16_t rtu_crc(const uint8_t *bf, size_t len)
 
 /***************************************************************************
  *  Send an answer from the slave: the CRC is appended, low byte first,
- *  and spoiled when `bad_crc`
+ *  and spoiled when `bad_crc`. Then `noise`, in the same bytes: what a
+ *  RS485 line can carry when the slave releases it.
  ***************************************************************************/
-PRIVATE void slave_send(hgobj gobj, const uint8_t *bf, size_t len, BOOL bad_crc)
+PRIVATE void slave_send_noisy(
+    hgobj gobj,
+    const uint8_t *bf,
+    size_t len,
+    BOOL bad_crc,
+    const uint8_t *noise,
+    size_t noise_len
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -320,16 +363,27 @@ PRIVATE void slave_send(hgobj gobj, const uint8_t *bf, size_t len, BOOL bad_crc)
     if(bad_crc) {
         crc ^= 0x5A5A;
     }
-    gbuffer_t *gbuf = gbuffer_create(len + 2, len + 2);
+    gbuffer_t *gbuf = gbuffer_create(len + 2 + noise_len, len + 2 + noise_len);
     gbuffer_append(gbuf, (void *)bf, len);
     uint8_t c[2] = {(uint8_t)(crc & 0xFF), (uint8_t)(crc >> 8)};
     gbuffer_append(gbuf, c, 2);
+    if(noise_len > 0) {
+        gbuffer_append(gbuf, (void *)noise, noise_len);
+    }
     gobj_send_event(
         priv->server_channel,
         EV_SEND_MESSAGE,
         json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
         gobj
     );
+}
+
+/***************************************************************************
+ *  Send an answer from the slave, alone
+ ***************************************************************************/
+PRIVATE void slave_send(hgobj gobj, const uint8_t *bf, size_t len, BOOL bad_crc)
+{
+    slave_send_noisy(gobj, bf, len, bad_crc, NULL, 0);
 }
 
 /***************************************************************************
@@ -371,6 +425,23 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
     int function = req[1];
     int address = (req[2] << 8) | req[3];
     int quantity = (req[4] << 8) | req[5];     // the value, in a single write
+
+    if(unit == 0) {
+        /*
+         *  The broadcast: no slave answers it
+         */
+        if(function == 3) {
+            priv->broadcast_polls++;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The master polled slave 0, the RTU broadcast",
+                "polls",        "%d", priv->broadcast_polls,
+                NULL
+            );
+        }
+        return;
+    }
 
     if(unit != 1) {
         gobj_log_error(gobj, 0,
@@ -503,6 +574,19 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
             }
             if(address == MULTI_ADDRESS && quantity == 3) {
                 slave_registers(gobj, req, priv->multi, 3, FALSE);
+                return;
+            }
+            if(address == BLOCKB_ADDRESS && quantity == 1) {
+                uint16_t regs[2] = {1, 2};  // one register asked, two answered
+                slave_registers(gobj, req, regs, 2, FALSE);
+                return;
+            }
+            if((address == NOISE1_ADDRESS || address == NOISE2_ADDRESS) && quantity == 1) {
+                uint8_t rsp[5] = {req[0], req[1], 2, 0, (uint8_t)address};
+                uint8_t noise[2] = {0x00, 0xFF};
+                slave_send_noisy(gobj, rsp, sizeof(rsp), FALSE,
+                    noise, address == NOISE1_ADDRESS? 1 : 2
+                );
                 return;
             }
             if(address == LATE_ADDRESS && quantity == 1) {
@@ -657,6 +741,14 @@ PRIVATE void master_message(hgobj gobj, json_t *kw)
         for(int i=0; requests[i]; i++) {
             gobj_send_event(priv->gobj_master, EV_SEND_MESSAGE, qjson(requests[i]), gobj);
         }
+
+        /*
+         *  The slaves written while the master runs, inside its publication:
+         *  the cycle goes on with the map it started with
+         */
+        json_t *jn_slaves = json_array();
+        gobj_write_json_attr(priv->gobj_master, "slaves", jn_slaves);   // not owned
+        JSON_DECREF(jn_slaves)
         return;
     }
 
