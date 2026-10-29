@@ -18,35 +18,35 @@ Yuno
  └── Service "timer"    (C_TIMER)
 ```
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js)
 
 ---
 
 ## The root and the services
 
 (js_gobj_yuno)=
-### [`gobj_yuno()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3305)
+### [`gobj_yuno()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3305)
 
 Gives the yuno, which is the root of the tree.
 
 (js___yuno__)=
-### [`__yuno__`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L81)
+### [`__yuno__`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L81)
 
 The variable that holds the yuno. Read it with
 [`gobj_yuno()`](#js_gobj_yuno), which is the public form.
 
 (js_gobj_services)=
-### [`gobj_services()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L2152)
+### [`gobj_services()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L2152)
 
 Gives the names of the registered services, as a list.
 
 (js_gobj_default_service)=
-### [`gobj_default_service()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L2166)
+### [`gobj_default_service()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L2166)
 
 Gives the default service.
 
 (js_gobj_find_service)=
-### [`gobj_find_service(service_name, verbose)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L2177)
+### [`gobj_find_service(service_name, verbose)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L2177)
 
 Finds a service by its name. With `verbose` set to `true` the function writes a
 log error when the service does not exist.
@@ -62,37 +62,37 @@ built is not in this register, and this function gives `null` for it.
 ## Names
 
 (js_gobj_name)=
-### [`gobj_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3352)
+### [`gobj_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3352)
 
 Gives the name of a gobj.
 
 (js_gobj_gclass_name)=
-### [`gobj_gclass_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3365)
+### [`gobj_gclass_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3365)
 
 Gives the name of the gclass of a gobj.
 
 (js_gobj_short_name)=
-### [`gobj_short_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3378)
+### [`gobj_short_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3378)
 
 Gives the short name, which is the gclass and the name. A log message uses it.
 
 (js_gobj_full_name)=
-### [`gobj_full_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3391)
+### [`gobj_full_name(gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3391)
 
 Gives the full name, which carries the path from the yuno.
 
 (js_gobj_yuno_name)=
-### [`gobj_yuno_name()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3316)
+### [`gobj_yuno_name()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3316)
 
 Gives the name of the yuno.
 
 (js_gobj_yuno_role)=
-### [`gobj_yuno_role()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3328)
+### [`gobj_yuno_role()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3328)
 
 Gives the role of the yuno.
 
 (js_gobj_yuno_id)=
-### [`gobj_yuno_id()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3340)
+### [`gobj_yuno_id()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3340)
 
 Gives the identifier of the yuno.
 
@@ -101,12 +101,12 @@ Gives the identifier of the yuno.
 ## Parents and children
 
 (js_gobj_parent)=
-### [`gobj_parent(gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3411)
+### [`gobj_parent(gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3411)
 
 Gives the parent of a gobj.
 
 (js_gobj_change_parent)=
-### [`gobj_change_parent(gobj, parent)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L4524)
+### [`gobj_change_parent(gobj, parent)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L4524)
 
 Moves a gobj to another parent, and gives `0`. A walk of the tree that is in
 progress gives the gobj in its new place, not in its old place (gobj-js
@@ -132,13 +132,13 @@ gobj_walk_gobj_children_tree(root, walk_type_t.WALK_TOP2BOTTOM, (child) => {
 ```
 
 (js_gobj_bottom_gobj)=
-### [`gobj_bottom_gobj(gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3471)
+### [`gobj_bottom_gobj(gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3471)
 
 Gives the bottom gobj, which is the gobj that carries the work of the layer
 below. A gclass of a protocol keeps its transport there.
 
 (js_gobj_set_bottom_gobj)=
-### [`gobj_set_bottom_gobj(gobj, bottom_gobj)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3483)
+### [`gobj_set_bottom_gobj(gobj, bottom_gobj)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3483)
 
 Writes the bottom gobj. The function writes a log warning when the gobj holds
 one already.
@@ -148,32 +148,32 @@ one already.
 ## Search
 
 (js_gobj_find_child)=
-### [`gobj_find_child(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3882)
+### [`gobj_find_child(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3882)
 
 Gives the first child that matches a filter of attributes.
 
 (js_gobj_match_children)=
-### [`gobj_match_children(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3903)
+### [`gobj_match_children(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3903)
 
 Gives every child that matches a filter, as a list.
 
 (js_gobj_match_children_tree)=
-### [`gobj_match_children_tree(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3927)
+### [`gobj_match_children_tree(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3927)
 
 Gives every gobj below this one that matches a filter, at any depth.
 
 (js_gobj_match_gobj)=
-### [`gobj_match_gobj(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3820)
+### [`gobj_match_gobj(gobj, jn_filter)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3820)
 
 Tells if one gobj matches a filter. The three functions above use it.
 
 (js_gobj_find_gobj)=
-### [`gobj_find_gobj(gobj, path)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3798)
+### [`gobj_find_gobj(gobj, path)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3798)
 
 Finds a gobj from a path.
 
 (js_gobj_search_path)=
-### [`gobj_search_path(gobj, path)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3952)
+### [`gobj_search_path(gobj, path)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3952)
 
 Finds a gobj from a path, and begins the search at `gobj`.
 
@@ -182,14 +182,14 @@ Finds a gobj from a path, and begins the search at `gobj`.
 ## Walk the tree
 
 (js_walk_type_t)=
-### [`walk_type_t`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L330)
+### [`walk_type_t`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L330)
 
 The order the two walks take. One of `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP` or
 `WALK_BYLEVEL` must be given; with `WALK_BYLEVEL`, add `WALK_FIRST2LAST` or
 `WALK_LAST2FIRST`. Same names and same values as the C `walk_type_t`.
 
 (js_gobj_walk_gobj_children)=
-### [`gobj_walk_gobj_children(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3519)
+### [`gobj_walk_gobj_children(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3519)
 
 Calls `cb_walking(gobj, user_data, user_data2)` for each child. `walk_type`
 chooses the order. A callback that gives a negative value stops the walk, and
@@ -213,7 +213,7 @@ Before 7.26.28, the walk gave a moved gobj two times: in its old place and in
 its new place.
 
 (js_gobj_walk_gobj_children_tree)=
-### [`gobj_walk_gobj_children_tree(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L3537)
+### [`gobj_walk_gobj_children_tree(gobj, walk_type, cb_walking, user_data, user_data2)`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L3537)
 
 The same walk, and it goes down to every depth. With `WALK_TOP2BOTTOM`, a
 positive value from the callback skips the children of that gobj. The walk does

@@ -10,12 +10,12 @@ description: >-
 An application starts the framework one time, registers its gclasses, builds the
 yuno and plays it.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js)
 
 ---
 
 (js_gobj_start_up)=
-## [`gobj_start_up()`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L871)
+## [`gobj_start_up()`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L871)
 
 Starts the framework. Call it one time, before every other call.
 
@@ -96,7 +96,7 @@ empty stubs, so a gclass that answers commands or statistics gives its own
 ---
 
 (js_YUNETA_VERSION)=
-## [`YUNETA_VERSION`](https://github.com/artgins/gobj-js/blob/7.28.1/src/gobj.js#L60)
+## [`YUNETA_VERSION`](https://github.com/artgins/gobj-js/blob/7.29.0/src/gobj.js#L60)
 
 The version of the framework, as a string.
 

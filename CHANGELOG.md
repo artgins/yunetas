@@ -1,15 +1,133 @@
 # **Changelog**
 
+## Unreleased
+
+- **A path that does not fit is never used cut.** Since 7.29.3 `build_path()`
+  answers NULL on overflow, but most callers did not look and went on with
+  the ancestor left in the buffer. Every caller is checked now:
+    - **the agent's `delete-binary` no longer removes every version of a
+      role:** `/yuneta/repos/<tags>/<role>/<version>` was built in a
+      `NAME_MAX` buffer, so from 255 bytes on the `rmrdir()` removed
+      `.../<role>`, and install/update-binary stored the binary in the
+      ancestor. The agent's path buffers are `PATH_MAX`, and every path build
+      (repos, tags, realm and `role^id` names, bin/log dirs, the run script,
+      the launch note, the `dir-*` commands) is checked;
+    - **timeranger2 removes no replica and opens no store above the one
+      asked:** closing an rt_disk feed whose id was too long removed `disks/`
+      whole; a key that fits `keys/<key>` but not `disks/<rt_id>/<key>`
+      removed that follower's replica; purge and leftover signals removed or
+      moved a replica; `tranger2_startup()` made the store in the parent or
+      the current directory (it answers NULL now). The paths it built with
+      `snprintf()` are checked too (a write made a directory named as the
+      start of the key; a backup with `overwrite_backup` removed another
+      directory; a feed event acted on another feed). No check is on the
+      append or read path (`timeranger2/test_path_too_long`);
+    - **`open-treedb` refuses a store path that does not fit** (it opened a
+      store over the directory of every treedb), and `saved_schemas/`, cut
+      to the `__system__` store, is refused at its 17 uses;
+      `treedb_open_db()` and `msg2db_open_db()` built their schema file path
+      in `NAME_MAX*2`, so in a store ~490 bytes deep an older C literal was
+      written over a newer schema file;
+    - the realm/store helpers of `yunetas_environment.c` answer NULL (with
+      an empty buffer), and the stores of the mqtt_broker, mqtt_tui,
+      controlcenter and agent exit with a critical log; dbsimple refuses the
+      save (its temporary file went to the cwd); `C_RESOURCE2` refuses a cut
+      path or a name cut by `NAME_MAX` (two names shared one file); the OIDC
+      discovery, `schema-file`/`export-db`, archive_sender's scan (it queued
+      another level of the archive as batches), fs_watcher's subdirectory
+      events, tr2migrate, tr2keys and list_queue_msgs2 stop;
+    - `build_path()` itself: a NULL buffer or a size 0 now log and answer
+      NULL (`EINVAL`), and a root `"/"` is kept (`("/", "tmp")` gave
+      `"tmp"`, `("/", "..", "etc")` gave `"../etc"`). gobj-js 7.29.0 does
+      the same in JS.
+
+  In 7.29.3. `tests/c/build_path`, `timeranger2/test_path_too_long`.
+- **The agent quotes the binary path it runs through the shell, and binary
+  names are safe names.** `--print-role` ran through `popen()` with the path
+  bare, built by update-binary from the record's id as stored. The id, role,
+  version and every tag of a binary must be `[A-Za-z0-9._-]`, not empty, no
+  `..`, in install-, update- and delete-binary (an empty version made the
+  role's own directory the version's, which a later `delete-binary` removed
+  whole). In 7.29.3.
+- **timeranger2 refuses a text that is no date, as a time bound and as a
+  tkey**, with a WARNING (every release; it was in TODO.md). The text bounds
+  of a `match_cond` and a text tkey were read with `approxidate()`, which has
+  no error flag: a text it could not read was NOW, in silence; a bound with
+  no `T` was cut by `strtoll()` (`"2026-10-01 00:00:00 +0000"` was the time
+  2026), and rt_mem/rt_disk read no text bound at all. Since 7.29.3,
+  `"1761000000000"` in the tkey of a milliseconds topic was stored as
+  NOW×1000. A bound is now read once when the iterator, list or feed opens:
+  `-?[0-9]+` is that integer, any other text a date read by
+  `approxidate_careful()` -- so `"+5"` or `"0x10"`, numbers to `strtoll()`,
+  are refused. *"match_cond refused: a time bound is no date"* (the open
+  answers NULL); *"Cannot append record, its tkey is a text that is no
+  date"* (nothing written); C_TRANGER's `add-record` and the treedb say it
+  too.
+- **An offset in a comment of a date is the zone again** (since 7.28.5):
+  `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
+  port read 10:00). The first offset in the comments (`+hh`, `+hhmm`,
+  `+hh:mm`) is the zone when none is given outside. `test_date_text` §12.
+- **Modbus master** (`C_PROT_MODBUS_M`; in 7.29.3 and older):
+    - an MBAP length above 254 drops the connection (a frame of 65535
+      swallowed every answer until `timeout_response`);
+    - the bytes that follow an answer are the start of the next frame (they
+      were dropped, half a frame included, and the next answer was lost);
+    - an answer must be of the function sent, an exception included: a 0x84
+      answered a 03, and over RTU the late exception of a timed-out read
+      failed the write after it, which was done. RTU drops a frame of
+      another function or slave; TCP fails it as *"Modbus answer of another
+      function"*. A block answered with a write function no longer counts as
+      answered;
+    - the master's own `traffic` trace hides a received frame by its function
+      (05, 06, 15, 16 and their exceptions): the late echo of a write showed
+      its value;
+    - RTU refuses the reserved slave ids 248-255, in requests and in the
+      polled map;
+    - a block that cannot be polled (bad type, address or size, an overlap,
+      a slave id that cannot be asked) and a slave without blocks are logged
+      once at start, and the cycle skips them with no log and no
+      `timeout_polling` wait: the blocks after it are read sooner.
+- **A `max_run` stop tried again in a minute keeps its minute across a save,
+  a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
+  kept only its wait for a node, so the stop ran at once, a minute early.
+- **The node uuid** (`yuneta-node-uuid`; in 7.29.3):
+    - a board written from a `docker export` reads its hardware:
+      `/.dockerenv` and `/run/.containerenv` count only outside the initial
+      pid namespace, as in systemd (the 7.29.3 note that such a board gets
+      its own uuid did not hold);
+    - a container with no hostname records `"hostname": ""`, and a copy with
+      a hostname makes its own uuid;
+    - without systemd the package does not start the agents in a container
+      that has no uuid yet (`ensure --installing` exits 3): their start
+      stored one in the image being built. The install says so; the first
+      `/etc/init.d/yuneta_agent start` makes it;
+    - the docs no longer claim a container's uuid is never shared: two
+      containers with the same hostname and the same `uuid.json` share it.
+      Delete `uuid.json` before a `docker commit`/`export`, or `set` one per
+      copy. `test-yuneta-node-uuid.sh`: 80 checks.
+- **The ERROR "treedb name too long for the ids of its lists" names the yuno
+  in one key** (it carried four `yuno` keys; in 7.29.3).
+- **gui_agent 1.1.9, gui_treedb 1.0.7** (`yunos/js`): three checkboxes get
+  their `title`; the Display mode and Navigation buttons of the preferences
+  have a name again (1.1.8 named them `""`); gui_treedb's header filters keep
+  their name after every rebuild of the columns; nine keys reach
+  `validate-locales`, and a test freezes the ones it still cannot see; a
+  checkbox wrapped in its label is named with the label's text; the
+  source check of the controls reads more and says it is not a DOM check.
+- **gobj-js 7.29.0** (`kernel/js/gobj-js`): `build_path()` keeps a root `/`
+  and a `..` never goes above the first segment, as in C.
+
 ## v7.29.3 (2026-10-29)
 
 A full release: the fixes of the review round over 7.29.2, and a Modbus master
-that answers every request, for the meter setup commands of a field gate.
-The kernel changes (`gobj-c`: `build_path()` and the date reader;
-`timeranger2`, the modules `modbus` and `mbus`), so every yuno is rebuilt. The external libraries do not change (linux-ext-libs 1.28;
-OpenSSL 3.6.5, PCRE2 10.49, nginx 1.31.8, liburing 2.15 and mbedTLS 4.2.0 are
-the latest of their lines). **`build_path()` returns NULL when the path does
-not fit** (it returned the cut path): the guards that already checked it
-work now, and a caller that ignores its return only gains the log.
+that answers every request, for the meter setup commands of a field gate. The
+kernel changes (`gobj-c`: `build_path()` and the date reader; `timeranger2`,
+the modules `modbus` and `mbus`), so every yuno is rebuilt. The external
+libraries do not change (linux-ext-libs 1.28; OpenSSL 3.6.5, PCRE2 10.49, nginx
+1.31.8, liburing 2.15 and mbedTLS 4.2.0 are the latest of their lines).
+**`build_path()` returns NULL when the path does not fit** (it returned the cut
+path): the guards that already checked it work now, and a caller that ignores
+its return only gains the log.
 
 Suite on the dev machine only, after a clean build, under `ulimit -Sn 1024`:
 349/349 in the first pass.
@@ -208,18 +326,18 @@ Suite on the dev machine only, after a clean build, under `ulimit -Sn 1024`:
 an untouched test under `-j8`, in TODO.md), 348/348 in the second.
 
 **Performance** (against 7.29.0, the last release with a study; 7.29.1 changed
-no compiled C; 47 figures, 8 rounds; `performance/reports/7.29.2.json`, no
-report page): no price. 45 figures inside their noise. The two TCP echoes
-measured fewer round trips outside their noise in the rotation, -1.5%
-(t = -3.7), and -2.7% (t = -6.5) with an append. Neither runs changed code: the
-objects on their path (`C_TCP`, `C_PROT_TCP4H`, `C_CHANNEL`, `C_IOGATE`,
-`gobj.c`, `yev_loop`, `ytls`) have the same machine code, and in the binary
-17,672 of 17,880 functions moved. Measured again for 10 rounds, twice, they
-stay inside their noise (-1.0% to -2.8%, |t| <= 2.4). The 7.29.2 binary
-relinked with the libraries of 7.29.0 measures as 7.29.0 (+0.2%, +0.4%), while
-swapping only one of those libraries moves them in either direction: placement.
-One round, slow on both builds at once, was left out and run again. The yunos
-are 0 to 8 KB larger (stripped).
+no C of the libraries or yunos; 47 figures, 8 rounds;
+`performance/reports/7.29.2.json`, no report page): no price. 45 figures inside
+their noise. The two TCP echoes measured fewer round trips outside their noise
+in the rotation, -1.5% (t = -3.7), and -2.7% (t = -6.5) with an append. Neither
+runs changed code: the objects on their path (`C_TCP`, `C_PROT_TCP4H`,
+`C_CHANNEL`, `C_IOGATE`, `gobj.c`, `yev_loop`, `ytls`) have the same machine
+code, and in the binary 17,672 of 17,880 functions moved. Measured again for 10
+rounds, twice, they stay inside their noise (-1.0% to -2.8%, |t| <= 2.4). The
+7.29.2 binary relinked with the libraries of 7.29.0 measures as 7.29.0 (+0.2%,
++0.4%), while swapping only one of those libraries moves them in either
+direction: placement. One round, slow on both builds at once, was left out and
+run again. The yunos are 0 to 8 KB larger (stripped).
 
 - **The node uuid by hand, on a node without the package**
   (`packages/install-yuneta-node-uuid.sh`). A node that builds from source

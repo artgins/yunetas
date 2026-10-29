@@ -53,14 +53,13 @@ Severity in parentheses where one was assigned.
   its INFO. fs_watcher did not change in 7.29.2. Next: count the turns the
   loop took and print them on failure, so a recurrence says which.
 
-- **timeranger2 reads a date of text as NOW, in silence** (found at 7.28.9).
-  The string bounds of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`,
-  in `timeranger2.c`) and a string tkey (`tkey_time_of_value()`) are read
-  with `approxidate()`, which has no error flag: a text it cannot read is
-  NOW, and the query or the append goes on with it. 7.28.9 fixed the same
-  thing in `tr2list`, `tr2search` and `stats_list`. Read them with
-  `approxidate_careful()` and log a WARNING with the text (it comes from a
-  peer or a user); `c_tranger.c` already does it for `before`.
+- **`validate-locales` cannot see 180 keys of gui_agent and 79 of
+  gui_treedb** (found in R46, 2026-10-29). They reach `t()` as backend data
+  (auth error codes), are asked for by gobj-ui at run time, go through
+  unmarked helpers, or may be dead; a deleted one still builds. Each needs its
+  own decision (mark it with `*_I18N_KEYS` + `/* i18n */`, `/* i18n: data */`,
+  or remove it). They are frozen in `src/i18n_keys_seen.test.js` of each app:
+  no new one can be added, and the list may only shrink.
 
 ### Projects (code outside this repo)
 
@@ -128,7 +127,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   portable form of the matrix option. Not urgent while every node is ours.
 
 - **The node uuid when its recorded source disappears** (`yuneta-node-uuid`,
-  after 7.29.1). Four cases left as they are:
+  after 7.29.1). Five cases left as they are:
     - a node whose recorded source is missing while another is present (an
       ethernet-mac node that sees no NIC at one boot but has DMI or a
       devicetree; a disk imaged from a box with real DMI onto one whose DMI
