@@ -883,7 +883,12 @@ PUBLIC json_int_t tranger2_delete_key_files(
         archive of the key; the key as it was;
       - a crash between the batch and the base leaves a whole batch of files
         that are still live: the next purge archives them again, in another
-        batch (another `@<t>`). A reader takes duplicates by file id;
+        batch (another `@<t>`). Until then the batch holds hard links to
+        files of the topic, so a late append, tranger2_write_user_flag() or
+        tranger2_delete_instance() changes them there too, after its
+        manifest.json: two batches of one file id can differ, and the older
+        one may not match its manifest. A reader takes a file id from the
+        batch with the latest `@<t>`;
       - a base that cannot be written removes the batch: -1, nothing deleted.
     The followers see what a delete shows them, and the numbering is the
     same: with first_g_rowid of the manifest, row N of the k-th file is

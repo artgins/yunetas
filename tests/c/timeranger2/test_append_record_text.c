@@ -17,6 +17,10 @@
  *         without its pkey, a topic keyed by rowid.
  *      5. After a reopen, the cache build takes every record the text
  *         append wrote: they are read back.
+ *      6. A text appended that a realtime list cannot parse (here a json
+ *         allocation that fails) still reaches the list after it that only
+ *         wants the metadata (`only_md`): the failure used to end the loop
+ *         of the lists.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -40,13 +44,18 @@
 #define TOPIC_INT       "topic_text_int"
 #define TOPIC_ROWID     "topic_text_rowid"
 #define BASE_T          946684800   // 2000-01-01T00:00:00+0000
+#define BIG_TEXT_LEN    200000      // a string member this long...
+#define BIG_ALLOC       100000      // ...needs a json allocation this big to be parsed
 
 /***************************************************************
  *              Data
  ***************************************************************/
 PRIVATE yev_loop_h yev_loop;
 PRIVATE int listed = 0;
+PRIVATE int listed_md = 0;
 PRIVATE json_t *last_listed = NULL;
+PRIVATE sys_malloc_fn_t real_json_malloc = NULL;
+PRIVATE BOOL fail_big_json_allocs = FALSE;
 
 /***************************************************************
  *              Helpers
@@ -100,6 +109,32 @@ PRIVATE int on_record(
     JSON_DECREF(last_listed)
     last_listed = record;
     return 0;
+}
+
+PRIVATE int on_md(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    listed_md++;
+    JSON_DECREF(record)
+    return 0;
+}
+
+/*
+ *  The json allocator, that fails a big block when it is told to
+ */
+PRIVATE void *json_malloc_that_can_fail(size_t size)
+{
+    if(fail_big_json_allocs && size >= BIG_ALLOC) {
+        return NULL;
+    }
+    return real_json_malloc(size);
 }
 
 /*
@@ -366,6 +401,73 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*-------------------------------------*
+     *  6. Not parsed for one list, the
+     *     only_md list after it gets it
+     *-------------------------------------*/
+    set_expected_results(
+        "6. a text that one list cannot parse reaches the only_md list",
+        json_pack("[{s:s}]",
+            "msg", "Appended record cannot be parsed for its realtime lists: the lists that want the record do not get it"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        listed = 0;
+        listed_md = 0;
+        json_t *list_record = tranger2_open_list(
+            tranger,
+            TOPIC_NAME,
+            json_pack("{s:s, s:I}",
+                "key", "B",
+                "load_record_callback", (json_int_t)(uintptr_t)on_record
+            ),
+            json_object(),
+            "rt-record",
+            FALSE,
+            ""
+        );
+        json_t *list_md = tranger2_open_list(
+            tranger,
+            TOPIC_NAME,
+            json_pack("{s:s, s:b, s:I}",
+                "key", "B",
+                "only_md", 1,
+                "load_record_callback", (json_int_t)(uintptr_t)on_md
+            ),
+            json_object(),
+            "rt-md",
+            FALSE,
+            ""
+        );
+        const char *head = "{\"id\":\"B\",\"tm\":5000,\"s\":\"";
+        const char *tail = "\"}";
+        size_t len = strlen(head) + BIG_TEXT_LEN + strlen(tail);
+        char *big = gbmem_malloc(len + 1);
+        memcpy(big, head, strlen(head));
+        memset(big + strlen(head), 'x', BIG_TEXT_LEN);
+        memcpy(big + strlen(head) + BIG_TEXT_LEN, tail, strlen(tail) + 1);
+
+        md2_record_ex_t md6;
+        fail_big_json_allocs = TRUE;
+        int ret = append_text(tranger, TOPIC_NAME, big, &md6);
+        fail_big_json_allocs = FALSE;
+        if(ret < 0) {
+            printf("%sERROR%s --> the big text was refused\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(listed != 0 || listed_md != 1) {
+            printf("%sERROR%s --> the list of the record got %d (expected 0), the only_md list %d (expected 1)\n",
+                On_Red BWhite, Color_Off, listed, listed_md);
+            result += -1;
+        }
+        GBMEM_FREE(big)
+        tranger2_close_list(tranger, list_md);
+        tranger2_close_list(tranger, list_record);
+        JSON_DECREF(last_listed)
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
      *  Shutdown
      *-------------------------------------*/
     set_expected_results("shutdown", NULL, NULL, NULL, 1);
@@ -407,7 +509,8 @@ int main(int argc, char *argv[])
     sys_malloc_fn_t malloc_func;
     sys_free_fn_t free_func;
     gbmem_get_json_allocators(&malloc_func, &free_func);
-    json_set_alloc_funcs(malloc_func, free_func);
+    real_json_malloc = malloc_func;
+    json_set_alloc_funcs(json_malloc_that_can_fail, free_func);
 
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);

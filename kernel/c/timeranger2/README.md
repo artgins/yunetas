@@ -288,7 +288,10 @@ if(rows < 0) {
 - **A batch is whole when its name does not start with `.`**: it is built as
   `.new-<upto>@<t>` and renamed when it is durable. A crash between the batch
   and the base leaves a batch of files still live, and the next purge
-  archives them again in another batch: a reader takes duplicates by file id.
+  archives them again in another batch. Until then a late append,
+  `tranger2_write_user_flag()` or `tranger2_delete_instance()` changes them in
+  the first batch too (hard links), after its manifest: a reader takes a file
+  id from the batch with the latest `@<t>`.
 - **The batch is durable before the base**, so the open of the master, which
   finishes a cut purge by deleting, never deletes a file that is not
   archived.

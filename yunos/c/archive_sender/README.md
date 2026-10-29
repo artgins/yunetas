@@ -230,7 +230,7 @@ for example `raw_tracks_archive_directory` in yunovatios.
 | While shipping (native) | The keeper removes what it got when the channel closes. The batch is shipped again |
 | While shipping (rsync) | The next rsync completes the copy. A batch with no manifest at the destination is not whole |
 | After the keeper said `stored`, before the removal here | The batch is shipped again, whole; the keeper compares it with the one it has and answers `stored` at its `end` |
-| Between the batch and the base of the store (SDK) | The purge did not happen, and the files are archived again later: the backup gets them twice. Deduplicate by file id (`manifest.json`, `files`) |
+| Between the batch and the base of the store (SDK) | The purge did not happen, and the files are archived again later: the backup gets them twice. Until that purge the first batch holds hard links to live files, which a late append, a user flag or a deleted instance changes after its manifest, so the two copies can differ: take a file id (`manifest.json`, `files`) from the batch with the latest `@<t>` |
 
 ## Commands
 

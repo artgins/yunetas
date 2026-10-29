@@ -4821,6 +4821,7 @@ PRIVATE int append_content(
      */
     BOOL md_attached = FALSE;
     json_t *jn_parsed = NULL;   // a text append's record, parsed for the first list that wants it
+    BOOL unparsable = FALSE;    // ...and that parse failed: the lists that only want md still get it
 
     /*--------------------------------------------*
      *      FEED the lists
@@ -4839,18 +4840,22 @@ PRIVATE int append_content(
             if(load_record_callback) {
                 BOOL only_md = feed_wants_only_md(list);
                 if(!only_md && !record) {
+                    if(unparsable) {
+                        continue;   // Error already logged
+                    }
                     jn_parsed = json_loadb(content, content_len, RECORD_LOAD_FLAGS, 0);
                     if(!jn_parsed) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_JSON,
-                            "msg",          "%s", "Appended record cannot be parsed for its realtime lists: they do not get it",
+                            "msg",          "%s", "Appended record cannot be parsed for its realtime lists: the lists that want the record do not get it",
                             "topic",        "%s", topic_name,
                             "key",          "%s", key_value,
                             "g_rowid",      "%ld", (long)g_rowid,
                             NULL
                         );
-                        break;
+                        unparsable = TRUE;
+                        continue;
                     }
                     record = jn_parsed;
                 }
@@ -14048,6 +14053,7 @@ PRIVATE int archive_purged_files(
      *  markers only if they are
      */
     const char *failed = NULL;
+    int err = 0;    // the errno of a link() that failed; 0 for a path too long (build_path() logged it)
     char src[PATH_MAX];
     char dst[PATH_MAX];
     int idx; json_t *jn_file_id;
@@ -14064,6 +14070,7 @@ PRIVATE int archive_purged_files(
                 break;
             }
             if(link(src, dst) < 0 && !(errno == ENOENT && i >= 2)) {
+                err = errno;
                 failed = "link() of a file FAILED";
             }
         }
@@ -14078,11 +14085,11 @@ PRIVATE int archive_purged_files(
             break;
         }
         if(link(src, dst) < 0 && !(errno == ENOENT && i >= 1)) {
+            err = errno;
             failed = "link() of a file of the topic FAILED";
         }
     }
     if(failed) {
-        int err = errno;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -14093,7 +14100,7 @@ PRIVATE int archive_purged_files(
             "src",          "%s", src,
             "dst",          "%s", dst,
             "errno",        "%d", err,
-            "serrno",       "%s", strerror(err),
+            "serrno",       "%s", err? strerror(err) : "",
             NULL
         );
         rmrdir(new_path);   // a failure here is logged by it, and removed at the next archive

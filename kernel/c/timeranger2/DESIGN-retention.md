@@ -585,7 +585,7 @@ there.
 | A crash during… | Leaves | Then |
 |---|---|---|
 | step 2, before the `rename()` | a `.new-*` in the directory of the key; the key as it was | the next archive of the key removes it (INFO *"Batch of an archive that was not finished removed: its purge did not happen"*) |
-| between steps 2 and 3 | a whole batch of files that are still live in the topic | the next purge archives them again, in another batch (another `@<t>`): a reader takes duplicates by file id |
+| between steps 2 and 3 | a whole batch of files that are still live in the topic | the next purge archives them again, in another batch (another `@<t>`). Until then the batch holds hard links to live files: a late append, `tranger2_write_user_flag()` or `tranger2_delete_instance()` changes them in the batch too, after its `manifest.json`. Two batches of one file id can differ, and the older one may not match its manifest: a reader takes a file id from the batch with the latest `@<t>` |
 | after step 3 | as in §4.3; the files are already in the batch | the open of the master removes them from the topic |
 
 Inside the process there is no window at all: the purge is one synchronous

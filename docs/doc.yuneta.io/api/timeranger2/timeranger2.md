@@ -1480,8 +1480,14 @@ tranger2_archive_key_files(dev1, before_t = 2000-01-03T00:00:00, ...)   -> 3
   `.new-*`, removed by the next archive of the key (INFO *"Batch of an archive
   that was not finished removed: its purge did not happen"*). A crash between
   the batch and the base leaves a whole batch of files still live: the next
-  purge archives them again in another batch, so a reader takes duplicates by
-  file id. A base that cannot be written removes the batch and answers `-1`.
+  purge archives them again in another batch. Until then the first batch holds
+  hard links to live files, so a late append,
+  [`tranger2_write_user_flag()`](#tranger2_write_user_flag) or
+  [`tranger2_delete_instance()`](#tranger2_delete_instance) changes them there
+  too, after its `manifest.json`: two batches of one file id can differ, and
+  the older one may not match its manifest. A reader takes a file id from the
+  batch with the latest `@<t>`. A base that cannot be written removes the
+  batch and answers `-1`.
 - **Refused**, besides the refusals of
   [`tranger2_delete_key_files()`](#tranger2_delete_key_files), with
   `-1`, logged, nothing deleted: no `archive_directory` (*"what
