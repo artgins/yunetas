@@ -157,7 +157,9 @@ PRIVATE const char *record_error_names[0x20] = {
 };
 
 /*
- *  Durations coded nn (s, min, h, d) and pp (h, d, months, years), in s
+ *  Durations coded nn (s, min, h, d) and pp (h, d, months, years), in s.
+ *  Months and years are no fixed number of seconds: a duration counted in
+ *  them is another quantity, "<quantity>_months", in months (a year is 12)
  */
 PRIVATE const int duration_nn_s[4] = {1, 60, 3600, 86400};
 
@@ -691,14 +693,14 @@ PRIVATE void decode_fd_vife(vif_meaning_t *m, uint8_t code)
             if(nn < 2) {
                 set_quantity(m, "since_last_cumulation", "s", 0, nn == 0? 3600 : 86400);
             } else {
-                set_quantity(m, "since_last_cumulation", nn == 2? "month" : "year", 0, 1);
+                set_quantity(m, "since_last_cumulation_months", "month", 0, nn == 2? 1 : 12);
             }
             return;
         case 0x6C:  // E110 11pp operating time of the battery
             if(nn < 2) {
                 set_quantity(m, "battery_operating_time", "s", 0, nn == 0? 3600 : 86400);
             } else {
-                set_quantity(m, "battery_operating_time", nn == 2? "month" : "year", 0, 1);
+                set_quantity(m, "battery_operating_time_months", "month", 0, nn == 2? 1 : 12);
             }
             return;
         default:
@@ -787,20 +789,20 @@ PRIVATE void decode_fd_vife(vif_meaning_t *m, uint8_t code)
             set_quantity(m, "storage_block_size", NULL, 0, 1);
             return;
         case 0x28:
-            set_quantity(m, "storage_interval", "month", 0, 1);
+            set_quantity(m, "storage_interval_months", "month", 0, 1);
             return;
-        case 0x29:
-            set_quantity(m, "storage_interval", "year", 0, 1);
+        case 0x29:  // years
+            set_quantity(m, "storage_interval_months", "month", 0, 12);
             return;
         case 0x30:
             set_quantity(m, "tariff_start", NULL, 0, 1);
             m->kind = VALUE_DATE;
             return;
         case 0x38:
-            set_quantity(m, "tariff_period", "month", 0, 1);
+            set_quantity(m, "tariff_period_months", "month", 0, 1);
             return;
-        case 0x39:
-            set_quantity(m, "tariff_period", "year", 0, 1);
+        case 0x39:  // years
+            set_quantity(m, "tariff_period_months", "month", 0, 12);
             return;
         case 0x3A:
             set_quantity(m, "dimensionless", NULL, 0, 1);
@@ -992,7 +994,9 @@ PRIVATE int decode_bcd(const uint8_t *p, size_t len, int64_t *value)
 /***************************************************************************
  *  A time point: type G (2 bytes, date), J (3, time), F (4, date and
  *  time) or I (6, date and time with seconds). NULL when the meter marks
- *  it invalid, or the length is none of those.
+ *  it invalid, a field is out of its range (year 0-99, month 1-12, day
+ *  1-31, hour 0-23, minute and second 0-59: the bits hold more), or the
+ *  length is none of those.
  ***************************************************************************/
 PRIVATE json_t *decode_time_point(const uint8_t *p, size_t len)
 {
@@ -1005,13 +1009,21 @@ PRIVATE json_t *decode_time_point(const uint8_t *p, size_t len)
                 int day = p[0] & 0x1F;
                 int month = p[1] & 0x0F;
                 int year = ((p[0] & 0xE0) >> 5) | ((p[1] & 0xF0) >> 1);
-                if(day == 0 || month == 0 || month > 12) {
-                    return NULL;  // a date never set
+                if(day == 0 || month == 0 || month > 12 || year > 99) {
+                    return NULL;  // a date never set, or not a date
                 }
                 return json_sprintf("%04d-%02d-%02d", 2000 + year, month, day);
             }
         case 3: // type J
-            return json_sprintf("%02d:%02d:%02d", p[2] & 0x1F, p[1] & 0x3F, p[0] & 0x3F);
+            {
+                int second = p[0] & 0x3F;
+                int minute = p[1] & 0x3F;
+                int hour = p[2] & 0x1F;
+                if(hour > 23 || minute > 59 || second > 59) {
+                    return NULL;
+                }
+                return json_sprintf("%02d:%02d:%02d", hour, minute, second);
+            }
         case 4: // type F
             {
                 if(p[0] & 0x80) {
@@ -1022,7 +1034,7 @@ PRIVATE json_t *decode_time_point(const uint8_t *p, size_t len)
                 int day = p[2] & 0x1F;
                 int month = p[3] & 0x0F;
                 int year = ((p[2] & 0xE0) >> 5) | ((p[3] & 0xF0) >> 1);
-                if(day == 0 || month == 0 || month > 12) {
+                if(day == 0 || month == 0 || month > 12 || year > 99 || hour > 23 || minute > 59) {
                     return NULL;
                 }
                 int century = (p[1] & 0x60) >> 5;
@@ -1044,7 +1056,8 @@ PRIVATE json_t *decode_time_point(const uint8_t *p, size_t len)
                 int day = p[3] & 0x1F;
                 int month = p[4] & 0x0F;
                 int year = ((p[3] & 0xE0) >> 5) | ((p[4] & 0xF0) >> 1);
-                if(day == 0 || month == 0 || month > 12) {
+                if(day == 0 || month == 0 || month > 12 || year > 99 ||
+                        hour > 23 || minute > 59 || second > 59) {
                     return NULL;
                 }
                 return json_sprintf("%04d-%02d-%02dT%02d:%02d:%02d",
@@ -1174,8 +1187,8 @@ PRIVATE json_t *decode_record_value(
                     ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
                 float f;
                 memcpy(&f, &u, sizeof(f));
-                if(f != f) {
-                    return json_null();  // NaN
+                if(f - f != 0) {
+                    return json_null();  // NaN or +-Inf: json has no number for them
                 }
                 return scaled_number(m, 0, (double)f, TRUE);
             }

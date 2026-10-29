@@ -13,6 +13,10 @@
  *              M6  12349999  0
  *          A selection matches the meters whose id has every digit the mask
  *          fixes; one answers E5, several answer garbage (a collision).
+ *          The meters are strict about the FCB: a SND_UD with the FCB of
+ *          the last one is a repeat, acknowledged and not done, and a
+ *          selection clears that memory -- so the write of
+ *          set-primary-address takes only with FCB 1.
  *
  *          The master reads slave 1. On its reading, scan-primary 1-5 is
  *          asked: the cycle is in progress, so it waits for the end of the
@@ -48,6 +52,7 @@
 typedef struct {
     const char *id;         // 8 digits
     int address;            // primary, 0 none
+    int last_fcb;           // FCB of the last SND_UD, cleared by a selection
 } meter_t;
 
 typedef enum {
@@ -150,12 +155,12 @@ PRIVATE void mt_create(hgobj gobj)
     priv->timer_status = gobj_create_pure_child("status", C_TIMER0, 0, gobj);
 
     const meter_t meters[N_METERS] = {
-        {"11111111", 1},
-        {"33333333", 3},
-        {"41111111", 4},
-        {"42222222", 4},
-        {"12345678", 0},
-        {"12349999", 0},
+        {"11111111", 1, 0},
+        {"33333333", 3, 0},
+        {"41111111", 4, 0},
+        {"42222222", 4, 0},
+        {"12345678", 0, 0},
+        {"12349999", 0, 0},
     };
     memcpy(priv->meters, meters, sizeof(meters));
     priv->selected = -1;
@@ -364,7 +369,7 @@ PRIVATE void bus_frame(hgobj gobj, const mbus_frame_t *frame)
         return;
     }
 
-    if(frame->type == MBUS_FRAME_LONG && frame->c == MBUS_C_SND_UD &&
+    if(frame->type == MBUS_FRAME_LONG && (frame->c & ~MBUS_C_FCB) == MBUS_C_SND_UD &&
             frame->a == MBUS_ADDRESS_SELECTED && frame->ci == MBUS_CI_SELECT_SECONDARY &&
             frame->data_len == MBUS_SECONDARY_ADDRESS_SIZE) {
         int n = 0;
@@ -377,18 +382,30 @@ PRIVATE void bus_frame(hgobj gobj, const mbus_frame_t *frame)
         }
         if(n != 1) {
             priv->selected = -1;
+        } else {
+            priv->meters[priv->selected].last_fcb = 0;  // a selection clears the FCB memory
         }
         bus_acks(gobj, n);
         return;
     }
 
-    if(frame->type == MBUS_FRAME_LONG && frame->c == MBUS_C_SND_UD &&
+    if(frame->type == MBUS_FRAME_LONG && (frame->c & ~MBUS_C_FCB) == MBUS_C_SND_UD &&
             frame->a == MBUS_ADDRESS_SELECTED && frame->ci == MBUS_CI_DATA_SEND) {
         if(priv->selected < 0 || frame->data_len != 3 || frame->data[0] != 0x01 || frame->data[1] != 0x7A) {
             test_error(gobj, "A write the bus does not expect", 0);
             return;
         }
-        priv->meters[priv->selected].address = frame->data[2];
+        /*
+         *  A strict meter (m-bus.com 5 and 7.2): a SND_UD with the FCB of
+         *  the last one is a repeat, acknowledged and not done again. So
+         *  the first one after the selection must carry FCB 1
+         */
+        meter_t *m = &priv->meters[priv->selected];
+        int fcb = (frame->c & MBUS_C_FCB)? 1 : 0;
+        if(fcb != m->last_fcb) {
+            m->last_fcb = fcb;
+            m->address = frame->data[2];
+        }
         bus_acks(gobj, 1);
         return;
     }

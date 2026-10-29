@@ -26,6 +26,10 @@ of the 909 records are equal. The other 16 differ on purpose:
 - a "date of" VIFE (`6F`, the date of a maximum) is a date here, where libmbus
   reads a temperature of 41 million °C;
 - a date that was never set is `null`;
+- a date with a field out of its range (an hour 31, a year 127) is `null`.
+  This one came after the comparison: since then, storage 510 of the
+  Landis+Gyr T230 (a type F date with every year bit set, a slot never
+  written) is `null` here and `2027-01-01T00:00` in libmbus;
 - the fixed data structure (`CI 73`) is not decoded.
 
 The module's test (`tests/c/mbus_telegram`) keeps six of those telegrams.
@@ -285,15 +289,31 @@ reading to the next:
 | `flow_temperature`, `return_temperature`, `external_temperature` | `C` | °F |
 | `temperature_difference` | `K` | °F |
 | `pressure` | `bar` | |
-| `on_time`, `operating_time`, `averaging_duration`, ... | `s` | min, h, days |
+| `on_time`, `operating_time`, `averaging_duration`, `storage_interval`, `tariff_period`, `since_last_cumulation`, `battery_operating_time`, ... | `s` | min, h, days |
+| `storage_interval_months`, `tariff_period_months`, `since_last_cumulation_months`, `battery_operating_time_months` | `month` | years |
 | `voltage`, `current` | `V`, `A` | |
 
 So a consumer that reads `energy` never has to ask whether the meter counted it
-in GJ. Dates come as text: `"2026-10-23"` (type G) or `"2026-10-23T14:05"`
-(type F). Identity numbers come as text too (`fabrication_number`). A BCD with
-a digit in error, a date marked invalid or never set, and a record that
-carries a record-error VIFE all have `"value": null` (the last also has
-`"error": "no data available"`, or whatever the code says). Manufacturer data
+in GJ. A month or a year is no fixed number of seconds, so a duration the meter
+counts in months or years is another quantity, with `_months` in its name (a
+year is 12 months):
+
+```json
+{"storage_interval":        {"value": 900, "unit": "s"},
+ "storage_interval_months": {"value": 24,  "unit": "month"}}
+```
+
+The one quantity with no fixed unit is `custom`, a plain text VIF: its unit is
+the text the meter sends.
+
+Dates come as text: `"2026-10-23"` (type G), `"2026-10-23T14:05"` (type F),
+`"2026-10-23T14:05:30"` (type I) or `"14:05:30"` (type J). Identity numbers
+come as text too (`fabrication_number`). These have `"value": null`: a real
+that is NaN or `+-Inf` (json has no number for them; the other records of the
+telegram are decoded), a BCD with a digit in error, a date marked invalid,
+never set, or with a field out of its range (year 0-99, month 1-12, day 1-31,
+hour 0-23, minute and second 0-59), and a record that carries a record-error
+VIFE (it also has `"error": "no data available"`, or whatever the code says). Manufacturer data
 (after `DIF 0F`) comes as `mfr_data` in hex.
 
 **Example**

@@ -126,7 +126,7 @@
         "power:max@s1@t1\":{\"value\":0,\"unit\":\"W\"},\"volume_flow:max@s1@t1\":"
         "{\"value\":0.0,\"unit\":\"m3/h\"},\"flow_temperature:max@s1@t1\":{\"value"
         "\":30.7,\"unit\":\"C\"},\"return_temperature:max@s1@t1\":{\"value\":50.7,"
-        "\"unit\":\"C\"},\"datetime@s510\":{\"value\":\"2027-01-01T00:00\"},\"dateti"
+        "\"unit\":\"C\"},\"datetime@s510\":{\"value\":null},\"dateti"
         "me\":{\"value\":\"2012-01-13T12:04\"}},\"mfr_data\":\"0907006601\"}"
     },
     {

@@ -381,6 +381,15 @@ PRIVATE void test_records(void)
         "05 2B 00 00 48 42", FALSE,
         "{\"records\":{\"power\":{\"value\":50.0,\"unit\":\"W\"}}}"
     );
+    check_records("real 32 +Inf: no value, the rest of the telegram decoded",
+        "05 13 00 00 80 7F 04 06 01 00 00 00", FALSE,
+        "{\"records\":{\"volume\":{\"value\":null,\"unit\":\"m3\"},"
+        "\"energy\":{\"value\":1000,\"unit\":\"Wh\"}}}"
+    );
+    check_records("real 32 -Inf: no value",
+        "05 2B 00 00 80 FF", FALSE,
+        "{\"records\":{\"power\":{\"value\":null,\"unit\":\"W\"}}}"
+    );
     check_records("energy in MJ comes out in Wh",
         "04 0E 10 0E 00 00", FALSE,
         "{\"records\":{\"energy\":{\"value\":1000000.0,\"unit\":\"Wh\"}}}"
@@ -472,6 +481,66 @@ PRIVATE void test_records(void)
     check_records("type G never set: no value",
         "02 6C 00 00", FALSE,
         "{\"records\":{\"date\":{\"value\":null}}}"
+    );
+    check_records("type G with year 127 (0-99): no value",
+        "02 6C E1 F1", FALSE,
+        "{\"records\":{\"date\":{\"value\":null}}}"
+    );
+    check_records("type F with hour 31 and minute 63: no value",
+        "04 6D 3F 1F 21 01", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":null}}}"
+    );
+    check_records("type F with hour 24: no value",
+        "04 6D 00 18 57 3A", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":null}}}"
+    );
+    check_records("type F with year 100 (0-99): no value",
+        "04 6D 00 00 81 C1", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":null}}}"
+    );
+    check_records("type I date and time with seconds",
+        "06 6D 1E 05 0E 57 3A 00", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":\"2026-10-23T14:05:30\"}}}"
+    );
+    check_records("type I with second 60: no value",
+        "06 6D 3C 05 0E 57 3A 00", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":null}}}"
+    );
+    check_records("type J time",
+        "03 6D 1E 05 0E", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":\"14:05:30\"}}}"
+    );
+    check_records("type J with minute 60: no value",
+        "03 6D 00 3C 0E", FALSE,
+        "{\"records\":{\"datetime\":{\"value\":null}}}"
+    );
+    check_records("FD 25: storage interval in minutes comes out in s",
+        "01 FD 25 0F", FALSE,
+        "{\"records\":{\"storage_interval\":{\"value\":900,\"unit\":\"s\"}}}"
+    );
+    check_records("FD 28: storage interval in months is another quantity",
+        "01 FD 28 03", FALSE,
+        "{\"records\":{\"storage_interval_months\":{\"value\":3,\"unit\":\"month\"}}}"
+    );
+    check_records("FD 29: storage interval in years comes out in months",
+        "01 FD 29 02", FALSE,
+        "{\"records\":{\"storage_interval_months\":{\"value\":24,\"unit\":\"month\"}}}"
+    );
+    check_records("FD 39: tariff period in years comes out in months",
+        "01 FD 39 01", FALSE,
+        "{\"records\":{\"tariff_period_months\":{\"value\":12,\"unit\":\"month\"}}}"
+    );
+    check_records("FD 6A: since last cumulation in months",
+        "01 FD 6A 05", FALSE,
+        "{\"records\":{\"since_last_cumulation_months\":{\"value\":5,\"unit\":\"month\"}}}"
+    );
+    check_records("FD 6D: battery operating time in days comes out in s",
+        "01 FD 6D 02", FALSE,
+        "{\"records\":{\"battery_operating_time\":{\"value\":172800,\"unit\":\"s\"}}}"
+    );
+    check_records("FD 6F: battery operating time in years comes out in months",
+        "01 FD 6F 03", FALSE,
+        "{\"records\":{\"battery_operating_time_months\":{\"value\":36,\"unit\":\"month\"}}}"
     );
     check_records("the same id twice: the second is #2",
         "01 2B 01 01 2B 02", FALSE,

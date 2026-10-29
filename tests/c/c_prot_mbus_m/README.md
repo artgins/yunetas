@@ -15,8 +15,8 @@ meters of the bus (it parses the master's frames with `mbus_telegram.h`).
   master waits out `timeout_response` and repeats the `REQ_UD2` with the SAME
   FCB, the slave answers it, the reading is published and *"M-Bus slave
   answered again"* is logged;
-- **slave `12345678` KAM** (secondary) is selected every cycle (`CI 52`, the
-  bytes checked) and read at `FD`;
+- **slave `12345678` KAM** (secondary) is selected every cycle (`CI 52` with
+  FCB 1, `73`; the bytes checked) and read at `FD`;
 - **slave 3** is disabled and must never be asked.
 
 At the end the counters must be what three cycles give: `badFrames` 1,
@@ -37,13 +37,29 @@ six meters: `11111111` at address 1, `33333333` at 3, `41111111` and
 - `scan-secondary` finds the six meters, in the order of the tree search.
 - `set-primary-address` with a wildcard is refused. Then `12349999` gets
   address 9: the bus checks that the record written is `01 7A 09`, and the
-  meter answers `SND_NKE` at 9.
+  meter answers `SND_NKE` at 9. The meters are strict about the FCB: a
+  `SND_UD` with the FCB of the one before is a repeat, acknowledged and not
+  done, and a selection clears that memory. So the write takes only with
+  FCB 1, as the first `SND_UD` after a selection must carry.
 - `read-now` starts a cycle at once (`timeout_polling` is a minute), and a
   second `read-now` while it runs is refused.
 
 Each operation must end with *"M-Bus operation done"*, logged once. The test
 fails when a collision does not narrow the search, and when the write carries
 another VIF.
+
+`test3` (`main_test3.c` + `c_test3.c`) is about answers that take longer on
+the wire than `timeout_response` (100 ms here), as a long frame does at 2400
+baud (~1.2 s). The one meter, at address 1, sends its 246-byte `RSP_UD` in
+chunks of 10 bytes every 30 ms (~750 ms):
+
+- in cycle 1 the master must read it with no timeout and no repeat;
+- in cycle 2 the first answer is broken at its first byte and the rest is
+  dribbled all the same. The master must wait until the bus is quiet before it
+  repeats the `REQ_UD2` (same FCB), and the repeat is answered at once.
+
+The bus fails the test when a request arrives while an answer is on the wire.
+At the end: `badFrames` 1, `timeouts` 0, `repeats` 1, `readings` 2.
 
 The tests are built only when `CONFIG_MODULE_MBUS` is set.
 

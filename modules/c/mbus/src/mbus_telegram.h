@@ -177,6 +177,14 @@ PUBLIC int mbus_build_secondary_address(
  *  in s, temperatures in C (a difference in K), pressure in bar. So a
  *  meter that counts in GJ, MWh or J/h comes out in Wh or W, and a
  *  consumer that reads "energy" never has to ask which unit it is in.
+ *  A duration counted in months or years has no fixed number of seconds:
+ *  it is another quantity, "<quantity>_months", always in months
+ *  ("storage_interval" in s, "storage_interval_months" in month). The one
+ *  exception is "custom", a plain text VIF, whose unit is the meter's text.
+ *
+ *  A value that is not one has "value": null: a NaN or +-Inf real, a BCD
+ *  with a digit in error, a date marked invalid or out of range (an hour
+ *  25, a year 127), a record with a record-error VIFE.
  *
  *  Return the json (yours to decref), or NULL with the reason in `why`.
  */

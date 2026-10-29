@@ -31,14 +31,27 @@
  *                          REQ_UD2 to FD -> RSP_UD [, REQ_UD2 ...]
  *
  *          The SND_NKE resets the slave's link, so its readout starts at
- *          the first telegram. The first REQ_UD2 carries FCB 1; when a
- *          telegram ends with DIF 1F (more records follow) the FCB is
- *          toggled and the next one asked for, up to max_telegrams. A
- *          request without a valid answer is repeated, with the same FCB,
- *          up to `retries` times; a frame that does not parse is waited
- *          out until timeout_response, so the rest of a collision or of
- *          noise does not fall into the next request. After the last
- *          slave the master waits timeout_polling and starts again.
+ *          the first telegram. THE FCB (m-bus.com, chapters 5 and 7.2): the
+ *          first REQ_UD2 or SND_UD after a SND_NKE or a selection carries
+ *          FCB 1, and the slave takes one with the FCB of the last as a
+ *          repeat (it answers again and does not act). So the first
+ *          REQ_UD2 carries FCB 1; when a telegram ends with DIF 1F (more
+ *          records follow) the FCB is toggled and the next one asked for,
+ *          up to max_telegrams. The selection goes with FCB 1 too (it
+ *          clears the slave's FCB memory; libmbus sends it so), and so does
+ *          the write of set-primary-address, the first SND_UD after it.
+ *          A request without a valid answer is repeated, with the same FCB,
+ *          up to `retries` times.
+ *
+ *          THE TIMEOUT. timeout_response is the silence allowed: it runs
+ *          from the request to the first byte, and again from each chunk
+ *          of bytes to the next, because a long frame is ~1.2 s on the wire
+ *          at 2400 baud. A frame that does not parse is waited out until
+ *          the bus is quiet for timeout_response, so the rest of a
+ *          collision or of noise does not fall into the next request (the
+ *          re-arms stop after the bytes of two frames, so a bus that never
+ *          goes quiet still ends). After the last slave the master waits
+ *          timeout_polling and starts again.
  *
  *          WHAT IS PUBLISHED. One EV_ON_MESSAGE per slave read, as soon as
  *          its reading is complete (a cycle of 250 meters is minutes long:
@@ -212,7 +225,7 @@ SDATA (DTP_STRING,      "parity",           SDF_RD,             "even",     "Ser
 SDATA (DTP_INTEGER,     "stopbits",         SDF_RD,             "1",        "Serial: stop bits"),
 SDATA (DTP_LIST,        "slaves",           SDF_WR,             "[]",       "Slaves to read: [{\"address\": 1}, {\"secondary\": \"12345678\"}, ...]. Read at start"),
 SDATA (DTP_INTEGER,     "timeout_polling",  SDF_WR,             "60000",    "Milliseconds from the end of a cycle to the next one"),
-SDATA (DTP_INTEGER,     "timeout_response", SDF_WR,             "500",      "Milliseconds to wait for an answer"),
+SDATA (DTP_INTEGER,     "timeout_response", SDF_WR,             "500",      "Milliseconds to wait for the first byte of an answer, and for each next one"),
 SDATA (DTP_INTEGER,     "retries",          SDF_WR,             "2",        "Times a request without a valid answer is repeated"),
 SDATA (DTP_INTEGER,     "max_telegrams",    SDF_WR,             "8",        "Most telegrams of one reading (DIF 1F, more records follow)"),
 SDATA (DTP_INTEGER,     "txFrames",         SDF_RD|SDF_RSTATS,  "0",        "Frames sent"),
@@ -262,6 +275,7 @@ typedef struct _PRIVATE_DATA {
 
     uint8_t rx[RX_BUFFER_SIZE];
     size_t rx_len;
+    size_t rx_total;                // bytes of the answer, kept or not: bounds the re-arms
     BOOL rx_bad;                    // a bad frame arrived: wait out the timeout
     char rx_why[256];
     char rx_dump[2*DUMP_MAX_BYTES + 1];
@@ -1028,6 +1042,7 @@ PRIVATE void send_request(hgobj gobj, const uint8_t *bf, size_t len)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->rx_len = 0;
+    priv->rx_total = 0;
     priv->rx_bad = FALSE;
     priv->rx_why[0] = 0;
     priv->rx_dump[0] = 0;
@@ -1055,7 +1070,7 @@ PRIVATE void send_step(hgobj gobj)
             what = "SND_NKE";
             break;
         case STEP_SELECT:
-            len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+            len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD|MBUS_C_FCB, MBUS_ADDRESS_SELECTED,
                 MBUS_CI_SELECT_SECONDARY, s->selection, sizeof(s->selection)
             );
             what = "select";
@@ -1389,7 +1404,7 @@ PRIVATE void op_found(hgobj gobj, json_t *jn_item)
  ***************************************************************************/
 PRIVATE void add_identity(json_t *jn_item, const mbus_frame_t *frame)
 {
-    char bf[256];
+    char bf[256] = "";
     BOOL more;
     json_t *jn_data = mbus_decode_user_data(frame, &more, bf, sizeof(bf));
     json_t *jn_header = jn_data? json_object_get(jn_data, "header") : NULL;
@@ -1540,7 +1555,7 @@ PRIVATE void op_send(hgobj gobj)
                     finish_operation(gobj, "search mask not valid", TRUE);
                     return;
                 }
-                len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+                len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD|MBUS_C_FCB, MBUS_ADDRESS_SELECTED,
                     MBUS_CI_SELECT_SECONDARY, sel, sizeof(sel)
                 );
             } else {
@@ -1553,7 +1568,7 @@ PRIVATE void op_send(hgobj gobj)
         case OP_SET_ADDRESS:
             switch(priv->op_step) {
                 case OPS_PROBE:
-                    len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+                    len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD|MBUS_C_FCB, MBUS_ADDRESS_SELECTED,
                         MBUS_CI_SELECT_SECONDARY, priv->op_selection, sizeof(priv->op_selection)
                     );
                     break;
@@ -1561,7 +1576,8 @@ PRIVATE void op_send(hgobj gobj)
                     {
                         // DIF 01 (8 bits), VIF 7A (bus address), the address
                         uint8_t record[3] = {0x01, 0x7A, (uint8_t)priv->op_new_address};
-                        len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD, MBUS_ADDRESS_SELECTED,
+                        // the first SND_UD after a selection carries FCB 1, or it is a repeat
+                        len = mbus_build_long_frame(bf, sizeof(bf), MBUS_C_SND_UD|MBUS_C_FCB, MBUS_ADDRESS_SELECTED,
                             MBUS_CI_DATA_SEND, record, sizeof(record)
                         );
                     }
@@ -1879,13 +1895,23 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    /*
+     *  timeout_response is the silence allowed, not the time of the whole
+     *  answer: a long frame at 2400 baud is ~1.2 s on the wire. Bounded by
+     *  the bytes of two frames, so a bus that never goes quiet still ends
+     */
+    size_t len = gbuffer_leftbytes(gbuf);
+    priv->rx_total += len;
+    if(priv->rx_total <= RX_BUFFER_SIZE) {
+        set_timeout0(priv->timer, priv->timeout_response);
+    }
+
     if(priv->rx_bad) {
-        // the rest of a bad frame: waited out until the timeout
+        // the rest of a bad frame: waited out until the bus is quiet
         KW_DECREF(kw)
         return 0;
     }
 
-    size_t len = gbuffer_leftbytes(gbuf);
     if(priv->rx_len + len > sizeof(priv->rx)) {
         priv->rx_bad = TRUE;
         priv->badFrames++;
@@ -1931,7 +1957,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  No valid answer in timeout_response: repeat, or the slave is not read
+ *  No valid answer, and the bus quiet for timeout_response: repeat, or the
+ *  slave is not read
  ***************************************************************************/
 PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {

@@ -14,8 +14,10 @@ without a yuno: frames in, frames or json out.
   text and binary), the primary VIF table, `FB` and `FD`, the units each
   quantity is given in, DIFEs (storage, tariff, subunit), the functions, the
   VIFEs interpreted (record error, positive and negative accumulation,
-  correction factor, "date of") and the ones kept in the id, dates of type G
-  and F (invalid and never set), repeated ids, fillers, manufacturer data and
+  correction factor, "date of") and the ones kept in the id, dates of type G,
+  F, I and J (invalid, never set, and a field out of its range: an hour 31, a
+  year 127), a real `+-Inf` (null, the rest decoded), a duration in months or
+  years (`<quantity>_months`), repeated ids, fillers, manufacturer data and
   `DIF 1F`.
 - **Headers and refusals**: `CI 7A`, `CI 72` with an encryption mode (refused)
   and with a signature that is not one (decoded), `CI 70`, `CI 73` (fixed
@@ -23,7 +25,10 @@ without a yuno: frames in, frames or json out.
 - **Real meters**: six telegrams of the libmbus collection (Kamstrup,
   Itron water and gas, Engelmann, Landis+Gyr, Sontex), whose decoding was
   checked record by record against libmbus's (`real_telegrams.inc`; licence
-  in `LICENSE-libmbus-frames.txt`).
+  in `LICENSE-libmbus-frames.txt`). One record differs on purpose since the
+  date ranges are checked: storage 510 of the Landis+Gyr is a type F date with
+  year 127 (all its bits set, a slot never written), `null` here and
+  `2027-01-01T00:00` in libmbus.
 
 The memory is checked free at the end.
 

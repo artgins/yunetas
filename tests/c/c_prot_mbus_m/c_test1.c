@@ -13,8 +13,8 @@
  *            answers the SND_NKE, and its first RSP_UD has a bad checksum:
  *            the master waits out the timeout and repeats the REQ_UD2 with
  *            the SAME FCB, and the slave answers it well;
- *          - slave 12345678 KAM (secondary): selected every cycle (CI 52),
- *            then read at FD;
+ *          - slave 12345678 KAM (secondary): selected every cycle (CI 52,
+ *            C 73: FCB 1), then read at FD;
  *          - slave 3 is disabled: it must never be asked.
  *
  *          Checked:
@@ -316,8 +316,11 @@ PRIVATE void bus_frame(hgobj gobj, const mbus_frame_t *frame, const uint8_t *raw
         }
     }
 
-    if(frame->type == MBUS_FRAME_LONG && frame->c == MBUS_C_SND_UD &&
+    if(frame->type == MBUS_FRAME_LONG && (frame->c & ~MBUS_C_FCB) == MBUS_C_SND_UD &&
             frame->a == MBUS_ADDRESS_SELECTED && frame->ci == MBUS_CI_SELECT_SECONDARY) {
+        if(frame->c != (MBUS_C_SND_UD|MBUS_C_FCB)) {
+            bus_error(gobj, "The selection must carry FCB 1", frame->c);
+        }
         uint8_t want[MBUS_SECONDARY_ADDRESS_SIZE];
         unsigned v[8];
         sscanf(SECONDARY_SELECTION, "%x %x %x %x %x %x %x %x",
