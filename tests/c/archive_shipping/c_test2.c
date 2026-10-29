@@ -9,11 +9,27 @@
  *          1. an end whose sha256 is not of the bytes that arrived;
  *          2. an end with fewer sha256 than files;
  *          3. an end whose sha256 is not 64 lowercase hex characters;
- *          4. data of a file before the files before it are whole;
+ *          4. data of a file before the files before it are whole, then a
+ *             frame of that batch the sender had already sent (answered,
+ *             not counted nor logged again), and a begin with an empty
+ *             batch;
  *          5. a good batch: stored (the frames of the driver are right);
  *          6. the same batch again: stored, already here;
  *          7. a batch of that name with the same files and sizes and other
  *             bytes, with their own right sha256: refused, the batch kept.
+ *
+ *          Then a second link (two channels, two senders of one node):
+ *
+ *          8. link 1 begins a batch and sends its first file;
+ *          9. link 2 begins the same batch: refused, it is in flight on
+ *             link 1 (it used to remove link 1's copy aside and make its
+ *             own, and link 1 was answered stored for files it had not
+ *             written: the data file empty in the backup);
+ *          10. link 1 ends it: stored, with link 1's bytes;
+ *          11. link 1 begins another batch, sends a file, and goes silent
+ *              for more than stale_session_timeout;
+ *          12. link 2 begins that batch: taken over (link 1 dropped), and
+ *              stored with link 2's bytes.
  *
  *          A refused batch leaves nothing in the backup, nor its copy aside.
  *          The batches are refused before require_client_certificate counts
@@ -38,6 +54,7 @@
 #define FILE_DATA       "2000-01-01.json"
 #define FILE_MANIFEST   "manifest.json"
 #define TEST_TIMEOUT_MS 10000
+#define STALE_WAIT_MS   2500    // more than the stale_session_timeout of main_test2.c
 
 /***************************************************************************
  *              Structures
@@ -78,13 +95,19 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;
+    hgobj timer_wait;
     hgobj keeper;
     hgobj gobj_output_side;
+    hgobj gobj_output_side2;
     char base[PATH_MAX];
     char backup[PATH_MAX];
-    int scenario;           // 1..7, 8 the end
-    json_t *jn_expected;    // [{cmd, msg}] the answers of the scenario, in order
+    int scenario;           // 1..12, 13 the end
+    json_t *jn_expected;    // [{cmd, msg, side}] the answers of the scenario, in order
     size_t got;             // answers of the scenario received
+    BOOL side2_open;
+    BOOL stale_waited;
+    BOOL side1_drop_expected;
+    BOOL side1_dropped;
     BOOL finished;
 } PRIVATE_DATA;
 
@@ -107,6 +130,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer_wait = gobj_create_pure_child("wait", C_TIMER, 0, gobj);
 }
 
 /***************************************************************************
@@ -117,8 +141,11 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
+    gobj_start(priv->timer_wait);
     priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
     gobj_subscribe_event(priv->gobj_output_side, 0, 0, gobj);
+    priv->gobj_output_side2 = gobj_find_service("__output_side2__", TRUE);
+    gobj_subscribe_event(priv->gobj_output_side2, 0, 0, gobj);
     return 0;
 }
 
@@ -130,8 +157,12 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->timer);
+    gobj_stop(priv->timer_wait);
     if(priv->gobj_output_side) {
         gobj_unsubscribe_event(priv->gobj_output_side, 0, 0, gobj);
+    }
+    if(priv->gobj_output_side2) {
+        gobj_unsubscribe_event(priv->gobj_output_side2, 0, 0, gobj);
     }
     return 0;
 }
@@ -171,13 +202,11 @@ PRIVATE void fail(const char *what, const char *detail)
 }
 
 /***************************************************************************
- *  A frame of the native transport: compact json, and with data a NUL and
- *  the bytes after it
+ *  A frame of the native transport, on link `side`: compact json, and with
+ *  data a NUL and the bytes after it
  ***************************************************************************/
-PRIVATE void send_frame(hgobj gobj, json_t *jn_header, const char *data)
+PRIVATE void send_frame_on(hgobj gobj, hgobj side, json_t *jn_header, const char *data)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     char *header = json2uglystr(jn_header);
     JSON_DECREF(jn_header)
     size_t header_len = strlen(header);
@@ -191,11 +220,18 @@ PRIVATE void send_frame(hgobj gobj, json_t *jn_header, const char *data)
     }
     GBMEM_FREE(header)
     gobj_send_event(
-        priv->gobj_output_side,
+        side,
         EV_SEND_MESSAGE,
         json_pack("{s:I}", "gbuffer", (json_int_t)(size_t)gbuf),
         gobj
     );
+}
+
+PRIVATE void send_frame(hgobj gobj, json_t *jn_header, const char *data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    send_frame_on(gobj, priv->gobj_output_side, jn_header, data);
 }
 
 /***************************************************************************
@@ -215,11 +251,11 @@ PRIVATE void sha_of(const char *text, char hex[SHA256_HEX_LEN + 1])
  *  begin, the data of the two files (in this order), and an end with these
  *  sha256 (NULL: no end)
  ***************************************************************************/
-PRIVATE void send_batch(hgobj gobj, const char *key, const char *content, json_t *sha256)
+PRIVATE void send_batch_on(hgobj gobj, hgobj side, const char *key, const char *content, json_t *sha256)
 {
     char batch[PATH_MAX];
     batch_of(key, batch, sizeof(batch));
-    send_frame(gobj, json_pack("{s:s, s:s, s:s, s:[{s:s, s:i}, {s:s, s:i}]}",
+    send_frame_on(gobj, side, json_pack("{s:s, s:s, s:s, s:[{s:s, s:i}, {s:s, s:i}]}",
         "cmd", "begin",
         "node", NODE_NAME,
         "batch", batch,
@@ -227,17 +263,44 @@ PRIVATE void send_batch(hgobj gobj, const char *key, const char *content, json_t
             "name", FILE_DATA, "size", (int)strlen(content),
             "name", FILE_MANIFEST, "size", 2
     ), NULL);
-    send_frame(gobj, json_pack("{s:s, s:s, s:i, s:i}",
+    send_frame_on(gobj, side, json_pack("{s:s, s:s, s:i, s:i}",
         "cmd", "data", "batch", batch, "file", 0, "offset", 0
     ), content);
-    send_frame(gobj, json_pack("{s:s, s:s, s:i, s:i}",
+    send_frame_on(gobj, side, json_pack("{s:s, s:s, s:i, s:i}",
         "cmd", "data", "batch", batch, "file", 1, "offset", 0
     ), "{}");
     if(sha256) {
-        send_frame(gobj, json_pack("{s:s, s:s, s:o}",
+        send_frame_on(gobj, side, json_pack("{s:s, s:s, s:o}",
             "cmd", "end", "batch", batch, "sha256", sha256
         ), NULL);
     }
+}
+
+PRIVATE void send_batch(hgobj gobj, const char *key, const char *content, json_t *sha256)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    send_batch_on(gobj, priv->gobj_output_side, key, content, sha256);
+}
+
+/***************************************************************************
+ *  begin of a batch of two files, and the data of the first (no more)
+ ***************************************************************************/
+PRIVATE void send_first_half(hgobj gobj, hgobj side, const char *key, const char *content)
+{
+    char batch[PATH_MAX];
+    batch_of(key, batch, sizeof(batch));
+    send_frame_on(gobj, side, json_pack("{s:s, s:s, s:s, s:[{s:s, s:i}, {s:s, s:i}]}",
+        "cmd", "begin",
+        "node", NODE_NAME,
+        "batch", batch,
+        "files",
+            "name", FILE_DATA, "size", (int)strlen(content),
+            "name", FILE_MANIFEST, "size", 2
+    ), NULL);
+    send_frame_on(gobj, side, json_pack("{s:s, s:s, s:i, s:i}",
+        "cmd", "data", "batch", batch, "file", 0, "offset", 0
+    ), content);
 }
 
 /***************************************************************************
@@ -331,6 +394,16 @@ PRIVATE void check_scenario(hgobj gobj)
                 fail("A batch of other bytes changed the batch kept", name);
             }
             break;
+        case 10:
+            if(batch_in_backup(gobj, "key8") != 1 || !backup_holds(gobj, "key8", "AAAAAAAA")) {
+                fail("The batch of link 1 is not in the backup with its bytes", name);
+            }
+            break;
+        case 12:
+            if(batch_in_backup(gobj, "key11") != 1 || !backup_holds(gobj, "key11", "BBBBBBBB")) {
+                fail("The batch taken over is not in the backup with the bytes of link 2", name);
+            }
+            break;
     }
 }
 
@@ -392,9 +465,11 @@ PRIVATE void send_scenario(hgobj gobj)
                  */
                 char batch[PATH_MAX];
                 batch_of("key4", batch, sizeof(batch));
-                priv->jn_expected = json_pack("[{s:s}, {s:s, s:s}]",
+                priv->jn_expected = json_pack("[{s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",
                     "cmd", "begin-ack",
-                    "cmd", "refused", "msg", "data of a file before the files before it are whole"
+                    "cmd", "refused", "msg", "data of a file before the files before it are whole",
+                    "cmd", "refused", "msg", "data of a batch not begun",
+                    "cmd", "refused", "msg", "the batch is not <database>/<topic>/<key>/<batch> of plain names"
                 );
                 send_frame(gobj, json_pack("{s:s, s:s, s:s, s:[{s:s, s:i}, {s:s, s:i}]}",
                     "cmd", "begin", "node", NODE_NAME, "batch", batch,
@@ -403,6 +478,17 @@ PRIVATE void send_scenario(hgobj gobj)
                 send_frame(gobj, json_pack("{s:s, s:s, s:i, s:i}",
                     "cmd", "data", "batch", batch, "file", 1, "offset", 0
                 ), "{}");
+                /*
+                 *  A frame of the batch refused that was on its way: answered,
+                 *  and the batch is not refused (nor logged) twice
+                 */
+                send_frame(gobj, json_pack("{s:s, s:s, s:i, s:i}",
+                    "cmd", "data", "batch", batch, "file", 0, "offset", 0
+                ), "hello");
+                send_frame(gobj, json_pack("{s:s, s:s, s:s, s:[{s:s, s:i}]}",
+                    "cmd", "begin", "node", NODE_NAME, "batch", "",
+                    "files", "name", FILE_DATA, "size", 5
+                ), NULL);
             }
             break;
 
@@ -426,14 +512,92 @@ PRIVATE void send_scenario(hgobj gobj)
             send_batch(gobj, "key5", "hellX", json_pack("[s, s]", sha_hellx, sha_manifest));
             break;
 
+        case 8:
+            if(!priv->side2_open) {
+                gobj_start_tree(priv->gobj_output_side2);   // on its open, again
+                break;
+            }
+            priv->jn_expected = json_pack("[{s:s, s:i}, {s:s, s:i}]",
+                "cmd", "begin-ack", "side", 1,
+                "cmd", "data-ack", "side", 1
+            );
+            send_first_half(gobj, priv->gobj_output_side, "key8", "AAAAAAAA");
+            break;
+
+        case 9:
+            {
+                char batch[PATH_MAX];
+                batch_of("key8", batch, sizeof(batch));
+                priv->jn_expected = json_pack("[{s:s, s:s, s:i}]",
+                    "cmd", "refused", "msg", "the batch is in flight on another channel", "side", 2
+                );
+                send_frame_on(gobj, priv->gobj_output_side2, json_pack(
+                    "{s:s, s:s, s:s, s:[{s:s, s:i}, {s:s, s:i}]}",
+                    "cmd", "begin", "node", NODE_NAME, "batch", batch,
+                    "files", "name", FILE_DATA, "size", 8, "name", FILE_MANIFEST, "size", 2
+                ), NULL);
+            }
+            break;
+
+        case 10:
+            {
+                char batch[PATH_MAX];
+                char sha_a[SHA256_HEX_LEN + 1];
+                batch_of("key8", batch, sizeof(batch));
+                sha_of("AAAAAAAA", sha_a);
+                priv->jn_expected = json_pack("[{s:s, s:i}, {s:s, s:i}]",
+                    "cmd", "data-ack", "side", 1,
+                    "cmd", "stored", "side", 1
+                );
+                send_frame(gobj, json_pack("{s:s, s:s, s:i, s:i}",
+                    "cmd", "data", "batch", batch, "file", 1, "offset", 0
+                ), "{}");
+                send_frame(gobj, json_pack("{s:s, s:s, s:[s, s]}",
+                    "cmd", "end", "batch", batch, "sha256", sha_a, sha_manifest
+                ), NULL);
+            }
+            break;
+
+        case 11:
+            priv->jn_expected = json_pack("[{s:s, s:i}, {s:s, s:i}]",
+                "cmd", "begin-ack", "side", 1,
+                "cmd", "data-ack", "side", 1
+            );
+            send_first_half(gobj, priv->gobj_output_side, "key11", "AAAAAAAA");
+            break;
+
+        case 12:
+            if(!priv->stale_waited) {
+                set_timeout(priv->timer_wait, STALE_WAIT_MS);   // link 1 silent; then again
+                break;
+            }
+            {
+                char sha_b[SHA256_HEX_LEN + 1];
+                sha_of("BBBBBBBB", sha_b);
+                priv->side1_drop_expected = TRUE;
+                priv->jn_expected = json_pack("[{s:s, s:i}, {s:s, s:i}, {s:s, s:i}, {s:s, s:i}]",
+                    "cmd", "begin-ack", "side", 2,
+                    "cmd", "data-ack", "side", 2,
+                    "cmd", "data-ack", "side", 2,
+                    "cmd", "stored", "side", 2
+                );
+                send_batch_on(gobj, priv->gobj_output_side2, "key11", "BBBBBBBB",
+                    json_pack("[s, s]", sha_b, sha_manifest)
+                );
+            }
+            break;
+
         default:
             /*
-             *  The end
+             *  The end, when the silent link was dropped
              */
-            if(gobj_read_integer_attr(priv->keeper, "batches_refused") != 5 ||
-                    gobj_read_integer_attr(priv->keeper, "batches_stored") != 1 ||
+            if(!priv->side1_dropped) {
+                break;  // at its close, again
+            }
+            if(gobj_read_integer_attr(priv->keeper, "batches_refused") != 7 ||
+                    gobj_read_integer_attr(priv->keeper, "batches_stored") != 3 ||
                     gobj_read_integer_attr(priv->keeper, "batches_already") != 1) {
-                fail("The stats of the keeper are not 5 refused, 1 stored, 1 already", NULL);
+                fail("The stats of the keeper are not 7 refused, 3 stored, 1 already", NULL);
             }
             priv->finished = TRUE;
             clear_timeout(priv->timer);
@@ -460,7 +624,12 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->scenario == 0) {
+    if(src == priv->gobj_output_side2) {
+        if(!priv->side2_open) {
+            priv->side2_open = TRUE;
+            send_scenario(gobj);    // scenario 8 waits for it
+        }
+    } else if(priv->scenario == 0) {
         priv->scenario = 1;
         send_scenario(gobj);
     }
@@ -476,7 +645,12 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!priv->finished && gobj_is_playing(gobj)) {
+    if(src == priv->gobj_output_side && priv->side1_drop_expected && !priv->side1_dropped) {
+        priv->side1_dropped = TRUE;
+        if(priv->scenario > 12) {
+            send_scenario(gobj);    // the end waits for it
+        }
+    } else if(!priv->finished && gobj_is_playing(gobj)) {
         fail("The keeper closed the link", NULL);
     }
 
@@ -505,6 +679,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             (json_object_get(expected, "msg") &&
              strcmp(msg, kw_get_str(gobj, expected, "msg", "", 0)) != 0)) {
         fail("An answer of the keeper is not the one expected", detail);
+    } else if((kw_get_int(gobj, expected, "side", 1, 0) == 2? priv->gobj_output_side2 : priv->gobj_output_side) != src) {
+        fail("An answer of the keeper came on the other link", detail);
     }
     JSON_DECREF(jn_answer)
 
@@ -525,6 +701,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->timer_wait) {
+        priv->stale_waited = TRUE;
+        send_scenario(gobj);    // scenario 12 waits for it
+        JSON_DECREF(kw)
+        return 0;
+    }
 
     if(!priv->keeper) {
         build_path(priv->base, sizeof(priv->base), getenv("HOME"), "tests_yuneta", "archive_shipping2", NULL);
@@ -569,8 +752,12 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    clear_timeout(priv->timer_wait);
     if(priv->gobj_output_side) {
         gobj_stop_tree(priv->gobj_output_side);
+    }
+    if(priv->gobj_output_side2) {
+        gobj_stop_tree(priv->gobj_output_side2);
     }
     if(priv->keeper && gobj_is_playing(priv->keeper)) {
         gobj_pause(priv->keeper);

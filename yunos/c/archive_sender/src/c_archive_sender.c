@@ -756,6 +756,55 @@ PRIVATE void unlink_mark(hgobj gobj, const char *relpath)
 }
 
 /***************************************************************************
+ *  A list of json strings in the order of strcmp(), in O(n log n): the
+ *  first archive of an hourly topic holds thousands of files
+ ***************************************************************************/
+PRIVATE int cmp_names(const void *a, const void *b)
+{
+    return strcmp(json_string_value(*(json_t **)a), json_string_value(*(json_t **)b));
+}
+
+PRIVATE int sort_names(json_t *names)
+{
+    size_t n = json_array_size(names);
+    if(n < 2) {
+        return 0;
+    }
+    json_t **items = gbmem_malloc(n * sizeof(json_t *));
+    if(!items) {
+        return -1;  // Error already logged
+    }
+    for(size_t i = 0; i < n; i++) {
+        items[i] = json_incref(json_array_get(names, i));
+    }
+    qsort(items, n, sizeof(json_t *), cmp_names);
+    json_array_clear(names);
+    for(size_t i = 0; i < n; i++) {
+        json_array_append_new(names, items[i]);
+    }
+    gbmem_free(items);
+    return 0;
+}
+
+/***************************************************************************
+ *  Unlink a ready mark that names no batch
+ ***************************************************************************/
+PRIVATE void unlink_stray_mark(hgobj gobj, const char *mark_path)
+{
+    if(unlink(mark_path) < 0 && errno != ENOENT) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove a ready mark that names no batch",
+            "path",         "%s", mark_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  Directory names of a level of the archive (not hidden): yours, sorted
  ***************************************************************************/
 PRIVATE json_t *subdirectories(hgobj gobj, const char *path)
@@ -849,7 +898,7 @@ PRIVATE int scan_archive(hgobj gobj)
                     !json_object_get(priv->jn_pending, relpath)) {
                 char mark_path[PATH_MAX];
                 if(build_path(mark_path, sizeof(mark_path), priv->ready_directory, entry->d_name, NULL)) {
-                    unlink(mark_path);
+                    unlink_stray_mark(gobj, mark_path);
                 }
             }
         }
@@ -1254,16 +1303,9 @@ PRIVATE int start_native(hgobj gobj, const char *relpath)
         json_array_append_new(names, json_string(entry->d_name));
     }
     closedir(dir);
-    size_t n = json_array_size(names);
-    for(size_t i = 0; i + 1 < n; i++) {
-        for(size_t j = i + 1; j < n; j++) {
-            if(strcmp(json_string_value(json_array_get(names, j)),
-                    json_string_value(json_array_get(names, i))) < 0) {
-                json_t *a = json_incref(json_array_get(names, i));
-                json_array_set(names, i, json_array_get(names, j));
-                json_array_set_new(names, j, a);
-            }
-        }
+    if(sort_names(names) < 0) {
+        JSON_DECREF(names)
+        return -1;  // Error already logged
     }
     json_array_append_new(names, json_string(MANIFEST));
 
@@ -1782,7 +1824,7 @@ PRIVATE int ac_fs_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 build_path(mark_path, sizeof(mark_path), priv->ready_directory, filename, NULL) &&
                 access(mark_path, F_OK) == 0) {
             if(add_pending(gobj, relpath) < 0) {
-                unlink(mark_path);  // a mark of no batch
+                unlink_stray_mark(gobj, mark_path);  // a mark of no batch
             }
             enforce_limit(gobj);
             update_pending_stats(gobj);

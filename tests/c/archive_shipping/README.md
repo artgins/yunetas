@@ -64,7 +64,10 @@ cases are the frames a real sender never writes and a peer can:
    for each file"*;
 3. a sha256 that is not 64 lowercase hex characters -- refused as 1;
 4. data of a file before the files before it are whole -- *"data of a file
-   before the files before it are whole"*;
+   before the files before it are whole"*; then a data frame of that batch
+   that a sender would have had on its way -- answered `refused`, and neither
+   logged nor counted again; then a `begin` with an empty batch -- *"the batch
+   is not <database>/<topic>/<key>/<batch> of plain names"*;
 5. a good batch -- `stored`, whole in the backup (the frames of the driver are
    right);
 6. the same batch again -- `stored`, `batches_already` 1, its copy aside
@@ -73,8 +76,22 @@ cases are the frames a real sender never writes and a peer can:
    THEIR right sha256 -- refused, *"a different batch of this name is here"*,
    the batch kept untouched.
 
+Then a second link (`__output_side2__`), two senders of one node; the keeper
+runs with `stale_session_timeout` 1000:
+
+8. link 1 begins a batch and sends its first file;
+9. link 2 begins the same batch -- refused, *"the batch is in flight on another
+   channel"*;
+10. link 1 ends it -- `stored`, and the backup has link 1's bytes. Up to
+    7.29.1 the `begin` of link 2 removed link 1's copy aside, and link 1 was
+    answered `stored` with its data file EMPTY in the backup;
+11. link 1 begins another batch, sends a file, and goes silent for 2.5 s;
+12. link 2 begins that batch -- taken over (WARNING *"A batch in flight on a
+    channel without frames for stale_session_timeout is taken over"*, link 1
+    dropped), and `stored` with link 2's bytes.
+
 A refused batch leaves nothing in the backup, neither the batch nor its copy
-aside. At the end the keeper counts 5 refused, 1 stored, 1 already here.
+aside. At the end the keeper counts 7 refused, 3 stored, 1 already here.
 Without the check of the sha256 in the `end`, this test fails.
 
 ## Run

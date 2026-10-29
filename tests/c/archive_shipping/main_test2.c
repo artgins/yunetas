@@ -10,6 +10,8 @@
  *            them, not lowercase hex, data out of the order of the files,
  *            a batch of the name of one kept with other bytes)
  *          - A good batch, and the same again: stored, already here
+ *          - Two links: a batch in flight on one is refused to the other,
+ *            and taken over by it when the first goes silent
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -80,7 +82,8 @@ PRIVATE char variable_config[]= "\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
                 'allowed_nodes': ['test_node'],                     \n\
-                'require_client_certificate': false                 \n\
+                'require_client_certificate': false,                \n\
+                'stale_session_timeout': 1000                       \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -152,6 +155,33 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__output_side2__',                             \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'output2',                              \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'output2',                      \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'output2',              \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                        'url': 'tcp://127.0.0.1:7758'\n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -193,15 +223,18 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Batch refused",     // 1: the sha256 of other bytes
         "msg", "Batch refused",     // 2: fewer sha256 than files
         "msg", "Batch refused",     // 3: a sha256 not lowercase hex
-        "msg", "Batch refused",     // 4: data out of the order of the files
+        "msg", "Batch refused",     // 4: data out of the order of the files (its echo: not again)
+        "msg", "Batch refused",     // 4: a begin with an empty batch
         "msg", "A batch of this name is here with other content: kept as it is, nothing overwritten",
         "msg", "Batch refused",     // 7
+        "msg", "Batch refused",     // 9: in flight on the other link
+        "msg", "A batch in flight on a channel without frames for stale_session_timeout is taken over by another channel: the silent one is dropped",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

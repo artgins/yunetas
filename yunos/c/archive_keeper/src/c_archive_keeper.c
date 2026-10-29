@@ -16,9 +16,20 @@
  *          It is written aside, in .part-<batch> next to it, and hashed as
  *          it arrives (the files in their order). It is renamed when every
  *          file has its size and the sha256 that the "end" declares, and is
- *          fsync'ed: a name without the '.' is a whole batch. Only then
+ *          fsync'ed, with every directory above it up to backup_directory
+ *          (the begin may have created them): a name without the '.' is a
+ *          whole batch. Only then
  *          "stored" is answered, and only that removes the batch at the
  *          sender.
+ *
+ *          One batch is in flight on one channel at a time: a begin of a
+ *          batch that another channel is receiving is refused, so a
+ *          .part-<batch> is never written by two sessions (the second one
+ *          used to remove the first's and the first answered "stored" for
+ *          files it had not written). Unless that channel has sent nothing
+ *          for `stale_session_timeout`: then it is a sender gone without a
+ *          close (a half-open connection, which nothing else ends), its
+ *          batch is taken over by the new begin and the channel dropped.
  *
  *          A batch that is already there is "stored" when its end comes
  *          (a sender that crashed between the answer and its removal ships
@@ -50,12 +61,14 @@
  ***********************************************************************/
 #include <stdio.h>
 #include <limits.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 
 #include "c_archive_keeper.h"
 
@@ -112,7 +125,8 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,  "backup_directory", SDF_RD,             "",         "Absolute directory where the batches are kept: <backup_directory>/<node>/<database>/<topic>/<key>/<batch>/"),
 SDATA (DTP_LIST,    "allowed_nodes",    SDF_RD,             "[]",       "The node names whose batches are taken, [\"*\"] any. Required: empty, nothing is received"),
 SDATA (DTP_STRING,  "input_service",    SDF_RD,             "__input_side__", "The C_IOGATE service whose channels are the archive_senders"),
-SDATA (DTP_INTEGER, "max_files",        SDF_RD,             "10000",    "Most files a batch may declare"),
+SDATA (DTP_INTEGER, "max_files",        SDF_RD,             "100000",   "Most files a batch may declare (the first archive of an hourly topic holds two files per hour)"),
+SDATA (DTP_INTEGER, "stale_session_timeout", SDF_RD,        "60000",    "Milliseconds without a frame after which the batch in flight on a channel is taken over by another channel that begins it, and that channel dropped. 0: never"),
 SDATA (DTP_BOOLEAN, "require_client_certificate", SDF_RD,   "1",        "The node of a batch must be the cn or a DNS name of the verified client certificate of its channel (mutual TLS). FALSE: the node is the claim of the sender, said on purpose"),
 
 SDATA (DTP_INTEGER, "batches_stored",   SDF_RD|SDF_STATS,   "0",        "Batches received whole"),
@@ -154,12 +168,21 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_input_side;
     char backup_directory[PATH_MAX];
     json_int_t max_files;
+    json_int_t stale_session_timeout;
 
     /*
      *  channel name -> {node, batch, aside, final, files: [{name, size, written, sha256}],
-     *  file, fd, hash}: `file` the one being written, `hash` its sha256_ctx_t (gbmem)
+     *  file, fd, hash, channel_gobj, idle, remaining}: `file` the one being written,
+     *  `hash` its sha256_ctx_t (gbmem), `idle` the msectimer of its last frame,
+     *  `remaining` the bytes not written yet
      */
     json_t *jn_sessions;
+
+    /*
+     *  channel name -> the batch last refused on it: the frames of it that
+     *  were already on their way are answered, not counted nor logged again
+     */
+    json_t *jn_refused;
 
     /*
      *  channel name -> the peer_cert of its EV_ON_OPEN (only a channel whose
@@ -188,6 +211,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->jn_sessions = json_object();
     priv->jn_peers = json_object();
+    priv->jn_refused = json_object();
 
     /*
      *  SERVICE subscription model
@@ -205,6 +229,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(max_files,             gobj_read_integer_attr)
+    SET_PRIV(stale_session_timeout, gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -227,6 +252,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     }
     JSON_DECREF(priv->jn_sessions)
     JSON_DECREF(priv->jn_peers)
+    JSON_DECREF(priv->jn_refused)
 }
 
 /***************************************************************************
@@ -440,7 +466,7 @@ PRIVATE BOOL is_batch_path(const char *relpath)
     }
     int parts = 0;
     char *save = NULL;
-    if(bf[0] == '/' || bf[strlen(bf) - 1] == '/' || strstr(bf, "//")) {
+    if(!bf[0] || bf[0] == '/' || bf[strlen(bf) - 1] == '/' || strstr(bf, "//")) {
         return FALSE;
     }
     for(char *p = strtok_r(bf, "/", &save); p; p = strtok_r(NULL, "/", &save)) {
@@ -634,6 +660,31 @@ PRIVATE int fsync_path(hgobj gobj, const char *path, BOOL directory)
 }
 
 /***************************************************************************
+ *  The directories above a batch, up to backup_directory: the entry of the
+ *  batch in its key, and each level that a begin may have created in its
+ *  parent. A batch is not durable while one of them may be lost
+ ***************************************************************************/
+PRIVATE int fsync_ancestors(hgobj gobj, const char *final)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", final);
+    size_t base_len = strlen(priv->backup_directory);
+    while(strlen(dir) > base_len) {
+        char *slash = strrchr(dir, '/');
+        if(!slash || (size_t)(slash - dir) < base_len) {
+            break;
+        }
+        *slash = 0;
+        if(fsync_path(gobj, dir, TRUE) < 0) {
+            return -1;  // Error already logged
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  A frame to a sender: compact json
  ***************************************************************************/
 PRIVATE int send_answer(hgobj gobj, hgobj channel_gobj, json_t *jn_answer)
@@ -665,7 +716,9 @@ PRIVATE int send_answer(hgobj gobj, hgobj channel_gobj, json_t *jn_answer)
 
 /***************************************************************************
  *  "refused": WARNING (the cause is the peer, or this disk: logged where it
- *  was seen), the batch aside removed
+ *  was seen), the batch aside removed. Once per batch: the frames of a batch
+ *  just refused that the sender had already sent (its window) are answered,
+ *  and are neither logged nor counted again
  ***************************************************************************/
 PRIVATE int refuse(
     hgobj gobj,
@@ -675,23 +728,45 @@ PRIVATE int refuse(
     const char *reason
 )
 {
-    gobj_log_warning(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL,
-        "msg",          "%s", "Batch refused",
-        "channel",      "%s", channel,
-        "batch",        "%s", batch? batch : "",
-        "reason",       "%s", reason,
-        NULL
-    );
-    gobj_write_integer_attr(gobj, "batches_refused",
-        gobj_read_integer_attr(gobj, "batches_refused") + 1);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *last_refused = json_string_value(json_object_get(priv->jn_refused, channel));
+    BOOL echo = !json_object_get(priv->jn_sessions, channel) &&
+        batch && last_refused && strcmp(batch, last_refused) == 0;
+    if(!echo) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Batch refused",
+            "channel",      "%s", channel,
+            "batch",        "%s", batch? batch : "",
+            "reason",       "%s", reason,
+            NULL
+        );
+        gobj_write_integer_attr(gobj, "batches_refused",
+            gobj_read_integer_attr(gobj, "batches_refused") + 1);
+        json_object_set_new(priv->jn_refused, channel, json_string(batch? batch : ""));
+    }
     discard_session(gobj, channel, TRUE);
     return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s, s:s}",
         "cmd", "refused",
         "batch", batch? batch : "",
         "msg", reason
     ));
+}
+
+/***************************************************************************
+ *  The msectimer after which a session without frames is stale; 0 (never)
+ *  with a stale_session_timeout of 0 or less
+ ***************************************************************************/
+PRIVATE uint64_t idle_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->stale_session_timeout <= 0) {
+        return 0;
+    }
+    return start_msectimer((uint64_t)priv->stale_session_timeout);
 }
 
 /***************************************************************************
@@ -735,6 +810,7 @@ PRIVATE int on_begin(
     json_t *files = json_object_get(jn_msg, "files");
 
     discard_session(gobj, channel, TRUE);   // a batch left by this channel goes
+    json_object_del(priv->jn_refused, channel);
 
     if(!is_plain_name(node)) {
         return refuse(gobj, channel_gobj, channel, batch, "the node is not a plain name");
@@ -787,19 +863,27 @@ PRIVATE int on_begin(
     }
     if(!json_is_array(files) || json_array_size(files) == 0 ||
             (json_int_t)json_array_size(files) > priv->max_files) {
-        return refuse(gobj, channel_gobj, channel, batch, "the files are not a list of 1 to max_files");
+        char reason[160];
+        snprintf(reason, sizeof(reason),
+            "the files are not a list of 1 to max_files (%ld files, max_files %ld)",
+            (long)json_array_size(files), (long)priv->max_files
+        );
+        return refuse(gobj, channel_gobj, channel, batch, reason);
     }
     json_t *names = json_object();
+    json_int_t total = 0;
     size_t idx; json_t *jn_file;
     json_array_foreach(files, idx, jn_file) {
         const char *name = json_string_value(json_object_get(jn_file, "name"));
         json_t *jn_size = json_object_get(jn_file, "size");
         if(!is_plain_name(name) || !json_is_integer(jn_size) || json_integer_value(jn_size) < 0 ||
+                json_integer_value(jn_size) > INT64_MAX - total ||
                 json_object_get(names, name)) {
             JSON_DECREF(names)
             return refuse(gobj, channel_gobj, channel, batch,
                 "a file is not {name: a plain name, not repeated, size: >= 0}");
         }
+        total += json_integer_value(jn_size);
         json_object_set_new(names, name, json_true());
     }
     JSON_DECREF(names)
@@ -817,6 +901,76 @@ PRIVATE int on_begin(
     if(snprintf(aside_name, sizeof(aside_name), ".part-%s", slash + 1) >= (int)sizeof(aside_name) ||
             !build_path(aside, sizeof(aside), parent, aside_name, NULL)) {
         return refuse(gobj, channel_gobj, channel, batch, "the name of the batch is too long");
+    }
+
+    /*
+     *  Its .part- is of one session only: the batch in flight on another
+     *  channel is refused, or taken over if that channel went silent
+     */
+    json_t *jn_other = NULL;
+    BOOL other_stale = FALSE;
+    json_int_t in_flight_bytes = 0;
+    const char *other_channel; json_t *other_session;
+    json_object_foreach(priv->jn_sessions, other_channel, other_session) {
+        if(!jn_other &&
+                strcmp(json_string_value(json_object_get(other_session, "final")), final) == 0) {
+            jn_other = json_string(other_channel);
+            other_stale = test_msectimer(
+                (uint64_t)json_integer_value(json_object_get(other_session, "idle"))
+            );
+        } else {
+            in_flight_bytes += json_integer_value(json_object_get(other_session, "remaining"));
+        }
+    }
+    if(jn_other) {
+        const char *other = json_string_value(jn_other);
+        if(!other_stale) {
+            JSON_DECREF(jn_other)
+            return refuse(gobj, channel_gobj, channel, batch, "the batch is in flight on another channel");
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "A batch in flight on a channel without frames for stale_session_timeout is taken over by another channel: the silent one is dropped",
+            "node",         "%s", node,
+            "batch",        "%s", batch,
+            "channel",      "%s", channel,
+            "stale_channel","%s", other,
+            "stale_session_timeout", "%ld", (long)priv->stale_session_timeout,
+            NULL
+        );
+        hgobj other_gobj = (hgobj)(size_t)json_integer_value(
+            json_object_get(json_object_get(priv->jn_sessions, other), "channel_gobj")
+        );
+        discard_session(gobj, other, TRUE);
+        JSON_DECREF(jn_other)
+        gobj_send_event(other_gobj, EV_DROP, 0, gobj);
+    }
+
+    /*
+     *  It must fit, with what the other batches in flight still have to write
+     */
+    struct statvfs st_fs;
+    if(statvfs(priv->backup_directory, &st_fs) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "statvfs() of the backup_directory FAILED",
+            "path",         "%s", priv->backup_directory,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return refuse(gobj, channel_gobj, channel, batch, "the batch cannot be written here");
+    }
+    uint64_t free_bytes = (uint64_t)st_fs.f_bavail * (uint64_t)st_fs.f_frsize;
+    if((uint64_t)total + (uint64_t)in_flight_bytes > free_bytes) {
+        char reason[160];
+        snprintf(reason, sizeof(reason),
+            "the batch does not fit in the free space of the backup (%ld bytes, %lu free, %ld in flight)",
+            (long)total, (unsigned long)free_bytes, (long)in_flight_bytes
+        );
+        return refuse(gobj, channel_gobj, channel, batch, reason);
     }
     if((!is_directory(parent) && mkrdir(parent, 02770) < 0) ||
             (is_directory(aside) && rmrdir(aside) < 0) ||
@@ -863,7 +1017,7 @@ PRIVATE int on_begin(
         return refuse(gobj, channel_gobj, channel, batch, "the batch cannot be written here");
     }
     sha256_init(hash);
-    json_object_set_new(priv->jn_sessions, channel, json_pack("{s:s, s:s, s:s, s:s, s:o, s:i, s:i, s:I}",
+    json_object_set_new(priv->jn_sessions, channel, json_pack("{s:s, s:s, s:s, s:s, s:o, s:i, s:i, s:I, s:I, s:I, s:I}",
         "node", node,
         "batch", batch,
         "aside", aside,
@@ -871,7 +1025,10 @@ PRIVATE int on_begin(
         "files", jn_files,
         "file", -1,
         "fd", -1,
-        "hash", (json_int_t)(size_t)hash
+        "hash", (json_int_t)(size_t)hash,
+        "channel_gobj", (json_int_t)(size_t)channel_gobj,
+        "idle", (json_int_t)idle_timer(gobj),
+        "remaining", total
     ));
     if(gobj_trace_level(gobj) & TRACE_BATCHES) {
         gobj_log_debug(gobj, 0,
@@ -1002,6 +1159,10 @@ PRIVATE int on_data(
         len
     );
     json_object_set_new(jn_file, "written", json_integer(written + (json_int_t)len));
+    json_object_set_new(jn_session, "remaining", json_integer(
+        json_integer_value(json_object_get(jn_session, "remaining")) - (json_int_t)len
+    ));
+    json_object_set_new(jn_session, "idle", json_integer((json_int_t)idle_timer(gobj)));
 
     return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s, s:I, s:I}",
         "cmd", "data-ack",
@@ -1085,6 +1246,10 @@ PRIVATE int on_end(
             return refuse(gobj, channel_gobj, channel, batch,
                 "a different batch of this name is here");
         }
+        if(fsync_ancestors(gobj, final) < 0) {
+            // Error already logged
+            return refuse(gobj, channel_gobj, channel, batch, "the batch cannot be made durable here");
+        }
         gobj_write_integer_attr(gobj, "batches_already",
             gobj_read_integer_attr(gobj, "batches_already") + 1);
         if(gobj_trace_level(gobj) & TRACE_BATCHES) {
@@ -1128,14 +1293,11 @@ PRIVATE int on_end(
         );
         return refuse(gobj, channel_gobj, channel, batch, "the batch cannot be made durable here");
     }
-    char parent[PATH_MAX];
-    snprintf(parent, sizeof(parent), "%s", final);
-    *strrchr(parent, '/') = 0;
-    if(fsync_path(gobj, parent, TRUE) < 0) {
+    if(fsync_ancestors(gobj, final) < 0) {
         /*
          *  Error already logged: the batch may not survive a power cut, so
-         *  it is not said stored. It is here: the next end of it says
-         *  stored.
+         *  it is not said stored. It is here: the next end of it fsyncs
+         *  them again, and says stored.
          */
         discard_session(gobj, channel, FALSE);
         return send_answer(gobj, channel_gobj, json_pack("{s:s, s:s, s:s}",
@@ -1219,6 +1381,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
     discard_session(gobj, channel, TRUE);
     json_object_del(priv->jn_peers, channel);
+    json_object_del(priv->jn_refused, channel);
 
     KW_DECREF(kw);
     return 0;
