@@ -538,19 +538,31 @@ PRIVATE uint32_t dev_urandom(void)
     static uint32_t fallback = 0;
 
     if(pool_left == 0) {
-        ssize_t ret = getrandom(pool, sizeof(pool), 0);
-        if(ret != (ssize_t)sizeof(pool)) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "getrandom() FAILED: a masking key that can be predicted",
-                "ret",          "%d", (int)ret,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            fallback = fallback*1664525u + 1013904223u + (uint32_t)time(0);
-            return fallback;
+        size_t got = 0;
+        while(got < sizeof(pool)) {
+            ssize_t ret = getrandom((char *)pool + got, sizeof(pool) - got, 0);
+            if(ret < 0 && errno == EINTR) {
+                continue;
+            }
+            if(ret <= 0) {
+                /*
+                 *  errno is only the cause of a -1: a 0 sets none
+                 */
+                int last_errno = (ret < 0)? errno : 0;
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "getrandom() FAILED: a masking key that can be predicted",
+                    "ret",          "%d", (int)ret,
+                    "got",          "%d", (int)got,
+                    "errno",        "%d", last_errno,
+                    "serrno",       "%s", last_errno? strerror(last_errno) : "no error, no bytes",
+                    NULL
+                );
+                fallback = fallback*1664525u + 1013904223u + (uint32_t)time(0);
+                return fallback;
+            }
+            got += (size_t)ret;     // a short read is no failure: read the rest
         }
         pool_left = sizeof(pool)/sizeof(pool[0]);
     }
