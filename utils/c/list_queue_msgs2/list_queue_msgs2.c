@@ -260,7 +260,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
 
         } else if(arguments->verbose > 1) {
             md2_record_ex_t *md_record = trq_msg_md(msg);
-            const json_t *jn_gate_msg = trq_msg_json(msg); // Return json is NOT YOURS!!
+            json_t *jn_gate_msg = trq_msg_json(msg); // Return json is YOURS; NULL: error already logged
 
             char temp[1024];
             tranger2_print_md1_record(
@@ -272,7 +272,10 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
                 arguments->print_local_time
             );
 
-            print_json(temp, (json_t *)jn_gate_msg);
+            if(jn_gate_msg) {
+                print_json(temp, jn_gate_msg);
+                JSON_DECREF(jn_gate_msg)
+            }
         }
     }
 
@@ -288,6 +291,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
         printf("Total: %d records\n\n", counter);
     }
 
+    trq_close(trq_output);
     tranger2_shutdown(tranger);
 
     return 0;
@@ -424,5 +428,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    return list_queue_msgs(&arguments);
+    int ret = list_queue_msgs(&arguments);
+
+    gobj_end();
+
+    return ret;
 }
