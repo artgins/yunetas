@@ -42,6 +42,17 @@ Severity in parentheses where one was assigned.
   not come. Log: `LastTest.wattyzer-7.27.7.log`, `test_c_fs` section, kept in
   the release notes of 7.27.7.
 
+- **`test_fs_watcher_overflow` failed once under `ctest -j8`** (7.29.2 release
+  suite, dev machine, 2026-10-29; passed alone and in a second full pass,
+  348/348, and in the 25 runs before it). Case "renamed in overflow: the old
+  path is forgotten": the paths were right (old forgotten, new indexed, one
+  overflow), but the INFO *"watched tree rescanned after lost inotify
+  events"* was never seen. The test runs the loop while `root_overflows == 0
+  || fs_event->rescan_dirs`, up to 200000 turns, then 10 more: either the
+  turns ran out under load before the pass ended, or the pass ended without
+  its INFO. fs_watcher did not change in 7.29.2. Next: count the turns the
+  loop took and print them on failure, so a recurrence says which.
+
 - **timeranger2 reads a date of text as NOW, in silence** (found at 7.28.9).
   The string bounds of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`,
   in `timeranger2.c`) and a string tkey (`tkey_time_of_value()`) are read

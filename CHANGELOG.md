@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## v7.29.2 (2026-10-29)
+
+A full release: the fixes of a review round over everything since 7.27.8.
+Two are serious -- a permission check that took roles from the client's kw,
+and an M-Bus master that could not read a long answer at 2400 baud -- and
+the kernel changes (`gobj-c`, `root-linux`, `timeranger2`, `ytls`), so every
+yuno is rebuilt. The external libraries do not change (linux-ext-libs 1.28;
+OpenSSL 3.6.5, PCRE2 10.49, nginx 1.31.8 are the latest of their lines). **The
+first node restart after the agent is upgraded relaunches every yuno once**
+(see the selective restart below).
+
+Suite on the dev machine only, after a clean build, under `ulimit -Sn 1024`:
+347/348 in the first pass (`test_fs_watcher_overflow`, a timing failure of
+an untouched test under `-j8`, in TODO.md), 348/348 in the second.
+
+**Performance** (against 7.29.0, the last release with a study; 7.29.1
+changed no C; 47 figures, 8 rounds; `performance/reports/7.29.2.json`, no
+report page): no price. 45 figures inside their noise. The two TCP echoes
+measured fewer round trips outside their noise in the rotation, -1.5%
+(t = -3.7), and -2.7% (t = -6.5) with an append. Neither runs changed code:
+the objects on their path (`C_TCP`, `C_PROT_TCP4H`, `C_CHANNEL`, `C_IOGATE`,
+`gobj.c`, `yev_loop`, `ytls`) have the same machine code, and in the binary
+17,672 of 17,880 functions moved. Measured again for 10 rounds, twice, they
+stay inside their noise (-1.0% to -2.8%, |t| <= 2.4). The 7.29.2 binary
+relinked with the libraries of 7.29.0 measures as 7.29.0 (+0.2%, +0.4%),
+while swapping only one of those libraries moves them in either direction:
+placement. One round, slow on both builds at once, was left out and run
+again. The yunos are 0 to 8 KB larger (stripped).
+
 - **The node uuid by hand, on a node without the package**
   (`packages/install-yuneta-node-uuid.sh`). A node that builds from source
   does not install the `.deb`/`.rpm` (it would replace `outputs/` with
