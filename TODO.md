@@ -59,7 +59,15 @@ Severity in parentheses where one was assigned.
   unmarked helpers, or may be dead; a deleted one still builds. Each needs its
   own decision (mark it with `*_I18N_KEYS` + `/* i18n */`, `/* i18n: data */`,
   or remove it). They are frozen in `src/i18n_keys_seen.test.js` of each app:
-  no new one can be added, and the list may only shrink.
+  no other key of the locales can become unseen, and the list may only shrink.
+  That test starts from the keys the locales HAVE, so a key handed to `t()`
+  by a variable and in NO locale is not its case: since R47
+  `src/i18n_key_reads.test.js` freezes the reads whose value the reader cannot
+  follow and nobody marked (73 in gui_agent, 21 in gui_treedb), so no new one
+  can be added. Still invisible, and rendered as the raw key: a new VALUE
+  reaching one of those reads, or a value at run time outside the list its
+  marker names. Closing it means marking each listed read with its published
+  list, or as data.
 
 ### Projects (code outside this repo)
 
@@ -127,7 +135,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   portable form of the matrix option. Not urgent while every node is ours.
 
 - **The node uuid when its recorded source disappears** (`yuneta-node-uuid`,
-  after 7.29.1). Five cases left as they are:
+  after 7.29.1). Seven cases left as they are:
     - a node whose recorded source is missing while another is present (an
       ethernet-mac node that sees no NIC at one boot but has DMI or a
       devicetree; a disk imaged from a box with real DMI onto one whose DMI
@@ -141,7 +149,17 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
       that run keep the old one until restarted (documented, not done);
     - containers that already hold a host-DMI uuid keep it (no uuid a node
       holds is ever changed), so sibling containers stay identical until
-      `set` by hand; a container with none of the markers is not detected.
+      `set` by hand. A container run with `--pid=host` is in the initial pid
+      namespace: it is not seen as one and reads the host's hardware;
+    - two containers with the SAME hostname and the same `uuid.json` claim
+      the same uuid: nothing inside a container tells a copy of it from the
+      same container re-created over its kept store (an image committed
+      from a container that has a uuid, run twice as `--hostname node-01`).
+      Documented: delete `uuid.json` before a `docker commit`/`export`, or
+      `set` one per copy;
+    - a container with no hostname records `"hostname": ""`, and a copy of
+      it that also has no hostname claims the same uuid (it warns: "give
+      the container a hostname"); a copy with a hostname makes its own.
     - a random uuid that 7.29.2 stored while an image was built (no
       `hostname` recorded) is kept: containers of such an image keep sharing
       it until the image is rebuilt with a later release or `set` by hand.

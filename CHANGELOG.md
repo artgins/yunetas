@@ -45,33 +45,67 @@
 - **The agent quotes the binary path it runs through the shell, and binary
   names are safe names.** `--print-role` ran through `popen()` with the path
   bare, built by update-binary from the record's id as stored. The id, role,
-  version and every tag of a binary must be `[A-Za-z0-9._-]`, not empty, no
-  `..`, in install-, update- and delete-binary (an empty version made the
-  role's own directory the version's, which a later `delete-binary` removed
-  whole). In 7.29.3.
-- **timeranger2 refuses a text that is no date, as a time bound and as a
-  tkey**, with a WARNING (every release; it was in TODO.md). The text bounds
-  of a `match_cond` and a text tkey were read with `approxidate()`, which has
-  no error flag: a text it could not read was NOW, in silence; a bound with
-  no `T` was cut by `strtoll()` (`"2026-10-01 00:00:00 +0000"` was the time
-  2026), and rt_mem/rt_disk read no text bound at all. Since 7.29.3,
-  `"1761000000000"` in the tkey of a milliseconds topic was stored as
-  NOW×1000. A bound is now read once when the iterator, list or feed opens:
-  `-?[0-9]+` is that integer, any other text a date read by
-  `approxidate_careful()` -- so `"+5"` or `"0x10"`, numbers to `strtoll()`,
-  are refused. *"match_cond refused: a time bound is no date"* (the open
-  answers NULL); *"Cannot append record, its tkey is a text that is no
-  date"* (nothing written); C_TRANGER's `add-record` and the treedb say it
-  too.
+  version and every tag of a binary must be `[A-Za-z0-9._-]`, not empty, not
+  starting with `.`, no `..`, in install-, update- and delete-binary (an
+  empty version made the role's own directory the version's, which a later
+  `delete-binary` removed whole; a version `.` did the same, because
+  `build_path()` drops a `.` segment, and a role `.` named the directory of
+  the tags). In 7.29.3. **`delete-binary force=1` removes a binary record
+  whose names are refused, and leaves its files:** a record installed by
+  7.29.3 or older can hold a `^`, `@`, a space or an empty version, and could
+  then not be updated or deleted at all; with `force=1` its record is deleted
+  with a WARNING and no directory is removed (none is exactly its
+  version's).
+- **The agent says when a yuno's `role^name` or its command audit fails.**
+  `build_role_plus_name()` cut a `role^name` longer than `NAME_MAX` without a
+  log, and the run script and configuration files were written under the cut
+  name: the launch is now refused with an ERROR. When the audit file path
+  could not be built at start, the command audit stayed off without a log:
+  one ERROR *"Command audit OFF"* names the path and errno. In 7.29.3 and
+  older.
+- **timeranger2 reads a text time, bound or tkey, by ONE rule,
+  `tranger2_time_of_text()` (new)**, and refuses a text that is no time with
+  a WARNING that says why. The text bounds of a `match_cond` and a text tkey
+  were read with `approxidate()`, which has no error flag: a text it could
+  not read was NOW, in silence (every release), and a bound with no `T` was
+  cut by `strtoll()` (`"2026-10-01 00:00:00 +0000"` was the time 2026;
+  rt_mem/rt_disk read no text bound at all). Now:
+    - `""` is no time: no bound, and no tkey value;
+    - the text of a JSON integer, `-?(0|[1-9][0-9]*)` (the command parser's
+      grammar), is that integer in the unit of its axis. **A text tkey that
+      is an integer is that integer**: up to 7.29.3 `"5"` was the 5th of this
+      month, and `"1761000000"` on a milliseconds topic was read as seconds;
+    - a text written as another number is refused: `" 5"`, `"5 "`,
+      `"10.5"`, `"007"`, `"+5"`, `"0x10"`, `"1E5"` (up to 7.29.3 `strtoll()`
+      made `" 5"` 5 and `"10.5"` 10);
+    - any other text is a date read by `approxidate_careful()`, and one that
+      is no date is refused: *"match_cond refused: a time bound is no date"*
+      (the open answers NULL), *"Cannot append record, its tkey is a text
+      that is no date"* (nothing written); C_TRANGER's `add-record` and the
+      treedb say it too;
+    - the `before` of `delete-key-files` / `archive-key-files` follows the
+      same rule: in 7.29.3 `"007"` there was the 7th of this month, and the
+      files before it were purged.
+
+  A json append refused for its tkey or its pkey traces the first 256 bytes
+  of the record (masked), not the whole record.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
-  port read 10:00). The first offset in the comments (`+hh`, `+hhmm`,
-  `+hh:mm`) is the zone when none is given outside. `test_date_text` §12.
+  port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
+  `+hh:mm`) is the zone when none is given outside; `(UTC-05:0)` is none.
+  `test_date_text` §12.
 - **Modbus master** (`C_PROT_MODBUS_M`; in 7.29.3 and older):
     - an MBAP length above 254 drops the connection (a frame of 65535
       swallowed every answer until `timeout_response`);
-    - the bytes that follow an answer are the start of the next frame (they
-      were dropped, half a frame included, and the next answer was lost);
+    - over TCP, the bytes that follow an answer are the start of the next
+      frame (they were dropped, half a frame included, and the next answer
+      was lost); over RTU, which has no length to resync on, they are still
+      dropped -- a noise byte after an answer (an RS485 line released) would
+      swallow the next answer -- and warned when they start, once per
+      connection and again only after a polling cycle without them (an info
+      says it came), not on every answer; each drop is counted in the stats
+      attr `rx_noise_dropped`. Over TCP a byte that is no frame drops the
+      connection: the reconnection is the resync;
     - an answer must be of the function sent, an exception included: a 0x84
       answered a 03, and over RTU the late exception of a timed-out read
       failed the write after it, which was done. RTU drops a frame of
@@ -86,15 +120,51 @@
     - a block that cannot be polled (bad type, address or size, an overlap,
       a slave id that cannot be asked) and a slave without blocks are logged
       once at start, and the cycle skips them with no log and no
-      `timeout_polling` wait: the blocks after it are read sooner.
+      `timeout_polling` wait: the blocks after it are read sooner;
+    - `slaves` written while the master runs takes effect at the next start,
+      with a warning: the write freed the map the cycle pointed into, and the
+      master read freed memory;
+    - a block whose answer does not fit what it asked (quantity, byte count,
+      slave) is logged when it starts failing, not every cycle;
+    - over RTU a polled slave 0, the broadcast that no slave answers, is not
+      polled (one error at start): it waited `timeout_response` every cycle.
+      A request to 0 still goes out.
+- **A rotatory log never writes or purges in a directory it was not given.**
+  `rotatory_open()` copied the directory of its path into `NAME_MAX` bytes: a
+  log directory of 305 bytes became another one of 254, which was created,
+  written to, and purged by the `keep_days` retention (the agent's audit
+  uses it). The buffers are `PATH_MAX` and the path is never cut: a path of
+  `PATH_MAX` bytes or more, or a mask longer than `NAME_MAX`, is an open that
+  fails with one line. In 7.29.3 and older. `helpers/test_rotatory`.
+- **timeranger2 logs a path too long that every append meets once.** The
+  `<file_id>.unordered` marker of a md2 file whose path does not fit logged
+  an ERROR with a stack at every late append, and a reload then took the
+  file as in order, so a `t` query skipped a late row's file (7.29.3). The
+  writer and the load share one length rule: logged once for the file, and
+  the load reads the file whole. The master's link of a record into a feed
+  with a key too long logged an ERROR for every record and feed: once per key
+  and feed now. A record whose path fits costs one compare, as before.
+  `C_RESOURCE2` accepts a resource whose file name is `NAME_MAX` bytes.
 - **A `max_run` stop tried again in a minute keeps its minute across a save,
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
 - **The node uuid** (`yuneta-node-uuid`; in 7.29.3):
     - a board written from a `docker export` reads its hardware:
-      `/.dockerenv` and `/run/.containerenv` count only outside the initial
-      pid namespace, as in systemd (the 7.29.3 note that such a board gets
-      its own uuid did not hold);
+      `/.dockerenv` and `/run/.containerenv`, and the `docker`/`podman` that
+      systemd-detect-virt reads from them, count only outside the initial
+      pid namespace (the 7.29.3 note that such a board gets its own uuid did
+      not hold, nor did the first fix of it on a system with systemd, whose
+      detect-virt answered `docker` there). A board with no hardware
+      identifier does not keep the container's random either, same
+      hostname or not: it gets a new random, a copy of the old file and a
+      warning;
+    - anything outside the initial pid namespace is a container, with or
+      without a marker: a BuildKit `RUN` step (no `/.dockerenv`, no
+      `container=`) was not one, so a `docker build` that installed the
+      package stored the build host's DMI or MAC uuid in the image, and
+      every container of it kept it (7.29.3 and before). containerd and
+      Kubernetes write no marker either. A uuid already stored is not
+      moved;
     - a container with no hostname records `"hostname": ""`, and a copy with
       a hostname makes its own uuid;
     - without systemd the package does not start the agents in a container
@@ -104,7 +174,8 @@
     - the docs no longer claim a container's uuid is never shared: two
       containers with the same hostname and the same `uuid.json` share it.
       Delete `uuid.json` before a `docker commit`/`export`, or `set` one per
-      copy. `test-yuneta-node-uuid.sh`: 80 checks.
+      copy. `test-yuneta-node-uuid.sh`: 104 checks (a BuildKit step emulated
+      with `unshare -Upf --mount-proc`).
 - **The ERROR "treedb name too long for the ids of its lists" names the yuno
   in one key** (it carried four `yuno` keys; in 7.29.3).
 - **gui_agent 1.1.9, gui_treedb 1.0.7** (`yunos/js`): three checkboxes get
@@ -114,6 +185,14 @@
   `validate-locales`, and a test freezes the ones it still cannot see; a
   checkbox wrapped in its label is named with the label's text; the
   source check of the controls reads more and says it is not a DOM check.
+- **gui_agent 1.2.0, gui_treedb 1.0.8** (`yunos/js`): the controls test sees
+  the names it claimed to see (a template with no `${}`, a `+` of texts, a
+  branch or a const read as untranslated text; a `createElement()` element
+  held to what its function writes; attrs from a module const, a spread or a
+  single-return helper). It found five checkboxes named by `t()` without
+  their `data-i18n-*` keys, now fixed. A new `i18n_key_reads.test.js` freezes
+  the 73 + 21 unmarked key reads the prebuild cannot follow, so a new one
+  fails until it is marked.
 - **gobj-js 7.29.0** (`kernel/js/gobj-js`): `build_path()` keeps a root `/`
   and a `..` never goes above the first segment, as in C.
 
