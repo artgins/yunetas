@@ -13,10 +13,19 @@ slave 2 with block C (`c`).
   warning, not on every cycle.
 - On the message of cycle 1 a write (function 06) is queued: the slave must
   see it once, and the polling must go on after it.
+- With it, four more requests, each of which must be answered with
+  `EV_MODBUS_ANSWER`, in order, with what the slave said: a write of three
+  registers (function 16, checked at the slave with its quantity and byte
+  count), a read of them back, a write the slave refuses with exception 1,
+  and a coil (function 05, ON is `0xFF00`).
+- A request sent before the master connects is answered at once, as failed
+  (*"not connected"*).
 - Cycle 3: every block answers, everything is published, and each block that
   was failing is logged as *"Modbus block answered again"*.
 
-Against SDK 7.27.7 it fails on all three defects fixed after it: `b` and `c`
+Against SDK 7.29.2 it fails on the requests: none is answered, and the write
+of three registers reaches the slave without its quantity. Against SDK 7.27.7
+it fails on all three defects fixed after it: `b` and `c`
 published as 0 (*"The master published what the cycle did not read"*), each
 exception waiting `timeout_response` for a CRC (*"A cycle with exceptions did
 not end at once"*), and the write released while queued (*"BAD

@@ -23,6 +23,15 @@
  *            it once, and the polling must go on after it. Up to 7.27.7 the
  *            write was released while the queue still held it (BAD
  *            json_decref()) and the polling stopped.
+ *          - with it, four more requests (REQUESTS, below): a write of three
+ *            registers (function 16), a read of them back, a write the slave
+ *            refuses with exception 1, and a coil (function 05, ON is
+ *            0xFF00). Each must be answered with EV_MODBUS_ANSWER, in order,
+ *            with what the slave said. Up to 7.29.2 no request was answered,
+ *            a multiple write went out without its quantity and byte count,
+ *            and a coil went out as the value given.
+ *          - a request sent before the master connects is answered at once,
+ *            as failed.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -39,6 +48,9 @@
 #define CYCLE_MAX_MS    800     // a cycle answered at once; an exception that waits costs 1 s
 #define WRITE_ADDRESS   20
 #define WRITE_VALUE     7
+#define MULTI_ADDRESS   30      // function 16, three registers, then read back
+#define REFUSED_ADDRESS 40      // the slave answers exception 1
+#define COIL_ADDRESS    5       // function 05
 #define RX_SIZE         512
 
 /***************************************************************************
@@ -52,6 +64,27 @@
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+/*
+ *  The requests queued on the message of cycle 1, and the answer each must
+ *  get, in this order
+ */
+PRIVATE const char *requests[] = {
+    "{'tag': 'w06', 'id': 1, 'type': 'holding_register', 'address': 20, 'value': 7}",
+    "{'tag': 'w16', 'id': 1, 'type': 'holding_register', 'address': 30, 'value': [11, 22, 33]}",
+    "{'tag': 'r03', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 30, 'size': 3}",
+    "{'tag': 'x40', 'id': 1, 'type': 'holding_register', 'address': 40, 'value': 1}",
+    "{'tag': 'c05', 'id': 1, 'type': 'coil', 'address': 5, 'value': 1}",
+    0
+};
+PRIVATE const char *answers[] = {
+    "{'tag': 'w06', 'result': 0, 'error_code': 0}",
+    "{'tag': 'w16', 'result': 0, 'error_code': 0}",
+    "{'tag': 'r03', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",
+    "{'tag': 'x40', 'result': -1, 'error_code': 1}",
+    "{'tag': 'c05', 'result': 0, 'error_code': 0}",
+    0
+};
+
 PRIVATE char slaves_config[] = "\
 [                                                                   \n\
     {                                                               \n\
@@ -117,7 +150,10 @@ typedef struct _PRIVATE_DATA {
     int cycle;                  // counted at the slave, by the requests of block A
     uint64_t t_cycle;           // CYCLE_MAX_MS from the request of block A
     int writes_seen;            // at the slave: must be 1
+    uint16_t multi[3];          // at the slave: what the write of three registers left
     BOOL write_queued;
+    int answers_seen;           // answers of the queued requests, in order
+    BOOL early_answered;        // the request sent before connecting
     BOOL done;
 } PRIVATE_DATA;
 
@@ -294,6 +330,58 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
     int address = (req[8] << 8) | req[9];
     int quantity = (req[10] << 8) | req[11];   // the value, in a write
 
+    if(function == 6 && address == REFUSED_ADDRESS) {
+        slave_exception(gobj, req, 1);          // illegal function: a meter that is locked
+        return;
+    }
+
+    if(function == 16) {
+        if(address != MULTI_ADDRESS || quantity != 3 || req[12] != 6) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The write of three registers did not reach the slave as sent",
+                "address",      "%d", address,
+                "quantity",     "%d", quantity,
+                "byte_count",   "%d", req[12],
+                NULL
+            );
+            slave_exception(gobj, req, 3);
+            return;
+        }
+        for(int i=0; i<3; i++) {
+            priv->multi[i] = (uint16_t)((req[13 + 2*i] << 8) | req[14 + 2*i]);
+        }
+        uint8_t rsp[12];
+        memcpy(rsp, req, 12);   // the echo of a multiple write: address and quantity
+        rsp[4] = 0;
+        rsp[5] = 6;
+        slave_send(gobj, rsp, sizeof(rsp));
+        return;
+    }
+
+    if(function == 5) {
+        if(address != COIL_ADDRESS || quantity != 0xFF00) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The coil did not reach the slave as ON (0xFF00)",
+                "address",      "%d", address,
+                "value",        "%d", quantity,
+                NULL
+            );
+            slave_exception(gobj, req, 3);
+            return;
+        }
+        slave_send(gobj, req, 12);  // a write is answered with its echo
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == MULTI_ADDRESS && quantity == 3) {
+        slave_registers(gobj, req, priv->multi, 3);
+        return;
+    }
+
     if(function == 6) {
         priv->writes_seen++;
         if(address != WRITE_ADDRESS || quantity != WRITE_VALUE || priv->writes_seen != 1) {
@@ -399,7 +487,7 @@ PRIVATE void slave_rx(hgobj gobj, json_t *kw)
 
     while(priv->rx_len >= 6) {
         size_t frame_len = 6 + (size_t)((priv->rx[4] << 8) | priv->rx[5]);
-        if(frame_len != 12) {
+        if(frame_len < 12 || frame_len > 260) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
@@ -417,6 +505,18 @@ PRIVATE void slave_rx(hgobj gobj, json_t *kw)
         memmove(priv->rx, priv->rx + frame_len, priv->rx_len - frame_len);
         priv->rx_len -= frame_len;
     }
+}
+
+/***************************************************************************
+ *  A json written with single quotes
+ ***************************************************************************/
+PRIVATE json_t *qjson(const char *text)
+{
+    char *bf = gbmem_strdup(text);
+    helper_quote2doublequote(bf);
+    json_t *jn = string2json(bf, TRUE);
+    GBMEM_FREE(bf)
+    return jn;
 }
 
 /***************************************************************************
@@ -469,15 +569,9 @@ PRIVATE void master_message(hgobj gobj, json_t *kw)
             check_message(gobj, kw, "{\"slave_id\": 1, \"a\": 65538}");
             if(!priv->write_queued) {
                 priv->write_queued = TRUE;
-                gobj_send_event(priv->gobj_master, EV_SEND_MESSAGE,
-                    json_pack("{s:i, s:s, s:i, s:i}",
-                        "id", 1,
-                        "type", "holding_register",
-                        "address", WRITE_ADDRESS,
-                        "value", WRITE_VALUE
-                    ),
-                    gobj
-                );
+                for(int i=0; requests[i]; i++) {
+                    gobj_send_event(priv->gobj_master, EV_SEND_MESSAGE, qjson(requests[i]), gobj);
+                }
             }
             break;
 
@@ -496,6 +590,16 @@ PRIVATE void master_message(hgobj gobj, json_t *kw)
                         "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "The queued write did not reach the slave once",
                         "writes_seen",  "%d", priv->writes_seen,
+                        NULL
+                    );
+                }
+                if(answers[priv->answers_seen] != NULL || !priv->early_answered) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "Not every request was answered",
+                        "answers_seen", "%d", priv->answers_seen,
+                        "early_answered", "%d", priv->early_answered,
                         NULL
                     );
                 }
@@ -539,7 +643,89 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
         gobj_start(priv->gobj_master);
+
+        /*
+         *  Not connected yet: answered at once, as failed
+         */
+        gobj_send_event(priv->gobj_master, EV_SEND_MESSAGE,
+            qjson("{'tag': 'early', 'operation': 'read', 'type': 'holding_register', 'address': 0}"),
+            gobj
+        );
+        if(!priv->early_answered) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A request sent before connecting was not answered at once",
+                NULL
+            );
+        }
     }
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The answer of a request: the next one expected, in order
+ ***************************************************************************/
+PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *tag = kw_get_str(gobj, kw, "request`tag", "", KW_REQUIRED);
+
+    if(strcmp(tag, "early")==0) {
+        int result = (int)kw_get_int(gobj, kw, "result", 0, KW_REQUIRED);
+        if(result != -1 || strcmp(kw_get_str(gobj, kw, "comment", "", 0), "not connected")!=0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A request sent before connecting was not refused",
+                "answer",       "%j", kw,
+                NULL
+            );
+        }
+        priv->early_answered = TRUE;
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    const char *expected_ = answers[priv->answers_seen];
+    if(!expected_) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "An answer more than the requests",
+            "answer",       "%j", kw,
+            NULL
+        );
+        JSON_DECREF(kw)
+        return 0;
+    }
+    priv->answers_seen++;
+
+    json_t *expected = qjson(expected_);
+    json_t *got = json_pack("{s:s, s:O, s:O}",
+        "tag", tag,
+        "result", json_object_get(kw, "result"),
+        "error_code", json_object_get(kw, "error_code")
+    );
+    if(json_object_get(kw, "values")) {
+        json_object_set(got, "values", json_object_get(kw, "values"));
+    }
+    if(!json_equal(got, expected)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A request was not answered as expected",
+            "got",          "%j", got,
+            "expected",     "%j", expected? expected : json_null(),
+            "answer",       "%j", kw,
+            NULL
+        );
+    }
+    JSON_DECREF(got)
+    JSON_DECREF(expected)
 
     JSON_DECREF(kw)
     return 0;
@@ -666,6 +852,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_ON_OPEN,                ac_on_open,                 0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
+        {EV_MODBUS_ANSWER,          ac_modbus_answer,           0},
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_TIMEOUT,                ac_timeout,                 0},
         {EV_STOPPED,                ac_stopped,                 0},
@@ -680,6 +867,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ON_OPEN,                0},
         {EV_ON_MESSAGE,             0},
+        {EV_MODBUS_ANSWER,          0},
         {EV_ON_CLOSE,               0},
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},

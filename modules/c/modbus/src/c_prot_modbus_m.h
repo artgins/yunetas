@@ -30,6 +30,19 @@ extern "C"{
  */
 #define C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ  1
 
+/*
+ *  Every request sent with EV_SEND_MESSAGE -- a write, or a read outside
+ *  the polling map -- is answered with EV_MODBUS_ANSWER, also when it
+ *  fails (see the file header of c_prot_modbus_m.c). Up to SDK 7.29.2 a
+ *  request got no answer, and a write of more than one register or coil
+ *  went out malformed. A consumer that relies on it refuses to build
+ *  without it:
+ *      #ifndef C_PROT_MODBUS_M_ANSWERS_REQUESTS
+ *      #error "..."
+ *      #endif
+ */
+#define C_PROT_MODBUS_M_ANSWERS_REQUESTS        1
+
 /***************************************************************
  *              FSM
  ***************************************************************/
@@ -45,6 +58,7 @@ GOBJ_DECLARE_GCLASS(C_PROT_MODBUS_M);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_MODBUS_ANSWER);
 
 /***************************************************************
  *              Prototypes

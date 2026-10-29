@@ -154,48 +154,107 @@ failed with:
  "failed_with": "modbus exception 2"}
 ```
 
-The exception and the timeout of a **write** are logged every time, with the
-write (`request`), not a block. (Up to SDK 7.27.7 the TCP master waited after
-an exception for a CRC that TCP does not carry, so each exception cost
-`timeout_response` and held the poll of every slave of the connection; and
-every exception and timeout of every cycle was an error.)
+The exception and the timeout of a **request** (below) are logged every
+time, with the request (`request`), not a block. (Up to SDK 7.27.7 the TCP
+master waited after an exception for a CRC that TCP does not carry, so each
+exception cost `timeout_response` and held the poll of every slave of the
+connection; and every exception and timeout of every cycle was an error.)
 
-### Writes
+### Requests: writes, and reads outside the map
 
-A write is an `EV_SEND_MESSAGE` to the gobj, with the slave, the object, the
-address and the value:
+A request is an `EV_SEND_MESSAGE` to the gobj: a write (the default), or a
+read of registers or bits that are not in the polling map, once.
 
 ```C
 gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
-    json_pack("{s:i, s:s, s:i, s:i}",
+    json_pack("{s:i, s:s, s:i, s:[iii]}",
         "id", 1,
         "type", "holding_register",
-        "address", 100,
-        "value", 1000
+        "address", 46208,
+        "value", 1, 10, 0
+    ),
+    gobj
+);
+gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
+    json_pack("{s:s, s:i, s:s, s:i, s:i}",
+        "operation", "read",
+        "id", 1,
+        "type", "holding_register",
+        "address", 46208,
+        "size", 3
     ),
     gobj
 );
 ```
 
-It is queued and sent after the next response, exception or timeout, or when
-the wait between cycles ends, and **once**: it leaves the queue when it is
-sent, and its response, an exception, `timeout_response` or the end of the
-connection close it (the exception and the timeout name the write in their
-log; a connection that drops before the response logs *"Modbus write NOT
-confirmed"*). A write that cannot be built is dropped with its reason and the
-next one is tried; writes still queued when the connection drops are sent
-after it comes back. A stop of the gobj drops them, with a warning that lists
-them (*"Modbus writes NOT sent, the gobj stopped"*, and *"NOT confirmed"* for
-the one in flight). (Up to
-SDK 7.27.7 a write was never taken out of the queue, and the item was released
-while the queue still held it: the next send read freed memory, and the
-polling did not resume.)
+| Key | | |
+|---|---|---|
+| `operation` | `"write"` | `write` or `read` |
+| `id` | `1` | Slave id, 0-255 |
+| `type` | | Write: `holding_register`, `coil`. Read: also `input_register`, `input_status` |
+| `address` | | 0-65535, a number or its text |
+| `size` | `1` | A read: how many (at most 125 registers, 2000 bits). A write takes it from its values |
+| `value` | | A write: a number, or an array of them (at most 123 registers, 1968 coils). A register value is -32768..65535; a coil is ON if not 0 |
 
-What is built today: **one holding register over TCP** (function 06).
-Function 05 (one coil) sends the `value` as given, where Modbus asks for
-`0xFF00` or `0x0000`; several values (functions 15 and 16) are not built as
-Modbus frames yet; and over RTU or ASCII a write is refused (*"Modbus write NOT
-IMPLEMENTED for this protocol"*).
+Anything else in the request travels back in its answer, so a caller can tag
+it. What goes out: a read with function 01, 02, 03 or 04 by its type; a write
+of one holding register with 06, of several with 16; one coil with 05 (ON is
+`0xFF00`), several with 15. Over TCP and RTU; ASCII is not built.
+
+**Every request is answered, with `EV_MODBUS_ANSWER`, also when it fails**:
+
+```json
+{"request": {"operation": "read", "id": 1, "type": "holding_register",
+             "address": 46208, "size": 3},
+ "result": 0, "comment": "", "error_code": 0, "values": [1, 10, 0]}
+{"request": {"operation": "write", "id": 1, "type": "holding_register",
+             "address": 46213, "size": 1, "value": [100]},
+ "result": -1, "comment": "modbus exception 1 ILLEGAL_FUNCTION",
+ "error_code": 1}
+```
+
+`request` comes with its defaults filled in and the value of a write as an
+array; `result` is 0 when done, -1 when not, with the reason in `comment`, and
+the Modbus exception, if the slave sent one, in `error_code`; `values` are the
+registers of a read, or its bits as 0/1. A write is checked against the echo
+the slave answers with (its address, and its value or quantity): an echo that
+does not match fails it. A request that cannot be sent -- a bad key, an
+unknown type, a size out of range -- is answered at once, failed, and logged
+as an error (*"Modbus request refused"*). The gobj above must declare
+`EV_MODBUS_ANSWER` in its FSM.
+
+**When it goes out.** A request that arrives while the connection waits
+between two cycles goes out at once, and the wait resumes after the requests;
+one that arrives while a block or another request is in flight goes out after
+it, before the next block. They go **one at a time, in the order they came**,
+so a request that needs another before it in the same connection -- a meter
+password, and the setup it unlocks -- is simply sent after it.
+
+**A request is valid for the connection it was queued in.** When the
+connection drops, the request in flight and every queued one are answered as
+failed (*"the connection dropped..."*) and none of them is sent on the next
+connection: whatever unlocked them on the old one, a password, is gone with
+it. A request sent while there is no connection is answered at once
+(*"not connected"*). A stop of the gobj drops them, with a warning that lists
+them (*"Modbus writes NOT sent, the gobj stopped"*, and *"NOT confirmed"* for
+the one in flight).
+
+A consumer that relies on the answers refuses to build against an older
+module:
+
+```C
+#include <c_prot_modbus_m.h>
+#ifndef C_PROT_MODBUS_M_ANSWERS_REQUESTS
+#error "C_PROT_MODBUS_M does not answer requests: needs the SDK after 7.29.2"
+#endif
+```
+
+(Up to SDK 7.29.2 no request was answered and only writes existed: one
+holding register over TCP went out right; function 05 sent the value as given
+instead of `0xFF00`, several values went out without their quantity and byte
+count, RTU refused every write, and writes queued when the connection dropped
+were sent on the next one. Up to 7.27.7 a write was never taken out of the
+queue, and the polling did not resume after it.)
 
 ### Commands
 

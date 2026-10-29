@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Modbus master** (`modules/c/modbus`, `C_PROT_MODBUS_M`): every request
+  sent with `EV_SEND_MESSAGE` is answered with the new `EV_MODBUS_ANSWER`
+  (the request, `result`, `comment`, the Modbus `error_code`, and the
+  `values` of a read), also when it fails: an exception, `timeout_response`,
+  an echo that does not match the write, a dropped connection, no
+  connection, a request that cannot be sent. Up to 7.29.2 a request got no
+  answer at all. A request can now be a **read** outside the polling map
+  (`"operation": "read"`, functions 01-04). The writes are framed right:
+  function 16 for several registers (it went out without its quantity and
+  byte count), 05 with `0xFF00` for ON (it sent the value as given), 15 for
+  several coils, and over RTU too (refused until now). A request that
+  arrives while the connection waits between cycles goes out at once and
+  the wait resumes after it; the others go between two blocks, one at a
+  time, in order -- a meter password and the setup it unlocks travel in the
+  same connection. A request is valid for the connection it was queued in:
+  when the connection drops, the queued ones are answered as failed instead
+  of being sent on the next. `c_prot_modbus_m.h` defines
+  `C_PROT_MODBUS_M_ANSWERS_REQUESTS` for the consumers that rely on it, and
+  `c_prot_modbus_m/test1` covers a write of three registers, a read of
+  them back, an exception, a coil and a request before the connection.
+  Written for the meter setup commands of a field gate (SATEC EM235 PRO and
+  BFM II).
+
 ## v7.29.2 (2026-10-29)
 
 A full release: the fixes of a review round over everything since 7.27.8.
