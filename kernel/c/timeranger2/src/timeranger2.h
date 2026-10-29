@@ -684,9 +684,22 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         words of digits in a row ("5 5 ago", "2026 10 01 10:00",
         "12 2026 10:00"). approxidate() reads them as September 26, May 5,
         January 10. A run of digits is a date only as a person writes
-        one: day month year ("01 10 2026", "01 10 2026 10:00"), or a day
-        and a year after the name of a month ("Oct 1 2026", "Oct 1, 2026",
-        "Oct 1,2026").
+        one: day month year ("01 10 2026", "01 10 2026 10:00"; with
+        numbers alone the year has 4 digits, "1 2 34" is refused), or a
+        day and a year of 4 or 2 digits after the name of a month, 3
+        letters or more of it in any case ("Oct 1 2026", "Oct 1, 2026",
+        "Oct 1,2026", "Oct 1 26", "Sept. 1 2026"; after another word it
+        is refused: approxidate() reads "yesterday 1 2026" as September
+        30). The hour of "3 pm" (1 or 2 digits, then am or pm in any
+        case) ends a run and is not in it: "Oct 1 2026 3 pm",
+        "01 10 2026 3 pm". Three commas between digits are a date's and
+        are kept: the decimal comma of the seconds of a clock time
+        ("2026-10-01T10:00:00,500Z"; not "10:00,5", read as the 5th), a
+        comma before a clock time ("2026-10-01,10:00"), and one between a
+        day and a year after a month name ("Oct 1,2026", "Oct 1,26").
+        A DOT between digits cannot be refused by its shape: "1.10 2026"
+        and "01.10.2026" are dates (day.month), and only
+        approxidate_careful() judges it.
       - Any other text is a date, read by approxidate_careful(), and taken
         to milliseconds when `in_ms`; `end_of_second` (an end bound) then
         takes the last millisecond of its second. approxidate_careful() is
@@ -1219,7 +1232,12 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     into its match_cond, as an integer in the unit of THIS topic, and so
     the negative bounds it resolves for the key: a match_cond is the open's
     own, and a caller that opens several topics or keys with one hands each
-    open a copy (json_deep_copy()), never the same json increfed.
+    open a copy (json_deep_copy()), never the same json increfed. Only the
+    library shares one, where it is the same topic and key:
+    tranger2_open_list() with a `key` hands its history iterator and then
+    its feed the same match_cond, so the feed gets the bounds the iterator
+    resolved for that key (a keyless list gives each key's iterator a
+    copy, and its feed the negative bounds unresolved).
 
     A NEGATIVE bound counts from the key's end AS THE ITERATOR OPENS, and is
     resolved then, once: `from_rowid = -4` is the last 4 rows of the key at

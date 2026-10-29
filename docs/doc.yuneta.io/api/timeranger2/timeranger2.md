@@ -642,8 +642,8 @@ int tranger2_time_of_text(
 | `0`, `*value` `0` | `""`: no time (no bound, no tkey value). |
 | `0`, `*value` the integer | The text of a JSON integer, `-?(0|[1-9][0-9]*)`: `"5"`, `"-86400"`, `"-0"`, `"1761000000000"`. |
 | `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`, and with a decimal comma, `"1,5"`, `"10,5"`, `",5"`, `"5,"`. It is never read as a date. |
-| `-1`, *"a comma between digits, not a date"* | A comma between two digits among other words: `"1,5 days ago"`, `"1,5days ago"`, `"2026,10,01"`. `approxidate()` reads the first two as September 26 (1 and 5 days ago), the third as January 10 of 2026. A day and a year (1 or 2 digits, a comma, 4 digits) is a date: `"Oct 1,2026"`. |
-| `-1`, *"numbers separated by blanks or commas, not a date"* | Words that are all digits, between blanks and commas: `"5 5"`, `"10 5"`, `"2026 10 01"`, `"2026, 10, 01"`, `", 5"`, `"10 2026"`; or two or more of them in a row among other words: `"5 5 ago"`, `"1 5 days ago"`, `"2026 10 01 10:00"`, `"12 2026 10:00"`. `approxidate()` reads them as May 5, May 10, January 10 of 2026, the 5th, the 10th of this month, September 26, October 12. A run of digits is a date only as a person writes one: day month year (`"01 10 2026"`, `"01 10 2026 10:00"`), or a day and a year after the name of a month (`"Oct 1 2026"`, `"Oct 1, 2026"`). `"1700000000 +0000"` (git's raw date) and `"01.10.2026"` are not of this shape, and are dates. |
+| `-1`, *"a comma between digits, not a date"* | A comma between two digits among other words: `"1,5 days ago"`, `"1,5days ago"`, `"2026,10,01"`, `"10:00,5"`, `"yesterday 1,2026"`. `approxidate()` reads them as September 26 (1 and 5 days ago), January 10 of 2026, the 5th, September 30. Three commas of a date are kept: the decimal comma of the seconds of a clock time, ISO 8601's (`"2026-10-01T10:00:00,500Z"`, `"10:00:00,5"`), a comma before a clock time, its hour in 1 or 2 digits (`"2026-10-01,10:00"`), and a comma between a day (1 or 2 digits) and a year (4 or 2 digits) after the name of a month (`"Oct 1,2026"`, `"Oct 1,26"`). |
+| `-1`, *"numbers separated by blanks or commas, not a date"* | Words that are all digits, between blanks and commas: `"5 5"`, `"10 5"`, `"2026 10 01"`, `"2026, 10, 01"`, `", 5"`, `"10 2026"`; or two or more of them in a row among other words: `"5 5 ago"`, `"1 5 days ago"`, `"2026 10 01 10:00"`, `"12 2026 10:00"`, `"yesterday 1 2026"`. `approxidate()` reads `"5 5"` as May 5, `"2026 10 01"` as January 10 of 2026, `", 5"` as the 5th of this month, `"1 5 days ago"` as September 26, `"12 2026 10:00"` as October 12 and `"yesterday 1 2026"` as September 30. A run of digits is a date only as a person writes one: day month year with a year of 4 digits (`"01 10 2026"`, `"01 10 2026 10:00"`; with numbers alone a year of 2 digits is refused, as `"1 2 34"` would be February 1, 2034), or a day and a year of 4 or 2 digits after the name of a month (`"Oct 1 2026"`, `"Oct 1, 2026"`, `"Oct 1 26"`). A month name is 3 letters or more of its English name, in any case, with an optional `.` (`"Oct"`, `"Sept."`, `"october"`), as `approxidate_careful()` reads one; any other word before the run (`"yesterday"`, a weekday) does not make it a date. The hour of `"3 pm"` (1 or 2 digits, then `am` or `pm` in any case) ends a run and is not in it: `"Oct 1 2026 3 pm"`, `"01 10 2026 3 pm"`, `"Oct 29 3 PM"` are dates, as `"Oct 1 2026 3pm"` is. `"1700000000 +0000"` (git's raw date) and `"01.10.2026"` are not of this shape, and are dates. |
 | `0`, `*value` the date | Any other text that [`approxidate_careful()`](#approxidate_careful) reads: `"2000-01-02T00:00:00+0000"`, `"2000-01-02 00:00:00 +0000"`, `"yesterday"`. |
 | `-1`, *"a text that is no date"* | Any other text: `"garbage"`, `"0x10"`. |
 | `-2`, *"an integer past what a time holds"* / *"a date past what a time holds"* | An integer past `INT64_MAX`, or a date that does not fit a `json_int_t` in its unit. |
@@ -660,7 +660,16 @@ comma was too (`approxidate()` reads `"1,5"` as May 1, `"10,5"` as May 10),
 and digits in groups (`"5 5"` May 5, `"2026 10 01"` January 10 of 2026).
 Until R49 a word more kept the misreading (`"1,5 days ago"`, `"5 5 ago"`,
 `"2026 10 01 10:00"`, `",5"`), and `"01 10 2026"`, a date read right, was
-refused.
+refused. In R49 an hour with am/pm after a date (`"Oct 1 2026 3 pm"`), the
+decimal comma of the seconds (`"2026-10-01T10:00:00,500Z"`), a comma before
+a clock time (`"2026-10-01,10:00"`) and a two-digit year after a month name
+(`"Oct 1 26"`) were refused, and a day and a year after any word were a
+date (`"yesterday 1 2026"` September 30).
+
+A **dot** between digits cannot be refused by its shape, as a comma is: it
+is how a day and a month are written (`"1.10 2026"` and `"01.10.2026"` are
+October 1). Only a text that is a number and nothing else (`"10.5"`, `".5"`)
+is refused; any other dot is for `approxidate_careful()` to judge.
 
 `approxidate_careful()` stays lenient past these shapes: `"yesterday 10.30"`
 is NOW, and `"1/10/2026"` January 10 (the order of a date with slashes is
@@ -2783,9 +2792,14 @@ the same rule as a text tkey:
   is never read as a date.
 - So is a text with such numbers among other words: a comma between two
   digits (`"1,5 days ago"`), or two or more words of digits in a row
-  (`"5 5 ago"`, `"2026 10 01 10:00"`). A run of digits is a date only as day
-  month year (`"01 10 2026"`) or as a day and a year after the name of a
-  month (`"Oct 1, 2026"`).
+  (`"5 5 ago"`, `"2026 10 01 10:00"`, `"yesterday 1 2026"`). A run of digits
+  is a date only as day month year (`"01 10 2026"`) or as a day and a year
+  of 4 or 2 digits after the name of a month (`"Oct 1, 2026"`,
+  `"Oct 1 26"`); the hour of `"3 pm"` is not in a run
+  (`"Oct 1 2026 3 pm"`), and the decimal comma of the seconds
+  (`"2026-10-01T10:00:00,500Z"`) and a comma before a clock time
+  (`"2026-10-01,10:00"`) are a date's. The details are in
+  [`tranger2_time_of_text()`](<#tranger2_time_of_text>).
 - A string with a NUL inside (`"<a date>\u0000garbage"`) is refused: it is
   judged whole ([`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)).
 - Any other text is a date read by
@@ -2804,6 +2818,11 @@ The open **writes** the bounds it read into its `match_cond`, as integers in
 the unit of ITS topic, and so the negative bounds it resolves for the key. A
 `match_cond` is the open's own: a caller that opens several topics or keys
 with one condition hands each open a copy, never the same json increfed.
+Only the library shares one, where it is the same topic and key:
+[`tranger2_open_list()`](<#tranger2_open_list>) with a `key` hands its
+history iterator and then its feed the same `match_cond`, so the feed gets
+the bounds the iterator resolved for that key (a keyless list gives each
+key's iterator a copy, and its feed the negative bounds unresolved).
 Up to R48 `tr2search -r` did, and every topic read a date in the unit of the
 first one.
 

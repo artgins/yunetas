@@ -31,6 +31,13 @@
  *  month year ("01 10 2026", refused in R48) and a day and a year after a
  *  month ("Oct 1, 2026") are dates.
  *
+ *  And not more than that (V50): the hour of "3 pm" ends a run of digits
+ *  ("Oct 1 2026 3 pm", refused in R49, is a date); the decimal comma of
+ *  the seconds ("2026-10-01T10:00:00,500Z"), a comma before a clock time
+ *  ("2026-10-01,10:00") and a two-digit year after a month name ("Oct 1
+ *  26") are dates too; a day and a year after a word that is no month
+ *  name ("yesterday 1 2026", read as September 30) are refused.
+ *
  *  The tools (V49.1.1): tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -686,6 +693,44 @@ PRIVATE int do_test(void)
             {"Oct 1,2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
             {"1 Oct, 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
             {"Thu, 01 Oct 2026 10:00:00 +0000", FALSE, FALSE, 0, 1790848800},
+            /*  V50: an hour with am/pm ends a run of digits, and is not in it  */
+            {"29 Oct 2026 10 am +0000",     FALSE,  FALSE,   0, 1793268000},
+            {"29 Oct 2026 10 AM +0000",     FALSE,  FALSE,   0, 1793268000},
+            {"Oct 1 2026 3 pm +0000",       FALSE,  FALSE,   0, 1790866800},
+            {"Oct 1 2026 3 Pm +0000",       FALSE,  FALSE,   0, 1790866800},
+            {"10 May 2026 3 pm +0000",      FALSE,  FALSE,   0, 1778425200},
+            {"10 May 2026 3pm +0000",       FALSE,  FALSE,   0, 1778425200},
+            {"Oct 29 2026 3 PM +0000",      FALSE,  FALSE,   0, 1793286000},
+            {"01 10 2026 3 pm +0000",       FALSE,  FALSE,   0, 1790866800},
+            {"Oct 1 2026 at 3 pm +0000",    FALSE,  FALSE,   0, 1790866800},
+            {"1 2 3 pm",                    FALSE,  FALSE,  -1, 0},
+            {"2026 10 01 10 am",            FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 2026 pm",          FALSE,  FALSE,  -1, 0},
+            /*  V50: the decimal comma of the seconds, and a comma before a clock time  */
+            {"2026-10-01T10:00:00,500Z",    FALSE,  FALSE,   0, 1790848800},
+            {"2026-10-01T10:00:00,5+0000",  FALSE,  FALSE,   0, 1790848800},
+            {"2026-10-01 10:00:00,500 +0000", FALSE, FALSE,  0, 1790848800},
+            {"2026-10-01,10:00 +0000",      FALSE,  FALSE,   0, 1790848800},
+            {"2026-10-01,10:00:00 +0000",   FALSE,  FALSE,   0, 1790848800},
+            {"10:00,5",                     FALSE,  FALSE,  -1, 0},
+            {"10:00:00,5,5",                FALSE,  FALSE,  -1, 0},
+            {"2026-10-01,10",               FALSE,  FALSE,  -1, 0},
+            {"10:00:00,500 1 Oct 2026 +0000", FALSE, FALSE,  0, 1790848800},
+            {"1,10:00 5 5",                 FALSE,  FALSE,  -1, 0},
+            /*  V50: a two-digit year after a month name and a day  */
+            {"Oct 1 26 00:00:00 +0000",     FALSE,  FALSE,   0, 1790812800},
+            {"Oct 1, 26 00:00:00 +0000",    FALSE,  FALSE,   0, 1790812800},
+            {"Oct 1,26 00:00:00 +0000",     FALSE,  FALSE,   0, 1790812800},
+            {"october 1 26 00:00:00 +0000", FALSE,  FALSE,   0, 1790812800},
+            {"Oct. 1 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"5,26 days ago",               FALSE,  FALSE,  -1, 0},
+            {"Oct 1 026",                   FALSE,  FALSE,  -1, 0},
+            /*  V50: after the name of a month, not after any word  */
+            {"yesterday 1 2026",            FALSE,  FALSE,  -1, 0},
+            {"Mon 1 2026",                  FALSE,  FALSE,  -1, 0},
+            {"today 1, 2026",               FALSE,  FALSE,  -1, 0},
+            {"at 1 2026",                   FALSE,  FALSE,  -1, 0},
+            {"yesterday 1,2026",            FALSE,  FALSE,  -1, 0},
             {"1700000000 +0000",            FALSE,  FALSE,   0, 1700000000},
             {"garbage",                     FALSE,  FALSE,  -1, 0},
             {"2000-01-02T00:00:00+0000",    FALSE,  FALSE,   0, 946771200},
