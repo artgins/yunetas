@@ -48,7 +48,8 @@ Two implications worth keeping in your head:
 - **Every yuno you see in `ps` has a sibling watcher**. `pgrep yuneta_agent`
   on a healthy box returns **two** pids: the watcher and the child.
 - **The watcher does not know what the agent is**. It uses `waitpid()` on
-  one specific pid. If the child SEGVs, the watcher sleeps 2s and re-execs
+  one specific pid. If the child SEGVs, the watcher waits (2 s the first
+  time, longer if it keeps failing: §4.3) and re-execs
   the same binary with the same args. The agent is informed indirectly
   (its channel to the yuno closes). It does not drive the restart.
 
@@ -259,15 +260,37 @@ crashed during its orderly stop was relaunched 2 s later.
 | Event reported by `waitpid()`              | Watcher action                       |
 |--------------------------------------------|--------------------------------------|
 | `WIFEXITED && exit_code == 0`              | return 1 → exit (no relaunch)        |
-| `WIFEXITED && exit_code != 0`              | return -1 → `sleep(2)` + relaunch    |
+| `WIFEXITED && exit_code != 0`              | return -1 → wait + relaunch          |
 | `WIFSIGNALED && signal == SIGKILL`         | return 1 → exit (no relaunch)        |
-| `WIFSIGNALED && signal != SIGKILL` (SEGV…) | return -1 → `sleep(2)` + relaunch    |
-| anything else                              | return -1 → relaunch                 |
+| `WIFSIGNALED && signal != SIGKILL` (SEGV…) | return -1 → wait + relaunch          |
+| anything else                              | return -1 → wait + relaunch          |
 
-`relaunch_times` is bumped on every restart and logged with:
+**The wait grows while the child keeps failing.** The first relaunch comes
+2 s after the end, so a yuno that crashed once is back at once. When the
+relaunched child ends again less than 60 s after its start, the wait doubles:
+2, 4, 8, 16, 32 s, then 60 s, and it stays at 60 s. A child that lived 60 s or
+more sets it back to 2 s. A SIGQUIT (§4.2) cuts a wait short: the watcher
+exits at once and does not relaunch.
+
+Each time the wait grows, the watcher says it on stdout and syslog
+(`ERROR YUNETAS: <process> ended again within 60 s of its start (signal …,
+exit code …): relaunched in <N> s, pid <watcher>`); at 60 s it stops saying it.
+For example, an agent whose audit directory cannot be made exits at each start:
+its relaunches come at 2, 6, 14, 30, 62, 122 s, and then one a minute.
+
+Why a cap of one minute and not more: the agent is the only way into a sealed
+node. Once the cause is gone (the disk freed, the directory fixed), it must be
+back soon without anybody restarting its unit. Why not stay at 2 s: a cause
+that does not go away (a full disk, a directory of the wrong owner) printed
+its error twice every 2 s, about 43,200 syslog lines a day each. And because
+the watcher stays alive, systemd's own restart limit never applies to it. Up
+to 7.29.3 the wait was always 2 s, as it was before v7.
+
+`relaunch_times` is bumped on every restart and logged by the new child, with
+the wait it came after (`relaunch_wait`, in seconds):
 
 ```
-MSGSET_SYSTEM "Daemon relaunched"  process=… pid=… relaunch_times=… signal_code=… exit_code=…
+MSGSET_SYSTEM "Daemon relaunched"  process=… pid=… relaunch_times=… relaunch_wait=… signal_code=… exit_code=…
 ```
 
 That log line is the **only** indication a watcher resurrection happened.

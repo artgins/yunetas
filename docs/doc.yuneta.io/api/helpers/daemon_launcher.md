@@ -93,7 +93,10 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 **Notes**
 
 - The watcher process relaunches the child each time it exits
-  abnormally. See [`get_relaunch_times()`](#get_relaunch_times) to
+  abnormally: 2 s after its end the first time; when each new child ends
+  within 60 s of its start the wait doubles, up to 60 s, and a child that
+  lived longer sets it back to 2 s ([Entry point §4.3](#entry-point-watcher)).
+  See [`get_relaunch_times()`](#get_relaunch_times) to
   inspect how many relaunches have happened so far.
 - Use [`daemon_shutdown()`](#daemon_shutdown) from another process (or
   the child itself) to terminate both watcher and child cleanly.

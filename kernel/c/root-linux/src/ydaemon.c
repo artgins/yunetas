@@ -28,11 +28,24 @@
 /******************************************************
  *      Constants
  ******************************************************/
+/*
+ *  The wait before a relaunch: the first is short, so a yuno that crashed
+ *  once is back at once; each further end within RELAUNCH_STABLE_MS of its
+ *  start doubles it, up to RELAUNCH_WAIT_MAX_S; a child that lived longer
+ *  sets it back to the first. The cap is a minute and not more: the agent
+ *  is the only way into a sealed node, and once the cause is gone it must
+ *  be back soon without anybody restarting its unit.
+ */
+#define RELAUNCH_WAIT_FIRST_S   2
+#define RELAUNCH_WAIT_MAX_S     60
+#define RELAUNCH_STABLE_MS      (60*1000)
 
 /******************************************************
  *      Data
  ******************************************************/
 PRIVATE volatile int relaunch_times = 0;
+PRIVATE int relaunch_wait = 0;          // seconds before the last relaunch, 0 none yet
+PRIVATE BOOL child_lived_long = FALSE;  // the last child lived RELAUNCH_STABLE_MS or more
 PRIVATE volatile int debug = 0;
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
@@ -179,6 +192,7 @@ PRIVATE int relauncher(
      *  leader of the session the watcher made, so it can never get a
      *  controlling terminal back.
      */
+    uint64_t stable_timer = start_msectimer(RELAUNCH_STABLE_MS);
     pid_t pid = fork();
     if(debug) {
         print_error(0, "fork return pid %d, process %s, pid %d",
@@ -202,6 +216,7 @@ PRIVATE int relauncher(
                 "waitpid() failed, errno %d %s", errno, strerror(errno)
             );
         }
+        child_lived_long = test_msectimer(stable_timer);
         exit_code = 0;
         signal_code = 0;
         if(debug) {
@@ -291,6 +306,7 @@ PRIVATE int relauncher(
                 "process",          "%s", process_name,
                 "pid",              "%d", (int)getpid(),
                 "relaunch_times",   "%d", relaunch_times,
+                "relaunch_wait",    "%d", relaunch_wait,
                 "signal_code",      "%d", signal_code,
                 "exit_code",        "%d", exit_code,
                 NULL
@@ -345,9 +361,29 @@ PUBLIC int daemon_run(
 
     continue_as_daemon(work_dir, process_name);
     while((ret=relauncher(process, process_name, work_dir, domain_dir, cleaning_fn))<0) {
-        // relauncher() < 0: the yuno ended in a way that asks for it again, 2 s later
+        // relauncher() < 0: the yuno ended in a way that asks for it again
         relaunch_times++;
-        sleep(2);
+        if(relaunch_wait == 0 || child_lived_long) {
+            relaunch_wait = RELAUNCH_WAIT_FIRST_S;
+        } else if(relaunch_wait < RELAUNCH_WAIT_MAX_S) {
+            relaunch_wait *= 2;
+            if(relaunch_wait > RELAUNCH_WAIT_MAX_S) {
+                relaunch_wait = RELAUNCH_WAIT_MAX_S;
+            }
+            print_error(0,
+                "%s ended again within %d s of its start (signal %d, exit code %d): "
+                "relaunched in %d s, pid %d",
+                process_name,
+                RELAUNCH_STABLE_MS/1000,
+                signal_code,
+                exit_code,
+                relaunch_wait,
+                getpid()
+            );
+        }
+        if(!stop_requested) {
+            sleep((unsigned)relaunch_wait);  // a SIGQUIT cuts it short
+        }
         if(stop_requested) {
             ret = 1;    // stopped while waiting to relaunch
             break;

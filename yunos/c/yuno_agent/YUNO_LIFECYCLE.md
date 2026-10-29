@@ -516,7 +516,10 @@ not poll pids. It does not know "exited normally" from "segfaulted".
 started with `--start` runs under a per-yuno watcher process (the
 first-fork survivor in [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/ydaemon.c)). When the yuno child dies abnormally
 (any signal other than `SIGKILL`, or any non-zero exit code), the watcher
-sleeps 2s and re-execs the same binary. It does this **whether the agent runs
+waits and re-execs the same binary: 2 s the first time, doubling up to 60 s
+while each new child ends within 60 s of its start. During that wait the
+watcher is alive, so the agent sees the yuno as alive but not connected and
+does not launch it again; `kill-yuno` ends the watcher at once. It does this **whether the agent runs
 or not**. A yuno is an autonomous machine, and the watcher is what makes that
 concrete. See
 [`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-watcher) §4
