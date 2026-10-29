@@ -20,7 +20,13 @@
  *         long: the replica was moved out of disks/;
  *      6. build_md2_and_data_paths() answered TRUE with the ancestors;
  *      7. load_key_cache_from_disk() listed an ancestor as the key: a key
- *         of no files, not flagged.
+ *         of no files, not flagged;
+ *      8. get_topic_wr_fd() built keys/<key>/<file> with snprintf(), cut
+ *         in silence: a directory named as the start of the key was made
+ *         in keys/, and the file was asked of that cut path;
+ *      9. treedb_open_db() built the path of its schema file in NAME_MAX*2
+ *         bytes: a store directory of 600 bytes did not find the file, and
+ *         an older literal was written over a newer schema (2 -> 1).
  *
  *  Each case asks that the target is left as it was, and that an ERROR
  *  was logged.
@@ -32,6 +38,7 @@
  ****************************************************************************/
 #include <syslog.h>
 #include "timeranger2.c"
+#include <tr_treedb.h>
 
 #define BASE    "/tmp/test_path_too_long"
 
@@ -83,6 +90,37 @@ PRIVATE int make_deep_dir(char *bf, size_t bfsize, size_t len)
         }
     }
     return 0;
+}
+
+PRIVATE int open_close_treedb(const char *path, int schema_version)
+{
+    json_t *tr = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path, "database", "db", "master", 1, "on_critical_error", 0), 0);
+    if(!tr) {
+        return -1;
+    }
+    json_t *jn_schema = json_pack(
+        "{s:s, s:i, s:[{s:s, s:i, s:s, s:s, s:{s:{s:s, s:s, s:[s,s]}}}]}",
+        "id", "treedb_x",
+        "schema_version", schema_version,
+        "topics",
+            "id", "users",
+            "topic_version", 1,
+            "pkey", "id",
+            "system_flag", "sf_string_key",
+            "cols",
+                "id",
+                    "header", "Id",
+                    "type", "string",
+                    "flag", "persistent", "required"
+    );
+    parse_schema(jn_schema);
+    json_t *db = treedb_open_db(tr, "treedb_x", jn_schema, "persistent");
+    if(db) {
+        treedb_close_db(tr, "treedb_x");
+    }
+    tranger2_shutdown(tr);
+    return db? 0 : -1;
 }
 
 PRIVATE void fill(char *bf, char c, size_t len)
@@ -303,6 +341,64 @@ int main(int argc, char *argv[])
             json_is_true(json_object_get(key_cache, "unlisted")));
         result += check("cache of a key too long: an ERROR", errors_logged > 0);
         JSON_DECREF(key_cache)
+    }
+
+    /*
+     *  8. get_topic_wr_fd(), keys/<key>/<file> too long: -1, nothing made
+     *  in keys/
+     */
+    if(1) {
+        char keys_dir[PATH_MAX];
+        build_path(keys_dir, sizeof(keys_dir), topic_dir, "keys", NULL);
+        json_t *tranger = json_pack("{s:b, s:i, s:i, s:i}",
+            "master", 1, "xpermission", 0700, "rpermission", 0600, "on_critical_error", 0
+        );
+        json_t *topic = json_pack("{s:s, s:s, s:{}}",
+            "directory", topic_dir, "topic_name", "topic", "wr_fd_files"
+        );
+        fill(long_name, 'k', 200);
+        errors_logged = 0;
+        int fd = get_topic_wr_fd(0, tranger, topic, long_name, TRUE, "2026-10-29", TRUE);
+        result += check("write fd of a key too long: -1", fd < 0);
+        DIR *dir = opendir(keys_dir);
+        int entries = 0;
+        struct dirent *entry;
+        while(dir && (entry = readdir(dir)) != NULL) {
+            if(entry->d_name[0] != '.') {
+                entries++;
+            }
+        }
+        if(dir) {
+            closedir(dir);
+        }
+        result += check("write fd of a key too long: nothing made in keys/", dir && entries == 0);
+        result += check("write fd of a key too long: an ERROR", errors_logged > 0);
+        if(fd >= 0) {
+            close(fd);
+        }
+        JSON_DECREF(topic)
+        JSON_DECREF(tranger)
+    }
+
+    /*
+     *  9. treedb_open_db(): the schema file of a store 600 bytes deep is
+     *  found, and a newer one is kept
+     */
+    if(1) {
+        char store[PATH_MAX];
+        if(make_deep_dir(store, sizeof(store), 600) < 0) {
+            return -1;
+        }
+        result += check("treedb in a store 600 bytes deep: opens with schema 2",
+            open_close_treedb(store, 2) == 0);
+        result += check("treedb in a store 600 bytes deep: opens with schema 1",
+            open_close_treedb(store, 1) == 0);
+        char db_dir[PATH_MAX];
+        build_path(db_dir, sizeof(db_dir), store, "db", NULL);
+        json_t *file = load_json_from_file(0, db_dir, "treedb_x.treedb_schema.json", 0);
+        result += check("treedb in a store 600 bytes deep: the newer schema file is kept",
+            kw_get_int(0, file, "schema_version", 0, KW_WILD_NUMBER) == 2);
+        JSON_DECREF(file)
     }
 
     if(system("rm -rf " BASE) != 0) {

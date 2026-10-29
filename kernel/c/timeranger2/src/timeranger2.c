@@ -883,6 +883,13 @@ PRIVATE void run_owed_key_dir_scans(
     fs_event_t *fs_event
 );
 PRIVATE BOOL errno_is_transient(int err);
+PRIVATE char *format_path(
+    hgobj gobj,
+    char *bf,
+    size_t bfsize,
+    const char *fmt,
+    ...
+) __attribute__((format(printf, 4, 5)));
 PRIVATE void tell_deletes_lost_in_overflow(
     hgobj gobj,
     json_t *tranger,
@@ -2019,10 +2026,9 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
          *      Create data directory
          *----------------------------------------*/
         char full_path[PATH_MAX];
-        snprintf(full_path, sizeof(full_path), "%s/keys",
-            directory
-        );
-        if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(!format_path(gobj, full_path, sizeof(full_path), "%s/keys", directory)) {
+            created = FALSE;    // Error already logged
+        } else if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, create_critical_opt,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
@@ -2038,10 +2044,9 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         /*----------------------------------------*
          *      Create data directory
          *----------------------------------------*/
-        snprintf(full_path, sizeof(full_path), "%s/disks",
-            directory
-        );
-        if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
+        if(!format_path(gobj, full_path, sizeof(full_path), "%s/disks", directory)) {
+            created = FALSE;    // Error already logged
+        } else if(created && mkrdir(full_path, (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED))<0) {
             gobj_log_critical(gobj, create_critical_opt,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
@@ -2548,10 +2553,14 @@ PUBLIC int tranger2_topic_path(
         }
         return -1;
     }
-    snprintf(bf, bfsize, "%s/%s",
-        kw_get_str(0, tranger, "directory", "", KW_REQUIRED),
-        topic_name
-    );
+    if(!format_path(gobj, bf, bfsize, "%s/%s",
+            kw_get_str(0, tranger, "directory", "", KW_REQUIRED),
+            topic_name)) {
+        if(bfsize > 0) {
+            *bf = 0;
+        }
+        return -1;  // Error already logged
+    }
     return 0;
 }
 
@@ -2857,10 +2866,11 @@ PUBLIC int tranger2_delete_topic(
      *  the ERROR log that tranger2_topic() emits for missing topics.
      */
     char directory[PATH_MAX];
-    snprintf(directory, sizeof(directory), "%s/%s",
-        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-        topic_name
-    );
+    if(!format_path(gobj, directory, sizeof(directory), "%s/%s",
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            topic_name)) {
+        return -1;  // Error already logged
+    }
 
     if(access(directory, F_OK) != 0) {
         /*
@@ -3027,10 +3037,12 @@ PUBLIC json_t *tranger2_backup_topic(
      *  Get original directory
      *-------------------------------*/
     char directory[PATH_MAX];
-    snprintf(directory, sizeof(directory), "%s/%s",
-        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-        topic_name
-    );
+    if(!format_path(gobj, directory, sizeof(directory), "%s/%s",
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            topic_name)) {
+        reopen_topic_not_backed_up(gobj, tranger, topic_name);
+        return 0;   // Error already logged
+    }
 
     /*
      *  Check if topic already exists
@@ -3050,32 +3062,21 @@ PUBLIC json_t *tranger2_backup_topic(
     /*-------------------------------*
      *  Get backup directory
      *-------------------------------*/
+    /*
+     *  Cut, the backup directory is another one, and an overwrite_backup
+     *  removed it (up to 7.29.3)
+     */
     char backup_directory[PATH_MAX];
-    if(empty_string(backup_path)) {
-        snprintf(backup_directory, sizeof(backup_directory), "%s",
-            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED)
-        );
-    } else {
-        snprintf(backup_directory, sizeof(backup_directory), "%s",
-            backup_path
-        );
-    }
-    if(backup_directory[strlen(backup_directory)-1]!='/') {
-        snprintf(backup_directory + strlen(backup_directory),
-            sizeof(backup_directory) - strlen(backup_directory), "%s",
-            "/"
-        );
-    }
-    if(empty_string(backup_name)) {
-        snprintf(backup_directory + strlen(backup_directory),
-            sizeof(backup_directory) - strlen(backup_directory), "%s.bak",
-            topic_name
-        );
-    } else {
-        snprintf(backup_directory + strlen(backup_directory),
-            sizeof(backup_directory) - strlen(backup_directory), "%s",
-            backup_name
-        );
+    const char *backup_base = empty_string(backup_path)?
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED) : backup_path;
+    size_t backup_base_len = strlen(backup_base);
+    const char *backup_sep = (backup_base_len > 0 && backup_base[backup_base_len-1] == '/')?
+        "" : "/";
+    if(!format_path(gobj, backup_directory, sizeof(backup_directory),
+            empty_string(backup_name)? "%s%s%s.bak" : "%s%s%s",
+            backup_base, backup_sep, empty_string(backup_name)? topic_name : backup_name)) {
+        reopen_topic_not_backed_up(gobj, tranger, topic_name);
+        return 0;   // Error already logged
     }
 
     if(is_directory(backup_directory)) {
@@ -3616,10 +3617,9 @@ PRIVATE int create_file(
      *      create it not exist
      *------------------------------*/
     char path_key[PATH_MAX];
-    snprintf(path_key, sizeof(path_key), "%s/keys/%s",
-        topic_dir,
-        key
-    );
+    if(!format_path(gobj, path_key, sizeof(path_key), "%s/keys/%s", topic_dir, key)) {
+        return -1;  // Error already logged
+    }
     if(!is_directory(path_key)) {
         if(master) {
             int xpermission = (int)kw_get_int(
@@ -3782,6 +3782,40 @@ PRIVATE void build_file_name(char *bf, size_t bfsize, const char *file_id, const
 }
 
 /***************************************************************************
+ *  snprintf() of a path into bf. A path that does not fit is refused:
+ *  NULL, with an ERROR naming the format and the part that fitted. Cut by
+ *  snprintf(), it is another path, and up to 7.29.3 it was read, written
+ *  or made in silence.
+ ***************************************************************************/
+PRIVATE char *format_path(
+    hgobj gobj,
+    char *bf,
+    size_t bfsize,
+    const char *fmt,
+    ...
+)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int len = vsnprintf(bf, bfsize, fmt, ap);
+    va_end(ap);
+    if(len < 0 || (size_t)len >= bfsize) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path too long, it does not fit in its buffer",
+            "format",       "%s", fmt,
+            "path",         "%s", bfsize? bf : "",
+            "length",       "%d", len,
+            "size",         "%d", (int)bfsize,
+            NULL
+        );
+        return NULL;
+    }
+    return bf;
+}
+
+/***************************************************************************
  *  Called only from master
  ***************************************************************************/
 PRIVATE int get_topic_wr_fd( // optimized
@@ -3823,7 +3857,9 @@ PRIVATE int get_topic_wr_fd( // optimized
     if(fd<=0) {
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-        snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
+        if(!format_path(gobj, full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename)) {
+            return -1;  // Error already logged: no file is written at a cut path
+        }
 
         if(master) {
             fd = open(full_path, O_RDWR|O_NOFOLLOW|O_CLOEXEC, 0);
@@ -3931,7 +3967,9 @@ PRIVATE int get_topic_rd_fd(
 
     if(fd<=0) {
         const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-        snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
+        if(!format_path(gobj, full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename)) {
+            return -1;  // Error already logged: no file is read at a cut path
+        }
 
         /*-----------------------------*
          *      Open content file
@@ -9248,9 +9286,9 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
 {
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-    snprintf(full_path, sizeof(full_path), "%s/disks",
-        directory
-    );
+    if(!format_path(gobj, full_path, sizeof(full_path), "%s/disks", directory)) {
+        return NULL;    // Error already logged
+    }
 
     /*
      *  Find current rt_id's of clients, open a tranger2_open_rt_mem for each
@@ -9302,11 +9340,14 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
     json_t *tranger = fs_event->user_data;
 
     char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path),
-        "%s/%s",
-        (char *)fs_event->directory,
-        (char *)fs_event->filename
-    );
+    if(!format_path(gobj, full_path, sizeof(full_path),
+            "%s/%s",
+            (char *)fs_event->directory,
+            (char *)fs_event->filename) &&
+            (fs_event->fs_type == FS_SUBDIR_CREATED_TYPE ||
+                fs_event->fs_type == FS_SUBDIR_DELETED_TYPE)) {
+        return 0;   // Error already logged: a cut path names another feed
+    }
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
@@ -9548,7 +9589,10 @@ PRIVATE int master_to_update_client_load_record_callback(
     /*
      *  Create the directory for the key
      */
-    snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s", disk_path, key);
+    if(!format_path(gobj, full_path_dest, sizeof(full_path_dest), "%s/%s", disk_path, key)) {
+        JSON_DECREF(record)
+        return 0;   // Error already logged
+    }
     if(!is_directory(full_path_dest)) {
         if(gobj_global_trace_level() & TRACE_FS) {
             gobj_log_debug(gobj, 0,
@@ -9600,10 +9644,12 @@ PRIVATE int master_to_update_client_load_record_callback(
         JSON_DECREF(record)
         return 0;
     }
-    snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
-
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
-    snprintf(full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename);
+    if(!format_path(gobj, full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename) ||
+            !format_path(gobj, full_path_orig, sizeof(full_path_orig), "%s/keys/%s/%s", topic_dir, key, filename)) {
+        JSON_DECREF(record)
+        return 0;   // Error already logged: no link to or from a cut path
+    }
 
     if(!is_regular_file(full_path_dest)) {
         if(gobj_global_trace_level() & TRACE_FS) {
@@ -9662,10 +9708,9 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
 
     char full_path[PATH_MAX];
     const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
-    snprintf(full_path, sizeof(full_path), "%s/disks/%s",
-        directory,
-        id
-    );
+    if(!format_path(gobj, full_path, sizeof(full_path), "%s/disks/%s", directory, id)) {
+        return NULL;    // Error already logged
+    }
 
     if(gobj_global_trace_level() & TRACE_FS) {
         gobj_log_debug(gobj, 0,
@@ -9748,10 +9793,10 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
     json_t *watched_topic = fs_event->user_data2;   // set by monitor_rt_disk_by_client
 
     char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path), "%s/%s",
+    BOOL full_path_fits = format_path(gobj, full_path, sizeof(full_path), "%s/%s",
         (char *)fs_event->directory,
         (char *)fs_event->filename
-    );
+    )? TRUE : FALSE;    // FALSE: Error already logged
 
     /*
      *  The scans of key directories that waited for the stream to be past
@@ -9762,6 +9807,12 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
         if(fs_event->stop_requested) {
             return 0;   // a callback closed the feed
         }
+    }
+
+    if(!full_path_fits &&
+            (fs_event->fs_type == FS_SUBDIR_CREATED_TYPE ||
+                fs_event->fs_type == FS_FILE_CREATED_TYPE)) {
+        return 0;   // Error already logged: nothing is scanned or linked at a cut path
     }
 
     switch(fs_event->fs_type) {
@@ -12589,9 +12640,9 @@ PRIVATE int find_keys_in_disk(
     struct dirent *entry;
     int match_count = 0;
     char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path), "%s/keys",
-        directory
-    );
+    if(!format_path(gobj, full_path, sizeof(full_path), "%s/keys", directory)) {
+        return -1;  // Error already logged
+    }
 
     DIR *dir = opendir(full_path);
     if(!dir) {

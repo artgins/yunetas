@@ -151,11 +151,19 @@ PUBLIC json_t *msg2db_open_db(
         );
     }
 
-    char schema_full_path[NAME_MAX*2];
-    snprintf(schema_full_path, sizeof(schema_full_path), "%s/%s",
-        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-        schema_filename
-    );
+    /*
+     *  NAME_MAX*2 up to 7.29.3: a store directory of some 490 bytes cut
+     *  the path, the schema file was not found, and the literal was taken
+     *  as a first creation
+     */
+    char schema_full_path[PATH_MAX];
+    if(!build_path(schema_full_path, sizeof(schema_full_path),
+            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+            schema_filename,
+            NULL)) {
+        JSON_DECREF(jn_schema)
+        return 0;   // Error already logged
+    }
 
     json_int_t schema_new_version = jn_schema?
         kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER) :
