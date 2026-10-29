@@ -140,17 +140,31 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(service,               gobj_read_str_attr)
     SET_PRIV(database,              gobj_read_str_attr)
 
+    /*
+     *  No directory (a path too long, a store that cannot be made): every
+     *  save and delete is refused (build_resource_path()). A cut path is
+     *  the directory of another database.
+     */
     char path_service[PATH_MAX];
-    build_path(path_service, sizeof(path_service),
-        priv->service,
-        gobj_yuno_role_plus_name(),
-        priv->database,
-        NULL
-    );
-    if(priv->persistent) {
-        yuneta_store_dir(
-            priv->path_database, sizeof(priv->path_database), "resources", path_service, TRUE
-        );
+    if(!build_path(path_service, sizeof(path_service),
+            priv->service,
+            gobj_yuno_role_plus_name(),
+            priv->database,
+            NULL)) {
+        priv->path_database[0] = 0;     // Error already logged
+    } else if(priv->persistent) {
+        if(!yuneta_store_dir(
+                priv->path_database, sizeof(priv->path_database), "resources", path_service, TRUE)) {
+            priv->path_database[0] = 0;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot make the directory of the resources: none is saved",
+                "service",      "%s", priv->service,
+                "database",     "%s", priv->database,
+                NULL
+            );
+        }
     }
 }
 
@@ -231,7 +245,10 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
     json_t *jn_resource = get_resource_record(priv->db_resources, resource);
     if(jn_resource) {
         char path[PATH_MAX];
-        build_resource_path(gobj, path, sizeof(path), resource);
+        path[0] = 0;
+        if(priv->persistent) {
+            build_resource_path(gobj, path, sizeof(path), resource);    // only said in the log
+        }
 
         if(!update) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -613,9 +630,10 @@ PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *res
 
     /*
      *  The resource name becomes a filename under path_database. Reject path
-     *  separators and traversal so a caller-supplied name (which may be remote,
-     *  e.g. an MQTT client_id) cannot escape the resource directory; build_path
-     *  does not normalize "..".
+     *  separators and ".." so a caller-supplied name (which may be remote,
+     *  e.g. an MQTT client_id) is one file of the resource directory.
+     *  build_path() clamps ".." at path_database, so it could not escape
+     *  it, but it would quietly name another file: refused and said.
      */
     if(empty_string(resource) || strchr(resource, '/') || strstr(resource, "..")) {
         gobj_log_error(gobj, 0,
@@ -628,10 +646,40 @@ PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *res
         return -1;
     }
 
-    char filename[NAME_MAX];
-    snprintf(filename, sizeof(filename), "%s.json", resource);
+    if(empty_string(priv->path_database)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The resources have no directory (see the log of the create)",
+            "resource",     "%s", resource,
+            NULL
+        );
+        return -1;
+    }
 
-    build_path(bf, bflen, priv->path_database, filename, NULL);
+    char filename[NAME_MAX];
+    int len = snprintf(filename, sizeof(filename), "%s.json", resource);
+    if(len < 0 || len >= (int)sizeof(filename)) {
+        /*
+         *  Cut, it would be the file of another resource with the same
+         *  beginning
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Resource name too long for a filename",
+            "resource",     "%.255s", resource,
+            NULL
+        );
+        return -1;
+    }
+
+    if(!build_path(bf, bflen, priv->path_database, filename, NULL)) {
+        if(bf && bflen > 0) {
+            bf[0] = 0;
+        }
+        return -1;  // Error already logged
+    }
 
     return 0;
 }

@@ -749,13 +749,19 @@ PRIVATE void mt_create(hgobj gobj)
     int rpermission = (int)gobj_read_integer_attr(gobj, "rpermission");
 
     char path[PATH_MAX];
-    build_path(
+    if(!build_path(
         path,
         sizeof(path),
         gobj_read_str_attr(gobj, "path"),
         "__system__",
         NULL
-    );
+    )) {
+        /*
+         *  Error already logged. A cut path is the directory above: no
+         *  store is opened there, the tranger fails ("tranger NULL" below)
+         */
+        path[0] = 0;
+    }
 
     json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
         "path", path,
@@ -1050,9 +1056,20 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  projects go on with no treedb.
      *-----------------------------------*/
     char treedb_directory[PATH_MAX];
-    build_path(treedb_directory, sizeof(treedb_directory),
-        gobj_read_str_attr(gobj, "path"), treedb_name, NULL
-    );
+    if(!build_path(treedb_directory, sizeof(treedb_directory),
+            gobj_read_str_attr(gobj, "path"), treedb_name, NULL)) {
+        // Error already logged: a cut path is the directory of every store
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot open treedb '%.*s': the path of its store is too long, "
+                "nothing was changed", gobj_yuno_role_plus_name(),
+                utf8_prefix_len(treedb_name, 64), treedb_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     if(external) {
         json_t *refused = refuse_peer_open_treedb(
             gobj, kw, treedb_name, treedb_directory, filename_mask, exit_on_error, _jn_treedb_schema
@@ -1148,17 +1165,8 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     int xpermission = (int)gobj_read_integer_attr(gobj, "xpermission");
     int rpermission = (int)gobj_read_integer_attr(gobj, "rpermission");
 
-    char path[PATH_MAX];
-    build_path(
-        path,
-        sizeof(path),
-        gobj_read_str_attr(gobj, "path"),
-        treedb_name,
-        NULL
-    );
-
     json_t *kw_client_tranger = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
-        "path", path,
+        "path", treedb_directory,
         "filename_mask", filename_mask,
         "master", master,
         "on_critical_error", exit_on_error,
@@ -2253,15 +2261,21 @@ PRIVATE int in_use_schema_dir(hgobj gobj, const char *treedb_name, char *bf, siz
  *  Where save-schema writes: `saved_schemas/` under the __system__
  *  tranger, never beside the file in use.
  ***************************************************************************/
-PRIVATE void saved_schema_dir(hgobj gobj, char *bf, size_t bfsize)
+PRIVATE int saved_schema_dir(hgobj gobj, char *bf, size_t bfsize)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    build_path(bf, bfsize,
-        kw_get_str(gobj, priv->tranger_system_, "directory", "", KW_REQUIRED),
-        "saved_schemas",
-        NULL
-    );
+    /*
+     *  A cut path is the __system__ store itself, where the schema in use
+     *  of __system__ is: nothing is read, written or removed there
+     */
+    if(!build_path(bf, bfsize,
+            kw_get_str(gobj, priv->tranger_system_, "directory", "", KW_REQUIRED),
+            "saved_schemas",
+            NULL)) {
+        return -1;  // Error already logged
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -2757,7 +2771,8 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     ));
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    BOOL saved_dir_ok = (saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) == 0)?
+        TRUE : FALSE;   // FALSE: Error already logged, no saved version is read
 
     const char *name; json_t *jn_schema;
     json_object_foreach(priv->jn_c_schemas, name, jn_schema) {
@@ -2772,7 +2787,7 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             JSON_DECREF(in_use)
         }
         json_int_t saved_version = 0;
-        if(file_exists(saved_dir, filename)) {
+        if(saved_dir_ok && file_exists(saved_dir, filename)) {
             json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
             saved_version = schema_version_of(gobj, saved);
             JSON_DECREF(saved)
@@ -3402,9 +3417,21 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *changed = draft_changed_from_rows(gobj, rows);
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
     char saved_path[PATH_MAX];
-    build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0 ||
+            !build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL)) {
+        // Error already logged
+        JSON_DECREF(changed)
+        JSON_DECREF(in_use)
+        JSON_DECREF(rows)
+        JSON_DECREF(left_ids)
+        JSON_DECREF(left_out)
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: cannot save the schema of '%s': the path of saved_schemas/ "
+                "is too long (see the log)", gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
 
     if(json_object_size(changed) == 0) {
         /*
@@ -3899,9 +3926,16 @@ PRIVATE json_t *cmd_saved_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
     char saved_path[PATH_MAX];
-    build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0 ||
+            !build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL)) {
+        // Error already logged
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("%s: the path of the saved schema of '%s' is too long (see the log)",
+                gobj_yuno_role_plus_name(), treedb_name),
+            0, 0, kw
+        );
+    }
 
     json_t *in_use = load_json_from_file(gobj, in_use_dir, filename, 0);
     json_t *saved = file_exists(saved_dir, filename)?
@@ -4113,7 +4147,9 @@ PRIVATE int write_schema_tmp(
         );
         return -1;
     }
-    build_path(tmp_path, tmp_path_size, directory, tmp_name, NULL);
+    if(!build_path(tmp_path, tmp_path_size, directory, tmp_name, NULL)) {
+        return -1;  // Error already logged
+    }
 
     int fd = newfile(tmp_path, (int)gobj_read_integer_attr(gobj, "rpermission"), TRUE);
     if(fd < 0) {
@@ -4180,7 +4216,10 @@ PRIVATE int commit_schema_file(
 )
 {
     char path[PATH_MAX];
-    build_path(path, sizeof(path), directory, filename, NULL);
+    if(!build_path(path, sizeof(path), directory, filename, NULL)) {
+        unlink(tmp_path);
+        return -1;  // Error already logged
+    }
 
     if(rename(tmp_path, path) < 0) {
         gobj_log_error(gobj, 0,
@@ -4260,7 +4299,11 @@ PRIVATE json_t *check_saved_schema_to_apply(
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        // Error already logged
+        return json_sprintf("%s: the path of saved_schemas/ is too long (see the log)",
+            gobj_yuno_role_plus_name());
+    }
     if(!file_exists(saved_dir, filename)) {
         return json_sprintf("%s: no saved schema of '%s' (save-schema)", gobj_yuno_role_plus_name(), treedb_name);
     }
@@ -7092,7 +7135,9 @@ PRIVATE int upsert_treedb_schema(
 PRIVATE json_t *load_schema_file_in_use(hgobj gobj, const char *treedb_name)
 {
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), gobj_read_str_attr(gobj, "path"), treedb_name, NULL);
+    if(!build_path(directory, sizeof(directory), gobj_read_str_attr(gobj, "path"), treedb_name, NULL)) {
+        return NULL;    // Error already logged
+    }
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     if(!file_exists(directory, filename)) {
@@ -7110,8 +7155,10 @@ PRIVATE json_t *load_schema_file_in_use(hgobj gobj, const char *treedb_name)
 PRIVATE json_int_t running_topic_version(hgobj gobj, const char *treedb_name, const char *topic_name)
 {
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory),
-        gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL);
+    if(!build_path(directory, sizeof(directory),
+            gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL)) {
+        return 0;   // Error already logged
+    }
     if(!file_exists(directory, "topic_var.json")) {
         return 0;
     }
@@ -7298,7 +7345,9 @@ PRIVATE BOOL record_has_kind(json_t *topics, const char *kind) // not owned
 PRIVATE json_t *load_apply_record(hgobj gobj, const char *treedb_name)
 {
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return NULL;    // Error already logged
+    }
     char filename[NAME_MAX];
     apply_record_filename(treedb_name, filename, sizeof(filename));
     if(!file_exists(saved_dir, filename)) {
@@ -7329,7 +7378,9 @@ PRIVATE int write_apply_record(hgobj gobj, const char *treedb_name, json_t *reco
 PRIVATE void remove_apply_record(hgobj gobj, const char *treedb_name)
 {
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return;     // Error already logged
+    }
     char filename[NAME_MAX];
     apply_record_filename(treedb_name, filename, sizeof(filename));
     if(!file_exists(saved_dir, filename)) {
@@ -7508,13 +7559,17 @@ PRIVATE json_t *load_unfinished_record(hgobj gobj, const char *treedb_name)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    BOOL saved_dir_ok = (saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) == 0)?
+        TRUE : FALSE;   // FALSE: Error already logged
     char filename[NAME_MAX];
     unfinished_record_filename(treedb_name, filename, sizeof(filename));
 
     json_t *in_memory = json_object_get(priv->jn_records_not_written, treedb_name);
     if(in_memory) {
         return json_deep_copy(in_memory);
+    }
+    if(!saved_dir_ok) {
+        return NULL;    // Error already logged
     }
 
     if(!file_exists(saved_dir, filename)) {
@@ -7633,7 +7688,9 @@ PRIVATE int write_record_whole(
 )
 {
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return -1;  // Error already logged
+    }
     char filename_new[NAME_MAX];
     int written = snprintf(filename_new, sizeof(filename_new), "%s.new", filename);
     if(written < 0 || written >= (int)sizeof(filename_new)) {
@@ -7884,7 +7941,9 @@ PRIVATE void remove_unfinished_record(hgobj gobj, const char *treedb_name)
     json_object_del(priv->jn_records_not_written, treedb_name);
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return;     // Error already logged
+    }
     char filename[NAME_MAX];
     unfinished_record_filename(treedb_name, filename, sizeof(filename));
     if(!file_exists(saved_dir, filename)) {
@@ -7965,7 +8024,10 @@ PRIVATE json_t *load_upgrade_record(hgobj gobj, const char *treedb_name)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        json_object_del(priv->jn_upgrade_records, treedb_name);
+        return NULL;    // Error already logged
+    }
     char filename[NAME_MAX];
     upgrade_record_filename(treedb_name, filename, sizeof(filename));
     json_t *stamp = record_file_stamp(saved_dir, filename);
@@ -8027,7 +8089,9 @@ PRIVATE void remove_upgrade_record(hgobj gobj, const char *treedb_name)
     json_object_del(priv->jn_upgrade_records, treedb_name);
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return;     // Error already logged
+    }
     char filename[NAME_MAX];
     upgrade_record_filename(treedb_name, filename, sizeof(filename));
     if(!file_exists(saved_dir, filename)) {
@@ -8135,11 +8199,13 @@ PRIVATE void settle_saved_schema(hgobj gobj, const char *treedb_name, BOOL opene
         }
     } else {
         char saved_dir[PATH_MAX];
-        saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
         char filename[NAME_MAX];
         snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
         char saved_path[PATH_MAX];
-        build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL);
+        if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0 ||
+                !build_path(saved_path, sizeof(saved_path), saved_dir, filename, NULL)) {
+            saved_path[0] = 0;  // Error already logged: the path is only said
+        }
         gobj_log_info(gobj, 0,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_INFO,
@@ -8725,10 +8791,10 @@ PRIVATE const char *settle_owner(
                     json_incref(record_before) : NULL;
                 if(!record) {
                     char saved_dir[PATH_MAX];
-                    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
                     char filename[NAME_MAX];
                     unfinished_record_filename(name, filename, sizeof(filename));
-                    if(file_exists(saved_dir, filename)) {
+                    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) == 0 &&  // else Error already logged
+                            file_exists(saved_dir, filename)) {
                         record = load_json_from_file(gobj, saved_dir, filename, 0);
                     }
                 }
@@ -8745,10 +8811,10 @@ PRIVATE const char *settle_owner(
                 }
                 if(!says) {
                     char saved_dir[PATH_MAX];
-                    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
                     char filename[NAME_MAX];
                     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", name);
-                    if(file_exists(saved_dir, filename)) {
+                    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) == 0 &&  // else Error already logged
+                            file_exists(saved_dir, filename)) {
                         json_t *saved = load_json_from_file(gobj, saved_dir, filename, 0);
                         says = schema_declares(gobj, saved, topic_name, value);
                         JSON_DECREF(saved)
@@ -9961,7 +10027,9 @@ PRIVATE BOOL projection_differs_from_literal(
 PRIVATE json_t *load_pending_saved_schema(hgobj gobj, const char *treedb_name, json_int_t in_use_version)
 {
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return NULL;    // Error already logged
+    }
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     if(!file_exists(saved_dir, filename)) {
@@ -10854,7 +10922,9 @@ PRIVATE BOOL saved_schema_exists(hgobj gobj, const char *treedb_name, json_int_t
     *p_version = 0;
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return FALSE;   // Error already logged
+    }
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     if(!file_exists(saved_dir, filename)) {
@@ -10876,7 +10946,9 @@ PRIVATE int remove_saved_schema(hgobj gobj, const char *treedb_name, json_int_t 
     *p_version = 0;
 
     char saved_dir[PATH_MAX];
-    saved_schema_dir(gobj, saved_dir, sizeof(saved_dir));
+    if(saved_schema_dir(gobj, saved_dir, sizeof(saved_dir)) < 0) {
+        return -1;  // Error already logged
+    }
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", treedb_name);
     if(!file_exists(saved_dir, filename)) {
@@ -10916,8 +10988,10 @@ PRIVATE BOOL store_runs_other_cols(
     size_t directory_size
 )
 {
-    build_path(directory, directory_size,
-        gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL);
+    if(!build_path(directory, directory_size,
+            gobj_read_str_attr(gobj, "path"), treedb_name, topic_name, NULL)) {
+        return FALSE;   // Error already logged
+    }
     if(!file_exists(directory, "topic_cols.json")) {
         return FALSE;
     }
@@ -13091,8 +13165,10 @@ PRIVATE const char *refuse_peer_store(
     } else if(gobj_read_bool_attr(gobj, "master") &&
             file_exists(treedb_directory, "__timeranger2__.json")) {
         char lock_file[PATH_MAX];
-        build_path(lock_file, sizeof(lock_file), treedb_directory, "__timeranger2__.json", NULL);
-        int fd = open(lock_file, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+        int fd = -1;
+        if(build_path(lock_file, sizeof(lock_file), treedb_directory, "__timeranger2__.json", NULL)) {
+            fd = open(lock_file, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+        }   // else Error already logged: a cut path is the store directory, not its lock
         if(fd < 0) {
             why = "its __timeranger2__.json cannot be opened";
         } else {

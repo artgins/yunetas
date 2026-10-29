@@ -3405,11 +3405,24 @@ json_t *tranger2_startup(
 
 **Returns**
 
-A JSON object representing the initialized TimeRanger 2 database instance.
+A JSON object representing the initialized TimeRanger 2 database instance, or `NULL` on failure (logged).
 
 **Notes**
 
 The returned JSON object must be properly managed and eventually passed to [`tranger2_stop()`](#tranger2_stop) or [`tranger2_shutdown()`](#tranger2_shutdown) to release resources.
+
+A `path` or a `path`/`database` that does not fit in `PATH_MAX` is refused: `NULL`, and the `ERROR` of [`build_path()`](#build_path). Up to 7.29.3 the store was made in the directory that fitted, the one above the store asked for.
+
+```C
+json_t *tranger = tranger2_startup(gobj, json_pack("{s:s, s:s, s:b}",
+    "path", "/yuneta/store/myapp",
+    "database", "events",
+    "master", 1
+), yev_loop);
+if(!tranger) {
+    return -1;  // Error already logged
+}
+```
 
 ---
 

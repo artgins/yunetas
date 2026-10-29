@@ -101,6 +101,7 @@ set(SRCS
     test_unlisted_relist_once
     test_tr2check
     test_append_record_text
+    test_path_too_long
 )
 
 ##############################################
@@ -148,6 +149,13 @@ foreach(test ${SRCS})
             ${YUNETAS_BASE}/kernel/c/timeranger2/src
         )
         target_link_options(${binary} PRIVATE "-Wl,--wrap=statx")
+    endif()
+    if(test STREQUAL "test_path_too_long")
+        # A unit test: it #includes timeranger2.c to reach the PRIVATE
+        # functions that build a path from a topic's directory
+        target_include_directories(${binary} PRIVATE
+            ${YUNETAS_BASE}/kernel/c/timeranger2/src
+        )
     endif()
     if(test STREQUAL "test_unlisted_relist_once")
         # The test fails the readdir() of one key directory in its own

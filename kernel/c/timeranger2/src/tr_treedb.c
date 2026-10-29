@@ -18419,11 +18419,12 @@ PRIVATE int create_icons_topic(
 {
     if(!kw_get_bool(gobj, tranger, "master", 0, KW_REQUIRED)) {
         char directory[PATH_MAX];
-        build_path(directory, sizeof(directory),
-            kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-            TREEDB_ICONS_TOPIC,
-            NULL
-        );
+        if(!build_path(directory, sizeof(directory),
+                kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+                TREEDB_ICONS_TOPIC,
+                NULL)) {
+            return 0;   // Error already logged: the replica opens without __icons__
+        }
         if(!is_directory(directory)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,

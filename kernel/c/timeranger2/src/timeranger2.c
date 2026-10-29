@@ -923,7 +923,10 @@ PUBLIC json_t *tranger2_startup(
             json_decref(tranger);
             return 0;
         }
-        build_path(path, sizeof(path), path_, "", NULL); // I want to modify the path
+        if(!build_path(path, sizeof(path), path_, "", NULL)) { // I want to modify the path
+            json_decref(tranger);
+            return 0;   // Error already logged
+        }
     }
 
     const char *database = kw_get_str(gobj, tranger, "database", "", KW_REQUIRED);
@@ -944,7 +947,10 @@ PUBLIC json_t *tranger2_startup(
     }
 
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), path, database, NULL);
+    if(!build_path(directory, sizeof(directory), path, database, NULL)) {
+        json_decref(tranger);
+        return 0;   // Error already logged: the store is not made in the directory above
+    }
     kw_set_dict_value(gobj, tranger, "directory", json_string(directory));
 
     /*-------------------------------------*
@@ -1183,7 +1189,11 @@ PRIVATE void revive_stopped_tranger(hgobj gobj, json_t *tranger)
 
     const char *directory = kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED);
     char path[PATH_MAX];
-    build_path(path, sizeof(path), directory, "__timeranger2__.json", NULL);
+    if(!build_path(path, sizeof(path), directory, "__timeranger2__.json", NULL)) {
+        json_object_set_new(tranger, "master", json_false());
+        json_object_set_new(tranger, "master_lost", json_true());
+        return;     // Error already logged: the lock file cannot be named, go on as not master
+    }
 
     log_opt_t on_critical_error = (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED);
 
@@ -5580,7 +5590,10 @@ PRIVATE json_int_t reserve_delete_seq(hgobj gobj, json_t *tranger, json_t *topic
             continue;
         }
         char rt_path[PATH_MAX];
-        build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
+        if(!build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL)) {
+            a_feed = TRUE;  // Error already logged: what cannot be looked at may be a feed
+            break;
+        }
         if(is_directory(rt_path)) {
             a_feed = TRUE;
             break;
@@ -6108,7 +6121,9 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
     }
 
     char disks_root[PATH_MAX];
-    snprintf(disks_root, sizeof(disks_root), "%s/disks", topic_dir);
+    if(!build_path(disks_root, sizeof(disks_root), topic_dir, "disks", NULL)) {
+        return 0;   // Error already logged
+    }
 
     /*
      *  No disks/, no feed to tell. Any other failure to list it is a
@@ -6144,7 +6159,9 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
             continue;   // ".", "..", and a feed being removed (no rt id starts with '.')
         }
         char rt_path[PATH_MAX];
-        build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
+        if(!build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL)) {
+            continue;   // Error already logged: the feed is not told, and nothing above it touched
+        }
         if(!is_directory(rt_path)) {
             continue;
         }
@@ -6183,9 +6200,16 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
                 break;
             }
         }
+        /*
+         *  disks/<rt_id>/<key> is longer than keys/<key>: a key that does
+         *  not fit there has no directory in this feed to remove. Up to
+         *  7.29.3 the cut path was the feed's own directory, removed whole.
+         */
         char key_path[PATH_MAX];
-        build_path(key_path, sizeof(key_path), disks_root, entry->d_name, key, NULL);
-        if(is_directory(key_path)) {
+        BOOL key_path_fits = build_path(
+            key_path, sizeof(key_path), disks_root, entry->d_name, key, NULL
+        )? TRUE : FALSE;    // FALSE: Error already logged
+        if(key_path_fits && is_directory(key_path)) {
             if(rmrdir(key_path) < 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -6199,7 +6223,9 @@ PRIVATE json_int_t mirror_key_delete_to_disks(
             }
         }
         char signal_path[PATH_MAX];
-        build_path(signal_path, sizeof(signal_path), disks_root, entry->d_name, signal_name, NULL);
+        if(!build_path(signal_path, sizeof(signal_path), disks_root, entry->d_name, signal_name, NULL)) {
+            continue;   // Error already logged: this feed is not told of the delete
+        }
         if(mkdir(signal_path, json_integer_value(json_object_get(tranger, "xpermission")))<0 ||
            rmdir(signal_path)<0) {
             gobj_log_error(gobj, 0,
@@ -6290,12 +6316,20 @@ PRIVATE void mirror_key_purge_to_disks(
             continue;   // ".", "..", and a feed being removed (no rt id starts with '.')
         }
         char rt_path[PATH_MAX];
-        build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL);
+        if(!build_path(rt_path, sizeof(rt_path), disks_root, entry->d_name, NULL)) {
+            continue;   // Error already logged
+        }
         if(!is_directory(rt_path)) {
             continue;
         }
+        /*
+         *  Up to 7.29.3 a signal path too long was cut to the feed's
+         *  directory, and an empty feed was removed by the rmdir() below
+         */
         char signal_path[PATH_MAX];
-        build_path(signal_path, sizeof(signal_path), rt_path, signal_name, NULL);
+        if(!build_path(signal_path, sizeof(signal_path), rt_path, signal_name, NULL)) {
+            continue;   // Error already logged: its follower finds the purge before its next read
+        }
         /*
          *  A signal of this key left there (a master that died between the
          *  two calls) is signalled by its rmdir(): a purge is idempotent, and
@@ -7244,9 +7278,10 @@ PRIVATE int get_md_record_for_wr(
     char filename[NAME_MAX*2];
     snprintf(filename, sizeof(filename), "%s.md2", file_id);
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path),
-        json_string_value(json_object_get(topic, "directory")), "keys", key, filename, NULL
-    );
+    if(!build_path(full_path, sizeof(full_path),
+            json_string_value(json_object_get(topic, "directory")), "keys", key, filename, NULL)) {
+        return -1;  // Error already logged
+    }
     if(!is_regular_file(full_path)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -8539,11 +8574,19 @@ PRIVATE void remove_rt_disk_directory(
     char full_path[PATH_MAX];
     char closing_name[NAME_MAX];
     char closing_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), topic_directory, "disks", rt_id, NULL);
+    /*
+     *  A cut path is disks/ itself: up to 7.29.3 its rename() failed and
+     *  the rmrdir() of the fallback removed every feed of the topic
+     */
+    if(!build_path(full_path, sizeof(full_path), topic_directory, "disks", rt_id, NULL)) {
+        return;     // Error already logged
+    }
     snprintf(closing_name, sizeof(closing_name), ".closing.%d-%llu.%u",
         (int)getpid(), own_process_start_time(), ++closing_seq
     );
-    build_path(closing_path, sizeof(closing_path), topic_directory, "disks", closing_name, NULL);
+    if(!build_path(closing_path, sizeof(closing_path), topic_directory, "disks", closing_name, NULL)) {
+        return;     // Error already logged
+    }
 
     if(gobj_global_trace_level() & TRACE_FS) {
         gobj_log_debug(gobj, 0,
@@ -8957,14 +9000,18 @@ PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *fe
         json_int_t seq = json_integer_value(json_object_get(jn, "seq"));
         const char *name = json_string_value(json_object_get(jn, "name"));
         char path[PATH_MAX];
-        build_path(path, sizeof(path), feed_path, name, NULL);
+        if(!build_path(path, sizeof(path), feed_path, name, NULL)) {
+            continue;   // Error already logged: a cut path is the feed, moved or removed up to 7.29.3
+        }
         BOOL heard = (last_seq >= 0 && seq >= last_seq)? TRUE : FALSE;
         if(!heard) {
             char away[PATH_MAX];
             char away_name[NAME_MAX];
             static unsigned stale_seq = 0;
             snprintf(away_name, sizeof(away_name), ".stale_signal.%d.%u", (int)getpid(), ++stale_seq);
-            build_path(away, sizeof(away), disks_dir, away_name, NULL);  // out of the watched directory
+            if(!build_path(away, sizeof(away), disks_dir, away_name, NULL)) {  // out of the watched directory
+                continue;   // Error already logged: the signal stays
+            }
             if(rename(path, away) < 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -9016,7 +9063,9 @@ PRIVATE void sweep_left_delete_signals(hgobj gobj, json_t *topic, const char *fe
     json_array_foreach(left_purges, idx, jn) {
         const char *name = json_string_value(jn);
         char path[PATH_MAX];
-        build_path(path, sizeof(path), feed_path, name, NULL);
+        if(!build_path(path, sizeof(path), feed_path, name, NULL)) {
+            continue;   // Error already logged: a cut path is the feed
+        }
         if(rmdir(path) < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -10040,7 +10089,9 @@ PRIVATE int scan_disks_key_for_new_file(
     for(int i=0; i<da.count; i++) {
         char *filename = da.items[i];
         char full_path[PATH_MAX];
-        build_path(full_path, sizeof(full_path), path, filename, NULL);
+        if(!build_path(full_path, sizeof(full_path), path, filename, NULL)) {
+            continue;   // Error already logged
+        }
         update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
     }
 
@@ -10443,8 +10494,10 @@ PRIVATE BOOL build_md2_and_data_paths(
         );
         return FALSE;
     }
-    build_path(md2_path, path_size, topic_dir, "keys", key, md2_name, NULL);
-    build_path(data_path, path_size, topic_dir, "keys", key, data_name, NULL);
+    if(!build_path(md2_path, path_size, topic_dir, "keys", key, md2_name, NULL) ||
+            !build_path(data_path, path_size, topic_dir, "keys", key, data_name, NULL)) {
+        return FALSE;   // Error already logged
+    }
     return TRUE;
 }
 
@@ -12539,8 +12592,13 @@ PRIVATE int find_keys_in_disk(
         if(ask_stat) {
             struct stat st;
             char path[PATH_MAX];
-            build_path(path, sizeof(path), full_path, entry->d_name, NULL);
-            if(lstat(path, &st) == 0) {
+            if(!build_path(path, sizeof(path), full_path, entry->d_name, NULL)) {
+                /*
+                 *  Error already logged. Taken as a key, as DT_DIR takes it,
+                 *  and its load flags it (load_key_cache_from_disk())
+                 */
+                is_dir = 1;
+            } else if(lstat(path, &st) == 0) {
                 if(S_ISDIR(st.st_mode)) {
                     is_dir = 1;
                 }
@@ -14346,12 +14404,16 @@ PRIVATE json_t *load_key_cache_from_disk(
     const char *key,
     BOOL master
 ) {
-    char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), topic_directory, "keys", key, NULL);
-
     // NEW KEY in CACHE
     json_t *key_cache = create_cache_key();
     json_t *cache_files = json_object_get(key_cache, "files");
+
+    char full_path[PATH_MAX];
+    if(!build_path(full_path, sizeof(full_path), topic_directory, "keys", key, NULL)) {
+        // Error already logged: a cut path is keys/ or above, not this key
+        flag_key_unlisted(gobj, key_cache, topic_directory, key);
+        return key_cache;
+    }
 
     /*
      *  A master lists EVERY file of the key: the marker of its md2 files
@@ -14866,7 +14928,9 @@ PRIVATE int widen_cell_from_rows(
     char filename[NAME_MAX];
     snprintf(filename, sizeof(filename), "%s.md2", file_id);
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL);
+    if(!build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL)) {
+        return -1;  // Error already logged: a cut path is a directory, open() takes it
+    }
 
     int fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
     if(fd < 0) {
@@ -15708,7 +15772,10 @@ PRIVATE json_int_t load_first_and_last_record_md(
      *  (name relative to time __t__)
      *----------------------------------*/
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL);
+    if(!build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL) &&
+            md2_fd < 0) {
+        return -1;  // Error already logged: a cut path is a directory, open() takes it
+    }
     BOOL own_fd = (md2_fd < 0)? TRUE : FALSE;
     int fd = own_fd? open(full_path, O_RDONLY|O_CLOEXEC, 0) : md2_fd;
     if(fd<0) {
