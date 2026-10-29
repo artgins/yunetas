@@ -332,7 +332,9 @@ PRIVATE BOOL copy_files_first_level_cb(
     char path_destine[PATH_MAX];
 
     if(strcmp(name, "__timeranger__.json")==0) {
-        build_path(path_source, sizeof(path_source), directory, name, NULL);
+        if(!build_path(path_source, sizeof(path_source), directory, name, NULL)) {
+            exit(-1);   // Error already logged
+        }
         json_t *timeranger_file = load_json_from_file(0, directory,  name, 0);
         if(!timeranger_file) {
             gobj_log_error(0, 0,
@@ -366,8 +368,10 @@ PRIVATE BOOL copy_files_first_level_cb(
         return TRUE; // to continue
 
     } else {
-        build_path(path_source, sizeof(path_source), directory, name, NULL);
-        build_path(path_destine, sizeof(path_destine), destine, name, NULL);
+        if(!build_path(path_source, sizeof(path_source), directory, name, NULL) ||
+                !build_path(path_destine, sizeof(path_destine), destine, name, NULL)) {
+            exit(-1);   // Error already logged
+        }
     }
     if(copy_file(path_source, path_destine)<0) {
         exit(-1);
@@ -446,7 +450,9 @@ PRIVATE BOOL copy_topics_cb(
      *  Check if exist the file of topic
      *  topic_cols.json  topic_desc.json  topic_var.json
      */
-    build_path(path_source, sizeof(path_source), fullpath, "topic_desc.json", NULL);
+    if(!build_path(path_source, sizeof(path_source), fullpath, "topic_desc.json", NULL)) {
+        exit(-1);   // Error already logged
+    }
     if(!is_regular_file(path_source)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -538,7 +544,9 @@ PRIVATE int migrate(char *source, char *destine)
 {
     char path[PATH_MAX];
 
-    build_path(path, sizeof(path), source, "__timeranger__.json", NULL);
+    if(!build_path(path, sizeof(path), source, "__timeranger__.json", NULL)) {
+        exit(-1);   // Error already logged
+    }
     if(!is_regular_file(path)) {
         fprintf(stderr, "TimeRanger __timeranger__.json NOT FOUND: %s\n", path);
         exit(-1);

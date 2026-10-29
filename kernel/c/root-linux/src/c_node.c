@@ -4249,11 +4249,19 @@ PRIVATE json_t *cmd_schema_file(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     snprintf(filename, sizeof(filename), "%s.treedb_schema.json", priv->treedb_name);
 
     char path[PATH_MAX];
-    build_path(path, sizeof(path),
-        kw_get_str(gobj, priv->tranger, "directory", "", KW_REQUIRED),
-        filename,
-        NULL
-    );
+    if(!build_path(path, sizeof(path),
+            kw_get_str(gobj, priv->tranger, "directory", "", KW_REQUIRED),
+            filename,
+            NULL
+        )) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: path of the schema file too long", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     if(!file_exists(path, 0)) {
         return msg_iev_build_response(gobj,
@@ -5578,7 +5586,16 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         "filename", name
     );
 
-    yuneta_realm_file(path, sizeof(path), "temp", name, TRUE);
+    if(!yuneta_realm_file(path, sizeof(path), "temp", name, TRUE)) {
+        json_decref(jn_data);
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: Cannot build the path of '%s'", gobj_yuno_role_plus_name(), name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     if(access(path, 0)==0) {
         if(!overwrite) {

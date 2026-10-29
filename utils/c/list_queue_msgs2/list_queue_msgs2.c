@@ -144,10 +144,13 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
 {
     char path_tranger[PATH_MAX];
 
-    build_path(path_tranger, sizeof(path_tranger),
+    if(!build_path(path_tranger, sizeof(path_tranger),
         arguments->path,
         NULL
-    );
+    )) {
+        fprintf(stderr, "Path too long\n\n");
+        exit(-1);
+    }
 
     char *path = NULL;
     char *database = NULL;

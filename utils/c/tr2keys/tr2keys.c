@@ -404,12 +404,15 @@ PRIVATE int list_topic_messages(void)
 {
     char path_topic[PATH_MAX];
 
-    build_path(path_topic, sizeof(path_topic),
+    if(!build_path(path_topic, sizeof(path_topic),
         arguments.path,
         arguments.database,
         arguments.topic,
         NULL
-    );
+    )) {
+        fprintf(stderr, "Path too long\n\n");
+        exit(-1);
+    }
 
     if(!file_exists(path_topic, "topic_desc.json")) {
         if(!is_directory(path_topic)) {
@@ -605,11 +608,14 @@ PRIVATE int list_recursive_topic_messages(void)
 {
     char path_tranger[PATH_MAX];
 
-    build_path(path_tranger, sizeof(path_tranger),
+    if(!build_path(path_tranger, sizeof(path_tranger),
         arguments.path,
         arguments.database,
         NULL
-    );
+    )) {
+        fprintf(stderr, "Path too long\n\n");
+        exit(-1);
+    }
 
     if(!file_exists(path_tranger, "__timeranger2__.json")) {
         if(file_exists(path_tranger, "topic_desc.json")) {

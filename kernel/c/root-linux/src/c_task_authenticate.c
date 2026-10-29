@@ -534,8 +534,12 @@ PRIVATE json_t *action_discover(
     }
 
     char resource[PATH_MAX];
-    build_path(resource, sizeof(resource),
-        ep_path, ".well-known", "openid-configuration", NULL);
+    if(!build_path(resource, sizeof(resource),
+            ep_path, ".well-known", "openid-configuration", NULL)) {
+        // Error already logged
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     json_t *jn_headers = json_pack("{s:s}",
         "Accept", "application/json"

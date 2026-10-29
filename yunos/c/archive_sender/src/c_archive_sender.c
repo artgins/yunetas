@@ -851,28 +851,36 @@ PRIVATE int scan_archive(hgobj gobj)
     size_t i0; json_t *jn_db;
     json_array_foreach(dbs, i0, jn_db) {
         char p_db[PATH_MAX];
-        build_path(p_db, sizeof(p_db), priv->archive_directory, json_string_value(jn_db), NULL);
+        if(!build_path(p_db, sizeof(p_db), priv->archive_directory, json_string_value(jn_db), NULL)) {
+            continue;   // Error already logged
+        }
         json_t *topics = subdirectories(gobj, p_db);
         size_t i1; json_t *jn_topic;
         json_array_foreach(topics, i1, jn_topic) {
             char p_topic[PATH_MAX];
-            build_path(p_topic, sizeof(p_topic), p_db, json_string_value(jn_topic), NULL);
+            if(!build_path(p_topic, sizeof(p_topic), p_db, json_string_value(jn_topic), NULL)) {
+                continue;   // Error already logged
+            }
             json_t *keys = subdirectories(gobj, p_topic);
             size_t i2; json_t *jn_key;
             json_array_foreach(keys, i2, jn_key) {
                 char p_key[PATH_MAX];
-                build_path(p_key, sizeof(p_key), p_topic, json_string_value(jn_key), NULL);
+                if(!build_path(p_key, sizeof(p_key), p_topic, json_string_value(jn_key), NULL)) {
+                    continue;   // Error already logged
+                }
                 json_t *batches = subdirectories(gobj, p_key);
                 size_t i3; json_t *jn_batch;
                 json_array_foreach(batches, i3, jn_batch) {
                     char relpath[PATH_MAX];
-                    build_path(relpath, sizeof(relpath),
+                    if(!build_path(relpath, sizeof(relpath),
                         json_string_value(jn_db),
                         json_string_value(jn_topic),
                         json_string_value(jn_key),
                         json_string_value(jn_batch),
                         NULL
-                    );
+                    )) {
+                        continue;   // Error already logged
+                    }
                     add_pending(gobj, relpath);     // Errors already logged
                 }
                 JSON_DECREF(batches)
