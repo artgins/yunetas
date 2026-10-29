@@ -10,6 +10,12 @@
  *  An END bound takes its whole second: `to_t` 23:59:59 holds a record at
  *  23:59:59.500 of an axis in ms (it was 23:59:59.000, and lost it).
  *
+ *  A text that is no date is refused with a WARNING, as a bound and as a
+ *  tkey (REV-CLOUD V46.3): up to 7.29.3 approxidate() read it as NOW in
+ *  silence, and a bound with no 'T' was cut by strtoll() ("garbage" was
+ *  no bound, "2000-01-02 00:00:00 +0000" the time 2000). A bound written
+ *  -?[0-9]+ is that integer, any other text is a date.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -93,6 +99,20 @@ PRIVATE void served(json_t *tranger, const char *topic_name, json_t *cond, char 
         tranger2_close_iterator(tranger, it);
     }
     JSON_DECREF(data)
+}
+
+PRIVATE int load_nothing(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record
+)
+{
+    JSON_DECREF(jn_record)
+    return 0;
 }
 
 PRIVATE int expect(const char *what, const char *got, const char *expected)
@@ -193,6 +213,111 @@ PRIVATE int do_test(void)
         );
         snprintf(what, sizeof(what), "%s: from a day by t", topics[i]);
         result += expect(what, bf, "D2 D2b D3");
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A bound that is no date is refused, the iterator or the feed not
+     *  opened; a date with no 'T' is a date, an integer text that integer
+     */
+    set_expected_results(
+        "date bounds: a text that is no date is refused",
+        json_pack("[{s:s},{s:s},{s:s},{s:s}]",
+            "msg", "match_cond refused: a time bound is no date",
+            "msg", "match_cond refused: a time bound is no date",
+            "msg", "match_cond refused: a time bound is no date",
+            "msg", "match_cond refused: a time bound is no date"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        served(tranger, TOPIC_T_MS, json_pack("{s:s}", "from_t", "garbage"), bf, sizeof(bf));
+        result += expect("from_t 'garbage'", bf, "");
+
+        served(tranger, TOPIC_TM_MS, json_pack("{s:s}", "to_tm", "12abc"), bf, sizeof(bf));
+        result += expect("to_tm '12abc'", bf, "");
+
+        served(tranger, TOPIC_T_MS,
+            json_pack("{s:s}", "from_t", "2000-01-02 00:00:00 +0000"), bf, sizeof(bf));
+        result += expect("from_t, a date with no 'T'", bf, "D2 D2b D3");
+
+        served(tranger, TOPIC_T_MS,
+            json_pack("{s:s}", "from_t", "946771200000"), bf, sizeof(bf));
+        result += expect("from_t, an integer text", bf, "D2 D2b D3");
+
+        json_t *mem = tranger2_open_rt_mem(tranger, TOPIC_T_MS, "",
+            json_pack("{s:s}", "from_t", "garbage"), load_nothing, "mem", "", NULL);
+        if(mem) {
+            printf("%sERROR%s --> an rt_mem opened with from_t 'garbage'\n", On_Red BWhite, Color_Off);
+            tranger2_close_rt_mem(tranger, mem);
+            result += -1;
+        }
+
+        json_t *list = tranger2_open_list(tranger, TOPIC_T_MS,
+            json_pack("{s:s, s:I}",
+                "to_t", "garbage",
+                "load_record_callback", (json_int_t)(size_t)load_nothing
+            ),
+            NULL, "", FALSE, ""
+        );
+        if(list) {
+            printf("%sERROR%s --> a list opened with to_t 'garbage'\n", On_Red BWhite, Color_Off);
+            tranger2_close_list(tranger, list);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A text tkey that is no date is refused, nothing written: in
+     *  milliseconds "1761000000000" was NOW*1000 from 7.29.3 (up to 7.29.2
+     *  the year 57773, appended cut and logged)
+     */
+    set_expected_results(
+        "date bounds: a text tkey that is no date is refused",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Cannot append record, its tkey is a text that is no date",
+            "msg", "Cannot append record, its tkey is a text that is no date"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        const char *refused[] = {"1761000000000", "garbage"};
+        for(int i = 0; i < 2; i++) {
+            md2_record_ex_t md = {0};
+            int ret = tranger2_append_record(tranger, TOPIC_TM_MS, 0, 0, &md,
+                json_pack("{s:I, s:s, s:s}", "id", (json_int_t)2, "tm", refused[i], "content", "X")
+            );
+            if(ret >= 0) {
+                printf("%sERROR%s --> tkey '%s' appended, __tm__ %" PRIu64 "\n",
+                    On_Red BWhite, Color_Off, refused[i], (uint64_t)md.__tm__);
+                result += -1;
+            }
+        }
+
+        json_t *jn = json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "garbage");
+        BOOL fits = TRUE;
+        tranger2_record_tkey_time(tranger2_topic(tranger, TOPIC_TM_MS), jn, &fits);
+        if(fits) {
+            printf("%sERROR%s --> tkey 'garbage' fits\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        JSON_DECREF(jn)
+
+        md2_record_ex_t md = {0};
+        int ret = tranger2_append_record(tranger, TOPIC_TM_MS, 0, 0, &md,
+            json_pack("{s:I, s:s, s:s}", "id", (json_int_t)2, "tm", "2000-01-03T12:00:00+0000", "content", "Y")
+        );
+        if(ret < 0 || md.__tm__ != 946900800000ULL) {
+            printf("%sERROR%s --> tkey of a date: ret %d, __tm__ %" PRIu64 "\n",
+                On_Red BWhite, Color_Off, ret, (uint64_t)md.__tm__);
+            result += -1;
+        }
+        if(tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000002") != 1) {
+            printf("%sERROR%s --> key 2 has %d rows, expected 1\n", On_Red BWhite, Color_Off,
+                (int)tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000002"));
+            result += -1;
+        }
     }
     result += test_json(NULL);
 

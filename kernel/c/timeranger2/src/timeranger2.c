@@ -512,6 +512,11 @@ PRIVATE json_t *get_segments(
     json_t *match_cond, // NOT owned but can be modified
     BOOL *realtime
 );
+PRIVATE int read_time_bounds_of_match_cond(
+    hgobj gobj,
+    json_t *topic,
+    json_t *match_cond  // NOT owned but can be modified
+);
 PRIVATE int get_md_by_rowid( // Get record metadata by rowid
     hgobj gobj,
     json_t *tranger,
@@ -4179,23 +4184,32 @@ PRIVATE BOOL feed_wants_only_md(json_t *feed)
 
 /***************************************************************************
  *  The __tm__ an append keeps of the tkey value `jn_tval`: an integer as
- *  it is, a string read as a date by approxidate() and multiplied by 1000
- *  on an sf_tm_ms topic, 0 when there is none (NULL) or it is of another
- *  type. *wrapped TRUE when that multiplication passed the 44 bits of an
- *  md2 row (asked before it: past 64 bits it wraps to a value that looks
- *  like a time). The rest of what does not fit is a returned value past
+ *  it is, a string read as a date by approxidate_careful() and multiplied
+ *  by 1000 on an sf_tm_ms topic, 0 when there is none (NULL) or it is of
+ *  another type. *not_a_date TRUE (and 0 returned) for a string that is no
+ *  date: up to 7.29.3 approxidate() read it as NOW, in silence. *wrapped
+ *  TRUE when that multiplication passed the 44 bits of an md2 row (asked
+ *  before it: past 64 bits it wraps to a value that looks like a time).
+ *  The rest of what does not fit is a returned value past
  *  TRANGER2_MAX_TIME (a negative integer too): the append asks it with one
  *  compare, together with its __t__.
  ***************************************************************************/
 static inline uint64_t tkey_time_of_value(
     system_flag2_t system_flag,
     json_t *jn_tval,
-    BOOL *wrapped
+    BOOL *wrapped,
+    BOOL *not_a_date
 )
 {
     *wrapped = FALSE;
+    *not_a_date = FALSE;
     if(json_is_string(jn_tval)) {
-        timestamp_t timestamp = approxidate(json_string_value(jn_tval));
+        int error = 0;
+        timestamp_t timestamp = approxidate_careful(json_string_value(jn_tval), &error);
+        if(error) {
+            *not_a_date = TRUE;
+            return 0;
+        }
         if(system_flag & sf_tm_ms) {
             if(timestamp > TRANGER2_MAX_TIME/1000) {
                 *wrapped = TRUE;
@@ -4217,14 +4231,42 @@ static inline uint64_t tkey_time_of_record(
     const char *tkey,
     system_flag2_t system_flag,
     json_t *record,
-    BOOL *wrapped
+    BOOL *wrapped,
+    BOOL *not_a_date
 )
 {
     *wrapped = FALSE;
+    *not_a_date = FALSE;
     if(empty_string(tkey)) {
         return 0;   // No tkey value, mark with 0
     }
-    return tkey_time_of_value(system_flag, json_object_get(record, tkey), wrapped);
+    return tkey_time_of_value(system_flag, json_object_get(record, tkey), wrapped, not_a_date);
+}
+
+/***************************************************************************
+ *  Refuse an append whose tkey is a text that is no date. The text comes
+ *  from a peer or a user: a WARNING, with the first bytes of it.
+ ***************************************************************************/
+PRIVATE void log_tkey_not_a_date(
+    hgobj gobj,
+    const char *topic_name,
+    const char *tkey,
+    json_t *jn_tval     // NOT owned
+)
+{
+    const char *text = json_string_value(jn_tval);
+    if(!text) {
+        text = "";
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER,
+        "msg",          "%s", "Cannot append record, its tkey is a text that is no date",
+        "topic",        "%s", topic_name,
+        "tkey",         "%s", tkey? tkey : "",
+        "value",        "%.*s", utf8_prefix_len(text, 64), text,
+        NULL
+    );
 }
 
 /***************************************************************************
@@ -4238,13 +4280,15 @@ PUBLIC uint64_t tranger2_record_tkey_time(
 )
 {
     BOOL wrapped = FALSE;
+    BOOL not_a_date = FALSE;
     uint64_t tm = tkey_time_of_record(
         json_string_value(json_object_get(topic, "tkey")),
         (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag")),
         record,
-        &wrapped
+        &wrapped,
+        &not_a_date
     );
-    *fits = (!wrapped && tm <= TRANGER2_MAX_TIME)? TRUE : FALSE;
+    *fits = (!wrapped && !not_a_date && tm <= TRANGER2_MAX_TIME)? TRUE : FALSE;
     return tm;
 }
 
@@ -5010,12 +5054,21 @@ PUBLIC int tranger2_append_record(
      *  Get and save the t-key if exists
      *--------------------------------------------*/
     BOOL tm_wrapped;
+    BOOL tm_not_a_date;
+    const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     uint64_t __tm__ = tkey_time_of_record(
-        json_string_value(json_object_get(topic, "tkey")),
+        tkey,
         system_flag,
         record,
-        &tm_wrapped
+        &tm_wrapped,
+        &tm_not_a_date
     );
+    if(tm_not_a_date) {
+        log_tkey_not_a_date(gobj, topic_name, tkey, json_object_get(record, tkey));
+        gobj_trace_json(gobj, record, "Cannot append record, its tkey is no date");
+        JSON_DECREF(record)
+        return -1;
+    }
 
     /*--------------------------------------------*
      *  Get the record's content, always json.
@@ -5234,7 +5287,14 @@ PUBLIC int tranger2_append_record_text(
             JSON_DECODE_ANY|JSON_ALLOW_NUL,
             0
         );
-        __tm__ = tkey_time_of_value(system_flag, jn_tval, &tm_wrapped);
+        BOOL tm_not_a_date = FALSE;
+        __tm__ = tkey_time_of_value(system_flag, jn_tval, &tm_wrapped, &tm_not_a_date);
+        if(tm_not_a_date) {
+            log_tkey_not_a_date(gobj, topic_name, json_string_value(json_object_get(topic, "tkey")), jn_tval);
+            trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, its tkey is no date");
+            JSON_DECREF(jn_tval)
+            return -1;
+        }
         JSON_DECREF(jn_tval)
     }
 
@@ -8117,6 +8177,13 @@ PUBLIC json_t *tranger2_open_rt_mem(
         return NULL;
     }
 
+    if(read_time_bounds_of_match_cond(gobj, topic, match_cond) < 0) {
+        // Error already logged
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return NULL;
+    }
+
     json_t *mem = json_object();
     char id_[64];
     if(empty_string(id)) {
@@ -8360,6 +8427,13 @@ PUBLIC json_t *tranger2_open_rt_disk(
             "msg",          "%s", "what load_record_callback?",
             NULL
         );
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return NULL;
+    }
+
+    if(read_time_bounds_of_match_cond(gobj, topic, match_cond) < 0) {
+        // Error already logged
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;
@@ -16237,6 +16311,12 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         JSON_DECREF(extra)
         return NULL;
     }
+    if(read_time_bounds_of_match_cond(gobj, topic, match_cond) < 0) {
+        // Error already logged
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return NULL;
+    }
     if(empty_string(iterator_id)) {
         iterator_id = key;
     }
@@ -17510,8 +17590,98 @@ PRIVATE BOOL resolve_to_rowid(
 }
 
 /***************************************************************************
- *  Return a list of segments that match conditions
- *  match_cond can be modified in (times in string)
+ *  The time bounds of a match_cond given as TEXT (from_t, to_t, from_tm,
+ *  to_tm), read once, at the open, and written back as integers in the
+ *  unit of their axis: a text -?[0-9]+ is that integer (a negative one is
+ *  relative, resolved by get_segments()); any other is a date, read by
+ *  approxidate_careful() and taken to milliseconds on an axis in ms (t on
+ *  sf_t_ms, tm on sf_tm_ms; an end bound takes its whole second). A text
+ *  that is no date, or an integer or a date past what a time holds, is
+ *  refused with a WARNING: it comes from a peer or a user. Up to 7.29.3
+ *  get_segments() read a text with a 'T' with approxidate(), NOW for one
+ *  it could not read, and any other with strtoll(): "garbage" was 0, no
+ *  bound, and "2000-01-02 00:00:00 +0000" the time 2000. A feed (rt_mem,
+ *  rt_disk) did not read a text bound at all. Return -1 refused, 0 read.
+ ***************************************************************************/
+PRIVATE int read_time_bounds_of_match_cond(
+    hgobj gobj,
+    json_t *topic,
+    json_t *match_cond  // NOT owned but can be modified
+)
+{
+    static const struct {
+        const char *name;
+        system_flag2_t ms_flag;
+        BOOL is_end;
+    } bounds[] = {
+        {"from_t",  sf_t_ms,    FALSE},
+        {"to_t",    sf_t_ms,    TRUE},
+        {"from_tm", sf_tm_ms,   FALSE},
+        {"to_tm",   sf_tm_ms,   TRUE},
+    };
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+
+    for(size_t i = 0; i < sizeof(bounds)/sizeof(bounds[0]); i++) {
+        json_t *jn_bound = json_object_get(match_cond, bounds[i].name);
+        if(!json_is_string(jn_bound)) {
+            continue;
+        }
+        const char *text = json_string_value(jn_bound);
+
+        const char *p = (*text == '-')? text + 1 : text;
+        BOOL integer_text = (*p)? TRUE : FALSE;
+        for(; *p; p++) {
+            if(*p < '0' || *p > '9') {
+                integer_text = FALSE;
+                break;
+            }
+        }
+
+        const char *why = NULL;
+        json_int_t value = 0;
+        if(integer_text) {
+            errno = 0;
+            long long v = strtoll(text, NULL, 10);
+            if(errno == ERANGE) {
+                why = "an integer past what a time holds";
+            }
+            value = (json_int_t)v;
+        } else {
+            int not_a_date = 0;
+            timestamp_t timestamp = approxidate_careful(text, &not_a_date);
+            BOOL ms = (system_flag & bounds[i].ms_flag)? TRUE : FALSE;
+            if(not_a_date) {
+                why = "a text that is no date";
+            } else if(timestamp > (timestamp_t)(ms? (INT64_MAX - 999)/1000 : INT64_MAX)) {
+                why = "a date past what a time holds";
+            } else {
+                value = (json_int_t)timestamp;
+                if(ms) {
+                    value = value*1000 + (bounds[i].is_end? 999 : 0);
+                }
+            }
+        }
+        if(why) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "match_cond refused: a time bound is no date",
+                "why",          "%s", why,
+                "topic_name",   "%s", tranger2_topic_name(topic),
+                "bound",        "%s", bounds[i].name,
+                "value",        "%.*s", utf8_prefix_len(text, 64), text,
+                NULL
+            );
+            return -1;
+        }
+        json_object_set_new(match_cond, bounds[i].name, json_integer(value));
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Return a list of segments that match conditions. The time bounds given
+ *  as text were read at the open (read_time_bounds_of_match_cond()).
  ***************************************************************************/
 PRIVATE json_t *get_segments(
     hgobj gobj,
@@ -17617,24 +17787,7 @@ PRIVATE json_t *get_segments(
     /*-------------------------------------*
      *      Check range t in totals
      *-------------------------------------*/
-    json_int_t from_t = 0;
-    json_t *jn_from_t = json_object_get(match_cond, "from_t");
-    if(json_is_string(jn_from_t)) {
-        if(strchr(json_string_value(jn_from_t), 'T')!=0) {
-            timestamp_t timestamp;
-            timestamp = approxidate(json_string_value(jn_from_t));
-            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-            if(system_flag & sf_t_ms) {    // t's unit: up to 7.27.4 it asked sf_tm_ms
-                timestamp *= 1000;
-            }
-            from_t = (json_int_t)timestamp;
-        } else {
-            from_t = kw_get_int(gobj, match_cond, "from_t", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(from_t));
-    } else {
-        from_t = json_integer_value(json_object_get(match_cond, "from_t"));
-    }
+    json_int_t from_t = json_integer_value(json_object_get(match_cond, "from_t"));   // read at the open
 
     /*
      *  A negative bound is relative to the key's last record (before v7, to
@@ -17667,24 +17820,7 @@ PRIVATE json_t *get_segments(
         }
     }
 
-    json_int_t to_t = 0;
-    json_t *jn_to_t = json_object_get(match_cond, "to_t");
-    if(json_is_string(jn_to_t)) {
-        if(strchr(json_string_value(jn_to_t), 'T')!=0) {
-            timestamp_t timestamp;
-            timestamp = approxidate(json_string_value(jn_to_t));
-            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-            if(system_flag & sf_t_ms) {    // t's unit: up to 7.27.4 it asked sf_tm_ms
-                timestamp = timestamp * 1000 + 999;     // an end bound takes its whole second
-            }
-            to_t = (json_int_t)timestamp;
-        } else {
-            to_t = kw_get_int(gobj, match_cond, "to_t", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(to_t));
-    } else {
-        to_t = json_integer_value(json_object_get(match_cond, "to_t"));
-    }
+    json_int_t to_t = json_integer_value(json_object_get(match_cond, "to_t"));
 
     if(to_t < 0) {
         json_int_t resolved = total_to_t + to_t;
@@ -17713,24 +17849,7 @@ PRIVATE json_t *get_segments(
     /*-------------------------------------*
      *      Check range tm in totals
      *-------------------------------------*/
-    json_int_t from_tm = 0;
-    json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
-    if(json_is_string(jn_from_tm)) {
-        if(strchr(json_string_value(jn_from_tm), 'T')!=0) {
-            timestamp_t timestamp;
-            timestamp = approxidate(json_string_value(jn_from_tm));
-            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-            if(system_flag & sf_tm_ms) {
-                timestamp *= 1000;
-            }
-            from_tm = (json_int_t)timestamp;
-        } else {
-            from_tm = kw_get_int(gobj, match_cond, "from_tm", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "from_tm", json_integer(from_tm));
-    } else {
-        from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
-    }
+    json_int_t from_tm = json_integer_value(json_object_get(match_cond, "from_tm"));
 
     json_int_t last_tm = -1;    // the tm of the key's last record, read once if asked
     if(from_tm < 0) {   // relative to the key's last record (see from_t above)
@@ -17754,24 +17873,7 @@ PRIVATE json_t *get_segments(
      *  and their ranges trusted; the markers are gone, and ignored.
      */
 
-    json_int_t to_tm = 0;
-    json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
-    if(json_is_string(jn_to_tm)) {
-        if(strchr(json_string_value(jn_to_tm), 'T')!=0) {
-            timestamp_t timestamp;
-            timestamp = approxidate(json_string_value(jn_to_tm));
-            system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
-            if(system_flag & sf_tm_ms) {
-                timestamp = timestamp * 1000 + 999;     // an end bound takes its whole second
-            }
-            to_tm = (json_int_t)timestamp;
-        } else {
-            to_tm = kw_get_int(gobj, match_cond, "to_tm", 0, KW_WILD_NUMBER);
-        }
-        json_object_set_new(match_cond, "to_tm", json_integer(to_tm));
-    } else {
-        to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
-    }
+    json_int_t to_tm = json_integer_value(json_object_get(match_cond, "to_tm"));
 
     if(to_tm < 0) {
         if(last_tm < 0) {
@@ -19320,6 +19422,17 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             "msg",          "%s", "load_record_callback is required to tranger2_open_list",
             NULL
         );
+        JSON_DECREF(match_cond)
+        JSON_DECREF(extra)
+        return NULL;
+    }
+
+    /*
+     *  Read once for the whole list: its iterators and its feed get the
+     *  bounds as integers
+     */
+    if(read_time_bounds_of_match_cond(gobj, topic, match_cond) < 0) {
+        // Error already logged
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
         return NULL;

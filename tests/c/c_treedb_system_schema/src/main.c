@@ -729,6 +729,8 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
     AS_WARNING "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
     AS_ERROR "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
+    AS_WARNING "Node refused: its tkey is a text that is no date",   // V46.3, a peer
+    AS_ERROR "Node refused: its tkey is a text that is no date",     // and a C caller
     "Creating topic",                                       // raw_t
     AS_ERROR "Record time past what an md2 row keeps (44 bits): appended CUT",
     /*  Test 14: the replica, and its C_TREEDB writes READ-ONLY  */

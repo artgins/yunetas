@@ -7268,6 +7268,19 @@ PRIVATE int check_tkey_date_past_max_c_node(hgobj gobj)
     }
     JSON_DECREF(node)
 
+    /*  V46.3: a tkey that is a text that is no date, NOW up to 7.29.3  */
+    result += check_refused(gobj, "create-node of a peer with a tkey that is no date",
+        gobj_command(gobj_db, "create-node",
+            as_peer(json_pack("{s:s, s:{s:s, s:s}}",
+                "topic_name", "events", "record", "id", "e4", "when", "garbage")), gobj));
+    node = gobj_create_node(gobj_db, "events",
+        json_pack("{s:s, s:s}", "id", "e5", "when", "garbage"), 0, gobj);
+    if(node || tranger2_topic_key_size(tranger, "events", "e4") != 0 ||
+            tranger2_topic_key_size(tranger, "events", "e5") != 0) {
+        result += save_fail(gobj, "TEST FAIL: a node with a tkey that is no date was written", node);
+    }
+    JSON_DECREF(node)
+
     /*  timeranger2 itself: a C caller's append is kept, cut as it was, and said  */
     if(!tranger2_create_topic(tranger, "raw_t", "id", "when", NULL, sf_string_key,
             json_pack("{s:s, s:s}", "id", "", "when", ""), json_pack("{s:i}", "topic_version", 1))) {

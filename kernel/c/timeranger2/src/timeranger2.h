@@ -666,11 +666,12 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
 /*
     The time tranger2_append_record() keeps as the __tm__ of `record` in the
     topic `topic` (the json of an open topic): the value of its tkey -- an
-    integer as it is, a string read as a date by approxidate() and multiplied
-    by 1000 on an sf_tm_ms topic --, 0 when the topic has no tkey or the
-    record no value of it. `*fits` is FALSE when an md2 row cannot keep that
-    time: negative, or past TRANGER2_MAX_TIME (a date of the ms topic is
-    asked before the multiplication, which wraps). The append keeps such a
+    integer as it is, a string read as a date by approxidate_careful() and
+    multiplied by 1000 on an sf_tm_ms topic --, 0 when the topic has no tkey
+    or the record no value of it. `*fits` is FALSE when an md2 row cannot
+    keep that time: negative, or past TRANGER2_MAX_TIME (a date of the ms
+    topic is asked before the multiplication, which wraps), and for a string
+    that is no date (0 returned; up to 7.29.3 it was NOW). The append keeps such a
     time cut (and logs it): a caller that takes the tkey from a peer refuses
     the record on `*fits` FALSE, before the append.
 */
@@ -709,9 +710,11 @@ PUBLIC uint64_t tranger2_record_tkey_time(
     An md2 row keeps 44 bits of each time (TRANGER2_MAX_TIME): a `__t__`, or
     a time of the tkey (tranger2_record_tkey_time()), that does not fit is
     appended CUT, as it always was, and logged as an ERROR. A caller that
-    takes times from a peer asks tranger2_record_tkey_time() first.
+    takes times from a peer asks tranger2_record_tkey_time() first. A tkey
+    that is a text that is no date is refused, with a WARNING and nothing
+    written (up to 7.29.3 it was NOW, in silence).
     Return: 0 on success, -1 on error (record NULL, not master, topic not found,
-    missing/oversized pkey, an unsafe key that would escape keys/, a file of
+    missing/oversized pkey, a tkey that is a text that is no date, an unsafe key that would escape keys/, a file of
     the key flagged unreadable, a key flagged unlisted that still cannot be
     listed, or a write that failed).
 */
@@ -1143,6 +1146,16 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     are expressed in the TOPIC's own unit: seconds, or milliseconds when the
     topic sets sf_t_ms / sf_tm_ms.
 
+    A time bound may be given as TEXT, read once when the iterator, list or
+    feed opens: a text -?[0-9]+ is that integer, any other a date read by
+    approxidate_careful() and taken to the unit of its axis (an end bound
+    takes its whole second): {"from_t": "2026-10-01T00:00:00+0000"}. A text
+    that is no date ("garbage") is refused with a WARNING, and the open
+    answers NULL. Up to 7.29.3 a text with a 'T' that was no date was NOW, a
+    text without one was cut by strtoll() ("garbage" no bound,
+    "2026-10-01 00:00:00 +0000" the time 2026), and a feed (rt_mem, rt_disk)
+    did not read a text bound at all.
+
     A NEGATIVE bound counts from the key's end AS THE ITERATOR OPENS, and is
     resolved then, once: `from_rowid = -4` is the last 4 rows of the key at
     the open, and stays those rows when the key grows or its old files are
@@ -1235,8 +1248,8 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
 
     Return: the iterator, NOT YOURS (the topic owns it). NULL (error logged,
     match_cond and extra consumed) if the topic cannot be opened, `key` is
-    empty, an iterator with this id and creator already exists, or a filtered
-    paging index cannot be built.
+    empty, a time bound is a text that is no date, an iterator with this id
+    and creator already exists, or a filtered paging index cannot be built.
 */
 /*
  *  LOADING: load data from disk, APPENDING: add real time data
@@ -1325,7 +1338,8 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     into the handle without overwriting the reserved ones.
     Return: the rt_mem handle — NOT YOURS (owned by the topic; close with
     tranger2_close_rt_mem()). NULL if the topic is missing, the callback is NULL,
-    or a feed with the same id already exists.
+    a time bound of match_cond is a text that is no date (a warning, see
+    `Iterator match_cond`), or a feed with the same id already exists.
 */
 PUBLIC json_t *tranger2_open_rt_mem(
     json_t *tranger,
@@ -1368,7 +1382,8 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     on error). Creates the realtime disk directory and its inotify monitor.
     Return: the rt_disk handle — NOT YOURS (owned by the topic; close with
     tranger2_close_rt_disk()). NULL if the topic is missing, the callback is NULL,
-    `rt_id` is refused (empty, a path metacharacter, longer than NAME_MAX: a
+    a time bound of match_cond is a text that is no date (a warning, see
+    `Iterator match_cond`), `rt_id` is refused (empty, a path metacharacter, longer than NAME_MAX: a
     warning), or a feed of this tranger already uses the id, whatever its
     creator (a warning). The guard is per process: two processes that follow
     one store with the same id still take each other's disks/<id>/ directory.

@@ -430,12 +430,12 @@ PRIVATE sdata_desc_t pm_open_list[] = {
 SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATAPM (DTP_STRING,    "key",                  0,          0,      "match_cond:"),
-SDATAPM (DTP_JSON,      "from_tm",              0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
-SDATAPM (DTP_JSON,      "to_tm",                0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
+SDATAPM (DTP_JSON,      "from_tm",              0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
+SDATAPM (DTP_JSON,      "to_tm",                0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
 SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond:"),
 SDATAPM (DTP_INTEGER,   "to_rowid",             0,          0,      "match_cond:"),
-SDATAPM (DTP_JSON,      "from_t",               0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
-SDATAPM (DTP_JSON,      "to_t",                 0,          0,      "match_cond: an integer (topic unit), or a date string ('T' in it)"),
+SDATAPM (DTP_JSON,      "from_t",               0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
+SDATAPM (DTP_JSON,      "to_t",                 0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
 SDATAPM (DTP_STRING,    "fields",               0,          0,      "match_cond: Only this fields"),
 SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "match_cond: regex (PCRE2) over the keys; only for a KEYLESS list. Governs both the disk load AND the realtime feed"),
 SDATAPM (DTP_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
@@ -1198,16 +1198,24 @@ PRIVATE const char *refuse_peer_record(
         /*
          *  The time of its tkey is the __tm__ of the row: the same 44 bits,
          *  appended cut past them. An integer is kept as it is; a string is
-         *  a date, read by approxidate() and multiplied by 1000 on an
-         *  sf_tm_ms topic. A date has no year limit: "@<seconds> +0000" is
-         *  any number of seconds (REV-CLOUD V20 c4 B), so the value the row
-         *  would keep is asked, as the append computes it
-         *  (tranger2_record_tkey_time()).
+         *  a date, read by approxidate_careful() and multiplied by 1000 on
+         *  an sf_tm_ms topic, and a text that is no date does not fit. A
+         *  date has no year limit: "@<seconds> +0000" is any number of
+         *  seconds (REV-CLOUD V20 c4 B), so the value the row would keep is
+         *  asked, as the append computes it (tranger2_record_tkey_time()).
          */
         BOOL fits = TRUE;
         tranger2_record_tkey_time(topic, record, &fits);
         if(!fits) {
-            why = "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
+            const char *tkey = json_string_value(json_object_get(topic, "tkey"));
+            const char *text = tkey? json_string_value(json_object_get(record, tkey)) : NULL;
+            int not_a_date = 0;
+            if(text) {
+                approxidate_careful(text, &not_a_date);
+            }
+            why = not_a_date?
+                "a text in its tkey that is no date" :
+                "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
         }
     }
     const char *msg = "record of a wrong shape, refused";
@@ -3381,8 +3389,9 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     /*
      *  A time bound is what timeranger2 takes: an integer (the topic's
-     *  unit, negative from the last record), or a string -- a date when it
-     *  has a 'T', a number otherwise. They were DTP_STRING, and an integer
+     *  unit, negative from the last record), or a string -- a number when
+     *  it is -?[0-9]+, a date otherwise (one that is no date is refused by
+     *  the tranger, with a warning). They were DTP_STRING, and an integer
      *  from a kw was refused by the command parser (REV-CLOUD V20.13).
      */
     static const char *time_bounds[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};

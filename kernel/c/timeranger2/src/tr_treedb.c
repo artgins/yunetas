@@ -5246,7 +5246,8 @@ PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
  *  x1000 on an sf_tm_ms topic), and past TRANGER2_MAX_TIME the append
  *  keeps it CUT, the flags over its high bits. A topic made by a peer can
  *  have a string tkey, and "@99999999999999 +0000" in it was a node whose
- *  __tm__ was not its date, without a word (REV-CLOUD V20 c5 #4). Refused
+ *  __tm__ was not its date, without a word (REV-CLOUD V20 c5 #4); a text
+ *  that is no date was NOW up to 7.29.3, and is refused too. Refused
  *  before anything is written: a WARNING in a peer's window, an ERROR for
  *  a C caller (log_data_fault()). -1 refused, 0 it fits.
  ***************************************************************************/
@@ -5268,6 +5269,28 @@ PRIVATE int refuse_tkey_time_past_max(
     const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     json_t *jn_value = tkey? json_object_get(values, tkey) : NULL;
     const char *svalue = json_is_string(jn_value)? json_string_value(jn_value) : "";
+    int not_a_date = 0;
+    if(json_is_string(jn_value)) {
+        approxidate_careful(svalue, &not_a_date);
+    }
+    if(not_a_date) {
+        log_data_fault(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Node refused: its tkey is a text that is no date",
+            "treedb_name",  "%s", treedb_name,
+            "topic_name",   "%s", topic_name,
+            "id",           "%s", id? id : "",
+            "tkey",         "%s", tkey? tkey : "",
+            "value",        "%.*s", utf8_prefix_len(svalue, 64), svalue,
+            NULL
+        );
+        gobj_log_set_last_message(
+            "'%s': its tkey '%s' is a text that is no date",
+            topic_name, tkey? tkey : ""
+        );
+        return -1;
+    }
     log_data_fault(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_TREEDB,

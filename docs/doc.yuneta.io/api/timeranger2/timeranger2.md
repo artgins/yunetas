@@ -52,7 +52,7 @@ the flags over the high bits of a larger time. Then the record keeps another
 time than the name of its file. In seconds the last time is
 559444-03-08T09:40:15 UTC; in milliseconds (`sf_t_ms`, `sf_tm_ms`) it is
 2527-06-23T06:20:44.415 UTC. The time of the tkey is a time too, and a
-string tkey is a DATE with no year limit (`approxidate()` reads
+string tkey is a DATE with no year limit (`approxidate_careful()` reads
 `"@99999999999999 +0000"` as that many seconds, times 1000 on an `sf_tm_ms`
 topic). [`tranger2_append_record()`](#tranger2_append_record) keeps a time
 that does not fit CUT, as it always did, and logs an ERROR since SDK 7.27.0.
@@ -188,6 +188,25 @@ the time from a peer refuses the record before the append:
 tranger2_append_record(tranger, "raw_t", 0, 0, &md,
     json_pack("{s:s, s:s}", "id", "r1", "when", "@99999999999999 +0000"));
 /*  0: appended, its __tm__ cut; ERROR "Record time past what an md2 row keeps (44 bits): appended CUT"  */
+```
+
+**A tkey that is a text that is no date is refused**, with a WARNING (the
+text comes from a peer or a user) and nothing written: *"Cannot append
+record, its tkey is a text that is no date"*, with `topic`, `tkey` and the
+first 64 bytes of the text in `value`. The append returns `-1`. The same in
+[`tranger2_append_record_text()`](<#tranger2_append_record_text>). Up to SDK
+7.29.3 `approxidate()` read such a text as NOW, in silence; on an
+`sf_tm_ms` topic `"1761000000000"` (milliseconds, no date: past the year
+9999) was stored as NOW times 1000, and up to 7.29.2 as the year 57773, cut.
+
+```C
+/*  topic `raw_tm_ms`, tkey `tm`, sf_int_key|sf_tm_ms  */
+tranger2_append_record(tranger, "raw_tm_ms", 0, 0, &md,
+    json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "1761000000000"));
+/*  -1, nothing written; WARNING "Cannot append record, its tkey is a text that is no date"  */
+tranger2_append_record(tranger, "raw_tm_ms", 0, 0, &md,
+    json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "2000-01-03T12:00:00+0000"));
+/*  0: md.__tm__ 946900800000  */
 ```
 
 **Reading the metadata back.** The metadata of the new record is returned in
@@ -519,13 +538,13 @@ uint64_t tranger2_record_tkey_time(
 |---|---|---|
 | `topic` | `json_t *` | The json of an open topic ([`tranger2_topic()`](<#tranger2_topic>)): its `tkey` and `system_flag` are read. Not owned. |
 | `record` | `json_t *` | The record about to be appended. Not owned, not changed. |
-| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), or a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits (asked before it, because past 64 bits it wraps to a value that looks like a time). `TRUE` otherwise. |
+| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits (asked before it, because past 64 bits it wraps to a value that looks like a time), or a string that is no date (the return is then `0`; up to SDK 7.29.3 it was NOW and fitted). `TRUE` otherwise. |
 
 **Returns**
 
 The time the append keeps: the value of the tkey -- an integer as it is, a
-string read as a date by `approxidate()` and multiplied by 1000 on an
-`sf_tm_ms` topic --, or `0` when the topic has no tkey or the record no
+string read as a date by `approxidate_careful()` and multiplied by 1000 on
+an `sf_tm_ms` topic --, or `0` when the topic has no tkey or the record no
 value of it (a value of another type is `0` too). A negative integer comes
 back as a large unsigned value, and `*fits` is `FALSE`.
 
@@ -2593,6 +2612,29 @@ user_flag / not_user_flag / user_flag_mask_set / user_flag_mask_notset
 `t` and `tm` are two **independent** axes and their ranges combine (AND). Both
 are expressed in the **topic's** own unit: seconds, or milliseconds when the
 topic sets `sf_t_ms` / `sf_tm_ms`.
+
+A time bound can be given as **text**, read once when the iterator, the list
+or the feed (rt_mem, rt_disk) opens, and written back into its `match_cond`
+as an integer: a text `-?[0-9]+` is that integer (`"-86400"` is relative, as
+below), any other is a date read by
+[`approxidate_careful()`](#approxidate_careful) and taken to the unit of its
+axis (an end bound takes its whole second). A text that is **no date** is
+refused with the WARNING *"match_cond refused: a time bound is no date"*
+(`why`, `topic_name`, `bound`, and the first 64 bytes of the text in
+`value`), and the open answers `NULL`. Up to SDK 7.29.3 a text with a `T`
+that was no date was NOW, a text without one was cut by `strtoll()`
+(`"garbage"` was no bound, `"2026-10-01 00:00:00 +0000"` the time 2026), and
+a feed did not read a text bound at all.
+
+```C
+json_t *it = tranger2_open_iterator(tranger, "raw_t", "r1",
+    json_pack("{s:s}", "from_t", "2026-10-01 00:00:00 +0000"),   /* the date */
+    NULL, "day", "", data, NULL);
+it = tranger2_open_iterator(tranger, "raw_t", "r1",
+    json_pack("{s:s}", "from_t", "garbage"),
+    NULL, "bad", "", data, NULL);
+/*  NULL; WARNING "match_cond refused: a time bound is no date"  */
+```
 
 A **negative** `t` / `tm` bound is relative to the key's last record: its `t`,
 and its `tm` -- the `tm` of the last row of the file that holds the key's

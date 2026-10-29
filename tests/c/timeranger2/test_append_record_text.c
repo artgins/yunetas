@@ -14,7 +14,8 @@
  *      4. What is refused, with an ERROR and nothing written: a text that
  *         is not one json object, a text not followed by a NUL, a text with
  *         __md_tranger__, a pkey with a NUL, a pkey that is a path, a text
- *         without its pkey, a topic keyed by rowid.
+ *         without its pkey, a topic keyed by rowid; and with a WARNING, a
+ *         tkey that is a text that is no date (it was NOW up to 7.29.3).
  *      5. After a reopen, the cache build takes every record the text
  *         append wrote: they are read back.
  *      6. A text appended that a realtime list cannot parse (here a json
@@ -317,7 +318,7 @@ PRIVATE int do_test(void)
      *-------------------------------------*/
     set_expected_results(
         "4. refused texts",
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Cannot append record, its content is not one json object",
             "msg", "Cannot append record, its content is not one json object",
             "msg", "Cannot append record, content NULL or not followed by a NUL",
@@ -325,7 +326,8 @@ PRIVATE int do_test(void)
             "msg", "Cannot append record, its pkey has a NUL in it",
             "msg", "Cannot append record, invalid pkey (path traversal)",
             "msg", "Cannot append record, no pkey",
-            "msg", "Cannot append record as text: only a topic keyed by a string or an integer takes one"
+            "msg", "Cannot append record as text: only a topic keyed by a string or an integer takes one",
+            "msg", "Cannot append record, its tkey is a text that is no date"
         ),
         NULL, NULL, 1
     );
@@ -357,6 +359,10 @@ PRIVATE int do_test(void)
         }
         if(append_text(tranger, TOPIC_ROWID, "{\"tm\":1}", &md) >= 0) {
             printf("%sERROR%s --> a text was appended to a rowid topic\n", On_Red BWhite, Color_Off);
+            result += -1;
+        }
+        if(append_text(tranger, TOPIC_INT, "{\"n\":43,\"date\":\"garbage\"}", &md) >= 0) {
+            printf("%sERROR%s --> a text with a tkey that is no date was appended\n", On_Red BWhite, Color_Off);
             result += -1;
         }
         if(listed != 4) {

@@ -2825,6 +2825,9 @@ PRIVATE int do_test(void)
         json_t *dated = expect_role_warnings(1);
         json_array_extend(expected, dated);
         JSON_DECREF(dated)
+        /*  V46.3: a text in the tkey that is no date, twice  */
+        expect_refusal(expected, "record of a wrong shape, refused");
+        expect_refusal(expected, "record of a wrong shape, refused");
         /*  REV-CLOUD V20 #3: a peer's writes into a treedb's topic, a new topic in its store  */
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // add-record
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // delete-key
@@ -3039,6 +3042,24 @@ PRIVATE int do_test(void)
         kw_get_int(0, r, "result", -999, 0), 0);
     JSON_DECREF(r)
     check_int("only the date it can keep was added (sf_tm_ms)",
+        (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 1);
+
+    /*
+     *  A text in the tkey that is no date (REV-CLOUD V46.3): approxidate()
+     *  read it as NOW, and "1761000000000" (milliseconds, past the year
+     *  9999) was appended with NOW*1000 in silence
+     */
+    static const char *not_dates[] = {"1761000000000", "garbage"};
+    for(int i = 0; i < 2; i++) {
+        r = gobj_command(yuno, "add-record",
+            as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
+                "record", "id", "M", "tm", not_dates[i])), yuno);
+        const char *comment = kw_get_str(0, r, "comment", "", 0);
+        check_bool("add-record with a tkey that is no date says it",
+            strstr(comment, "a text in its tkey that is no date")? TRUE : FALSE, TRUE);
+        check_refused("add-record with a tkey that is no date (sf_tm_ms)", r);
+    }
+    check_int("no tkey that is no date was added (sf_tm_ms)",
         (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 1);
 
     /*
