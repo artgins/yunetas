@@ -3959,9 +3959,10 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len)
                         expected = size;    // the echo of a multiple write is its quantity
                     }
                     if(echo_address != address || echo_value != expected) {
+                        // No values: a write can carry a secret, and this goes to the log
                         jn_why = json_sprintf(
-                            "the echo of the write does not match: address %d value %d, sent %d %d",
-                            echo_address, echo_value, address, expected
+                            "the echo of the write does not match it (address %d, sent to %d)",
+                            echo_address, address
                         );
                     }
                 }
@@ -3986,7 +3987,9 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len)
             NULL
         );
         JSON_DECREF(jn_log)
-        gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "answer");
+        if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+            gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "answer");
+        }
         JSON_DECREF(jn_values)
         set_current_answer(gobj, -1, 0, NULL, jn_why);
         return -1;
