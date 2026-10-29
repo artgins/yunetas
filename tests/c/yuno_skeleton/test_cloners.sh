@@ -16,11 +16,11 @@
 #       that builds (the round trip), with a directory named after the
 #       rootname rendered too (it got a literal {{rootname}}).
 #
-#   And the ones of 7.29.1: a symlink to a file the clone renames points to
-#   the new name, in both tools of the round trip (it was left dangling);
-#   the round trip keeps the mode of a script (yuno-skeleton dropped it);
-#   a destination path longer than PATH_MAX is an error that says so (the
-#   truncated path was used).
+#   And the ones of 7.28.7 to 7.29.1: a symlink to a file the clone
+#   renames points to the new name, in both tools of the round trip (it was
+#   left dangling); the round trip keeps the mode of a script (yuno-skeleton
+#   dropped it); a destination path longer than PATH_MAX is an error that
+#   says so (the truncated path was used).
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.

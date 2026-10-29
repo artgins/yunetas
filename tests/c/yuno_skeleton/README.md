@@ -34,7 +34,7 @@ them) and builds it against the SDK in `outputs/`:
   `.js` parses. `utils/c/yuno-skeleton/check_project_gui.sh` installs and
   builds it (npm and the registry, so not under ctest).
 - A required answer missing is an error, not the same prompt for ever (it
-  looped up to 7.28.6); answers missing that have a default take it (7.29.1
+  looped up to 7.28.6); answers missing that have a default take it (7.28.7
   made every end of input an error).
 - The generated view carries logical class names (`PLACEHOLDER_CARD`,
   `PLACEHOLDER_HEADER`, ...), as every JS GUI must.
@@ -59,9 +59,9 @@ up to 7.28.6 (21 checks fail against those binaries):
   markers, `_tmpl` on text files only) that `yuno-skeleton` instantiates and
   that builds: the round trip.
 
-And the ones of 7.29.1: a symlink to a file the clone renames follows it,
-in `yclone-project`, `ymake-skeleton` and `yuno-skeleton` (it was left
-dangling); the round trip keeps the mode of a script (`yuno-skeleton`
+And the ones of 7.28.7 to 7.29.1: a symlink to a file the clone renames
+follows it, in `yclone-project`, `ymake-skeleton` and `yuno-skeleton` (it
+was left dangling); the round trip keeps the mode of a script (`yuno-skeleton`
 dropped it); a destination longer than `PATH_MAX` is an error that says so
 (the truncated path was used).
 

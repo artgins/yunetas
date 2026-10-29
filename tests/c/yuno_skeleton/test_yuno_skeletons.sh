@@ -279,7 +279,7 @@ done
 #
 #   A required answer missing ends with an error: a required value asked
 #   again on an exhausted stdin looped for ever up to 7.28.6. The answers
-#   that have a default take it, as a person pressing Enter would (7.29.1
+#   that have a default take it, as a person pressing Enter would (7.28.7
 #   made every end of input fatal)
 #
 mkdir -p "$WORK/eof"
