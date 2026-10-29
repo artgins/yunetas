@@ -116,11 +116,28 @@ tracker.mark("Step 2");
 ### [`build_path(...segments)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5977)
 
 Builds a path or a URL from its segments, with exactly one `/` between each
-pair. The first segment keeps its own leading `/`, so an absolute path stays
-absolute. The function removes a `/` at the end of each segment.
+pair. It follows the C [`build_path()`](../helpers/string_helper.md#build_path).
+
+- The first segment is the root. It keeps its own leading `/`, so an absolute
+  path stays absolute. A root made only of `/` stays `/`.
+- The function removes a `/` at the start and at the end of each later
+  segment, and a double `/` inside it.
+- A `.` or a `..` in a later segment is resolved, and a `..` never goes above
+  the root.
+- A `null`, `undefined` or empty segment is skipped.
 
 Use it for every path. A path that is built with a template string gives two
 slashes, or none, as soon as one segment changes.
+
+```javascript
+build_path(bff_url, "auth", "login");       // "https://bff.example.com/auth/login"
+build_path("/", "tmp");                     // "/tmp"
+build_path("/store", "../../etc");          // "/store/etc"
+```
+
+Before gobj-js 7.29.0, a root `/` was lost (`("/", "tmp")` gave `"tmp"`), and
+a `.` or a `..` stayed in the path as it came (`("/", "..", "etc")` gave
+`"../etc"`).
 
 (js_clean_name)=
 ### [`clean_name(name)`](https://github.com/artgins/gobj-js/blob/7.28.1/src/helpers.js#L5882)
