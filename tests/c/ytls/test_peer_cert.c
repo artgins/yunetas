@@ -21,6 +21,10 @@
  *          Test 4: server without a CA asks no cert -> no peer cert
  *          Test 5: a client whose cert cannot be loaded -> refused (NULL),
  *                  the process goes on
+ *          Test 6: a cn that is not a UTF8String -- a BMPString, a
+ *                  T61String (Latin-1) -- is read as utf8 by both
+ *                  backends, as the UTF8String one is (mbedTLS left a
+ *                  cn of the first two out)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -56,6 +60,14 @@
 #define CLIENT_KEY      TMP_DIR "/client.key"
 #define ROGUE_PEM       TMP_DIR "/rogue.pem"
 #define ROGUE_KEY       TMP_DIR "/rogue.key"
+
+/*
+ *  The cn "nodé1" in three ASN.1 string types, by the string_mask of
+ *  openssl req: pkix writes a BMPString, nombstr a T61String, utf8only a
+ *  UTF8String
+ */
+#define CN_NON_ASCII    "nod\xc3\xa9" "1"
+PRIVATE const char *cn_string_masks[] = {"pkix", "nombstr", "utf8only"};
 
 /***************************************************************
  *              Data
@@ -160,6 +172,30 @@ PRIVATE int make_leaf(
     return run(cmd);
 }
 
+/***************************************************************************
+ *  A self-signed cert whose cn is CN_NON_ASCII, written as `string_mask`
+ *  says
+ ***************************************************************************/
+PRIVATE int make_cn_cert(const char *string_mask)
+{
+    char cnf_path[PATH_MAX];
+    snprintf(cnf_path, sizeof(cnf_path), "%s/cn_%s.cnf", TMP_DIR, string_mask);
+    FILE *f = fopen(cnf_path, "w");
+    if(!f) {
+        return -1;
+    }
+    fprintf(f, "[req]\ndistinguished_name = dn\nstring_mask = %s\n[dn]\n", string_mask);
+    fclose(f);
+
+    char cmd[5*PATH_MAX];
+    snprintf(cmd, sizeof(cmd),
+        "openssl req -x509 -config '%s' -utf8 -newkey rsa:2048 -nodes -sha256 -days 30 "
+        "-keyout '%s/cn_%s.key' -out '%s/cn_%s.pem' -subj '/CN=%s'",
+        cnf_path, TMP_DIR, string_mask, TMP_DIR, string_mask, CN_NON_ASCII
+    );
+    return run(cmd);
+}
+
 PRIVATE int make_pki(void)
 {
     if(mkdir(TMP_DIR, 0700) != 0) {
@@ -177,6 +213,11 @@ PRIVATE int make_pki(void)
                 "subjectAltName=DNS:node1.example\nextendedKeyUsage=clientAuth",
                 ROGUE_CA_PEM, ROGUE_CA_KEY) != 0) {
         return -1;
+    }
+    for(size_t i = 0; i < sizeof(cn_string_masks)/sizeof(cn_string_masks[0]); i++) {
+        if(make_cn_cert(cn_string_masks[i]) != 0) {
+            return -1;
+        }
     }
     return 0;
 }
@@ -379,6 +420,28 @@ PRIVATE void test_library(const char *library)
     ok_or_fail(c == NULL, library, "5 a client cert that cannot be loaded: the client is refused");
     if(c) {
         ytls_cleanup(c);
+    }
+
+    /*
+     *  6: a cn in a BMPString or a T61String reads as the UTF8String one
+     */
+    for(size_t i = 0; i < sizeof(cn_string_masks)/sizeof(cn_string_masks[0]); i++) {
+        char pem[PATH_MAX];
+        char key[PATH_MAX];
+        snprintf(pem, sizeof(pem), "%s/cn_%s.pem", TMP_DIR, cn_string_masks[i]);
+        snprintf(key, sizeof(key), "%s/cn_%s.key", TMP_DIR, cn_string_masks[i]);
+        cfg = client_config(library, pem, key);
+        c = ytls_init(0, cfg, FALSE);
+        JSON_DECREF(cfg)
+        json_t *own = c? ytls_get_cert_info(c) : NULL;
+        char name[128];
+        snprintf(name, sizeof(name), "6 string_mask %s: the cn is '%s' (got '%s')",
+            cn_string_masks[i], CN_NON_ASCII, own? cn_of(own) : "(no cert info)");
+        ok_or_fail(own && strcmp(cn_of(own), CN_NON_ASCII) == 0, library, name);
+        JSON_DECREF(own)
+        if(c) {
+            ytls_cleanup(c);
+        }
     }
 
     JSON_DECREF(server_saw)

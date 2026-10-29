@@ -626,6 +626,107 @@ PRIVATE BOOL x509_buf_to_text(const unsigned char *p, size_t len, char *bf, size
 }
 
 /***************************************************************************
+ *  Append one character to a utf8 text: FALSE when it is no character
+ *  (NUL, a surrogate, past U+10FFFF) or it does not fit
+ ***************************************************************************/
+PRIVATE BOOL append_utf8(char *bf, size_t bfsize, size_t *len, uint32_t cp)
+{
+    unsigned char u[4];
+    size_t n;
+    if(cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF) || cp > 0x10FFFF) {
+        return FALSE;
+    }
+    if(cp < 0x80) {
+        u[0] = (unsigned char)cp;
+        n = 1;
+    } else if(cp < 0x800) {
+        u[0] = (unsigned char)(0xC0 | (cp >> 6));
+        u[1] = (unsigned char)(0x80 | (cp & 0x3F));
+        n = 2;
+    } else if(cp < 0x10000) {
+        u[0] = (unsigned char)(0xE0 | (cp >> 12));
+        u[1] = (unsigned char)(0x80 | ((cp >> 6) & 0x3F));
+        u[2] = (unsigned char)(0x80 | (cp & 0x3F));
+        n = 3;
+    } else {
+        u[0] = (unsigned char)(0xF0 | (cp >> 18));
+        u[1] = (unsigned char)(0x80 | ((cp >> 12) & 0x3F));
+        u[2] = (unsigned char)(0x80 | ((cp >> 6) & 0x3F));
+        u[3] = (unsigned char)(0x80 | (cp & 0x3F));
+        n = 4;
+    }
+    if(*len + n >= bfsize) {
+        return FALSE;
+    }
+    memcpy(bf + *len, u, n);
+    *len += n;
+    bf[*len] = 0;
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A string of a distinguished name as utf8, converted by its ASN.1 type
+ *  as the OpenSSL backend does (ASN1_STRING_to_UTF8()): a UTF8String as it
+ *  is, a BMPString as UCS-2, a UniversalString as UCS-4, and the one-byte
+ *  types (PrintableString, T61String, IA5String, ...) as Latin-1. FALSE
+ *  for another type, a NUL, or a text that does not fit. Whether a
+ *  UTF8String is valid utf8 is left to json_string(), as before.
+ ***************************************************************************/
+PRIVATE BOOL x509_name_to_text(const mbedtls_x509_buf *val, char *bf, size_t bfsize)
+{
+    const unsigned char *p = val->p;
+    size_t n = val->len;
+    size_t len = 0;
+    if(!p || bfsize == 0) {
+        return FALSE;
+    }
+    bf[0] = 0;
+    switch(val->tag) {
+        case MBEDTLS_ASN1_UTF8_STRING:
+            return x509_buf_to_text(p, n, bf, bfsize);
+
+        case MBEDTLS_ASN1_BMP_STRING:
+            if(n % 2) {
+                return FALSE;
+            }
+            for(size_t i = 0; i < n; i += 2) {
+                if(!append_utf8(bf, bfsize, &len, ((uint32_t)p[i] << 8) | p[i + 1])) {
+                    return FALSE;
+                }
+            }
+            return TRUE;
+
+        case MBEDTLS_ASN1_UNIVERSAL_STRING:
+            if(n % 4) {
+                return FALSE;
+            }
+            for(size_t i = 0; i < n; i += 4) {
+                uint32_t cp = ((uint32_t)p[i] << 24) | ((uint32_t)p[i + 1] << 16) |
+                    ((uint32_t)p[i + 2] << 8) | p[i + 3];
+                if(!append_utf8(bf, bfsize, &len, cp)) {
+                    return FALSE;
+                }
+            }
+            return TRUE;
+
+        case 0x12:  // NumericString
+        case MBEDTLS_ASN1_PRINTABLE_STRING:
+        case MBEDTLS_ASN1_T61_STRING:
+        case MBEDTLS_ASN1_IA5_STRING:
+        case 0x1A:  // VisibleString
+            for(size_t i = 0; i < n; i++) {
+                if(!append_utf8(bf, bfsize, &len, p[i])) {
+                    return FALSE;
+                }
+            }
+            return TRUE;
+
+        default:
+            return FALSE;
+    }
+}
+
+/***************************************************************************
  *  subject, issuer, cn, dns_names, not_before, not_after, serial of a
  *  certificate
  ***************************************************************************/
@@ -648,7 +749,7 @@ PRIVATE json_t *cert_info(const mbedtls_x509_crt *cert)
     /* The common name: the first one of the subject. */
     for(const mbedtls_x509_name *name = &cert->subject; name; name = name->next) {
         if(name->oid.p && MBEDTLS_OID_CMP(MBEDTLS_OID_AT_CN, &name->oid) == 0) {
-            if(x509_buf_to_text(name->val.p, name->val.len, buf, sizeof(buf))) {
+            if(x509_name_to_text(&name->val, buf, sizeof(buf))) {
                 json_t *jn_cn = json_string(buf);   // NULL if not utf8: no cn
                 if(jn_cn) {
                     json_object_set_new(info, "cn", jn_cn);

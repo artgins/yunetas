@@ -413,7 +413,7 @@ OpenSSL and mbed-TLS backends):
 |---|---|---|
 | `subject` | `string` | X.509 subject DN in one-line form (for example `/CN=api.example.com`). |
 | `issuer` | `string` | X.509 issuer DN in one-line form. Equal to `subject` for self-signed certs. |
-| `cn` | `string` | The common name of the subject. Absent when there is none, or when it holds a NUL byte (a name cut there would be another name). |
+| `cn` | `string` | The common name of the subject, as utf8 whatever its ASN.1 type (a `BMPString` or a `T61String` reads the same on both backends: `CN=nodé1` is `"nodé1"`). Absent when there is none, or when it holds a NUL byte (a name cut there would be another name). |
 | `dns_names` | `list` | The DNS names of the `subjectAltName` extension (empty when it has none). A name with a NUL byte is left out. |
 | `not_before` | `integer` | Unix timestamp of the certificate's `notBefore`. |
 | `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`. A negative value means already expired. |
