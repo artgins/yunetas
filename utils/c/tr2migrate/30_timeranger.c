@@ -4,6 +4,7 @@
  *          Time Ranger, a serie-time key-value database over flat files
  *
  *          Copyright (c) 2017-2014 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #ifndef _LARGEFILE64_SOURCE
@@ -2034,10 +2035,12 @@ PUBLIC int tranger_append_record(
             md_record->__tm__ = 0; // No tkey value, mark with 0
         } else {
             if(json_is_string(jn_tval)) {
-                int offset;
-                timestamp_t timestamp; // TODO if is it a millisecond time?
-                parse_date_basic(json_string_value(jn_tval), &timestamp, &offset);
-                md_record->__tm__ = timestamp;
+                json_int_t tm = 0;
+                if(tr2migrate_time_of_json_text(topic, tkey, jn_tval,
+                        (__system_flag__ & sf0_tm_ms)? TRUE : FALSE, FALSE, &tm) < 0) {
+                    tm = 0; // Error already logged; no tkey value, mark with 0
+                }
+                md_record->__tm__ = (uint64_t)tm;
             } else if(json_is_number(jn_tval)) {
                 md_record->__tm__ = json_number_value(jn_tval);
             } else {
@@ -3527,10 +3530,14 @@ PUBLIC BOOL tranger_match_record(
         json_int_t from_t = 0;
         json_t *jn_from_t = json_object_get(match_cond, "from_t");
         if(json_is_string(jn_from_t)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_from_t), &timestamp, &offset);
-            from_t = timestamp;
+            if(tr2migrate_time_of_json_text(topic, "from_t", jn_from_t,
+                    (md_record->__system_flag__ & sf0_t_ms)? TRUE : FALSE, FALSE, &from_t) < 0) {
+                // Error already logged; a bound refused ends the list, matching nothing
+                if(end) {
+                    *end = TRUE;
+                }
+                return FALSE;
+            }
         } else {
             from_t = json_integer_value(jn_from_t);
         }
@@ -3561,10 +3568,14 @@ PUBLIC BOOL tranger_match_record(
         json_int_t to_t = 0;
         json_t *jn_to_t = json_object_get(match_cond, "to_t");
         if(json_is_string(jn_to_t)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_to_t), &timestamp, &offset);
-            to_t = timestamp;
+            if(tr2migrate_time_of_json_text(topic, "to_t", jn_to_t,
+                    (md_record->__system_flag__ & sf0_t_ms)? TRUE : FALSE, TRUE, &to_t) < 0) {
+                // Error already logged; a bound refused ends the list, matching nothing
+                if(end) {
+                    *end = TRUE;
+                }
+                return FALSE;
+            }
         } else {
             to_t = json_integer_value(jn_to_t);
         }
@@ -3595,13 +3606,14 @@ PUBLIC BOOL tranger_match_record(
         json_int_t from_tm = 0;
         json_t *jn_from_tm = json_object_get(match_cond, "from_tm");
         if(json_is_string(jn_from_tm)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_from_tm), &timestamp, &offset);
-            if(md_record->__system_flag__ & (sf0_tm_ms)) {
-                timestamp *= 1000; // TODO lost milisecond precision?
+            if(tr2migrate_time_of_json_text(topic, "from_tm", jn_from_tm,
+                    (md_record->__system_flag__ & sf0_tm_ms)? TRUE : FALSE, FALSE, &from_tm) < 0) {
+                // Error already logged; a bound refused ends the list, matching nothing
+                if(end) {
+                    *end = TRUE;
+                }
+                return FALSE;
             }
-            from_tm = timestamp;
         } else {
             from_tm = json_integer_value(jn_from_tm);
         }
@@ -3632,13 +3644,14 @@ PUBLIC BOOL tranger_match_record(
         json_int_t to_tm = 0;
         json_t *jn_to_tm = json_object_get(match_cond, "to_tm");
         if(json_is_string(jn_to_tm)) {
-            int offset;
-            timestamp_t timestamp;
-            parse_date_basic(json_string_value(jn_to_tm), &timestamp, &offset);
-            if(md_record->__system_flag__ & (sf0_tm_ms)) {
-                timestamp *= 1000; // TODO lost milisecond precision?
+            if(tr2migrate_time_of_json_text(topic, "to_tm", jn_to_tm,
+                    (md_record->__system_flag__ & sf0_tm_ms)? TRUE : FALSE, TRUE, &to_tm) < 0) {
+                // Error already logged; a bound refused ends the list, matching nothing
+                if(end) {
+                    *end = TRUE;
+                }
+                return FALSE;
             }
-            to_tm = timestamp;
         } else {
             to_tm = json_integer_value(jn_to_tm);
         }

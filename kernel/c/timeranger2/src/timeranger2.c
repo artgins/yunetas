@@ -17803,9 +17803,10 @@ PRIVATE BOOL is_json_integer_text(const char *s)
  *  Is `s` written as a number, of any shape strtoll() or strtod() take:
  *  blanks around it, a sign, digits with an optional fraction (at least
  *  one digit) and an optional exponent -- " 5", "007", "+5", "10.5", ".5",
- *  "1E5" --, or with a decimal COMMA between digits, as a Spanish user
- *  writes it: "1,5", "10,5". A text like that is a number or nothing,
- *  never a date: approxidate() read "1,5" and "10,5" as May 1 and May 10.
+ *  "1E5" --, or with a decimal COMMA, as a Spanish user writes it: "1,5",
+ *  "10,5", ",5", "5," (as ".5" and "5."). A text like that is a number or
+ *  nothing, never a date: approxidate() read "1,5" and "10,5" as May 1 and
+ *  May 10, ",5" and "5," as the 5th of this month.
  ***************************************************************************/
 PRIVATE BOOL is_number_shaped_text(const char *s)
 {
@@ -17821,12 +17822,7 @@ PRIVATE BOOL is_number_shaped_text(const char *s)
         digits++;
         p++;
     }
-    if(*p == ',' && digits > 0 && p[1] >= '0' && p[1] <= '9') {
-        p++;
-        while(*p >= '0' && *p <= '9') {
-            p++;
-        }
-    } else if(*p == '.') {
+    if(*p == '.' || *p == ',') {
         p++;
         while(*p >= '0' && *p <= '9') {
             digits++;
@@ -17855,33 +17851,146 @@ PRIVATE BOOL is_number_shaped_text(const char *s)
 }
 
 /***************************************************************************
- *  Is `s` two or more groups of digits separated by blanks, with blanks
- *  and a sign around them: "5 5", "10 5", "2026 10 01". approxidate()
- *  reads them as dates (May 5, May 10, January 10 of 2026), and none of
- *  them is one a person writes: tr2list refused them from 7.27.6, before
- *  it read a time by this rule. "1700000000 +0000" (git's raw date, a
- *  sign inside) and "01.10.2026" are not of this shape, and stay dates.
+ *  Has `s` a comma between two digits, anywhere: "1,5 days ago",
+ *  "1,5days ago", "2026,10,01". It is a decimal comma, or digits run
+ *  together; approxidate() read the first two as September 26 (1 and 5
+ *  days ago), the third as January 10. A day and a year, "Oct 1,2026"
+ *  (1 or 2 digits, then 4), is not one: it is a date.
  ***************************************************************************/
-PRIVATE BOOL is_digit_groups_text(const char *s)
+PRIVATE BOOL has_comma_between_digits(const char *s)
 {
+    for(const char *p = s; *p; p++) {
+        if(*p != ',' || p == s || !isdigit((unsigned char)p[-1]) || !isdigit((unsigned char)p[1])) {
+            continue;
+        }
+        const char *b = p;
+        while(b > s && isdigit((unsigned char)b[-1])) {
+            b--;
+        }
+        size_t before = (size_t)(p - b);
+        size_t after = 0;
+        while(isdigit((unsigned char)p[1 + after])) {
+            after++;
+        }
+        if(!(before <= 2 && after == 4)) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The next word of a text, what lies between blanks and commas: NULL at
+ *  the end, else the word and its length in *len.
+ ***************************************************************************/
+PRIVATE const char *next_word_of_text(const char *p, size_t *len)
+{
+    while(*p && (isspace((unsigned char)*p) || *p == ',')) {
+        p++;
+    }
+    const char *word = p;
+    while(*p && !isspace((unsigned char)*p) && *p != ',') {
+        p++;
+    }
+    *len = (size_t)(p - word);
+    return (*len > 0)? word : NULL;
+}
+
+PRIVATE BOOL word_is_digits(const char *word, size_t len)
+{
+    for(size_t i = 0; i < len; i++) {
+        if(!isdigit((unsigned char)word[i])) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Has `s` digits in groups that approxidate() misreads: a text whose
+ *  words (between blanks and commas) are all digits -- "5 5", "2026 10
+ *  01", ", 5", "-5 5" --, or two or more such words in a row among others
+ *  -- "5 5 ago", "1 5 days ago", "2026 10 01 10:00", "2026, 10, 01". It
+ *  read them as May 5, September 26, January 10 of 2026. A group is a date
+ *  only as a person writes one: day month year ("01 10 2026", "01 10 2026
+ *  10:00"), or a day and a year after the name of a month ("Oct 1 2026",
+ *  "Oct 1, 2026"). "1700000000 +0000" (git's raw date, a sign inside) and
+ *  "01.10.2026" are not of this shape, and stay dates.
+ ***************************************************************************/
+PRIVATE BOOL has_digit_groups_text(const char *s)
+{
+    /*
+     *  Every word digits (the first may carry a sign): numbers, unless day
+     *  month year
+     */
     const char *p = s;
-    while(isspace((unsigned char)*p)) {
-        p++;
-    }
-    if(*p == '+' || *p == '-') {
-        p++;
-    }
-    int groups = 0;
-    while(*p >= '0' && *p <= '9') {
-        groups++;
-        while(*p >= '0' && *p <= '9') {
-            p++;
+    size_t len;
+    const char *word;
+    int words = 0;
+    BOOL all_digits = TRUE;
+    BOOL signed_first = FALSE;
+    size_t lens[3] = {0};
+    while((word = next_word_of_text(p, &len))) {
+        p = word + len;
+        const char *w = word;
+        size_t l = len;
+        if(words == 0 && l > 1 && (*w == '+' || *w == '-')) {
+            signed_first = TRUE;
+            w++;
+            l--;
         }
-        while(isspace((unsigned char)*p)) {
-            p++;
+        if(!word_is_digits(w, l)) {
+            all_digits = FALSE;
+            break;
         }
+        if(words < 3) {
+            lens[words] = l;
+        }
+        words++;
     }
-    return (groups >= 2 && *p == 0)? TRUE : FALSE;
+    if(all_digits && words > 0) {
+        BOOL day_month_year = (!signed_first && words == 3 &&
+            lens[0] <= 2 && lens[1] <= 2 && lens[2] == 4)? TRUE : FALSE;
+        return day_month_year? FALSE : TRUE;
+    }
+
+    /*
+     *  A run of two or more digit words among others
+     */
+    p = s;
+    int run = 0;
+    BOOL after_month = FALSE;   // the run follows a word that starts with a letter
+    BOOL prev_letter = FALSE;
+    for(;;) {
+        word = next_word_of_text(p, &len);
+        BOOL digits = (word && word_is_digits(word, len))? TRUE : FALSE;
+        if(digits) {
+            if(run == 0) {
+                after_month = prev_letter;
+            }
+            if(run < 3) {
+                lens[run] = len;
+            }
+            run++;
+        } else {
+            if(run >= 2) {
+                BOOL day_month_year = (run == 3 &&
+                    lens[0] <= 2 && lens[1] <= 2 && lens[2] == 4)? TRUE : FALSE;
+                BOOL day_year = (run == 2 && after_month &&
+                    lens[0] <= 2 && lens[1] == 4)? TRUE : FALSE;
+                if(!day_month_year && !day_year) {
+                    return TRUE;
+                }
+            }
+            run = 0;
+        }
+        if(!word) {
+            break;
+        }
+        prev_letter = isalpha((unsigned char)*word)? TRUE : FALSE;
+        p = word + len;
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -17890,7 +17999,9 @@ PRIVATE BOOL is_digit_groups_text(const char *s)
  *  strtoll() (" 5" was 5, "10.5" 10, "2026-10-01 00:00:00" 2026) and a
  *  tkey read by approxidate() (a text that is no date was NOW, "5" the
  *  5th of this month). R46 read every text that is not -?[0-9]+ as a
- *  date: " 5" was the 5th, "10.5" May 10, in silence.
+ *  date: " 5" was the 5th, "10.5" May 10, in silence. Up to R48 a word more
+ *  kept a misreading ("1,5 days ago", "5 5 ago", "2026 10 01 10:00"), and
+ *  "01 10 2026", a date read right, was refused (V49).
  ***************************************************************************/
 PUBLIC int tranger2_time_of_text(
     const char *text,
@@ -17918,8 +18029,11 @@ PUBLIC int tranger2_time_of_text(
     } else if(is_number_shaped_text(text)) {
         why_ = "a number that is not the text of a JSON integer";
         ret = -1;
-    } else if(is_digit_groups_text(text)) {
-        why_ = "numbers separated by blanks, not a date";
+    } else if(has_comma_between_digits(text)) {
+        why_ = "a comma between digits, not a date";
+        ret = -1;
+    } else if(has_digit_groups_text(text)) {
+        why_ = "numbers separated by blanks or commas, not a date";
         ret = -1;
     } else {
         int not_a_date = 0;

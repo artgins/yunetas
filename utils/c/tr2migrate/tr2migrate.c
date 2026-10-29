@@ -395,6 +395,45 @@ PRIVATE int copy_files_first_level(char *source, char *destine)
 }
 
 /***************************************************************************
+ *  The time a json string says, for the v1 code (30_timeranger.c), by the
+ *  rule timeranger2 reads a text time with (tranger2_time_of_json_text()):
+ *  the text of a JSON integer is that integer, another number (" 5",
+ *  "007", "1,5") or a text that is no date is refused, any other a date,
+ *  taken to ms when `in_ms`. Up to R48 the v1 code read it with
+ *  parse_date_basic() and did not check the answer: a text it could not
+ *  read left the time uninitialised. Return -1 refused (logged), 0 read.
+ ***************************************************************************/
+PUBLIC int tr2migrate_time_of_json_text(
+    json_t *topic,
+    const char *field,
+    json_t *jn_text,
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value
+)
+{
+    const char *why = NULL;
+    if(tranger2_time_of_json_text(jn_text, in_ms, end_of_second, value, &why) < 0) {
+        const char *text = json_string_value(jn_text);
+        if(!text) {
+            text = "";
+        }
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "time refused",
+            "why",          "%s", why,
+            "topic",        "%s", kw_get_str(0, topic, "topic_name", "", 0),
+            "field",        "%s", field,
+            "value",        "%.*s", utf8_prefix_len(text, 64), text,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int load_record_callback1(

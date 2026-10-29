@@ -4,6 +4,7 @@
  *      Time Ranger, a serie-time key-value database over flat files
  *
  *      Copyright (c) 2017-2024 Niyamaka.
+ *      Copyright (c) 2026, ArtGins.
  *      All Rights Reserved.
  *
  *  Básicamente un resource (topic) está implementado como:
@@ -540,6 +541,21 @@ PUBLIC void print_record_filename(
 PUBLIC void tranger_set_trace_level(
     json_t *tranger,
     int trace_level
+);
+
+/*
+    The time a json string says (a text tkey, a text time bound), by the
+    rule timeranger2 reads a text time with, tranger2_time_of_json_text():
+    defined in tr2migrate.c, which can include timeranger2.h (its constants
+    clash with the ones of this v1 code). Return -1 refused (logged), 0 read.
+*/
+PUBLIC int tr2migrate_time_of_json_text(
+    json_t *topic,      // NOT owned, a v1 topic
+    const char *field,
+    json_t *jn_text,    // NOT owned
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value
 );
 
 #ifdef __cplusplus

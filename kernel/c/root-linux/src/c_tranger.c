@@ -3393,7 +3393,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     /*
      *  A time bound is what timeranger2 takes: an integer (the topic's
      *  unit, negative from the last record), or a string read by
-     *  tranger2_time_of_text() -- the text of a JSON integer is that
+     *  tranger2_time_of_json_text() -- the text of a JSON integer is that
      *  number, another a date, and one that is neither is refused by the
      *  tranger, with a warning. They were DTP_STRING, and an integer
      *  from a kw was refused by the command parser (REV-CLOUD V20.13).

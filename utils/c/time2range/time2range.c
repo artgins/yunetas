@@ -114,8 +114,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         /*
          *  Read by the rule timeranger2 reads a time with
          *  (tranger2_time_of_text()), in seconds. Up to 7.29.3: "007" was 7,
-         *  and " 5", "1,5" or "garbage" a time of year 4461413 (the answer
-         *  of parse_date_basic() was not checked)
+         *  and " 5", "1,5" or "garbage" whatever the stack held: the answer
+         *  of parse_date_basic() was not checked, and a text it could not
+         *  read left the time uninitialised (a year in the millions, other
+         *  from one build to the next)
          */
         if(arg) {
             json_int_t value;

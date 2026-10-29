@@ -560,8 +560,17 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
     }
     printf("Topic ===> '%s'\n", kw_get_str(0, jn_topic, "directory", "", KW_REQUIRED));
 
+    /*
+     *  The time bounds are TEXT: the tranger reads them at the open, in the
+     *  unit of their axis in THIS topic, and writes them back into the
+     *  match_cond it was given. A recursive search hands each topic its own
+     *  copy: up to R48 every topic got the same match_cond, and read the
+     *  bound as the FIRST topic had written it, in that topic's unit.
+     */
+    json_t *topic_cond = json_deep_copy(match_cond);
+
     json_object_set_new(
-        match_cond,
+        topic_cond,
         "load_record_callback",
         json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
@@ -571,7 +580,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
             tranger,
             topic,
             arguments.key,
-            json_incref(match_cond), // owned
+            json_incref(topic_cond), // owned
             load_record_callback,
             NULL,   // rt_id
             NULL,   // creator
@@ -584,7 +593,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         json_t *rt = tranger2_open_list(
             tranger,
             topic,
-            json_incref(match_cond), // owned
+            json_incref(topic_cond), // owned
             NULL,   // extra
             NULL,   // rt_id
             FALSE,  // rt_by_disk
@@ -592,6 +601,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         );
         tranger2_close_list(tranger, rt);
     }
+    JSON_DECREF(topic_cond)
 
     /*-------------------------------*
      *  Free resources

@@ -673,14 +673,25 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         "-5" a negative, relative bound).
       - A text written as another number is refused: blanks around it
         (" 5", "5 "), leading zeros ("007"), a '+' ("+5"), decimals or an
-        exponent ("10.5", "1E5"), a decimal comma between digits ("1,5",
-        "10,5"), or digits in groups separated by blanks ("5 5",
-        "2026 10 01"). It is never read as a date: up to 7.29.3 a bound
-        read it with strtoll() (" 5" was 5, "10.5" 10), and approxidate()
-        reads "1,5" as May 1, "5 5" as May 5, "2026 10 01" as January 10.
+        exponent ("10.5", ".5", "1E5"), a decimal comma ("1,5", "10,5",
+        ",5", "5,"), or words that are all digits, between blanks and
+        commas ("5 5", "2026 10 01", "2026, 10, 01", ", 5"). It is never
+        read as a date: up to 7.29.3 a bound read it with strtoll() (" 5"
+        was 5, "10.5" 10), and approxidate() reads "1,5" as May 1, "5 5"
+        as May 5, "2026 10 01" as January 10.
+      - Nor is a text that holds such numbers among other words: a comma
+        between two digits ("1,5 days ago", "2026,10,01"), or two or more
+        words of digits in a row ("5 5 ago", "2026 10 01 10:00",
+        "12 2026 10:00"). approxidate() reads them as September 26, May 5,
+        January 10. A run of digits is a date only as a person writes
+        one: day month year ("01 10 2026", "01 10 2026 10:00"), or a day
+        and a year after the name of a month ("Oct 1 2026", "Oct 1, 2026",
+        "Oct 1,2026").
       - Any other text is a date, read by approxidate_careful(), and taken
         to milliseconds when `in_ms`; `end_of_second` (an end bound) then
-        takes the last millisecond of its second.
+        takes the last millisecond of its second. approxidate_careful() is
+        lenient past these shapes ("yesterday 10.30" is now): a time that
+        must be exact is written as an integer or as ISO 8601.
     Return 0 and the time in *value; -1 for a text that is no time, -2 for
     a time past what a json_int_t holds; *why (when not NULL) says it.
     Nothing is logged: the text comes from a peer or a user, the caller
@@ -1195,16 +1206,20 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     topic sets sf_t_ms / sf_tm_ms.
 
     A time bound may be given as TEXT, read once when the iterator, list or
-    feed opens, by tranger2_time_of_text(): "" is no bound, the text of a
-    JSON integer that integer, a text written as another number (" 5",
-    "10.5", "007") refused, any other a date read by approxidate_careful()
-    and taken to the unit of its axis (an end bound takes its whole
-    second): {"from_t": "2026-10-01T00:00:00+0000"}. A text that is no date
+    feed opens, by tranger2_time_of_json_text(): "" is no bound, the text
+    of a JSON integer that integer, a text written as another number (" 5",
+    "10.5", "007", "1,5", "5 5", "1,5 days ago") refused, any other a date
+    read by approxidate_careful() and taken to the unit of its axis (an end
+    bound takes its whole second): {"from_t": "2026-10-01T00:00:00+0000"}. A text that is no date
     ("garbage"), or a number refused, is refused with a WARNING, and the
     open answers NULL. Up to 7.29.3 a text with a 'T' that was no date was NOW, a
     text without one was cut by strtoll() ("garbage" no bound,
     "2026-10-01 00:00:00 +0000" the time 2026), and a feed (rt_mem, rt_disk)
-    did not read a text bound at all.
+    did not read a text bound at all. The open WRITES the bound it read
+    into its match_cond, as an integer in the unit of THIS topic, and so
+    the negative bounds it resolves for the key: a match_cond is the open's
+    own, and a caller that opens several topics or keys with one hands each
+    open a copy (json_deep_copy()), never the same json increfed.
 
     A NEGATIVE bound counts from the key's end AS THE ITERATOR OPENS, and is
     resolved then, once: `from_rowid = -4` is the last 4 rows of the key at

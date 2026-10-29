@@ -206,6 +206,21 @@ foreach(test ${SRCS})
         endif()
     endif()
 
+    if(test STREQUAL "test_date_bound_units")
+        # The test runs the tr2search and tr2list tools of THIS checkout, as
+        # test_tr2check runs its tr2check (see there)
+        foreach(tool tr2search tr2list)
+            string(TOUPPER "${tool}" TOOL)
+            if(TARGET ${tool})
+                add_dependencies(${binary} ${tool})
+                target_compile_definitions(${binary} PRIVATE ${TOOL}_BIN="$<TARGET_FILE:${tool}>")
+            else()
+                target_compile_definitions(${binary} PRIVATE
+                    ${TOOL}_BIN="${YUNETAS_BASE}/utils/c/${tool}/build/${tool}")
+            endif()
+        endforeach()
+    endif()
+
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()

@@ -26,10 +26,23 @@
  *  refused "" (no bound until then) and every integer text in a tkey
  *  ("1761000000000" was a bound, and no tkey), and took "007" as 7.
  *
+ *  A word more does not save a misreading (V49): ",5", "5,", "1,5 days
+ *  ago", "2026,10,01", "5 5 ago", "2026 10 01 10:00" are refused, and day
+ *  month year ("01 10 2026", refused in R48) and a day and a year after a
+ *  month ("Oct 1, 2026") are dates.
+ *
+ *  The tools (V49.1.1): tr2search -r and tr2list -r list, topic by topic,
+ *  what each lists on that topic alone. tr2search handed every topic one
+ *  match_cond, and the open of the first wrote the date into it in ITS
+ *  unit: a topic in ms after one in seconds listed every record.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
@@ -48,6 +61,16 @@
 #define TOPIC_TM_MS "topic_tm_ms"   // t in seconds, tm in ms
 #define DAY1        946684800       // 2000-01-01
 #define DAY_SECS    86400
+
+/*
+ *  The tr2search and tr2list of this checkout, given by CMakeLists.txt
+ */
+#ifndef TR2SEARCH_BIN
+#error "TR2SEARCH_BIN is not defined: CMakeLists.txt defines it"
+#endif
+#ifndef TR2LIST_BIN
+#error "TR2LIST_BIN is not defined: CMakeLists.txt defines it"
+#endif
 
 /***************************************************************
  *              Data
@@ -123,6 +146,50 @@ PRIVATE int load_nothing(
 {
     JSON_DECREF(jn_record)
     return 0;
+}
+
+/*
+ *  The records a tool (tr2search, tr2list) lists from 2000-01-02 on: of
+ *  the topic at `path`, or with `-r`, of the topic `topic` of the database
+ *  at `path`. -1 if the tool did not run.
+ */
+PRIVATE int tool_count(const char *bin, const char *path, const char *recursive, const char *options, const char *topic)
+{
+    if(access(bin, X_OK) != 0) {
+        printf("%sERROR%s --> tool not found at %s: %s (built by `yunetas build`)\n",
+            On_Red BWhite, Color_Off, bin, strerror(errno));
+        return -1;
+    }
+    char cmd[3*PATH_MAX];
+    snprintf(cmd, sizeof(cmd), "'%s' '%s' %s %s --from-t=2000-01-02T00:00:00Z -l0 2>/dev/null",
+        bin, path, recursive, options);
+    FILE *f = popen(cmd, "r");
+    if(!f) {
+        printf("%sERROR%s --> popen(%s): %s\n", On_Red BWhite, Color_Off, cmd, strerror(errno));
+        return -1;
+    }
+    char tail[NAME_MAX + 64];
+    if(topic) {
+        snprintf(tail, sizeof(tail), " %s %s: ", DATABASE, topic);
+    }
+    int count = topic? 0 : -1;  // a recursive tool says nothing of a topic with no record
+    char line[1024];
+    while(fgets(line, sizeof(line), f)) {
+        char *p;
+        if(topic) {
+            if(strncmp(line, "====>", 5) == 0 && (p = strstr(line, tail))) {
+                count = atoi(p + strlen(tail));
+            }
+        } else if((p = strstr(line, "(count: "))) {
+            count = atoi(p + strlen("(count: "));
+        }
+    }
+    int status = pclose(f);
+    if(status != 0) {
+        printf("%sERROR%s --> %s: exit status %d\n", On_Red BWhite, Color_Off, cmd, status);
+        return -1;
+    }
+    return count;
 }
 
 PRIVATE int expect(const char *what, const char *got, const char *expected)
@@ -591,6 +658,34 @@ PRIVATE int do_test(void)
             {"10 5",                        FALSE,  FALSE,  -1, 0},
             {" 2026 10 01 ",                FALSE,  FALSE,  -1, 0},
             {"-5 5",                        FALSE,  FALSE,  -1, 0},
+            /*  V49: a comma that is no number, and a word more  */
+            {",5",                          FALSE,  FALSE,  -1, 0},
+            {"5,",                          FALSE,  FALSE,  -1, 0},
+            {" ,5 ",                        FALSE,  FALSE,  -1, 0},
+            {", 5",                         FALSE,  FALSE,  -1, 0},
+            {"5 ,",                         FALSE,  FALSE,  -1, 0},
+            {"5 , 5",                       FALSE,  FALSE,  -1, 0},
+            {"1,5 days ago",                FALSE,  FALSE,  -1, 0},
+            {"1,5days ago",                 FALSE,  FALSE,  -1, 0},
+            {"5,5 hours ago",               FALSE,  FALSE,  -1, 0},
+            {"2026,10,01",                  FALSE,  FALSE,  -1, 0},
+            {"2026, 10, 01",                FALSE,  FALSE,  -1, 0},
+            {"5 5 ago",                     FALSE,  FALSE,  -1, 0},
+            {"1 5 days ago",                FALSE,  FALSE,  -1, 0},
+            {"2026 10 01 10:00",            FALSE,  FALSE,  -1, 0},
+            {"12 2026 10:00",               FALSE,  FALSE,  -1, 0},
+            {"10:00 1 5",                   FALSE,  FALSE,  -1, 0},
+            {"10 2026",                     FALSE,  FALSE,  -1, 0},
+            {"01 10 26",                    FALSE,  FALSE,  -1, 0},
+            {"-01 10 2026",                 FALSE,  FALSE,  -1, 0},
+            /*  V49: day month year, and a day and a year after a month  */
+            {"01 10 2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
+            {"1 2 2026 00:00:00 +0000",     FALSE,  FALSE,   0, 1769904000},
+            {"Oct 1 2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
+            {"Oct 1, 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"Oct 1,2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
+            {"1 Oct, 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"Thu, 01 Oct 2026 10:00:00 +0000", FALSE, FALSE, 0, 1790848800},
             {"1700000000 +0000",            FALSE,  FALSE,   0, 1700000000},
             {"garbage",                     FALSE,  FALSE,  -1, 0},
             {"2000-01-02T00:00:00+0000",    FALSE,  FALSE,   0, 946771200},
@@ -612,6 +707,21 @@ PRIVATE int do_test(void)
                     cases[i].ret, cases[i].value);
                 result += -1;
             }
+        }
+
+        /*
+         *  A day month year with no time takes the time of day of NOW: only
+         *  its day is checked. Up to R48 it was refused (V49), and 7.29.3
+         *  read it right.
+         */
+        json_int_t value = 0;
+        const char *why = NULL;
+        int ret = tranger2_time_of_text("01 10 2026", FALSE, FALSE, &value, &why);
+        if(ret != 0 || value < 1790812800 - DAY_SECS || value > 1790812800 + 2*DAY_SECS) {
+            printf("%sERROR%s --> tranger2_time_of_text('01 10 2026'): %d %" JSON_INTEGER_FORMAT
+                " (%s), expected 2026-10-01\n",
+                On_Red BWhite, Color_Off, ret, value, why? why : "");
+            result += -1;
         }
     }
     result += test_json(NULL);
@@ -661,6 +771,39 @@ PRIVATE int do_test(void)
     tranger2_shutdown(tranger);
     for(int i = 0; i < 10; i++) {
         yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The tools: a recursive listing reads a text bound in the unit of
+     *  EACH topic (V49.1.1). tr2search handed one match_cond to every
+     *  topic, and the open of the first wrote the bound into it as an
+     *  integer in ITS unit: the next topic read that integer as is.
+     */
+    set_expected_results("date bounds: a recursive tool, each topic in its unit", NULL, NULL, NULL, 1);
+    {
+        const struct {
+            const char *bin;
+            const char *options;
+        } tools[] = {
+            {TR2SEARCH_BIN, "--search-content-key=content --search-content-text=D"},
+            {TR2LIST_BIN,   ""},
+        };
+        for(size_t i = 0; i < sizeof(tools)/sizeof(tools[0]); i++) {
+            for(int t = 0; topics[t]; t++) {
+                char path_topic[PATH_MAX];
+                build_path(path_topic, sizeof(path_topic), path_database, topics[t], NULL);
+                char what[PATH_MAX + 128];
+                int alone = tool_count(tools[i].bin, path_topic, "", tools[i].options, NULL);
+                int recursive = tool_count(tools[i].bin, path_database, "-r", tools[i].options, topics[t]);
+                snprintf(what, sizeof(what), "%s -r, %s", tools[i].bin, topics[t]);
+                if(alone <= 0 || recursive != alone) {
+                    printf("%sERROR%s --> %s: %d records, alone %d\n",
+                        On_Red BWhite, Color_Off, what, recursive, alone);
+                    result += -1;
+                }
+            }
+        }
     }
     result += test_json(NULL);
 

@@ -10,7 +10,7 @@ Source code:
 (approxidate_careful)=
 ## [`approxidate_careful()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L8576)
 
-Reads a date as a person types it on a command line -- `"2 hours ago"`, `"yesterday noon"`, `"2026-10-01 10:00"`, `"@1700000000 +0000"` -- against now. It is what reads a date in [`tranger2_time_of_text()`](<#tranger2_time_of_text>), the rule every tool of the SDK reads a TIME option with (`tr2list --from-t`, `tr2search`, `stats_list`, `emu_device`, `time2range`) and timeranger2 reads a text bound and a string tkey with: there a text written as a number (`"007"`, `"10.5"`, `"1,5"`) never gets to it. `approxidate(s)` is the same with no error flag: a text that says no date is now.
+Reads a date as a person types it on a command line -- `"2 hours ago"`, `"yesterday noon"`, `"2026-10-01 10:00"`, `"@1700000000 +0000"` -- against now. It is what reads a date in [`tranger2_time_of_text()`](<#tranger2_time_of_text>), the rule every tool of the SDK reads a TIME option with (`tr2list --from-t`, `tr2search`, `stats_list`, `emu_device`, `time2range`) and timeranger2 reads a text bound and a string tkey with: there a text written as a number (`"007"`, `"10.5"`, `"1,5"`), or with digits that it misreads in groups (`"1,5 days ago"` September 26, `"5 5 ago"` May 5, `"2026 10 01 10:00"` January 10), never gets to it. `approxidate(s)` is the same with no error flag: a text that says no date is now.
 
 ```C
 timestamp_t approxidate_careful(
@@ -221,7 +221,11 @@ int parse_date_basic(
 
 **Returns**
 
-0, or -1 when `date` is no whole date and time (nothing is written).
+0, or -1 when `date` is no whole date and time (nothing is written). Check
+the answer: on -1 `*timestamp` keeps whatever it held, and a caller that
+reads it anyway reads garbage. Up to 7.29.3 `time2range -t garbage` did,
+and answered a range in a year in the millions, other from one build to the
+next.
 
 **Example**
 

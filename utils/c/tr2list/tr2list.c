@@ -39,7 +39,9 @@
     "--from-t=-86400 is its last day). A text written as another number is\n" \
     "refused, never read as a date: blanks around it (' 5'), leading zeros\n" \
     "('007'), a '+', decimals, an exponent, a decimal comma ('10.5', '1E5',\n" \
-    "'1,5'), or digits in groups ('5 5'). Any other text is a date parsed\n" \
+    "'1,5'), or digits in groups ('5 5'); so is a text with a comma between\n" \
+    "digits ('1,5 days ago') or digit words in a row ('5 5 ago'), but day\n" \
+    "month year ('01 10 2026'). Any other text is a date parsed\n" \
     "by approxidate() (grammar in helpers.h) and taken to that unit, topic\n" \
     "by topic (an end bound takes its whole second). A text that is no date\n" \
     "is refused. '' is no bound.\n" \

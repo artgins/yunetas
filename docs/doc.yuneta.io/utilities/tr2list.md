@@ -97,8 +97,13 @@ no bound.
 
 A text written as a number that is not the text of a JSON integer is refused,
 never read as a date: blanks around it, leading zeros, a `+`, decimals, an
-exponent, a decimal comma (`" 5"`, `007`, `+5`, `10.5`, `1E5`, `1,5`), and
-digits in groups separated by blanks (`"5 5"`, `"2026 10 01"`). So is a text
+exponent, a decimal comma (`" 5"`, `007`, `+5`, `10.5`, `1E5`, `1,5`, `,5`),
+and words that are all digits (`"5 5"`, `"2026 10 01"`, `"2026, 10, 01"`).
+So is a text with such numbers among other words: a comma between two digits
+(`"1,5 days ago"`, September 26 for `approxidate`), or two or more words of
+digits in a row (`"5 5 ago"`, `"2026 10 01 10:00"`); a run of digits is a
+date only as day month year (`"01 10 2026"`) or as a day and a year after the
+name of a month (`"Oct 1, 2026"`). So is a text
 that `approxidate` cannot read (`5-`, `-5-`, `5+5`, a lone `-`). Up to 7.27.6
 `approxidate` read `+5`, `" -5"`, `5+`, `5-` and `-5-` as the 5th of this
 month, `"5 5"` and `5+5` as the 5th of May, and a lone `-` or an empty TIME
@@ -113,7 +118,11 @@ tr2list /yuneta/store/x/topic1 --from-t=+5
 tr2list /yuneta/store/x/topic1 --from-t=1,5
 # -> TIME of --from-t refused, a number that is not the text of a JSON integer: '1,5'
 tr2list /yuneta/store/x/topic1 --from-t='5 5'
-# -> TIME of --from-t refused, numbers separated by blanks, not a date: '5 5'
+# -> TIME of --from-t refused, numbers separated by blanks or commas, not a date: '5 5'
+tr2list /yuneta/store/x/topic1 --from-t='1,5 days ago'
+# -> TIME of --from-t refused, a comma between digits, not a date: '1,5 days ago'
+tr2list /yuneta/store/x/topic1 --from-t='01 10 2026 10:00' --dry-run
+# -> from_t   = 1790841600 (s)  ->  2026-10-01T08:00:00.0+0000   (10:00 on a node at +0200)
 tr2list /yuneta/store/x/topic1 --from-t=5-
 # -> TIME of --from-t refused, a text that is no date: '5-'
 tr2list /yuneta/store/x/topic1 --from-t=2026-10-01 --dry-run

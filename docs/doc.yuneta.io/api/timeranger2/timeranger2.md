@@ -194,7 +194,7 @@ tranger2_append_record(tranger, "raw_t", 0, 0, &md,
 [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)**, the rule
 of a text time bound: `""` is no tkey value (`0`), the text of a JSON integer
 is that integer in the unit of `tm`, a text written as another number (`" 5"`,
-`"5 "`, `"10.5"`, `"007"`, `"1,5"`, `"5 5"`) is refused, a string with a NUL inside
+`"5 "`, `"10.5"`, `"007"`, `"1,5"`, `"5 5"`, `"1,5 days ago"`) is refused, a string with a NUL inside
 (`"5\u0000junk"`) is refused, and any other text is a date. A text
 that is refused is refused with a WARNING (the text comes from a peer or a
 user) and nothing written: *"Cannot append record, its tkey is a text that
@@ -641,8 +641,9 @@ int tranger2_time_of_text(
 |---|---|
 | `0`, `*value` `0` | `""`: no time (no bound, no tkey value). |
 | `0`, `*value` the integer | The text of a JSON integer, `-?(0|[1-9][0-9]*)`: `"5"`, `"-86400"`, `"-0"`, `"1761000000000"`. |
-| `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`, and with a decimal comma between digits, `"1,5"`, `"10,5"`. It is never read as a date. |
-| `-1`, *"numbers separated by blanks, not a date"* | Groups of digits separated by blanks: `"5 5"`, `"10 5"`, `"2026 10 01"`. `approxidate()` reads them as May 5, May 10 and January 10 of 2026. `"1700000000 +0000"` (git's raw date) and `"01.10.2026"` are not of this shape, and are dates. |
+| `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`, and with a decimal comma, `"1,5"`, `"10,5"`, `",5"`, `"5,"`. It is never read as a date. |
+| `-1`, *"a comma between digits, not a date"* | A comma between two digits among other words: `"1,5 days ago"`, `"1,5days ago"`, `"2026,10,01"`. `approxidate()` reads the first two as September 26 (1 and 5 days ago), the third as January 10 of 2026. A day and a year (1 or 2 digits, a comma, 4 digits) is a date: `"Oct 1,2026"`. |
+| `-1`, *"numbers separated by blanks or commas, not a date"* | Words that are all digits, between blanks and commas: `"5 5"`, `"10 5"`, `"2026 10 01"`, `"2026, 10, 01"`, `", 5"`, `"10 2026"`; or two or more of them in a row among other words: `"5 5 ago"`, `"1 5 days ago"`, `"2026 10 01 10:00"`, `"12 2026 10:00"`. `approxidate()` reads them as May 5, May 10, January 10 of 2026, the 5th, the 10th of this month, September 26, October 12. A run of digits is a date only as a person writes one: day month year (`"01 10 2026"`, `"01 10 2026 10:00"`), or a day and a year after the name of a month (`"Oct 1 2026"`, `"Oct 1, 2026"`). `"1700000000 +0000"` (git's raw date) and `"01.10.2026"` are not of this shape, and are dates. |
 | `0`, `*value` the date | Any other text that [`approxidate_careful()`](#approxidate_careful) reads: `"2000-01-02T00:00:00+0000"`, `"2000-01-02 00:00:00 +0000"`, `"yesterday"`. |
 | `-1`, *"a text that is no date"* | Any other text: `"garbage"`, `"0x10"`. |
 | `-2`, *"an integer past what a time holds"* / *"a date past what a time holds"* | An integer past `INT64_MAX`, or a date that does not fit a `json_int_t` in its unit. |
@@ -657,6 +658,14 @@ The unreleased R46 code read every text that was not `-?[0-9]+` as a date:
 `" 5"` was the 5th, `"10.5"` May 10, in silence; and until R48 a decimal
 comma was too (`approxidate()` reads `"1,5"` as May 1, `"10,5"` as May 10),
 and digits in groups (`"5 5"` May 5, `"2026 10 01"` January 10 of 2026).
+Until R49 a word more kept the misreading (`"1,5 days ago"`, `"5 5 ago"`,
+`"2026 10 01 10:00"`, `",5"`), and `"01 10 2026"`, a date read right, was
+refused.
+
+`approxidate_careful()` stays lenient past these shapes: `"yesterday 10.30"`
+is NOW, and `"1/10/2026"` January 10 (the order of a date with slashes is
+month/day). A time that must be exact is written as an integer, or as
+ISO 8601 (`"2026-10-01T10:30:00+0200"`).
 
 A text in C stops at its first NUL: a json string is read with
 [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>), which judges
@@ -2761,7 +2770,7 @@ topic sets `sf_t_ms` / `sf_tm_ms`.
 
 A time bound can be given as **text**, read once when the iterator, the list
 or the feed (rt_mem, rt_disk) opens, and written back into its `match_cond`
-as an integer, by [`tranger2_time_of_text()`](<#tranger2_time_of_text>) --
+as an integer, by [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>) --
 the same rule as a text tkey:
 
 - `""` is no bound (`0`).
@@ -2769,9 +2778,14 @@ the same rule as a text tkey:
   grammar), is that integer: `"-86400"` is relative, as below, `"-0"` is `0`.
 - A text written as another number is **refused**: blanks around it
   (`" 5"`, `"5 "`), leading zeros (`"007"`), a `+` (`"+5"`), decimals or an
-  exponent (`"10.5"`, `"1E5"`), a decimal comma (`"1,5"`), or digits in
-  groups separated by blanks (`"5 5"`, `"2026 10 01"`). It is never read as
-  a date.
+  exponent (`"10.5"`, `"1E5"`), a decimal comma (`"1,5"`, `",5"`), or
+  words that are all digits (`"5 5"`, `"2026 10 01"`, `"2026, 10, 01"`). It
+  is never read as a date.
+- So is a text with such numbers among other words: a comma between two
+  digits (`"1,5 days ago"`), or two or more words of digits in a row
+  (`"5 5 ago"`, `"2026 10 01 10:00"`). A run of digits is a date only as day
+  month year (`"01 10 2026"`) or as a day and a year after the name of a
+  month (`"Oct 1, 2026"`).
 - A string with a NUL inside (`"<a date>\u0000garbage"`) is refused: it is
   judged whole ([`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)).
 - Any other text is a date read by
@@ -2785,6 +2799,27 @@ A text that is **no date**, or a number refused, is refused with the WARNING
 without one was cut by `strtoll()` (`"garbage"` was no bound,
 `"2026-10-01 00:00:00 +0000"` the time 2026, `" 5"` 5, `"10.5"` 10), and a
 feed did not read a text bound at all.
+
+The open **writes** the bounds it read into its `match_cond`, as integers in
+the unit of ITS topic, and so the negative bounds it resolves for the key. A
+`match_cond` is the open's own: a caller that opens several topics or keys
+with one condition hands each open a copy, never the same json increfed.
+Up to R48 `tr2search -r` did, and every topic read a date in the unit of the
+first one.
+
+```C
+json_t *cond = json_pack("{s:s, s:I}",
+    "from_t", "2026-10-01T00:00:00+0000",
+    "load_record_callback", (json_int_t)(uintptr_t)load_cb
+);
+for(int i = 0; topics[i]; i++) {
+    json_t *list = tranger2_open_list(tranger, topics[i],
+        json_deep_copy(cond),   /* each topic reads the date in its own unit */
+        NULL, NULL, FALSE, NULL);
+    /* ... */
+}
+JSON_DECREF(cond)
+```
 
 ```C
 json_t *it = tranger2_open_iterator(tranger, "raw_t", "r1",
