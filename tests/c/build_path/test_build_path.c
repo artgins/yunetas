@@ -2,11 +2,16 @@
  *          test_build_path.c
  *
  *          Unit tests for build_path() path assembly + clamped '..'
- *          normalization (path-traversal confinement).
+ *          normalization (path-traversal confinement), and its answer to
+ *          a path that does not fit: NULL, errno ENAMETOOLONG and one
+ *          ERROR, the buffer holding the segments that fitted (up to
+ *          7.29.2 it answered the buffer, so every `!build_path()` guard of
+ *          the tree was dead and the cut path was used).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,6 +23,34 @@
  *      Data
  ***************************************************************************/
 PRIVATE int global_result = 0;
+PRIVATE int s_errors = 0;
+PRIVATE char s_last_log[1024];
+
+/***************************************************************************
+ *  The log, captured: the overflow must say so, once
+ ***************************************************************************/
+PRIVATE int capture_write(void *h, int priority, const char *bf, size_t len)
+{
+    if(priority <= LOG_ERR) {
+        s_errors++;
+    }
+    if(len >= sizeof(s_last_log)) {
+        len = sizeof(s_last_log) - 1;
+    }
+    memcpy(s_last_log, bf, len);
+    s_last_log[len] = 0;
+    return 0;
+}
+
+PRIVATE void check_true(BOOL ok, const char *name)
+{
+    if(!ok) {
+        printf("FAIL %s\n", name);
+        global_result += -1;
+    } else {
+        printf("ok   %s\n", name);
+    }
+}
 
 /***************************************************************************
  *  Assert helper
@@ -121,15 +154,49 @@ PRIVATE void test_edge_cases(void)
     check(bf, ".", "first segment is the locked root (not normalized)");
 }
 
+PRIVATE void test_overflow_answers_null(void)
+{
+    char bf[PATH_MAX];
+
+    int errors_before = s_errors;
+    errno = 0;
+    char *r = build_path(bf, 6, "/aa", "bb", NULL);    // "/aa/bb" needs 7
+    check_true(r == NULL, "overflow answers NULL");
+    check(bf, "/aa", "overflow keeps the segments that fit");
+    check_true(errno == ENAMETOOLONG, "overflow sets errno ENAMETOOLONG");
+    check_true(s_errors == errors_before + 1 && strstr(s_last_log, "Path too long") != NULL,
+        "overflow logs one ERROR \"Path too long\"");
+
+    errors_before = s_errors;
+    r = build_path(bf, 7, "/aa", "bb", NULL);           // exactly fits
+    check_true(r == bf, "a path that just fits answers the buffer");
+    check(bf, "/aa/bb", "a path that just fits is whole");
+    check_true(s_errors == errors_before, "a path that fits logs nothing");
+
+    char first[PATH_MAX + 1];
+    memset(first, 'a', sizeof(first) - 1);
+    first[0] = '/';
+    first[sizeof(first) - 1] = 0;
+    errors_before = s_errors;
+    r = build_path(bf, sizeof(bf), first, NULL);        // the first segment alone
+    check_true(r == NULL && bf[0] == 0, "a first segment that does not fit answers NULL, empty");
+    check_true(s_errors == errors_before + 1, "and logs one ERROR");
+}
+
 /***************************************************************************
  *      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    glog_init();
+    gobj_log_register_handler("capture", NULL, capture_write, NULL);
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
     test_basic();
     test_dot_normalization();
     test_traversal_confinement();
     test_edge_cases();
+    test_overflow_answers_null();
 
     printf("\n%s: %s\n", APP, global_result == 0 ? "PASS" : "FAIL");
     return global_result;

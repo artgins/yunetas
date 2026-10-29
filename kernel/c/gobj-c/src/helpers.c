@@ -906,11 +906,17 @@ PRIVATE void clamp_path_tail(char *bf_start, char *floor)
  *  The first segment is treated as the trusted root: '.'/'..' in any
  *  subsequent segment are resolved lexically and can never escape it
  *  (see clamp_path_tail()), neutralising path-traversal via tail input.
- *  Returns the start of the buffer (bf_start).
+ *  Returns the start of the buffer (bf_start), or NULL when the path does
+ *  not fit: logged (an ERROR with the stack), errno ENAMETOOLONG, and the
+ *  buffer holds the segments that fitted, terminated -- never a path to
+ *  use. Up to 7.29.2 the cut path was returned as if whole, and every
+ *  `!build_path()` guard of the tree was dead.
  ***************************************************************************/
 PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 {
     char *bf_start = bf;
+    size_t size = bfsize;
+    const char *overflow = NULL;    // the segment that did not fit
     const char *segment;
     va_list ap;
     va_start(ap, bfsize);
@@ -954,7 +960,7 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
         // Add separator
         size_t sep_len = (i > 0) ? 1 : 0;
         if(sep_len + seg_len >= bfsize) {
-            syslog(LOG_CRIT, "YUNETA: " "No space in build_path()");
+            overflow = segment;
             break;
         }
 
@@ -979,6 +985,19 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 
     clamp_path_tail(bf_start, bf_start + root_len);
 
+    if(overflow) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path too long, build_path() cannot build it",
+            "path",         "%s", bf_start,
+            "segment",      "%.255s", overflow,
+            "size",         "%d", (int)size,
+            NULL
+        );
+        errno = ENAMETOOLONG;
+        return NULL;
+    }
     return bf_start;
 }
 

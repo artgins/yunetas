@@ -443,8 +443,9 @@ PRIVATE BOOL is_skipped_dir(const char *name)
 }
 
 /***************************************************************************
- *  Join a directory and a name, or fail when the path does not fit:
- *  build_path() truncates, and a truncated path names another file
+ *  Join a directory and a name, or fail when the path does not fit: said
+ *  here, on stderr, with the path (build_path() refuses it too, but with a
+ *  log this CLI does not show)
  ***************************************************************************/
 PRIVATE int join_path(char *bf, size_t bfsize, const char *dir, const char *name)
 {

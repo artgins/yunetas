@@ -1325,7 +1325,9 @@ PUBLIC int rotatory_remove_old_files(
         }
 
         char path[PATH_MAX];
-        build_path(path, sizeof(path), hr->log_directory, name, NULL);
+        if(!build_path(path, sizeof(path), hr->log_directory, name, NULL)) {
+            continue;   // Error already logged
+        }
 
         struct stat st;
 #ifdef __linux__

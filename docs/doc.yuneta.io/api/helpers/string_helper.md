@@ -88,11 +88,29 @@ char *build_path(
 
 **Returns**
 
-Returns a pointer to `bf` containing the constructed path.
+Returns `bf`, holding the path. Returns `NULL` when the path does not fit in
+`bfsize` bytes: the ERROR *"Path too long, build_path() cannot build it"* is
+logged (with the stack), `errno` is `ENAMETOOLONG`, and `bf` holds only the
+segments that fitted, terminated. Do not use that cut path: it names another
+file, often a parent directory of the one asked for. Up to 7.29.2 the cut path
+was returned as if it were whole, and only syslog was told. A `NULL` `bf` or a
+`bfsize` of 0 returns `bf` and writes nothing.
 
 **Notes**
 
-Ensures that the resulting path does not have redundant slashes and properly formats directory separators.
+Ensures that the resulting path does not have redundant slashes and properly
+formats directory separators. The first segment is the root: a `..` in a later
+segment never goes above it (`"/store", "../../etc"` gives `/store/etc`).
+
+**Example**
+
+```C
+char path[PATH_MAX];
+if(!build_path(path, sizeof(path), topic_dir, "keys", key, NULL)) {
+    return -1;  // Error already logged
+}
+// path is "<topic_dir>/keys/<key>", whole
+```
 
 ---
 

@@ -197,6 +197,12 @@ PUBLIC int rmrcontentdir(const char *root_dir);
  *------------------------------------*/
 PUBLIC char *delete_right_char(char *s, char x);
 PUBLIC char *delete_left_char(char *s, char x);
+/*
+ *  Join the segments (NULL-terminated list) with one '/'. The first segment
+ *  is the root: '..' in the others never rises above it. Returns bf, or NULL
+ *  when the path does not fit bfsize: logged, errno ENAMETOOLONG, bf holds
+ *  the segments that fitted (terminated), never a path to use.
+ */
 PUBLIC char *build_path(char *bf, size_t bfsize, ...);
 PUBLIC char *get_last_segment(char *path);
 PUBLIC char *pop_last_segment(char *path); // WARNING path modified

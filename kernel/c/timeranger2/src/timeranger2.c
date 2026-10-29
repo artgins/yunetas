@@ -14054,8 +14054,8 @@ PRIVATE int archive_purged_files(
      */
     const char *failed = NULL;
     int err = 0;    // the errno of a link() that failed; 0 for a path too long (build_path() logged it)
-    char src[PATH_MAX];
-    char dst[PATH_MAX];
+    char src[PATH_MAX] = "";
+    char dst[PATH_MAX] = "";
     int idx; json_t *jn_file_id;
     json_array_foreach(file_ids, idx, jn_file_id) {
         const char *file_id = json_string_value(jn_file_id);
@@ -14064,6 +14064,7 @@ PRIVATE int archive_purged_files(
             if(snprintf(filename, sizeof(filename), "%s%s", file_id, suffixes[i]) >= (int)sizeof(filename)) {
                 continue;   // a name no file can have
             }
+            dst[0] = 0;     // a src that does not fit leaves no dst of the file before in the log
             if(!build_path(src, sizeof(src), topic_dir, "keys", key, filename, NULL) ||
                !build_path(dst, sizeof(dst), new_path, filename, NULL)) {
                 failed = "the path of a file is too long";
@@ -14079,6 +14080,7 @@ PRIVATE int archive_purged_files(
         }
     }
     for(int i = 0; topic_files[i] && !failed; i++) {
+        dst[0] = 0;
         if(!build_path(src, sizeof(src), topic_dir, topic_files[i], NULL) ||
            !build_path(dst, sizeof(dst), new_path, topic_files[i], NULL)) {
             failed = "the path of a file is too long";
