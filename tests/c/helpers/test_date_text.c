@@ -62,7 +62,8 @@
  *          12. an offset in a comment ("(UTC+02:00)", "(GMT-0500)",
  *              "(+0200)") is the zone when no other is given, before a
  *              zone name in a comment (7.28.5 to 7.29.3 took the name and
- *              lost the offset; REV-CLOUD V46.3).
+ *              lost the offset; REV-CLOUD V46.3), but not one that is
+ *              not whole ("(UTC-05:0)" was -05; V47.2).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -804,6 +805,16 @@ PRIVATE void test_offset_in_a_comment(void)
         {"2026-10-01 10:00:00 (UTC+2400)",                  "2026-10-01 12:00:00 +0200", 0},
         {"2026-10-01 10:00:00 (UTC+0260)",                  "2026-10-01 12:00:00 +0200", 0},
         {"2026-10-01 10:00:00 (+)",                         "2026-10-01 10:00:00 +0200", 0},
+
+        /*
+         *  Nor an offset that is not whole: a ':' after the hours needs
+         *  both digits of the minutes, as outside a comment (V47.2)
+         */
+        {"2026-10-01 10:00:00 (-05:0)",                     "2026-10-01 10:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 (-05:)",                      "2026-10-01 10:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 (UTC-05:0)",                  "2026-10-01 12:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 (UTC-05:0) (UTC+03:00)",      "2026-10-01 09:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 -05:0",                       "2026-10-21 11:00:00 +0200", 1},
         {"2026-10-01 10:00:00 (UTC+02:00",                  "2026-10-21 11:00:00 +0200", 1},
     };
     check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));

@@ -8063,7 +8063,10 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
 /***************************************************************************
  *  The offset of a zone written as +hh, +hhmm or +hh:mm (or with '-'),
  *  `p` at the sign. FALSE when it is not one. `*end` is where the reading
- *  stopped either way.
+ *  stopped either way. A ':' after the hours needs both digits of the
+ *  minutes: "+02:0" and "+02:" are no offset. Outside a comment the ':'
+ *  left after "+02" made the text unreadable; in a comment, where only a
+ *  letter after the offset was refused, "(UTC-05:0)" was read as -05.
  ***************************************************************************/
 PRIVATE BOOL take_zone_offset(const char *p, long *offset_seconds, const char **end)
 {
@@ -8081,6 +8084,9 @@ PRIVATE BOOL take_zone_offset(const char *p, long *offset_seconds, const char **
         hours = value;
         minutes = (p[1] - '0')*10 + (p[2] - '0');
         p += 3;
+    } else if(digits == 2 && *p == ':') {
+        *end = p;
+        return FALSE;
     } else if(digits == 2) {
         hours = value;
         minutes = 0;
