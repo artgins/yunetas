@@ -39,11 +39,14 @@ What is read (the full grammar is in `helpers.h`, above `approxidate_careful()`)
 | A duration back from now | `"2 hours ago"`, `"3 days"`, `"1.day"`, `"2 days 3 hours ago"`, `"one week ago"`, `"last month"` |
 | Short units | `"1s"` `"5m"` `"2h"` `"1d"` `"1w"` `"1M"` `"1y"`, `"1min"`, `"2hrs"`: `m` is a minute, `M` a month |
 | A duration with a minus sign | `"-1d"`, `"-2 hours"`, `"-1w ago"`: the same as without it (7.28.5 to 7.28.8 refused it, and a tool read it as NOW) |
-| Days and times | `"now"`, `"today"`, `"yesterday"`, `"never"` (0), `"noon"`, `"midnight"`, `"tea"` (the last one that passed), `"last friday"`, `"3pm"`, `"10:30"`, `"yesterday 15:00"` |
-| Dates | `"2026-10-01"`, `"10/01/2026"` (M/D/Y first), `"1.10.2026"` (D.M.Y), `"Oct 1 2026"`, `"Sep 2024"`, `"2026-10-01T10:00:00+02:00"`, `"Thu, 01 Oct 2026 10:00:00 +0000"` |
-| Epoch seconds | `"@1700000000"`, `"@99999999999999 +0000"` (no year limit), `"1700000000"` |
+| Days and times | `"now"`, `"today"`, `"yesterday"`, `"never"` (0), `"noon"`, `"midnight"`, `"tea"` (the last one that passed), `"last friday"`, `"2 fridays ago"`, `"3pm"`, `"10:30"`, `"yesterday 15:00"` |
+| Dates | `"2026-10-01"`, `"10/01/2026"` (M/D/Y first), `"1.10.2026"` (D.M.Y), `"Oct 1 2026"`, `"July 5th"`, `"the 5th of July"`, `"Sep 2024"`, `"01-Oct-2026"`, `"2026-10-01T10:00:00+02:00"`, `"2026-10-01 10:00:00,5"`, `"Thu, 01 Oct 2026 10:00:00 +0000"` |
+| Dates as programs write them | `"Thu Oct 01 2026 10:00:00 GMT+0200 (CEST)"` (`Date.toString()` of javascript), `"01/Oct/2026:10:00:00 +0200"` (the access log of a web server) |
+| Epoch seconds | `"@1700000000"`, `"@99999999999999 +0000"` (no year limit), `"1700000000"`; a value no calendar holds (`"@9223372036854775807"`) is no date |
 
 A date with no year is of this year, or of the year before when it is more than 10 days ahead. A date with no clock time keeps the time of day of now. Months and years back are of the calendar (`"1 month ago"` on March 31 is February 28 or 29); days are 24 hours.
+
+M/D/Y (D.M.Y) is read in the other order when it is no date or is more than 10 days ahead: `"13/10/2026"` is October 13, and `"1.12.2026"` read in October is January 12. A date with its year **and a clock time after it** is read as written, however far ahead: `"1.12.2026 10:00"` is December 1 and `"10/01/2027 10:00"` is October 1 (7.28.5 to 7.29.1 took the other order for them too).
 
 A text with a piece that says nothing known is refused as a whole: `"tomorrow"`, `"in 3 days"` (no time ahead of now is read), `"1.5 hours"`, `"2026-02-30"`, `"+5"`, `"-5"`, `"+1d"`. Up to 7.28.4 the port of git's `date.c` read many of them as another date, in silence (`"2 days from now"` was two days BACK, `"2026-02-30"` was March 2); see [`test_date_text`](https://github.com/artgins/yunetas/blob/7.29.1/tests/c/helpers/test_date_text.c).
 
@@ -198,7 +201,7 @@ This function checks the system's byte order and swaps bytes if necessary to mak
 (parse_date_basic)=
 ## [`parse_date_basic()`](https://github.com/artgins/yunetas/blob/7.29.1/kernel/c/gobj-c/src/helpers.c#L8269)
 
-Reads only a whole date and time, or epoch seconds: a year, a month, a day and a clock time, with an optional zone (`+0200`, `+02:00`, `Z`, `UTC`, `CEST`, ...), an optional weekday and an optional comment in parentheses. Anything relative, or a word it does not know, is refused: that is what [`approxidate_careful()`](#approxidate_careful) is for.
+Reads only a whole date and time, or epoch seconds: a year, a month, a day and a clock time, with an optional zone (`+0200`, `+02:00`, `Z`, `UTC`, `CEST`, `GMT+0200`, ...), an optional weekday and an optional comment in parentheses. Anything relative, or a word it does not know, is refused: that is what [`approxidate_careful()`](#approxidate_careful) is for.
 
 ```C
 int parse_date_basic(

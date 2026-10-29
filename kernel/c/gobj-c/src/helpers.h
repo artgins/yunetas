@@ -1102,7 +1102,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     Days and times:
         "now" "today" "yesterday" "never" (the epoch, 0)
         "noon" "midnight" "tea" (17:00): the last one that passed
-        "last friday": the Friday before today; "2 friday": the one before it
+        "last friday": the Friday before today; "2 friday" ("2 fridays ago"):
+        the one before it
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
 
@@ -1111,9 +1112,17 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "10/01/2026"  "1/10/26": M/D/Y first, D/M/Y when M/D is not a date
                       or is more than 10 days ahead ("13/10/2026" is Oct 13)
         "1.10.2026": D.M.Y first
+        With its year and a clock time after it, a date is read as written,
+        however far ahead: "1.12.2026 10:00" is Dec 1, "10/01/2027 10:00"
+        is Oct 1 (without the clock time, "1.12.2026" more than 10 days
+        ahead is Jan 12)
         "Oct 1 2026"  "1 Oct 2026"  "October 1, 2026"  "Sep 2024"  "2024"
-        "2026-10-01 10:00"  "2026-10-01T10:00:00.123+02:00"
+        "July 5th"  "1st Oct"  "the 5th of July" (ordinals: st, nd, rd, th)
+        "01-Oct-2026"  "Oct-01-2026"  "01/Oct/2026:10:00:00 +0200" (the log
+        format of web servers)
+        "2026-10-01 10:00"  "2026-10-01T10:00:00.123+02:00"  "10:00:00,5"
         "Thu, 01 Oct 2026 10:00:00 +0000"  "Thu Oct 1 10:00:00 2026 +0200"
+        "Thu Oct 01 2026 10:00:00 GMT+0200 (CEST)" (Date.toString() of js)
         "20261001T100000"
         Two-digit years: 00-37 are 20xx, 70-99 are 19xx.
         What a date does not say is taken from now: "May 11" is of this
@@ -1124,9 +1133,11 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     Zones (a clock time is local when none is given):
         "+0200"  "+02:00"  "+02"  "-0500"  "Z"  "UTC"  "GMT"  "CET"  "CEST"
         "EST"  "PST" ... (an abbreviation names one offset in any season)
+        "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
 
     Epoch seconds, with no year limit:
         "@1700000000"  "@99999999999999 +0000"  "1700000000" (9 digits or more)
+        (but a value no calendar holds, "@9223372036854775807", is no date)
 
     Not read (error): "tomorrow", "next friday", "in 3 days",
     "2 days from now" (no time ahead of now), "1.5 hours", a date that is

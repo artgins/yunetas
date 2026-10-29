@@ -45,6 +45,13 @@
  *              one ("noon yesterday" was 13:00 on 2026-10-25);
  *          9.  parse_date_basic() refuses a word it does not know. And one
  *              unit is singular in show_date_relative() (5).
+ *          10. forms the port read that 7.28.5 to 7.29.1 read otherwise or
+ *              refused: M/D/Y (D.M.Y) with its year and a clock time after
+ *              it, an offset after GMT/UTC ("GMT+0200"), ordinals ("5th"),
+ *              the comma before a fraction of a second, a weekday in the
+ *              plural ("2 fridays ago"), a month name between dashes or
+ *              slashes ("01-Oct-2026", "01/Oct/2026:10:00:00 +0200");
+ *              and epoch seconds no calendar holds are refused.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -553,6 +560,100 @@ PRIVATE void test_words(void)
 }
 
 /***************************************************************************
+ *  10. Forms the port read that 7.28.5 to 7.29.1 read otherwise, or not
+ *  at all (REV-CLOUD V44.2.4)
+ ***************************************************************************/
+PRIVATE void test_forms_of_the_port(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  M/D/Y (D.M.Y) with its year and a clock time after it is read
+         *  as written, even far ahead; without that clock time the other
+         *  order is taken when it is far ahead (as the port did)
+         */
+        {"1.12.2026 10:00",                 "2026-12-01 10:00:00 +0100", 0},
+        {"1.12.2026 10:00:00",              "2026-12-01 10:00:00 +0100", 0},
+        {"01/02/2030 00:00:00",             "2030-01-02 00:00:00 +0100", 0},
+        {"10/01/2027 10:00",                "2027-10-01 10:00:00 +0200", 0},
+        {"3/4/27 10:00",                    "2027-03-04 10:00:00 +0100", 0},
+        {"01/02/2030",                      "2030-02-01 10:00:00 +0100", 0},
+        {"1.12.2026",                       "2026-01-12 10:00:00 +0100", 0},
+        {"10:00 01/02/2030",                "2030-02-01 10:00:00 +0100", 0},
+        {"01/02/2030 10am",                 "2030-02-01 10:00:00 +0100", 0},
+
+        /*
+         *  An offset after GMT or UTC, as Date.toString() of javascript
+         *  writes it
+         */
+        {"Thu Oct 01 2026 10:00:00 GMT+0200 (CEST)",        "2026-10-01 10:00:00 +0200", 0},
+        {"Thu Oct 01 2026 10:00:00 GMT-0500 (EST)",         "2026-10-01 17:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 GMT+02:00",                   "2026-10-01 10:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 GMT +0200",                   "2026-10-01 10:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 UTC-0300",                    "2026-10-01 15:00:00 +0200", 0},
+        {"2026-10-01 10:00:00 GMT+2",                       "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  Ordinals, "the" and "of"
+         */
+        {"July 5th",                        "2026-07-05 11:00:00 +0200", 0},
+        {"1st Oct",                         "2026-10-01 11:00:00 +0200", 0},
+        {"Oct 1st 2026 10:00",              "2026-10-01 10:00:00 +0200", 0},
+        {"2nd March 2026",                  "2026-03-02 10:00:00 +0100", 0},
+        {"3rd",                             "2026-10-03 11:00:00 +0200", 0},
+        {"the 5th of July",                 "2026-07-05 11:00:00 +0200", 0},
+        {"1st of October",                  "2026-10-01 11:00:00 +0200", 0},
+        {"32nd",                            "2026-10-21 11:00:00 +0200", 1},
+        {"0th",                             "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  The comma of ISO 8601 before the fraction of a second
+         */
+        {"2026-10-01 10:00:00,5",           "2026-10-01 10:00:00 +0200", 0},
+        {"2026-10-01T10:00:00,123Z",        "2026-10-01 12:00:00 +0200", 0},
+
+        /*
+         *  A weekday in the plural after its count
+         */
+        {"2 fridays ago",                   "2026-10-09 11:00:00 +0200", 0},
+        {"3 fridays",                       "2026-10-02 11:00:00 +0200", 0},
+
+        /*
+         *  A month name between dashes or slashes: D-Mon-Y, Mon-D-Y, and
+         *  the common log format of web servers
+         */
+        {"01-Oct-2026",                     "2026-10-01 11:00:00 +0200", 0},
+        {"1-oct-26",                        "2026-10-01 11:00:00 +0200", 0},
+        {"01/Oct/2026",                     "2026-10-01 11:00:00 +0200", 0},
+        {"Oct-01-2026",                     "2026-10-01 11:00:00 +0200", 0},
+        {"01-Oct-2026 10:00",               "2026-10-01 10:00:00 +0200", 0},
+        {"01/Oct/2026:10:00:00 +0200",      "2026-10-01 10:00:00 +0200", 0},
+        {"21/Oct/2026:08:30:00 +0000",      "2026-10-21 10:30:00 +0200", 0},
+        {"31-Feb-2026",                     "2026-10-21 11:00:00 +0200", 1},
+        {"01-Foo-2026",                     "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  Epoch seconds that no calendar can hold are no date (it was
+         *  read, with an internal error logged)
+         */
+        {"@9223372036854775807",            "2026-10-21 11:00:00 +0200", 1},
+        {"@9223372036854775807 +0000",      "2026-10-21 11:00:00 +0200", 1},
+        {"9223372036854775807",             "2026-10-21 11:00:00 +0200", 1},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+
+    check_parse_date_basic("1.12.2026 10:00",                           0, "2026-12-01 10:00:00 +0100", 60);
+    check_parse_date_basic("10/01/2027 10:00",                          0, "2027-10-01 10:00:00 +0200", 120);
+    check_parse_date_basic("Thu Oct 01 2026 10:00:00 GMT+0200 (CEST)",  0, "2026-10-01 10:00:00 +0200", 120);
+    check_parse_date_basic("Wed Oct 28 2026 18:00:00 GMT+0100 (hora estándar de Europa central)",
+                                                                        0, "2026-10-28 18:00:00 +0100", 60);
+    check_parse_date_basic("Oct 1st 2026 10:00",                        0, "2026-10-01 10:00:00 +0200", 120);
+    check_parse_date_basic("2026-10-01 10:00:00,5",                     0, "2026-10-01 10:00:00 +0200", 120);
+    check_parse_date_basic("01/Oct/2026:10:00:00 +0200",                0, "2026-10-01 10:00:00 +0200", 120);
+    check_parse_date_basic("@9223372036854775807",                      -1, "", 0);
+    check_parse_date_basic("@9223372036854775807 +0000",                -1, "", 0);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -586,6 +687,7 @@ int main(int argc, char *argv[])
     test_calendar_edges();
     test_change_of_hour();
     test_words();
+    test_forms_of_the_port();
 
     gobj_end();
 
