@@ -55,7 +55,12 @@ typedef struct {
 /***************************************************************************
  *      Prototypes
  ***************************************************************************/
-PRIVATE int clone_dir(const char *dst, const char *src, clone_spec_t *spec);
+PRIVATE int clone_dir(
+    const char *dst,
+    const char *src,
+    const char *real_root,
+    clone_spec_t *spec
+);
 
 /***************************************************************************
  *  A byte that makes a word: on each side of a key there must be none
@@ -438,10 +443,82 @@ PRIVATE BOOL is_skipped_dir(const char *name)
 }
 
 /***************************************************************************
- *  Clone a symlink, its target unchanged
+ *  Join a directory and a name, or fail when the path does not fit:
+ *  build_path() truncates, and a truncated path names another file
  ***************************************************************************/
-PRIVATE int clone_link(const char *dst, const char *src)
+PRIVATE int join_path(char *bf, size_t bfsize, const char *dir, const char *name)
 {
+    if(strlen(dir) + 1 + strlen(name) >= bfsize) {
+        fprintf(stderr, "ERROR: path too long: '%s/%s'\n", dir, name);
+        return -1;
+    }
+    build_path(bf, bfsize, dir, name, NULL);
+    return 0;
+}
+
+/***************************************************************************
+ *  The target of a cloned symlink. One that resolves inside the cloned
+ *  tree is rendered as the names are (and gets the suffix when it is a
+ *  text file), so it points to the file under its new name; an absolute
+ *  one, one outside the tree, or a dangling one is kept as it is
+ ***************************************************************************/
+PRIVATE int render_link_target(
+    char *bf,
+    size_t bfsize,
+    const char *target,
+    const char *src_link,
+    const char *real_root,
+    clone_spec_t *spec
+) {
+    char resolved[PATH_MAX];
+    size_t l = strlen(real_root);
+    if(target[0] == '/' || !realpath(src_link, resolved) ||
+            strncmp(resolved, real_root, l) != 0 || resolved[l] != '/') {
+        int n = snprintf(bf, bfsize, "%s", target);
+        if(n < 0 || (size_t)n >= bfsize) {
+            fprintf(stderr, "ERROR: link target too long: '%s'\n", target);
+            return -1;
+        }
+        return 0;
+    }
+
+    struct stat st;
+    if(stat(resolved, &st) < 0) {
+        fprintf(stderr, "ERROR: cannot stat '%s': %s\n", resolved, strerror(errno));
+        return -1;
+    }
+    BOOL is_binary = FALSE;
+    if(S_ISREG(st.st_mode)) {
+        if(is_binary_file(resolved, &is_binary) < 0) {
+            return -1;  // Error already logged
+        }
+    }
+    BOOL add_text_suffix = S_ISREG(st.st_mode) && !is_binary;
+
+    out_buf_t out = {0};
+    if(render_text(&out, target, strlen(target), spec->name_values, spec) < 0) {
+        gbmem_free(out.p);
+        return -1;  // Error already logged
+    }
+    const char *suffix = (add_text_suffix && spec->text_suffix)? spec->text_suffix : "";
+    int n = snprintf(bf, bfsize, "%s%s", out.p, suffix);
+    gbmem_free(out.p);
+    if(n < 0 || (size_t)n >= bfsize) {
+        fprintf(stderr, "ERROR: link target too long: '%s'\n", target);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Clone a symlink, its target following the names of the clone
+ ***************************************************************************/
+PRIVATE int clone_link(
+    const char *dst,
+    const char *src,
+    const char *real_root,
+    clone_spec_t *spec
+) {
     char target[PATH_MAX];
     ssize_t n = readlink(src, target, sizeof(target) - 1);
     if(n < 0) {
@@ -449,20 +526,28 @@ PRIVATE int clone_link(const char *dst, const char *src)
         return -1;
     }
     target[n] = 0;
-    if(symlink(target, dst) < 0) {
+    char new_target[PATH_MAX];
+    if(render_link_target(new_target, sizeof(new_target), target, src, real_root, spec) < 0) {
+        return -1;  // Error already logged
+    }
+    if(symlink(new_target, dst) < 0) {
         fprintf(stderr, "ERROR: cannot create the link '%s' -> '%s': %s\n",
-            dst, target, strerror(errno));
+            dst, new_target, strerror(errno));
         return -1;
     }
-    printf("Creating link: %s -> %s\n", dst, target);
+    printf("Creating link: %s -> %s\n", dst, new_target);
     return 0;
 }
 
 /***************************************************************************
  *  Clone the directory src into dst (dst must not exist)
  ***************************************************************************/
-PRIVATE int clone_dir(const char *dst, const char *src, clone_spec_t *spec)
-{
+PRIVATE int clone_dir(
+    const char *dst,
+    const char *src,
+    const char *real_root,
+    clone_spec_t *spec
+) {
     struct stat st_dir;
     if(stat(src, &st_dir) < 0) {
         fprintf(stderr, "ERROR: cannot stat '%s': %s\n", src, strerror(errno));
@@ -490,7 +575,10 @@ PRIVATE int clone_dir(const char *dst, const char *src, clone_spec_t *spec)
         }
 
         char src_path[PATH_MAX];
-        build_path(src_path, sizeof(src_path), src, name, NULL);
+        if(join_path(src_path, sizeof(src_path), src, name) < 0) {
+            ret = -1;   // Error already logged
+            break;
+        }
 
         struct stat st;
         if(lstat(src_path, &st) < 0) {
@@ -519,12 +607,15 @@ PRIVATE int clone_dir(const char *dst, const char *src, clone_spec_t *spec)
             break;
         }
         char dst_path[PATH_MAX];
-        build_path(dst_path, sizeof(dst_path), dst, dst_name, NULL);
+        if(join_path(dst_path, sizeof(dst_path), dst, dst_name) < 0) {
+            ret = -1;   // Error already logged
+            break;
+        }
 
         if(S_ISLNK(st.st_mode)) {
-            ret = clone_link(dst_path, src_path);
+            ret = clone_link(dst_path, src_path, real_root, spec);
         } else if(S_ISDIR(st.st_mode)) {
-            ret = clone_dir(dst_path, src_path, spec);
+            ret = clone_dir(dst_path, src_path, real_root, spec);
         } else if(S_ISREG(st.st_mode)) {
             ret = write_clone(dst_path, src_path, is_binary, st.st_mode, spec);
         } else {
@@ -578,7 +669,7 @@ PUBLIC int clone_tree_dir(const char *dst, const char *src, clone_spec_t *spec)
         return -1;
     }
 
-    return clone_dir(dst, src, spec);
+    return clone_dir(dst, src, real_src, spec);
 }
 
 /***************************************************************************

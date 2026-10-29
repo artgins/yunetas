@@ -133,29 +133,32 @@ function build_ui(gobj)
     let header_children = [
         /*  title and subtitle are i18n KEYS (app_config.json): each text
          *  carries its key, so refresh_language() can change it.  */
-        ["h1", {class: "title is-3", style: `color:${color}; margin-bottom:0.25rem;`,
+        ["h1", {class: "PLACEHOLDER_TITLE title is-3",
+                style: `color:${color}; margin-bottom:0.25rem;`,
                 i18n: title}, t(title)]
     ];
     if(subtitle) {
         header_children.push(
-            ["p", {class: "subtitle is-6", style: `color:#5B6B7E; margin-bottom:0.5rem;`,
+            ["p", {class: "PLACEHOLDER_SUBTITLE subtitle is-6",
+                   style: `color:#5B6B7E; margin-bottom:0.5rem;`,
                    i18n: subtitle}, t(subtitle)]
         );
     }
     header_children.push(
-        ["p", {class: "is-size-7", style: "color:#5B6B7E;"}, [
-            ["span", {}, gobj_name(gobj)],
+        ["p", {class: "PLACEHOLDER_INSTANCE is-size-7", style: "color:#5B6B7E;"}, [
+            ["span", {class: "PLACEHOLDER_GOBJ_NAME"}, gobj_name(gobj)],
             ["span", {class: "mx-1"}, "·"],
             ["span", {class: "mr-1", i18n: "instance"}, t("instance")],
-            ["span", {}, `#${id}`]
+            ["span", {class: "PLACEHOLDER_INSTANCE_ID"}, `#${id}`]
         ]]
     );
 
     let $c = createElement2(
-        ["div", {class: "view-card", style: `background:${bg};`},
+        ["div", {class: `${GCLASS_NAME} PLACEHOLDER_CARD view-card`, style: `background:${bg};`},
             [
-                ["div", {}, header_children],
-                ["div", {class: "bg", style: `border-color:${border}; color:${border};`}, [
+                ["div", {class: "PLACEHOLDER_HEADER"}, header_children],
+                ["div", {class: "PLACEHOLDER_BADGE bg",
+                         style: `border-color:${border}; color:${border};`}, [
                     ["span", {}, "{{Project}} GUI"],
                     ["span", {class: "mx-1"}, "·"],
                     ["span", {i18n: "placeholder view"}, t("placeholder view")]

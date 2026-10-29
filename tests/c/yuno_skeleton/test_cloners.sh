@@ -16,6 +16,12 @@
 #       that builds (the round trip), with a directory named after the
 #       rootname rendered too (it got a literal {{rootname}}).
 #
+#   And the ones of 7.29.1: a symlink to a file the clone renames points to
+#   the new name, in both tools of the round trip (it was left dangling);
+#   the round trip keeps the mode of a script (yuno-skeleton dropped it);
+#   a destination path longer than PATH_MAX is an error that says so (the
+#   truncated path was used).
+#
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
 #
@@ -108,6 +114,7 @@ cp "$SRC/build/sktcln" "$SRC/sktcln.bin"
 printf '#!/bin/sh\necho sktcln\n' > "$SRC/run_sktcln.sh"
 chmod 0755 "$SRC/run_sktcln.sh"
 ln -s README.md "$SRC/README.link"
+ln -s run_sktcln.sh "$SRC/run.link"
 mkdir -p "$SRC/sktroot_data"
 printf 'data of sktroot\n' > "$SRC/sktroot_data/sktroot.txt"
 
@@ -127,6 +134,9 @@ if [ -d "$DST" ]; then
     [ -e "$DST/.git" ] && fail "yclone-project cloned .git"
     [ -e "$DST/build" ] && fail "yclone-project cloned build"
     [ "$(readlink "$DST/README.link" 2>/dev/null)" = "README.md" ] || fail "yclone-project: the symlink was not kept"
+    [ "$(readlink "$DST/run.link" 2>/dev/null)" = "run_sktcln_two.sh" ] \
+        || fail "yclone-project: a symlink to a renamed file does not follow it"
+    [ -e "$DST/run.link" ] || fail "yclone-project: a symlink left dangling"
     if build "$DST"; then
         "$DST/build/sktcln_two" --print-role 2>/dev/null | grep -q '"role": "sktcln_two"' \
             || fail "the cloned yuno does not say its new role"
@@ -156,6 +166,8 @@ if [ -d "$SK/skt_clone" ]; then
     [ -d "$SK/skt_clone/+rootname+_data" ] || fail "ymake-skeleton: the directory name was not rendered as +rootname+"
     [ -f "$SK/skt_clone/+yunorole+.bin" ] || fail "ymake-skeleton: the binary got a suffix or was not renamed"
     cmp -s "$SRC/sktcln.bin" "$SK/skt_clone/+yunorole+.bin" || fail "ymake-skeleton: the binary is not byte for byte"
+    [ -e "$SK/skt_clone/run.link" ] || fail "ymake-skeleton: a symlink to a renamed file left dangling"
+    [ -e "$SK/skt_clone/README.link" ] || fail "ymake-skeleton: a symlink to a file that got the suffix left dangling"
 
     python3 - "$SKELETONS/__skeletons__.json" "$SK/__skeletons__.json" <<'PY'
 import json, sys
@@ -170,6 +182,10 @@ PY
     if [ -f "$R/src/c_sktrndroot.c" ]; then
         grep -rq "{{\|sktcln\|sktroot" "$R/src" "$R/CMakeLists.txt" && fail "the round trip left a marker or an old name"
         [ -d "$R/sktrndroot_data" ] || fail "the round trip did not render the directory name"
+        [ -x "$R/run_sktrnd.sh" ] || fail "the round trip lost the mode of a script"
+        [ "$(readlink "$R/run.link" 2>/dev/null)" = "run_sktrnd.sh" ] && [ -e "$R/run.link" ] \
+            || fail "the round trip left a symlink dangling"
+        [ -e "$R/README.link" ] || fail "the round trip left the README symlink dangling"
         if build "$R"; then
             "$R/build/sktrnd" --print-role 2>/dev/null | grep -q '"role": "sktrnd"' \
                 || fail "the round-trip yuno does not say its role"
@@ -180,6 +196,23 @@ PY
 else
     fail "ymake-skeleton did not make $SK/skt_clone"
 fi
+
+#
+#   A destination path longer than PATH_MAX: an error that says so, not a
+#   truncated path used for the clone
+#
+SEG="$(printf 'd%.0s' $(seq 1 200))"
+LP="$WORK/long/src"
+for i in $(seq 1 19); do
+    LP="$LP/$SEG"
+done
+mkdir -p "$LP" && printf 'a\n' > "$LP/f.txt"
+LDST="$WORK/long/$(printf 'e%.0s' $(seq 1 250))"
+if "$CLONE_PROJECT" "$WORK/long/src" "$LDST" -s a -d b > "$WORK/clone_long.log" 2>&1; then
+    fail "yclone-project cloned to a path longer than PATH_MAX"
+fi
+grep -q "too long" "$WORK/clone_long.log" \
+    || fail "yclone-project did not say the path is too long (see $WORK/clone_long.log)"
 
 if [ $FAILURES -ne 0 ]; then
     echo "<-- TEST FAILED: yuno_skeleton/cloners ($FAILURES)"

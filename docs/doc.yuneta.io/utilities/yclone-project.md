@@ -49,11 +49,12 @@ them).
 |-------|------|
 | Text file | name and content rendered, mode kept |
 | Binary file (holds a NUL byte) | copied byte for byte, name rendered, mode kept |
-| Symlink | copied with its target unchanged, name rendered |
+| Symlink | name rendered; a target inside the tree follows its new name (`run.link -> run_old.sh` becomes `run.link -> run_new.sh`); an absolute target, or one outside the tree, is kept as it is |
 | `.git`, `.hg`, `.svn`, `build`, `cmake-build-*`, `node_modules`, `dist` | not cloned (VCS and build output) |
 
 The tool stops at the first error, says so, and exits non-zero; the
-destination is left as far as it got.
+destination is left as far as it got. A destination path longer than
+`PATH_MAX` is such an error (*"path too long"*).
 
 ## See also
 

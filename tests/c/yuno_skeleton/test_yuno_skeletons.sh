@@ -18,7 +18,8 @@
 #     - project and project_commercial, with a citizen yuno in yunos/,
 #       built from the project root, and their gui/ (json, markers, the
 #       .js parse; check_project_gui.sh installs and builds it);
-#     - an answer too few is an error, not a prompt for ever;
+#     - a REQUIRED answer missing is an error, not a prompt for ever; an
+#       answer missing that has a default takes it;
 #     - no template holds a {{marker}} that nothing fills.
 #
 #   Copyright (c) 2026, ArtGins.
@@ -258,6 +259,10 @@ for kind in project project_commercial; do
     #   every .js parses (check_project_gui.sh installs and builds it)
     [ -f "$A/gui/src/c_sktapp_app.js" ] && [ -f "$A/gui/src/c_sktapp_view.js" ] \
         || fail "$kind: no gui/src/c_sktapp_app.js and c_sktapp_view.js"
+    for name in PLACEHOLDER_CARD PLACEHOLDER_HEADER PLACEHOLDER_TITLE PLACEHOLDER_INSTANCE PLACEHOLDER_BADGE; do
+        grep -q "$name" "$A/gui/src/c_sktapp_view.js" \
+            || fail "$kind: the view has no logical class name $name"
+    done
     python3 -c 'import json, sys; assert json.load(open(sys.argv[1]))["name"] == "sktapp_gui"' \
         "$A/gui/package.json" 2> /dev/null || fail "$kind: gui/package.json is not json naming sktapp_gui"
     LEFT="$(grep -rhoE '\{\{[A-Za-z_]+\}\}' "$A" | grep -vxE '\{\{(name|n)\}\}' | sort -u)"
@@ -272,15 +277,21 @@ for kind in project project_commercial; do
 done
 
 #
-#   An answer too few ends with an error: a required value asked again on
-#   an exhausted stdin looped for ever up to 7.28.6
+#   A required answer missing ends with an error: a required value asked
+#   again on an exhausted stdin looped for ever up to 7.28.6. The answers
+#   that have a default take it, as a person pressing Enter would (7.29.1
+#   made every end of input fatal)
 #
 mkdir -p "$WORK/eof"
-if (cd "$WORK/eof" && printf "x\n" | timeout 10 "$BIN" -p "$SKELETONS" gclass_child) > "$WORK/eof.log" 2>&1; then
-    fail "yuno-skeleton accepted an input with values missing"
+if (cd "$WORK/eof" && printf "" | timeout 10 "$BIN" -p "$SKELETONS" gclass_child) > "$WORK/eof.log" 2>&1; then
+    fail "yuno-skeleton accepted an input with a required value missing"
 fi
-grep -q "end of input before every value was given" "$WORK/eof.log" \
+grep -q "end of input before every required value was given" "$WORK/eof.log" \
     || fail "yuno-skeleton did not say the input ended (see $WORK/eof.log)"
+if ! (cd "$WORK/eof" && printf "sktdef\n" | timeout 10 "$BIN" -p "$SKELETONS" gclass_child) > "$WORK/eof_defaults.log" 2>&1; then
+    fail "yuno-skeleton refused an input whose missing answers have defaults (see $WORK/eof_defaults.log)"
+fi
+[ -f "$WORK/eof/c_sktdef.c" ] || fail "yuno-skeleton made no c_sktdef.c with the defaults"
 
 #
 #   No template holds a {{marker}} that nothing fills: yuno-skeleton says

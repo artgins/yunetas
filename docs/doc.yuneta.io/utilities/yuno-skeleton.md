@@ -63,8 +63,20 @@ npm install
 npm run dev
 ```
 
-The answers are one line per prompt (an empty line takes the default); an
-input that ends before the last prompt is an error.
+The answers are one line per prompt (an empty line takes the default). An
+input that ends before a REQUIRED answer (the name) is an error; an input
+that ends earlier than a prompt with a default takes the default, as an
+empty line does:
+
+```bash
+printf 'my_widget\n' | yuno-skeleton gclass_child    # description and author: their defaults
+printf '' | yuno-skeleton gclass_child               # ERROR: end of input before every required value was given
+```
+
+A file keeps the mode of its template (an executable `*.sh_tmpl` makes an
+executable script), and a symlink with a relative target follows the name
+its target gets (`run.link -> run_+yunorole+.sh_tmpl` becomes
+`run.link -> run_myyuno.sh`).
 
 | Template | Type | Makes |
 |----------|------|-------|

@@ -279,6 +279,16 @@ static int render_file(char *dst_path, char *src_path, json_t *jn_values)
         printf("ERROR: cannot create '%s', %s\n", dst_path, strerror(errno));
         exit(-1);
     }
+
+    /*
+     *  The mode of the template: a script stays executable
+     */
+    struct stat st;
+    if(fstat(fileno(f), &st) < 0 || fchmod(fileno(fout), st.st_mode & 07777) < 0) {
+        fprintf(stderr, "ERROR: cannot give '%s' the mode of '%s': %s\n",
+            dst_path, src_path, strerror(errno));
+        exit(-1);
+    }
     printf("Creating filename: %s\n", dst_path);
     char line[4*1024];
     char rendered[4*1024];
@@ -306,19 +316,34 @@ static int is_link(const char *path)
  ***************************************************************************/
 static int copy_link(
     const char* source,
-    const char* destination
+    const char* destination,
+    json_t *jn_values
 )
 {
     char bf[PATH_MAX] = {0};
-    if(readlink(source, bf, sizeof(bf))<0) {
+    ssize_t n = readlink(source, bf, sizeof(bf) - 1);
+    if(n < 0) {
         printf("%sERROR reading %s link%s\n\n", On_Red BWhite, source, Color_Off);
         return -1;
     }
-    if(symlink(bf, destination)<0) {
+    bf[n] = 0;
+
+    /*
+     *  A relative target is a file of the template: it is renamed as the
+     *  files are (+key+ rendered, _tmpl dropped), or the link would dangle
+     */
+    char target[PATH_MAX];
+    if(bf[0] == '/') {
+        snprintf(target, sizeof(target), "%s", bf);
+    } else {
+        render_filename(target, sizeof(target), bf, jn_values);
+    }
+    if(symlink(target, destination)<0) {
         printf("%sERROR %d Cannot create symlink %s -> %s%s\n\n",
-            On_Red BWhite, errno, destination, bf, Color_Off);
+            On_Red BWhite, errno, destination, target, Color_Off);
         return -1;
     }
+    printf("Creating link: %s -> %s\n", destination, target);
     return 0;
 }
 
@@ -377,7 +402,9 @@ int copy_dir(const char *dst, const char *src, json_t *jn_values)
         snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, rendered_str);
 
         if (is_link(src_path)) {
-            copy_link(src_path, dst_path);
+            if(copy_link(src_path, dst_path, jn_values) < 0) {
+                exit(-1);   // Error already printed
+            }
 
         } else if (is_directory(src_path)) {
             copy_dir(dst_path, src_path, jn_values);

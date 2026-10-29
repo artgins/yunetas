@@ -160,19 +160,19 @@ PRIVATE int mywalk_dir_tree(
 }
 
 /***************************************************************************
- *  Input values
+ *  Input values. At the end of the input the value is its default, as an
+ *  empty answer gives, and -1 is returned: a REQUIRED value must not be
+ *  asked again (on an exhausted stdin that is a loop for ever), so its
+ *  caller ends with end_of_input()
  ***************************************************************************/
 static int input_value(char *bf, int bfsize, const char *default_value, int testing)
 {
+    int ret = 0;
     bf[0] = 0;
     if(!testing) {
         if(!fgets(bf, bfsize, stdin)) {
-            /*
-             *  A required value asked again on an exhausted stdin is a loop
-             *  for ever (a piped script with an answer too few)
-             */
-            fprintf(stderr, "\nERROR: end of input before every value was given\n");
-            exit(-1);
+            bf[0] = 0;
+            ret = -1;
         }
     } else{
         strncpy(bf, "aa", bfsize-1);
@@ -185,7 +185,13 @@ static int input_value(char *bf, int bfsize, const char *default_value, int test
     if(!len && default_value) {
         snprintf(bf, bfsize, "%s", default_value);
     }
-    return 0;
+    return ret;
+}
+
+static void end_of_input(void)
+{
+    fprintf(stderr, "\nERROR: end of input before every required value was given\n");
+    exit(-1);
 }
 
 /***************************************************************************
@@ -231,7 +237,9 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
     if(strcasecmp(type, "yuno")==0) {
         do {
             printf("Enter yuno role (maximum 15 characters): ");
-            input_value(bf, sizeof(bf), "", testing);
+            if(input_value(bf, sizeof(bf), "", testing) < 0) {
+                end_of_input();
+            }
             if(testing) {
                 break;
             }
@@ -262,7 +270,9 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
     } else if(strcasecmp(type, "utility")==0) {
         do {
             printf("Enter utility name: ");
-            input_value(bf, sizeof(bf), "", testing);
+            if(input_value(bf, sizeof(bf), "", testing) < 0) {
+                end_of_input();
+            }
             if(testing) {
                 break;
             }
@@ -282,7 +292,9 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
          */
         do {
             printf("Enter project name ([a-z0-9_]): ");
-            input_value(bf, sizeof(bf), "", testing);
+            if(input_value(bf, sizeof(bf), "", testing) < 0) {
+                end_of_input();
+            }
             if(testing) {
                 break;
             }
@@ -303,7 +315,9 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
     } else {
         do {
             printf("Enter gclass name: ");
-            input_value(bf, sizeof(bf), "", testing);
+            if(input_value(bf, sizeof(bf), "", testing) < 0) {
+                end_of_input();
+            }
             len = (int)strlen(bf);
         } while(len < 1);
         lower(bf);
@@ -650,6 +664,10 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
             snprintf(parent, sizeof(parent), ".");
         }
         char extended[PATH_MAX];
+        if(strlen(parent) + 1 + strlen(extends) >= sizeof(extended)) {
+            fprintf(stderr, "Skeleton '%s' extends '%s': path too long\n", skeleton, extends);
+            exit(-1);
+        }
         build_path(extended, sizeof(extended), parent, extends, NULL);
         if(access(extended, 0)!=0) {
             fprintf(stderr, "Skeleton '%s' extends '%s', and %s does not exist\n",

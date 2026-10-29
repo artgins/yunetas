@@ -30,7 +30,11 @@ extern "C"{
  *  A file holding a NUL byte is binary: copied as it is, its name still
  *  rendered and no suffix added. Directories of VCS and build output
  *  (.git, .hg, .svn, build, cmake-build-*, node_modules, dist) are not
- *  cloned. Modes are kept; a symlink is copied with its target unchanged.
+ *  cloned. Modes are kept. A symlink that resolves inside the tree points
+ *  to its target's NEW name (rendered as the names are, with the suffix
+ *  when the target is a text file); an absolute one, one that leaves the
+ *  tree, or one already dangling is copied unchanged. A path that would
+ *  pass PATH_MAX is an error.
  */
 typedef struct {
     json_t *content_values;     // {old: new}, applied inside text files
