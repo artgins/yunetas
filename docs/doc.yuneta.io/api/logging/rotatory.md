@@ -271,6 +271,7 @@ Returns a handle to the rotatory log (`hrotatory_h`) on success, or `NULL` on fa
 **Notes**
 
 If the specified log directory does not exist, `rotatory_open()` attempts to create it.
+The path is never cut. A path of `PATH_MAX` bytes or more, or a mask (the file name) longer than `NAME_MAX` bytes, is an open that fails: one line, then `NULL` or the exit of `exit_on_fail`. A shorter path is used whole. Up to 7.29.3 the directory was copied to a buffer of `NAME_MAX` bytes: a directory of 305 bytes became another one of 254 bytes. The rotatory created that directory, wrote the logs there, and [`rotatory_remove_old_files()`](#rotatory_remove_old_files) removed files there.
 `exit_on_fail` applies to this open only: a file that cannot be opened later is printed and tried again at the next record, and never exits the process (see [exit_on_fail is for the open](#rotatory-exit-on-fail)).
 If the log file does not exist, `rotatory_open()` creates a new one with the specified permissions.
 If it exists, it is opened to append. It is emptied at the first record only if it is old: a name that is used again (a day letter or the month, no year) whose file was last written before the period of the name (see [File names and rotation](#rotatory-clock-set-back)). The decision waits for the first record, so [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) called right after the open applies to it. A fixed name (`logcenter.log`) is never emptied by a date.
@@ -285,6 +286,9 @@ hrotatory_h hr = rotatory_open("/yuneta/realms/agent/agent/logs/yuneta_agent-W.l
 // A fixed name: appended to, whatever day it was last written
 hrotatory_h hr2 = rotatory_open("/yuneta/realms/utils/logcenter/logs/logcenter.log",
     0, 0, 0, 0, 0, FALSE);
+
+// A path of PATH_MAX bytes or more: one line "path too long", NULL
+hrotatory_h hr3 = rotatory_open(huge_path, 0, 0, 0, 0, 0, FALSE);   // NULL
 ```
 
 Use [`rotatory_close()`](#rotatory_close) to properly close the log handle.

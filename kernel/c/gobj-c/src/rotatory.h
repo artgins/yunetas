@@ -49,6 +49,10 @@ PUBLIC int rotatory_start_up(void);
 PUBLIC void rotatory_end(void); // close all
 
 // Return NULL on error
+// The path is never cut: one of PATH_MAX bytes or more, or whose file
+// name (the mask) is longer than NAME_MAX, is an error (exit_on_fail
+// applies). Up to 7.29.3 a directory longer than NAME_MAX was cut, and the
+// logs and rotatory_remove_old_files() went to that other directory.
 // Available mask for filename: "DD/MM/CCYY-W-ZZZ"
 // A name with a day letter (DD, W, ZZZ) or the month (MM) and without the
 // year (CCYY) is used again (the "W" of the yuno logs: one file for each

@@ -43,7 +43,7 @@
  *****************************************************************/
 typedef struct rotatory_log_s {
     DL_ITEM_FIELDS
-    char path[2*NAME_MAX+1];
+    char path[PATH_MAX];
     size_t buffer_size;
     uint64_t max_megas_rotatoryfile_size;
     size_t min_free_disk_percentage;
@@ -61,10 +61,10 @@ typedef struct rotatory_log_s {
     BOOL rename_failed;         // the rename of a size rotation failed: see _rotatory_prepare()
     uint64_t rename_retry;      // keep_all: start_msectimer() of the next try of that rename
     BOOL newfile_pending;       // the open of a new file failed: its callback runs at the next open
-    char newfile_pending_old[2*NAME_MAX+2]; // the old name of that callback
-    char log_directory[NAME_MAX];   // from path
-    char filenamemask[NAME_MAX];    // from path
-    char filename[NAME_MAX];        // current filename
+    char newfile_pending_old[PATH_MAX]; // the old name of that callback
+    char log_directory[PATH_MAX];   // from path, see rotatory_open(): never a cut one
+    char filenamemask[NAME_MAX+1];  // from path
+    char filename[NAME_MAX+1];      // current filename: as long as the mask
     time_t day_start;               // the name of the file is valid while the time
     time_t next_day_start;          //   is in [day_start, next_day_start): one local day
     int (*cb_newfile)(void *user_data, const char *old_filename, const char *new_filename);
@@ -123,6 +123,7 @@ PRIVATE time_t start_of_the_name(rotatory_log_t *hr);
 PRIVATE void empty_the_old_file_of_the_open(rotatory_log_t *hr);
 PRIVATE void check_write_again(rotatory_log_t *hr);
 PRIVATE BOOL _rotatory_size_rotation(rotatory_log_t *hr, BOOL *empty_it);
+PRIVATE int path_of_the_name(rotatory_log_t *hr, char *bf, size_t bfsize, pe_flag_t pe_flag);
 
 
 /*****************************************************************
@@ -178,6 +179,17 @@ PUBLIC hrotatory_h rotatory_open(
         return 0;
     }
 
+    /*
+     *  exit_on_fail applies to THIS open only. Once the handle is open, a
+     *  file that cannot be opened again (a new day with no descriptors, a
+     *  quota, a directory that refuses writes for a moment, a removed
+     *  file, a failed write, a truncate) is printed and tried again at the
+     *  next record: see open_failure(). Up to 7.25.4 it exited the process
+     *  (the agent, and every yuno with a file log), and the pending
+     *  newfile callback never ran.
+     */
+    pe_flag_t pe_flag = exit_on_fail? PEF_EXIT: PEF_SYSLOG;
+
     /*-------------------------------------*
      *          Check parameters
      *-------------------------------------*/
@@ -185,6 +197,25 @@ PUBLIC hrotatory_h rotatory_open(
         print_error(
             PEF_SYSLOG,
             "path EMPTY"
+        );
+        return 0;
+    }
+
+    /*
+     *  The path is never cut: a cut path names ANOTHER directory, and the
+     *  logs would be written there and rotatory_remove_old_files() would
+     *  remove files there. Up to 7.29.3 the directory was copied with
+     *  strncpy() to NAME_MAX bytes: one of 305 bytes became a new one of
+     *  254. Now the buffers are PATH_MAX, and a path that does not fit is
+     *  refused (the file name too: NAME_MAX).
+     */
+    if(strlen(path) >= PATH_MAX) {
+        print_error(
+            pe_flag,
+            "rotatory_open(): path too long, %d bytes, the limit is %d: '%s'",
+            (int)strlen(path),
+            PATH_MAX - 1,
+            path
         );
         return 0;
     }
@@ -225,23 +256,12 @@ PUBLIC hrotatory_h rotatory_open(
         );
         return 0;
     }
-    strncpy(hr->path, path, sizeof(hr->path) -1);
+    memcpy(hr->path, path, strlen(path) + 1);   // it fits, checked above
     hr->buffer_size = bf_size;
     hr->max_megas_rotatoryfile_size = max_megas_rotatoryfile_size;
     hr->min_free_disk_percentage = min_free_disk_percentage;
     hr->xpermission = xpermission;
     hr->rpermission = rpermission;
-
-    /*
-     *  exit_on_fail applies to THIS open only. Once the handle is open, a
-     *  file that cannot be opened again (a new day with no descriptors, a
-     *  quota, a directory that refuses writes for a moment, a removed
-     *  file, a failed write, a truncate) is printed and tried again at the
-     *  next record: see open_failure(). Up to 7.25.4 it exited the process
-     *  (the agent, and every yuno with a file log), and the pending
-     *  newfile callback never ran.
-     */
-    pe_flag_t pe_flag = exit_on_fail? PEF_EXIT: PEF_SYSLOG;
 
     hr->buffer = calloc(1, hr->buffer_size);
     if(!hr->buffer) {
@@ -270,9 +290,20 @@ PUBLIC hrotatory_h rotatory_open(
     log_directory = dir;
 #else
     filenamemask = basename(hr->path);
-    strncpy(hr->filenamemask, filenamemask, sizeof(hr->filenamemask) -1);
+    if(strlen(filenamemask) >= sizeof(hr->filenamemask)) {
+        print_error(
+            pe_flag,
+            "rotatory_open(): file name too long, %d bytes, the limit is %d: '%s'",
+            (int)strlen(filenamemask),
+            (int)sizeof(hr->filenamemask) - 1,
+            filenamemask
+        );
+        _rotatory_free(hr);
+        return 0;
+    }
+    memcpy(hr->filenamemask, filenamemask, strlen(filenamemask) + 1);
     log_directory = dirname(hr->path);
-    strncpy(hr->log_directory, log_directory, sizeof(hr->log_directory) -1);
+    memcpy(hr->log_directory, log_directory, strlen(log_directory) + 1); // no longer than path
 #endif
 
     /*-----------------------------*
@@ -295,7 +326,15 @@ PUBLIC hrotatory_h rotatory_open(
      *-----------------------------*/
     hr->name_recurs = mask_name_recurs(hr->filenamemask);
     _translate_mask(hr);
-    snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
+    /*
+     *  The name made from the mask is as long as the mask (formatdate()
+     *  puts a digit in place of each letter), so a path that fits here
+     *  fits at every new name. "x.log" becomes "./x.log": 2 bytes more.
+     */
+    if(path_of_the_name(hr, hr->path, sizeof(hr->path), pe_flag) < 0) {
+        _rotatory_free(hr);
+        return 0;
+    }
 
     if(access(hr->path, 0)!=0) {
         int fd = newfile(hr->path, hr->rpermission, FALSE);
@@ -601,10 +640,12 @@ PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *hr)
         return FALSE;
     }
 
-    char path[2*NAME_MAX+1];
+    char path[PATH_MAX];
     _translate_mask(hr);
 
-    snprintf(path, sizeof(path), "%s/%s", hr->log_directory, hr->filename);
+    if(path_of_the_name(hr, path, sizeof(path), PEF_SYSLOG) < 0) {
+        return FALSE;   // the line is printed: the current file goes on
+    }
 
     if(strcmp(path, hr->path)!=0) {
         return TRUE;
@@ -756,7 +797,7 @@ PRIVATE BOOL _rotatory_size_rotation(rotatory_log_t *hr, BOOL *empty_it)
     fclose(hr->flog);
     hr->flog = 0;
 
-    char filename_old[2*NAME_MAX+32];
+    char filename_old[PATH_MAX+32];
     snprintf(filename_old, sizeof(filename_old), "%s.OLD",
         hr->path
     );
@@ -843,9 +884,11 @@ PRIVATE BOOL must_be_emptied(rotatory_log_t *hr, const char *path)
     if(hr->keep_all_old || !hr->name_recurs) {
         return FALSE;
     }
-    char bf[2*NAME_MAX+2];
+    char bf[PATH_MAX];
     if(!path) {
-        snprintf(bf, sizeof(bf), "%s/%s", hr->log_directory, hr->filename);
+        if(path_of_the_name(hr, bf, sizeof(bf), PEF_SYSLOG) < 0) {
+            return FALSE;   // the line is printed
+        }
         path = bf;
     }
     struct stat st;
@@ -973,7 +1016,7 @@ PRIVATE void keep_newfile_pending(rotatory_log_t *hr, BOOL new_file, const char 
 
 PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file)
 {
-    char lastpath[2*NAME_MAX+2];
+    char lastpath[PATH_MAX];
     snprintf(lastpath, sizeof(lastpath), "%s", hr->path);
 
     if(hr->flog) {
@@ -990,7 +1033,10 @@ PRIVATE int _rotatory_open_file(rotatory_log_t *hr, BOOL empty_it, BOOL new_file
         }
     }
 
-    snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
+    if(path_of_the_name(hr, hr->path, sizeof(hr->path), PEF_SYSLOG) < 0) {
+        keep_newfile_pending(hr, new_file, lastpath);
+        return -1;  // the line is printed
+    }
 
     if(access(hr->path, 0)!=0) {
         int fd = newfile(hr->path, hr->rpermission, FALSE);
@@ -1145,6 +1191,28 @@ PRIVATE void check_write_again(rotatory_log_t *hr)
         "_rotatory(): writing to '%s' again",
         hr->path
     );
+}
+
+/*****************************************************************
+ *  The path of the current name: log_directory/filename. It fits
+ *  whenever it fitted at rotatory_open() (the name is as long as the
+ *  mask); a path that does not fit is never used cut: -1, printed with
+ *  pe_flag (this is the sink of the log, it cannot log through itself).
+ *****************************************************************/
+PRIVATE int path_of_the_name(rotatory_log_t *hr, char *bf, size_t bfsize, pe_flag_t pe_flag)
+{
+    int n = snprintf(bf, bfsize, "%s/%s", hr->log_directory, hr->filename);
+    if(n < 0 || (size_t)n >= bfsize) {
+        print_error(
+            pe_flag,
+            "_rotatory(): path too long, '%s/%s', the limit is %d",
+            hr->log_directory,
+            hr->filename,
+            (int)bfsize - 1
+        );
+        return -1;
+    }
+    return 0;
 }
 
 /*****************************************************************

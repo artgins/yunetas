@@ -18,6 +18,9 @@
  *          with it is not exited by a file that cannot be opened later.
  *          And the size limit is in bytes: a file of exactly the limit is
  *          not rotated, one byte over it is at the next record.
+ *          And the path is never cut: a directory longer than NAME_MAX is
+ *          the one written to and purged, a path that does not fit is
+ *          refused.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1911,6 +1914,91 @@ PRIVATE void test_exit_on_fail_after_open(void)
 }
 
 /***************************************************************************
+ *  The path is never cut.
+ *
+ *  Up to 7.29.3 the directory was copied to NAME_MAX bytes: one of more
+ *  than 254 bytes was cut to ANOTHER directory, which was created, where
+ *  the logs were written, and where rotatory_remove_old_files() removed
+ *  the old files of the mask. Now the whole directory is used, and a path
+ *  (or a file name) that does not fit is refused, with one line.
+ ***************************************************************************/
+PRIVATE void test_long_path(void)
+{
+    #define LONG_DIR BASE "/long"
+    rmrdir(BASE);
+
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s", LONG_DIR);
+    char component[101];
+    memset(component, 'd', sizeof(component) - 1);
+    component[sizeof(component) - 1] = 0;
+    for(int i=0; i<3; i++) {
+        size_t len = strlen(dir);
+        snprintf(dir + len, sizeof(dir) - len, "/%s", component);
+    }
+    // the cut point of NAME_MAX-1 bytes falls inside the third component
+    check(strlen(dir) > NAME_MAX + 50, "a directory of more than NAME_MAX bytes");
+
+    char cut_dir[NAME_MAX];
+    snprintf(cut_dir, sizeof(cut_dir), "%s", dir);
+
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", dir, MASK);
+
+    hrotatory_h hr = rotatory_open(path, 0, 500, 1, 02775, 0660, FALSE);
+    if(!hr) {
+        printf("FAIL rotatory_open()\n");
+        global_result += -1;
+        rmrdir(BASE);
+        return;
+    }
+    const char *current = rotatory_path(hr);
+    check(strncmp(current, dir, strlen(dir)) == 0 && current[strlen(dir)] == '/',
+        "the file is in the whole directory");
+    check(!exists_no_follow(cut_dir), "  no cut directory is created");
+
+    rotatory_write(hr, LOG_INFO, "in the long directory", strlen("in the long directory"));
+    rotatory_flush(hr);
+    check(file_holds(current, "in the long directory"), "  the record is written there");
+
+    char old[PATH_MAX];
+    snprintf(old, sizeof(old), "%s/001-01_01_2026.log", dir);
+    make_file(old, 100, 30);
+    int removed = rotatory_remove_old_files(hr, 7, NULL, NULL);
+    check(removed == 1 && !exists_no_follow(old),
+        "  the retention removes the old file of the whole directory");
+    rotatory_close(hr);
+
+    /*
+     *  A path that does not fit, and a file name longer than NAME_MAX
+     */
+    char *huge = gbmem_malloc(PATH_MAX + 16);
+    memset(huge, 'p', PATH_MAX + 15);
+    huge[0] = '/';
+    huge[PATH_MAX + 15] = 0;
+    capture_stdout_begin();
+    hr = rotatory_open(huge, 0, 500, 1, 02775, 0660, FALSE);
+    char *printed = capture_stdout_end();
+    check(!hr && count_of(printed, "path too long") == 1,
+        "a path of PATH_MAX bytes or more: NULL and one line");
+    GBMEM_FREE(printed);
+    GBMEM_FREE(huge);
+
+    char long_name[NAME_MAX + 2];
+    memset(long_name, 'n', sizeof(long_name) - 1);
+    long_name[sizeof(long_name) - 1] = 0;
+    snprintf(path, sizeof(path), "%s/%s", LONG_DIR, long_name);
+    capture_stdout_begin();
+    hr = rotatory_open(path, 0, 500, 1, 02775, 0660, FALSE);
+    printed = capture_stdout_end();
+    check(!hr && count_of(printed, "file name too long") == 1,
+        "a file name longer than NAME_MAX: NULL and one line");
+    GBMEM_FREE(printed);
+
+    rmrdir(BASE);
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1964,6 +2052,7 @@ int main(int argc, char *argv[])
     test_new_name_no_size_rotation();
     test_newfile_after_failed_open();
     test_exit_on_fail_after_open();
+    test_long_path();
     test_write_after_end();     // LAST: it ends the rotatory
 
     rotatory_end();
