@@ -117,9 +117,11 @@ tells nowhere a frame ends: the connection is dropped. So are bytes that
 are no frame (TCP loses nothing: they come from a broken slave or
 gateway): the head read across them has a bad MBAP length, and a new
 connection is the one resync that cannot take data for a head. Over RTU
-the bytes after an answer in the same read are dropped, with a warning: a
-noise byte when the slave releases the line, taken as the head of a frame,
-would swallow the next answer. Over RTU the slave ids 248-255 are
+the bytes after an answer in the same read are dropped: a noise byte when
+the slave releases the line, taken as the head of a frame, would swallow
+the next answer. They are counted (stats `rx_noise_dropped`) and warned
+when they start, once per connection, and again only after a polling cycle
+without them (an info says it came). Over RTU the slave ids 248-255 are
 reserved, and 0 is the broadcast that no slave answers: a request to
 248-255 is refused, and a polled slave with one of them, or with 0, is not
 polled (its blocks are disabled, logged when the gobj starts).
@@ -521,6 +523,7 @@ SDATA (DTP_JSON,    "slaves",           SDF_WR,         "[]",       "Modbus conf
 SDATA (DTP_INTEGER, "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
+SDATA (DTP_INTEGER, "rx_noise_dropped", SDF_STATS,      "0",        "RTU: answers followed by bytes in the same read, which were dropped"),
 SDATA_END()
 };
 
@@ -590,6 +593,10 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_request_queue;
 
     json_t *jn_failing_blocks;  // "<slave id>:<block index>" -> why it fails
+
+    json_int_t rx_noise_dropped;    // RTU: answers followed by bytes, dropped
+    BOOL noise_in_cycle;        // this cycle dropped bytes after an answer
+    BOOL noise_reported;        // warned: logged again after a cycle without them
 } PRIVATE_DATA;
 
 
@@ -659,6 +666,21 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
             NULL
         );
     }
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "rx_noise_dropped")==0) {
+        v.found = 1;
+        v.v.i = priv->rx_noise_dropped;
+    }
+    return v;
 }
 
 /***************************************************************************
@@ -2048,6 +2070,21 @@ PRIVATE int next_map(hgobj gobj)
     }
 
     /*
+     *  A cycle without bytes after its answers ends the noise warned
+     */
+    if(priv->noise_reported && !priv->noise_in_cycle) {
+        priv->noise_reported = FALSE;
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Modbus: a cycle came without bytes after its answers",
+            "rx_noise_dropped", "%lld", (long long)priv->rx_noise_dropped,
+            NULL
+        );
+    }
+    priv->noise_in_cycle = FALSE;
+
+    /*
      *  End of cycle, publish variables
      */
     build_message_to_publish(gobj);
@@ -2534,20 +2571,30 @@ PRIVATE BOOL frame_is_hidden(hgobj gobj)
 /***************************************************************************
  *  Over RTU, the bytes that follow an answer in the same read are dropped:
  *  without a length in the frame, noise taken as the head of a frame would
- *  swallow the next answer. Dumped hidden when the answer was, or when a
- *  write is in flight now.
+ *  swallow the next answer. Counted (rx_noise_dropped), and warned when it
+ *  starts: a line that spikes in every cycle is one fact, logged again only
+ *  after a cycle without them (next_map()). Dumped, under the traffic trace,
+ *  every time: hidden when the answer was, or when a write is in flight now.
  ***************************************************************************/
 PRIVATE int drop_bytes_after_answer(hgobj gobj, gbuffer_t *gbuf, BOOL hidden)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     size_t len = gbuffer_leftbytes(gbuf);
 
-    gobj_log_warning(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL,
-        "msg",          "%s", "Modbus: bytes after the answer, dropped",
-        "len",          "%d", (int)len,
-        NULL
-    );
+    priv->rx_noise_dropped++;
+    priv->noise_in_cycle = TRUE;
+    if(!priv->noise_reported) {
+        priv->noise_reported = TRUE;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Modbus: bytes after the answer, dropped",
+            "len",          "%d", (int)len,
+            "note",         "%s", "logged again only after a cycle without them; counted in rx_noise_dropped",
+            NULL
+        );
+    }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         if(hidden || write_in_flight(gobj)) {
             gobj_trace_msg(gobj, "Modbus: bytes after the answer: <%d bytes hidden>", (int)len);
@@ -4699,6 +4746,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     RESET_MACHINE();
     priv->resume_wait_ms = 0;
+    priv->noise_in_cycle = FALSE;   // a new connection warns of its own noise
+    priv->noise_reported = FALSE;
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -5067,6 +5116,7 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_writing = mt_writing,
+    .mt_reading = mt_reading,
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,
     .mt_stop = mt_stop,

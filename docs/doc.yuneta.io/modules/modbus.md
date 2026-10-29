@@ -124,6 +124,7 @@ its low word first, read over TCP:
 | `slaves` | `[]` | The map, above. Read at `mt_start`: written while the gobj runs, it takes effect at the next start, with a warning (*"Modbus slaves written while the master runs: they take effect at the next start"*) |
 | `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
+| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the answers followed by bytes in the same read, which were dropped (below) |
 
 To change the map of a running master, stop it, write `slaves` and start it
 again (`gobj_write_json_attr()` does not take the reference: free yours):
@@ -392,17 +393,37 @@ answer of the block + 0x00, in one read; the next answer 00 07 00 00 00 05 01 03
        length, the connection is dropped", "length": 0}
 ```
 
-**Over RTU the bytes after an answer in the same read are dropped**, with a
-warning (*"Modbus: bytes after the answer, dropped"*, `len`). An RTU frame
+**Over RTU the bytes after an answer in the same read are dropped.** An RTU frame
 carries no length, and its head is all that says where it ends: a noise byte
 when the slave releases the RS485 line, taken as the head of the next frame,
 made the answer after it *"not the answer awaited"*, or kept the master
 waiting for more bytes until `timeout_response`. The next answer starts a
 read of its own: it comes after the next request goes out.
 
+Each drop is counted in the stats attribute `rx_noise_dropped`. The warning
+(*"Modbus: bytes after the answer, dropped"*, `len`) is logged **when the
+noise starts**, once per connection, not for every answer: a line that spikes
+in every cycle is one fact. It is logged again only after a polling cycle
+that dropped nothing, which an info says (*"Modbus: a cycle came without bytes
+after its answers"*, with the count so far). The traffic trace dumps every
+drop. The transition is the cycle, not the answer: a line that spikes on some
+answers of every cycle stays one warning, where a per-answer transition would
+log at each change.
+
 ```text
 01 03 02 00 46 <crc> 00          one read: the answer, then a noise byte
-    -> the answer is taken; {"msg": "Modbus: bytes after the answer, dropped", "len": 1}
+    -> the answer is taken; {"msg": "Modbus: bytes after the answer, dropped", "len": 1,
+       "note": "logged again only after a cycle without them; counted in rx_noise_dropped"}
+... noise in the next cycles too: no log, rx_noise_dropped grows
+... a cycle without it:
+    -> {"msg": "Modbus: a cycle came without bytes after its answers", "rx_noise_dropped": 4}
+```
+
+When the master is a service (`__modbus_caudal__` in gate_caudal), the agent
+reads the count:
+
+```bash
+ycommand -c 'stats-yuno id=<id> service=__modbus_caudal__'   # "rx_noise_dropped": 4
 ```
 
 (Between the fix of REV-CLOUD V46.2 and the fix of REV-CLOUD V47.1, never

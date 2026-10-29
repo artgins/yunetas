@@ -99,6 +99,10 @@ once at start and never polled (before, it was polled and every cycle waited
 while the master runs: a warning, and cycle 2 polls the map it started with
 (before, the write freed the map the cycle pointed into, and the master read
 freed memory: *"cur_slave_ NULL"* every cycle, with `slaves_` read as a string).
+The answer of block A carries a noise byte in cycles 2 and 3 too: the four
+noisy answers are logged once, counted in `rx_noise_dropped` (4), and cycle 4,
+clean, logs *"Modbus: a cycle came without bytes after its answers"*. Before,
+each noisy answer was a warning. Cycle 4 ends the test.
 
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 
