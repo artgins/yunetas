@@ -41,7 +41,15 @@
  *            write is answered as done, and the read after it is answered.
  *            Up to the fix the 0 of the echo was dropped, the bytes after
  *            it taken as the head of a frame of 82 bytes: the write failed
- *            at timeout_response.
+ *            at timeout_response. Its bytes are warned as bytes during a
+ *            broadcast (REV-CLOUD V50.2), not as the noise of the line.
+ *          - A write of 123 registers to slave 0 (255 bytes) with the
+ *            master's baudrate at 1200, as behind a tcp:// gateway to a slow
+ *            bus (REV-CLOUD V50.2): its frame takes 2338 ms on the line, so
+ *            it is answered as done after that and the turnaround delay, not
+ *            before. Up to the fix the turnaround delay was counted from
+ *            before the frame was sent, and the write was answered at the
+ *            first tick after 200 ms, with its frame still on the line.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -65,6 +73,11 @@
 #define BROADCAST_ADDRESS   80      // the broadcast write the slave does not answer
 #define ECHOED_ADDRESS      81      // the broadcast write the slave echoes (not the standard)
 #define BROADCAST_VALUE     0x1234
+#define BAUDRATE            1200    // the bus behind the "gateway": a long frame is slow
+#define LONG_ADDRESS        82      // the broadcast write of 123 registers
+#define LONG_QUANTITY       123     // 255 bytes: 2338 ms at 1200 baud, 11 bits a byte
+#define LONG_MIN_MS         2500    // its line time and the turnaround delay (2538 ms)
+#define LONG_MAX_MS         4500    // and the next tick of the yuno
 #define RX_SIZE             512
 
 /*
@@ -74,6 +87,7 @@ typedef enum {
     STEP_READ,                  // a read from slave 1, answered with a noise byte after it
     STEP_READ_BROADCAST,        // a read from slave 0: refused
     STEP_WRITE_BROADCAST,       // a write to slave 0, not answered
+    STEP_WRITE_BROADCAST_LONG,  // a write of 123 registers to slave 0: long on the line
     STEP_WRITE_ECHOED,          // a write to slave 0, echoed by the slave
 } step_t;
 
@@ -81,6 +95,7 @@ PRIVATE const step_t steps[] = {
     STEP_READ,
     STEP_READ_BROADCAST,
     STEP_WRITE_BROADCAST,
+    STEP_WRITE_BROADCAST_LONG,
     STEP_WRITE_ECHOED,
     STEP_READ,
     STEP_READ,
@@ -155,6 +170,7 @@ typedef struct _PRIVATE_DATA {
     int reads_answered;
     int noise_expected;         // rx_noise_dropped when the next read is answered
     uint64_t broadcast_deadline;    // the broadcast write in flight must be answered before
+    uint64_t broadcast_earliest;    // and not before (the long one)
     BOOL done;                  // the master was stopped: the test ends at the next timeout
 } PRIVATE_DATA;
 
@@ -311,6 +327,9 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
         );
         return;
     }
+    if(unit == 0 && function == 16 && address == LONG_ADDRESS && quantity == LONG_QUANTITY) {
+        return; // the long broadcast: not answered
+    }
     if(unit == 0 && function == 6 && quantity == BROADCAST_VALUE &&    // the value of an 06
             (address == BROADCAST_ADDRESS || address == ECHOED_ADDRESS)) {
         if(address == ECHOED_ADDRESS) {
@@ -357,8 +376,9 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
 }
 
 /***************************************************************************
- *  Bytes at the slave: answer every whole request (8 bytes: only reads
- *  of function 03 and single writes of function 06 are expected)
+ *  Bytes at the slave: answer every whole request (8 bytes: reads of
+ *  function 03 and single writes of function 06; and the write of several
+ *  registers, 16, with its byte count)
  ***************************************************************************/
 PRIVATE void slave_rx(hgobj gobj, json_t *kw)
 {
@@ -384,8 +404,15 @@ PRIVATE void slave_rx(hgobj gobj, json_t *kw)
     priv->rx_len += len;
 
     while(priv->rx_len >= 8) {
-        uint16_t crc = rtu_crc(priv->rx, 6);
-        if(priv->rx[6] != (crc & 0xFF) || priv->rx[7] != (crc >> 8)) {
+        size_t frame_len = 8;
+        if(priv->rx[1] == 16) {
+            frame_len = 7 + (size_t)priv->rx[6] + 2;
+            if(priv->rx_len < frame_len) {
+                break;  // the rest of the frame comes in the next read
+            }
+        }
+        uint16_t crc = rtu_crc(priv->rx, frame_len - 2);
+        if(priv->rx[frame_len-2] != (crc & 0xFF) || priv->rx[frame_len-1] != (crc >> 8)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
@@ -396,8 +423,8 @@ PRIVATE void slave_rx(hgobj gobj, json_t *kw)
         } else {
             slave_request(gobj, priv->rx);
         }
-        memmove(priv->rx, priv->rx + 8, priv->rx_len - 8);
-        priv->rx_len -= 8;
+        memmove(priv->rx, priv->rx + frame_len, priv->rx_len - frame_len);
+        priv->rx_len -= frame_len;
     }
 }
 
@@ -439,6 +466,24 @@ PRIVATE void send_next_request(hgobj gobj)
                 "value", BROADCAST_VALUE
             );
             priv->broadcast_deadline = start_msectimer(BROADCAST_MAX_MS);
+            priv->broadcast_earliest = 0;
+            break;
+        case STEP_WRITE_BROADCAST_LONG:
+            {
+                json_t *jn_values = json_array();
+                for(int i=0; i<LONG_QUANTITY; i++) {
+                    json_array_append_new(jn_values, json_integer(i));
+                }
+                jn_request = json_pack("{s:s, s:s, s:i, s:i, s:o}",
+                    "operation", "write",
+                    "type", "holding_register",
+                    "address", LONG_ADDRESS,
+                    "id", 0,
+                    "value", jn_values
+                );
+                priv->broadcast_deadline = start_msectimer(LONG_MAX_MS);
+                priv->broadcast_earliest = start_msectimer(LONG_MIN_MS);
+            }
             break;
     }
     priv->requests_sent++;
@@ -469,10 +514,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->gobj_master = gobj_create(
             "modbus",
             C_PROT_MODBUS_M,
-            json_pack("{s:s, s:i, s:i, s:o}",
+            json_pack("{s:s, s:i, s:i, s:i, s:o}",
                 "modbus_protocol", "RTU",
                 "timeout_polling", TIMEOUT_POLLING,
                 "timeout_response", TIMEOUT_RESPONSE,
+                "baudrate", BAUDRATE,
                 "slaves", jn_slaves
             ),
             gobj
@@ -551,8 +597,10 @@ PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             );
             break;
         case STEP_WRITE_BROADCAST:
+        case STEP_WRITE_BROADCAST_LONG:
         case STEP_WRITE_ECHOED:
-            expected_address = step == STEP_WRITE_BROADCAST? BROADCAST_ADDRESS : ECHOED_ADDRESS;
+            expected_address = step == STEP_WRITE_BROADCAST? BROADCAST_ADDRESS :
+                step == STEP_WRITE_BROADCAST_LONG? LONG_ADDRESS : ECHOED_ADDRESS;
             expected = json_pack("{s:i, s:i, s:s, s:n}",
                 "result", 0,
                 "error_code", 0,
@@ -564,7 +612,17 @@ PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "A broadcast write waited for an answer",
-                    "max_ms",       "%d", BROADCAST_MAX_MS,
+                    "max_ms",       "%d", step == STEP_WRITE_BROADCAST_LONG?
+                                        LONG_MAX_MS : BROADCAST_MAX_MS,
+                    NULL
+                );
+            }
+            if(priv->broadcast_earliest && !test_msectimer(priv->broadcast_earliest)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "A broadcast write was answered with its frame still on the line",
+                    "min_ms",       "%d", LONG_MIN_MS,
                     NULL
                 );
             }

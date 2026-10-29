@@ -13,7 +13,8 @@
  *          - Stop the master on the answer of the last one: nothing more
  *            is polled, and nothing is logged for it
  *          - Between them, slave 0: a read refused, a write answered as
- *            done after the turnaround delay, and a write the slave echoes
+ *            done after the turnaround delay, a long write answered only
+ *            after its frame left the line, and a write the slave echoes
  *            (not the standard), whose echo does not eat the next answer
  *
  *          Copyright (c) 2026, ArtGins.
@@ -176,14 +177,15 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Allocating Modbus Array of 10 B (10) bytes, 1 slaves",
         "msg", "Modbus slave id 0 is the BROADCAST in RTU: no slave answers it", // the only slave
         "msg", "Data filled",
-        "msg", "Modbus: bytes after the answer, dropped",   // once: three noisy answers and an echo
+        "msg", "Modbus: bytes after the answer, dropped",   // once: three noisy answers
         "msg", "Modbus request refused",    // a read from slave 0, the broadcast
+        "msg", "Modbus: bytes during a broadcast, dropped: a device answers broadcasts, against the standard",  // the echo
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

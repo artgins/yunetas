@@ -57,6 +57,33 @@ its low word first, read over TCP:
 }
 ```
 
+The same meter on a serial line (RTU) behind the master's own `C_UART`. Over
+RTU two more attributes count: `baudrate`, the speed of the line, and
+`turnaround_delay`, the wait after a broadcast (see *Broadcast*, below):
+
+```json
+{
+    "modbus_protocol": "RTU",
+    "url": "/dev/ttyUSB0",
+    "baudrate": 9600,
+    "turnaround_delay": 200,
+    "timeout_polling": 10000,
+    "timeout_response": 3,
+    "slaves": [
+        {
+            "id": 1,
+            "mapping": [
+                {"type": "holding_register", "address": 14336, "size": 8}
+            ],
+            "conversion": [
+                {"id": "p_total", "type": "holding_register", "address": 14336,
+                 "format": "int32", "endian": "little endian byte swap"}
+            ]
+        }
+    ]
+}
+```
+
 - **`id`**: the unit id, 0-255. **Over RTU 248-255 are reserved** (the Modbus
   serial line keeps them): a slave with one is not polled. Its blocks and
   variables are disabled at start, with one error (*"Modbus slave id RESERVED
@@ -124,8 +151,9 @@ its low word first, read over TCP:
 | `slaves` | `[]` | The map, above. Read at `mt_start`: written while the gobj runs, it takes effect at the next start, with a warning (*"Modbus slaves written while the master runs: they take effect at the next start"*) |
 | `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
-| `turnaround_delay` | `200` | Over RTU, milliseconds after a broadcast write (slave 0) before it is answered as done and the next request goes out: the time the slaves need to carry it out (the *turnaround delay* of the Modbus serial line specification, typically 100-200 ms). The timer counts whole seconds (`C_TIMER`), so it ends at the next tick, 1 s at most |
-| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, the bytes that cannot start an answer, and the bytes that come while a broadcast is in flight (below). One per drop, not per byte |
+| `turnaround_delay` | `200` | Over RTU, milliseconds after a broadcast write (slave 0) **has left the line** before it is answered as done and the next request goes out: the time the slaves need to carry it out (the *turnaround delay* of the Modbus serial line specification, typically 100-200 ms). It is counted from the end of the frame: the wait is the time of the frame on the line (`baudrate`) plus this delay. `0` or a negative value is taken as 0: the wait is then the frame alone. The timer ends at the next tick of the yuno (`timeout_periodic`, 1000 ms by default), so the wait lasts up to one tick more: with the defaults and a short frame, about 1.2 s at most |
+| `baudrate` | `9600` | Over RTU, the speed of the serial line, used to count how long a frame takes on it (11 bits a byte). A `C_UART` bottom says its own `baudrate`, which wins; the `C_UART` the master creates from `url` gets this one. **Behind a `tcp://` gateway to a serial bus, set it to the speed of that bus**: the master cannot see it |
+| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, the bytes that cannot start an answer, and the bytes that come while a broadcast is in flight (below; those are warned under their own name). One per drop, not per byte |
 
 To change the map of a running master, stop it, write `slaves` and start it
 again (`gobj_write_json_attr()` does not take the reference: free yours):
@@ -321,10 +349,28 @@ The gobj above must declare `EV_MODBUS_ANSWER` in its FSM.
 
 **Broadcast, over RTU.** Slave 0 is the broadcast of the Modbus serial line:
 every slave carries out the write, and **no slave answers it**. So a write to
-slave 0 goes out and no answer is awaited: after `turnaround_delay`, the time
-the slaves need to carry it out, it is answered as done, and the next request
-or block goes out. Done means sent: no slave says that it took it. A read from
-slave 0 is refused at once: no slave answers it, so it can read nothing.
+slave 0 goes out and no answer is awaited: once its frame has left the line
+and `turnaround_delay` has passed, the time the slaves need to carry it out,
+it is answered as done, and the next request or block goes out. Done means
+sent: no slave says that it took it. A read from slave 0 is refused at once:
+no slave answers it, so it can read nothing.
+
+**The wait is counted from the end of the frame.** A frame of `n` bytes takes
+`n * 11 * 1000 / baudrate` ms on the line, and the wait is that plus
+`turnaround_delay`, ended at the next tick of the yuno. A write of 123
+registers (255 bytes) at 9600 baud takes 293 ms on the line: the wait is at
+least 493 ms. Up to the fix of REV-CLOUD V50.2 the wait was the
+`turnaround_delay` alone, counted from before the frame was sent: the next
+request could go out while the broadcast was still on the line.
+
+```text
+baudrate 9600, turnaround_delay 200, a write of 123 registers to slave 0
+    frame 255 bytes -> 293 ms on the line -> answered as done at the first tick after 493 ms
+baudrate 9600, turnaround_delay 200, a write of 1 register to slave 0
+    frame 8 bytes   -> 10 ms on the line  -> at the first tick after 210 ms (1.2 s at most)
+turnaround_delay 0
+    -> at the first tick after the frame has left the line
+```
 
 ```C
 gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
@@ -344,11 +390,37 @@ gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
  "result": 0, "comment": "broadcast: no answer expected", "error_code": 0}
 ```
 
-The bytes that come while a broadcast is in flight are dropped as noise
-(below): they cannot be an answer. A device that breaks the standard and
-answers a broadcast (`00 06 00 50 12 34 <crc>`, an echo) is dropped that way,
-and the next answer is read clean. Over TCP slave 0 is a unit id like any
-other, and its answer is awaited.
+The bytes that come while a broadcast is in flight are dropped: they cannot
+be an answer. A device that breaks the standard and answers a broadcast
+(`00 06 00 50 12 34 <crc>`, an echo) is dropped that way, and the next answer
+is read clean. They are counted in `rx_noise_dropped`, and warned once per
+connection under their own name, not as the noise of the line (whose warning
+they leave alone):
+
+```json
+{"msg": "Modbus: bytes during a broadcast, dropped: a device answers broadcasts, against the standard",
+ "len": 8, "note": "logged once per connection; counted in rx_noise_dropped"}
+```
+
+**An echo that comes after the wait almost always eats the next answer.**
+Then nothing is in flight but the next request: the `0x00` of the echo is
+dropped, and the bytes after it are taken as the head of a frame of slave 6
+(`06 00 50 ...`), which swallows the answer awaited. That request fails at
+`timeout_response`. With such a device, set `turnaround_delay` above the time
+it takes to echo.
+
+**A broadcast that the connection or a stop cuts is not confirmed.** It is
+never answered, so what is cut is its wait: the frame may have been carried
+out. Its answer, and the warning, say so, not *"before its answer"*:
+
+```json
+{"request": {"operation": "write", "id": 0, ...}, "result": -1, "error_code": 0,
+ "comment": "broadcast sent, not confirmed: the connection dropped before its turnaround delay ended (no slave answers a broadcast)"}
+{"msg": "Modbus broadcast NOT confirmed, the connection dropped before its turnaround delay ended: it may have been carried out"}
+{"msg": "Modbus broadcast NOT confirmed, the gobj stopped before its turnaround delay ended: it may have been carried out"}
+```
+
+Over TCP slave 0 is a unit id like any other, and its answer is awaited.
 
 (Up to the fix of REV-CLOUD V49.2 a read from slave 0 over RTU went out, and
 a broadcast write failed at `timeout_response`, done or not, after 10 s of
@@ -375,25 +447,39 @@ it. A request sent while there is no connection is answered at once
 them (*"Modbus requests NOT sent, the gobj stopped"*, and *"Modbus request NOT
 confirmed, the gobj stopped before its answer"* for the one in flight).
 
-**A stop on an answer stops the polling.** The gobj above may stop the master
-inside the `EV_MODBUS_ANSWER` of a request, or the `EV_ON_MESSAGE` of a cycle:
-the master then sends nothing more, polls no block and arms no wait. The
-requests still queued are dropped with the warning of a stop. For example, a
-gobj that unlocks a meter with its password and stops the master when the
-meter refuses it (the `src` of a published event is the master):
+**A request that depends on another is sent from the other's answer.** A
+meter that asks its password before its setup: send the password, and send
+the setup from the `EV_MODBUS_ANSWER` of the password **when it is good**.
+Nothing has to be stopped when the password is refused: the setup was never
+queued. (The `src` of a published event is the master.)
 
 ```C
 PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(json_integer_value(json_object_get(kw, "result")) != 0) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Meter refused the request, its master is stopped",
-            "comment",      "%s", json_string_value(json_object_get(kw, "comment")),
-            NULL
-        );
-        gobj_stop(src);
+    const char *step = kw_get_str(gobj, kw, "request`step", "", 0);
+    BOOL done = json_integer_value(json_object_get(kw, "result")) == 0;
+
+    if(strcmp(step, "password")==0) {
+        if(done) {
+            gobj_send_event(src, EV_SEND_MESSAGE,
+                json_pack("{s:s, s:i, s:s, s:i, s:i}",
+                    "step", "setup",
+                    "id", 1,
+                    "type", "holding_register",
+                    "address", 46213,
+                    "value", 100
+                ),
+                gobj
+            );
+        } else {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "Meter refused the password, its setup is not sent",
+                "comment",      "%s", kw_get_str(gobj, kw, "comment", "", 0),
+                NULL
+            );
+        }
     }
 
     JSON_DECREF(kw)
@@ -404,14 +490,51 @@ PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 {EV_MODBUS_ANSWER,      ac_modbus_answer,       0},
 ```
 
-The stop is made inside the answer on purpose, and the master is built for
-it: after it publishes an answer or a cycle it checks that it still runs. A
-stop deferred to the next turn of the loop (`gobj_post_event()`) comes after
-the master sent what was queued next -- here, the setup that the refused
-password was to unlock.
+(`step` is a key of the caller's: anything else in a request travels back in
+its answer.)
 
-(Until the fix of REV-CLOUD V48.2 it went on with its cycle on the stopped
-gobj, and logged *"cur_slave_ NULL"* there and at the next tick.)
+**To stop the master from one of its answers, post the stop.** An answer,
+and a cycle, are published inside the read of the transport: a subscriber
+never stops or destroys the publisher's tree there, synchronously. Post an
+event to yourself with
+[`gobj_post_event()`](#gobj_post_event), and stop
+the master in its action (`EV_STOP_METER` is an event of the caller's):
+
+```C
+PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(json_integer_value(json_object_get(kw, "result")) != 0) {
+        gobj_post_event(gobj, EV_STOP_METER, json_object(), gobj);
+    }
+    JSON_DECREF(kw)
+    return 0;
+}
+
+PRIVATE int ac_stop_meter(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->gobj_modbus);
+    JSON_DECREF(kw)
+    return 0;
+}
+```
+
+A posted stop comes after the master sent what was queued next: the
+dependent request is sent from the good answer, above, so there is nothing
+queued that the stop would have to catch.
+
+The master survives a stop from anywhere, also from inside its own
+`EV_MODBUS_ANSWER` or `EV_ON_MESSAGE`: after it publishes it checks that it
+still runs, and then sends nothing more, polls no block and arms no wait.
+The requests still queued are dropped with the warning of a stop. (Until the
+fix of REV-CLOUD V48.2 it went on with its cycle on the stopped gobj, and
+logged *"cur_slave_ NULL"* there and at the next tick.) Its transport ends
+such a stop as any other: a `C_UART` closes its tty and publishes
+`EV_DISCONNECTED` and `EV_STOPPED` (see its [stop
+contract](#gclass-c-uart)). Up to the fix of REV-CLOUD V50.2 a `C_UART`
+stopped inside its own read kept its tty open and answered -1 to the event
+loop, which ended the yuno.
 
 **Which answer is taken.** Only an answer to what is in flight, a block or a
 request. Over TCP it must carry the **transaction id** of the frame sent and
@@ -497,7 +620,7 @@ starts clean).
 Each drop is counted in the stats attribute `rx_noise_dropped`, before the
 answer it follows is published. The warning (*"Modbus: bytes after the
 answer, dropped"* or *"Modbus: bytes that cannot start an answer, dropped"*,
-`len`) is logged **when the noise starts**, once per connection, not for every
+`len`; the bytes during a broadcast have their own, above) is logged **when the noise starts**, once per connection, not for every
 answer: a line that spikes in every cycle is one fact. It is logged again only
 after a polling cycle that **polled a block** and dropped nothing, which an
 info says (*"Modbus: a cycle came without noise"*, with the count so far). A

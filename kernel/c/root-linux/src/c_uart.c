@@ -4,6 +4,24 @@
  *          GClass Uart: work with tty ports
  *          Low level linux
  *
+ *          The stop contract, the one of C_TCP: every stop of a running
+ *          C_UART ends in ST_STOPPED, with its tty closed, EV_DISCONNECTED
+ *          published if it was connected, and then EV_STOPPED, ONCE --
+ *          synchronously, inside gobj_stop(), when nothing was in flight
+ *          (a stop inside its own EV_RX_DATA, or while disconnected), or
+ *          later, from ST_WAIT_STOPPED, when the read and the writes in
+ *          flight complete. EV_STOPPED is the last thing it does with
+ *          itself. A write the line does not take (its output held by flow
+ *          control) is not waited for for ever: the output not sent is
+ *          discarded, and the write ends.
+ *          Up to 7.29.3 a stop stopped the read and nothing else: inside its
+ *          EV_RX_DATA the tty stayed open (overwritten, so leaked, by the
+ *          next start, whose EV_CONNECTED reached a host still connected),
+ *          with the read in flight it stayed in ST_WAIT_STOPPED for ever,
+ *          EV_STOPPED was never published, and the callback of a stopped
+ *          C_UART answered -1 to the event loop, which ENDS the loop: the
+ *          yuno went down.
+ *
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -42,6 +60,7 @@ typedef enum serial_parity {
  ***************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_disconnected(hgobj gobj, const char *cause);
+PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE json_int_t time_to_reconnect(hgobj gobj);
 
@@ -106,6 +125,7 @@ typedef struct _PRIVATE_DATA {
     yev_event_h yev_client_rx;
     char inform_disconnection;
     BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
+    int tx_in_progress;         // writes in flight: a stop waits for them
 } PRIVATE_DATA;
 
 
@@ -126,6 +146,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->tty_fd = -1;
 
     /*
      *  CHILD subscription model
@@ -196,20 +217,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->gobj_timer);
 
-    BOOL change_to_wait_stopped = FALSE;
-
-    if(priv->yev_client_rx) {
-        yev_stop_event(priv->yev_client_rx);
-        if(yev_event_is_stopping(priv->yev_client_rx)) {
-            change_to_wait_stopped = TRUE;
-        }
-    }
-
-    if(change_to_wait_stopped) {
-        gobj_change_state(gobj, ST_WAIT_STOPPED);
-    } else {
-        gobj_change_state(gobj, ST_STOPPED);
-    }
+    try_to_stop_yevents(gobj);
 
     return 0;
 }
@@ -745,7 +753,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*
      *  Info of "connected"
      */
-    uint32_t trace_level = gobj_global_trace_level();
+    uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -841,7 +849,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         }
         return;
     }
-    uint32_t trace_level = gobj_global_trace_level();
+    uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -858,7 +866,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         gobj_change_state(gobj, ST_DISCONNECTED);
     }
 
-    if(priv->tty_fd > 0) {
+    if(priv->tty_fd >= 0) {
         if(trace_level & TRACE_URING) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -894,13 +902,71 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
 }
 
 /***************************************************************************
- *
+ *  Stop the read; if it, or a write, is still in flight, wait for it in
+ *  ST_WAIT_STOPPED (its callback comes back here), else end the stop:
+ *  ST_STOPPED, the tty closed, EV_DISCONNECTED if it was connected, and
+ *  EV_STOPPED, the last thing done with the gobj (its host may destroy it).
+ *  IMPORTANT this is the only place to set ST_WAIT_STOPPED and ST_STOPPED
+ ***************************************************************************/
+PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL to_wait_stopped = FALSE;
+
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        return;
+    }
+
+    if(priv->yev_client_rx) {
+        if(!yev_event_is_stopped(priv->yev_client_rx)) {
+            yev_stop_event(priv->yev_client_rx);
+            if(!yev_event_is_stopped(priv->yev_client_rx)) {
+                to_wait_stopped = TRUE;
+            }
+        }
+    }
+
+    if(priv->tx_in_progress > 0) {
+        to_wait_stopped = TRUE;
+        if(priv->tty_fd >= 0 && tcflush(priv->tty_fd, TCOFLUSH) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "tcflush() FAILED: the stop waits for the line to take the write in flight",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+
+    if(to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+        return;
+    }
+
+    gobj_change_state(gobj, ST_STOPPED);
+    set_disconnected(gobj, "Local stop");
+
+    /*
+     *  The gobj is in stop. Its host may destroy it here: nothing of it is
+     *  touched after this
+     */
+    gobj_publish_event(gobj, EV_STOPPED, 0);
+}
+
+/***************************************************************************
+ *  Nothing of the gobj is touched after a publication that may have stopped
+ *  it: its host may have destroyed it on EV_STOPPED. And the answer is
+ *  always 0: a -1 ends the event loop, and the yuno with it.
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
     hgobj gobj = yev_get_gobj(yev_event);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t trace_level = gobj_global_trace_level();
+    uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_URING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
@@ -939,15 +1005,18 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             );
                         }
                     }
-                    set_disconnected(gobj, strerror(-yev_get_result(yev_event)));
+                    if(gobj_is_running(gobj)) {
+                        set_disconnected(gobj, strerror(-yev_get_result(yev_event)));
+                    } else {
+                        try_to_stop_yevents(gobj);  // the end of a stop that waited for it
+                    }
 
                 } else {
                     if(trace_level & TRACE_TRAFFIC) {
-                        gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
+                        gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s",
                             gobj_short_name(gobj),
-                            gobj_read_str_attr(gobj, "sockname"),
                             " ⏪ ",
-                            gobj_read_str_attr(gobj, "peername")
+                            gobj_read_str_attr(gobj, "url")
                         );
                     }
                     GBUFFER_INCREF(yev_get_gbuf(yev_event))
@@ -955,13 +1024,16 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         "gbuffer", (json_int_t)(uintptr_t)yev_get_gbuf(yev_event)
                     );
 
-                    int ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
+                    gobj_publish_event(gobj, EV_RX_DATA, kw);
 
                     /*
-                     *  Clear buffer
-                     *  Re-arm read
+                     *  Clear buffer, re-arm read. A subscriber may have
+                     *  stopped the gobj (the stop ended there: this event,
+                     *  idle, was stopped with it), or its host destroyed it:
+                     *  only the event is looked at. A subscriber that
+                     *  answered an error does not stop the reading.
                      */
-                    if(ret==0 && gobj_is_running(gobj)) {
+                    if(yev_event_is_idle(yev_event)) {
                         gbuffer_clear(yev_get_gbuf(yev_event));
                         yev_start_event(yev_event);
                     }
@@ -971,32 +1043,44 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
         case YEV_WRITE_TYPE:
             {
-                if(yev_get_result(yev_event) < 0) {
+                int result = yev_get_result(yev_event);
+                priv->tx_in_progress--;
+                yev_destroy_event(yev_event);
+
+                if(!gobj_is_running(gobj)) {
+                    if(gobj_current_state(gobj)==ST_WAIT_STOPPED) {
+                        try_to_stop_yevents(gobj);  // the end of a stop that waited for it
+                    }
+                    break;  // a stopped gobj says nothing of its writes
+                }
+
+                if(!gobj_in_this_state(gobj, ST_CONNECTED)) {
+                    break;  // the write of a connection already dropped
+                }
+
+                if(result < 0) {
                     /*
                      *  Disconnected
                      */
                     if(trace_level & TRACE_URING) {
-                        if(yev_get_result(yev_event) != -ECANCELED) {
+                        if(result != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                                 "msg",          "%s", "write FAILED",
                                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "errno",        "%d", -yev_get_result(yev_event),
-                                "strerror",     "%s", strerror(-yev_get_result(yev_event)),
-                                "p",            "%p", yev_event,
+                                "errno",        "%d", -result,
+                                "strerror",     "%s", strerror(-result),
                                 NULL
                             );
                         }
                     }
-                    set_disconnected(gobj, strerror(-yev_get_result(yev_event)));
+                    set_disconnected(gobj, strerror(-result));
 
                 } else {
                     json_t *kw_tx_ready = json_object();
                     gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
                 }
-
-                yev_destroy_event(yev_event);
             }
             break;
 
@@ -1013,7 +1097,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             break;
     }
 
-    return gobj_is_running(gobj)?0:-1;
+    return 0;
 }
 
 
@@ -1082,7 +1166,23 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->tty_fd,
         gbuffer_incref(gbuf)
     );
-    yev_start_event(yev_client_tx);
+    if(!yev_client_tx) {
+        // Error already logged
+        gbuffer_decref(gbuf);   // the reference given to the event not created
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(yev_start_event(yev_client_tx) < 0) {
+        /*
+         *  Its callback never comes: the bytes are not sent, the line cannot
+         *  go on with a hole in it
+         */
+        yev_destroy_event(yev_client_tx);
+        set_disconnected(gobj, "write not started");
+        KW_DECREF(kw)
+        return -1;
+    }
+    priv->tx_in_progress++;
 
     KW_DECREF(kw)
     return 0;

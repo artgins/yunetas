@@ -695,22 +695,87 @@ ycommand -c 'command-yuno id=<yuno> service=<udp server service> command=help'
 (gclass-c-uart)=
 ## C_UART
 
-Serial port (UART/TTY) transport.
+Serial port (UART/TTY) transport. It opens its device on start (100 ms
+after), and opens it again `timeout_between_connections` after a failure or
+a drop.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_WAIT_CONNECTED`, `ST_CONNECTED` |
-| **Input events** | `EV_CONNECT`, `EV_TX_DATA`, `EV_DROP`, `EV_TIMEOUT` |
-| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA` |
+| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_CONNECTED`, `ST_WAIT_STOPPED` |
+| **Input events** | `EV_CONNECT`, `EV_TX_DATA`, `EV_TIMEOUT` |
+| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED` (the stop is done) |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | Device path (for example `/dev/ttyUSB0`). |
-| `baudrate` | `integer` | Baud rate (default `115200`). |
+| `baudrate` | `integer` | Baud rate (default `9600`). A rate the tty does not know is an error, and 9600 is used. |
 | `bytesize` | `integer` | Data bits (`5`–`8`, default `8`). |
-| `parity` | `string` | Parity: `"N"`, `"E"`, `"O"`. |
-| `stopbits` | `integer` | Stop bits (`1` or `2`). |
+| `parity` | `string` | Parity: `"none"` (default), `"odd"`, `"even"`. |
+| `stopbits` | `integer` | Stop bits (`1` or `2`, default `1`). |
 | `xonxoff` | `bool` | Software flow control. |
 | `rtscts` | `bool` | Hardware flow control. |
+| `timeout_between_connections` | `integer` | Milliseconds between two opens (default `2000`; `0` is raised to 1000 ms, with one warning). |
+
+```json
+{"name": "modbus_caudal", "gclass": "C_UART",
+ "kw": {"url": "/dev/ttyUSB0", "baudrate": 9600, "parity": "none"}}
+```
+
+### The stop
+
+`C_UART` keeps the stop contract of [`C_TCP`](#gclass-c-tcp): every stop of a
+running `C_UART` ends in `ST_STOPPED`, with its tty closed,
+`EV_DISCONNECTED` published if it was connected, and then `EV_STOPPED`
+**once**, to its parent (or its `subscriber`):
+
+- at once, inside `gobj_stop()`, when nothing is in flight: a `C_UART`
+  disconnected (waiting to open its device again), or one stopped inside its
+  own `EV_RX_DATA` -- a host above it that stops on an answer;
+- later, from `ST_WAIT_STOPPED`, when its read is canceled and its writes in
+  flight complete. A write that the line does not take (its output held by
+  flow control) is not waited for: the output not yet sent is discarded, and
+  the write ends.
+
+`EV_STOPPED` is the last thing it does with itself: a host may destroy it
+there. A stopped `C_UART` starts again with `gobj_start()`, and opens its
+device anew. The completion of a write publishes `EV_TX_READY` only while
+the `C_UART` is connected: a write of a connection already dropped, or of a
+stopped gobj, says nothing.
+
+```C
+gobj_stop(priv->gobj_uart);     // EV_DISCONNECTED and EV_STOPPED may come inside
+
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
+
+Up to 7.29.3 a stop stopped the read and nothing else. Stopped inside its own
+`EV_RX_DATA` it kept its tty open (the next start overwrote the fd, a leak,
+and its `EV_CONNECTED` reached a host that had never been told of the
+disconnection); stopped with the read in flight it stayed in
+`ST_WAIT_STOPPED` for ever, and the next start never opened the device;
+`EV_STOPPED` was never published. And in both cases the callback of the
+stopped `C_UART` answered -1 to the event loop, which **ended the loop, and
+the yuno with it**. `tests/c/c_prot_modbus_m` (`test4`, over a pty).
+
+### Trace levels
+
+`connections` logs each open and close of the device, `traffic` dumps what it
+receives (`⏪`, with its `url`):
+
+```bash
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=C_UART set=1 level=traffic'
+```
+
+Up to 7.29.3 both levels were read from the GLOBAL trace mask, where the bit
+of a gclass level is never set: `set-gclass-trace` on `C_UART` showed nothing.
+And under a deep trace the dump asked two attributes `C_UART` does not have:
+each read logged two warnings (*"GClass Attribute NOT FOUND"*).

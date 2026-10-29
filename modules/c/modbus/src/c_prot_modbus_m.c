@@ -135,12 +135,17 @@ polled (its blocks are disabled, logged when the gobj starts).
 
 Over RTU a read from slave 0 is refused: no slave answers a broadcast, so it
 can read nothing. A write to slave 0 goes out, and no answer is awaited: it
-is answered as done ("broadcast: no answer expected") after the turnaround
-delay (`turnaround_delay`, the time the slaves need to carry it out before
-the next request), not after timeout_response. Done means sent: no slave
-says that it took it. What comes while it is in flight is dropped as noise:
-it cannot be an answer, and a device that breaks the standard and answers
-a broadcast would leave the next answer behind its bytes otherwise.
+is answered as done ("broadcast: no answer expected") once its frame has
+left the line (its length at `baudrate`: the C_UART's, or this gobj's
+behind a tcp:// gateway) and the turnaround delay has passed
+(`turnaround_delay`, the time the slaves need to carry it out before the
+next request), not after timeout_response. The timer ends at the next tick
+of the yuno. Done means sent: no slave says that it took it. What comes
+while it is in flight is dropped (counted with the noise, warned as bytes
+during a broadcast): it cannot be an answer, and a device that breaks the
+standard and answers a broadcast would leave the next answer behind its
+bytes otherwise. An answer that comes after the turnaround delay is not in
+flight any more: it almost always swallows the next answer.
 
 The map (`slaves`) is read at start. Written while the gobj runs, it takes
 effect at the next start, with a warning: the cycle keeps its own
@@ -420,8 +425,10 @@ PRIVATE int continue_polling(hgobj gobj, int wait_ms);
 PRIVATE int reset_frame(hgobj gobj);
 PRIVATE BOOL write_in_flight(hgobj gobj);
 PRIVATE BOOL broadcast_in_flight(hgobj gobj);
+PRIVATE int frame_line_ms(hgobj gobj, size_t len);
 PRIVATE BOOL frame_is_hidden(hgobj gobj);
 PRIVATE int drop_noise(hgobj gobj, gbuffer_t *gbuf, size_t len, BOOL hidden, const char *msg);
+PRIVATE int drop_broadcast_bytes(hgobj gobj, gbuffer_t *gbuf, size_t len);
 PRIVATE int finish_answer(hgobj gobj);
 
 PRIVATE cell_control_t *get_cell_control(
@@ -539,7 +546,8 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server 
 SDATA (DTP_JSON,    "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
 SDATA (DTP_INTEGER, "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
-SDATA (DTP_INTEGER, "turnaround_delay", SDF_PERSIST,    "200",      "RTU: milliseconds after a broadcast write (slave 0, never answered) before it is answered as done and the next request goes out. The timer counts whole seconds"),
+SDATA (DTP_INTEGER, "turnaround_delay", SDF_PERSIST,    "200",      "RTU: milliseconds after a broadcast write (slave 0, never answered) has left the line before it is answered as done and the next request goes out. Counted from the end of the frame (its time at baudrate). The timer ends at the next tick of the yuno (timeout_periodic)"),
+SDATA (DTP_INTEGER, "baudrate",         SDF_RD,         "9600",     "RTU: speed of the serial line, to count the time a frame takes on it. A C_UART bottom says its own; the C_UART this gobj creates gets it. Behind a tcp:// gateway, the speed of the gateway's bus"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA (DTP_INTEGER, "rx_noise_dropped", SDF_STATS,      "0",        "RTU: noise dropped: bytes after an answer in its read, bytes that cannot start an answer, or bytes while a broadcast is in flight"),
 SDATA_END()
@@ -617,6 +625,7 @@ typedef struct _PRIVATE_DATA {
     BOOL noise_in_cycle;        // this cycle dropped noise
     BOOL noise_reported;        // warned: logged again after a polled cycle without it
     BOOL polled_in_cycle;       // this cycle polled a block: only such a cycle ends the noise
+    BOOL broadcast_bytes_reported;  // warned of bytes during a broadcast: once per connection
 } PRIVATE_DATA;
 
 
@@ -782,9 +791,15 @@ PRIVATE int mt_start(hgobj gobj)
             bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
 #endif
 #ifdef __linux__
+            BOOL is_tcp = strcasecmp(priv->modbus_protocol, "TCP")==0? TRUE : FALSE;
+            if(!is_tcp) {
+                json_object_set_new(kw, "baudrate",
+                    json_integer(gobj_read_integer_attr(gobj, "baudrate"))
+                );
+            }
             bottom_gobj = gobj_create_pure_child(
                 gobj_name(gobj),
-                strcasecmp(priv->modbus_protocol, "TCP")==0? C_TCP: C_UART,
+                is_tcp? C_TCP: C_UART,
                 kw,
                 gobj
             );
@@ -828,7 +843,9 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Modbus request NOT confirmed, the gobj stopped before its answer",
+            "msg",          "%s", broadcast_in_flight(gobj)?
+                "Modbus broadcast NOT confirmed, the gobj stopped before its turnaround delay ended: it may have been carried out":
+                "Modbus request NOT confirmed, the gobj stopped before its answer",
             "request",      "%j", jn_log,
             NULL
         );
@@ -2247,12 +2264,17 @@ PRIVATE BOOL send_request(hgobj gobj)
 
         /*
          *  Set response timeout. A broadcast is answered by no slave: its
-         *  wait is the turnaround delay, and it ends as done
-         *  (ac_timeout_response()).
+         *  wait is the time its frame takes on the line and then the
+         *  turnaround delay, and it ends as done (ac_timeout_response()).
+         *  Up to the fix of REV-CLOUD V50.2 it was the turnaround delay
+         *  alone, counted from before the frame was sent: a long frame at
+         *  a low speed was still on the line when the next request went.
          */
         if(broadcast_in_flight(gobj)) {
+            int wait_ms = MAX(priv->turnaround_delay, 0) +
+                frame_line_ms(gobj, gbuffer_leftbytes(gbuf));
             // 0 would disarm the timer, and the broadcast would never end
-            set_timeout(priv->gobj_timer, MAX(priv->turnaround_delay, 1));
+            set_timeout(priv->gobj_timer, MAX(wait_ms, 1));
         } else {
             set_timeout(priv->gobj_timer, priv->timeout_response*1000);
         }
@@ -2612,6 +2634,31 @@ PRIVATE BOOL broadcast_in_flight(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The milliseconds a frame of len bytes takes on the serial line, rounded
+ *  up: 11 bits a character in RTU (start, 8 data, parity or a second stop,
+ *  stop). The speed is the C_UART's when it is the bottom, else (a tcp://
+ *  gateway) this gobj's baudrate.
+ ***************************************************************************/
+PRIVATE int frame_line_ms(hgobj gobj, size_t len)
+{
+    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    json_int_t baudrate = gobj_has_attr(bottom_gobj, "baudrate")?
+        gobj_read_integer_attr(bottom_gobj, "baudrate") :
+        gobj_read_integer_attr(gobj, "baudrate");
+    if(baudrate <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Bad baudrate: the time of a frame on the line is counted at 9600",
+            "baudrate",     "%lld", (long long)baudrate,
+            NULL
+        );
+        baudrate = 9600;
+    }
+    return (int)(((json_int_t)len * 11 * 1000 + baudrate - 1) / baudrate);
+}
+
+/***************************************************************************
  *  TRUE when the bytes of the frame being read are dumped hidden, like the
  *  frame of a write: its function is a write (05, 06, 15, 16) or the
  *  exception of one, or a write is in flight. Decided by the frame first:
@@ -2671,6 +2718,41 @@ PRIVATE int drop_noise(hgobj gobj, gbuffer_t *gbuf, size_t len, BOOL hidden, con
                 "%s", msg
             );
         }
+    }
+    gbuffer_get(gbuf, len);
+    return 0;
+}
+
+/***************************************************************************
+ *  Over RTU, the bytes that come while a broadcast is in flight are dropped:
+ *  no slave answers a broadcast, so they cannot be an answer. They come from
+ *  a device that breaks the standard and answers it (an echo), not from the
+ *  line: counted with the noise (rx_noise_dropped), but warned under their
+ *  own name, once per connection, and the warning of the noise of the line
+ *  is left alone. Up to the fix of REV-CLOUD V50.2 they were "bytes that
+ *  cannot start an answer", and took the place of the noise warning.
+ *  A broadcast is a write: dumped hidden under the traffic trace.
+ ***************************************************************************/
+PRIVATE int drop_broadcast_bytes(hgobj gobj, gbuffer_t *gbuf, size_t len)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rx_noise_dropped++;
+    if(!priv->broadcast_bytes_reported) {
+        priv->broadcast_bytes_reported = TRUE;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Modbus: bytes during a broadcast, dropped: a device answers broadcasts, against the standard",
+            "len",          "%d", (int)len,
+            "note",         "%s", "logged once per connection; counted in rx_noise_dropped",
+            NULL
+        );
+    }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        gobj_trace_msg(gobj, "%s: <%d bytes hidden>",
+            "Modbus: bytes during a broadcast, dropped", (int)len
+        );
     }
     gbuffer_get(gbuf, len);
     return 0;
@@ -4818,6 +4900,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->noise_in_cycle = FALSE;   // a new connection warns of its own noise
     priv->noise_reported = FALSE;
     priv->polled_in_cycle = FALSE;
+    priv->broadcast_bytes_reported = FALSE;
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -4862,17 +4945,27 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  unlocked it there (a meter password) is gone with it
      */
     if(priv->jn_current_request) {
+        /*
+         *  A broadcast is never answered: what drops is its turnaround
+         *  delay, and its frame may have been carried out
+         */
+        BOOL broadcast = broadcast_in_flight(gobj);
         json_t *jn_log = request_to_log(priv->jn_current_request);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Modbus request NOT confirmed, the connection dropped before its response",
+            "msg",          "%s", broadcast?
+                "Modbus broadcast NOT confirmed, the connection dropped before its turnaround delay ended: it may have been carried out":
+                "Modbus request NOT confirmed, the connection dropped before its response",
             "request",      "%j", jn_log,
             NULL
         );
         JSON_DECREF(jn_log)
         set_current_answer(gobj, -1, 0, NULL,
-            json_string("the connection dropped before its answer")
+            json_string(broadcast?
+                "broadcast sent, not confirmed: the connection dropped before its turnaround delay ended (no slave answers a broadcast)":
+                "the connection dropped before its answer"
+            )
         );
         answer_current_request(gobj);
     }
@@ -4938,10 +5031,11 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  *  its bytes.
                  */
                 if(!is_tcp && istream_length(priv->istream_head) == 0) {
-                    int n_noise = 0;
                     if(broadcast_in_flight(gobj)) {
-                        n_noise = lnn;
+                        drop_broadcast_bytes(gobj, gbuf, (size_t)lnn);
+                        break;
                     }
+                    int n_noise = 0;
                     while(n_noise < lnn &&
                             ((uint8_t)bf[n_noise] == 0 || (uint8_t)bf[n_noise] > 247)) {
                         n_noise++;

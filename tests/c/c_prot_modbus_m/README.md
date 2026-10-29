@@ -1,7 +1,7 @@
 # c_prot_modbus_m test
 
 Tests `C_PROT_MODBUS_M`, the Modbus master: `test1` over TCP, `test2` and
-`test3` with RTU framing.
+`test3` with RTU framing, `test4` over its own `C_UART` on a pty.
 
 `test1` (`main_test1.c` + `c_test1.c`) is about what a polling cycle
 publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
@@ -136,6 +136,31 @@ slave saw a request it did not expect) and failed at `timeout_response`; both
 writes failed there too; and the `0x00` of the echo was dropped, and its
 `06 00 50` taken as the head of a frame of 82 bytes (*"Modbus frame dropped:
 not the answer awaited"*, `slave_id` 6).
+
+(REV-CLOUD V50.2) The master of `test3` has a `baudrate` of 1200, as behind
+a `tcp://` gateway to a slow bus. A write of 123 registers to slave 0 (255
+bytes, 2338 ms on that line) must be answered as done no sooner than 2.5 s
+(its line time and the turnaround delay) and within 4.5 s. Before the fix the
+turnaround delay was counted from before the frame was sent, and the write was
+answered at the first tick after 200 ms, with its frame still on the line
+(*"A broadcast write was answered with its frame still on the line"*). The
+echo of a broadcast is warned under its own name (*"Modbus: bytes during a
+broadcast, dropped..."*), not as the noise of the line.
+
+`test4` (`main_test4.c` + `c_test4.c`, REV-CLOUD V50.2) gives the master,
+`"RTU"`, the slave side of a pty as its `url`: it creates its own `C_UART`.
+The test answers RTU frames by hand on the master side of the pty, keeps a fd
+of its own on the slave side, and counts the fds of the process open on that
+path. On the message of the first cycle, published inside the read of the
+`C_UART`, it stops the master there: the `C_UART` must close its tty at once
+and end in `ST_STOPPED`. Started again, the master connects with one fd, not
+two, and polls. Then it is stopped from a timeout, with the read in flight:
+the `C_UART` goes to `ST_WAIT_STOPPED`, and ends in `ST_STOPPED` with the tty
+closed; started again, it polls. The `traffic` trace of `C_UART` is on: it
+dumps what it reads. Against SDK 7.29.3 the first stop left the tty open
+(*"The fds open on the tty are not the expected"*), and the read callback of
+the stopped `C_UART` answered -1 to the event loop, which ended the loop: the
+yuno went down in the middle of the test.
 
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 

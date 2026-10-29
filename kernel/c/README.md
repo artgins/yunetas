@@ -1839,7 +1839,7 @@ BOOL is_ip_denied(const char *peername);
 | `C_TCP_S` | TCP server with TLS | `url`, `use_ssl` |
 | `C_UDP` | UDP client | `url`, `lHost`, `lPort` |
 | `C_UDP_S` | UDP server | `url` |
-| `C_UART` | Serial port | `tty_name`, `baudrate` |
+| `C_UART` | Serial port | `url` (the device), `baudrate` |
 | `C_PTY` | Pseudo-terminal | `command` |
 
 **Protocol Handlers:**
