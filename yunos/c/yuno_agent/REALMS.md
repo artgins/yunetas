@@ -169,6 +169,15 @@ not in the param schema, so you cannot mutate them. To "rename" a realm,
 you must delete it and create it again. That is difficult, because the
 yunos refer to it by `realm_id`, the immutable composed URL.
 
+**Name the realm.** With no `id` (and no `__filter__`) the command selects
+every realm, and writes the `bind_ip` into all of them. That is its bulk form,
+as for the other [commands that are bulk when unfiltered](#agent-bulk-commands).
+
+```bash
+ycommand -c 'update-realm id=stress.central.yunovatios.es bind_ip=10.0.0.5'   # one realm
+ycommand -c 'update-realm bind_ip=10.0.0.5'                                   # EVERY realm
+```
+
 ### 5.3 `delete-realm`
 
 Handler at [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.29.3/yunos/c/yuno_agent/src/c_agent.c).

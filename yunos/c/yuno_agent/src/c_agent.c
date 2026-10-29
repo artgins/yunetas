@@ -1255,15 +1255,18 @@ PRIVATE void mt_create(hgobj gobj)
      *      Audit
      *-----------------------------*/
     if(gobj_read_bool_attr(gobj, "use_audit_command_file")) {
+        /*
+         *  ONE policy: an agent whose commands cannot be audited does not
+         *  run. The path is only BUILT here (create FALSE): the audit
+         *  directory and the file are both made by rotatory_open() with
+         *  exit_on_fail, as the file log of every yuno, so a directory or
+         *  a file that cannot be made stops the agent at start (stdout and
+         *  syslog say why, and its watcher relaunches it every 2 s until
+         *  the cause is fixed). Up to 7.29.3 a directory that could not be
+         *  made left an empty path, and the agent ran with no audit.
+         */
         char audit_path[PATH_MAX];
-        if(yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", TRUE)) {
-            /*
-             *  exit_on_fail, as the file log of every yuno: an audit file
-             *  that cannot be created or opened stops the agent at start
-             *  (stdout and syslog say why, and its watcher relaunches it
-             *  every 2 s until the cause is fixed). It does not reach the
-             *  ERROR below.
-             */
+        if(yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", FALSE)) {
             priv->audit_file = rotatory_open(
                 audit_path,
                 0,                      // 0 = default 64K
@@ -1276,20 +1279,28 @@ PRIVATE void mt_create(hgobj gobj)
         }
         if(!priv->audit_file) {
             /*
-             *  The path was not built (no root or domain dir, the audit
-             *  dir not created, too long): the agent goes on with no
-             *  audit of commands. Up to 7.29.3 it said nothing. (With a
-             *  path, rotatory_open() opens or exits; its only other NULL
-             *  is a rotatory not started up, which entry_point does.)
+             *  No path (no root or domain directory: both are in the fixed
+             *  config of main.c; or longer than PATH_MAX, logged by
+             *  build_path()), or rotatory not started up (entry_point does
+             *  it). Nothing of the filesystem failed here, so no errno: the
+             *  parts of the path are what tells the cause.
              */
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Command audit OFF: the path of the audit file cannot be built",
-                "audit_path",   "%s", audit_path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
+                "msg",          "%s", "Command audit: the path of the audit file cannot be built, the agent does not run",
+                "root_dir",     "%s", yuneta_root_dir(),
+                "domain_dir",   "%s", yuneta_domain_dir(),
+                "subdir",       "%s", "audit",
+                "filename",     "%s", "ZZZ-DD_MM_CCYY.log",
                 NULL
+            );
+            print_error(
+                PEF_EXIT,
+                "Command audit: the path of the audit file cannot be built (root_dir '%s', "
+                "domain_dir '%s', subdir 'audit'), the agent does not run",
+                yuneta_root_dir(),
+                yuneta_domain_dir()
             );
         }
         if(priv->audit_file) {
@@ -4016,6 +4027,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     int records_only = 0;
     json_t *jn_comment = 0;
     json_t *jn_data = json_array();
+    json_t *jn_kept = json_array();   // the files of the records deleted alone
     json_array_foreach(iter, idx, node) {
         json_t *jn_tags = kw_get_dict_value(gobj, node, "tags", 0, KW_REQUIRED);
         const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
@@ -4040,6 +4052,13 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             result += -1;
             break;
         }
+        /*
+         *  Where the files of a record deleted alone are: its version's
+         *  directory, or, for a name refused (no directory is exactly its
+         *  version's), the binary the record says it installed.
+         */
+        const char *kept_files = with_files?
+            destination: kw_get_str(gobj, node, "binary", "", 0);
         if(record_only) {
             with_files = FALSE;
         }
@@ -4064,8 +4083,12 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 "msg",          "%s", "Binary record deleted with record_only=1, its files stay",
                 "id",           "%s", role,
                 "version",      "%s", version,
+                "files",        "%s", kept_files,
                 NULL
             );
+            if(!empty_string(kept_files)) {
+                json_array_append_new(jn_kept, json_string(kept_files));
+            }
             records_only++;
             continue;
         }
@@ -4085,15 +4108,20 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         if(result < 0) {
             jn_comment = json_sprintf("%s", gobj_log_last_message());
         } else if(records_only > 0) {
+            char *kept = json_array_size(jn_kept)? json2uglystr(jn_kept): 0;
             jn_comment = json_sprintf(
                 "%s: %d binaries deleted, %d of them the record only (record_only=1): "
-                "remove its files by hand",
-                gobj_yuno_role_plus_name(), idx, records_only
+                "remove its files by hand%s%s",
+                gobj_yuno_role_plus_name(), idx, records_only,
+                kept? ": ": " (the record names none)",
+                kept? kept: ""
             );
+            GBMEM_FREE(kept);
         } else {
             jn_comment = json_sprintf("%d binaries deleted", idx);
         }
     }
+    JSON_DECREF(jn_kept)
     return msg_iev_build_response(
         gobj,
         result,
@@ -4958,7 +4986,7 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
-json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+PRIVATE json_t *cmd_create_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
@@ -5255,7 +5283,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";

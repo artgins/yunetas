@@ -500,6 +500,14 @@ are in the `audit/` directory of the agent realm:
 /yuneta/realms/agent/agent/audit/266-23_09_2026.log.OLD.2  # the next 500 MB
 ```
 
+An agent whose commands cannot be audited does not run: if the `audit/`
+directory or the file cannot be made at start, the agent stops, the cause goes
+to stdout and syslog, and the watcher relaunches it every 2 s. For example:
+
+```
+rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit' directory, Read-only file system
+```
+
 #### What a record holds
 
 The record is built by `audit_record_build()`

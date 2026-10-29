@@ -120,15 +120,35 @@ not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
 
 The agent writes every command that it runs to a daily audit file in
 `/yuneta/realms/agent/agent/audit/` (`use_audit_command_file`, on by default).
-If the agent cannot create or open that file at start, it does not run, as
-a yuno whose file log cannot open: the cause goes to stdout and syslog
-(*"rotatory_open(): Cannot create '…' file, …"*), and the watcher relaunches
-the agent every 2 s until the cause is fixed (free disk, permissions of the
-directory). If the agent cannot build the PATH of that file (no root or
-domain directory, the `audit` directory cannot be made, the path is too
-long), it runs with no audit of commands and logs one ERROR, *"Command audit
-OFF: the path of the audit file cannot be built"*, with the path and the
-errno (up to 7.29.3 it said nothing).
+**An agent whose commands cannot be audited does not run.** If the agent
+cannot make the `audit` directory, or cannot create or open the file in it,
+at start, it stops, as a yuno whose file log cannot open. The cause goes to
+stdout and syslog, and the watcher relaunches the agent every 2 s until the
+cause is fixed (free disk, the permissions of `/yuneta/realms/agent/agent/`
+or of `audit/`, a file with the name `audit` in place of the directory):
+
+```text
+rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit' directory, Read-only file system
+rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit/302-29_10_2026.log' file, Permission denied
+```
+
+Up to 7.29.3 an `audit` directory that could not be made gave the agent no
+path, and the agent ran with no audit of commands; the only trace was
+*"path EMPTY"* in syslog. The path itself is always built: its root
+(`/yuneta`) and domain (`realms/agent/agent`) are in the fixed configuration
+of the agent. If it could not be built, the agent logs one ERROR, *"Command
+audit: the path of the audit file cannot be built, the agent does not run"*,
+with the parts of the path (`root_dir`, `domain_dir`, `subdir`, `filename`),
+and stops the same way. To run the agent with no audit, turn the audit off
+in `/yuneta/agent/yuneta_agent.json` and restart the agent:
+
+```json
+{
+    "global": {
+        "agent.use_audit_command_file": false
+    }
+}
+```
 
 - A read-only command (`list-*`, `view-*`, `stats`, `nodes`, `help`, …) is
   recorded with the command, the date and the user only. A command with a
@@ -223,6 +243,42 @@ in the agent's log:
 Up to 7.25.4 each of them answered an EMPTY list with result `0`, which reads
 as "the directory is empty". A SUBdirectory the agent cannot open is skipped,
 as before. (`tests/c/helpers/test_dir_listing`.)
+
+## Deleting records: the `delete-*` commands
+
+Five commands delete records of the agent's treedb, and **each one needs an
+`id=`**. Without it the filter is empty and selects every record of the
+topic, so the command refuses (*"delete-config needs an id: without one it
+selects every configuration"*). Up to 7.29.3 they ran: `delete-binary force=1`
+with no id deleted every binary, those in use too.
+
+| Command | Deletes | Also |
+|---|---|---|
+| `delete-binary` | a binary record and its directory `/yuneta/repos/<tags>/<role>/<version>` | `version=`, `force=1`, `record_only=1` |
+| `delete-config` | a configuration | `version=`, `force=1` |
+| `delete-yuno` | a release of a yuno, or the yuno | `yuno_release=` or `whole=1` (one of them), `force=1` |
+| `delete-realm` | a realm with no yunos | `force=1` |
+| `delete-public-service` | a public service | `force=1` |
+
+```bash
+ycommand -c 'delete-binary id=emailsender version=7.29.2'
+ycommand -c 'delete-config id=emailsender version=3'
+ycommand -c 'delete-yuno id=2120 whole=1'
+ycommand -c 'delete-realm id=stress.central.yunovatios.es'
+ycommand -c 'list-public-services'            # the id of a public service is a number
+ycommand -c 'delete-public-service id=3'
+ycommand -c 'delete-config version=3'         # refused: no id
+```
+
+`delete-binary record_only=1` deletes the record and leaves its files, and
+says where they are: *"… remove its files by hand:
+["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*. The guards of each
+command (in use, tagged by a snap, running) are in
+[the yuno lifecycle](../../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md).
+
+Other commands act on EVERY record when they have no filter, by design:
+`kill-yuno`, `run-yuno`, `command-yuno` and the rest of the list in
+[bulk when unfiltered](#agent-bulk-commands).
 
 ## A yuno that runs but is not connected
 
