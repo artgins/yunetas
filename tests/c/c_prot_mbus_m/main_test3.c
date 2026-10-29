@@ -13,7 +13,10 @@
  *            ~750 ms: read with no timeout and no repeat
  *          - Cycle 2: the first answer is broken at its first byte and its
  *            rest dribbled all the same: the REQ_UD2 is repeated only when
- *            the bus is quiet, and read; the counters are checked: shutdown
+ *            the bus is quiet, and read
+ *          - Cycle 3: the first answer is noise that never goes quiet: the
+ *            REQ_UD2 is repeated within the time bound of an answer, and
+ *            read; the counters are checked: shutdown
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

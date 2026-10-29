@@ -16,10 +16,16 @@
  *            rest is dribbled all the same (noise, a collision). The master
  *            must wait until the bus is quiet before it repeats the REQ_UD2
  *            (with the same FCB), and the repeat is answered at once.
+ *          - cycle 3: the first answer is noise that never goes quiet, one
+ *            bad byte every NOISE_MS (less than timeout_response). The
+ *            master must give up on it in a bounded time -- timeout_response
+ *            plus the wire time of two frames at the baud rate, ~2.5 s here
+ *            -- and repeat the REQ_UD2, which is answered at once.
  *
  *          Checked:
  *          - no request reaches the bus while an answer is on the wire;
- *          - the readings, and the stats after two cycles.
+ *          - the time the master waits out a noisy bus;
+ *          - the readings, and the stats after three cycles.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -35,11 +41,14 @@
  ***************************************************************************/
 #define BUS_URL             "tcp://127.0.0.1:7763"
 #define RX_SIZE             512
-#define LAST_CYCLE          2
+#define LAST_CYCLE          3
 #define MFR_BYTES           230     // the records fill the frame up to 246 bytes
 #define CHUNK_SIZE          10
 #define CHUNK_MS            30      // 25 chunks: ~750 ms, timeout_response is 100
 #define TIMEOUT_RESPONSE    100
+#define NOISE_MS            80      // a byte of noise before each timeout_response
+#define NOISE_WAIT_MIN      2400    // the wire time of two frames (522 bytes, 11 bits, 2400 baud)
+#define NOISE_WAIT_MAX      3500    // that, plus timeout_response twice, plus margin
 
 /***************************************************************************
  *              Structures
@@ -99,6 +108,8 @@ typedef struct _PRIVATE_DATA {
     size_t tx_len;
     size_t tx_pos;
     BOOL dribbling;             // an answer is on the wire
+    BOOL noising;               // noise is on the wire, till the next request
+    uint64_t t_noise;           // when the noise started, monotonic ms
 
     int cycle;                  // counted at the bus, by the SND_NKE
     int requests;               // REQ_UD2 in this cycle
@@ -152,6 +163,16 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!priv->done) {
+        // the auto-kill time ended the test: a failure, not a pass
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The test stopped before its last cycle",
+            "cycle",        "%d", priv->cycle,
+            NULL
+        );
+    }
     if(priv->gobj_master && gobj_is_running(priv->gobj_master)) {
         gobj_stop(priv->gobj_master);
     }
@@ -301,6 +322,42 @@ PRIVATE void bus_next_chunk(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Noise that never goes quiet: a bad byte every NOISE_MS
+ ***************************************************************************/
+PRIVATE void bus_noise(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint8_t noise = 0x00;   // not a start byte
+    bus_send(gobj, &noise, 1);
+    set_timeout0(priv->timer, NOISE_MS);
+}
+
+/***************************************************************************
+ *  The repeat ends the noise: it must come in the time bound of an answer
+ ***************************************************************************/
+PRIVATE void bus_noise_end(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->noising = FALSE;
+    clear_timeout0(priv->timer);
+
+    uint64_t waited = time_in_milliseconds_monotonic() - priv->t_noise;
+    if(waited < NOISE_WAIT_MIN || waited > NOISE_WAIT_MAX) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The master waited out a noisy bus out of its time bound",
+            "waited_ms",    "%d", (int)waited,
+            "min_ms",       "%d", NOISE_WAIT_MIN,
+            "max_ms",       "%d", NOISE_WAIT_MAX,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  A frame from the master, at the bus
  ***************************************************************************/
 PRIVATE void bus_frame(hgobj gobj, const mbus_frame_t *frame)
@@ -322,6 +379,9 @@ PRIVATE void bus_frame(hgobj gobj, const mbus_frame_t *frame)
 
     if(frame->type == MBUS_FRAME_SHORT && (frame->c & ~MBUS_C_FCB) == MBUS_C_REQ_UD2 && frame->a == 1) {
         priv->requests++;
+        if(priv->noising) {
+            bus_noise_end(gobj);
+        }
         if(frame->c != (MBUS_C_REQ_UD2|MBUS_C_FCB)) {
             bus_error(gobj, "The REQ_UD2 (and its repeat) must carry FCB 1", frame->c);
         }
@@ -336,7 +396,13 @@ PRIVATE void bus_frame(hgobj gobj, const mbus_frame_t *frame)
             return;
         }
         if(priv->requests == 1) {
-            bus_dribble(gobj, TRUE);
+            if(priv->cycle == 2) {
+                bus_dribble(gobj, TRUE);
+            } else {
+                priv->noising = TRUE;
+                priv->t_noise = time_in_milliseconds_monotonic();
+                bus_noise(gobj);
+            }
         } else if(priv->requests == 2) {
             uint8_t bf[MBUS_FRAME_MAX_LENGTH];
             size_t len = build_long_answer(bf, sizeof(bf));
@@ -425,7 +491,7 @@ PRIVATE void check_reading(hgobj gobj, json_t *kw)
 }
 
 /***************************************************************************
- *  The counters of the master after two cycles
+ *  The counters of the master after three cycles
  ***************************************************************************/
 PRIVATE void check_stats(hgobj gobj)
 {
@@ -435,11 +501,11 @@ PRIVATE void check_stats(hgobj gobj)
         const char *name;
         json_int_t value;
     } want[] = {
-        {"badFrames",   1},     // the broken answer of cycle 2, counted once
+        {"badFrames",   2},     // the broken answer of cycle 2 and the noise of 3, once each
         {"timeouts",    0},     // a dribbled answer is not a silence
-        {"repeats",     1},     // the REQ_UD2 of cycle 2, once the bus was quiet
+        {"repeats",     2},     // the REQ_UD2 of cycles 2 and 3
         {"failedReads", 0},
-        {"readings",    2},
+        {"readings",    3},
     };
     for(size_t i=0; i<ARRAY_SIZE(want); i++) {
         json_int_t got = gobj_read_integer_attr(priv->gobj_master, want[i].name);
@@ -447,7 +513,7 @@ PRIVATE void check_stats(hgobj gobj)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "A counter of the master is not what two cycles give",
+                "msg",          "%s", "A counter of the master is not what three cycles give",
                 "counter",      "%s", want[i].name,
                 "got",          "%d", (int)got,
                 "want",         "%d", (int)want[i].value,
@@ -492,7 +558,7 @@ PRIVATE void master_reading(hgobj gobj, json_t *kw)
 
 /***************************************************************************
  *  The start (the server listens: the master is created, and connects),
- *  then the chunks of an answer
+ *  then the chunks of an answer, or the bytes of noise
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -516,6 +582,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_start(priv->gobj_master);
     } else if(priv->dribbling) {
         bus_next_chunk(gobj);
+    } else if(priv->noising) {
+        bus_noise(gobj);
     }
 
     JSON_DECREF(kw)

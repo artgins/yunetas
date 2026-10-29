@@ -113,7 +113,7 @@ The same bus behind a gateway:
 | Attribute | Default | Meaning |
 |---|---|---|
 | `url` | | Serial device of the level converter, or `tcp://host:port` of a gateway |
-| `baudrate`, `bytesize`, `parity`, `stopbits` | 2400, 8, `even`, 1 | Serial line, given to the `C_UART` |
+| `baudrate`, `bytesize`, `parity`, `stopbits` | 2400, 8, `even`, 1 | Serial line, given to the `C_UART`. They also bound how long an answer may last (the wire time of two frames); behind a `tcp://` gateway, set them to the speed of the gateway's bus |
 | `slaves` | `[]` | The meters. They are read at start, so a change needs a stop and a start |
 | `timeout_polling` | 60000 | Milliseconds from the end of one cycle to the start of the next |
 | `timeout_response` | 500 | Milliseconds of silence allowed: from the request to the first byte of the answer, and from each chunk of bytes to the next. EN 13757-2 gives a meter about 190 ms at 2400 baud to start. The rest is margin for a gateway. It is not the time of the whole answer: a long frame is about 1.2 s on the wire |
@@ -157,9 +157,12 @@ secondary:   SND_UD select (CI 52) -> E5,  REQ_UD2 to FD -> RSP_UD  [...]
   whole.
 - **A frame that does not parse** is waited out until the bus is quiet for
   `timeout_response`, before the request goes again. So the rest of a
-  collision, or of noise, does not fall into the next answer. The wait stops
-  growing after the bytes of two frames, so a bus that is never quiet still
-  ends the request.
+  collision, or of noise, does not fall into the next answer. The wait is
+  bounded in time: once the answer has lasted `timeout_response` plus the
+  wire time of two frames at the line's speed (about 2.4 s at 2400 baud 8E1),
+  the next silence of `timeout_response` ends it, however the bytes keep
+  coming. So a bus that is never quiet still ends the request: in at most
+  about 3.4 s per attempt with the defaults (500 + 2393 + 500 ms).
 - **After the last slave,** the master waits `timeout_polling` and starts
   again.
 

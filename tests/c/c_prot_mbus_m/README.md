@@ -56,10 +56,19 @@ chunks of 10 bytes every 30 ms (~750 ms):
 - in cycle 1 the master must read it with no timeout and no repeat;
 - in cycle 2 the first answer is broken at its first byte and the rest is
   dribbled all the same. The master must wait until the bus is quiet before it
-  repeats the `REQ_UD2` (same FCB), and the repeat is answered at once.
+  repeats the `REQ_UD2` (same FCB), and the repeat is answered at once;
+- in cycle 3 the first answer is noise that never goes quiet: one bad byte
+  every 80 ms, less than `timeout_response`. The master must give up on it
+  in its time bound (`timeout_response` plus the wire time of two frames at
+  2400 baud, ~2.5 s): the repeat must reach the bus 2.4-3.5 s after the
+  first `REQ_UD2`, and it is answered at once. With the bound counted in
+  bytes the noise held the request for ~42 s.
 
 The bus fails the test when a request arrives while an answer is on the wire.
-At the end: `badFrames` 1, `timeouts` 0, `repeats` 1, `readings` 2.
+At the end: `badFrames` 2, `timeouts` 0, `repeats` 2, `readings` 3.
+
+`test1` and `test3` fail when the auto-kill time (20 s) ends them before their
+last cycle.
 
 The tests are built only when `CONFIG_MODULE_MBUS` is set.
 

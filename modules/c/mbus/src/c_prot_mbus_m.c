@@ -48,10 +48,13 @@
  *          of bytes to the next, because a long frame is ~1.2 s on the wire
  *          at 2400 baud. A frame that does not parse is waited out until
  *          the bus is quiet for timeout_response, so the rest of a
- *          collision or of noise does not fall into the next request (the
- *          re-arms stop after the bytes of two frames, so a bus that never
- *          goes quiet still ends). After the last slave the master waits
- *          timeout_polling and starts again.
+ *          collision or of noise does not fall into the next request. The
+ *          re-arms stop once the answer has lasted timeout_response plus
+ *          the wire time of two frames at the serial line's speed (~2.4 s
+ *          at 2400 baud), so a bus that never goes quiet still ends the
+ *          request: one byte before each timeout_response cannot hold it.
+ *          After the last slave the master waits timeout_polling and starts
+ *          again.
  *
  *          WHAT IS PUBLISHED. One EV_ON_MESSAGE per slave read, as soon as
  *          its reading is complete (a cycle of 250 meters is minutes long:
@@ -275,7 +278,8 @@ typedef struct _PRIVATE_DATA {
 
     uint8_t rx[RX_BUFFER_SIZE];
     size_t rx_len;
-    size_t rx_total;                // bytes of the answer, kept or not: bounds the re-arms
+    json_int_t wire_ms;             // wire time of RX_BUFFER_SIZE bytes at the line's speed
+    uint64_t t_answer;              // msectimer: the most an answer lasts, bounds the re-arms
     BOOL rx_bad;                    // a bad frame arrived: wait out the timeout
     char rx_why[256];
     char rx_dump[2*DUMP_MAX_BYTES + 1];
@@ -346,6 +350,30 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_response,      gobj_read_integer_attr)
     SET_PRIV(retries,               gobj_read_integer_attr)
     SET_PRIV(max_telegrams,         gobj_read_integer_attr)
+
+    /*
+     *  The longest an answer can be on the wire: two frames, each byte with
+     *  its start, data, parity and stop bits. Behind a tcp:// gateway the
+     *  same attrs say the speed of its bus
+     */
+    json_int_t baudrate = gobj_read_integer_attr(gobj, "baudrate");
+    if(baudrate <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "M-Bus baudrate must be positive, 2400 taken",
+            "baudrate",     "%d", (int)baudrate,
+            NULL
+        );
+        baudrate = 2400;
+    }
+    const char *parity = gobj_read_str_attr(gobj, "parity");
+    json_int_t bits = 1 + gobj_read_integer_attr(gobj, "bytesize") +
+        gobj_read_integer_attr(gobj, "stopbits");
+    if(!empty_string(parity) && strcasecmp(parity, "none") != 0) {
+        bits++;
+    }
+    priv->wire_ms = (RX_BUFFER_SIZE * bits * 1000 + baudrate - 1) / baudrate;
 }
 
 /***************************************************************************
@@ -1042,7 +1070,7 @@ PRIVATE void send_request(hgobj gobj, const uint8_t *bf, size_t len)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->rx_len = 0;
-    priv->rx_total = 0;
+    priv->t_answer = start_msectimer((uint64_t)(priv->timeout_response + priv->wire_ms));
     priv->rx_bad = FALSE;
     priv->rx_why[0] = 0;
     priv->rx_dump[0] = 0;
@@ -1897,12 +1925,12 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*
      *  timeout_response is the silence allowed, not the time of the whole
-     *  answer: a long frame at 2400 baud is ~1.2 s on the wire. Bounded by
-     *  the bytes of two frames, so a bus that never goes quiet still ends
+     *  answer: a long frame at 2400 baud is ~1.2 s on the wire. Bounded in
+     *  time, not in bytes: a byte just before each timeout_response would
+     *  hold the request for 522 of them
      */
     size_t len = gbuffer_leftbytes(gbuf);
-    priv->rx_total += len;
-    if(priv->rx_total <= RX_BUFFER_SIZE) {
+    if(!test_msectimer(priv->t_answer)) {
         set_timeout0(priv->timer, priv->timeout_response);
     }
 

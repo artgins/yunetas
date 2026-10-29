@@ -166,6 +166,16 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!priv->done) {
+        // the auto-kill time ended the test: a failure, not a pass
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The test stopped before its last cycle",
+            "cycle",        "%d", priv->cycle,
+            NULL
+        );
+    }
     if(priv->gobj_master && gobj_is_running(priv->gobj_master)) {
         gobj_stop(priv->gobj_master);
     }
