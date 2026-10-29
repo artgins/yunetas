@@ -124,6 +124,19 @@ master inside its `EV_MODBUS_ANSWER`: nothing more is polled or logged
 (before, *"cur_slave_ NULL"*, and an `EV_TIMEOUT` *"NOT DEFINED"* in
 `ST_DISCONNECTED` at the next tick).
 
+(REV-CLOUD V49.2) Between the first read and the other two, three requests
+to slave 0, the RTU broadcast, with `timeout_response` at 4 s. A read from
+slave 0 is refused at once (*"Modbus request refused"*). A write to slave 0
+that the slave does not answer, as the standard says, is answered as done
+(*"broadcast: no answer expected"*) within 2.5 s, after the turnaround delay.
+A write to slave 0 that the slave echoes, as a device that breaks the
+standard does: the echo is dropped as noise, the write is answered as done,
+and the read after it is answered. Before the fix the read went out (the
+slave saw a request it did not expect) and failed at `timeout_response`; both
+writes failed there too; and the `0x00` of the echo was dropped, and its
+`06 00 50` taken as the head of a frame of 82 bytes (*"Modbus frame dropped:
+not the answer awaited"*, `slave_id` 6).
+
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 
 ## Run

@@ -66,8 +66,8 @@ its low word first, read over TCP:
   were polled, the id cut to its low byte. **Over RTU 0 is not polled
   either**: it is the broadcast, and no slave answers it, so each cycle
   waited `timeout_response` for it (until the fix of REV-CLOUD V47.2). A
-  request to 0 still goes out (see *Requests*). Over TCP 0 is a unit id like
-  any other.
+  write to 0 still goes out, as a broadcast; a read from 0 is refused (see
+  *Requests*). Over TCP 0 is a unit id like any other.
 
   ```text
   {"modbus_protocol": "RTU", "slaves": [{"id": 250, "mapping": [...]}]}
@@ -124,7 +124,8 @@ its low word first, read over TCP:
 | `slaves` | `[]` | The map, above. Read at `mt_start`: written while the gobj runs, it takes effect at the next start, with a warning (*"Modbus slaves written while the master runs: they take effect at the next start"*) |
 | `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
-| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, and the bytes that cannot start an answer (below). One per drop, not per byte |
+| `turnaround_delay` | `200` | Over RTU, milliseconds after a broadcast write (slave 0) before it is answered as done and the next request goes out: the time the slaves need to carry it out (the *turnaround delay* of the Modbus serial line specification, typically 100-200 ms). The timer counts whole seconds (`C_TIMER`), so it ends at the next tick, 1 s at most |
+| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, the bytes that cannot start an answer, and the bytes that come while a broadcast is in flight (below). One per drop, not per byte |
 
 To change the map of a running master, stop it, write `slaves` and start it
 again (`gobj_write_json_attr()` does not take the reference: free yours):
@@ -249,7 +250,7 @@ gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
 | Key | | |
 |---|---|---|
 | `operation` | `"write"` | `write` or `read` |
-| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: no slave answers it, so its request fails by `timeout_response` even when it was done; and 248-255 are reserved: a request to one is refused (*"slave id 248 is reserved in Modbus RTU (248-255)"*) |
+| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: a write to it is answered as done without an answer from a slave, and a read from it is refused (*Broadcast*, below); and 248-255 are reserved: a request to one is refused (*"slave id 248 is reserved in Modbus RTU (248-255)"*) |
 | `type` | | Write: `holding_register`, `coil`. Read: also `input_register`, `input_status` |
 | `address` | | 0-65535. With `size`, the last one too: `address + size - 1` is at most 65535 |
 | `size` | `1` | A read: how many (at most 125 registers, 2000 bits). A write takes it from its values |
@@ -267,6 +268,8 @@ decimals (`20.0`), a boolean as 1 or 0, or the whole text of a JSON integer
 {"operation": "read", "type": "holding_register", "address": 20.9}   -> refused, not 20
 {"id": "x", "type": "holding_register", "address": 20, "value": 1}   -> "the slave id is not a number" (not 0, the RTU broadcast)
 {"id": 248, "type": "holding_register", "address": 20, "value": 1}   -> over RTU: "slave id 248 is reserved in Modbus RTU (248-255)"
+{"operation": "read", "id": 0, "type": "holding_register", "address": 20}
+                                                                -> over RTU: "slave id 0 is the broadcast in Modbus RTU: no slave answers a read"
 {"type": "holding_register", "address": 20, "value": "12ab"}    -> "value 0 of the write is not a number"
 {"operation": "read", "type": "holding_register", "address": 65535, "size": 2}
                                                                 -> "address 65535 and size 2 pass 65535"
@@ -316,6 +319,44 @@ fit in a register (-32768..65535)"*): it is the `why` of that log, and the
 
 The gobj above must declare `EV_MODBUS_ANSWER` in its FSM.
 
+**Broadcast, over RTU.** Slave 0 is the broadcast of the Modbus serial line:
+every slave carries out the write, and **no slave answers it**. So a write to
+slave 0 goes out and no answer is awaited: after `turnaround_delay`, the time
+the slaves need to carry it out, it is answered as done, and the next request
+or block goes out. Done means sent: no slave says that it took it. A read from
+slave 0 is refused at once: no slave answers it, so it can read nothing.
+
+```C
+gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
+    json_pack("{s:i, s:s, s:i, s:i}",
+        "id", 0,
+        "type", "holding_register",
+        "address", 80,
+        "value", 4660
+    ),
+    gobj
+);
+```
+
+```json
+{"request": {"operation": "write", "id": 0, "type": "holding_register",
+             "address": 80, "size": 1, "value": [4660]},
+ "result": 0, "comment": "broadcast: no answer expected", "error_code": 0}
+```
+
+The bytes that come while a broadcast is in flight are dropped as noise
+(below): they cannot be an answer. A device that breaks the standard and
+answers a broadcast (`00 06 00 50 12 34 <crc>`, an echo) is dropped that way,
+and the next answer is read clean. Over TCP slave 0 is a unit id like any
+other, and its answer is awaited.
+
+(Up to the fix of REV-CLOUD V49.2 a read from slave 0 over RTU went out, and
+a broadcast write failed at `timeout_response`, done or not, after 10 s of
+silence on the line. Between the fix of REV-CLOUD V48.2 and that one, never
+released, the `0x00` of a device answering slave 0 was dropped as noise and
+the bytes after it taken as a head: the request failed at `timeout_response`,
+and that head could swallow the next answer.)
+
 **When it goes out.** A request that arrives while the connection waits
 between two cycles goes out at once, and the wait resumes after the requests.
 So does one sent on the `EV_ON_MESSAGE` that ends a cycle: the wait between
@@ -336,9 +377,41 @@ confirmed, the gobj stopped before its answer"* for the one in flight).
 
 **A stop on an answer stops the polling.** The gobj above may stop the master
 inside the `EV_MODBUS_ANSWER` of a request, or the `EV_ON_MESSAGE` of a cycle:
-the master then sends nothing more, polls no block and arms no wait. (Until
-the fix of REV-CLOUD V48.2 it went on with its cycle on the stopped gobj, and
-logged *"cur_slave_ NULL"* there and at the next tick.)
+the master then sends nothing more, polls no block and arms no wait. The
+requests still queued are dropped with the warning of a stop. For example, a
+gobj that unlocks a meter with its password and stops the master when the
+meter refuses it (the `src` of a published event is the master):
+
+```C
+PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(json_integer_value(json_object_get(kw, "result")) != 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Meter refused the request, its master is stopped",
+            "comment",      "%s", json_string_value(json_object_get(kw, "comment")),
+            NULL
+        );
+        gobj_stop(src);
+    }
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/* in its FSM */
+{EV_MODBUS_ANSWER,      ac_modbus_answer,       0},
+```
+
+The stop is made inside the answer on purpose, and the master is built for
+it: after it publishes an answer or a cycle it checks that it still runs. A
+stop deferred to the next turn of the loop (`gobj_post_event()`) comes after
+the master sent what was queued next -- here, the setup that the refused
+password was to unlock.
+
+(Until the fix of REV-CLOUD V48.2 it went on with its cycle on the stopped
+gobj, and logged *"cur_slave_ NULL"* there and at the next tick.)
 
 **Which answer is taken.** Only an answer to what is in flight, a block or a
 request. Over TCP it must carry the **transaction id** of the frame sent and
@@ -409,7 +482,8 @@ read of its own: it comes after the next request goes out.
 **Over RTU a byte that cannot start an answer is dropped too**, where a frame
 would start (at the start of a read, or after a frame dropped in it): a
 `0x00` (slave 0 is the broadcast, which no slave answers) or a `0xF8`-`0xFF`
-(slave ids 248-255 are reserved). That is the noise byte that comes in a read
+(slave ids 248-255 are reserved). **While a broadcast is in flight every
+byte is dropped there**: no answer can come (*Broadcast*, above). That is the noise byte that comes in a read
 of its own, before an answer or between two: taken as a head, it lost the
 answer after it (until the fix of REV-CLOUD V48.2). A noise byte
 `0x01`-`0xF7` there is still taken as a head: it may be the

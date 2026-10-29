@@ -133,6 +133,15 @@ reserved, and 0 is the broadcast that no slave answers: a request to
 248-255 is refused, and a polled slave with one of them, or with 0, is not
 polled (its blocks are disabled, logged when the gobj starts).
 
+Over RTU a read from slave 0 is refused: no slave answers a broadcast, so it
+can read nothing. A write to slave 0 goes out, and no answer is awaited: it
+is answered as done ("broadcast: no answer expected") after the turnaround
+delay (`turnaround_delay`, the time the slaves need to carry it out before
+the next request), not after timeout_response. Done means sent: no slave
+says that it took it. What comes while it is in flight is dropped as noise:
+it cannot be an answer, and a device that breaks the standard and answers
+a broadcast would leave the next answer behind its bytes otherwise.
+
 The map (`slaves`) is read at start. Written while the gobj runs, it takes
 effect at the next start, with a warning: the cycle keeps its own
 reference to the map it started with. A block whose answer does not fit
@@ -410,6 +419,7 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len);
 PRIVATE int continue_polling(hgobj gobj, int wait_ms);
 PRIVATE int reset_frame(hgobj gobj);
 PRIVATE BOOL write_in_flight(hgobj gobj);
+PRIVATE BOOL broadcast_in_flight(hgobj gobj);
 PRIVATE BOOL frame_is_hidden(hgobj gobj);
 PRIVATE int drop_noise(hgobj gobj, gbuffer_t *gbuf, size_t len, BOOL hidden, const char *msg);
 PRIVATE int finish_answer(hgobj gobj);
@@ -529,8 +539,9 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server 
 SDATA (DTP_JSON,    "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
 SDATA (DTP_INTEGER, "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
+SDATA (DTP_INTEGER, "turnaround_delay", SDF_PERSIST,    "200",      "RTU: milliseconds after a broadcast write (slave 0, never answered) before it is answered as done and the next request goes out. The timer counts whole seconds"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
-SDATA (DTP_INTEGER, "rx_noise_dropped", SDF_STATS,      "0",        "RTU: noise dropped: bytes after an answer in its read, or bytes that cannot start an answer"),
+SDATA (DTP_INTEGER, "rx_noise_dropped", SDF_STATS,      "0",        "RTU: noise dropped: bytes after an answer in its read, bytes that cannot start an answer, or bytes while a broadcast is in flight"),
 SDATA_END()
 };
 
@@ -562,6 +573,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     int timeout_polling;
     int timeout_response;
+    int turnaround_delay;
     const char *url;
     hgobj gobj_timer;
     const char *modbus_protocol;
@@ -644,6 +656,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(timeout_polling,       (int)gobj_read_integer_attr)
     SET_PRIV(timeout_response,      (int)gobj_read_integer_attr)
+    SET_PRIV(turnaround_delay,      (int)gobj_read_integer_attr)
 
 }
 
@@ -656,6 +669,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout_polling,         (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_response,      (int)gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(turnaround_delay,      (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
         if(gobj_bottom_gobj(gobj)) {
             gobj_write_str_attr(gobj_bottom_gobj(gobj), "url", priv->url);
@@ -2231,8 +2245,17 @@ PRIVATE BOOL send_request(hgobj gobj)
         gobj_change_state(gobj, ST_WAIT_RESPONSE);
         priv->waiting = FALSE;
 
-        // Set response timeout
-        set_timeout(priv->gobj_timer, priv->timeout_response*1000);
+        /*
+         *  Set response timeout. A broadcast is answered by no slave: its
+         *  wait is the turnaround delay, and it ends as done
+         *  (ac_timeout_response()).
+         */
+        if(broadcast_in_flight(gobj)) {
+            // 0 would disarm the timer, and the broadcast would never end
+            set_timeout(priv->gobj_timer, MAX(priv->turnaround_delay, 1));
+        } else {
+            set_timeout(priv->gobj_timer, priv->timeout_response*1000);
+        }
 
         send_data(gobj, gbuf);
     }
@@ -2571,6 +2594,21 @@ PRIVATE BOOL write_in_flight(hgobj gobj)
     json_t *jn_operation = json_object_get(priv->jn_current_request, "operation");
     return (json_is_string(jn_operation) &&
         strcmp(json_string_value(jn_operation), "write")==0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  TRUE when the request in flight is an RTU broadcast: a write to slave 0
+ *  (a read from it is refused, check_request()). No slave answers it.
+ ***************************************************************************/
+PRIVATE BOOL broadcast_in_flight(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->jn_current_request || strcasecmp(priv->modbus_protocol, "RTU")!=0) {
+        return FALSE;
+    }
+    return json_integer_value(json_object_get(priv->jn_current_request, "id")) == 0?
+        TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -4144,6 +4182,9 @@ PRIVATE json_t *check_request(hgobj gobj, json_t *jn_request)
     if(slave_id > 247 && strcasecmp(priv->modbus_protocol, "RTU")==0) {
         return json_sprintf("slave id %lld is reserved in Modbus RTU (248-255)", (long long)slave_id);
     }
+    if(slave_id == 0 && !is_write && strcasecmp(priv->modbus_protocol, "RTU")==0) {
+        return json_string("slave id 0 is the broadcast in Modbus RTU: no slave answers a read");
+    }
 
     json_int_t address;
     json_t *jn_address = json_object_get(jn_request, "address");
@@ -4891,10 +4932,16 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  *  answered) or a 248-255 (reserved) is noise. Taken as the
                  *  head of a frame it would swallow the answer after it. A
                  *  byte 1-247 is taken: it may start a late frame, which is
-                 *  read whole and dropped.
+                 *  read whole and dropped. While a broadcast is in flight no
+                 *  byte can start an answer: a device that answers it
+                 *  against the standard would leave the next answer behind
+                 *  its bytes.
                  */
                 if(!is_tcp && istream_length(priv->istream_head) == 0) {
                     int n_noise = 0;
+                    if(broadcast_in_flight(gobj)) {
+                        n_noise = lnn;
+                    }
                     while(n_noise < lnn &&
                             ((uint8_t)bf[n_noise] == 0 || (uint8_t)bf[n_noise] > 247)) {
                         n_noise++;
@@ -5122,6 +5169,19 @@ PRIVATE int ac_timeout_polling(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  A broadcast awaits no answer: after the turnaround delay it is done,
+     *  as an answer read is, and the polling goes on as after one
+     */
+    if(broadcast_in_flight(gobj)) {
+        set_current_answer(gobj, 0, 0, NULL,
+            json_string("broadcast: no answer expected")
+        );
+        finish_answer(gobj);
+        JSON_DECREF(kw)
+        return 0;
+    }
 
     if(priv->jn_current_request) {
         json_t *jn_log = request_to_log(priv->jn_current_request);
