@@ -10,11 +10,18 @@
  *  An END bound takes its whole second: `to_t` 23:59:59 holds a record at
  *  23:59:59.500 of an axis in ms (it was 23:59:59.000, and lost it).
  *
- *  A text that is no date is refused with a WARNING, as a bound and as a
- *  tkey (REV-CLOUD V46.3): up to 7.29.3 approxidate() read it as NOW in
- *  silence, and a bound with no 'T' was cut by strtoll() ("garbage" was
- *  no bound, "2000-01-02 00:00:00 +0000" the time 2000). A bound written
- *  -?[0-9]+ is that integer, any other text is a date.
+ *  A text time, as a bound and as a tkey, is read by ONE rule,
+ *  tranger2_time_of_text() (REV-CLOUD V46.3, V47.2): "" is no time (no
+ *  bound, no tkey value); the text of a JSON integer, -?(0|[1-9][0-9]*),
+ *  is that integer in the unit of its axis; a text written as another
+ *  number (" 5", "5 ", "10.5", "007", "+5", "1E5") is refused; any other
+ *  text is a date, and one that is no date is refused. Each refusal logs
+ *  a WARNING. Up to 7.29.3 approxidate() read a text that is no date as
+ *  NOW in silence, and a bound with no 'T' was cut by strtoll() ("garbage"
+ *  was no bound, "2000-01-02 00:00:00 +0000" the time 2000, " 5" 5, "10.5"
+ *  10). R46 read " 5" and "10.5" as dates (the 5th, May 10) in silence,
+ *  refused "" (no bound until then) and every integer text in a tkey
+ *  ("1761000000000" was a bound, and no tkey), and took "007" as 7.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -269,21 +276,79 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  A text tkey that is no date is refused, nothing written: in
-     *  milliseconds "1761000000000" was NOW*1000 from 7.29.3 (up to 7.29.2
-     *  the year 57773, appended cut and logged)
+     *  A bound written as a number that is not the text of a JSON integer
+     *  is refused: R46 read " 5", "5 " and "10.5" as dates (0 rows here, in
+     *  silence; up to 7.29.3 strtoll() made them 5 and 10), and "007" as 7
+     */
+    {
+        const char *refused[] = {" 5", "5 ", "10.5", "007", "+5", "1E5", "-007", NULL};
+        json_t *expected = json_array();
+        for(int i = 0; refused[i]; i++) {
+            for(int j = 0; j < 2; j++) {   // the iterator, then the list
+                json_array_append_new(expected,
+                    json_pack("{s:s}", "msg", "match_cond refused: a time bound is no date"));
+            }
+        }
+        set_expected_results(
+            "date bounds: a number that is not a JSON integer is refused",
+            expected, NULL, NULL, 1
+        );
+        for(int i = 0; refused[i]; i++) {
+            char what[64];
+            served(tranger, TOPIC_T_MS, json_pack("{s:s}", "from_t", refused[i]), bf, sizeof(bf));
+            snprintf(what, sizeof(what), "from_t '%s'", refused[i]);
+            result += expect(what, bf, "");
+
+            json_t *list = tranger2_open_list(tranger, TOPIC_T_MS,
+                json_pack("{s:s, s:I}",
+                    "to_t", refused[i],
+                    "load_record_callback", (json_int_t)(size_t)load_nothing
+                ),
+                NULL, "", FALSE, ""
+            );
+            if(list) {
+                printf("%sERROR%s --> a list opened with to_t '%s'\n", On_Red BWhite, Color_Off, refused[i]);
+                tranger2_close_list(tranger, list);
+                result += -1;
+            }
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  "" is no bound (as up to 7.29.3; R46 refused it), "-0" is 0 (no
+     *  bound), "1761000000000" that integer: no WARNING
+     */
+    set_expected_results("date bounds: '', '-0' and an integer text", NULL, NULL, NULL, 1);
+    {
+        served(tranger, TOPIC_T_MS, json_pack("{s:s}", "from_t", ""), bf, sizeof(bf));
+        result += expect("from_t ''", bf, "D1 D2 D2b D3");
+
+        served(tranger, TOPIC_T_MS, json_pack("{s:s}", "to_t", ""), bf, sizeof(bf));
+        result += expect("to_t ''", bf, "D1 D2 D2b D3");
+
+        served(tranger, TOPIC_TM_MS, json_pack("{s:s, s:s}", "from_tm", "-0", "to_tm", ""), bf, sizeof(bf));
+        result += expect("from_tm '-0', to_tm ''", bf, "D1 D2 D2b D3");
+
+        served(tranger, TOPIC_T_MS, json_pack("{s:s}", "to_t", "1761000000000"), bf, sizeof(bf));
+        result += expect("to_t '1761000000000'", bf, "D1 D2 D2b D3");
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A text tkey that is no date is refused, nothing written: "garbage"
+     *  was NOW*1000 in milliseconds up to 7.29.3
      */
     set_expected_results(
         "date bounds: a text tkey that is no date is refused",
-        json_pack("[{s:s},{s:s}]",
-            "msg", "Cannot append record, its tkey is a text that is no date",
+        json_pack("[{s:s}]",
             "msg", "Cannot append record, its tkey is a text that is no date"
         ),
         NULL, NULL, 1
     );
     {
-        const char *refused[] = {"1761000000000", "garbage"};
-        for(int i = 0; i < 2; i++) {
+        const char *refused[] = {"garbage"};
+        for(int i = 0; i < 1; i++) {
             md2_record_ex_t md = {0};
             int ret = tranger2_append_record(tranger, TOPIC_TM_MS, 0, 0, &md,
                 json_pack("{s:I, s:s, s:s}", "id", (json_int_t)2, "tm", refused[i], "content", "X")
@@ -317,6 +382,150 @@ PRIVATE int do_test(void)
             printf("%sERROR%s --> key 2 has %d rows, expected 1\n", On_Red BWhite, Color_Off,
                 (int)tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000002"));
             result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A text tkey written as a number that is not the text of a JSON
+     *  integer is refused, as a bound is: R46 appended " 5", "5 ", "10.5"
+     *  and "007" as dates (the 5th, May 10, the 7th), in silence
+     */
+    {
+        const char *refused[] = {" 5", "5 ", "10.5", "007", "garbage", NULL};
+        json_t *expected = json_array();
+        for(int i = 0; refused[i]; i++) {
+            json_array_append_new(expected,
+                json_pack("{s:s}", "msg", "Cannot append record, its tkey is a text that is no date"));
+        }
+        set_expected_results(
+            "date bounds: a text tkey that is a number but no JSON integer is refused",
+            expected, NULL, NULL, 1
+        );
+        for(int i = 0; refused[i]; i++) {
+            json_t *jn = json_pack("{s:I, s:s}", "id", (json_int_t)3, "tm", refused[i]);
+            BOOL fits = TRUE;
+            tranger2_record_tkey_time(tranger2_topic(tranger, TOPIC_TM_MS), jn, &fits);
+            if(fits) {
+                printf("%sERROR%s --> tkey '%s' fits\n", On_Red BWhite, Color_Off, refused[i]);
+                result += -1;
+            }
+            JSON_DECREF(jn)
+
+            /*
+             *  The last one with a large content: the trace shows the first
+             *  bytes of the record, it dumped the whole of it (V47.2)
+             */
+            json_t *record = json_pack("{s:I, s:s, s:s}", "id", (json_int_t)3, "tm", refused[i], "content", "X");
+            if(!refused[i+1]) {
+                char *big = gbmem_malloc(64*1024 + 1);
+                memset(big, 'x', 64*1024);
+                big[64*1024] = 0;
+                json_object_set_new(record, "content", json_string(big));
+                gbmem_free(big);
+            }
+            md2_record_ex_t md = {0};
+            int ret = tranger2_append_record(tranger, TOPIC_TM_MS, 0, 0, &md, record);
+            if(ret >= 0) {
+                printf("%sERROR%s --> tkey '%s' appended, __tm__ %" PRIu64 "\n",
+                    On_Red BWhite, Color_Off, refused[i], (uint64_t)md.__tm__);
+                result += -1;
+            }
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The text of a JSON integer is that integer, in the unit of the tm
+     *  axis, as a bound is: R46 refused "1761000000000" (ms) and "-0". ""
+     *  is no tkey value, as a missing one: 0
+     */
+    set_expected_results("date bounds: a text tkey that is a JSON integer, or ''", NULL, NULL, NULL, 1);
+    {
+        static const struct {
+            const char *text;
+            uint64_t tm;
+        } taken[] = {
+            {"1761000000000",   1761000000000ULL},
+            {"-0",              0},
+            {"",                0},
+        };
+        for(size_t i = 0; i < sizeof(taken)/sizeof(taken[0]); i++) {
+            md2_record_ex_t md = {0};
+            int ret = tranger2_append_record(tranger, TOPIC_TM_MS, 0, 0, &md,
+                json_pack("{s:I, s:s, s:s}", "id", (json_int_t)4, "tm", taken[i].text, "content", "Z")
+            );
+            if(ret < 0 || md.__tm__ != taken[i].tm) {
+                printf("%sERROR%s --> tkey '%s': ret %d, __tm__ %" PRIu64 ", expected %" PRIu64 "\n",
+                    On_Red BWhite, Color_Off, taken[i].text, ret, (uint64_t)md.__tm__, taken[i].tm);
+                result += -1;
+            }
+        }
+        if(tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000003") != 0) {
+            printf("%sERROR%s --> key 3 has %d rows, expected 0\n", On_Red BWhite, Color_Off,
+                (int)tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000003"));
+            result += -1;
+        }
+        if(tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000004") != 3) {
+            printf("%sERROR%s --> key 4 has %d rows, expected 3\n", On_Red BWhite, Color_Off,
+                (int)tranger2_topic_key_size(tranger, TOPIC_TM_MS, "0000000000000000004"));
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The rule itself, tranger2_time_of_text()
+     */
+    set_expected_results("date bounds: tranger2_time_of_text()", NULL, NULL, NULL, 1);
+    {
+        static const struct {
+            const char *text;
+            BOOL in_ms;
+            BOOL end;
+            int ret;
+            json_int_t value;
+        } cases[] = {
+            {"",                            FALSE,  FALSE,   0, 0},
+            {"0",                           FALSE,  FALSE,   0, 0},
+            {"-0",                          FALSE,  FALSE,   0, 0},
+            {"5",                           TRUE,   TRUE,    0, 5},
+            {"-86400",                      FALSE,  FALSE,   0, -86400},
+            {"1761000000000",               TRUE,   FALSE,   0, 1761000000000LL},
+            {"9223372036854775807",         FALSE,  FALSE,   0, INT64_MAX},
+            {"9223372036854775808",         FALSE,  FALSE,  -2, 0},
+            {" 5",                          FALSE,  FALSE,  -1, 0},
+            {"5 ",                          FALSE,  FALSE,  -1, 0},
+            {"\t5\n",                       FALSE,  FALSE,  -1, 0},
+            {"10.5",                        FALSE,  FALSE,  -1, 0},
+            {"007",                         FALSE,  FALSE,  -1, 0},
+            {"-007",                        FALSE,  FALSE,  -1, 0},
+            {"+5",                          FALSE,  FALSE,  -1, 0},
+            {".5",                          FALSE,  FALSE,  -1, 0},
+            {"5.",                          FALSE,  FALSE,  -1, 0},
+            {"1E5",                         FALSE,  FALSE,  -1, 0},
+            {"2.0",                         FALSE,  FALSE,  -1, 0},
+            {"0x10",                        FALSE,  FALSE,  -1, 0},
+            {"garbage",                     FALSE,  FALSE,  -1, 0},
+            {"2000-01-02T00:00:00+0000",    FALSE,  FALSE,   0, 946771200},
+            {"2000-01-02 00:00:00 +0000",   TRUE,   FALSE,   0, 946771200000LL},
+            {"2000-01-02T00:00:00+0000",    TRUE,   TRUE,    0, 946771200999LL},
+            {" 2000-01-02T00:00:00+0000 ",  FALSE,  FALSE,   0, 946771200},
+            {"@9300000000000000 +0000",     TRUE,   FALSE,  -2, 0},
+            {"@9300000000000000 +0000",     FALSE,  FALSE,   0, 9300000000000000LL},
+        };
+        for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+            json_int_t value = -12345;
+            const char *why = NULL;
+            int ret = tranger2_time_of_text(cases[i].text, cases[i].in_ms, cases[i].end, &value, &why);
+            if(ret != cases[i].ret || (ret == 0 && value != cases[i].value) ||
+                    (ret < 0 && empty_string(why)) || (ret == 0 && why)) {
+                printf("%sERROR%s --> tranger2_time_of_text('%s'): %d %" JSON_INTEGER_FORMAT
+                    " (%s), expected %d %" JSON_INTEGER_FORMAT "\n",
+                    On_Red BWhite, Color_Off, cases[i].text, ret, value, why? why : "",
+                    cases[i].ret, cases[i].value);
+                result += -1;
+            }
         }
     }
     result += test_json(NULL);

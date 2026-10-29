@@ -190,20 +190,34 @@ tranger2_append_record(tranger, "raw_t", 0, 0, &md,
 /*  0: appended, its __tm__ cut; ERROR "Record time past what an md2 row keeps (44 bits): appended CUT"  */
 ```
 
-**A tkey that is a text that is no date is refused**, with a WARNING (the
-text comes from a peer or a user) and nothing written: *"Cannot append
-record, its tkey is a text that is no date"*, with `topic`, `tkey` and the
-first 64 bytes of the text in `value`. The append returns `-1`. The same in
+**A tkey that is a text is read by
+[`tranger2_time_of_text()`](<#tranger2_time_of_text>)**, the rule of a text
+time bound: `""` is no tkey value (`0`), the text of a JSON integer is that
+integer in the unit of `tm`, a text written as another number (`" 5"`,
+`"5 "`, `"10.5"`, `"007"`) is refused, and any other text is a date. A text
+that is refused is refused with a WARNING (the text comes from a peer or a
+user) and nothing written: *"Cannot append record, its tkey is a text that
+is no date"*, with `why`, `topic`, `tkey` and the first 64 bytes of the text
+in `value`. The append returns `-1`, and the trace shows the first 256 bytes
+of the record, not all of it. The same in
 [`tranger2_append_record_text()`](<#tranger2_append_record_text>). Up to SDK
-7.29.3 `approxidate()` read such a text as NOW, in silence; on an
-`sf_tm_ms` topic `"1761000000000"` (milliseconds, no date: past the year
-9999) was stored as NOW times 1000, and up to 7.29.2 as the year 57773, cut.
+7.29.3 `approxidate()` read a text that is no date as NOW, in silence, and
+`"5"` as the 5th of this month; on an `sf_tm_ms` topic `"1761000000000"` was
+stored as NOW times 1000 (up to 7.29.2 as the year 57773, cut). Now it is the
+integer `1761000000000`, as a json integer tkey is.
 
 ```C
 /*  topic `raw_tm_ms`, tkey `tm`, sf_int_key|sf_tm_ms  */
 tranger2_append_record(tranger, "raw_tm_ms", 0, 0, &md,
+    json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "garbage"));
+/*  -1, nothing written; WARNING "Cannot append record, its tkey is a text that is no date",
+    why "a text that is no date"  */
+tranger2_append_record(tranger, "raw_tm_ms", 0, 0, &md,
+    json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "10.5"));
+/*  -1, nothing written; the same WARNING, why "a number that is not the text of a JSON integer"  */
+tranger2_append_record(tranger, "raw_tm_ms", 0, 0, &md,
     json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "1761000000000"));
-/*  -1, nothing written; WARNING "Cannot append record, its tkey is a text that is no date"  */
+/*  0: md.__tm__ 1761000000000  */
 tranger2_append_record(tranger, "raw_tm_ms", 0, 0, &md,
     json_pack("{s:I, s:s}", "id", (json_int_t)2, "tm", "2000-01-03T12:00:00+0000"));
 /*  0: md.__tm__ 946900800000  */
@@ -538,14 +552,15 @@ uint64_t tranger2_record_tkey_time(
 |---|---|---|
 | `topic` | `json_t *` | The json of an open topic ([`tranger2_topic()`](<#tranger2_topic>)): its `tkey` and `system_flag` are read. Not owned. |
 | `record` | `json_t *` | The record about to be appended. Not owned, not changed. |
-| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits (asked before it, because past 64 bits it wraps to a value that looks like a time), or a string that is no date (the return is then `0`; up to SDK 7.29.3 it was NOW and fitted). `TRUE` otherwise. |
+| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits, or a string that [`tranger2_time_of_text()`](<#tranger2_time_of_text>) refuses: one that is no date, or one written as a number that is not the text of a JSON integer (the return is then `0`; up to SDK 7.29.3 a text that is no date was NOW and fitted). `TRUE` otherwise. |
 
 **Returns**
 
 The time the append keeps: the value of the tkey -- an integer as it is, a
-string read as a date by `approxidate_careful()` and multiplied by 1000 on
-an `sf_tm_ms` topic --, or `0` when the topic has no tkey or the record no
-value of it (a value of another type is `0` too). A negative integer comes
+string read by [`tranger2_time_of_text()`](<#tranger2_time_of_text>) (the
+text of a JSON integer as that integer, a date multiplied by 1000 on an
+`sf_tm_ms` topic) --, or `0` when the topic has no tkey or the record no
+value of it (a value of another type, and `""`, are `0` too). A negative integer comes
 back as a large unsigned value, and `*fits` is `FALSE`.
 
 **Notes**
@@ -586,6 +601,69 @@ if(!fits) {
     return -1;
 }
 tranger2_append_record(tranger, "events", 0, 0, &md, record);   // owns record
+```
+
+---
+
+(tranger2_time_of_text)=
+## [`tranger2_time_of_text()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/timeranger2/src/timeranger2.c#L17857)
+
+The time a TEXT says, read by the one rule that timeranger2 applies to a
+text time bound of a `match_cond` (`from_t`, `to_t`, `from_tm`, `to_tm`)
+and to a text tkey. `C_TRANGER` reads the `before` of `delete-key-files`
+and `archive-key-files` with it too. The rule for a number is the command
+parser's for an integer.
+
+```C
+int tranger2_time_of_text(
+    const char *text,
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value,
+    const char **why
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `text` | `const char *` | The text. `NULL` is read as `""`. |
+| `in_ms` | `BOOL` | The axis is in milliseconds (`t` of an `sf_t_ms` topic, `tm` of an `sf_tm_ms` one): a date is multiplied by 1000. An integer is never converted: it is already in the unit of its axis. |
+| `end_of_second` | `BOOL` | An end bound: a date on an axis in milliseconds takes the last millisecond of its second (`+999`). |
+| `value` | `json_int_t *` | The time read. `0` when the text is refused. |
+| `why` | `const char **` | When not `NULL`, the cause of a refusal (`NULL` when the text is read). |
+
+**Returns**
+
+| Return | Text |
+|---|---|
+| `0`, `*value` `0` | `""`: no time (no bound, no tkey value). |
+| `0`, `*value` the integer | The text of a JSON integer, `-?(0|[1-9][0-9]*)`: `"5"`, `"-86400"`, `"-0"`, `"1761000000000"`. |
+| `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`. It is never read as a date. |
+| `0`, `*value` the date | Any other text that [`approxidate_careful()`](#approxidate_careful) reads: `"2000-01-02T00:00:00+0000"`, `"2000-01-02 00:00:00 +0000"`, `"yesterday"`. |
+| `-1`, *"a text that is no date"* | Any other text: `"garbage"`, `"0x10"`. |
+| `-2`, *"an integer past what a time holds"* / *"a date past what a time holds"* | An integer past `INT64_MAX`, or a date that does not fit a `json_int_t` in its unit. |
+
+**Notes**
+
+Nothing is logged: the text comes from a peer or a user, and the caller
+says it. Up to SDK 7.29.3 a bound with no `T` was cut by `strtoll()` (`" 5"`
+was 5, `"10.5"` 10, `"2026-10-01 00:00:00"` 2026) and a tkey was read by
+`approxidate()` (`"5"` the 5th of this month, a text that is no date NOW).
+The unreleased R46 code read every text that was not `-?[0-9]+` as a date:
+`" 5"` was the 5th, `"10.5"` May 10, in silence.
+
+**Example**
+
+```C
+json_int_t v;
+const char *why;
+tranger2_time_of_text("1761000000000", TRUE, FALSE, &v, &why);   // 0, v 1761000000000
+tranger2_time_of_text("", FALSE, FALSE, &v, &why);               // 0, v 0: no bound
+tranger2_time_of_text(" 5", FALSE, FALSE, &v, &why);             // -1, why "a number that is not the text of a JSON integer"
+tranger2_time_of_text("2000-01-02T00:00:00+0000", TRUE, TRUE, &v, &why);   // 0, v 946771200999
+tranger2_time_of_text("garbage", FALSE, FALSE, &v, &why);        // -1, why "a text that is no date"
 ```
 
 ---
@@ -2615,16 +2693,26 @@ topic sets `sf_t_ms` / `sf_tm_ms`.
 
 A time bound can be given as **text**, read once when the iterator, the list
 or the feed (rt_mem, rt_disk) opens, and written back into its `match_cond`
-as an integer: a text `-?[0-9]+` is that integer (`"-86400"` is relative, as
-below), any other is a date read by
-[`approxidate_careful()`](#approxidate_careful) and taken to the unit of its
-axis (an end bound takes its whole second). A text that is **no date** is
-refused with the WARNING *"match_cond refused: a time bound is no date"*
-(`why`, `topic_name`, `bound`, and the first 64 bytes of the text in
-`value`), and the open answers `NULL`. Up to SDK 7.29.3 a text with a `T`
-that was no date was NOW, a text without one was cut by `strtoll()`
-(`"garbage"` was no bound, `"2026-10-01 00:00:00 +0000"` the time 2026), and
-a feed did not read a text bound at all.
+as an integer, by [`tranger2_time_of_text()`](<#tranger2_time_of_text>) --
+the same rule as a text tkey:
+
+- `""` is no bound (`0`).
+- The text of a JSON integer, `-?(0|[1-9][0-9]*)` (the command parser's
+  grammar), is that integer: `"-86400"` is relative, as below, `"-0"` is `0`.
+- A text written as another number is **refused**: blanks around it
+  (`" 5"`, `"5 "`), leading zeros (`"007"`), a `+` (`"+5"`), decimals or an
+  exponent (`"10.5"`, `"1E5"`). It is never read as a date.
+- Any other text is a date read by
+  [`approxidate_careful()`](#approxidate_careful) and taken to the unit of
+  its axis (an end bound takes its whole second).
+
+A text that is **no date**, or a number refused, is refused with the WARNING
+*"match_cond refused: a time bound is no date"* (`why`, `topic_name`,
+`bound`, and the first 64 bytes of the text in `value`), and the open answers
+`NULL`. Up to SDK 7.29.3 a text with a `T` that was no date was NOW, a text
+without one was cut by `strtoll()` (`"garbage"` was no bound,
+`"2026-10-01 00:00:00 +0000"` the time 2026, `" 5"` 5, `"10.5"` 10), and a
+feed did not read a text bound at all.
 
 ```C
 json_t *it = tranger2_open_iterator(tranger, "raw_t", "r1",
@@ -2633,7 +2721,15 @@ json_t *it = tranger2_open_iterator(tranger, "raw_t", "r1",
 it = tranger2_open_iterator(tranger, "raw_t", "r1",
     json_pack("{s:s}", "from_t", "garbage"),
     NULL, "bad", "", data, NULL);
-/*  NULL; WARNING "match_cond refused: a time bound is no date"  */
+/*  NULL; WARNING "match_cond refused: a time bound is no date", why "a text that is no date"  */
+it = tranger2_open_iterator(tranger, "raw_t", "r1",
+    json_pack("{s:s}", "from_t", "10.5"),
+    NULL, "bad", "", data, NULL);
+/*  NULL; the same WARNING, why "a number that is not the text of a JSON integer"  */
+it = tranger2_open_iterator(tranger, "raw_t", "r1",
+    json_pack("{s:s}", "from_t", ""),
+    NULL, "all", "", data, NULL);
+/*  every record: "" is no bound  */
 ```
 
 A **negative** `t` / `tm` bound is relative to the key's last record: its `t`,

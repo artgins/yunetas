@@ -883,10 +883,13 @@ treedb_get_instance(tranger, "my_db", "defaulted", "version", "d", "v0");   // d
 `__tm__` of the record's md2 row, which keeps 44 bits
 ([`TRANGER2_MAX_TIME`](#timeranger2-max-time)). The time is the one the
 append keeps ([`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>)):
-an integer as it is, a string read as a date (`approxidate_careful()`, times
-1000 on an `sf_tm_ms` topic). A string that is no date is refused the same
-way, with *"Node refused: its tkey is a text that is no date"* (`tkey`,
-`value`; up to SDK 7.29.3 it was NOW, in silence). One that is negative or
+an integer as it is, a string read by
+[`tranger2_time_of_text()`](<#tranger2_time_of_text>) (the text of a JSON
+integer as that integer; a date times 1000 on an `sf_tm_ms` topic). A string
+that is no date, or one written as a number that is not the text of a JSON
+integer (`" 5"`, `"10.5"`, `"007"`), is refused the same way, with *"Node
+refused: its tkey is a text that is no date"* (`why`, `tkey`, `value`; up to
+SDK 7.29.3 a text that is no date was NOW, in silence). One that is negative or
 past the 44 bits is refused before anything is written: the function returns `NULL`, sets the last
 message, and logs *"Node refused: the time of its tkey does not fit a record
 (negative, or past 44 bits)"* (`tkey`, `value`, `int_value`, `tm`) -- a

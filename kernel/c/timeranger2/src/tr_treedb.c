@@ -5250,12 +5250,14 @@ PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
  *  of its record: `values` is the record a create appends, or the values
  *  an update writes (a tkey it does not write keeps the time the node
  *  had). The time is the one tranger2_append_record() computes
- *  (tranger2_record_tkey_time(): an integer, or a string read as a date,
- *  x1000 on an sf_tm_ms topic), and past TRANGER2_MAX_TIME the append
+ *  (tranger2_record_tkey_time(): an integer, or a string read by
+ *  tranger2_time_of_text() -- the text of a JSON integer as that integer,
+ *  a date x1000 on an sf_tm_ms topic), and past TRANGER2_MAX_TIME the append
  *  keeps it CUT, the flags over its high bits. A topic made by a peer can
  *  have a string tkey, and "@99999999999999 +0000" in it was a node whose
  *  __tm__ was not its date, without a word (REV-CLOUD V20 c5 #4); a text
- *  that is no date was NOW up to 7.29.3, and is refused too. Refused
+ *  that is no date was NOW up to 7.29.3, and is refused too, as one
+ *  written as a number that is not a JSON integer (" 5", "10.5"). Refused
  *  before anything is written: a WARNING in a peer's window, an ERROR for
  *  a C caller (log_data_fault()). -1 refused, 0 it fits.
  ***************************************************************************/
@@ -5277,15 +5279,16 @@ PRIVATE int refuse_tkey_time_past_max(
     const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     json_t *jn_value = tkey? json_object_get(values, tkey) : NULL;
     const char *svalue = json_is_string(jn_value)? json_string_value(jn_value) : "";
-    int not_a_date = 0;
-    if(json_is_string(jn_value)) {
-        approxidate_careful(svalue, &not_a_date);
-    }
-    if(not_a_date) {
+    system_flag2_t system_flag = (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag"));
+    json_int_t text_value;
+    const char *why = NULL;
+    if(json_is_string(jn_value) && tranger2_time_of_text(
+            svalue, (system_flag & sf_tm_ms)? TRUE : FALSE, FALSE, &text_value, &why) == -1) {
         log_data_fault(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node refused: its tkey is a text that is no date",
+            "why",          "%s", why,
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
             "id",           "%s", id? id : "",
@@ -5294,8 +5297,8 @@ PRIVATE int refuse_tkey_time_past_max(
             NULL
         );
         gobj_log_set_last_message(
-            "'%s': its tkey '%s' is a text that is no date",
-            topic_name, tkey? tkey : ""
+            "'%s': its tkey '%s' is a text that is no date: %s",
+            topic_name, tkey? tkey : "", why
         );
         return -1;
     }

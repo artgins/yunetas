@@ -2825,9 +2825,14 @@ PRIVATE int do_test(void)
         json_t *dated = expect_role_warnings(1);
         json_array_extend(expected, dated);
         JSON_DECREF(dated)
-        /*  V46.3: a text in the tkey that is no date, twice  */
+        /*  V46.3, V47.2: a text in the tkey that is no date, three times  */
         expect_refusal(expected, "record of a wrong shape, refused");
         expect_refusal(expected, "record of a wrong shape, refused");
+        expect_refusal(expected, "record of a wrong shape, refused");
+        /*  V47.2: the text of a JSON integer in the tkey, taken  */
+        json_t *int_text = expect_role_warnings(1);
+        json_array_extend(expected, int_text);
+        JSON_DECREF(int_text)
         /*  REV-CLOUD V20 #3: a peer's writes into a treedb's topic, a new topic in its store  */
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // add-record
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // delete-key
@@ -3046,11 +3051,11 @@ PRIVATE int do_test(void)
 
     /*
      *  A text in the tkey that is no date (REV-CLOUD V46.3): approxidate()
-     *  read it as NOW, and "1761000000000" (milliseconds, past the year
-     *  9999) was appended with NOW*1000 in silence
+     *  read it as NOW. Nor is a text written as a number that is not the
+     *  text of a JSON integer (V47.2): R46 read " 5" and "10.5" as dates
      */
-    static const char *not_dates[] = {"1761000000000", "garbage"};
-    for(int i = 0; i < 2; i++) {
+    static const char *not_dates[] = {"garbage", " 5", "10.5"};
+    for(int i = 0; i < 3; i++) {
         r = gobj_command(yuno, "add-record",
             as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
                 "record", "id", "M", "tm", not_dates[i])), yuno);
@@ -3061,6 +3066,21 @@ PRIVATE int do_test(void)
     }
     check_int("no tkey that is no date was added (sf_tm_ms)",
         (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 1);
+
+    /*
+     *  The text of a JSON integer in the tkey is that integer, in the unit
+     *  of tm (V47.2): R46 refused "1761000000000", a bound took it
+     */
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
+            "record", "id", "M", "tm", "1761000000000")), yuno);
+    check_int("add-record with the text of a JSON integer in the tkey (sf_tm_ms)",
+        kw_get_int(0, r, "result", -999, 0), 0);
+    check_int("its tm is that integer",
+        kw_get_int(0, kw_get_dict(0, r, "data", 0, 0), "tm", 0, 0), 1761000000000LL);
+    JSON_DECREF(r)
+    check_int("the text of a JSON integer was added (sf_tm_ms)",
+        (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 2);
 
     /*
      *  REV-CLOUD V20 #3 (G): the topics of a treedb or a msg2db open on the
@@ -3281,6 +3301,11 @@ PRIVATE int do_test(void)
                 "topic_name", TOPIC_NAME5, "key", "P", "before", "no date at all"
             )), yuno);
         check_refused("delete-key-files of a text that is no date", r);
+        r = gobj_command(yuno, "delete-key-files",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "topic_name", TOPIC_NAME5, "key", "P", "before", "007"
+            )), yuno);
+        check_refused("delete-key-files of a number that is no JSON integer (V47.2: it was the 7th)", r);
         r = gobj_command(yuno, "delete-key-files",
             as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME5, "key", "P")), yuno);
         check_refused("delete-key-files with no before", r);

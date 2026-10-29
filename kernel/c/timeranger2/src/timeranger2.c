@@ -15,6 +15,7 @@
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
+#include <ctype.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/resource.h>
@@ -4236,39 +4237,47 @@ PRIVATE BOOL feed_wants_only_md(json_t *feed)
 
 /***************************************************************************
  *  The __tm__ an append keeps of the tkey value `jn_tval`: an integer as
- *  it is, a string read as a date by approxidate_careful() and multiplied
- *  by 1000 on an sf_tm_ms topic, 0 when there is none (NULL) or it is of
- *  another type. *not_a_date TRUE (and 0 returned) for a string that is no
- *  date: up to 7.29.3 approxidate() read it as NOW, in silence. *wrapped
- *  TRUE when that multiplication passed the 44 bits of an md2 row (asked
- *  before it: past 64 bits it wraps to a value that looks like a time).
- *  The rest of what does not fit is a returned value past
- *  TRANGER2_MAX_TIME (a negative integer too): the append asks it with one
- *  compare, together with its __t__.
+ *  it is, a string read by tranger2_time_of_text() (the text of a JSON
+ *  integer as that integer, a date in the unit of the tm axis, "" as no
+ *  value), 0 when there is none (NULL) or it is of another type.
+ *  *not_a_date TRUE (and 0 returned) for a string that is no time, *why
+ *  saying why: up to 7.29.3 approxidate() read a text that is no date as
+ *  NOW, in silence. *wrapped TRUE (and 0 returned) for a time past what a
+ *  json_int_t holds. The rest of what does not fit is a returned value
+ *  past TRANGER2_MAX_TIME (a negative integer too): the append asks it
+ *  with one compare, together with its __t__.
  ***************************************************************************/
 static inline uint64_t tkey_time_of_value(
     system_flag2_t system_flag,
     json_t *jn_tval,
     BOOL *wrapped,
-    BOOL *not_a_date
+    BOOL *not_a_date,
+    const char **why
 )
 {
     *wrapped = FALSE;
     *not_a_date = FALSE;
+    if(why) {
+        *why = NULL;
+    }
     if(json_is_string(jn_tval)) {
-        int error = 0;
-        timestamp_t timestamp = approxidate_careful(json_string_value(jn_tval), &error);
-        if(error) {
+        json_int_t value = 0;
+        int ret = tranger2_time_of_text(
+            json_string_value(jn_tval),
+            (system_flag & sf_tm_ms)? TRUE : FALSE,
+            FALSE,
+            &value,
+            why
+        );
+        if(ret == -1) {
             *not_a_date = TRUE;
             return 0;
         }
-        if(system_flag & sf_tm_ms) {
-            if(timestamp > TRANGER2_MAX_TIME/1000) {
-                *wrapped = TRUE;
-            }
-            timestamp *= 1000;
+        if(ret == -2) {
+            *wrapped = TRUE;
+            return 0;
         }
-        return timestamp;
+        return (uint64_t)value;
     }
     if(json_is_integer(jn_tval)) {
         return (uint64_t)json_integer_value(jn_tval);
@@ -4284,26 +4293,31 @@ static inline uint64_t tkey_time_of_record(
     system_flag2_t system_flag,
     json_t *record,
     BOOL *wrapped,
-    BOOL *not_a_date
+    BOOL *not_a_date,
+    const char **why
 )
 {
     *wrapped = FALSE;
     *not_a_date = FALSE;
+    if(why) {
+        *why = NULL;
+    }
     if(empty_string(tkey)) {
         return 0;   // No tkey value, mark with 0
     }
-    return tkey_time_of_value(system_flag, json_object_get(record, tkey), wrapped, not_a_date);
+    return tkey_time_of_value(system_flag, json_object_get(record, tkey), wrapped, not_a_date, why);
 }
 
 /***************************************************************************
- *  Refuse an append whose tkey is a text that is no date. The text comes
+ *  Refuse an append whose tkey is a text that is no time. The text comes
  *  from a peer or a user: a WARNING, with the first bytes of it.
  ***************************************************************************/
 PRIVATE void log_tkey_not_a_date(
     hgobj gobj,
     const char *topic_name,
     const char *tkey,
-    json_t *jn_tval     // NOT owned
+    json_t *jn_tval,    // NOT owned
+    const char *why
 )
 {
     const char *text = json_string_value(jn_tval);
@@ -4314,6 +4328,7 @@ PRIVATE void log_tkey_not_a_date(
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "Cannot append record, its tkey is a text that is no date",
+        "why",          "%s", why? why : "",
         "topic",        "%s", topic_name,
         "tkey",         "%s", tkey? tkey : "",
         "value",        "%.*s", utf8_prefix_len(text, 64), text,
@@ -4338,7 +4353,8 @@ PUBLIC uint64_t tranger2_record_tkey_time(
         (system_flag2_t)json_integer_value(json_object_get(topic, "system_flag")),
         record,
         &wrapped,
-        &not_a_date
+        &not_a_date,
+        NULL
     );
     *fits = (!wrapped && !not_a_date && tm <= TRANGER2_MAX_TIME)? TRUE : FALSE;
     return tm;
@@ -4367,6 +4383,29 @@ PRIVATE void trace_refused_record(
             "%s", msg
         );
     }
+}
+
+/***************************************************************************
+ *  What an append refused for what its record holds shows in the trace:
+ *  the first bytes of its json, masked and walked on a budget
+ *  (json_mask_secrets_capped(), the kernel's rule for a kw from a peer).
+ *  The record comes from a peer or a user, and its whole dump came with
+ *  every refused append (REV-CLOUD V47.2).
+ ***************************************************************************/
+PRIVATE void trace_refused_peer_record(
+    hgobj gobj,
+    json_t *record,         // NOT owned
+    const char *msg
+)
+{
+    char bf[REFUSED_TEXT_DUMP_SIZE + 1];
+    memset(bf, 0, sizeof(bf));  // json_dumpb() skips the chunk that does not fit, and all after it
+    json_t *shown = json_mask_secrets_capped(record, 4*sizeof(bf));
+    if(shown) {
+        json_dumpb(shown, bf, sizeof(bf) - 1, JSON_COMPACT|JSON_ENCODE_ANY);
+        JSON_DECREF(shown)
+    }   // else Error already logged
+    trace_refused_record(gobj, NULL, bf, strlen(bf), msg);
 }
 
 /***************************************************************************
@@ -5063,7 +5102,7 @@ PUBLIC int tranger2_append_record(
                 key_value = json_string_value(json_object_get(record, pkey));
                 if(check_string_key(gobj, topic_name, pkey, key_value) < 0) {
                     // Error already logged
-                    gobj_trace_json(gobj, record, "Cannot append record, bad pkey");
+                    trace_refused_peer_record(gobj, record, "Cannot append record, bad pkey");
                     JSON_DECREF(record)
                     return -1;
                 }
@@ -5107,17 +5146,19 @@ PUBLIC int tranger2_append_record(
      *--------------------------------------------*/
     BOOL tm_wrapped;
     BOOL tm_not_a_date;
+    const char *tm_why;
     const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     uint64_t __tm__ = tkey_time_of_record(
         tkey,
         system_flag,
         record,
         &tm_wrapped,
-        &tm_not_a_date
+        &tm_not_a_date,
+        &tm_why
     );
     if(tm_not_a_date) {
-        log_tkey_not_a_date(gobj, topic_name, tkey, json_object_get(record, tkey));
-        gobj_trace_json(gobj, record, "Cannot append record, its tkey is no date");
+        log_tkey_not_a_date(gobj, topic_name, tkey, json_object_get(record, tkey), tm_why);
+        trace_refused_peer_record(gobj, record, "Cannot append record, its tkey is no date");
         JSON_DECREF(record)
         return -1;
     }
@@ -5340,9 +5381,12 @@ PUBLIC int tranger2_append_record_text(
             0
         );
         BOOL tm_not_a_date = FALSE;
-        __tm__ = tkey_time_of_value(system_flag, jn_tval, &tm_wrapped, &tm_not_a_date);
+        const char *tm_why = NULL;
+        __tm__ = tkey_time_of_value(system_flag, jn_tval, &tm_wrapped, &tm_not_a_date, &tm_why);
         if(tm_not_a_date) {
-            log_tkey_not_a_date(gobj, topic_name, json_string_value(json_object_get(topic, "tkey")), jn_tval);
+            log_tkey_not_a_date(
+                gobj, topic_name, json_string_value(json_object_get(topic, "tkey")), jn_tval, tm_why
+            );
             trace_refused_record(gobj, NULL, content, content_len, "Cannot append record, its tkey is no date");
             JSON_DECREF(jn_tval)
             return -1;
@@ -17733,18 +17777,145 @@ PRIVATE BOOL resolve_to_rowid(
 }
 
 /***************************************************************************
+ *  Is `s`, whole, the text of a JSON integer, -?(0|[1-9][0-9]*)? The
+ *  grammar of the command parser for the text of an integer.
+ ***************************************************************************/
+PRIVATE BOOL is_json_integer_text(const char *s)
+{
+    const char *p = s;
+    if(*p == '-') {
+        p++;
+    }
+    if(*p == '0') {
+        p++;
+    } else if(*p >= '1' && *p <= '9') {
+        while(*p >= '0' && *p <= '9') {
+            p++;
+        }
+    } else {
+        return FALSE;
+    }
+    return (*p == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Is `s` written as a number, of any shape strtoll() or strtod() take:
+ *  blanks around it, a sign, digits with an optional fraction (at least
+ *  one digit) and an optional exponent -- " 5", "007", "+5", "10.5", ".5",
+ *  "1E5". A text like that is a number or nothing, never a date.
+ ***************************************************************************/
+PRIVATE BOOL is_number_shaped_text(const char *s)
+{
+    const char *p = s;
+    while(isspace((unsigned char)*p)) {
+        p++;
+    }
+    if(*p == '+' || *p == '-') {
+        p++;
+    }
+    int digits = 0;
+    while(*p >= '0' && *p <= '9') {
+        digits++;
+        p++;
+    }
+    if(*p == '.') {
+        p++;
+        while(*p >= '0' && *p <= '9') {
+            digits++;
+            p++;
+        }
+    }
+    if(digits == 0) {
+        return FALSE;
+    }
+    if(*p == 'e' || *p == 'E') {
+        p++;
+        if(*p == '+' || *p == '-') {
+            p++;
+        }
+        if(!(*p >= '0' && *p <= '9')) {
+            return FALSE;
+        }
+        while(*p >= '0' && *p <= '9') {
+            p++;
+        }
+    }
+    while(isspace((unsigned char)*p)) {
+        p++;
+    }
+    return (*p == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The time a text says, as a text time bound and a text tkey read it
+ *  (see the header). Up to 7.29.3 a bound with no 'T' was cut by
+ *  strtoll() (" 5" was 5, "10.5" 10, "2026-10-01 00:00:00" 2026) and a
+ *  tkey read by approxidate() (a text that is no date was NOW, "5" the
+ *  5th of this month). R46 read every text that is not -?[0-9]+ as a
+ *  date: " 5" was the 5th, "10.5" May 10, in silence.
+ ***************************************************************************/
+PUBLIC int tranger2_time_of_text(
+    const char *text,
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value,
+    const char **why
+)
+{
+    const char *why_ = NULL;
+    int ret = 0;
+    *value = 0;
+
+    if(!text || !*text) {
+        ret = 0;    // no time: no bound, no tkey value
+    } else if(is_json_integer_text(text)) {
+        errno = 0;
+        long long v = strtoll(text, NULL, 10);
+        if(errno == ERANGE) {
+            why_ = "an integer past what a time holds";
+            ret = -2;
+        } else {
+            *value = (json_int_t)v;
+        }
+    } else if(is_number_shaped_text(text)) {
+        why_ = "a number that is not the text of a JSON integer";
+        ret = -1;
+    } else {
+        int not_a_date = 0;
+        timestamp_t timestamp = approxidate_careful(text, &not_a_date);
+        if(not_a_date) {
+            why_ = "a text that is no date";
+            ret = -1;
+        } else if(timestamp > (timestamp_t)(in_ms? (INT64_MAX - 999)/1000 : INT64_MAX)) {
+            why_ = "a date past what a time holds";
+            ret = -2;
+        } else {
+            *value = (json_int_t)timestamp;
+            if(in_ms) {
+                *value = *value*1000 + (end_of_second? 999 : 0);
+            }
+        }
+    }
+    if(why) {
+        *why = why_;
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  The time bounds of a match_cond given as TEXT (from_t, to_t, from_tm,
- *  to_tm), read once, at the open, and written back as integers in the
- *  unit of their axis: a text -?[0-9]+ is that integer (a negative one is
- *  relative, resolved by get_segments()); any other is a date, read by
- *  approxidate_careful() and taken to milliseconds on an axis in ms (t on
- *  sf_t_ms, tm on sf_tm_ms; an end bound takes its whole second). A text
- *  that is no date, or an integer or a date past what a time holds, is
- *  refused with a WARNING: it comes from a peer or a user. Up to 7.29.3
- *  get_segments() read a text with a 'T' with approxidate(), NOW for one
- *  it could not read, and any other with strtoll(): "garbage" was 0, no
- *  bound, and "2000-01-02 00:00:00 +0000" the time 2000. A feed (rt_mem,
- *  rt_disk) did not read a text bound at all. Return -1 refused, 0 read.
+ *  to_tm), read once, at the open, by tranger2_time_of_text(), and
+ *  written back as integers in the unit of their axis: "" is no bound
+ *  (0), the text of a JSON integer that integer (a negative one is
+ *  relative, resolved by get_segments()), a text written as another
+ *  number (" 5", "007", "10.5") refused, any other a date taken to
+ *  milliseconds on an axis in ms (t on sf_t_ms, tm on sf_tm_ms; an end
+ *  bound takes its whole second). What is refused logs a WARNING: it
+ *  comes from a peer or a user. Up to 7.29.3 get_segments() read a text
+ *  with a 'T' with approxidate(), NOW for one it could not read, and any
+ *  other with strtoll(): "garbage" was 0, no bound, and
+ *  "2000-01-02 00:00:00 +0000" the time 2000. A feed (rt_mem, rt_disk)
+ *  did not read a text bound at all. Return -1 refused, 0 read.
  ***************************************************************************/
 PRIVATE int read_time_bounds_of_match_cond(
     hgobj gobj,
@@ -17770,41 +17941,15 @@ PRIVATE int read_time_bounds_of_match_cond(
             continue;
         }
         const char *text = json_string_value(jn_bound);
-
-        const char *p = (*text == '-')? text + 1 : text;
-        BOOL integer_text = (*p)? TRUE : FALSE;
-        for(; *p; p++) {
-            if(*p < '0' || *p > '9') {
-                integer_text = FALSE;
-                break;
-            }
-        }
-
-        const char *why = NULL;
         json_int_t value = 0;
-        if(integer_text) {
-            errno = 0;
-            long long v = strtoll(text, NULL, 10);
-            if(errno == ERANGE) {
-                why = "an integer past what a time holds";
-            }
-            value = (json_int_t)v;
-        } else {
-            int not_a_date = 0;
-            timestamp_t timestamp = approxidate_careful(text, &not_a_date);
-            BOOL ms = (system_flag & bounds[i].ms_flag)? TRUE : FALSE;
-            if(not_a_date) {
-                why = "a text that is no date";
-            } else if(timestamp > (timestamp_t)(ms? (INT64_MAX - 999)/1000 : INT64_MAX)) {
-                why = "a date past what a time holds";
-            } else {
-                value = (json_int_t)timestamp;
-                if(ms) {
-                    value = value*1000 + (bounds[i].is_end? 999 : 0);
-                }
-            }
-        }
-        if(why) {
+        const char *why = NULL;
+        if(tranger2_time_of_text(
+            text,
+            (system_flag & bounds[i].ms_flag)? TRUE : FALSE,
+            bounds[i].is_end,
+            &value,
+            &why
+        ) < 0) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,

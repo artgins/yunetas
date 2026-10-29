@@ -21,7 +21,8 @@ What it checks:
 - **Writes** -- `add-record` asks `write`, answers `-403` on a refusal, and
   appends a dict or its json text; `delete-key` with `force`;
   `delete-key-files` by date, by an integer and of every key, its `purged` in
-  `list-keys`, and its refusals (a `before` in the future, no date, none, a
+  `list-keys`, and its refusals (a `before` in the future, no date, `"007"`
+  -- the 7th of this month before V47.2, and it purged --, none, a
   key not there, answered with no log; a key that is a path, answered as the
   other commands answer it; a topic of a treedb and a mask whose ids do not
   sort as time, from C code too); an `add-record` whose `__t__` falls in a
@@ -63,6 +64,11 @@ What it checks:
     nothing appended; a date that topic keeps (`"@1700000000 +0000"`) is
     appended. The check is the append's own computation,
     `tranger2_record_tkey_time()`;
+  - `add-record` of a tkey that is a text the tranger refuses
+    (`tranger2_time_of_text()`): `"garbage"`, and `" 5"` and `"10.5"`
+    (written as numbers that are not the text of a JSON integer: R46
+    appended them as dates); `"1761000000000"`, the text of a JSON integer,
+    is appended with that `tm` (R46 refused it);
   - a key that is a path (`open-iterator`, `open-list`, `open-rt`), a time
     bound that is a dict (and an integer one, taken);
   - a `print-tranger` path that is not there -- a segment of 300 bytes, a

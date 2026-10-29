@@ -664,14 +664,42 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
 );
 
 /*
+    The time a TEXT says, read as timeranger2 reads a text time bound of a
+    match_cond (from_t, to_t, from_tm, to_tm) and a text tkey -- one rule
+    for both, the command parser's for an integer:
+      - "" is no time: 0 (no bound; no tkey value).
+      - The text of a JSON integer, -?(0|[1-9][0-9]*), is that integer, in
+        the unit of its axis ("1761000000000" on a ms axis is milliseconds,
+        "-5" a negative, relative bound).
+      - A text written as another number is refused: blanks around it
+        (" 5", "5 "), leading zeros ("007"), a '+' ("+5"), decimals or an
+        exponent ("10.5", "1E5"). It is never read as a date: up to 7.29.3
+        a bound read it with strtoll() (" 5" was 5, "10.5" 10).
+      - Any other text is a date, read by approxidate_careful(), and taken
+        to milliseconds when `in_ms`; `end_of_second` (an end bound) then
+        takes the last millisecond of its second.
+    Return 0 and the time in *value; -1 for a text that is no time, -2 for
+    a time past what a json_int_t holds; *why (when not NULL) says it.
+    Nothing is logged: the text comes from a peer or a user, the caller
+    says it.
+*/
+PUBLIC int tranger2_time_of_text(
+    const char *text,
+    BOOL in_ms,
+    BOOL end_of_second,
+    json_int_t *value,
+    const char **why
+);
+
+/*
     The time tranger2_append_record() keeps as the __tm__ of `record` in the
     topic `topic` (the json of an open topic): the value of its tkey -- an
-    integer as it is, a string read as a date by approxidate_careful() and
-    multiplied by 1000 on an sf_tm_ms topic --, 0 when the topic has no tkey
-    or the record no value of it. `*fits` is FALSE when an md2 row cannot
-    keep that time: negative, or past TRANGER2_MAX_TIME (a date of the ms
-    topic is asked before the multiplication, which wraps), and for a string
-    that is no date (0 returned; up to 7.29.3 it was NOW). The append keeps such a
+    integer as it is, a string read by tranger2_time_of_text() (a JSON
+    integer text as that integer, a date in the unit of the tm axis) --, 0
+    when the topic has no tkey or the record no value of it (or "").
+    `*fits` is FALSE when an md2 row cannot keep that time: negative, or
+    past TRANGER2_MAX_TIME, and for a string that is no time (0 returned;
+    up to 7.29.3 a text that is no date was NOW). The append keeps such a
     time cut (and logs it): a caller that takes the tkey from a peer refuses
     the record on `*fits` FALSE, before the append.
 */
@@ -1147,11 +1175,13 @@ PUBLIC int tranger2_set_rt_key_deleted_callback(
     topic sets sf_t_ms / sf_tm_ms.
 
     A time bound may be given as TEXT, read once when the iterator, list or
-    feed opens: a text -?[0-9]+ is that integer, any other a date read by
-    approxidate_careful() and taken to the unit of its axis (an end bound
-    takes its whole second): {"from_t": "2026-10-01T00:00:00+0000"}. A text
-    that is no date ("garbage") is refused with a WARNING, and the open
-    answers NULL. Up to 7.29.3 a text with a 'T' that was no date was NOW, a
+    feed opens, by tranger2_time_of_text(): "" is no bound, the text of a
+    JSON integer that integer, a text written as another number (" 5",
+    "10.5", "007") refused, any other a date read by approxidate_careful()
+    and taken to the unit of its axis (an end bound takes its whole
+    second): {"from_t": "2026-10-01T00:00:00+0000"}. A text that is no date
+    ("garbage"), or a number refused, is refused with a WARNING, and the
+    open answers NULL. Up to 7.29.3 a text with a 'T' that was no date was NOW, a
     text without one was cut by strtoll() ("garbage" no bound,
     "2026-10-01 00:00:00 +0000" the time 2026), and a feed (rt_mem, rt_disk)
     did not read a text bound at all.

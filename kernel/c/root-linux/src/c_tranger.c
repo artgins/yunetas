@@ -430,12 +430,12 @@ PRIVATE sdata_desc_t pm_open_list[] = {
 SDATAPM (DTP_STRING,    "list_id",              0,          0,      "Id of list"),
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
 SDATAPM (DTP_STRING,    "key",                  0,          0,      "match_cond:"),
-SDATAPM (DTP_JSON,      "from_tm",              0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
-SDATAPM (DTP_JSON,      "to_tm",                0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
+SDATAPM (DTP_JSON,      "from_tm",              0,          0,      "match_cond: an integer (topic unit), or a string: a JSON integer, else a date"),
+SDATAPM (DTP_JSON,      "to_tm",                0,          0,      "match_cond: an integer (topic unit), or a string: a JSON integer, else a date"),
 SDATAPM (DTP_INTEGER,   "from_rowid",           0,          0,      "match_cond:"),
 SDATAPM (DTP_INTEGER,   "to_rowid",             0,          0,      "match_cond:"),
-SDATAPM (DTP_JSON,      "from_t",               0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
-SDATAPM (DTP_JSON,      "to_t",                 0,          0,      "match_cond: an integer (topic unit), or a string: -?[0-9]+ a number, else a date"),
+SDATAPM (DTP_JSON,      "from_t",               0,          0,      "match_cond: an integer (topic unit), or a string: a JSON integer, else a date"),
+SDATAPM (DTP_JSON,      "to_t",                 0,          0,      "match_cond: an integer (topic unit), or a string: a JSON integer, else a date"),
 SDATAPM (DTP_STRING,    "fields",               0,          0,      "match_cond: Only this fields"),
 SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "match_cond: regex (PCRE2) over the keys; only for a KEYLESS list. Governs both the disk load AND the realtime feed"),
 SDATAPM (DTP_BOOLEAN,   "return_data",          0,          0,      "True for return list data"),
@@ -1198,24 +1198,25 @@ PRIVATE const char *refuse_peer_record(
         /*
          *  The time of its tkey is the __tm__ of the row: the same 44 bits,
          *  appended cut past them. An integer is kept as it is; a string is
-         *  a date, read by approxidate_careful() and multiplied by 1000 on
-         *  an sf_tm_ms topic, and a text that is no date does not fit. A
-         *  date has no year limit: "@<seconds> +0000" is any number of
-         *  seconds (REV-CLOUD V20 c4 B), so the value the row would keep is
-         *  asked, as the append computes it (tranger2_record_tkey_time()).
+         *  read by tranger2_time_of_text(): the text of a JSON integer is
+         *  that integer, another text a date (x1000 on an sf_tm_ms topic),
+         *  and a text that is neither does not fit. A date has no year
+         *  limit: "@<seconds> +0000" is any number of seconds (REV-CLOUD
+         *  V20 c4 B), so the value the row would keep is asked, as the
+         *  append computes it (tranger2_record_tkey_time()).
          */
         BOOL fits = TRUE;
         tranger2_record_tkey_time(topic, record, &fits);
         if(!fits) {
             const char *tkey = json_string_value(json_object_get(topic, "tkey"));
             const char *text = tkey? json_string_value(json_object_get(record, tkey)) : NULL;
-            int not_a_date = 0;
-            if(text) {
-                approxidate_careful(text, &not_a_date);
+            json_int_t value;
+            if(text && tranger2_time_of_text(
+                    text, (system_flag & sf_tm_ms)? TRUE : FALSE, FALSE, &value, NULL) == -1) {
+                why = "a text in its tkey that is no date";
+            } else {
+                why = "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
             }
-            why = not_a_date?
-                "a text in its tkey that is no date" :
-                "a time in its tkey that a record cannot keep (negative, or past 44 bits)";
         }
     }
     const char *msg = "record of a wrong shape, refused";
@@ -3028,7 +3029,12 @@ PRIVATE json_t *purge_key_files_by_command(hgobj gobj, json_t *kw, hgobj src, BO
     }
 
     /*
-     *  `before`: an integer in the topic's unit of t, or a date
+     *  `before`: an integer in the topic's unit of t, or a text read as
+     *  timeranger2 reads a time bound (tranger2_time_of_text()): the text
+     *  of a JSON integer is that integer, another text a date. A text the
+     *  parser leaves as text (it is no json) and written as a number,
+     *  "007" or "+5", was a date here (the 7th, the 5th), and the files
+     *  before it were purged.
      */
     system_flag2_t system_flag = (system_flag2_t)json_integer_value(
         json_object_get(topic, "system_flag")
@@ -3037,17 +3043,14 @@ PRIVATE json_t *purge_key_files_by_command(hgobj gobj, json_t *kw, hgobj src, BO
     json_int_t before = 0;
     if(json_is_integer(jn_before)) {
         before = json_integer_value(jn_before);
-    } else if(json_is_string(jn_before) && !empty_string(json_string_value(jn_before))) {
-        /*
-         *  A text approxidate() cannot read is NOW to it, which would cut
-         *  everything before today: careful, and refused below
-         */
-        int not_a_date = 0;
-        before = (json_int_t)approxidate_careful(json_string_value(jn_before), &not_a_date);
-        if(not_a_date) {
-            before = 0;
-        } else if(system_flag & sf_t_ms) {
-            before *= 1000;
+    } else if(json_is_string(jn_before)) {
+        if(tranger2_time_of_text(
+                json_string_value(jn_before),
+                (system_flag & sf_t_ms)? TRUE : FALSE,
+                FALSE,
+                &before,
+                NULL) < 0) {
+            before = 0;     // refused below
         }
     }
     json_int_t now = (system_flag & sf_t_ms)?
@@ -3389,9 +3392,10 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     /*
      *  A time bound is what timeranger2 takes: an integer (the topic's
-     *  unit, negative from the last record), or a string -- a number when
-     *  it is -?[0-9]+, a date otherwise (one that is no date is refused by
-     *  the tranger, with a warning). They were DTP_STRING, and an integer
+     *  unit, negative from the last record), or a string read by
+     *  tranger2_time_of_text() -- the text of a JSON integer is that
+     *  number, another a date, and one that is neither is refused by the
+     *  tranger, with a warning. They were DTP_STRING, and an integer
      *  from a kw was refused by the command parser (REV-CLOUD V20.13).
      */
     static const char *time_bounds[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
