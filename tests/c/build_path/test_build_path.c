@@ -141,14 +141,41 @@ PRIVATE void test_edge_cases(void)
     build_path(bf, 4, "/aa", "bb", NULL);
     check(bf, "/aa", "no overflow on tiny buffer");
 
-    // NULL / zero-size buffers are no-ops, not crashes.
+    // NULL / zero-size buffers answer NULL, logged, errno EINVAL.
+    // Up to 7.29.3 both were silent, and a size 0 answered the buffer.
+    int errors_before = s_errors;
+    errno = 0;
     char *r = build_path(NULL, 16, "a", "b", NULL);
-    if(r != NULL) {
-        printf("FAIL null buffer guard\n");
-        global_result += -1;
-    } else {
-        printf("ok   null buffer guard\n");
-    }
+    check_true(r == NULL, "null buffer answers NULL");
+    check_true(errno == EINVAL, "null buffer sets errno EINVAL");
+    check_true(s_errors == errors_before + 1, "null buffer logs one ERROR");
+
+    char zero[4] = {'x', 'x', 'x', 'x'};
+    errors_before = s_errors;
+    errno = 0;
+    r = build_path(zero, 0, "a", "b", NULL);
+    check_true(r == NULL, "size 0 answers NULL");
+    check_true(errno == EINVAL, "size 0 sets errno EINVAL");
+    check_true(s_errors == errors_before + 1, "size 0 logs one ERROR");
+    check_true(zero[0] == 'x', "size 0 writes nothing");
+
+    // A root made only of '/' stays: up to 7.29.3 it was lost ("tmp").
+    build_path(bf, 8, "/", "tmp", NULL);
+    check(bf, "/tmp", "root / is kept");
+
+    build_path(bf, sizeof(bf), "//", "/tmp/", "x", NULL);
+    check(bf, "/tmp/x", "root // is one /");
+
+    build_path(bf, sizeof(bf), "/", NULL);
+    check(bf, "/", "root / alone");
+
+    build_path(bf, sizeof(bf), "/", "..", "etc", NULL);
+    check(bf, "/etc", "root / clamps ..");
+
+    errors_before = s_errors;
+    r = build_path(bf, 5, "/", "tmp", NULL);           // "/tmp" needs 5
+    check_true(r == bf && s_errors == errors_before, "root / and tmp just fit");
+    check(bf, "/tmp", "root / and tmp whole");
 
     build_path(bf, sizeof(bf), ".", "..", NULL);
     check(bf, ".", "first segment is the locked root (not normalized)");

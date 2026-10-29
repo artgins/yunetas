@@ -94,13 +94,18 @@ logged (with the stack), `errno` is `ENAMETOOLONG`, and `bf` holds only the
 segments that fitted, terminated. Do not use that cut path: it names another
 file, often a parent directory of the one asked for. Up to 7.29.2 the cut path
 was returned as if it were whole, and only syslog was told. A `NULL` `bf` or a
-`bfsize` of 0 returns `bf` and writes nothing.
+`bfsize` of 0 returns `NULL` too, with an ERROR and `errno` `EINVAL`; nothing is
+written. (Up to 7.29.3 both returned `bf` with no log, and with a `bfsize` of 0
+the buffer stayed unterminated.)
 
 **Notes**
 
 Ensures that the resulting path does not have redundant slashes and properly
 formats directory separators. The first segment is the root: a `..` in a later
 segment never goes above it (`"/store", "../../etc"` gives `/store/etc`).
+A first segment made only of `/` is the root itself and stays:
+`build_path(bf, sizeof(bf), "/", "tmp", NULL)` gives `/tmp` (up to 7.29.3 the
+`/` was lost and it gave `tmp`).
 
 **Example**
 

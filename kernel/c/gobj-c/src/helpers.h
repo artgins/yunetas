@@ -201,7 +201,9 @@ PUBLIC char *delete_left_char(char *s, char x);
  *  Join the segments (NULL-terminated list) with one '/'. The first segment
  *  is the root: '..' in the others never rises above it. Returns bf, or NULL
  *  when the path does not fit bfsize: logged, errno ENAMETOOLONG, bf holds
- *  the segments that fitted (terminated), never a path to use.
+ *  the segments that fitted (terminated), never a path to use. A NULL bf or
+ *  a bfsize 0 answers NULL, logged, errno EINVAL. A root "/" stays: ("/",
+ *  "tmp") is "/tmp".
  */
 PUBLIC char *build_path(char *bf, size_t bfsize, ...);
 PUBLIC char *get_last_segment(char *path);

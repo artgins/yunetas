@@ -295,7 +295,9 @@ PUBLIC mode_t file_permission(const char *path)
 PUBLIC BOOL file_exists(const char *directory, const char *filename)
 {
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename, NULL);
+    if(!build_path(full_path, sizeof(full_path), directory, filename, NULL)) {
+        return FALSE;   // Error already logged
+    }
 
     if(is_regular_file(full_path)) {
         return TRUE;
@@ -310,7 +312,9 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename)
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
 {
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, subdir, NULL);
+    if(!build_path(full_path, sizeof(full_path), directory, subdir, NULL)) {
+        return FALSE;   // Error already logged
+    }
 
     if(is_directory(full_path)) {
         return TRUE;
@@ -325,7 +329,9 @@ PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
 PUBLIC int file_remove(const char *directory, const char *filename)
 {
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename, NULL);
+    if(!build_path(full_path, sizeof(full_path), directory, filename, NULL)) {
+        return -1;      // Error already logged
+    }
 
     if(!is_regular_file(full_path)) {
         return -1;
@@ -911,6 +917,10 @@ PRIVATE void clamp_path_tail(char *bf_start, char *floor)
  *  buffer holds the segments that fitted, terminated -- never a path to
  *  use. Up to 7.29.2 the cut path was returned as if whole, and every
  *  `!build_path()` guard of the tree was dead.
+ *  A NULL buffer or a size 0 answers NULL too, logged, errno EINVAL (up
+ *  to 7.29.3 silently, and a size 0 answered the buffer unterminated).
+ *  A first segment made only of '/' is the root and stays: ("/", "tmp")
+ *  is "/tmp" (up to 7.29.3 it was "tmp").
  ***************************************************************************/
 PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 {
@@ -923,7 +933,14 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 
     if(!bf || bfsize == 0) {
         va_end(ap);
-        return bf;
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", !bf? "build_path() without a buffer":"build_path() with a buffer of size 0",
+            NULL
+        );
+        errno = EINVAL;
+        return NULL;
     }
     *bf = '\0';
 
@@ -938,8 +955,9 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
         const char *end = segment + strlen(segment);
 
         if(i == 0) {
-            // First segment: keep leading '/', strip trailing '/'
-            while(end > start && *(end - 1) == '/') {
+            // First segment: keep leading '/', strip trailing '/',
+            // but a root made only of '/' stays "/"
+            while(end > start + 1 && *(end - 1) == '/') {
                 end--;
             }
         } else {
@@ -957,8 +975,8 @@ PUBLIC char *build_path(char *bf, size_t bfsize, ...)
             continue;
         }
 
-        // Add separator
-        size_t sep_len = (i > 0) ? 1 : 0;
+        // Add separator (none after a root "/", which already ends in one)
+        size_t sep_len = (i > 0 && *(bf - 1) != '/') ? 1 : 0;
         if(sep_len + seg_len >= bfsize) {
             overflow = segment;
             break;
@@ -4450,7 +4468,9 @@ PUBLIC json_t *load_persistent_json(
      *  Full path
      */
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename, NULL);
+    if(!build_path(full_path, sizeof(full_path), directory, filename, NULL)) {
+        return 0;       // Error already logged
+    }
 
     if(!is_regular_file(full_path)) {
         if(!(silence && on_critical_error == LOG_NONE)) {
@@ -4517,7 +4537,9 @@ PUBLIC json_t *load_json_from_file(
      *  Full path
      */
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, filename, NULL);
+    if(!build_path(full_path, sizeof(full_path), directory, filename, NULL)) {
+        return 0;       // Error already logged
+    }
 
     if(access(full_path, 0)!=0) {
         // Silence, please. Caller must check the return.
@@ -7227,6 +7249,8 @@ typedef struct {
     BOOL zone_numeric;      // the zone was said as an offset ("+0200")
     BOOL comment_zone_said; // a zone name in a comment ("(CEST)"): the zone when
     long comment_zone_offset;   // no other is said
+    BOOL comment_offset_said;   // an offset in a comment ("(UTC+02:00)"): the zone
+    long comment_offset;        // when no other is said, before a name in a comment
 
     BOOL order_taken_back;  // M/D/Y (D.M.Y) taken in the other order because it is far ahead:
     int written_mon;        // a clock time after it undoes that, as the port did
@@ -8037,21 +8061,14 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
 }
 
 /***************************************************************************
- *  A zone as +hh, +hhmm or +hh:mm (or with '-'). Only after a clock time
- *  (or noon, midnight, tea) or epoch seconds: anywhere else a sign is no
- *  date. After GMT, UTC or UT it is the zone ("GMT+0200", as
- *  Date.toString() of javascript writes).
+ *  The offset of a zone written as +hh, +hhmm or +hh:mm (or with '-'),
+ *  `p` at the sign. FALSE when it is not one. `*end` is where the reading
+ *  stopped either way.
  ***************************************************************************/
-PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
+PRIVATE BOOL take_zone_offset(const char *p, long *offset_seconds, const char **end)
 {
     int sign = (*p == '-')? -1 : 1;
     p++;
-    if((rd->zone_said && !rd->zone_utc_word) ||
-            (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said)) {
-        rd->unreadable = TRUE;
-        return p;
-    }
-    rd->zone_utc_word = FALSE;  // "GMT+0200": the offset says the zone
     int64_t value = 0;
     int digits = 0;
     while(isdigit((unsigned char)*p) && digits < 5) {
@@ -8071,20 +8088,44 @@ PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
         hours = value/100;
         minutes = value%100;
     } else {
-        rd->unreadable = TRUE;
-        return p;
+        *end = p;
+        return FALSE;
     }
+    *end = p;
     if(hours > 23 || minutes > 59 || isdigit((unsigned char)*p)) {
+        return FALSE;
+    }
+    *offset_seconds = sign*(long)(hours*3600 + minutes*60);
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A zone as +hh, +hhmm or +hh:mm (or with '-'). Only after a clock time
+ *  (or noon, midnight, tea) or epoch seconds: anywhere else a sign is no
+ *  date. After GMT, UTC or UT it is the zone ("GMT+0200", as
+ *  Date.toString() of javascript writes).
+ ***************************************************************************/
+PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
+{
+    if((rd->zone_said && !rd->zone_utc_word) ||
+            (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said)) {
         rd->unreadable = TRUE;
-        return p;
+        return p + 1;
+    }
+    rd->zone_utc_word = FALSE;  // "GMT+0200": the offset says the zone
+    long offset;
+    const char *end;
+    if(!take_zone_offset(p, &offset, &end)) {
+        rd->unreadable = TRUE;
+        return end;
     }
     if(!rd->zone_said) {
         rd->understood++;
     }
     rd->zone_said = TRUE;
     rd->zone_numeric = TRUE;
-    rd->zone_offset = sign*(long)(hours*3600 + minutes*60);
-    return p;
+    rd->zone_offset = offset;
+    return end;
 }
 
 /***************************************************************************
@@ -8280,7 +8321,11 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
         } else if(c == '(') {
             /*
              *  A comment, as RFC 2822 writes the name of a zone: "(CEST)".
-             *  Its first zone name is the zone when no other is said.
+             *  When no zone is said outside, the first offset of the
+             *  comments is the zone ("(UTC+02:00)", "(GMT-0500)",
+             *  "(+0200)"), else their first zone name. A sign after a
+             *  digit is no offset ("(2026-10-01)"), nor one with a letter
+             *  after it.
              */
             const char *close = strchr(p, ')');
             if(!close) {
@@ -8288,6 +8333,17 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
                 break;
             }
             for(const char *q = p + 1; q < close; ) {
+                if((*q == '+' || *q == '-') && !isdigit((unsigned char)q[-1])) {
+                    long offset;
+                    const char *end;
+                    if(take_zone_offset(q, &offset, &end) && !isalpha((unsigned char)*end) &&
+                            !rd->comment_offset_said) {
+                        rd->comment_offset_said = TRUE;
+                        rd->comment_offset = offset;
+                    }
+                    q = end;
+                    continue;
+                }
                 if(!isalpha((unsigned char)*q)) {
                     q++;
                     continue;
@@ -8343,7 +8399,10 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             rd->unreadable = TRUE;
         }
     }
-    if(!rd->zone_said && rd->comment_zone_said) {
+    if(!rd->zone_said && rd->comment_offset_said) {
+        rd->zone_said = TRUE;
+        rd->zone_offset = rd->comment_offset;
+    } else if(!rd->zone_said && rd->comment_zone_said) {
         rd->zone_said = TRUE;
         rd->zone_offset = rd->comment_zone_offset;
     }
@@ -11357,7 +11416,10 @@ PUBLIC gbuffer_t *source2base64_for_yunetas(
         snprintf(path, sizeof(path), "%s", source);
     } else {
         const char *yunetas_base = get_yunetas_base();
-        build_path(path, sizeof(path), yunetas_base, "outputs/yunos", source, NULL);
+        if(!build_path(path, sizeof(path), yunetas_base, "outputs/yunos", source, NULL)) {
+            snprintf(comment, commentlen, "source '%.80s...' path too long", source);
+            return 0;   // Error already logged
+        }
     }
 
     if(access(path, 0)!=0) {
