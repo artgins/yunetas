@@ -48,11 +48,21 @@
  *          master runs: a warning, and cycle 2 polls the map it started
  *          with. Before, the write freed the map the cycle pointed into.
  *
- *          (REV-CLOUD V47, follow-up) The answer of block A carries a noise
- *          byte in cycles 2 and 3 too: a line that spikes in every cycle is
- *          logged once, and once more ("a cycle came without bytes after
- *          its answers") when cycle 4 comes clean. Before, every noisy
- *          answer was a warning.
+ *          (REV-CLOUD V47, follow-up) The answer of block B, the last of the
+ *          cycle, carries a noise byte in cycles 2 and 3 too: a line that
+ *          spikes in every cycle is logged once, and once more ("a cycle
+ *          came without noise") when cycle 4 comes clean. Before, every
+ *          noisy answer was a warning; and up to the fix of REV-CLOUD V48.2
+ *          the noise after the last block was counted after the cycle had
+ *          closed, for the next one: the info came a cycle late, after the
+ *          end of the test.
+ *
+ *          (REV-CLOUD V48.2) Two reads whose slave sends a noise byte, 0x00
+ *          and 0xFF, in a read of its own before the answer: neither can
+ *          start an RTU answer (0 is the broadcast, 248-255 are reserved),
+ *          so both are dropped and counted, and each read is answered.
+ *          Before, the byte was taken as the head of a frame, which
+ *          swallowed the answer: each read timed out.
  *
  *          Cycle 4 ends the test.
  *
@@ -81,6 +91,10 @@
 #define AFTER_VALUE     9
 #define NOISE1_ADDRESS  70      // answered with one noise byte after it, in the same bytes
 #define NOISE2_ADDRESS  71      // answered with two noise bytes after it (0x00 0xFF)
+#define NOISE3_ADDRESS  72      // a noise byte 0x00 in a read of its own, then the answer
+#define NOISE4_ADDRESS  73      // a noise byte 0xFF in a read of its own, then the answer
+#define NOISE_DELAY_MS  50      // between that noise byte and the answer
+#define NOISE_DROPPED   6       // nz1, nz2, block B in cycles 2 and 3, nz3, nz4
 #define LAST_CYCLE      4       // its message ends the test
 #define BLOCKB_ADDRESS  10      // block B: 1 register asked, 2 answered, every cycle
 #define RX_SIZE         512
@@ -117,6 +131,8 @@ PRIVATE const char *requests[] = {
     "{'tag': 'af1', 'operation': 'read', 'type': 'holding_register', 'address': 30, 'size': 3}",
     "{'tag': 'nz2', 'operation': 'read', 'type': 'holding_register', 'address': 71}",
     "{'tag': 'af2', 'operation': 'read', 'type': 'holding_register', 'address': 30, 'size': 3}",
+    "{'tag': 'nz3', 'operation': 'read', 'type': 'holding_register', 'address': 72}",
+    "{'tag': 'nz4', 'operation': 'read', 'type': 'holding_register', 'address': 73}",
     0
 };
 PRIVATE const char *answers[] = {
@@ -136,6 +152,8 @@ PRIVATE const char *answers[] = {
     "{'tag': 'af1', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",   // not lost to the noise
     "{'tag': 'nz2', 'result': 0, 'error_code': 0, 'values': [71]}",
     "{'tag': 'af2', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",   // not lost to the noise
+    "{'tag': 'nz3', 'result': 0, 'error_code': 0, 'values': [72]}",   // the 0x00 before it is dropped
+    "{'tag': 'nz4', 'result': 0, 'error_code': 0, 'values': [73]}",   // the 0xFF before it is dropped
     0
 };
 
@@ -206,6 +224,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
+    hgobj timer0;               // milliseconds: C_TIMER counts in seconds
 
     hgobj gobj_input_side;
     hgobj gobj_master;
@@ -222,6 +241,8 @@ typedef struct _PRIVATE_DATA {
     int answers_seen;           // answers of the queued requests, in order
     BOOL late_held;             // the read never answered: its exception comes late
     int broadcast_polls;        // polls of slave 0, the RTU broadcast: none expected
+    uint8_t held[16];           // an answer sent NOISE_DELAY_MS after its noise byte
+    size_t held_len;
     BOOL done;
 } PRIVATE_DATA;
 
@@ -244,6 +265,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer0 = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -260,6 +282,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
+    gobj_start(priv->timer0);
 
     return 0;
 }
@@ -275,6 +298,7 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_master);
     }
     gobj_stop(priv->timer);
+    gobj_stop(priv->timer0);
 
     return 0;
 }
@@ -303,6 +327,7 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    clear_timeout0(priv->timer0);
 
     return 0;
 }
@@ -392,6 +417,23 @@ PRIVATE void slave_send_noisy(
 PRIVATE void slave_send(hgobj gobj, const uint8_t *bf, size_t len, BOOL bad_crc)
 {
     slave_send_noisy(gobj, bf, len, bad_crc, NULL, 0);
+}
+
+/***************************************************************************
+ *  Send bytes from the slave as they are: no CRC
+ ***************************************************************************/
+PRIVATE void slave_send_raw(hgobj gobj, const uint8_t *bf, size_t len)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    gbuffer_append(gbuf, (void *)bf, len);
+    gobj_send_event(
+        priv->server_channel,
+        EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        gobj
+    );
 }
 
 /***************************************************************************
@@ -576,16 +618,6 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
         case 3:
             if(address == 0 && quantity == 1) {
                 priv->cycle++;
-                if(priv->cycle == 2 || priv->cycle == 3) {
-                    /*
-                     *  A line that spikes in every cycle: noise after the
-                     *  answer of block A, in cycles 2 and 3
-                     */
-                    uint8_t rsp[5] = {req[0], req[1], 2, 0, (uint8_t)priv->cycle};
-                    uint8_t noise[1] = {0x00};
-                    slave_send_noisy(gobj, rsp, sizeof(rsp), FALSE, noise, sizeof(noise));
-                    return;
-                }
                 uint16_t regs[1] = {(uint16_t)priv->cycle};
                 slave_registers(gobj, req, regs, 1, FALSE);
                 return;
@@ -595,8 +627,33 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
                 return;
             }
             if(address == BLOCKB_ADDRESS && quantity == 1) {
-                uint16_t regs[2] = {1, 2};  // one register asked, two answered
-                slave_registers(gobj, req, regs, 2, FALSE);
+                // one register asked, two answered
+                uint8_t rsp[7] = {req[0], req[1], 4, 0, 1, 0, 2};
+                uint8_t noise[1] = {0x00};
+                /*
+                 *  A line that spikes in every cycle: noise after the
+                 *  answer of block B, the last of the cycle, in cycles 2
+                 *  and 3
+                 */
+                slave_send_noisy(gobj, rsp, sizeof(rsp), FALSE, noise,
+                    (priv->cycle == 2 || priv->cycle == 3)? sizeof(noise) : 0
+                );
+                return;
+            }
+            if((address == NOISE3_ADDRESS || address == NOISE4_ADDRESS) && quantity == 1) {
+                /*
+                 *  The noise byte now, in a read of its own; the answer
+                 *  NOISE_DELAY_MS later (ac_timeout(), from timer0)
+                 */
+                uint8_t noise[1] = {address == NOISE3_ADDRESS? 0x00 : 0xFF};
+                slave_send_raw(gobj, noise, sizeof(noise));
+                uint8_t rsp[5] = {req[0], req[1], 2, 0, (uint8_t)address};
+                uint16_t crc = rtu_crc(rsp, sizeof(rsp));
+                memcpy(priv->held, rsp, sizeof(rsp));
+                priv->held[5] = (uint8_t)(crc & 0xFF);
+                priv->held[6] = (uint8_t)(crc >> 8);
+                priv->held_len = 7;
+                set_timeout0(priv->timer0, NOISE_DELAY_MS);
                 return;
             }
             if((address == NOISE1_ADDRESS || address == NOISE2_ADDRESS) && quantity == 1) {
@@ -775,13 +832,13 @@ PRIVATE void master_message(hgobj gobj, json_t *kw)
     }
 
     json_int_t noise = gobj_read_integer_attr(priv->gobj_master, "rx_noise_dropped");
-    if(noise != 4) {
+    if(noise != NOISE_DROPPED) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "The master did not count each noisy answer",
             "rx_noise_dropped", "%lld", (long long)noise,
-            "expected",     "%d", 4,
+            "expected",     "%d", NOISE_DROPPED,
             NULL
         );
     }
@@ -811,11 +868,20 @@ PRIVATE void master_message(hgobj gobj, json_t *kw)
 
 /***************************************************************************
  *  The server listens: the master is created over its own C_TCP, and
- *  connects
+ *  connects. Later, the answer held after its noise byte is sent.
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->timer0) {
+        if(priv->held_len > 0) {
+            slave_send_raw(gobj, priv->held, priv->held_len);
+            priv->held_len = 0;
+        }
+        JSON_DECREF(kw)
+        return 0;
+    }
 
     if(!priv->gobj_master) {
         helper_quote2doublequote(slaves_config);

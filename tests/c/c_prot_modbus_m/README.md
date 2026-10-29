@@ -1,7 +1,7 @@
 # c_prot_modbus_m test
 
-Tests `C_PROT_MODBUS_M`, the Modbus master: `test1` over TCP, `test2` with
-RTU framing.
+Tests `C_PROT_MODBUS_M`, the Modbus master: `test1` over TCP, `test2` and
+`test3` with RTU framing.
 
 `test1` (`main_test1.c` + `c_test1.c`) is about what a polling cycle
 publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
@@ -99,10 +99,30 @@ once at start and never polled (before, it was polled and every cycle waited
 while the master runs: a warning, and cycle 2 polls the map it started with
 (before, the write freed the map the cycle pointed into, and the master read
 freed memory: *"cur_slave_ NULL"* every cycle, with `slaves_` read as a string).
-The answer of block A carries a noise byte in cycles 2 and 3 too: the four
-noisy answers are logged once, counted in `rx_noise_dropped` (4), and cycle 4,
-clean, logs *"Modbus: a cycle came without bytes after its answers"*. Before,
-each noisy answer was a warning. Cycle 4 ends the test.
+The answer of block B, the last of the cycle, carries a noise byte in cycles 2
+and 3 too: the noisy answers are logged once, and cycle 4, clean, logs
+*"Modbus: a cycle came without noise"*. Before, each noisy answer was a
+warning; and up to the fix of REV-CLOUD V48.2 the noise after the last block
+was counted after its cycle had ended, so the info came a cycle late, after
+the end of the test. (REV-CLOUD V48.2) Two reads whose slave sends a noise
+byte, `0x00` and `0xFF`, in a read of its own (a `C_TIMER0` holds the answer
+50 ms) before the answer: neither can start an RTU answer, so both are
+dropped and counted, and each read is answered. Before, the byte was taken as
+the head of a frame, which swallowed the answer: each read timed out.
+`rx_noise_dropped` is 6 at the end. Cycle 4 ends the test.
+
+`test3` (`main_test3.c` + `c_test3.c`, REV-CLOUD V48.2) gives an RTU master a
+map with only slave 0, the broadcast: nothing to poll, so every tick of
+`timeout_polling` ends a cycle that polled nothing, as a master that only
+serves requests does. Three reads, three seconds apart, are each answered
+with a noise byte after the answer in the same bytes: one warning for the
+three (before, a warning and an info *"a cycle came without..."* for each, as
+the empty cycles between them ended the noise), and on the answer of read n
+`rx_noise_dropped` is already n (before, the noise was counted after the
+answer was published). On the answer of the last read the test stops the
+master inside its `EV_MODBUS_ANSWER`: nothing more is polled or logged
+(before, *"cur_slave_ NULL"*, and an `EV_TIMEOUT` *"NOT DEFINED"* in
+`ST_DISCONNECTED` at the next tick).
 
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 

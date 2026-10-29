@@ -186,8 +186,8 @@ static int register_yuno_and_more(void)
         "msg", "Modbus answer with a bad CRC",   // the read with a bad CRC
         "msg", "Modbus Timeout",                 // the read never answered
         "msg", "Modbus frame dropped: not the answer awaited", // its late exception
-        "msg", "Modbus: bytes after the answer, dropped",   // once: 4 noisy answers in cycles 2-3
-        "msg", "Modbus: a cycle came without bytes after its answers", // cycle 4
+        "msg", "Modbus: bytes after the answer, dropped",   // once: nz1, nz2, cycles 2-3, nz3, nz4
+        "msg", "Modbus: a cycle came without noise", // cycle 4
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

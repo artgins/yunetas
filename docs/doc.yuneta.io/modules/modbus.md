@@ -124,7 +124,7 @@ its low word first, read over TCP:
 | `slaves` | `[]` | The map, above. Read at `mt_start`: written while the gobj runs, it takes effect at the next start, with a warning (*"Modbus slaves written while the master runs: they take effect at the next start"*) |
 | `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
-| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the answers followed by bytes in the same read, which were dropped (below) |
+| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, and the bytes that cannot start an answer (below). One per drop, not per byte |
 
 To change the map of a running master, stop it, write `slaves` and start it
 again (`gobj_write_json_attr()` does not take the reference: free yours):
@@ -334,6 +334,12 @@ it. A request sent while there is no connection is answered at once
 them (*"Modbus requests NOT sent, the gobj stopped"*, and *"Modbus request NOT
 confirmed, the gobj stopped before its answer"* for the one in flight).
 
+**A stop on an answer stops the polling.** The gobj above may stop the master
+inside the `EV_MODBUS_ANSWER` of a request, or the `EV_ON_MESSAGE` of a cycle:
+the master then sends nothing more, polls no block and arms no wait. (Until
+the fix of REV-CLOUD V48.2 it went on with its cycle on the stopped gobj, and
+logged *"cur_slave_ NULL"* there and at the next tick.)
+
 **Which answer is taken.** Only an answer to what is in flight, a block or a
 request. Over TCP it must carry the **transaction id** of the frame sent and
 protocol 0: the late answer of a request that timed out has the same slave,
@@ -400,23 +406,43 @@ made the answer after it *"not the answer awaited"*, or kept the master
 waiting for more bytes until `timeout_response`. The next answer starts a
 read of its own: it comes after the next request goes out.
 
-Each drop is counted in the stats attribute `rx_noise_dropped`. The warning
-(*"Modbus: bytes after the answer, dropped"*, `len`) is logged **when the
-noise starts**, once per connection, not for every answer: a line that spikes
-in every cycle is one fact. It is logged again only after a polling cycle
-that dropped nothing, which an info says (*"Modbus: a cycle came without bytes
-after its answers"*, with the count so far). The traffic trace dumps every
-drop. The transition is the cycle, not the answer: a line that spikes on some
-answers of every cycle stays one warning, where a per-answer transition would
-log at each change.
+**Over RTU a byte that cannot start an answer is dropped too**, where a frame
+would start (at the start of a read, or after a frame dropped in it): a
+`0x00` (slave 0 is the broadcast, which no slave answers) or a `0xF8`-`0xFF`
+(slave ids 248-255 are reserved). That is the noise byte that comes in a read
+of its own, before an answer or between two: taken as a head, it lost the
+answer after it (until the fix of REV-CLOUD V48.2). A noise byte
+`0x01`-`0xF7` there is still taken as a head: it may be the
+first byte of a late frame of another slave, whose head says how long it is,
+and which is read whole and dropped. Dropping every byte that is not the id of
+the slave asked would cut that frame in pieces, and a piece taken as a head
+would swallow the answer awaited. That noise byte is the limit: the answer
+after it is lost (the request fails at `timeout_response`, and the next one
+starts clean).
+
+Each drop is counted in the stats attribute `rx_noise_dropped`, before the
+answer it follows is published. The warning (*"Modbus: bytes after the
+answer, dropped"* or *"Modbus: bytes that cannot start an answer, dropped"*,
+`len`) is logged **when the noise starts**, once per connection, not for every
+answer: a line that spikes in every cycle is one fact. It is logged again only
+after a polling cycle that **polled a block** and dropped nothing, which an
+info says (*"Modbus: a cycle came without noise"*, with the count so far). A
+cycle that polled nothing -- a master whose map has no block it can poll, and
+only serves requests -- says nothing of the line: such a master warns once per
+connection. The traffic trace dumps every drop. The transition is the cycle,
+not the answer: a line that spikes on some answers of every cycle stays one
+warning, where a per-answer transition would log at each change.
 
 ```text
 01 03 02 00 46 <crc> 00          one read: the answer, then a noise byte
     -> the answer is taken; {"msg": "Modbus: bytes after the answer, dropped", "len": 1,
-       "note": "logged again only after a cycle without them; counted in rx_noise_dropped"}
+       "note": "logged again only after a polled cycle without noise; counted in rx_noise_dropped"}
+FF                               a read of its own, the request in flight
+01 03 02 00 49 <crc>             the next read: the answer
+    -> FF dropped, counted; no log while the noise goes on; the answer is taken
 ... noise in the next cycles too: no log, rx_noise_dropped grows
-... a cycle without it:
-    -> {"msg": "Modbus: a cycle came without bytes after its answers", "rx_noise_dropped": 4}
+... a cycle that polls a block, without noise:
+    -> {"msg": "Modbus: a cycle came without noise", "rx_noise_dropped": 4}
 ```
 
 When the master is a service (`__modbus_caudal__` in gate_caudal), the agent
@@ -428,7 +454,11 @@ ycommand -c 'stats-yuno id=<id> service=__modbus_caudal__'   # "rx_noise_dropped
 
 (Between the fix of REV-CLOUD V46.2 and the fix of REV-CLOUD V47.1, never
 released, RTU kept those bytes as the start of the next frame, and lost the
-next answer to them.)
+next answer to them. Up to the fix of REV-CLOUD V48.2, also never released,
+the bytes after the last answer of a cycle were counted after the cycle had
+ended, so the info came a cycle late; and a cycle that polled nothing ended
+the noise, so a master with no block to poll logged the warning and the info
+for every noisy answer.)
 
 (Until the fix of REV-CLOUD V46.2: an exception was taken whatever its
 function, so over RTU a late one failed the write sent after it, a write that

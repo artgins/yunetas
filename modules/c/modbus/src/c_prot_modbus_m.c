@@ -119,9 +119,16 @@ gateway): the head read across them has a bad MBAP length, and a new
 connection is the one resync that cannot take data for a head. Over RTU
 the bytes after an answer in the same read are dropped: a noise byte when
 the slave releases the line, taken as the head of a frame, would swallow
-the next answer. They are counted (stats `rx_noise_dropped`) and warned
-when they start, once per connection, and again only after a polling cycle
-without them (an info says it came). Over RTU the slave ids 248-255 are
+the next answer. So is, where a frame would start (at the start of a read,
+or after a frame dropped), a byte that cannot start an answer: 0 (the
+broadcast) or 248-255 (reserved). A noise byte 1-247 there is still taken
+as a head: it may be the start of a late frame, which is read whole and
+dropped. The noise is
+counted (stats `rx_noise_dropped`, before the answer is published) and
+warned when it starts, once per connection, and again only after a polling
+cycle that polled a block and dropped no noise (an info says it came): a
+cycle with no block to poll says nothing of the line, so a master that only
+serves requests warns once per connection. Over RTU the slave ids 248-255 are
 reserved, and 0 is the broadcast that no slave answers: a request to
 248-255 is refused, and a polled slave with one of them, or with 0, is not
 polled (its blocks are disabled, logged when the gobj starts).
@@ -404,7 +411,7 @@ PRIVATE int continue_polling(hgobj gobj, int wait_ms);
 PRIVATE int reset_frame(hgobj gobj);
 PRIVATE BOOL write_in_flight(hgobj gobj);
 PRIVATE BOOL frame_is_hidden(hgobj gobj);
-PRIVATE int drop_bytes_after_answer(hgobj gobj, gbuffer_t *gbuf, BOOL hidden);
+PRIVATE int drop_noise(hgobj gobj, gbuffer_t *gbuf, size_t len, BOOL hidden, const char *msg);
 PRIVATE int finish_answer(hgobj gobj);
 
 PRIVATE cell_control_t *get_cell_control(
@@ -523,7 +530,7 @@ SDATA (DTP_JSON,    "slaves",           SDF_WR,         "[]",       "Modbus conf
 SDATA (DTP_INTEGER, "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
 SDATA (DTP_INTEGER, "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
-SDATA (DTP_INTEGER, "rx_noise_dropped", SDF_STATS,      "0",        "RTU: answers followed by bytes in the same read, which were dropped"),
+SDATA (DTP_INTEGER, "rx_noise_dropped", SDF_STATS,      "0",        "RTU: noise dropped: bytes after an answer in its read, or bytes that cannot start an answer"),
 SDATA_END()
 };
 
@@ -594,9 +601,10 @@ typedef struct _PRIVATE_DATA {
 
     json_t *jn_failing_blocks;  // "<slave id>:<block index>" -> why it fails
 
-    json_int_t rx_noise_dropped;    // RTU: answers followed by bytes, dropped
-    BOOL noise_in_cycle;        // this cycle dropped bytes after an answer
-    BOOL noise_reported;        // warned: logged again after a cycle without them
+    json_int_t rx_noise_dropped;    // RTU: noise dropped (drop_noise())
+    BOOL noise_in_cycle;        // this cycle dropped noise
+    BOOL noise_reported;        // warned: logged again after a polled cycle without it
+    BOOL polled_in_cycle;       // this cycle polled a block: only such a cycle ends the noise
 } PRIVATE_DATA;
 
 
@@ -2070,24 +2078,33 @@ PRIVATE int next_map(hgobj gobj)
     }
 
     /*
-     *  A cycle without bytes after its answers ends the noise warned
+     *  A cycle that polled a block and dropped no noise ends the noise
+     *  warned. A cycle that polled nothing (no block can be polled: the
+     *  master only serves requests) says nothing of the line: the noise
+     *  goes on counting for the next one.
      */
-    if(priv->noise_reported && !priv->noise_in_cycle) {
-        priv->noise_reported = FALSE;
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Modbus: a cycle came without bytes after its answers",
-            "rx_noise_dropped", "%lld", (long long)priv->rx_noise_dropped,
-            NULL
-        );
+    if(priv->polled_in_cycle) {
+        if(priv->noise_reported && !priv->noise_in_cycle) {
+            priv->noise_reported = FALSE;
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "Modbus: a cycle came without noise",
+                "rx_noise_dropped", "%lld", (long long)priv->rx_noise_dropped,
+                NULL
+            );
+        }
+        priv->noise_in_cycle = FALSE;
+        priv->polled_in_cycle = FALSE;
     }
-    priv->noise_in_cycle = FALSE;
 
     /*
      *  End of cycle, publish variables
      */
     build_message_to_publish(gobj);
+    if(!gobj_is_running(gobj)) {
+        return -1;  // its subscriber stopped the gobj on the message: no next cycle
+    }
 
     priv->idx_slaves = 0; // Begin cycle
     if(priv->max_slaves > 0) {
@@ -2161,6 +2178,7 @@ PRIVATE int poll_modbus(hgobj gobj)
 
     gbuffer_t *gbuf = build_modbus_request_read_message(gobj, priv->cur_slave_, priv->cur_map_);
     send_data(gobj, gbuf);
+    priv->polled_in_cycle = TRUE;
 
     return 0;
 }
@@ -2240,6 +2258,9 @@ PRIVATE int continue_polling(hgobj gobj, int wait_ms)
     if(send_request(gobj)) {
         return 0;
     }
+    if(!gobj_is_running(gobj)) {
+        return 0;   // the answer of a request that could not be framed stopped it
+    }
 
     if(priv->resume_wait_ms > 0) {
         set_timeout(priv->gobj_timer, priv->resume_wait_ms);
@@ -2253,6 +2274,9 @@ PRIVATE int continue_polling(hgobj gobj, int wait_ms)
             return 0;   // timeout set by poll_modbus
         }
         next_map(gobj);     // a block that cannot be polled: the next one, after the wait
+    }
+    if(!gobj_is_running(gobj)) {
+        return 0;   // the message of the cycle stopped it
     }
 
     /*
@@ -2284,10 +2308,14 @@ PRIVATE int finish_answer(hgobj gobj)
     /*
      *  The request in flight, if it was one, is answered. Its subscriber
      *  may send another on the answer: send_request() then finds it in
-     *  flight, and the polling waits for it.
+     *  flight, and the polling waits for it. Or stop the gobj: nothing
+     *  more is polled then.
      */
     if(priv->jn_current_request) {
         answer_current_request(gobj);
+        if(!gobj_is_running(gobj)) {
+            return 0;
+        }
     }
 
     return continue_polling(gobj, priv->timeout_polling);
@@ -2569,18 +2597,18 @@ PRIVATE BOOL frame_is_hidden(hgobj gobj)
 }
 
 /***************************************************************************
- *  Over RTU, the bytes that follow an answer in the same read are dropped:
- *  without a length in the frame, noise taken as the head of a frame would
- *  swallow the next answer. Counted (rx_noise_dropped), and warned when it
- *  starts: a line that spikes in every cycle is one fact, logged again only
- *  after a cycle without them (next_map()). Dumped, under the traffic trace,
- *  every time: hidden when the answer was, or when a write is in flight now.
+ *  Over RTU, noise is dropped: the bytes that follow an answer in the same
+ *  read, and, where a frame would start, bytes that cannot start an answer
+ *  (ac_rx_data()). Without a length in the frame, noise taken as the head
+ *  of a frame would swallow the next answer. Counted (rx_noise_dropped), and
+ *  warned when it starts: a line that spikes in every cycle is one fact,
+ *  logged again only after a polled cycle without noise (next_map()).
+ *  Dumped, under the traffic trace, every time: hidden when the answer was,
+ *  or when a write is in flight now.
  ***************************************************************************/
-PRIVATE int drop_bytes_after_answer(hgobj gobj, gbuffer_t *gbuf, BOOL hidden)
+PRIVATE int drop_noise(hgobj gobj, gbuffer_t *gbuf, size_t len, BOOL hidden, const char *msg)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    size_t len = gbuffer_leftbytes(gbuf);
 
     priv->rx_noise_dropped++;
     priv->noise_in_cycle = TRUE;
@@ -2589,20 +2617,20 @@ PRIVATE int drop_bytes_after_answer(hgobj gobj, gbuffer_t *gbuf, BOOL hidden)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Modbus: bytes after the answer, dropped",
+            "msg",          "%s", msg,
             "len",          "%d", (int)len,
-            "note",         "%s", "logged again only after a cycle without them; counted in rx_noise_dropped",
+            "note",         "%s", "logged again only after a polled cycle without noise; counted in rx_noise_dropped",
             NULL
         );
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         if(hidden || write_in_flight(gobj)) {
-            gobj_trace_msg(gobj, "Modbus: bytes after the answer: <%d bytes hidden>", (int)len);
+            gobj_trace_msg(gobj, "%s: <%d bytes hidden>", msg, (int)len);
         } else {
             gobj_trace_dump(gobj,
                 gbuffer_cur_rd_pointer(gbuf),
                 MIN(len, 64),
-                "Modbus: bytes after the answer"
+                "%s", msg
             );
         }
     }
@@ -4748,6 +4776,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->resume_wait_ms = 0;
     priv->noise_in_cycle = FALSE;   // a new connection warns of its own noise
     priv->noise_reported = FALSE;
+    priv->polled_in_cycle = FALSE;
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -4841,7 +4870,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Over RTU nothing says where a frame ends but its own head: a noise
      *  byte after an answer (the line released by the slave) taken as the
      *  start of a frame would swallow the next answer. There they are
-     *  dropped, as the next answer starts a read of its own.
+     *  dropped, as the next answer starts a read of its own; so is a byte
+     *  that cannot start an answer where a frame would start.
      *---------------------------------------------*/
     BOOL is_tcp = (strcasecmp(priv->modbus_protocol, "TCP")==0)? TRUE : FALSE;
     BOOL stale = FALSE;
@@ -4854,6 +4884,29 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         switch(priv->st) {
         case WAIT_HEAD:
             {
+                /*
+                 *  Over RTU an answer starts with the id of its slave,
+                 *  1-247: where a frame would start (a read, or what is
+                 *  left after a frame dropped), a 0 (the broadcast, never
+                 *  answered) or a 248-255 (reserved) is noise. Taken as the
+                 *  head of a frame it would swallow the answer after it. A
+                 *  byte 1-247 is taken: it may start a late frame, which is
+                 *  read whole and dropped.
+                 */
+                if(!is_tcp && istream_length(priv->istream_head) == 0) {
+                    int n_noise = 0;
+                    while(n_noise < lnn &&
+                            ((uint8_t)bf[n_noise] == 0 || (uint8_t)bf[n_noise] > 247)) {
+                        n_noise++;
+                    }
+                    if(n_noise > 0) {
+                        drop_noise(gobj, gbuf, (size_t)n_noise, FALSE,
+                            "Modbus: bytes that cannot start an answer, dropped"
+                        );
+                        break;
+                    }
+                }
+
                 int n = framehead_consume(
                     gobj, &priv->frame_head, priv->istream_head, bf, lnn, stale
                 );
@@ -4945,6 +4998,18 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             } else {
                 BOOL hidden = frame_is_hidden(gobj);
                 frame_completed(gobj);
+
+                /*
+                 *  Over RTU the bytes after the answer in its read are
+                 *  dropped before the answer is taken: they are noise of
+                 *  the cycle of the answer, which finish_answer() may end
+                 */
+                if(!is_tcp && gbuffer_leftbytes(gbuf) > 0) {
+                    fin = TRUE;
+                    drop_noise(gobj, gbuf, gbuffer_leftbytes(gbuf), hidden,
+                        "Modbus: bytes after the answer, dropped"
+                    );
+                }
                 finish_answer(gobj);
 
                 /*
@@ -4953,9 +5018,6 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                  */
                 if(!gobj_is_running(gobj) || gobj_in_this_state(gobj, ST_DISCONNECTED)) {
                     fin = TRUE;
-                } else if(!is_tcp && gbuffer_leftbytes(gbuf) > 0) {
-                    fin = TRUE;
-                    drop_bytes_after_answer(gobj, gbuf, hidden);
                 }
                 stale = TRUE;
             }
@@ -5083,6 +5145,10 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     if(priv->jn_current_request) {
         answer_current_request(gobj);
+        if(!gobj_is_running(gobj)) {
+            JSON_DECREF(kw)
+            return 0;   // its subscriber stopped the gobj on the answer
+        }
     }
 
     /*
