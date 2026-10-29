@@ -81,6 +81,7 @@ PRIVATE char *yuneta_repos_yuno_file(
     const char *filename,
     BOOL create
 );
+PRIVATE BOOL is_safe_binary_name(hgobj gobj, const char *what, const char *name);
 PRIVATE json_t *get_yuno_realm(hgobj gobj, json_t *yuno);
 PRIVATE char * build_yuno_private_domain(hgobj gobj, json_t *yuno, char *bf, int bfsize);
 PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno);
@@ -3080,9 +3081,33 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
     /*
      *  Execute cmd --role
      */
-    char command[PATH_MAX + 32];
-    int n = snprintf(command, sizeof(command), "%s --print-role", cmd);
-    if(n < 0 || (size_t)n >= sizeof(command)) {
+    /*
+     *  run_command() goes through sh -c: the path goes in single quotes,
+     *  each ' of it as '\'' -- the shell reads it as one word, whatever it
+     *  holds. Up to 7.29.3 it went in bare.
+     */
+    char command[2*PATH_MAX + 32];
+    size_t n = 0;
+    BOOL fits = TRUE;
+    command[n++] = '\'';
+    for(const char *c = cmd; *c && fits; c++) {
+        if(*c == '\'') {
+            if(n + 4 >= sizeof(command)) {
+                fits = FALSE;
+                break;
+            }
+            memcpy(command + n, "'\\''", 4);
+            n += 4;
+        } else {
+            if(n + 1 >= sizeof(command)) {
+                fits = FALSE;
+                break;
+            }
+            command[n++] = *c;
+        }
+    }
+    const char *tail = "' --print-role";
+    if(!fits || n + strlen(tail) >= sizeof(command)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
@@ -3092,6 +3117,7 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
         );
         return NULL;
     }
+    memcpy(command + n, tail, strlen(tail) + 1);
     gbuffer_t *gbuf = run_command(command);
     if(!gbuf) {
         gobj_log_error(gobj, 0,
@@ -3149,19 +3175,17 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     const char *id = kw_get_str(gobj, kw, "id", "", 0);
 
     /*
-     *  `id` becomes a filename under the realm "temp" dir AND is interpolated
-     *  into a shell command by yuno_basic_information() (run_command/popen).
-     *  Restrict it to a bare, safe binary name: this closes both the shell
-     *  command-injection and the path-traversal-to-executable-write. build_path
-     *  does not strip shell metacharacters or "..".
+     *  `id` becomes a filename under the realm "temp" dir, run by
+     *  yuno_basic_information() (which also quotes it for the shell).
+     *  build_path() does not strip shell metacharacters.
      */
-    static const char id_allowed[] =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
-    if(empty_string(id) || strspn(id, id_allowed) != strlen(id) || strstr(id, "..")) {
+    if(!is_safe_binary_name(gobj, "id", id)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Invalid 'id': only [A-Za-z0-9._-] allowed, no '..'"),
+            json_sprintf("%s: invalid 'id': only [A-Za-z0-9._-] allowed, no '..'",
+                gobj_yuno_role_plus_name()
+            ),
             0,
             0,
             kw  // owned
@@ -3230,6 +3254,27 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     const char *binary_role = kw_get_str(gobj, jn_basic_info, "role", 0, 0);
     const char *binary_version = kw_get_str(gobj, jn_basic_info, "version", "", 0);
     json_t *jn_tags = kw_get_dict_value(gobj, jn_basic_info, "tags", 0, 0);
+
+    /*
+     *  They name /yuneta/repos/<tags>/<role>/<version>: an empty version
+     *  would make the role's own directory the one of this version.
+     */
+    if(!is_safe_binary_name(gobj, "role", binary_role) ||
+            !is_safe_binary_name(gobj, "version", binary_version)) {
+        json_t *comment = json_sprintf(
+            "%s: the binary says role '%s' version '%s': only [A-Za-z0-9._-] allowed, no '..'",
+            gobj_yuno_role_plus_name(), binary_role? binary_role: "", binary_version
+        );
+        JSON_DECREF(jn_basic_info);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     if(!yuno_version_has_a_comparable_shape(binary_version)) {
         gobj_log_warning(gobj, 0,
@@ -3447,6 +3492,21 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
     const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
+    if(!is_safe_binary_name(gobj, "id", role)) {
+        json_t *comment = json_sprintf(
+            "%s: invalid binary id '%s': only [A-Za-z0-9._-] allowed, no '..'",
+            gobj_yuno_role_plus_name(), role
+        );
+        json_decref(node);  // after the comment: `role` is in it
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     if(empty_string(content64)) {
@@ -3522,7 +3582,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  binary of another role, is refused: install-binary adds a version.
      */
     json_t *installed = NULL;
-    if(strcmp(binary_role, role)==0 && !empty_string(binary_version)) {
+    if(strcmp(binary_role, role)==0 && is_safe_binary_name(gobj, "version", binary_version)) {
         installed = find_binary_version(gobj, priv->resource, role, binary_version);
     }
     if(!installed) {
@@ -3863,20 +3923,23 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
         const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
         char destination[PATH_MAX];
-        if(!yuneta_repos_yuno_dir(
-                destination,
-                sizeof(destination),
-                jn_tags,
-                role,
-                version,
-                FALSE
-            )) {
+        if(!is_safe_binary_name(gobj, "id", role) ||
+                !is_safe_binary_name(gobj, "version", version) ||
+                !yuneta_repos_yuno_dir(
+                    destination,
+                    sizeof(destination),
+                    jn_tags,
+                    role,
+                    version,
+                    FALSE
+                )) {
             /*
              *  Neither the record nor the files: an rmrdir of what a cut
-             *  path names removes an ancestor, every version of the role.
+             *  path (or an empty version) names removes an ancestor, every
+             *  version of the role.
              */
             jn_comment = json_sprintf(
-                "%s: cannot build the repos directory of binary '%s' '%s', not deleted",
+                "%s: binary '%s' '%s': name refused or repos path too long, not deleted",
                 gobj_yuno_role_plus_name(), role, version
             );
             result += -1;
@@ -8470,6 +8533,30 @@ PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno)
 }
 
 /***************************************************************************
+ *  A name of a binary (its id/role, its version, a tag): one directory or
+ *  file name of /yuneta/repos/<tags>/<role>/<version>, and part of the
+ *  temporary file that yuno_basic_information() runs through the shell.
+ *  Only [A-Za-z0-9._-], not empty, no "..". Logged when refused.
+ ***************************************************************************/
+PRIVATE BOOL is_safe_binary_name(hgobj gobj, const char *what, const char *name)
+{
+    static const char allowed[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
+    if(empty_string(name) || strspn(name, allowed) != strlen(name) || strstr(name, "..")) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Binary name refused: only [A-Za-z0-9._-], not empty, no '..'",
+            "what",         "%s", what,
+            "name",         "%s", name? name: "",
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  Convert json list of names into path
  ***************************************************************************/
 PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
@@ -8505,6 +8592,10 @@ PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
                 );
                 *bf = 0;
                 return 0;
+            }
+            if(!is_safe_binary_name(0, "tag", json_string_value(jn_s_domain_name))) {
+                *bf = 0;
+                return 0;   // Error already logged
             }
             if(index == 0) {
                 ln = snprintf(p, bflen, "%s", json_string_value(jn_s_domain_name));
