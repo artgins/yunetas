@@ -4227,8 +4227,13 @@ PRIVATE json_t *append_permission(
 }
 
 /***************************************************************************
- *
-    Ejemplo de respuesta:
+ *  The permissions the user holds in `dst_service`, and only there: a flat
+ *  dict {permission: allow}. Up to 7.29.1 it also weighed the roles of
+ *  every service named in the `required_services` of the kw -- the kw of
+ *  the command, which the client writes -- so a child role granting `*` in
+ *  service B answered for service A. `required_services` belongs to the
+ *  identity card, read by get_user_roles() at login to say which services
+ *  the channel reaches; a permission is never borrowed from another one.
  ***************************************************************************/
 PRIVATE json_t *get_user_permissions(
     hgobj gobj,
@@ -4282,8 +4287,6 @@ PRIVATE json_t *get_user_permissions(
         return services_roles;
     }
 
-    json_t *required_services = kw_get_list(gobj, kw, "required_services", 0, 0);
-
     int idx; json_t *role_ref;
     json_array_foreach(roles_refs, idx, role_ref) {
         json_t *role = gobj_get_node(
@@ -4311,20 +4314,6 @@ PRIVATE json_t *get_user_permissions(
             declared,
             authz
         );
-
-        int idx2; json_t *required_service;
-        json_array_foreach(required_services, idx2, required_service) {
-            const char *service = json_string_value(required_service);
-            if(service) {
-                append_role(
-                    gobj,
-                    services_roles,
-                    role,
-                    dst_realm_id,
-                    service
-                );
-            }
-        }
 
         json_t *tree_roles = gobj_node_children(
             priv->gobj_treedb,
@@ -4356,22 +4345,6 @@ PRIVATE json_t *get_user_permissions(
                 declared,
                 authz
             );
-            int idx4;
-            json_array_foreach(required_services, idx4, required_service) {
-                const char *service = json_string_value(required_service);
-                if(service) {
-                    append_permission(
-                        gobj,
-                        services_roles,
-                        child,
-                        dst_realm_id,
-                        service,
-                        kw,
-                        declared,
-                        authz
-                    );
-                }
-            }
         }
         json_decref(tree_roles);
     }

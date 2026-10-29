@@ -421,6 +421,16 @@ Roles can inherit from a parent (`parent_role_id`) — [`get_user_roles()`](http
 at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.29.1/kernel/c/root-linux/src/c_authz.c) walks the chain and accumulates effective
 authzs.
 
+A permission check weighs only the roles of the service it asks for. The
+`required_services` of the identity card is read at login, by
+`get_user_roles()`, to say which services the channel may reach (the keys of
+`services_roles`); it never adds the permissions of one service to another.
+Up to 7.29.1 the check read `required_services` from the kw of the command
+too -- a kw the client writes -- so `update-node ...` sent to `treedb_A` with
+`"required_services": ["treedb_B"]` in its kw was granted by a child role
+that gives `update` (or `*`) in `treedb_B`. Pinned by
+`tests/c/authz_scoped_permissions` (case 8).
+
 (authz-scoped-permissions)=
 #### Scoped permissions: `parameters` (7.27.15+)
 
@@ -482,7 +492,9 @@ PRIVATE sdata_desc_t authz_table[] = {
 SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      pm_authz_scenario, "Permission to read the scenarios and their runs"),
 ...
 };
-``` The control center does it
+```
+
+The control center does it
 for its scenario permissions ([*A user who may see one
 scenario*](#controlcenter-one-scenario)); a service that checks with a kw that
 does not carry the key refuses every scoped grant. Pinned by

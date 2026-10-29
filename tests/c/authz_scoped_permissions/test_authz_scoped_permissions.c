@@ -29,6 +29,11 @@
  *               kw itself): command-agent declares none, so a role scoping it
  *               on scenario_id -- a key the CLIENT could put in the kw --
  *               grants nothing and logs an error
+ *            8. outsider  no permission here, a child role with `*` in the
+ *                        service `elsewhere`: a `required_services` the
+ *                        client puts in the kw of the check does not bring
+ *                        the permissions of another service into this one
+ *                        (it did up to 7.29.1)
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
  *          users seeded by initial_load. The checks ask the permissions of
@@ -170,6 +175,20 @@ PRIVATE char variable_config[]= "\
                             'parameters': {'scenario_id': ['s1']}   \n\
                         },                                          \n\
                         {                                           \n\
+                            'id': 'outsider',                       \n\
+                            'description': 'nothing here; a child elsewhere', \n\
+                            'realm_id': '*',                        \n\
+                            'service': 'checked'                    \n\
+                        },                                          \n\
+                        {                                           \n\
+                            'id': 'outsider_child',                 \n\
+                            'description': 'runs, in another service', \n\
+                            'realm_id': '*',                        \n\
+                            'service': 'elsewhere',                 \n\
+                            'permission': '*',                      \n\
+                            'parent_role_id': 'roles^outsider^roles' \n\
+                        },                                          \n\
+                        {                                           \n\
                             'id': 'broken',                         \n\
                             'description': 'a scope not a dict',    \n\
                             'realm_id': '*',                        \n\
@@ -188,6 +207,7 @@ PRIVATE char variable_config[]= "\
                         {'id': 'reader', 'roles': ['roles^reader^users']}, \n\
                         {'id': 'denier', 'roles': ['roles^denier^users']}, \n\
                         {'id': 'undeclared', 'roles': ['roles^undeclared^users']}, \n\
+                        {'id': 'outsider', 'roles': ['roles^outsider^users']}, \n\
                         {'id': 'broken', 'roles': ['roles^broken^users']}  \n\
                     ]                                               \n\
                 }                                                   \n\
@@ -290,6 +310,16 @@ PRIVATE void run_checks(hgobj gobj)
     errors0 = s_errors;
     check_may(gobj, "undeclared", "command-agent", "s1", 0);
     check_int("a scope on an undeclared key logs one error", s_errors - errors0, 1);
+
+    /*  8  */
+    check_may(gobj, "outsider", "run-scenarios", "s2", 0);
+    kw = json_pack("{s:s, s:s, s:[s]}",
+        "__username__", "outsider",
+        "scenario_id", "s2",
+        "required_services", "elsewhere"
+    );
+    check_int("outsider run-scenarios s2, required_services in the kw",
+        gobj_user_has_authz(gobj, "run-scenarios", kw, gobj)? 1 : 0, 0);
 }
 
 /***************************************************************
