@@ -2569,6 +2569,24 @@ json_t *treedb = treedb_open_db(tranger, "treedb_items", jn_schema, "persistent"
 // every topic loaded: one record per key read, the links hooked
 ```
 
+**A name too long for the ids of its lists is refused.** The lists of the
+system topics have the id `treedb-<yuno>-<gclass>-<gobj>-<treedb>-__graphs__`
+(and `__snaps__`), and `tranger2_open_list()` refuses one longer than
+`NAME_MAX`. A treedb whose name makes either one longer is refused before
+anything is made, with the ERROR *"treedb name too long for the ids of its
+lists"*, and NULL is returned; up to 7.29.1 it opened without those lists
+(the active snap unknown) and each of its topics was refused. The name is
+in the id once, the yuno and the tranger's gobj too, so in a yuno such as
+`db_history_ce^1620` with the gobj `tranger_<treedb>` of `C_TREEDB` the
+limit is about 100 bytes; a name longer than `NAME_MAX` is refused too (it
+was cut).
+
+```C
+treedb_open_db(tranger, "treedb_items", jn_schema, 0);   // fits: opened
+treedb_open_db(tranger, name_of_240_bytes, jn_schema, 0);
+// out of a yuno, with no gobj: "treedb-<name>-__graphs__" is 258 bytes, NULL
+```
+
 **The `impose` option.** With `"persistent,impose"`, and only on the master,
 `jn_schema` wins over a newer schema on disk too. The rule is the same at both
 levels, the treedb and each topic: a stored `schema_version` or

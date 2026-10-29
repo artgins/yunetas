@@ -23,7 +23,9 @@ primary version visible via `treedb_get_node` after each step:
 | 9 | `activate("__clear__")` + reload | v3 (already latest, stays) |
 
 A separate case (11) makes the save of the NEW snap fail: the old snap stays
-active, in memory and on disk.
+active, in memory and on disk. Another (12) opens a treedb whose name makes
+the id of its `__graphs__` list longer than `NAME_MAX`: it is refused with
+one ERROR, before anything is made (it opened without its system lists).
 
 The reload step (`treedb_close_db` + `treedb_open_db`) mirrors what
 `c_agent::restart_nodes` does after toggling the snap flag — see

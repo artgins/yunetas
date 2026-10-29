@@ -780,18 +780,31 @@ PRIVATE json_t *create_topic_index(
  *  the realm's authz store as a replica had the same directory, the open of
  *  one wiped what the others had pending, and the close of one took the
  *  directory away from the rest. The yuno is the same at each start, so a
- *  restart takes its own directory back, as it did.
+ *  restart takes its own directory back, as it did. One that does not fit
+ *  `bf` is cut, and said: an id with it is longer than NAME_MAX anyway, and
+ *  refused where it is used.
  ***************************************************************************/
 PRIVATE const char *list_id_yuno(char *bf, size_t bfsize)
 {
     const char *role = gobj_yuno_role();
     const char *name = gobj_yuno_name();
+    int len;
     if(empty_string(role)) {
-        snprintf(bf, bfsize, "%s", "");
+        len = snprintf(bf, bfsize, "%s", "");
     } else if(empty_string(name)) {
-        snprintf(bf, bfsize, "%s-", role);
+        len = snprintf(bf, bfsize, "%s-", role);
     } else {
-        snprintf(bf, bfsize, "%s^%s-", role, name);
+        len = snprintf(bf, bfsize, "%s^%s-", role, name);
+    }
+    if(len < 0 || (size_t)len >= bfsize) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The yuno in the ids of the lists of a treedb was cut",
+            "role",         "%s", role? role : "",
+            "length",       "%d", len,
+            NULL
+        );
     }
     return bf;
 }
@@ -836,11 +849,13 @@ PRIVATE int build_topic_list_id(
 
 /***************************************************************************
  *  The id of the list that loads a system topic of a treedb (__snaps__,
- *  __graphs__): build_topic_list_id() with no key. One longer than
- *  NAME_MAX is refused by tranger2_open_list(), with a WARNING; one that
- *  does not fit `bf` is cut, and said here.
+ *  __graphs__): build_topic_list_id() with no key, as snprintf() writes
+ *  it: the length it needs, without its NUL, is returned. One longer than
+ *  NAME_MAX is refused by tranger2_open_list(): treedb_open_db() refuses a
+ *  treedb whose ids do not fit before it makes anything
+ *  (system_list_ids_fit()).
  ***************************************************************************/
-PRIVATE void build_system_list_id(
+PRIVATE int build_system_list_id(
     char *bf,
     size_t bfsize,
     hgobj gobj,
@@ -850,33 +865,57 @@ PRIVATE void build_system_list_id(
 {
     char yuno[NAME_MAX];
     list_id_yuno(yuno, sizeof(yuno));
-    int len;
     if(gobj) {
-        len = snprintf(bf, bfsize, "treedb-%s%s-%s-%s-%s",
+        return snprintf(bf, bfsize, "treedb-%s%s-%s-%s-%s",
             yuno,
             gobj_gclass_name(gobj),
             gobj_name(gobj),
             treedb_name,
             topic_name
         );
-    } else {
-        len = snprintf(bf, bfsize, "treedb-%s%s-%s",
-            yuno,
-            treedb_name,
-            topic_name
-        );
     }
-    if(len < 0 || (size_t)len >= bfsize) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "The id of the list of a system topic was cut",
-            "treedb_name",  "%s", treedb_name,
-            "topic_name",   "%s", topic_name,
-            "length",       "%d", len,
-            NULL
-        );
+    return snprintf(bf, bfsize, "treedb-%s%s-%s",
+        yuno,
+        treedb_name,
+        topic_name
+    );
+}
+
+/***************************************************************************
+ *  The ids of the lists of the system topics of a treedb (__snaps__,
+ *  __graphs__) are NAME_MAX at most: tranger2_open_list() refuses a longer
+ *  one, and the treedb opened without them -- the active snap unknown, and
+ *  each topic of it refused or opened with its ids cut. They hold the yuno
+ *  (7.28.4) and the tranger's gobj, so in a yuno a name of about 100 bytes
+ *  was enough. FALSE, logged, when one does not fit.
+ ***************************************************************************/
+PRIVATE BOOL system_list_ids_fit(hgobj gobj, const char *treedb_name)
+{
+    static const char *system_topics[] = {"__snaps__", "__graphs__"};
+    for(size_t i = 0; i < sizeof(system_topics)/sizeof(system_topics[0]); i++) {
+        char rt_id[2*NAME_MAX];
+        int len = build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, system_topics[i]);
+        if(len < 0 || len > NAME_MAX) {
+            char yuno[NAME_MAX];
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "treedb name too long for the ids of its lists",
+                "treedb_name",  "%s", treedb_name,
+                "topic_name",   "%s", system_topics[i],
+                "yuno",         "%s", list_id_yuno(yuno, sizeof(yuno)),
+                "length",       "%d", len,
+                "max",          "%d", NAME_MAX,
+                NULL
+            );
+            gobj_log_set_last_message(
+                "treedb name too long for the ids of its lists (%d bytes, %d at most)",
+                len, NAME_MAX
+            );
+            return FALSE;
+        }
     }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -1329,7 +1368,18 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     char treedb_name[NAME_MAX];
-    snprintf(treedb_name, sizeof(treedb_name), "%s", treedb_name_);
+    int name_len = snprintf(treedb_name, sizeof(treedb_name), "%s", treedb_name_? treedb_name_ : "");
+    if(name_len < 0 || (size_t)name_len >= sizeof(treedb_name)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "treedb_name longer than NAME_MAX",
+            "length",       "%d", name_len,
+            NULL
+        );
+        JSON_DECREF(jn_schema)
+        return 0;
+    }
     char *p = strstr(treedb_name, ".treedb_schema.json");
     if(p) {
         *p = 0;
@@ -1348,6 +1398,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         return 0;
     }
     if(!name_is_identifier(gobj, treedb_name, "treedb_name", __FUNCTION__)) {
+        JSON_DECREF(jn_schema)
+        return 0;   // Error already logged
+    }
+    if(!system_list_ids_fit(gobj, treedb_name)) {
         JSON_DECREF(jn_schema)
         return 0;   // Error already logged
     }
@@ -1719,7 +1773,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, snaps_topic_name);
+        build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, snaps_topic_name);  // fits: system_list_ids_fit()
 
         json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
@@ -1807,7 +1861,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
-        build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, graphs_topic_name);
+        build_system_list_id(rt_id, sizeof(rt_id), gobj, treedb_name, graphs_topic_name); // fits: system_list_ids_fit()
 
         json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,

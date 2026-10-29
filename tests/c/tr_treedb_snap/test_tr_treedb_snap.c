@@ -26,6 +26,12 @@
  *            9. deactivate-snap + reload → primaries still v3 (already latest)
  *           10. a snap freezes the LAYOUT of the graph too (`__graphs__`),
  *               and an activation reads back the one it froze
+ *           11. an activation that cannot save the new snap keeps the old
+ *           12. a treedb whose name makes the ids of its system lists
+ *               (__snaps__, __graphs__) longer than NAME_MAX is refused at
+ *               the open, with one ERROR: it opened without them, and
+ *               with the yuno in the ids (7.28.4) a name of ~100 bytes
+ *               was enough in a yuno
  *
  *          The reload (treedb_close_db + treedb_open_db) is what
  *          c_agent's restart_nodes() does after toggling the snap flag.
@@ -693,6 +699,50 @@ PRIVATE int phase_activation_that_cannot_save(const char *path_root)
     return result;
 }
 
+PRIVATE int phase_name_too_long_for_the_list_ids(const char *path_root)
+{
+    int result = 0;
+    const char *test = "12. a treedb name too long for the ids of its lists is refused at the open";
+    const char *DB = "tr_snap_long_name";
+    char path_db[PATH_MAX];
+    build_path(path_db, sizeof(path_db), path_root, DB, NULL);
+    rmrdir(path_db);
+
+    set_expected_results(test, json_pack("[{s:s}]", "msg", "Creating __timeranger2__.json"), NULL, NULL, 1);
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b, s:i}",
+        "path", path_root, "database", DB, "master", 1,
+        "on_critical_error", LOG_OPT_TRACE_STACK), 0);
+    result += test_json(NULL);
+
+    /*
+     *  Out of a yuno and with no gobj the id is "treedb-<name>-__graphs__":
+     *  18 bytes and the name
+     */
+    char long_name[241];
+    memset(long_name, 't', sizeof(long_name) - 1);
+    long_name[sizeof(long_name) - 1] = 0;
+
+    set_expected_results(test,
+        json_pack("[{s:s}]", "msg", "treedb name too long for the ids of its lists"),
+        NULL, NULL, 1
+    );
+    helper_quote2doublequote(schema_sample);
+    json_t *treedb = treedb_open_db(tranger, long_name, legalstring2json(schema_sample, TRUE), 0);
+    if(treedb) {
+        printf("%s  FAIL: a treedb whose list ids do not fit was opened%s\n", On_Red BWhite, Color_Off);
+        result += -1;
+        treedb_close_db(tranger, long_name);
+    }
+    result += test_json(NULL);
+
+    set_expected_results(test, NULL, NULL, NULL, 1);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+    rmrdir(path_db);
+
+    return result;
+}
+
 PRIVATE int do_test(void)
 {
     int result = 0;
@@ -784,6 +834,7 @@ PRIVATE int do_test(void)
     }
 
     result += phase_activation_that_cannot_save(path_root);
+    result += phase_name_too_long_for_the_list_ids(path_root);
 
     return result;
 }
