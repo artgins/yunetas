@@ -32,6 +32,15 @@
  *            and a coil went out as the value given.
  *          - a request sent before the master connects is answered at once,
  *            as failed.
+ *          - (REV-CLOUD V45) the requests go out at once on the message of
+ *            cycle 1, not a timeout_polling later; a request whose numbers
+ *            are not numbers ("abc", null, "010", 20.9, "12ab"), or that
+ *            passes 65535, is refused, and the refusal of a value that
+ *            does not fit does not show it; a read answered after its
+ *            timeout_response, when the next request is already out, is
+ *            dropped by its transaction id instead of answering the next
+ *            one; and an answer with an MBAP of length 3 fails its request
+ *            as a bad answer (a warning), not as an internal error.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -51,6 +60,14 @@
 #define MULTI_ADDRESS   30      // function 16, three registers, then read back
 #define REFUSED_ADDRESS 40      // the slave answers exception 1
 #define COIL_ADDRESS    5       // function 05
+#define LATE_ADDRESS    50      // answered late: after the next request went out
+#define AFTER_ADDRESS   51      // the next request: the late answer of 50 comes first
+#define EMPTY_ADDRESS   60      // answered with an MBAP of length 3 and no registers
+#define SECRET_VALUE    "70000" // a write value no log nor comment may show
+#define LATE_VALUE      111
+#define AFTER_VALUE     "222"   // in the answers table
+#define AFTER_NUMBER    222
+#define REQUEST_MAX_MS  500     // a request sent on the message of a cycle goes out at once
 #define RX_SIZE         512
 
 /***************************************************************************
@@ -69,19 +86,52 @@
  *  get, in this order
  */
 PRIVATE const char *requests[] = {
-    "{'tag': 'w06', 'id': 1, 'type': 'holding_register', 'address': 20, 'value': 7}",
+    /*
+     *  Refused at once, so answered before the queued ones: a number of a
+     *  request is a json integer or its text, as the command parser reads
+     *  one -- no "abc" as 0, no "010" as 8, no 20.9 as 20 -- and it fits.
+     *  Up to the fix of REV-CLOUD V45.2 every one of them was sent
+     */
+    "{'tag': 'a_txt', 'type': 'holding_register', 'address': 'abc', 'value': 1}",
+    "{'tag': 'a_null', 'type': 'holding_register', 'address': null, 'value': 1}",
+    "{'tag': 'a_oct', 'operation': 'read', 'type': 'holding_register', 'address': '010'}",
+    "{'tag': 'a_real', 'operation': 'read', 'type': 'holding_register', 'address': 20.9}",
+    "{'tag': 'id_txt', 'id': 'x', 'type': 'holding_register', 'address': 20, 'value': 1}",
+    "{'tag': 'v_txt', 'type': 'holding_register', 'address': 20, 'value': '12ab'}",
+    "{'tag': 'v_big', 'type': 'holding_register', 'address': 20, 'value': " SECRET_VALUE "}",
+    "{'tag': 'a_end', 'operation': 'read', 'type': 'holding_register', 'address': 65535, 'size': 2}",
+    "{'tag': 'w_end', 'type': 'holding_register', 'address': 65534, 'value': [1, 2, 3]}",
+    /*
+     *  Queued, and sent one after another
+     */
+    "{'tag': 'w06', 'id': 1, 'type': 'holding_register', 'address': '20', 'value': '7'}",
     "{'tag': 'w16', 'id': 1, 'type': 'holding_register', 'address': 30, 'value': [11, 22, 33]}",
     "{'tag': 'r03', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 30, 'size': 3}",
     "{'tag': 'x40', 'id': 1, 'type': 'holding_register', 'address': 40, 'value': 1}",
     "{'tag': 'c05', 'id': 1, 'type': 'coil', 'address': 5, 'value': 1}",
+    "{'tag': 'lat', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 50}",
+    "{'tag': 'aft', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 51}",
+    "{'tag': 'm03', 'operation': 'read', 'id': 1, 'type': 'holding_register', 'address': 60}",
     0
 };
 PRIVATE const char *answers[] = {
+    "{'tag': 'a_txt', 'result': -1, 'error_code': 0}",
+    "{'tag': 'a_null', 'result': -1, 'error_code': 0}",
+    "{'tag': 'a_oct', 'result': -1, 'error_code': 0}",
+    "{'tag': 'a_real', 'result': -1, 'error_code': 0}",
+    "{'tag': 'id_txt', 'result': -1, 'error_code': 0}",
+    "{'tag': 'v_txt', 'result': -1, 'error_code': 0}",
+    "{'tag': 'v_big', 'result': -1, 'error_code': 0}",
+    "{'tag': 'a_end', 'result': -1, 'error_code': 0}",
+    "{'tag': 'w_end', 'result': -1, 'error_code': 0}",
     "{'tag': 'w06', 'result': 0, 'error_code': 0}",
     "{'tag': 'w16', 'result': 0, 'error_code': 0}",
     "{'tag': 'r03', 'result': 0, 'error_code': 0, 'values': [11, 22, 33]}",
     "{'tag': 'x40', 'result': -1, 'error_code': 1}",
     "{'tag': 'c05', 'result': 0, 'error_code': 0}",
+    "{'tag': 'lat', 'result': -1, 'error_code': 0}",        // timeout_response
+    "{'tag': 'aft', 'result': 0, 'error_code': 0, 'values': [" AFTER_VALUE "]}",
+    "{'tag': 'm03', 'result': -1, 'error_code': 0}",        // an answer with no registers
     0
 };
 
@@ -153,6 +203,9 @@ typedef struct _PRIVATE_DATA {
     uint16_t multi[3];          // at the slave: what the write of three registers left
     BOOL write_queued;
     int answers_seen;           // answers of the queued requests, in order
+    uint64_t t_requests;        // REQUEST_MAX_MS from the requests, to the first answer of a queued one
+    uint8_t late_t_id[2];       // the transaction id of the request answered late
+    BOOL late_held;
     BOOL early_answered;        // the request sent before connecting
     BOOL done;
 } PRIVATE_DATA;
@@ -382,6 +435,51 @@ PRIVATE void slave_request(hgobj gobj, const uint8_t *req)
         return;
     }
 
+    if(function == 3 && unit == 1 && address == LATE_ADDRESS && quantity == 1) {
+        memcpy(priv->late_t_id, req, 2);    // answered with the next request, too late
+        priv->late_held = TRUE;
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == AFTER_ADDRESS && quantity == 1) {
+        if(!priv->late_held) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The request answered late did not reach the slave first",
+                NULL
+            );
+        }
+        /*
+         *  The late answer of the request that timed out, with its own
+         *  transaction id and the same slave, function and size: the master
+         *  must not take it as the answer of this one
+         */
+        uint8_t late[2 + 7];
+        memcpy(late, req, sizeof(late));
+        memcpy(late, priv->late_t_id, 2);
+        uint16_t late_value[1] = {LATE_VALUE};
+        slave_registers(gobj, late, late_value, 1);
+
+        uint16_t regs[1] = {AFTER_NUMBER};
+        slave_registers(gobj, req, regs, 1);
+        return;
+    }
+
+    if(function == 3 && unit == 1 && address == EMPTY_ADDRESS && quantity == 1) {
+        uint8_t rsp[9];
+        memcpy(rsp, req, 2);
+        rsp[2] = 0;
+        rsp[3] = 0;
+        rsp[4] = 0;
+        rsp[5] = 3;             // unit, function, byte count: no registers
+        rsp[6] = req[6];
+        rsp[7] = req[7];
+        rsp[8] = 0;
+        slave_send(gobj, rsp, sizeof(rsp));
+        return;
+    }
+
     if(function == 6) {
         priv->writes_seen++;
         if(address != WRITE_ADDRESS || quantity != WRITE_VALUE || priv->writes_seen != 1) {
@@ -569,6 +667,7 @@ PRIVATE void master_message(hgobj gobj, json_t *kw)
             check_message(gobj, kw, "{\"slave_id\": 1, \"a\": 65538}");
             if(!priv->write_queued) {
                 priv->write_queued = TRUE;
+                priv->t_requests = start_msectimer(REQUEST_MAX_MS);
                 for(int i=0; requests[i]; i++) {
                     gobj_send_event(priv->gobj_master, EV_SEND_MESSAGE, qjson(requests[i]), gobj);
                 }
@@ -703,6 +802,26 @@ PRIVATE int ac_modbus_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         return 0;
     }
     priv->answers_seen++;
+
+    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
+    if(strstr(comment, SECRET_VALUE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The answer of a write shows its value in the comment",
+            "tag",          "%s", tag,
+            NULL
+        );
+    }
+    if(strcmp(tag, "w06")==0 && test_msectimer(priv->t_requests)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A request sent on the message of a cycle waited for the next cycle",
+            "max_ms",       "%d", REQUEST_MAX_MS,
+            NULL
+        );
+    }
 
     json_t *expected = qjson(expected_);
     json_t *got = json_pack("{s:s, s:O, s:O}",

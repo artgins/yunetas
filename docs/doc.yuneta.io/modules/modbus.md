@@ -135,7 +135,9 @@ the macro its header defines since this change:
 
 An exception response, or a block that does not answer within
 `timeout_response`, moves the cycle on at once to the next block. Over TCP the
-frame ends at the exception code; RTU adds its CRC.
+frame ends at the exception code; RTU adds its CRC, and the exception is taken
+only after its CRC is checked. An RTU answer whose CRC does not match fails
+its block the same way (*"Modbus answer with a bad CRC"*), as a warning.
 
 Each failure is logged as a **warning** (`msgset` `Protocol`: the slave
 answered, or did not, and nothing is broken on our side), with the
@@ -190,11 +192,30 @@ gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
 | Key | | |
 |---|---|---|
 | `operation` | `"write"` | `write` or `read` |
-| `id` | `1` | Slave id, 0-255 |
+| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: no slave answers it, so its request fails by `timeout_response` even when it was done |
 | `type` | | Write: `holding_register`, `coil`. Read: also `input_register`, `input_status` |
-| `address` | | 0-65535, a number or its text |
+| `address` | | 0-65535. With `size`, the last one too: `address + size - 1` is at most 65535 |
 | `size` | `1` | A read: how many (at most 125 registers, 2000 bits). A write takes it from its values |
 | `value` | | A write: a number, or an array of them (at most 123 registers, 1968 coils). A register value is -32768..65535; a coil is ON if not 0 |
+
+**Every number of a request** (`id`, `address`, `size`, each `value`) is read
+as the command parser reads an integer: a json integer, a real with no
+decimals (`20.0`), a boolean as 1 or 0, or the whole text of a JSON integer
+(`"4096"`, `"-3"`). Anything else is refused, never turned into a number:
+
+```text
+{"type": "holding_register", "address": "abc", "value": 1}      -> "the address is not a number"
+{"type": "holding_register", "address": null, "value": 1}       -> "the address is not a number"
+{"operation": "read", "type": "holding_register", "address": "010"}  -> refused, not 8
+{"operation": "read", "type": "holding_register", "address": 20.9}   -> refused, not 20
+{"id": "x", "type": "holding_register", "address": 20, "value": 1}   -> "the slave id is not a number" (not 0, the RTU broadcast)
+{"type": "holding_register", "address": 20, "value": "12ab"}    -> "value 0 of the write is not a number"
+{"operation": "read", "type": "holding_register", "address": 65535, "size": 2}
+                                                                -> "address 65535 and size 2 pass 65535"
+```
+
+(Up to the fix of REV-CLOUD V45.2 each of them was sent: `"abc"` and `null`
+as address 0, `"010"` as 8, `20.9` as 20, `"x"` as slave 0, `"12ab"` as 12.)
 
 Anything else in the request travels back in its answer, so a caller can tag
 it. What goes out: a read with function 01, 02, 03 or 04 by its type; a write
@@ -224,13 +245,25 @@ meter asks before its setup, and the log goes to the logcenter. The answer
 does carry them -- it goes back only to the gobj that sent the request. A
 request that cannot be sent -- a bad key, an
 unknown type, a size out of range -- is answered at once, failed, and logged
-as an error (*"Modbus request refused"*). The gobj above must declare
-`EV_MODBUS_ANSWER` in its FSM.
+as an error (*"Modbus request refused"*). Its reason names a value of the
+write by its position, never by the value (*"value 0 of the write does not
+fit in a register (-32768..65535)"*): it is the `why` of that log, and the
+`comment` of the answer.
+
+```json
+{"request": {"type": "holding_register", "address": 20, "value": 70000},
+ "result": -1, "error_code": 0,
+ "comment": "value 0 of the write does not fit in a register (-32768..65535)"}
+```
+
+The gobj above must declare `EV_MODBUS_ANSWER` in its FSM.
 
 **When it goes out.** A request that arrives while the connection waits
-between two cycles goes out at once, and the wait resumes after the requests;
-one that arrives while a block or another request is in flight goes out after
-it, before the next block. They go **one at a time, in the order they came**,
+between two cycles goes out at once, and the wait resumes after the requests.
+So does one sent on the `EV_ON_MESSAGE` that ends a cycle: the wait between
+cycles comes after it (until the fix of REV-CLOUD V45.2 such a request waited
+that whole `timeout_polling` first). One that arrives while a block or another
+request is in flight goes out after it, before the next block. They go **one at a time, in the order they came**,
 so a request that needs another before it in the same connection -- a meter
 password, and the setup it unlocks -- is simply sent after it.
 
@@ -240,8 +273,34 @@ failed (*"the connection dropped..."*) and none of them is sent on the next
 connection: whatever unlocked them on the old one, a password, is gone with
 it. A request sent while there is no connection is answered at once
 (*"not connected"*). A stop of the gobj drops them, with a warning that lists
-them (*"Modbus writes NOT sent, the gobj stopped"*, and *"NOT confirmed"* for
-the one in flight).
+them (*"Modbus requests NOT sent, the gobj stopped"*, and *"Modbus request NOT
+confirmed, the gobj stopped before its answer"* for the one in flight).
+
+**Which answer is taken.** Only an answer to what is in flight, a block or a
+request. Over TCP it must carry the **transaction id** of the frame sent and
+protocol 0: the late answer of a request that timed out has the same slave,
+function and size as the request sent after it, and would be taken for it --
+a value of another register given as good. Such a frame, and any frame that
+comes while nothing is in flight, is read whole and dropped with a warning;
+what is in flight goes on waiting for its own answer:
+
+```json
+{"msg": "Modbus frame dropped: not the answer awaited", "in_flight": 1,
+ "t_id": 9, "t_id_sent": 10, "protocol": 0, "slave_id": 1,
+ "modbus_function": 3, "length": 5}
+```
+
+RTU carries no transaction id: there only a frame that comes with nothing in
+flight is dropped, and a late answer with the same slave, function and size as
+the next request cannot be told from its answer. An RTU answer is checked
+against its CRC before anything in it is taken, an exception included. A
+broken answer -- a bad CRC (*"Modbus answer with a bad CRC"*), or a frame that
+does not match the request (*"Modbus answer of a request does not match it"*,
+for example an MBAP of length 3 to a read) -- fails the request as a warning:
+the bytes are the peer's. (Until the fix of REV-CLOUD V45 the transaction id
+was written and never read, an RTU exception was taken before its CRC, and a
+bad CRC or an MBAP of length 3 logged an internal error, *"answered WITHOUT
+reading its answer"*.)
 
 A consumer that relies on the answers refuses to build against an older
 module:

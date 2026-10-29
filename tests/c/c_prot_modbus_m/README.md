@@ -1,6 +1,7 @@
 # c_prot_modbus_m test
 
-Tests `C_PROT_MODBUS_M`, the Modbus master, over TCP.
+Tests `C_PROT_MODBUS_M`, the Modbus master: `test1` over TCP, `test2` with
+RTU framing.
 
 `test1` (`main_test1.c` + `c_test1.c`) is about what a polling cycle
 publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
@@ -20,6 +21,14 @@ slave 2 with block C (`c`).
   and a coil (function 05, ON is `0xFF00`).
 - A request sent before the master connects is answered at once, as failed
   (*"not connected"*).
+- (REV-CLOUD V45) The requests go out at once on the message of cycle 1, not
+  a `timeout_polling` later. Requests whose numbers are not numbers
+  (`"abc"`, `null`, `"010"`, `20.9`, `"12ab"`, an id `"x"`), or that pass
+  65535, are refused, and the refusal of a value that does not fit does not
+  show it. A read the slave answers only after the next request went out
+  (`timeout_response` first) is dropped by its transaction id instead of
+  answering the next one. An answer with an MBAP of length 3 fails its read
+  as a bad answer (a warning), not as an internal error.
 - Cycle 3: every block answers, everything is published, and each block that
   was failing is logged as *"Modbus block answered again"*.
 
@@ -31,7 +40,18 @@ exception waiting `timeout_response` for a CRC (*"A cycle with exceptions did
 not end at once"*), and the write released while queued (*"BAD
 json_decref()"*, then a crash).
 
-The test is built only when `CONFIG_MODULE_MODBUS` is set.
+`test2` (`main_test2.c` + `c_test2.c`) gives the master `"modbus_protocol":
+"RTU"` over its own `C_TCP` (as a gate does): the raw server answers RTU
+frames by hand, with a CRC computed bit by bit. On the message of cycle 1 it
+queues writes of one and three registers (06, 16), one and nine coils (05,
+15), reads them back (03, 01), a write the slave refuses with exception 1,
+and two answers with a bad CRC: an exception and a read. Each must be
+answered in order; the two bad CRCs fail their request with a warning
+(*"Modbus answer with a bad CRC"*). Before the fix of REV-CLOUD V45.2 the
+exception was taken before its CRC was checked, and the read logged an
+internal error (*"answered WITHOUT reading its answer"*).
+
+The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 
 ## Run
 
