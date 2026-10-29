@@ -149,8 +149,15 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
       that run keep the old one until restarted (documented, not done);
     - containers that already hold a host-DMI uuid keep it (no uuid a node
       holds is ever changed), so sibling containers stay identical until
-      `set` by hand. A container run with `--pid=host` is in the initial pid
-      namespace: it is not seen as one and reads the host's hardware;
+      `set` by hand. A container run with `--pid=host` is seen by its root
+      (`/` is not PID 1's root, or that root may not look at it: a user
+      namespace, no `CAP_SYS_PTRACE`); one given `--cap-add SYS_PTRACE` and
+      refused PID 1's root only by a security module (Docker's AppArmor
+      profile) is taken for the system, as is anything run without root.
+      A chroot (`/` is not PID 1's root, or no `/proc`) is a container to
+      the script, but an agent started in it by hand without `ensure` stores
+      node_uuid()'s own random, which a board of that image with no hardware
+      identifier keeps (the same as a container started otherwise);
     - two containers with the SAME hostname and the same `uuid.json` claim
       the same uuid: nothing inside a container tells a copy of it from the
       same container re-created over its kept store (an image committed

@@ -2440,12 +2440,12 @@ case "$ACTION" in
                 echo "[postinst] WARNING: yuneta_agent.service did not start: systemctl status yuneta_agent" >&2
             fi
         elif [ "$UUID_DEFERRED" = "1" ]; then
-            #   A container without systemd and no node uuid: this may be the
+            #   A container or chroot without systemd and no node uuid: this may be the
             #   build of an image, and the agents' start (the SysV script runs
             #   yuneta-node-uuid ensure, and node_uuid() writes one of its own)
             #   would store a uuid that every container of it claims.
-            info "A container without systemd and no node uuid yet: the agents are NOT started by the install (this may be the build of an image). Start them in the container: /etc/init.d/yuneta_agent start"
-            logger -t yuneta_agent_deb "agents not started: a container without systemd and no node uuid (an image may be in the making)" || true
+            info "A container or chroot without systemd and no node uuid yet: the agents are NOT started by the install (this may be the build of an image). Start them there: /etc/init.d/yuneta_agent start"
+            logger -t yuneta_agent_deb "agents not started: a container or chroot without systemd and no node uuid (an image may be in the making)" || true
         elif command -v invoke-rc.d >/dev/null 2>&1; then
             invoke-rc.d yuneta_agent start || true
         else

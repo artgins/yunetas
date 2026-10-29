@@ -2299,11 +2299,11 @@ else
             YUNETA_STARTED=0
         fi
     elif [ "$UUID_DEFERRED" = "1" ]; then
-        #   A container without systemd and no node uuid: this may be the
+        #   A container or chroot without systemd and no node uuid: this may be the
         #   build of an image, and the agents' start (the SysV script runs
         #   yuneta-node-uuid ensure, and node_uuid() writes one of its own)
         #   would store a uuid that every container of it claims.
-        YUNETA_START_MSG="a container without systemd and no node uuid yet: the agents are NOT started by the install (this may be the build of an image). Start them in the container: /etc/init.d/yuneta_agent start"
+        YUNETA_START_MSG="a container or chroot without systemd and no node uuid yet: the agents are NOT started by the install (this may be the build of an image). Start them there: /etc/init.d/yuneta_agent start"
     elif command -v service >/dev/null 2>&1; then
         service yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
     elif [ -x /etc/init.d/yuneta_agent ]; then

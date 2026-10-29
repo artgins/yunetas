@@ -55,7 +55,8 @@
   names are refused:** a record installed by 7.29.3 or older can hold a `^`,
   `@`, a space or an empty version, and could not be updated or deleted at
   all. With `record_only=1` the record is deleted with a WARNING and no
-  directory is removed. `force=1` passes only the in-use and snap guards and
+  directory is removed; the WARNING (`files`) and the answer say what to
+  remove by hand. `force=1` passes only the in-use and snap guards and
   does not delete such a record; a record that a yuno uses needs both flags.
 - **BREAKING: the agent's delete commands need an `id`.** With no id, the
   filter of `delete-binary`, `delete-config`, `delete-yuno`, `delete-realm`
@@ -71,10 +72,17 @@
   log, and the run script and configuration files were written under the cut
   name: the launch is now refused with an ERROR. When the audit file path
   could not be built at start, the command audit stayed off without a log:
-  one ERROR *"Command audit OFF"* names the path (a file that cannot be
-  created or opened stops the agent at start, as it always did: the cause
-  goes to stdout and syslog, and the watcher relaunches it every 2 s). In
-  7.29.3 and older.
+  the agent does not run when its command audit cannot be opened, whatever
+  the cause: up to 7.29.3 an `audit/` directory that could not be made left
+  the agent running with no audit (only *"path EMPTY"* in syslog), while a
+  file that could not be made stopped it. Both stop it now, with the cause
+  on stdout and syslog, and the watcher relaunches it every 2 s; a path that
+  cannot be built logs *"Command audit: the path of the audit file cannot be
+  built"* with its parts. To run with no audit, set
+  `agent.use_audit_command_file` to `false`. In 7.29.3 and older.
+  YUNO_LIFECYCLE.md lists the commands that act on every record when they
+  have no filter ("Bulk when unfiltered"); `command-yuno` keeps its
+  broadcast, which the packages' certificate hook uses.
 - **BREAKING: timeranger2 reads a text time, bound or tkey, by ONE rule,
   `tranger2_time_of_text()` (new)** -- the value of a text tkey and what a
   `before` that deletes accepts both change (see below) --, and refuses a
@@ -110,8 +118,8 @@
 
   A json append refused for its tkey or its pkey traces the first 256 bytes
   of the record (masked), not the whole record.
-- **The command-line tools read a TIME by timeranger2's rule, and refuse a
-  bad one saying why.** `tr2list`, `tr2search`, `stats_list`, `emu_device`
+- **BREAKING: the command-line tools read a TIME by timeranger2's rule, and
+  refuse a bad one saying why.** `tr2list`, `tr2search`, `stats_list`, `emu_device`
   and `time2range` each had their own reader: `007` was 7, `10.5` / `1,5` /
   `" 5"` were dates, `-5` was refused by `tr2search` and `stats_list`, and
   `emu_device` and `time2range` did not check a date that failed to parse
@@ -119,7 +127,19 @@
   and `emu_device` also left a date in seconds on a millisecond axis. They
   call `tranger2_time_of_text()` now, and `tr2list`, `tr2search` and
   `emu_device` hand the bound to the tranger as text, so each topic reads it
-  in its own unit. In 7.29.3 and older.
+  in its own unit; `tr2search -r` gives each topic its own copy of the
+  `match_cond` (it shared one, so the first topic's unit, and with `--key` a
+  negative bound resolved against the first topic, applied to all). An open
+  writes into its `match_cond`: a caller gives each open a copy (said now in
+  timeranger2's header and docs). In 7.29.3 and older.
+- **A time text with a word more no longer keeps a misreading**
+  (`tranger2_time_of_text()`): `",5"` and `"5,"` are refused like `".5"`; a
+  comma between two digits anywhere (`"1,5 days ago"` was September 26,
+  `"2026,10,01"` January 10) and digit words in a run (`"5 5 ago"` was May 5,
+  `"2026 10 01 10:00"` January 10) are refused. Day month year with blanks
+  (`"01 10 2026"`) and a day and a year after a month name (`"Oct 1, 2026"`)
+  are dates. tr2migrate reads a text time by the rule too (it read it with an
+  unchecked `parse_date_basic()`). In 7.29.3 too.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -160,6 +180,13 @@
     - a subscriber that stops the master in its `EV_MODBUS_ANSWER` (or the
       `EV_ON_MESSAGE` of a cycle) stops the polling: in 7.29.3 the master went
       on with its cycle on the stopped gobj;
+    - over RTU a broadcast write (slave 0) is answered `result` 0,
+      *"broadcast: no answer expected"*, after the new `turnaround_delay`
+      (ms, default 200), and a read from slave 0 is refused: it waited
+      `timeout_response` (10 s) and always failed. While a broadcast is in
+      flight every byte where a frame would start is noise. `modbus.md` shows
+      a subscriber that stops the master inside `EV_MODBUS_ANSWER`, and why
+      the stop is made there and not deferred;
     - `slaves` written while the master runs takes effect at the next start,
       with a warning: the write freed the map the cycle pointed into, and the
       master read freed memory;
@@ -213,10 +240,19 @@
       that has no uuid yet (`ensure --installing` exits 3): their start
       stored one in the image being built. The install says so; the first
       `/etc/init.d/yuneta_agent start` makes it;
+    - a chroot is a container to the script: in the initial pid namespace,
+      `/` not being the root of PID 1 (what `systemd-detect-virt --chroot`
+      asks), or no `/proc`, means an image is being built, so the install
+      stores nothing (a debootstrap chroot stored the build host's uuid
+      already in 7.29.3); a container run with `--pid=host` (Toolbx,
+      distrobox) is a container again, told by its root (`/` is not PID 1's
+      root, or that root may not look at it: a user namespace, no
+      `CAP_SYS_PTRACE`); `/proc/self/mountinfo` is read with no here-string
+      (bash before 5.1 needs a writable `/tmp` for one);
     - the docs no longer claim a container's uuid is never shared: two
       containers with the same hostname and the same `uuid.json` share it.
       Delete `uuid.json` before a `docker commit`/`export`, or `set` one per
-      copy. `test-yuneta-node-uuid.sh`: 116 checks (a BuildKit step emulated
+      copy. `test-yuneta-node-uuid.sh`: 133 checks (a BuildKit step emulated
       with `unshare -Upf --mount-proc`).
 - **The ERROR "treedb name too long for the ids of its lists" names the yuno
   in one key** (it carried four `yuno` keys; in 7.29.3).
@@ -235,6 +271,9 @@
   their `data-i18n-*` keys, now fixed. A new `i18n_key_reads.test.js` freezes
   the 73 + 21 unmarked key reads the prebuild cannot follow, so a new one
   fails until it is marked.
+- **gui_agent 1.2.2, gui_treedb 1.1.0** (`yunos/js`): the controls test reads
+  an upper-case tag, a tag written in pieces and a const shadowed in a block
+  (names are resolved by block, not by function).
 - **gobj-js 7.29.0** (`kernel/js/gobj-js`): `build_path()` keeps a root `/`
   and a `..` never goes above the first segment, as in C.
 
