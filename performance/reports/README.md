@@ -38,10 +38,27 @@ price in its release and commit. The report of 7.26.9 was redone for the same
 reason, against 7.26.0 instead of 7.26.8 (it covers 7.26.1 to 7.26.9); it was
 written after the release, so its links name `main` too.
 
+## Studies without a report page, newest first
+
+A release of small fixes that changes `.c` files carries a study and no page:
+its raw figures in `<version>.json`, a section and a column on
+[doc.yuneta.io/performance](https://doc.yuneta.io/performance/).
+
+| Release | Against | Raw figures |
+|---------|---------|-------------|
+| 7.29.3 | 7.29.2 | [7.29.3.json](7.29.3.json) |
+| 7.29.2 | 7.29.0 | [7.29.2.json](7.29.2.json) |
+| 7.28.8 | 7.28.5 | [7.28.8.json](7.28.8.json) |
+| 7.28.5 | 7.28.4 | [7.28.5.json](7.28.5.json) |
+| 7.28.4 | 7.28.2 | [7.28.4.json](7.28.4.json) |
+| 7.28.2 | 7.28.0 | [7.28.2.json](7.28.2.json) |
+| 7.27.11 | 7.27.10 | [7.27.11.json](7.27.11.json) |
+
 ## Make the report of a release
 
 1. Measure the release against the last release that has a study (the
-   `previous` of the table above), never against a tag nobody measured: the
+   newest `<version>.json` here, with or without a page), never against a tag
+   nobody measured: the
    A/B method of [`performance/c/README.md`](../c/README.md) (each release
    built from a worktree of its tag, the binaries run alternately). When
    releases without a study sit between the two, build their tags too, run
@@ -63,7 +80,8 @@ written after the release, so its links name `main` too.
    python3 performance/reports/make_report.py --docs      # docs/doc.yuneta.io/_static/perf/*.svg
    ```
 
-5. Add the release at the top of the table above, add a row to
+5. Add the release at the top of the table of reports (or of studies, for a
+   release without a page), add a row to
    `docs/doc.yuneta.io/performance.md`, attach `<version>.html` to the GitHub
    release, and link it from the release body.
 
