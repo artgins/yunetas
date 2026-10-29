@@ -329,6 +329,8 @@ PRIVATE int build_message_to_publish(hgobj gobj);
 PRIVATE int check_conversion_variables(hgobj gobj);
 PRIVATE int note_block_failed(hgobj gobj, const char *msg, int error_code);
 PRIVATE int note_block_answered(hgobj gobj);
+PRIVATE json_t *request_to_log(json_t *jn_request);
+PRIVATE json_t *requests_to_log(json_t *jn_requests);
 PRIVATE json_t *check_request(hgobj gobj, json_t *jn_request);
 PRIVATE int answer_request(
     hgobj gobj,
@@ -707,22 +709,26 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->gobj_timer);
 
     if(priv->jn_current_request) {
+        json_t *jn_log = request_to_log(priv->jn_current_request);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Modbus write NOT confirmed, the gobj stopped before its response",
-            "request",      "%j", priv->jn_current_request,
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
     }
     if(json_array_size(priv->jn_request_queue) > 0) {
+        json_t *jn_log = requests_to_log(priv->jn_request_queue);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Modbus writes NOT sent, the gobj stopped",
-            "requests",     "%j", priv->jn_request_queue,
+            "requests",     "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
     }
     JSON_DECREF(priv->jn_request_queue);
     JSON_DECREF(priv->jn_current_request);
@@ -1277,13 +1283,15 @@ PRIVATE gbuffer_t *build_modbus_request_message(hgobj gobj, json_t *jn_request)
         return 0;
     }
     if(is_write && (!jn_values || (int)json_array_size(jn_values) != size)) {
+        json_t *jn_log = request_to_log(jn_request);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Modbus write NOT checked before framing it",
-            "request",      "%j", jn_request,
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
         return 0;
     }
 
@@ -1989,9 +1997,11 @@ PRIVATE BOOL send_request(hgobj gobj)
         json_array_remove(priv->jn_request_queue, 0);
 
         if(gobj_trace_level(gobj) & TRACE_SEND) {
-            gobj_trace_json(gobj, jn_request, "sending to %s",
+            json_t *jn_log = request_to_log(jn_request);
+            gobj_trace_json(gobj, jn_log, "sending to %s",
                gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
             );
+            JSON_DECREF(jn_log)
         }
 
         gbuffer_t *gbuf = build_modbus_request_message(gobj, jn_request);
@@ -2221,6 +2231,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
         } SWITCHS_END
 
         if(priv->jn_current_request) {
+            json_t *jn_log = request_to_log(priv->jn_current_request);
             gobj_log_warning(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_PROTOCOL,
@@ -2228,9 +2239,10 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
                 "slave_id",         "%d", (int)frame->slave_id,
                 "error_code",       "%d", frame->error_code,
                 "error_name",       "%s", modbus_exception_name(frame->error_code),
-                "request",          "%j", priv->jn_current_request,
+                "request",          "%j", jn_log,
                 NULL
             );
+            JSON_DECREF(jn_log)
             set_current_answer(gobj, -1, frame->error_code, NULL,
                 json_sprintf("modbus exception %d %s",
                     frame->error_code,
@@ -3598,6 +3610,37 @@ PRIVATE int note_block_answered(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A request as a log may show it: without the values of a write. A write
+ *  can carry a secret -- the password a meter asks before its setup goes in
+ *  a write like any other -- and the log goes to the logcenter. Returns a
+ *  new reference.
+ ***************************************************************************/
+PRIVATE json_t *request_to_log(json_t *jn_request)
+{
+    if(!json_is_object(jn_request)) {
+        return json_incref(jn_request? jn_request : json_null());
+    }
+    json_t *jn = json_copy(jn_request);
+    if(json_object_get(jn, "value")) {
+        json_object_set_new(jn, "value", json_string("(not logged)"));
+    }
+    return jn;
+}
+
+/***************************************************************************
+ *  A list of requests as a log may show it. Returns a new reference.
+ ***************************************************************************/
+PRIVATE json_t *requests_to_log(json_t *jn_requests)
+{
+    json_t *jn = json_array();
+    size_t idx; json_t *jn_request;
+    json_array_foreach(jn_requests, idx, jn_request) {
+        json_array_append_new(jn, request_to_log(jn_request));
+    }
+    return jn;
+}
+
+/***************************************************************************
  *  A request is checked when it is queued, and filled in: operation, id,
  *  address and size as numbers, the value of a write as an array of them.
  *  Returns NULL when it can be sent, else why not (a json string, owned by
@@ -3726,7 +3769,10 @@ PRIVATE int answer_request(
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(gobj, kw, "ANSWER %s", gobj_short_name(gobj));
+        json_t *jn_log = json_copy(kw);
+        json_object_set_new(jn_log, "request", request_to_log(json_object_get(kw, "request")));
+        gobj_trace_json(gobj, jn_log, "ANSWER %s", gobj_short_name(gobj));
+        JSON_DECREF(jn_log)
     }
     return gobj_publish_event(gobj, EV_MODBUS_ANSWER, kw);
 }
@@ -3771,13 +3817,15 @@ PRIVATE int answer_current_request(hgobj gobj)
     priv->jn_current_answer = NULL;
 
     if(!jn_answer) {
+        json_t *jn_log = request_to_log(jn_request? jn_request : json_null());
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Modbus request answered WITHOUT reading its answer",
-            "request",      "%j", jn_request? jn_request : json_null(),
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
         return answer_request(gobj, jn_request, -1, 0, NULL,
             json_string("its answer could not be read, see the log")
         );
@@ -3816,14 +3864,16 @@ PRIVATE int answer_queued_requests(hgobj gobj, const char *why)
     priv->jn_request_queue = json_array();
 
     if(json_array_size(jn_queue) > 0) {
+        json_t *jn_log = requests_to_log(jn_queue);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Modbus requests NOT sent, answered as failed",
             "why",          "%s", why,
-            "requests",     "%j", jn_queue,
+            "requests",     "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
     }
 
     size_t idx; json_t *jn_request;
@@ -3926,14 +3976,16 @@ PRIVATE int read_request_answer(hgobj gobj, uint8_t *bf, int len)
     }
 
     if(jn_why) {
+        json_t *jn_log = request_to_log(jn_request);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Modbus answer of a request does not match it",
             "why",          "%s", json_string_value(jn_why),
-            "request",      "%j", jn_request,
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
         gobj_trace_dump(gobj, (const char *)bf, (size_t)(len < 64? len : 64), "answer");
         JSON_DECREF(jn_values)
         set_current_answer(gobj, -1, 0, NULL, jn_why);
@@ -4263,13 +4315,15 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  unlocked it there (a meter password) is gone with it
      */
     if(priv->jn_current_request) {
+        json_t *jn_log = request_to_log(priv->jn_current_request);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Modbus request NOT confirmed, the connection dropped before its response",
-            "request",      "%j", priv->jn_current_request,
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
         set_current_answer(gobj, -1, 0, NULL,
             json_string("the connection dropped before its answer")
         );
@@ -4440,14 +4494,16 @@ PRIVATE int ac_enqueue_tx_message(hgobj gobj, gobj_event_t event, json_t *kw, hg
 
     json_t *jn_why = check_request(gobj, jn_request);
     if(jn_why) {
+        json_t *jn_log = request_to_log(jn_request);
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Modbus request refused",
             "why",          "%s", json_string_value(jn_why),
-            "request",      "%j", jn_request,
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
         answer_request(gobj, jn_request, -1, 0, NULL, jn_why);
         return -1;
     }
@@ -4469,14 +4525,16 @@ PRIVATE int ac_refuse_request(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     json_t *jn_request = json_deep_copy(kw);
     KW_DECREF(kw)
 
+    json_t *jn_log = request_to_log(jn_request);
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "Modbus request refused: not connected",
         "url",          "%s", gobj_read_str_attr(gobj, "url"),
-        "request",      "%j", jn_request,
+        "request",      "%j", jn_log,
         NULL
     );
+    JSON_DECREF(jn_log)
     answer_request(gobj, jn_request, -1, 0, NULL, json_string("not connected"));
     return -1;
 }
@@ -4518,13 +4576,15 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->jn_current_request) {
+        json_t *jn_log = request_to_log(priv->jn_current_request);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Modbus Timeout",
-            "request",      "%j", priv->jn_current_request,
+            "request",      "%j", jn_log,
             NULL
         );
+        JSON_DECREF(jn_log)
         set_current_answer(gobj, -1, 0, NULL,
             json_sprintf("no answer in %d seconds", priv->timeout_response)
         );

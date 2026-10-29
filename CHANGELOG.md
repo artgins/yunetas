@@ -22,6 +22,10 @@
   `C_PROT_MODBUS_M_ANSWERS_REQUESTS` for the consumers that rely on it, and
   `c_prot_modbus_m/test1` covers a write of three registers, a read of
   them back, an exception, a coil and a request before the connection.
+  **A log never shows the values of a write** (`"value": "(not logged)"`),
+  the ones that were there before included (*"modbus exception"*,
+  *"Modbus Timeout"*, *"NOT confirmed"*, *"NOT sent"*): a meter password
+  goes as a write, and the log goes to the logcenter.
   Written for the meter setup commands of a field gate (SATEC EM235 PRO and
   BFM II).
 

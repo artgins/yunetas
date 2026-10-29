@@ -218,7 +218,11 @@ array; `result` is 0 when done, -1 when not, with the reason in `comment`, and
 the Modbus exception, if the slave sent one, in `error_code`; `values` are the
 registers of a read, or its bits as 0/1. A write is checked against the echo
 the slave answers with (its address, and its value or quantity): an echo that
-does not match fails it. A request that cannot be sent -- a bad key, an
+does not match fails it. **A log never shows the values of a write** (it
+says `"value": "(not logged)"`): a write can carry a secret, the password a
+meter asks before its setup, and the log goes to the logcenter. The answer
+does carry them -- it goes back only to the gobj that sent the request. A
+request that cannot be sent -- a bad key, an
 unknown type, a size out of range -- is answered at once, failed, and logged
 as an error (*"Modbus request refused"*). The gobj above must declare
 `EV_MODBUS_ANSWER` in its FSM.
