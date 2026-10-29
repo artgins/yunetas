@@ -175,8 +175,11 @@ PUBLIC int write_yuno_config_file(
  *  See yuno_config_file.h
  *
  *  No JSON_REAL_PRECISION: jansson then writes each real with the fewest
- *  digits that read back the same double. The gbuffer is sized to the
- *  text, so nothing is cut.
+ *  digits that read back the same double (0.1 is "0.1"). That is its dtoa
+ *  (USE_DTOA, on by default and in linux-ext-libs); a jansson built
+ *  without it writes 17 significant digits ("0.10000000000000001"), which
+ *  read back the same double too. The gbuffer is sized to the text, so
+ *  nothing is cut.
  ***************************************************************************/
 PUBLIC int write_yuno_json_file(
     hgobj gobj,
