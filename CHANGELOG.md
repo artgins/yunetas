@@ -38,6 +38,13 @@
   `timeout_polling`, as a write already did in 7.29.2). An RTU answer with
   a bad CRC, or an MBAP of length 3, fails its request with a warning.
   `c_prot_modbus_m/test2` covers the RTU framing of every function.
+  **The traffic trace hides the values of a write too:** the frame of every
+  write (05, 06, 15, 16, TCP and RTU) is marked secret, so the `traffic`
+  dumps of `C_PROT_MODBUS_M` and of its transport show `<N bytes hidden>`,
+  and so do the gclass's own dumps of the answer to a write; reads are
+  dumped in full. Two limits remain: the transport's dump of what it
+  receives still shows the echo of an 05/06, which carries the value, and
+  the global `ev_kw` trace shows a request's `value`.
 - **Modbus TCP: an answer is taken only by its transaction id**
   (`C_PROT_MODBUS_M`). The master wrote a transaction id in every frame and
   never read the one in the answer, so the late answer of a request that
