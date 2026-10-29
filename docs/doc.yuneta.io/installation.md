@@ -390,17 +390,38 @@ move it). See [`node_uuid()`](api/helpers/misc.md#node_uuid).
 In a container `random` is correct: its `/sys` is the host's, so no hardware
 is read there. The uuid belongs to the container's hostname, which the file
 records: a restart of the container keeps it, and a container with another
-hostname makes its own. The package's install stores nothing in a container
-(`ensure --installing`), because the install can be the build of an image;
-the first start of the agents makes the uuid. A Docker or Podman container
-takes its own id as hostname, so a re-created container is a new node. To
-keep the identity of a re-created container, give it a fixed hostname:
+hostname makes its own. A container with no hostname records `""`: its uuid
+is kept across its restarts, and a copy of it that has a hostname makes its
+own. A Docker or Podman container takes its own id as hostname, so a
+re-created container is a new node. To keep the identity of a re-created
+container, give it a fixed hostname:
 
 ```bash
 docker run --hostname node-01 -v yuneta-store:/yuneta/store my-yuneta-image
 ```
 
-A container that starts the agents without their units or the SysV script
+There is a limit. Nothing inside a container tells a copy of it from the
+same container re-created over its kept store. So two containers that have
+the **same** hostname and the same `uuid.json` share the uuid. This occurs
+when you commit an image from a container that has a uuid, and then run it
+twice as `--hostname node-01`. Before a `docker commit` or a `docker export`,
+delete the uuid file. If copies already share a uuid, set a uuid in each
+copy (`yuneta-node-uuid set <uuid>`):
+
+```bash
+sudo rm -f /yuneta/store/agent/uuid/uuid.json    # in the container, before the commit
+```
+
+A board written from a `docker export` is not a container: it starts its own
+init in the initial pid namespace. Thus the `/.dockerenv` that it keeps does
+not count, and its hardware gives its own uuid on the first start.
+
+The package's install stores nothing in a container
+(`ensure --installing`), because the install can be the build of an image.
+Without systemd, the install also does not start the agents there: their
+start would store a uuid in the image. Start them in the container
+(`/etc/init.d/yuneta_agent start`); their first start makes the uuid. A
+container that starts the agents without their units or the SysV script
 runs `/usr/libexec/yuneta/yuneta-node-uuid ensure` (as root) first.
 
 The agents and the yunos read the uuid when they start. If the uuid changes

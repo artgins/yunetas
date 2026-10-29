@@ -2028,9 +2028,23 @@ if [ -d /yuneta ]; then
 fi
 
 # Node uuid: from the hardware, before an agent reads it. --installing: in a
-# container nothing is stored, this may be the build of an image
+# container nothing is stored, this may be the build of an image; it exits 3
+# when no uuid is stored, and then the agents are not started without systemd
+# (below): their start would store one in the image.
+UUID_DEFERRED=0
 if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
-    /usr/libexec/yuneta/yuneta-node-uuid ensure --installing || echo "[post] WARNING: yuneta-node-uuid failed: the node keeps the uuid it had" >&2
+    _uuid_rc=0
+    /usr/libexec/yuneta/yuneta-node-uuid ensure --installing || _uuid_rc=$?
+    case "$_uuid_rc" in
+        0)
+            ;;
+        3)
+            UUID_DEFERRED=1
+            ;;
+        *)
+            warn "yuneta-node-uuid failed: the node keeps the uuid it had"
+            ;;
+    esac
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true
@@ -2284,12 +2298,18 @@ else
         else
             YUNETA_STARTED=0
         fi
+    elif [ "$UUID_DEFERRED" = "1" ]; then
+        #   A container without systemd and no node uuid: this may be the
+        #   build of an image, and the agents' start (the SysV script runs
+        #   yuneta-node-uuid ensure, and node_uuid() writes one of its own)
+        #   would store a uuid that every container of it claims.
+        YUNETA_START_MSG="a container without systemd and no node uuid yet: the agents are NOT started by the install (this may be the build of an image). Start them in the container: /etc/init.d/yuneta_agent start"
     elif command -v service >/dev/null 2>&1; then
         service yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
     elif [ -x /etc/init.d/yuneta_agent ]; then
         /etc/init.d/yuneta_agent start && YUNETA_STARTED=1 || YUNETA_STARTED=0
     fi
-    if [ "$YUNETA_STARTED" != "1" ]; then
+    if [ "$YUNETA_STARTED" != "1" ] && [ -z "$YUNETA_START_MSG" ]; then
         YUNETA_START_MSG="yuneta_agent FAILED to start. Diagnose: systemctl status yuneta_agent.service ; journalctl -xeu yuneta_agent.service ; getenforce (SELinux can deny io_uring to confined services)"
     fi
 fi

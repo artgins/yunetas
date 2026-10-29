@@ -2229,9 +2229,23 @@ if [ -d /yuneta ]; then
 fi
 
 # Node uuid: from the hardware, before an agent reads it. --installing: in a
-# container nothing is stored, this may be the build of an image
+# container nothing is stored, this may be the build of an image; it exits 3
+# when no uuid is stored, and then the agents are not started without systemd
+# (below): their start would store one in the image.
+UUID_DEFERRED=0
 if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
-    /usr/libexec/yuneta/yuneta-node-uuid ensure --installing || warn "yuneta-node-uuid failed: the node keeps the uuid it had"
+    _uuid_rc=0
+    /usr/libexec/yuneta/yuneta-node-uuid ensure --installing || _uuid_rc=$?
+    case "$_uuid_rc" in
+        0)
+            ;;
+        3)
+            UUID_DEFERRED=1
+            ;;
+        *)
+            warn "yuneta-node-uuid failed: the node keeps the uuid it had"
+            ;;
+    esac
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true
@@ -2425,6 +2439,13 @@ case "$ACTION" in
                     "WARNING: yuneta_agent.service did not start; yuneta_agent22 left as it was"
                 echo "[postinst] WARNING: yuneta_agent.service did not start: systemctl status yuneta_agent" >&2
             fi
+        elif [ "$UUID_DEFERRED" = "1" ]; then
+            #   A container without systemd and no node uuid: this may be the
+            #   build of an image, and the agents' start (the SysV script runs
+            #   yuneta-node-uuid ensure, and node_uuid() writes one of its own)
+            #   would store a uuid that every container of it claims.
+            info "A container without systemd and no node uuid yet: the agents are NOT started by the install (this may be the build of an image). Start them in the container: /etc/init.d/yuneta_agent start"
+            logger -t yuneta_agent_deb "agents not started: a container without systemd and no node uuid (an image may be in the making)" || true
         elif command -v invoke-rc.d >/dev/null 2>&1; then
             invoke-rc.d yuneta_agent start || true
         else

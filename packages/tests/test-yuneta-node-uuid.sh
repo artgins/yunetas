@@ -83,6 +83,16 @@ set_hostname() {
     printf '%s\n' "$1" > "${YUNETA_NODE_UUID_SYSROOT}/proc/sys/kernel/hostname"
 }
 
+#
+#   The pid namespace this runs in: the initial one (4026531836, the
+#   kernel's PROC_PID_INIT_INO) is a system booted on its own, any other a
+#   container
+#
+set_pidns() {
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/self/ns"
+    ln -sfn "pid:[$1]" "${YUNETA_NODE_UUID_SYSROOT}/proc/self/ns/pid"
+}
+
 del_nic() {
     rm -rf "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1"
 }
@@ -301,11 +311,86 @@ check "image build: no more copies" "$(backups)" "1"
 
 #
 #   A board written from a `docker export` of that container keeps
-#   /.dockerenv: it is taken for a container, and still gets its own
+#   /.dockerenv, and its hostname: it boots its own init, in the initial pid
+#   namespace, so it is no container and its hardware gives its uuid
 #
-set_hostname "localhost"
+set_pidns 4026531836
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
 run ensure
-check "docker export on a board: its own uuid" "$( [ "$(field uuid)" != "$one" ] && echo changed)" "changed"
+check "docker export on a board, same hostname: the hardware read" "$(field source)" "dmi-product-uuid"
+check "docker export on a board, same hostname: its own uuid" "$(field uuid)" "$first"
+check "docker export on a board: copy of the container's" "$(backups)" "2"
+out="$("$SCRIPT" show 2>&1)"
+check "docker export on a board: show reads the hardware" "$(echo "$out" | grep -c 'container')" "0"
+
+#
+#   /.dockerenv in another pid namespace: a container
+#
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_pidns 4026532512
+set_hostname "c0ffee000004"
+run ensure
+check "/.dockerenv in its own pid namespace: a container" "$(field source)" "random"
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/run"
+touch "${YUNETA_NODE_UUID_SYSROOT}/run/.containerenv"
+set_pidns 4026531836
+run ensure
+check "/run/.containerenv in the initial pid namespace: the hardware" "$(field source)" "dmi-product-uuid"
+
+#
+#   The install in a container says, by its exit status, that it stored
+#   nothing (3): the package then does not start the agents, whose start
+#   would store the uuid in the image being built. With a uuid stored, or
+#   on a box, 0
+#
+reset
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "buildkitsandbox"
+check "install in a container, nothing stored: exit 3" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "3"
+run ensure
+check "install in a container, a uuid stored: exit 0" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
+reset
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+check "install on a box: exit 0" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
+check "install on a box: stored" "$(field uuid)" "$first"
+
+#
+#   A container with no hostname (empty, or the kernel's "(none)"): its
+#   random belongs to no hostname, and says so; kept across its restarts,
+#   replaced in a copy that has one
+#
+for nohost in "" "(none)"; do
+    reset
+    touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+    set_hostname "$nohost"
+    run ensure
+    nh="$(field uuid)"
+    check "container, hostname '$nohost': random" "$(field source)" "random"
+    check "container, hostname '$nohost': recorded as none" "$(grep -c '"hostname": ""' "$FILE")" "1"
+    run ensure
+    check "container, hostname '$nohost': kept across its restarts" "$(field uuid)" "$nh"
+    set_hostname "c0ffee000003"
+    run ensure
+    check "container, hostname '$nohost': a copy with a hostname makes its own" "$( [ "$(field uuid)" != "$nh" ] && echo changed)" "changed"
+    check "container, hostname '$nohost': copy kept" "$(backups)" "1"
+done
+
+#
+#   ... and the same for a file of 7.29.3, which wrote no "hostname" line
+#   when there was none
+#
+reset
+touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
+set_hostname "c0ffee000005"
+mkdir -p "$YUNETA_NODE_UUID_DIR"
+printf '{\n    "uuid": "%s",\n    "source": "random",\n    "container": "docker",\n    "created": "2026-10-28T00:00:00Z"\n}\n' \
+    "ff14fc16-2cb2-472c-9c0a-89fa43837132" > "$FILE"
+run ensure
+check "container, 7.29.3 random of no hostname: replaced" "$( [ "$(field uuid)" != "ff14fc16-2cb2-472c-9c0a-89fa43837132" ] && echo changed)" "changed"
 
 #
 #   A random of 7.29.2 made in a container records no hostname: it is that

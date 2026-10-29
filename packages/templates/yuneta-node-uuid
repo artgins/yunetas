@@ -60,17 +60,32 @@
 #       the same (a restart of the container), replaced on another one. A
 #       Docker or Podman container's hostname is its own id, so a uuid baked
 #       into an image (the agents started while it was built) is not taken by
-#       the containers made from it, nor by a board written from a
-#       `docker export` (it keeps /.dockerenv). A re-created container is a
-#       new node unless it is given a fixed hostname, or the uuid is `set`.
-#       A random of 7.29.2, which records no hostname, is kept.
+#       the containers made from it. A re-created container is a new node
+#       unless it is given a fixed hostname, or the uuid is `set`. With no
+#       hostname (empty, or the kernel's "(none)") the file records ""; that
+#       uuid is kept across the restarts and replaced by a copy that has a
+#       hostname. A random of 7.29.2, which records no container, is kept.
+#
+#   THE LIMIT: nothing inside a container tells a copy of it from the same
+#   container re-created over its kept store. Two containers given the SAME
+#   fixed hostname and the same uuid.json -- an image committed from a
+#   container that has one, run twice as `--hostname controller` -- claim
+#   the same uuid. Delete /yuneta/store/agent/uuid/uuid.json before a
+#   `docker commit` or a `docker export`, or `set` a uuid in each copy.
+#   A board written from a `docker export` is no container: it boots its own
+#   init in the initial pid namespace, so the /.dockerenv it keeps does not
+#   count, and its hardware gives its own uuid. A container run with
+#   --pid=host is not seen as one either (nor by systemd-detect-virt).
 #
 #   The package's install runs `ensure --installing`: in a container it
-#   stores nothing, because the install may be the build of an image, and
-#   whatever it stored would be in every container made from it. The
-#   agents' first start makes the uuid (their units, or the SysV start). A
-#   container started otherwise must run `yuneta-node-uuid ensure` before an
-#   agent: node_uuid() writes a random uuid of its own when there is none.
+#   stores nothing and exits 3, because the install may be the build of an
+#   image, and whatever it stored would be in every container made from it.
+#   With 3 and no systemd the package does not start the agents (their
+#   start would store the uuid, by this script or by node_uuid()); the
+#   agents' first start in the container makes the uuid (their units, or
+#   the SysV start). A container started otherwise must run
+#   `yuneta-node-uuid ensure` before an agent: node_uuid() writes a random
+#   uuid of its own when there is none.
 #
 #   A uuid written with `set` is MANUAL and never touched: the way to keep an
 #   identity that something already uses as a key.
@@ -83,7 +98,8 @@
 #       yuneta-node-uuid [ensure]     create or correct uuid.json (as root)
 #       yuneta-node-uuid ensure --installing
 #                                     the same, from the package's install:
-#                                     in a container it stores nothing
+#                                     in a container it stores nothing, and
+#                                     exits 3 when no uuid is stored
 #       yuneta-node-uuid show         what is stored and what the hardware
 #                                     gives (as root; without root it says
 #                                     which sources it could not read)
@@ -212,23 +228,25 @@ gather_ethernet_macs() {
 
 #
 #   The name of the container this runs in, if it does. The files are read
-#   under SYSROOT (tests); systemd-detect-virt only on the real system
+#   under SYSROOT (tests); systemd-detect-virt only on the real system, and
+#   only its "yes": an old one answers "none" in Docker.
 #
+#   /.dockerenv and /run/.containerenv are files, and a file stays: a board
+#   written from a `docker export` keeps /.dockerenv. They count only out of
+#   the initial pid namespace -- a system booted on its own runs in it, a
+#   container (but one run with --pid=host) does not -- or when the pid
+#   namespace cannot be read. The initial one is PROC_PID_INIT_INO, fixed by
+#   the kernel since 3.8; systemd-detect-virt asks the same question.
+#
+INIT_PID_NS="pid:[4026531836]"
+
 container_name() {
-    local v
+    local v pidns
     if [ -z "$SYSROOT" ] && command -v systemd-detect-virt >/dev/null 2>&1; then
         if v="$(systemd-detect-virt --container 2>/dev/null)" && [ -n "$v" ] && [ "$v" != "none" ]; then
             printf '%s' "$v"
             return 0
         fi
-    fi
-    if [ -e "${SYSROOT}/.dockerenv" ]; then
-        printf 'docker'
-        return 0
-    fi
-    if [ -e "${SYSROOT}/run/.containerenv" ]; then
-        printf 'podman'
-        return 0
     fi
     if [ -s "${SYSROOT}/run/systemd/container" ]; then
         v="$(normalize < "${SYSROOT}/run/systemd/container" 2>/dev/null)"
@@ -241,6 +259,18 @@ container_name() {
             printf '%s' "$v"
             return 0
         fi
+    fi
+    pidns="$(readlink "${SYSROOT}/proc/self/ns/pid" 2>/dev/null)"
+    if [ "$pidns" = "$INIT_PID_NS" ]; then
+        return 1
+    fi
+    if [ -e "${SYSROOT}/.dockerenv" ]; then
+        printf 'docker'
+        return 0
+    fi
+    if [ -e "${SYSROOT}/run/.containerenv" ]; then
+        printf 'podman'
+        return 0
     fi
     return 1
 }
@@ -257,13 +287,17 @@ safe_token() {
     fi
 }
 
+#
+#   The hostname, or nothing when there is none: empty, or "(none)", what
+#   the kernel holds until somebody sets one
+#
 current_hostname() {
     local v
     if [ ! -r "${SYSROOT}/proc/sys/kernel/hostname" ]; then
         return 0
     fi
     v="$(tr -d '[:space:]' < "${SYSROOT}/proc/sys/kernel/hostname")"
-    if [ -n "$v" ]; then
+    if [ -n "$v" ] && [ "$v" != "(none)" ]; then
         safe_token "$v"
     fi
 }
@@ -332,10 +366,8 @@ write_uuid_file() {    # uuid source ethernet_ids(lines) created keep_copy(0|1) 
         ids_line="    \"ethernet_ids\": [$(printf '%s\n' "$ids" | sed '/^$/d' | sed 's/.*/"&"/' | paste -sd, - | sed 's/,/, /g')],"$'\n'
     fi
     if [ -n "$container" ]; then
-        container_lines="    \"container\": \"${container}\","$'\n'
-    fi
-    if [ -n "$host" ]; then
-        container_lines="${container_lines}    \"hostname\": \"${host}\","$'\n'
+        # "hostname" always, "" when there is none: a random of no hostname
+        container_lines="    \"container\": \"${container}\","$'\n'"    \"hostname\": \"${host}\","$'\n'
     fi
     if ! tmp="$(mktemp "${UUID_DIR}/.uuid.json.XXXXXX")"; then
         log_error "cannot create a temporary file in $UUID_DIR"
@@ -445,6 +477,26 @@ pick_hardware() {
     return 1
 }
 
+#
+#   A stored random made in a container: is it this one's? It belongs to the
+#   hostname it records, "" for none. One made with no hostname is replaced
+#   by a container that has one (a copy of it), and one of a hostname is
+#   kept where there is none now (nothing says it is not this one). A random
+#   not made in a container -- a box with no identifier, 7.29.2, node_uuid()
+#   -- records none: it is kept.
+#
+random_is_ours() {    # host_now
+    local stored_host
+    if ! grep -q '"container"[[:space:]]*:' "$UUID_FILE" 2>/dev/null; then
+        return 0
+    fi
+    stored_host="$(stored_field hostname)"
+    if [ -z "$1" ] || [ "$stored_host" = "$1" ]; then
+        return 0
+    fi
+    return 1
+}
+
 RESTART_NOTE="the agents and the yunos running keep the old one until they restart: restart both agents, then every yuno (kill-yuno, run-yuno)"
 
 #
@@ -475,7 +527,8 @@ cmd_ensure() {    # installing(0|1)
     #   in every container made from it. The agents' first start makes it.
     if [ -n "$container" ] && [ "$installing" = "1" ]; then
         if [ -z "$stored_uuid" ]; then
-            log_info "a container ($container): no node uuid is stored at install, the agents' first start makes it"
+            log_info "a container ($container): no node uuid is stored at install (it may be the build of an image), the agents' first start makes it"
+            return 3
         fi
         return 0
     fi
@@ -527,11 +580,10 @@ cmd_ensure() {    # installing(0|1)
     #   random made in a container of another hostname (an image built with
     #   it, a copy of another container)
     if [ -n "$stored_uuid" ]; then
-        stored_host="$(stored_field hostname)"
-        if [ "$stored_source" != "random" ] || [ -z "$stored_host" ] ||
-                [ -z "$host_now" ] || [ "$stored_host" = "$host_now" ]; then
+        if [ "$stored_source" != "random" ] || random_is_ours "$host_now"; then
             return 0
         fi
+        stored_host="$(stored_field hostname)"
         replaced="$stored_uuid"
     fi
     if ! new="$(normalize < /proc/sys/kernel/random/uuid)" || ! [[ "$new" =~ $UUID_RE ]]; then
@@ -544,9 +596,11 @@ cmd_ensure() {    # installing(0|1)
         write_uuid_file "$new" "random" "" "" 1 || return 1
     fi
     if [ -n "$replaced" ]; then
-        log_warning "node uuid was $replaced, made in a container of hostname $stored_host (an image built with it, or a copy of that container), this is ${host_now}: now $new; $RESTART_NOTE"
+        log_warning "node uuid was $replaced, made in a container of hostname ${stored_host:-(none)} (an image built with it, or a copy of that container), this is ${host_now}: now $new; $RESTART_NOTE"
+    elif [ -n "$container" ] && [ -z "$host_now" ]; then
+        log_warning "node uuid $new is RANDOM: this is a container ($container) with no hostname, and a copy of it with no hostname would claim the same uuid: give the container a hostname"
     elif [ -n "$container" ]; then
-        log_info "node uuid $new is RANDOM: this is a container ($container), its /sys is the host's; it belongs to the hostname ${host_now:-(none)}"
+        log_info "node uuid $new is RANDOM: this is a container ($container), its /sys is the host's; it belongs to the hostname ${host_now}"
     else
         log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
     fi
@@ -563,11 +617,13 @@ cmd_show() {
     if [ -n "$(hw_values container)" ]; then
         echo "hardware: none read: this is a container ($(hw_values container)), its /sys is the host's"
         stored_host="$(stored_field hostname)"
-        if [ "$stored_source" = "random" ] && [ -n "$stored_host" ]; then
+        if [ "$stored_source" = "random" ] && grep -q '"container"[[:space:]]*:' "$UUID_FILE" 2>/dev/null; then
             if [ "$stored_host" = "$(hw_values hostname)" ]; then
-                echo "hostname: $stored_host, the one the uuid belongs to"
+                echo "hostname: ${stored_host:-(none)}, the one the uuid belongs to"
+            elif random_is_ours "$(hw_values hostname)"; then
+                echo "hostname: (none), the uuid belongs to $stored_host: kept"
             else
-                echo "hostname: $(hw_values hostname), the uuid belongs to $stored_host: ensure makes a new one"
+                echo "hostname: $(hw_values hostname), the uuid belongs to ${stored_host:-(none)}: ensure makes a new one"
             fi
         fi
         return 0
