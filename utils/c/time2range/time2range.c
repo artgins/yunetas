@@ -4,6 +4,7 @@
  *          Get range of a time
  *
  *          Copyright (c) 2019 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -110,15 +111,20 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     switch (key) {
     case 't':
+        /*
+         *  Read by the rule timeranger2 reads a time with
+         *  (tranger2_time_of_text()), in seconds. Up to 7.29.3: "007" was 7,
+         *  and " 5", "1,5" or "garbage" a time of year 4461413 (the answer
+         *  of parse_date_basic() was not checked)
+         */
         if(arg) {
-            if(all_numbers(arg)) {
-                arguments->t = atoll(arg);
-            } else {
-                timestamp_t timestamp;
-                int offset;
-                parse_date_basic(arg, &timestamp, &offset);
-                arguments->t = timestamp;
+            json_int_t value;
+            const char *why = NULL;
+            if(tranger2_time_of_text(arg, FALSE, FALSE, &value, &why) < 0) {
+                fprintf(stderr, "TIME refused, %s: '%s'\n\n", why, arg);
+                exit(-1);
             }
+            arguments->t = (time_t)value;
         }
         break;
 

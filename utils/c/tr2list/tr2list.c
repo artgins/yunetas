@@ -31,15 +31,18 @@
 #define DOC \
     "List messages of TimeRanger2 database." \
     "\v" /* argp: everything after \v appears AFTER the options block */ \
-    "TIME values accept an integer (-?[0-9]+), taken as it is in the topic's\n" \
-    "own unit (seconds, or milliseconds for t on an sf_t_ms topic and for tm\n" \
-    "on an sf_tm_ms one; a negative one counts back from the key's last\n" \
-    "record: --from-t=-86400 is its last day), or a natural-language string\n" \
-    "parsed by approxidate() (grammar in helpers.h) and taken to that unit,\n" \
-    "topic by topic. Any other text of spaces, signs and digits only ('+5',\n" \
-    "'5-', '5 5', '-') is refused, not read as a date; a '-' between two\n" \
-    "digits makes it a date ('2026-10-01'). A text approxidate() cannot\n" \
-    "read is refused too.\n" \
+    "TIME values are read as timeranger2 reads a time bound, by ONE rule\n" \
+    "(tranger2_time_of_text()): the text of a JSON integer,\n" \
+    "-?(0|[1-9][0-9]*), is taken as it is in the topic's own unit (seconds,\n" \
+    "or milliseconds for t on an sf_t_ms topic and for tm on an sf_tm_ms\n" \
+    "one; a negative one counts back from the key's last record:\n" \
+    "--from-t=-86400 is its last day). A text written as another number is\n" \
+    "refused, never read as a date: blanks around it (' 5'), leading zeros\n" \
+    "('007'), a '+', decimals, an exponent, a decimal comma ('10.5', '1E5',\n" \
+    "'1,5'), or digits in groups ('5 5'). Any other text is a date parsed\n" \
+    "by approxidate() (grammar in helpers.h) and taken to that unit, topic\n" \
+    "by topic (an end bound takes its whole second). A text that is no date\n" \
+    "is refused. '' is no bound.\n" \
     "Accepted forms:\n" \
     "  units    : seconds, minutes, hours, days, weeks, months, years\n" \
     "             with a count and optional 'ago'\n" \
@@ -301,7 +304,6 @@ int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
 json_t *match_cond = 0;
-json_t *date_bounds = 0;    // the time bounds given as a date: in seconds in match_cond
 
 int verbose = 0;
 BOOL table_mode = FALSE;
@@ -573,25 +575,12 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
     printf("Topic ===> '%s'\n", kw_get_str(0, jn_topic, "directory", "", KW_REQUIRED));
 
     /*
-     *  A bound given as a date was read in seconds: it is taken to the unit
-     *  of its axis in THIS topic (a recursive listing crosses topics of
-     *  different units). Up to 7.27.4 it stayed in seconds, and on a topic
-     *  in milliseconds it selected nothing, or everything.
+     *  The time bounds are TEXT: the tranger reads them at the open, in the
+     *  unit of their axis in THIS topic (a recursive listing crosses topics
+     *  of different units). Up to 7.27.4 a date stayed in seconds, and on a
+     *  topic in milliseconds it selected nothing, or everything.
      */
     json_t *topic_cond = json_deep_copy(match_cond);
-    system_flag2_t system_flag = (system_flag2_t)kw_get_int(0, jn_topic, "system_flag", 0, KW_REQUIRED);
-    int idx; json_t *jn_bound;
-    json_array_foreach(date_bounds, idx, jn_bound) {
-        const char *bound = json_string_value(jn_bound);
-        BOOL tm_axis = (strcmp(bound, "from_tm") == 0 || strcmp(bound, "to_tm") == 0)? TRUE : FALSE;
-        if(system_flag & (tm_axis? sf_tm_ms : sf_t_ms)) {
-            json_int_t secs = json_integer_value(json_object_get(topic_cond, bound));
-            BOOL end_bound = (strncmp(bound, "to_", 3) == 0)? TRUE : FALSE;
-            json_object_set_new(topic_cond, bound,
-                json_integer(secs * 1000 + (end_bound? 999 : 0))     // an end bound takes its whole second
-            );
-        }
-    }
 
     json_object_set_new(
         topic_cond,
@@ -907,81 +896,22 @@ PRIVATE void delete_right_slash(char *s)
 }
 
 /***************************************************************************
- *  A TIME that looks like an integer and is not -?[0-9]+: spaces, signs
- *  and digits only, wherever they are (an empty text, "-", "+5", " -5",
- *  "--5", "5 ", "5+", "5-", "-5-", "5 5", "5+5"). approxidate() read every
- *  one of them as a date in silence ("+5" and "5-" as the 5th of this
- *  month, "5 5" as the 5th of May, "-" as NOW). A date has a '-' between
- *  two digits ("2026-10-01") or other characters ("1.day" a letter).
+ *  A TIME argument, read by the rule timeranger2 reads a time bound with
+ *  (tranger2_time_of_text()), and passed to it as TEXT: the tranger reads
+ *  it again at the open, in the unit of the axis of each topic. A text it
+ *  refuses is refused here, saying why. Up to 7.29.3 this tool had a
+ *  reader of its own: "007" was 7, and "10.5" and "1,5" were dates (May
+ *  10, May 1), in silence.
  ***************************************************************************/
-PRIVATE BOOL looks_like_integer(const char *text)
+PRIVATE json_t *time_bound_of_arg(const char *option, const char *text, BOOL is_end)
 {
-    for(const char *p = text; *p; p++) {
-        BOOL digit = (*p >= '0' && *p <= '9')? TRUE : FALSE;
-        if(!digit && *p != ' ' && *p != '\t' && *p != '+' && *p != '-') {
-            return FALSE;   // a date: approxidate() reads it
-        }
-        if(*p == '-' && p > text &&
-                p[-1] >= '0' && p[-1] <= '9' && p[1] >= '0' && p[1] <= '9') {
-            return FALSE;   // a date separator: approxidate() reads it
-        }
-    }
-    return TRUE;
-}
-
-/***************************************************************************
- *  A TIME given as an integer: the whole text is -?[0-9]+, in the range of
- *  a json integer. A negative one is relative to the key's last record, as
- *  timeranger2 reads it: up to 7.27.6 all_numbers() refused its '-' and
- *  approxidate() read "-86400" as NOW, in silence. A text that looks like
- *  an integer and is not one is refused (looks_like_integer()).
- ***************************************************************************/
-PRIVATE BOOL time_integer(const char *text, json_int_t *value)
-{
-    const char *p = text;
-    if(*p == '-') {
-        p++;
-    }
-    BOOL digits = (*p)? TRUE : FALSE;
-    for(; *p; p++) {
-        if(*p < '0' || *p > '9') {
-            digits = FALSE;
-            break;
-        }
-    }
-    if(!digits) {
-        if(looks_like_integer(text)) {
-            fprintf(stderr, "TIME is not an integer -?[0-9]+ nor a date: '%s'\n\n", text);
-            exit(-1);
-        }
-        return FALSE;   // a date: approxidate() reads it
-    }
-    errno = 0;
-    char *end = NULL;
-    long long v = strtoll(text, &end, 10);
-    if(errno == ERANGE || !end || *end != 0) {
-        fprintf(stderr, "TIME out of range: '%s'\n\n", text);
+    json_int_t value;
+    const char *why = NULL;
+    if(tranger2_time_of_text(text, TRUE, is_end, &value, &why) < 0) {
+        fprintf(stderr, "TIME of --%s refused, %s: '%s'\n\n", option, why, text);
         exit(-1);
     }
-    *value = (json_int_t)v;
-    return TRUE;
-}
-
-/***************************************************************************
- *  A TIME given as a date, read by approxidate_careful(). A text it cannot
- *  read is refused: approxidate() answers NOW for it, and up to 7.28.8 a
- *  typo (or "-1d", unread from 7.28.5 to 7.28.8) searched from NOW and
- *  listed nothing, in silence.
- ***************************************************************************/
-PRIVATE timestamp_t time_of_date(const char *text)
-{
-    int error = 0;
-    timestamp_t timestamp = approxidate_careful(text, &error);
-    if(error) {
-        fprintf(stderr, "TIME is not a date: '%s'\n\n", text);
-        exit(-1);
-    }
-    return timestamp;
+    return json_string(text);
 }
 
 /***************************************************************************
@@ -1061,39 +991,18 @@ int main(int argc, char *argv[])
      *  Match conditions from Arguments
      *----------------------------------*/
     match_cond = json_object();
-    date_bounds = json_array();
 
     if(arguments.from_t) {
-        json_int_t bound;
-        if(!time_integer(arguments.from_t, &bound)) {
-            bound = (json_int_t)time_of_date(arguments.from_t);
-            json_array_append_new(date_bounds, json_string("from_t"));
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(bound));
+        json_object_set_new(match_cond, "from_t", time_bound_of_arg("from-t", arguments.from_t, FALSE));
     }
     if(arguments.to_t) {
-        json_int_t bound;
-        if(!time_integer(arguments.to_t, &bound)) {
-            bound = (json_int_t)time_of_date(arguments.to_t);
-            json_array_append_new(date_bounds, json_string("to_t"));
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(bound));
+        json_object_set_new(match_cond, "to_t", time_bound_of_arg("to-t", arguments.to_t, TRUE));
     }
     if(arguments.from_tm) {
-        json_int_t bound;
-        if(!time_integer(arguments.from_tm, &bound)) {
-            bound = (json_int_t)time_of_date(arguments.from_tm);
-            json_array_append_new(date_bounds, json_string("from_tm"));
-        }
-        json_object_set_new(match_cond, "from_tm", json_integer(bound));
+        json_object_set_new(match_cond, "from_tm", time_bound_of_arg("from-tm", arguments.from_tm, FALSE));
     }
     if(arguments.to_tm) {
-        json_int_t bound;
-        if(!time_integer(arguments.to_tm, &bound)) {
-            bound = (json_int_t)time_of_date(arguments.to_tm);
-            json_array_append_new(date_bounds, json_string("to_tm"));
-        }
-        json_object_set_new(match_cond, "to_tm", json_integer(bound));
+        json_object_set_new(match_cond, "to_tm", time_bound_of_arg("to-tm", arguments.to_tm, TRUE));
     }
 
     if(arguments.from_rowid) {
@@ -1216,12 +1125,11 @@ int main(int argc, char *argv[])
         json_decref(summary);
 
         /*
-         *  Human-readable rendering of any time conditions present.
-         *  Values entered as natural language ("1 hour ago") were already
-         *  resolved by approxidate() into a Unix timestamp (seconds); each
-         *  topic takes them to its own unit when it is listed.
-         *  Numeric input passed through verbatim and may carry ms resolution,
-         *  so flag anything implausibly large as milliseconds.
+         *  Human-readable rendering of any time conditions present. They
+         *  are text, read here as the tranger reads them (in seconds: each
+         *  topic takes a date to its own unit when it is listed). The
+         *  text of an integer is taken verbatim and may carry ms
+         *  resolution, so flag anything implausibly large as milliseconds.
          */
         const char *time_keys[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
         BOOL header_printed = FALSE;
@@ -1236,7 +1144,14 @@ int main(int argc, char *argv[])
                 );
                 header_printed = TRUE;
             }
-            long long raw = (long long)json_integer_value(v);
+            const char *text = json_string_value(v);
+            json_int_t value = 0;
+            tranger2_time_of_text(text, FALSE, FALSE, &value, NULL);  // read already: time_bound_of_arg()
+            if(empty_string(text)) {
+                printf("  %-8s = ''  ->  no bound\n", time_keys[i]);
+                continue;
+            }
+            long long raw = (long long)value;
             if(raw < 0) {
                 printf("  %-8s = %lld  ->  relative to the last record of each key\n",
                     time_keys[i], raw
@@ -1262,7 +1177,6 @@ int main(int argc, char *argv[])
         }
 
         json_decref(match_cond);
-        json_decref(date_bounds);
         gobj_end();
         return 0;
     }
@@ -1310,7 +1224,6 @@ int main(int argc, char *argv[])
     }
 
     json_decref(match_cond);
-    json_decref(date_bounds);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

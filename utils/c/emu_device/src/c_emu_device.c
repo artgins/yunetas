@@ -358,25 +358,49 @@ PRIVATE int mt_play(hgobj gobj)
 
     priv->match_cond = json_object();
 
-    if(!empty_string(from_t)) {
-        timestamp_t timestamp;
-        int offset;
-        if(all_numbers(from_t)) {
-            timestamp = atoll(from_t);
-        } else {
-            parse_date_basic(from_t, &timestamp, &offset);
+    /*
+     *  The time bounds are read by the rule timeranger2 reads a time bound
+     *  with (tranger2_time_of_text()), and passed to it as TEXT: the
+     *  tranger reads them again at the open, in the unit of the topic's
+     *  axis. Up to 7.29.3 they had a reader of their own (all_numbers() +
+     *  atoll(), else parse_date_basic() with no error check): "007" was 7,
+     *  " 5", "1,5" and "garbage" selected nothing in silence, and a date
+     *  stayed in seconds on an axis in milliseconds.
+     */
+    const struct {
+        const char *name;
+        const char *text;
+        BOOL is_end;
+    } time_bounds[] = {
+        {"from_t",  from_t, FALSE},
+        {"to_t",    to_t,   TRUE},
+    };
+    for(size_t i = 0; i < sizeof(time_bounds)/sizeof(time_bounds[0]); i++) {
+        const char *text = time_bounds[i].text;
+        if(empty_string(text)) {
+            continue;
         }
-        json_object_set_new(priv->match_cond, "from_t", json_integer(timestamp));
-    }
-    if(!empty_string(to_t)) {
-        timestamp_t timestamp;
-        int offset;
-        if(all_numbers(to_t)) {
-            timestamp = atoll(to_t);
-        } else {
-            parse_date_basic(to_t, &timestamp, &offset);
+        json_int_t value;
+        const char *why = NULL;
+        if(tranger2_time_of_text(text, TRUE, time_bounds[i].is_end, &value, &why) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "time bound refused",
+                "why",          "%s", why,
+                "bound",        "%s", time_bounds[i].name,
+                "value",        "%.*s", utf8_prefix_len(text, 64), text,
+                NULL
+            );
+            if(agent_client) {
+                clear_replay_resources(gobj);
+                gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
+                return -1;
+            }
+            fprintf(stderr, "TIME of %s refused, %s: '%s'\n", time_bounds[i].name, why, text);
+            exit(-1);
         }
-        json_object_set_new(priv->match_cond, "to_t", json_integer(timestamp));
+        json_object_set_new(priv->match_cond, time_bounds[i].name, json_string(text));
     }
     if(!empty_string(from_rowid)) {
         json_object_set_new(priv->match_cond, "from_rowid", json_integer(atoll(from_rowid)));

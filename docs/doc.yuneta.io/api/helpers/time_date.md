@@ -10,7 +10,7 @@ Source code:
 (approxidate_careful)=
 ## [`approxidate_careful()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L8576)
 
-Reads a date as a person types it on a command line -- `"2 hours ago"`, `"yesterday noon"`, `"2026-10-01 10:00"`, `"@1700000000 +0000"` -- against now. It is what every tool of the SDK reads a TIME option with (`tr2list --from-t`, `tr2search`, `stats_list`), and what timeranger2 reads a string tkey with. `approxidate(s)` is the same with no error flag: a text that says no date is now.
+Reads a date as a person types it on a command line -- `"2 hours ago"`, `"yesterday noon"`, `"2026-10-01 10:00"`, `"@1700000000 +0000"` -- against now. It is what reads a date in [`tranger2_time_of_text()`](<#tranger2_time_of_text>), the rule every tool of the SDK reads a TIME option with (`tr2list --from-t`, `tr2search`, `stats_list`, `emu_device`, `time2range`) and timeranger2 reads a text bound and a string tkey with: there a text written as a number (`"007"`, `"10.5"`, `"1,5"`) never gets to it. `approxidate(s)` is the same with no error flag: a text that says no date is now.
 
 ```C
 timestamp_t approxidate_careful(

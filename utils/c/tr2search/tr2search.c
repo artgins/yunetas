@@ -847,20 +847,23 @@ PRIVATE void delete_right_slash(char *s)
 }
 
 /***************************************************************************
- *  A TIME given as a date, read by approxidate_careful(). A text it cannot
- *  read is refused: approxidate() answers NOW for it, and up to 7.28.8 a
- *  typo (or "-1d", unread from 7.28.5 to 7.28.8) searched from NOW and
- *  listed nothing, in silence.
+ *  A TIME argument, read by the rule timeranger2 reads a time bound with
+ *  (tranger2_time_of_text()), and passed to it as TEXT: the tranger reads
+ *  it again at the open, in the unit of the axis of the topic. A text it
+ *  refuses is refused here, saying why. Up to 7.29.3 this tool had a
+ *  reader of its own (all_numbers() + atoll()): "007" was 7, " 5" and
+ *  "1,5" dates (the 5th, May 1), "-5" (a relative bound) refused as no
+ *  date, and a date stayed in seconds on an axis in milliseconds.
  ***************************************************************************/
-PRIVATE timestamp_t time_of_date(const char *text)
+PRIVATE json_t *time_bound_of_arg(const char *option, const char *text, BOOL is_end)
 {
-    int error = 0;
-    timestamp_t timestamp = approxidate_careful(text, &error);
-    if(error) {
-        fprintf(stderr, "TIME is not a date: '%s'\n\n", text);
+    json_int_t value;
+    const char *why = NULL;
+    if(tranger2_time_of_text(text, TRUE, is_end, &value, &why) < 0) {
+        fprintf(stderr, "TIME of --%s refused, %s: '%s'\n\n", option, why, text);
         exit(-1);
     }
-    return timestamp;
+    return json_string(text);
 }
 
 /***************************************************************************
@@ -944,40 +947,16 @@ int main(int argc, char *argv[])
     match_cond = json_object();
 
     if(arguments.from_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_t)) {
-            timestamp = atoll(arguments.from_t);
-        } else {
-            timestamp = time_of_date(arguments.from_t);
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_t", time_bound_of_arg("from-t", arguments.from_t, FALSE));
     }
     if(arguments.to_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_t)) {
-            timestamp = atoll(arguments.to_t);
-        } else {
-            timestamp = time_of_date(arguments.to_t);
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_t", time_bound_of_arg("to-t", arguments.to_t, TRUE));
     }
     if(arguments.from_tm) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_tm)) {
-            timestamp = atoll(arguments.from_tm);
-        } else {
-            timestamp = time_of_date(arguments.from_tm);
-        }
-        json_object_set_new(match_cond, "from_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_tm", time_bound_of_arg("from-tm", arguments.from_tm, FALSE));
     }
     if(arguments.to_tm) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_tm)) {
-            timestamp = atoll(arguments.to_tm);
-        } else {
-            timestamp = time_of_date(arguments.to_tm);
-        }
-        json_object_set_new(match_cond, "to_tm", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_tm", time_bound_of_arg("to-tm", arguments.to_tm, TRUE));
     }
 
     if(arguments.from_rowid) {

@@ -491,20 +491,23 @@ PRIVATE int list_recursive(list_params_t *list_params)
 }
 
 /***************************************************************************
- *  A TIME given as a date, read by approxidate_careful(). A text it cannot
- *  read is refused: approxidate() answers NOW for it, and up to 7.28.8 a
- *  typo (or "-1d", unread from 7.28.5 to 7.28.8) searched from NOW and
- *  listed nothing, in silence.
+ *  A TIME argument, in seconds, read by the rule timeranger2 reads a time
+ *  bound with (tranger2_time_of_text()): the text of a JSON integer is
+ *  that integer, a text written as another number is refused, another
+ *  text is a date, and one that is no date is refused, saying why. Up to
+ *  7.29.3 this tool had a reader of its own (all_numbers() + atoll()):
+ *  "007" was 7, " 5" and "1,5" dates (the 5th, May 1), "-5" refused as
+ *  no date.
  ***************************************************************************/
-PRIVATE timestamp_t time_of_date(const char *text)
+PRIVATE json_int_t time_of_arg(const char *option, const char *text)
 {
-    int error = 0;
-    timestamp_t timestamp = approxidate_careful(text, &error);
-    if(error) {
-        fprintf(stderr, "TIME is not a date: '%s'\n\n", text);
+    json_int_t value;
+    const char *why = NULL;
+    if(tranger2_time_of_text(text, FALSE, FALSE, &value, &why) < 0) {
+        fprintf(stderr, "TIME of --%s refused, %s: '%s'\n\n", option, why, text);
         exit(-1);
     }
-    return timestamp;
+    return value;
 }
 
 /***************************************************************************
@@ -581,22 +584,10 @@ int main(int argc, char *argv[])
     json_t *match_cond = json_object();
 
     if(arguments.from_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.from_t)) {
-            timestamp = atoll(arguments.from_t);
-        } else {
-            timestamp = time_of_date(arguments.from_t);
-        }
-        json_object_set_new(match_cond, "from_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "from_t", json_integer(time_of_arg("from-t", arguments.from_t)));
     }
     if(arguments.to_t) {
-        timestamp_t timestamp;
-        if(all_numbers(arguments.to_t)) {
-            timestamp = atoll(arguments.to_t);
-        } else {
-            timestamp = time_of_date(arguments.to_t);
-        }
-        json_object_set_new(match_cond, "to_t", json_integer(timestamp));
+        json_object_set_new(match_cond, "to_t", json_integer(time_of_arg("to-t", arguments.to_t)));
     }
 
     if(arguments.variable) {

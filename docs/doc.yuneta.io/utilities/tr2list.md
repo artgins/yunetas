@@ -39,8 +39,11 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 
 ## Time bounds
 
-`--from-t`, `--to-t`, `--from-tm` and `--to-tm` take an integer or a date.
-An integer is used as it is, in the topic's own unit: seconds, or
+`--from-t`, `--to-t`, `--from-tm` and `--to-tm` take an integer or a date,
+read by the rule timeranger2 reads a time bound with,
+[`tranger2_time_of_text()`](<#tranger2_time_of_text>), and passed to it as
+text: each topic reads it at the open. An integer is the text of a JSON
+integer, `-?(0|[1-9][0-9]*)`, used as it is, in the topic's own unit: seconds, or
 milliseconds for `t` on an `sf_t_ms` topic and for `tm` on an `sf_tm_ms` one.
 A date (any form `approxidate` reads: `"2026-10-01"`, `"2 days ago"`,
 `"yesterday"`) is read in seconds and taken to that unit, topic by topic, so
@@ -77,11 +80,11 @@ tr2list /yuneta/store/x/topic1 --key=esg@example.com --from-t=-1d
 
 From 7.28.5 to 7.28.8 the date reader refused `-1d`, and `tr2list` read it as
 NOW, with no word: it listed nothing. A date that `approxidate` cannot read is
-refused now:
+refused now, saying why:
 
 ```bash
 tr2list /yuneta/store/x/topic1 --from-t=ayer
-# -> TIME is not a date: 'ayer'
+# -> TIME of --from-t refused, a text that is no date: 'ayer'
 ```
 
 Up to 7.27.4 a date stayed in seconds on a topic in milliseconds, and selected
@@ -89,23 +92,30 @@ nothing or everything there. Up to 7.27.6 a negative integer was read as a
 date, and `approxidate` read `-86400` as NOW (and `-1` as the first day of
 the month), with no word. `--dry-run` shows the dates resolved in seconds, and
 a negative bound as relative to the last record of each key; an integer out
-of range is refused (*"TIME out of range"*).
+of range is refused (*"an integer past what a time holds"*). An empty TIME is
+no bound.
 
-An integer TIME is exactly `-?[0-9]+`. A text of spaces, signs and digits
-only that is not one is refused, not read as a date, wherever its signs and
-spaces are: up to 7.27.6 `approxidate` read `+5`, `" -5"`, `5+`, `5-` and
-`-5-` as the 5th of this month, `"5 5"` and `5+5` as the 5th of May, and a
-lone `-` or an empty TIME as NOW, with no word. A `-` between two digits makes
-the text a date, and a date keeps working (`2026-10-01`; `1.day` has a
-letter):
+A text written as a number that is not the text of a JSON integer is refused,
+never read as a date: blanks around it, leading zeros, a `+`, decimals, an
+exponent, a decimal comma (`" 5"`, `007`, `+5`, `10.5`, `1E5`, `1,5`), and
+digits in groups separated by blanks (`"5 5"`, `"2026 10 01"`). So is a text
+that `approxidate` cannot read (`5-`, `-5-`, `5+5`, a lone `-`). Up to 7.27.6
+`approxidate` read `+5`, `" -5"`, `5+`, `5-` and `-5-` as the 5th of this
+month, `"5 5"` and `5+5` as the 5th of May, and a lone `-` or an empty TIME
+as NOW, with no word; up to 7.29.3 tr2list had a reader of its own, and `007`
+was 7, `10.5` and `1,5` May 10 and May 1. A `-` between two digits makes the
+text a date, and a date keeps working (`2026-10-01`, `01.10.2026`; `1.day`
+has a letter):
 
 ```bash
 tr2list /yuneta/store/x/topic1 --from-t=+5
-# -> TIME is not an integer -?[0-9]+ nor a date: '+5'
-tr2list /yuneta/store/x/topic1 --from-t=5-
-# -> TIME is not an integer -?[0-9]+ nor a date: '5-'
+# -> TIME of --from-t refused, a number that is not the text of a JSON integer: '+5'
+tr2list /yuneta/store/x/topic1 --from-t=1,5
+# -> TIME of --from-t refused, a number that is not the text of a JSON integer: '1,5'
 tr2list /yuneta/store/x/topic1 --from-t='5 5'
-# -> TIME is not an integer -?[0-9]+ nor a date: '5 5'
+# -> TIME of --from-t refused, numbers separated by blanks, not a date: '5 5'
+tr2list /yuneta/store/x/topic1 --from-t=5-
+# -> TIME of --from-t refused, a text that is no date: '5-'
 tr2list /yuneta/store/x/topic1 --from-t=2026-10-01 --dry-run
 # -> from_t = ... 2026-10-01T...
 ```
