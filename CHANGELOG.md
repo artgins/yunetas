@@ -23,6 +23,159 @@
   deleted: 380 MB on the dev machine) and pid files are left out; nginx
   creates the `*_temp` ones when it starts, and `logs/` stays, empty.
 
+- **Security: a permission check no longer borrows the roles of the
+  services named in the client's kw** (`C_AUTHZ`). `get_user_permissions()`
+  read `required_services` from the kw of the check -- the command's kw,
+  written by the client -- and added the permissions of the child roles of
+  each of those services: a child role giving `update` in `treedb_B` let
+  `update-node` run on `treedb_A` with `"required_services": ["treedb_B"]`
+  in the kw. A copy of `get_user_roles()`, there since v6; `required_services`
+  is read only from the identity card at login now.
+  `authz_scoped_permissions` case 8. In 7.29.1.
+- **Security: a role scoped on the `kw` of a global authz is refused,
+  loudly.** `__execute_command__`, `__inject_event__`, `__subscribe_event__`
+  and the stats authzs declare a json `kw` (the request as the client sends
+  it). A scope on it was compared whole: a grant held only for exactly that
+  kw, and a scoped deny never applied (fail-open). A scope may name only a
+  declared key that is a value; on a json one the grant is dropped and the
+  deny applies to everything, with an ERROR. Scope a command on `command`
+  (`YUNO_AUTH.md`). Case 9. In 7.29.1, since 7.27.15.
+- **The selective restart compares with what each yuno was launched with**
+  (`yuno_agent`). Since 7.28.11 `restart_nodes()` took its "before" from the
+  treedb as the restart began, so an `update-config` of the version in use,
+  or a same-version `update-binary`, was on both sides and the yuno kept its
+  old configuration or binary, with no log. `run_yuno()` writes
+  `bin/<role>^<name>.launch.json` and the restart compares with it. A yuno
+  launched by an older agent has no such file: it is restarted once and
+  listed as `launch_not_known`, so **the first node restart after the agent
+  is upgraded relaunches every yuno**. `must_play`, `traced`,
+  `start_priority` and the `yunos` fkeys of the binary and configuration are
+  out of the signature: `activate-snap` no longer kills yunos whose launch
+  did not change. `install-binary` warns of the old version form other than
+  `x.y.z.0` (`1.9.1.8` sorts newer than `1.9.1-7.27.11`; the CLI's
+  `sync-binaries` does the same from 1.0.4). In 7.29.1.
+- **controlcenter: deleting a running scenario needs `run-scenarios` too**,
+  as saving it does. With `write-scenarios` alone a user removed its stop
+  steps and its `max_run` stop, and left the generators running with nobody
+  to stop them. A `max_run` stop that reaches no node is written once and
+  tried again when an agent of its nodes connects (`scenarios` says
+  `stop_waits_node`); it wrote a run and a warning every minute. In 7.29.1.
+- **The date reader reads again the forms the port of git's `date.c` read**
+  (`parse_date_basic()`, `approxidate_careful()`; 7.28.5 to 7.29.1). M/D/Y
+  and D.M.Y with the year and a clock time after them are read as written,
+  not swapped when far ahead (`1.12.2026 10:00` is December 1, not January
+  12). Read again: an offset after GMT/UTC (`Thu Oct 01 2026 10:00:00
+  GMT+0200 (CEST)`, from `Date.toString()`), ordinals (`July 5th`, `the 5th
+  of July`), a comma before the fraction of a second, plural weekdays (`2
+  fridays ago`), a month name between dashes or slashes (`01-Oct-2026`,
+  `01/Oct/2026:10:00:00 +0200`). Epoch seconds no calendar holds
+  (`@9223372036854775807`) are refused with the error flag instead of
+  logging an internal ERROR. The 7.28.5 notes said every documented form gave
+  the same time; it did not. The differences left are fixes: `GMT+2` is
+  refused (the port read GMT), a clock time on a date in another UTC offset
+  is right (`Dec 25 10:00` was 09:00), a clock time the port dropped is kept,
+  `noon UTC` keeps its zone. `test_date_text` section 10.
+- **M-Bus: the master reads a long answer at 2400 baud.** `timeout_response`
+  was armed once per request: a ~250-byte `RSP_UD` (~1.2 s on the wire)
+  outlived the default 500 ms, the request was repeated, the tail of the
+  first answer broke the second, and the meter was never read. It is now the
+  silence allowed: to the first byte, then again on each chunk; a bad frame
+  is waited out until the bus is quiet, at most the bytes of two frames.
+  `c_prot_mbus_m/test3`. In 7.29.1, since 7.27.9.
+- **M-Bus: the `set-primary-address` write and the selections carry FCB 1**
+  (`C=0x73`). The first `SND_UD` after a selection must; with FCB 0 a strict
+  meter took the write for a repeat, acknowledged it and kept its address,
+  and the operation failed at its check. In 7.29.1, since 7.27.9.
+- **M-Bus: a real that is ±Inf is `null`, like NaN**; it made the whole
+  telegram undecodable with a stale reason, and the scan read an
+  uninitialised buffer as that reason. **Dates out of range are `null`**
+  (types G, F, I, J: `04 6D 3F 1F 21 01` was `2001-01-01T31:63`; a year 127,
+  a storage never written, was a date). **A duration in months or years is
+  its own quantity, `<quantity>_months`, in `month`** (a year is 12):
+  `storage_interval`, `tariff_period`, `since_last_cumulation` and
+  `battery_operating_time` came out in `s` or in `month`/`year` depending on
+  the code; the plain names are always `s`. The record ids change; nothing
+  consumes them yet. In 7.29.1, since 7.27.9.
+- **archive_keeper: a batch is in flight on one channel at a time.** Two
+  channels that began the same batch shared its `.part-`: the second `begin`
+  removed the first's copy, and the first was answered `stored` for files it
+  had not written, so its sender removed a batch whose data was empty in the
+  backup. That `begin` is refused now; a channel silent for the new
+  `stale_session_timeout` (60 s, a sender gone without a close) has its
+  batch taken over and is dropped, with a WARNING. **`stored` only for a
+  batch that survives a power cut**: every directory up to
+  `backup_directory` is fsynced (only the key's was). A peer's `"batch":""`
+  no longer reads before a stack buffer. `max_files` goes from 10000 to
+  100000 and its refusal names the count and the limit; a `begin` that does
+  not fit in the free space is refused at once; `batches_refused` counts
+  batches, not the window frames of one. In 7.29.0 and 7.29.1.
+- **archive_sender sorts a batch's file names in O(n log n)**: its O(n^2)
+  sort blocked the loop for seconds on thousands of files. A ready mark that
+  cannot be removed is logged. In 7.29.0 and 7.29.1.
+- **timeranger2: a text append that one realtime list cannot parse still
+  reaches the lists after it** (`only_md` ones missed it; only on an
+  allocation failure, since 7.27.10). `tranger2_archive_key_files()` logs the
+  errno of the link that failed, not a stale one. The docs say that a batch
+  whose base was not written can change after its manifest (hard links to
+  live files): take a file id from the batch with the latest `@<t>`.
+- **`treedb_open_db()` refuses a treedb whose name is too long for the ids of
+  its lists**, with one ERROR before it makes anything. With the yuno in the
+  ids (7.27.11), a name of about 100 bytes opened without its
+  `__snaps__`/`__graphs__` lists and every topic was refused; a name past
+  `NAME_MAX` was cut. `list_id_yuno()` logs when it cuts. `tr_treedb_snap`
+  case 12.
+- **ytls/mbedTLS: the cn of a certificate is UTF-8 whatever its ASN.1 type**
+  (BMPString, UniversalString, the one-byte ones as Latin-1), as OpenSSL's.
+  `archive_keeper` refused on mbedTLS a node it accepts on OpenSSL (fail
+  closed). In 7.29.0 and 7.29.1.
+- **`publish-stats` refuses a `stats_service` longer than `NAME_MAX`, and
+  never cuts the key of a publication**: two long names could share one, and
+  `stop=1` on one stopped the other. **`c_websocket` reads a short
+  `getrandom()` to the end**: it took it for a failure, logged a stale errno
+  and used the predictable fallback masking key. **`list_queue_msgs2` no
+  longer leaks** (one json per message with `-l 2`, its queue, the gobj
+  system).
+- **The node uuid stays the same while the hardware still gives it**
+  (`yuneta-node-uuid`). A node that took its uuid from a MAC stored the
+  source but not which MAC: a card added with a lower MAC moved it for ever,
+  and the interface missing at one boot moved it there and back, each time
+  logged as "OTHER hardware". A stored uuid is now kept when any on-board
+  interface gives it, and the file records the uuid each interface gives
+  (`ethernet_ids`, uuids, not MACs); a 7.29.1 file gains the list at its
+  next `ensure`, uuid unchanged. The byte-swapped placeholder `product_uuid`
+  (`00020003-0004-0005-0006-000700080009`, SMBIOS before 2.6) is refused. In
+  a container no hardware is read (every container of a host got the host's
+  uuid): a new one gets a random uuid. **No uuid a node holds is changed**;
+  the derivation is pinned by the test. A changed uuid needs both agents
+  AND every yuno restarted (`node_uuid()` keeps it per process; the 7.29.1
+  notes did not say so): the warning, `set` and the docs say it. `show`
+  without root says what it could not read; two replacements in one second
+  no longer share a backup name; `set` takes the lock.
+  `test-yuneta-node-uuid.sh` can no longer `rm -rf /root` after a failed
+  `mktemp`, refuses root, and fails a check with an empty value. In 7.29.1.
+- **The cloners and `yuno-skeleton`** (since 7.28.7): a cloned symlink
+  follows the file it points to when that file is renamed (it was left
+  dangling); a path past `PATH_MAX` is refused (*"path too long"*), not used
+  cut; a template's mode is kept (an executable one gave a plain file); the
+  end of input takes the defaults again and is fatal only for a required
+  answer; the generated project view carries logical class names
+  (`PLACEHOLDER_CARD`, `PLACEHOLDER_TITLE`, ...).
+- **gui_agent 1.1.7** (`yunos/js`): a console paints only the answers to its
+  own commands (`my-permissions` and `watch-scenario` were painted in every
+  open one); a scenario yuno's switch is disabled, saying why, for a user who
+  may not run the scenario; the roles sheet keeps a permission's own empty
+  scope (`{}`), with an *Own scope* checkbox (it inherited the role's
+  narrower scope, or the save was refused); against a controlcenter without
+  `watch-scenario` every node is watched through `command-agent`, not only
+  the first; a viewer's brand goes to `/scenarios/list`. The tags missing in
+  `yunos-js` for earlier gui_agent and gui_treedb versions are pushed. In
+  7.29.1.
+- **CLI 1.0.4** (`utils/python/tui_yunetas`): `sync-binaries` warns of the
+  old version form other than `x.y.z.0`, as the agent.
+- **Docs:** `modbus.md` says that a cycle ending in a timeout starts the next
+  one `timeout_response` later (the code since 2023);
+  `YUNO_LIFECYCLE.md`'s table says that `disable-yuno` stops a running yuno.
+
 ## v7.29.1 (2026-10-28)
 
 The node uuid comes from the hardware, and the SDK builds on riscv64. A

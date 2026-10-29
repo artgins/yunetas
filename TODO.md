@@ -116,6 +116,23 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   spawning yunos, `/var/crash`). An OCI image as the build environment is the
   portable form of the matrix option. Not urgent while every node is ours.
 
+- **The node uuid when its recorded source disappears** (`yuneta-node-uuid`,
+  after 7.29.1). Four cases left as they are:
+    - a node whose recorded source is missing while another is present (an
+      ethernet-mac node that sees no NIC at one boot but has DMI or a
+      devicetree; a disk imaged from a box with real DMI onto one whose DMI
+      is a placeholder) switches source, and its uuid changes. Keeping it
+      would stop the first case moving, and make clones keep a shared uuid
+      in the second;
+    - a 7.29.1 ethernet-mac file whose interface is missing at its very
+      first `ensure` of the new script (before `ethernet_ids` exists) is
+      replaced: nothing tells this box from a clone yet;
+    - the packages restart only the agents when the uuid changes: the yunos
+      that run keep the old one until restarted (documented, not done);
+    - containers that already hold a host-DMI uuid keep it (no uuid a node
+      holds is ever changed), so sibling containers stay identical until
+      `set` by hand; a container with none of the markers is not detected.
+
 ---
 
 ## 4. Accepted limitations
@@ -281,6 +298,23 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
 
 ### timeranger2 and C_TRANGER
 
+- **Bound the size of an archive batch at its cause**
+  (`tranger2_archive_key_files()`). A first archive of a long history makes a
+  batch of unbounded file count, and `archive_keeper` refuses anything above
+  `max_files` (100000 since R44; it was 10000, which a first retention of
+  about seven months on an hourly topic passed). Split one purge into several
+  batches of at most N file ids, all made durable before the base, each with
+  its manifest and ready mark, all removed if the base fails: the same cut
+  still gives the same answer.
+- **A batch whose purge did not happen should not stay visible.** A batch
+  whose base was not written holds hard links to live files, so a late
+  append, `tranger2_write_user_flag()` or `tranger2_delete_instance()`
+  changes it after its `manifest.json` (documented in R44: a reader takes a
+  file id from the batch with the latest `@<t>`). Keep the batch hidden
+  (`.new-`) until after the base and settle leftovers at the next archive of
+  the key (`upto` at or before the base: rename; after it: remove), the case
+  of a purge that takes no files included.
+
 - **A replica pays about 1 us per iterator open and per page for
   `check_purge_before_read()`** (since 7.27.5, `83a771089`; study of 7.27.5
   against 7.27.0). A page of 1 row: 5.25 -> 6.20 us (+18%); a filtered page
@@ -331,6 +365,20 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   without `IN_DELETE` (the root keeps it: the key-delete signal is a
   `.d<seq>.<key>` directory made and removed there); needs a per-level mask in `fs_watcher`, and `C_FS` still
   wants file deletes.
+
+### archive_keeper and archive_sender
+
+- **Nothing ends a half-open channel on the keeper's side.** `C_TCP` has no
+  keepalive and its `timeout_inactivity` works for clients only, so a dead
+  sender keeps its channel slot until a `begin` of the same batch takes it
+  over (`stale_session_timeout`, R44); stale channels can use up the
+  `__range__`. Needs a server-side inactivity close or TCP keepalive in
+  `C_TCP`/`C_CHANNEL`, or a keeper timer that drops channels idle past
+  `stale_session_timeout`.
+- **`same_batch()` rehashes a whole batch in one event**, without yielding
+  the loop. It runs only when a sender ships again a batch already stored
+  (after a lost `stored`). Hash it in slices, posting an event to itself per
+  N MB.
 
 ### Schema editing
 
@@ -401,6 +449,12 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   CLI at a ROPC-disabled IdP before this lands.**
 - **`EVF_AUTHZ_INJECT` is declared but not enforced**: no gate exists for
   `gobj_send_event` (`gobj.h` ~333).
+
+### gui_agent
+
+- **Show a `max_run` stop that waits for its node** (`stop_waits_node` of
+  the controlcenter's `scenarios`, after 7.29.1). While it waits, `stop_at`
+  stays at its due time, in the past; the scenario view shows neither.
 
 ### gui_treedb
 
