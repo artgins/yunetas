@@ -660,7 +660,7 @@ PRIVATE int mt_play(hgobj gobj)
      *          Create Treedb System
      *-------------------------------------------*/
     char path[PATH_MAX];
-    yuneta_realm_store_dir(
+    if(!yuneta_realm_store_dir(
         path,
         sizeof(path),
         gobj_yuno_role(),
@@ -669,7 +669,15 @@ PRIVATE int mt_play(hgobj gobj)
         "",  // tenant
         "",  // gclass-treedb controls the directories
         TRUE
-    );
+    )) {
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot build or create the store directory",
+            NULL
+        );
+        return -1;
+    }
     json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
         "path", path,
         "filename_mask", "%Y",  // to management treedbs we don't need multifiles (per day)

@@ -1016,7 +1016,7 @@ PRIVATE int open_database(hgobj gobj)
     }
 
     char path[PATH_MAX];
-    yuneta_realm_store_dir(
+    if(!yuneta_realm_store_dir(
         path,
         sizeof(path),
         mqtt_service,
@@ -1025,7 +1025,17 @@ PRIVATE int open_database(hgobj gobj)
         mqtt_tenant,  // tenant
         "",  // gclass-treedb controls the directories
         TRUE
-    );
+    )) {
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot build or create the store directory",
+            "mqtt_service", "%s", mqtt_service,
+            "mqtt_tenant",  "%s", mqtt_tenant,
+            NULL
+        );
+        return -1;
+    }
 
     /*-------------------------------------------*
      *          Create Treedb System
@@ -1161,7 +1171,7 @@ PRIVATE int open_database(hgobj gobj)
     /*---------------------------------------*
      *      Open qmsgs Timeranger
      *---------------------------------------*/
-    yuneta_realm_store_dir(
+    if(!yuneta_realm_store_dir(
         path,
         sizeof(path),
         mqtt_service,
@@ -1170,7 +1180,17 @@ PRIVATE int open_database(hgobj gobj)
         mqtt_tenant,  // tenant
         "qmsgs",
         TRUE
-    );
+    )) {
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot build or create the store directory",
+            "mqtt_service", "%s", mqtt_service,
+            "mqtt_tenant",  "%s", mqtt_tenant,
+            NULL
+        );
+        return -1;
+    }
 
     json_t *kw_tranger_qmsgs = json_pack("{s:s, s:b, s:i}",
         "path", path,

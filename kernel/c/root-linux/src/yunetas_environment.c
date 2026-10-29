@@ -99,7 +99,12 @@ PUBLIC char *yuneta_realm_dir(
         return 0;
     }
 
-    build_path(bf, bfsize, yuneta_root_dir(), yuneta_domain_dir(), subdomain, NULL);
+    if(!build_path(bf, bfsize, yuneta_root_dir(), yuneta_domain_dir(), subdomain, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     if(create) {
         if(!is_directory(bf)) {
@@ -129,7 +134,12 @@ PUBLIC char *yuneta_realm_file(
         return 0;
     }
 
-    build_path(bf, bfsize, realm_path, filename, NULL);
+    if(!build_path(bf, bfsize, realm_path, filename, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     return bf;
 }
@@ -157,7 +167,12 @@ PUBLIC char *yuneta_log_file(
         return 0;
     }
 
-    build_path(bf, bfsize, log_path, filename, NULL);
+    if(!build_path(bf, bfsize, log_path, filename, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     return bf;
 }
@@ -185,7 +200,12 @@ PUBLIC char *yuneta_bin_file(
         return 0;
     }
 
-    build_path(bf, bfsize, log_path, filename, NULL);
+    if(!build_path(bf, bfsize, log_path, filename, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     return bf;
 }
@@ -206,7 +226,12 @@ PUBLIC char *yuneta_store_dir(
         return 0;
     }
 
-    build_path(bf, bfsize, yuneta_root_dir(), "store", dir, subdir, NULL);
+    if(!build_path(bf, bfsize, yuneta_root_dir(), "store", dir, subdir, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     if(create) {
         if(!is_directory(bf)) {
@@ -237,7 +262,12 @@ PUBLIC char *yuneta_store_file(
         return 0;
     }
 
-    build_path(bf, bfsize, store_path, filename, NULL);
+    if(!build_path(bf, bfsize, store_path, filename, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     return bf;
 }
@@ -261,7 +291,12 @@ PUBLIC char *yuneta_realm_store_dir(
         return 0;
     }
 
-    build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, tenant, dir, NULL);
+    if(!build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, tenant, dir, NULL)) {
+        if(bf && bfsize > 0) {
+            *bf = 0;
+        }
+        return 0;   // Error already logged
+    }
 
     if(create) {
         if(!is_directory(bf)) {

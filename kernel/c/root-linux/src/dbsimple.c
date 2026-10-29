@@ -553,7 +553,10 @@ PRIVATE json_t *load_json(
         *failed = FALSE;
     }
     char filename[PATH_MAX];
-    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE);
+    if(!get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE)) {
+        // No path (too long: logged; or no realm directory): no attrs saved
+        return 0;
+    }
 
     remove_stale_temp_files(gobj, filename);
 
@@ -895,7 +898,20 @@ PRIVATE int save_json(
 )
 {
     char filename[PATH_MAX];
-    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
+    if(!get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE)) {
+        /*
+         *  Up to 7.29.3 the save went on with an empty path, or with the
+         *  cut one: the temporary file was created in the current directory.
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "No path for the persistent attrs file: not saved",
+            NULL
+        );
+        JSON_DECREF(jn)
+        return -1;
+    }
 
     char tmpname[PATH_MAX];
     if(snprintf(tmpname, sizeof(tmpname), "%s" TMP_INFIX "XXXXXX", filename) >= (int)sizeof(tmpname)) {
