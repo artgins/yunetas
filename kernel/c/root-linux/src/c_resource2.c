@@ -657,7 +657,7 @@ PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *res
         return -1;
     }
 
-    char filename[NAME_MAX];
+    char filename[NAME_MAX+1];  // a file name is up to NAME_MAX bytes, and its '\0'
     int len = snprintf(filename, sizeof(filename), "%s.json", resource);
     if(len < 0 || len >= (int)sizeof(filename)) {
         /*

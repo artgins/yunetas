@@ -5540,8 +5540,9 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     /*
      *  The export is written under the realm "temp" dir; the caller-supplied
-     *  filename must stay a bare name. Reject path separators / traversal so it
-     *  cannot escape the realm dir (build_path does not normalize "..").
+     *  filename must stay a bare name. build_path() keeps ".." inside its
+     *  first segment, so it could not escape that dir, but it would quietly
+     *  name another file: path separators and ".." are refused and said.
      */
     if(!empty_string(filename) && (strchr(filename, '/') || strstr(filename, ".."))) {
         return msg_iev_build_response(
