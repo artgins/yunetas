@@ -232,7 +232,7 @@ Registered in the agent's command table. Yuno + binary + config commands only
 | `create-yuno`      | Create a row in `yunos`. Validates realm + binary + config existence.       |
 | `delete-yuno`      | Pass `yuno_release=` to durably prune one release instance (for example a superseded or higher release), or `whole=1` for the yuno and all its releases. The bare form is **refused**. It refuses if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or if `tagged`, unless `force=1`. Then it deletes the row. |
 | `enable-yuno`      | `yuno_disabled := false`.                                                 |
-| `disable-yuno`     | `yuno_disabled := true`. Does **not** stop a running yuno.                |
+| `disable-yuno`     | Pauses the yuno if it plays, SIGKILLs it if it runs, then `yuno_disabled := true`. See §5.6. |
 | `run-yuno`         | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
 | `kill-yuno`        | Orderly shutdown of matching running yunos. Sends `signal2kill` (SIGQUIT by default). See §4. |
 | `play-yuno`        | Send `EV_PLAY_YUNO` event over the yuno's channel. Flip `must_play=true`. |
