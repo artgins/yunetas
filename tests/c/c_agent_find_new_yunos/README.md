@@ -68,6 +68,15 @@ Each row now says whether its instance at the new release exists.
     `x.y.z.N` passes only with N `0` (`1.9.1.8` compares newer than
     `1.9.1-7.27.11`; up to 7.29.1 it passed).
 
+12. the launch file is what the yuno was launched with, exactly
+    (`write_yuno_json_file()`, which also writes the configuration files the
+    yuno is launched with): a configuration with a real of more than 12
+    digits (`40.416775123456`), and one over 256 KB, are both kept by a
+    restart right after the launch. Up to 7.29.2 the file went through
+    `json2str()`, its reals at 12 digits, into a gbuffer of 256 KB: the
+    first never compared equal and the second was cut and could not be read
+    back, so those yunos were restarted at every restart of the node.
+
 ## Run
 
 ```bash

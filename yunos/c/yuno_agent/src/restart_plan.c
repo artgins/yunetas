@@ -256,15 +256,13 @@ PUBLIC int note_yuno_launch(
     json_t *jn_signature = yuno_launch_signature(gobj, gobj_resource, yuno);
     JSON_DECREF(yuno)
 
-    gbuffer_t *gbuf = gbuffer_create(4*1024, 256*1024);
-    if(!gbuf) {
-        // Error already logged
-        JSON_DECREF(jn_signature)
-        unlink(path);   // the signature of another launch would answer for this one
-        return -1;
-    }
-    gbuffer_append_json(gbuf, jn_signature);    // owned
-    if(write_yuno_config_file(gobj, gbuf, path)<0) {
+    /*
+     *  Exactly as it is: up to 7.29.2 it went through json2str() (reals at
+     *  12 digits: a real with more never compared equal) into a gbuffer of
+     *  256 KB (a larger configuration was cut): the yuno was restarted at
+     *  every restart of the node.
+     */
+    if(write_yuno_json_file(gobj, jn_signature, path)<0) {  // jn_signature owned
         // Error already logged
         unlink(path);   // the signature of another launch would answer for this one
         return -1;

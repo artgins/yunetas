@@ -303,7 +303,7 @@ yuno with a message that points at `list`. The yuno does not ignore it.
 To reproduce a yuno that the agent launches, take its command line from
 `running-bin id=<id>` or `running-keys id=<id>`. You can also use the script
 that the agent writes at
-`/yuneta/realms/<realm>/<yuno>/bin/<role>^<id>.sh`. Then append the flag.
+`/yuneta/realms/<realm_owner>/<realm>/<role>^<id>/bin/<role>^<name>.sh`. Then append the flag.
 
 Two older methods, and their limits:
 

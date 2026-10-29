@@ -41,6 +41,19 @@ PUBLIC int write_yuno_config_file(
 );
 
 /*
+ *  Write the json `jn` (owned) to the file `path` of a yuno, as
+ *  write_yuno_config_file() does, exactly as it is: every real with the
+ *  digits that read back the same double (not json2str()'s 12 digits, a
+ *  precision for display), and the whole of it, whatever its size (not
+ *  cut at a gbuffer's maximum). Returns 0, or -1 (logged).
+ */
+PUBLIC int write_yuno_json_file(
+    hgobj gobj,
+    json_t *jn,
+    const char *path
+);
+
+/*
  *  Narrow to YUNO_CONFIG_FILE_PERMISSION (never widen) every
  *  <n>-<role_plus_name>.json of `bin_path` with n > n_written: the
  *  configuration files of an earlier launch that wrote more of them, which

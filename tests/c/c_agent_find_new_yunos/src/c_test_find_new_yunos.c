@@ -36,7 +36,8 @@
  *                that is no launch input) and the keep / restart / stop
  *                decision (restart_plan.c), against the signature noted
  *                at its launch: an update-config of the version in use
- *                restarts it;
+ *                restarts it; and that launch file is exact (a real of
+ *                more than 12 digits, a configuration over 256 KB);
  *              - the binary and the configuration at a version are the
  *                instance of THAT version, and none for a version not
  *                installed (find_binary_version(), find_configuration_
@@ -750,6 +751,93 @@ PRIVATE json_t *signature_now(hgobj gobj, hgobj gobj_node)
 }
 
 /***************************************************************************
+ *  The configuration of yuno_b becomes `zcontent` (owned), the yuno is
+ *  launched (its launch noted), and a restart of the node right after
+ *  must keep it: the launch file read back is what the treedb holds.
+ *  Returns 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_launch_kept(
+    hgobj gobj,
+    hgobj gobj_node,
+    const char *bin_path,
+    const char *role_plus_name,
+    json_t *zcontent,
+    const char *what
+)
+{
+    json_t *config = find_configuration_version(gobj, gobj_node, "role_b", "name_b", "1");
+    if(!config) {
+        JSON_DECREF(zcontent)
+        return fail_check(gobj, what, "configuration not found");
+    }
+    json_object_set_new(config, "zcontent", zcontent);
+    json_decref(gobj_update_node(
+        gobj_node,
+        "configurations",
+        config,     // owned
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    ));
+
+    if(note_yuno_launch(gobj, gobj_node, "yuno_b", bin_path, role_plus_name)<0) {
+        return fail_check(gobj, what, "launch not noted");
+    }
+    json_t *sig_launched = yuno_launched_signature(gobj, bin_path, role_plus_name);
+    json_t *sig_after = signature_now(gobj, gobj_node);
+    const char *decision = restart_decision(sig_launched, sig_after);
+    int result = 0;
+    if(!sig_launched || strcmp(decision, "keep")!=0) {
+        result = fail_check(gobj, what, sig_launched? decision : "launch not read back");
+    }
+    JSON_DECREF(sig_launched)
+    JSON_DECREF(sig_after)
+    return result;
+}
+
+/***************************************************************************
+ *  The launch file is what the yuno was launched with, exactly: up to
+ *  7.29.2 it was written at the display precision of json2str() (12
+ *  digits), so a real with more (a coordinate, 40.416775123456) did not
+ *  compare equal and the yuno was restarted at every restart of the node;
+ *  and into a gbuffer of 256 KB, so a larger configuration was cut, could
+ *  not be read back, and the yuno was always restarted.
+ *  Returns 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_launch_file_is_exact(
+    hgobj gobj,
+    hgobj gobj_node,
+    const char *bin_path,
+    const char *role_plus_name
+)
+{
+    int result = 0;
+
+    result += check_launch_kept(gobj, gobj_node, bin_path, role_plus_name,
+        json_pack("{s:{s:f, s:f}}",
+            "yuno",
+                "latitude", 40.416775123456,
+                "factor", 0.1
+        ),
+        "restart plan: a real of more than 12 digits in the configuration"
+    );
+
+    size_t big = 300*1024;
+    char *padding = gbmem_malloc(big + 1);
+    if(!padding) {
+        return fail_check(gobj, "restart plan: a configuration over 256 KB", "no memory");
+    }
+    memset(padding, 'x', big);
+    padding[big] = 0;
+    result += check_launch_kept(gobj, gobj_node, bin_path, role_plus_name,
+        json_pack("{s:s}", "padding", padding),
+        "restart plan: a configuration over 256 KB"
+    );
+    gbmem_free(padding);
+
+    return result;
+}
+
+/***************************************************************************
  *  The signature a restart compares is the one noted at the LAUNCH
  *  (note_yuno_launch(), from run_yuno(), in the yuno's bin/: here a
  *  directory of the test's database), not the treedb of when the
@@ -873,6 +961,8 @@ PRIVATE int check_restart_against_the_launch(hgobj gobj, hgobj gobj_node)
     JSON_DECREF(sig_launched)
     JSON_DECREF(sig_restart_begins)
     JSON_DECREF(sig_after)
+
+    result += check_launch_file_is_exact(gobj, gobj_node, bin_path, role_plus_name);
     return result;
 }
 

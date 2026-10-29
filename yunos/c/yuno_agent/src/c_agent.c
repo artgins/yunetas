@@ -8894,7 +8894,6 @@ PRIVATE int write_service_client_connectors(
     json_t *jn_yuno_services = json_pack("{s:o}",
         "services", jn_services
     );
-    gbuffer_t *gbuf_config = gbuffer_create((size_t)4*1024, (size_t)256*1024);
     size_t index;
     json_t *jn_service;
     json_array_foreach(jn_required_services, index, jn_service) {
@@ -8961,14 +8960,9 @@ PRIVATE int write_service_client_connectors(
         json_decref(hs_service);
     }
 
-    gbuffer_append_json(
-        gbuf_config,
-        jn_yuno_services // owned
-    );
-
-    int ret = write_yuno_config_file( // save: service connectors
+    int ret = write_yuno_json_file( // save: service connectors
         gobj,
-        gbuf_config, // owned
+        jn_yuno_services, // owned
         config_path
     );
 
@@ -9147,8 +9141,6 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         );
         snprintf(config_path, sizeof(config_path), "%s/%s.json", yuno_bin_path, config_file_name);
 
-        gbuffer_t *gbuf_config = gbuffer_create(4*1024, 256*1024);
-
         json_t *jn_global = assigned_yuno_global_service_variables(
             gobj,
             yuno_id,
@@ -9201,14 +9193,9 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             json_object_update(jn_environment, jn_agent_environment);
         }
 
-        gbuffer_append_json(
-            gbuf_config,
-            jn_content  //owned
-        );
-
-        if(write_yuno_config_file( // save: environment and yuno variables
+        if(write_yuno_json_file( // save: environment and yuno variables
                 gobj,
-                gbuf_config, // owned
+                jn_content, // owned
                 config_path)<0) {
             write_failed = TRUE;    // Error already logged
         }
@@ -9269,7 +9256,6 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         json_t *jn_config_required_services = 0;
         json_t *hs_config = get_yuno_config(gobj, yuno);
         if(hs_config) {
-            gbuf_config = gbuffer_create(4*1024, 256*1024);
             snprintf(config_file_name, sizeof(config_file_name), "%d-%s",
                 n_config+1,
                 role_plus_name
@@ -9281,20 +9267,20 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             );
 
             json_t *content = SDATA_GET_JSON(hs_config, "zcontent");
-            JSON_INCREF(content);
-            gbuffer_append_json(
-                gbuf_config,
-                content // owned
-            );
 
             jn_config_required_services = kw_get_list(gobj, content, "yuno`required_services", 0, 0);
             if(jn_config_required_services) {
                 json_incref(jn_config_required_services);
             }
 
-            if(write_yuno_config_file( // save: user configurations
+            /*
+             *  Exactly as it is: up to 7.29.2 through json2str(), its reals
+             *  at 12 digits, into a gbuffer of 256 KB that cut a larger one
+             */
+            JSON_INCREF(content);
+            if(write_yuno_json_file( // save: user configurations
                     gobj,
-                    gbuf_config, // owned
+                    content, // owned
                     config_path)<0) {
                 write_failed = TRUE;    // Error already logged
             }
@@ -9722,7 +9708,7 @@ PRIVATE int run_yuno(
     t += ++counter;
     json_object_set_new(yuno, "launch_id", json_integer(t));
 
-    char bfbinary[NAME_MAX];
+    char bfbinary[PATH_MAX];
     bfbinary[0] = '\0';
     gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
     if(!build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE)) {
@@ -9738,16 +9724,37 @@ PRIVATE int run_yuno(
     const char *yuno_tag = kw_get_str(gobj, yuno, "yuno_tag", "", KW_REQUIRED);
     const char *yuno_release = kw_get_str(gobj, yuno, "yuno_release", "", KW_REQUIRED);
 
-    char yuno_bin_path[NAME_MAX];
+    /*
+     *  PATH_MAX, as build_yuno_running_script() and restart_nodes() build
+     *  it: up to 7.29.2 a path cut at NAME_MAX here put the launch noted
+     *  (note_yuno_launch()) and the .sh where nobody looks for them
+     */
+    char yuno_bin_path[PATH_MAX];
     build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE);
 
     char role_plus_name[NAME_MAX];
     build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
 
-    char script_path[NAME_MAX*2 + 10];
-    snprintf(script_path, sizeof(script_path), "%s/%s.sh", yuno_bin_path, role_plus_name);
+    char script_name[NAME_MAX];
+    char script_path[PATH_MAX];
+    int n = snprintf(script_name, sizeof(script_name), "%s.sh", role_plus_name);
+    if(n < 0 || (size_t)n >= sizeof(script_name) ||
+            strlen(yuno_bin_path) + 1 + (size_t)n >= sizeof(script_path)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The path of the run script of a yuno is too long: not launched",
+            "yuno_id",      "%s", yuno_id,
+            "bin_path",     "%s", yuno_bin_path,
+            "role_plus_name", "%s", role_plus_name,
+            NULL
+        );
+        gbuffer_decref(gbuf_sh);
+        return -1;
+    }
+    build_path(script_path, sizeof(script_path), yuno_bin_path, script_name, NULL);
 
-    char exec_cmd[PATH_MAX];
+    char exec_cmd[PATH_MAX + 16];
     snprintf(exec_cmd, sizeof(exec_cmd), "%s --start", script_path);
 
     gobj_log_debug(gobj, 0,
@@ -12484,7 +12491,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     /*------------------------------------------------*
      *  Walk over yunos iter
      *------------------------------------------------*/
-    char bfbinary[NAME_MAX];
+    char bfbinary[PATH_MAX];
     bfbinary[0] = '\0';
     gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
     if(!build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), TRUE)) {
@@ -12611,7 +12618,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     /*------------------------------------------------*
      *  Walk over yunos iter
      *------------------------------------------------*/
-    char bfbinary[NAME_MAX];
+    char bfbinary[PATH_MAX];
     bfbinary[0] = '\0';
     gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
     if(!build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE)) {

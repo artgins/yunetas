@@ -176,8 +176,8 @@ therefore keep their data and read the defaults until you set them with
 Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob/7.29.2/yunos/c/yuno_agent/src/c_agent.c#L8482) ([c_agent.c:7368](https://github.com/artgins/yunetas/blob/7.29.2/yunos/c/yuno_agent/src/c_agent.c#L7368)):
 
 ```
-<yuneta_root_dir>/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
-  ├── bin/        ← N-<role>_<name>.json (materialised configs), <role>^<name>.sh,
+<yuneta_root_dir>/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>^<yuno_id>/
+  ├── bin/        ← N-<role>^<name>.json (materialised configs), <role>^<name>.sh,
   │                 <role>^<name>.launch.json (what it was launched with, §6.5 Caveats)
   ├── data/       ← <GClass>-<name>-persistent-attrs.json (only once a service saves one)
   └── logs/       ← N.log files
@@ -939,9 +939,27 @@ running", grep the agent log for `does NOT move forward` before anything else.
   is SIGKILLed and launched again; one that is gone or disabled is killed
   and not launched (a disabled yuno does not run, see §5.6). The file
   lives with what it describes: the watcher, or the `.sh` by hand, launches
-  the yuno again with the same files, and the yuno outlives a restart of the
-  agent. A running yuno with no such file -- launched by an agent up to
-  7.29.1 -- is launched again too: what it runs is not known. So the first
+  the yuno again with the files of `bin/`, and the yuno outlives a restart
+  of the agent. Only `run_yuno()` writes it. `running-keys` and
+  `running-bin` also rewrite the `N-<role>^<name>.json` files, from the
+  treedb as it is NOW, and leave the launch file as it is. If the watcher
+  launches the yuno again after one of them, the yuno runs those files
+  while the launch file still names its previous launch, and the next
+  restart of the node decides on that previous launch. Usually this costs
+  one restart more (after an `update-config` of the version in use, the
+  yuno is restarted although it already runs the new configuration). If
+  the configuration went back to the noted version in between, the yuno is
+  kept on the files those commands wrote. A `kill-yuno` + `run-yuno` writes
+  the launch file again. The file holds the signature exactly as it is:
+  every real with the digits that read back the same value, and the whole
+  of it, whatever its size.
+  Up to 7.29.2 it was written at `json2str()`'s 12 digits, into a buffer of
+  256 KB: a yuno whose configuration has a real of more digits (a
+  coordinate, `40.416775123456`) or is larger than 256 KB was restarted at
+  every restart of the node. The configuration files of the yuno were
+  written the same way, so the yuno itself received such a real cut to 12
+  digits, and a configuration over 256 KB cut. A running yuno with no such
+  file -- launched by an agent up to 7.29.1 -- is launched again too: what it runs is not known. So the first
   restart of the node after the agent is upgraded past 7.29.1 relaunches the
   yunos it did not launch, once. The agent logs *"Node restart: only the yunos whose launch
   changed"* with `kept`, `restarted`, `stopped` and `launch_not_known` (the

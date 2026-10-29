@@ -46,9 +46,12 @@ PUBLIC json_t *yuno_launch_signature(
  *  moment run_yuno() launches it, is written to
  *  <bin_path>/<role_plus_name>.launch.json, beside the configuration files
  *  it is launched with -- what it describes: its watcher, or its .sh by
- *  hand, launches it again with the same files, and it outlives a restart
- *  of the agent. Returns 0, or -1 (logged): then the file is removed, and
- *  a restart launches the yuno again.
+ *  hand, launches it again with the files of bin/, and it outlives a
+ *  restart of the agent (running-keys and running-bin rewrite those files
+ *  from the treedb, and leave this one: see YUNO_LIFECYCLE.md §6.5). It is
+ *  written exactly (write_yuno_json_file()), so it compares equal to the
+ *  signature of the same launch. Returns 0, or -1 (logged): then the file
+ *  is removed, and a restart launches the yuno again.
  */
 PUBLIC int note_yuno_launch(
     hgobj gobj,

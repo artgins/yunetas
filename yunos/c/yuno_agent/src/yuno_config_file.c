@@ -172,6 +172,56 @@ PUBLIC int write_yuno_config_file(
 }
 
 /***************************************************************************
+ *  See yuno_config_file.h
+ *
+ *  No JSON_REAL_PRECISION: jansson then writes each real with the fewest
+ *  digits that read back the same double. The gbuffer is sized to the
+ *  text, so nothing is cut.
+ ***************************************************************************/
+PUBLIC int write_yuno_json_file(
+    hgobj gobj,
+    json_t *jn,
+    const char *path
+)
+{
+    char *s = json_dumps(jn, JSON_ENCODE_ANY | JSON_INDENT(4));
+    JSON_DECREF(jn)
+    if(!s) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot dump the json of a file of a yuno",
+            "path",         "%s", path,
+            NULL
+        );
+        return -1;
+    }
+    size_t len = strlen(s);
+    gbuffer_t *gbuf = gbuffer_create(len + 1, len + 1);
+    if(!gbuf) {
+        // Error already logged
+        gbmem_free(s);
+        return -1;
+    }
+    size_t appended = len? gbuffer_append(gbuf, s, len) : 0;
+    gbmem_free(s);
+    if(appended != len || gbuffer_append(gbuf, "\n", 1) != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot put the json of a file of a yuno in a gbuffer",
+            "path",         "%s", path,
+            "len",          "%lu", (unsigned long)len,
+            "appended",     "%lu", (unsigned long)appended,
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return -1;
+    }
+    return write_yuno_config_file(gobj, gbuf, path);  // gbuf owned
+}
+
+/***************************************************************************
  *  Are `p` the six characters that mkostemp() chose, and nothing more?
  ***************************************************************************/
 PRIVATE BOOL is_mkostemp_tail(const char *p)
