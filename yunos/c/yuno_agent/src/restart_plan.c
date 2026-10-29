@@ -233,7 +233,9 @@ PUBLIC int note_yuno_launch(
         // Error already logged
         return -1;
     }
-    build_path(path, sizeof(path), bin_path, filename, NULL);
+    if(!build_path(path, sizeof(path), bin_path, filename, NULL)) {
+        return -1;  // Error already logged
+    }
 
     json_t *yuno = gobj_get_node(
         gobj_resource,

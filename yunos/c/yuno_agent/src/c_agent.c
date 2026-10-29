@@ -1464,7 +1464,7 @@ PRIVATE int mt_play(hgobj gobj)
      *          Create Treedb System
      *-------------------------------------------*/
     char path[PATH_MAX];
-    yuneta_realm_store_dir(
+    if(!yuneta_realm_store_dir(
         path,
         sizeof(path),
         "agent",
@@ -1473,7 +1473,15 @@ PRIVATE int mt_play(hgobj gobj)
         "",  // tenant
         "",  // gclass-treedb controls the directories
         TRUE
-    );
+    )) {
+        gobj_log_critical(gobj, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot build or create the store directory",
+            NULL
+        );
+        return -1;
+    }
     json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
         "path", path,
         "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
@@ -1679,7 +1687,15 @@ PRIVATE json_t *cmd_dir_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     const char *subdirectory = kw_get_str(gobj, kw, "subdirectory", "", 0);
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), "/yuneta", subdirectory, NULL);
+    if(!build_path(directory, sizeof(directory), "/yuneta", subdirectory, NULL)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: subdirectory too long", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return build_dir_listing_response(gobj, directory, match, kw);
 }
@@ -1695,7 +1711,15 @@ PRIVATE json_t *cmd_dir_realms(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     const char *subdirectory = kw_get_str(gobj, kw, "subdirectory", "", 0);
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), "/yuneta/realms", subdirectory, NULL);
+    if(!build_path(directory, sizeof(directory), "/yuneta/realms", subdirectory, NULL)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: subdirectory too long", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return build_dir_listing_response(gobj, directory, match, kw);
 }
@@ -1711,7 +1735,15 @@ PRIVATE json_t *cmd_dir_repos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
     const char *subdirectory = kw_get_str(gobj, kw, "subdirectory", "", 0);
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), "/yuneta/repos", subdirectory, NULL);
+    if(!build_path(directory, sizeof(directory), "/yuneta/repos", subdirectory, NULL)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: subdirectory too long", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return build_dir_listing_response(gobj, directory, match, kw);
 }
@@ -1728,7 +1760,15 @@ PRIVATE json_t *cmd_dir_store(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     const char *subdirectory = kw_get_str(gobj, kw, "subdirectory", "", 0);
     char directory[PATH_MAX];
-    build_path(directory, sizeof(directory), "/yuneta/store", subdirectory, NULL);
+    if(!build_path(directory, sizeof(directory), "/yuneta/store", subdirectory, NULL)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: subdirectory too long", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return build_dir_listing_response(gobj, directory, match, kw);
 }
@@ -1770,7 +1810,16 @@ PRIVATE json_t *cmd_dir_logs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     }
 
     char yuno_log_path[PATH_MAX];
-    build_yuno_log_path(gobj, node, yuno_log_path, sizeof(yuno_log_path), FALSE);
+    if(!build_yuno_log_path(gobj, node, yuno_log_path, sizeof(yuno_log_path), FALSE)) {
+        json_decref(node);
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot build the logs path of yuno %s", gobj_yuno_role_plus_name(), id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_decref(node);
 
@@ -1814,11 +1863,19 @@ PRIVATE json_t *cmd_dir_local_data(hgobj gobj, const char *cmd, json_t *kw, hgob
     }
 
     char private_domain[PATH_MAX];
-    build_yuno_private_domain(gobj, node, private_domain, sizeof(private_domain));
-
     char yuno_data_path[PATH_MAX];
     const char *work_dir = yuneta_root_dir();
-    build_path(yuno_data_path, sizeof(yuno_data_path), work_dir, private_domain, NULL);
+    if(!build_yuno_private_domain(gobj, node, private_domain, sizeof(private_domain)) ||
+            !build_path(yuno_data_path, sizeof(yuno_data_path), work_dir, private_domain, NULL)) {
+        json_decref(node);
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot build the data path of yuno %s", gobj_yuno_role_plus_name(), id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     json_decref(node);
 
@@ -3023,8 +3080,18 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
     /*
      *  Execute cmd --role
      */
-    char command[NAME_MAX];
-    snprintf(command, sizeof(command), "%s --print-role", cmd);
+    char command[PATH_MAX + 32];
+    int n = snprintf(command, sizeof(command), "%s --print-role", cmd);
+    if(n < 0 || (size_t)n >= sizeof(command)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path of the binary too long",
+            "path",         "%s", cmd,
+            NULL
+        );
+        return NULL;
+    }
     gbuffer_t *gbuf = run_command(command);
     if(!gbuf) {
         gobj_log_error(gobj, 0,
@@ -3124,7 +3191,17 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
     }
     char path[PATH_MAX];
-    yuneta_realm_file(path, sizeof(path), "temp", id, TRUE);
+    if(!yuneta_realm_file(path, sizeof(path), "temp", id, TRUE)) {
+        GBUFFER_DECREF(gbuf_content);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the temporary path of '%s'", gobj_yuno_role_plus_name(), id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     gbuf2file(
         gobj,
         gbuf_content, // owned
@@ -3210,38 +3287,36 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
      *  Destination: inside of /yuneta/repos
      *      {{tags}}/{{role}}/{{version}}/binary.exe
      */
-    char destination[NAME_MAX];
-    yuneta_repos_yuno_dir(
-        destination,
-        sizeof(destination),
-        jn_tags,
-        binary_role,
-        binary_version,
-        TRUE
-    );
-    if(access(destination,0)!=0) {
+    char destination[PATH_MAX];
+    if(!yuneta_repos_yuno_dir(
+            destination,
+            sizeof(destination),
+            jn_tags,
+            binary_role,
+            binary_version,
+            TRUE
+        ) || access(destination,0)!=0 ||
+        !yuneta_repos_yuno_file(
+            destination,
+            sizeof(destination),
+            jn_tags,
+            binary_role,
+            binary_version,
+            binary_role,
+            TRUE
+        )) {
         JSON_DECREF(jn_basic_info);
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf(
-                "Cannot create '%s' directory",
-                destination
+            json_sprintf("%s: cannot build or create the repos directory of '%s' '%s'",
+                gobj_yuno_role_plus_name(), binary_role, binary_version
             ),
             0,
             0,
             kw  // owned
         );
     }
-    yuneta_repos_yuno_file(
-        destination,
-        sizeof(destination),
-        jn_tags,
-        binary_role,
-        binary_version,
-        binary_role,
-        TRUE
-    );
     /*
      *  Overwrite, the overwrite filter was above.
      */
@@ -3398,7 +3473,18 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
     char path[PATH_MAX];
-    yuneta_realm_file(path, sizeof(path), "temp", role, TRUE);
+    if(!yuneta_realm_file(path, sizeof(path), "temp", role, TRUE)) {
+        GBUFFER_DECREF(gbuf_content);
+        json_decref(node);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the temporary path of '%s'", gobj_yuno_role_plus_name(), role),
+            0,
+            0,
+            kw  // owned
+        );
+    }
     gbuf2file(
         gobj,
         gbuf_content, // owned
@@ -3470,39 +3556,37 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  Destination: inside of /yuneta/repos
      *      {{tags}}/{{role}/{{version}}/binary.exe
      */
-    char destination[NAME_MAX];
-    yuneta_repos_yuno_dir(
-        destination,
-        sizeof(destination),
-        jn_tags,
-        binary_role,
-        binary_version,
-        TRUE
-    );
-    if(access(destination,0)!=0) {
+    char destination[PATH_MAX];
+    if(!yuneta_repos_yuno_dir(
+            destination,
+            sizeof(destination),
+            jn_tags,
+            binary_role,
+            binary_version,
+            TRUE
+        ) || access(destination,0)!=0 ||
+        !yuneta_repos_yuno_file(
+            destination,
+            sizeof(destination),
+            jn_tags,
+            binary_role,
+            binary_version,
+            binary_role,
+            TRUE
+        )) {
         JSON_DECREF(jn_basic_info);
         json_decref(node);
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf(
-                "Cannot create '%s' directory",
-                destination
+            json_sprintf("%s: cannot build or create the repos directory of '%s' '%s'",
+                gobj_yuno_role_plus_name(), binary_role, binary_version
             ),
             0,
             0,
             kw  // owned
         );
     }
-    yuneta_repos_yuno_file(
-        destination,
-        sizeof(destination),
-        jn_tags,
-        binary_role,
-        binary_version,
-        binary_role,
-        TRUE
-    );
     /*
      *  Overwrite, the overwrite filter was above.
      */
@@ -3772,20 +3856,32 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  Delete
      */
     int result = 0;
+    json_t *jn_comment = 0;
     json_t *jn_data = json_array();
     json_array_foreach(iter, idx, node) {
         json_t *jn_tags = kw_get_dict_value(gobj, node, "tags", 0, KW_REQUIRED);
         const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
         const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
-        char destination[NAME_MAX];
-        yuneta_repos_yuno_dir(
-            destination,
-            sizeof(destination),
-            jn_tags,
-            role,
-            version,
-            FALSE
-        );
+        char destination[PATH_MAX];
+        if(!yuneta_repos_yuno_dir(
+                destination,
+                sizeof(destination),
+                jn_tags,
+                role,
+                version,
+                FALSE
+            )) {
+            /*
+             *  Neither the record nor the files: an rmrdir of what a cut
+             *  path names removes an ancestor, every version of the role.
+             */
+            jn_comment = json_sprintf(
+                "%s: cannot build the repos directory of binary '%s' '%s', not deleted",
+                gobj_yuno_role_plus_name(), role, version
+            );
+            result += -1;
+            break;
+        }
 
         if(gobj_delete_node(
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
@@ -3804,12 +3900,15 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     JSON_DECREF(iter)
 
+    if(!jn_comment) {
+        jn_comment = result<0?
+            json_sprintf("%s", gobj_log_last_message()):
+            json_sprintf("%d binaries deleted", idx);
+    }
     return msg_iev_build_response(
         gobj,
         result,
-        result<0?
-            json_sprintf("%s", gobj_log_last_message()):
-            json_sprintf("%d binaries deleted", idx),
+        jn_comment,
         0,
         jn_data,
         kw  // owned
@@ -8342,15 +8441,30 @@ PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno)
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
     const char *yuno_id = kw_get_str(gobj, yuno, "id", yuno_name, KW_REQUIRED);
 
+    int n;
     if(empty_string(yuno_id)) {
-        snprintf(bf, bf_len, "%s",
+        n = snprintf(bf, bf_len, "%s",
             yuno_role
         );
     } else {
-        snprintf(bf, bf_len, "%s^%s",
+        n = snprintf(bf, bf_len, "%s^%s",
             yuno_role,
             yuno_id
         );
+    }
+    if(n < 0 || n >= bf_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "role^id of a yuno too long for a directory name",
+            "yuno_role",    "%s", yuno_role,
+            "yuno_id",      "%s", yuno_id,
+            NULL
+        );
+        if(bf_len > 0) {
+            *bf = 0;
+        }
+        return -1;
     }
     return 0;
 }
@@ -8373,10 +8487,23 @@ PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
         json_t *jn_s_domain_name;
 
         if(!json_is_array(jn_l)) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "tags is not a list",
+                NULL
+            );
             return 0;
         }
         json_array_foreach(jn_l, index, jn_s_domain_name) {
             if(!json_is_string(jn_s_domain_name)) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER,
+                    "msg",          "%s", "a tag is not a string",
+                    NULL
+                );
+                *bf = 0;
                 return 0;
             }
             if(index == 0) {
@@ -8411,7 +8538,8 @@ PRIVATE char *multiple_dir(char* bf, int bflen, json_t* jn_l)
                     "tags",         "%s", bf,
                     NULL
                 );
-                break;
+                *bf = 0;
+                return 0;
             }
 
             p += ln;
@@ -8433,10 +8561,21 @@ PRIVATE char *yuneta_repos_yuno_dir(
     BOOL create)
 {
     const char *work_dir = yuneta_root_dir();
-    char tags[NAME_MAX];
-    multiple_dir(tags, sizeof(tags), jn_tags);
+    char tags[PATH_MAX];
+    if(!multiple_dir(tags, sizeof(tags), jn_tags)) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
-    build_path(bf, bfsize, work_dir, "repos", tags, yuno_role, yuno_version, NULL);
+    /*
+     *  A path cut here is an ANCESTOR (.../<role>, .../<tags>): up to 7.29.3
+     *  delete-binary rmrdir'ed it, every version of the role, and an install
+     *  stored the binary there.
+     */
+    if(!build_path(bf, bfsize, work_dir, "repos", tags, yuno_role, yuno_version, NULL)) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
     if(create) {
         if(access(bf, 0)!=0) {
@@ -8463,16 +8602,22 @@ PRIVATE char *yuneta_repos_yuno_file(
     BOOL create)
 {
     char repos_dir[PATH_MAX];
-    yuneta_repos_yuno_dir(
+    if(!yuneta_repos_yuno_dir(
         repos_dir,
         sizeof(repos_dir),
         jn_tags,
         yuno_role,
         yuno_version,
         create
-    );
+    )) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
-    build_path(bf, bfsize, repos_dir, filename, NULL);
+    if(!build_path(bf, bfsize, repos_dir, filename, NULL)) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
     return bf;
 }
 
@@ -8497,14 +8642,36 @@ PRIVATE char * build_yuno_private_domain(
     const char *realm_env = kw_get_str(gobj, realm, "realm_env", 0, KW_REQUIRED);
 
     char url[NAME_MAX];
-    snprintf(url, sizeof(url), "%s.%s.%s", realm_name, realm_role, realm_env);
+    int n = snprintf(url, sizeof(url), "%s.%s.%s", realm_name, realm_role, realm_env);
+    if(n < 0 || n >= (int)sizeof(url)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "name.role.env of a realm too long for a directory name",
+            "realm_name",   "%s", realm_name,
+            "realm_role",   "%s", realm_role,
+            "realm_env",    "%s", realm_env,
+            NULL
+        );
+        json_decref(realm);
+        *bf = 0;
+        return 0;
+    }
 
     char role_plus_id[NAME_MAX];
-    build_role_plus_id(gobj, role_plus_id, sizeof(role_plus_id), yuno);
+    if(build_role_plus_id(gobj, role_plus_id, sizeof(role_plus_id), yuno) < 0) {
+        json_decref(realm);
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
-    json_decref(realm);
-
-    return build_path(bf, bfsize, "realms", realm_owner, url, role_plus_id, NULL);
+    char *ret = build_path(bf, bfsize, "realms", realm_owner, url, role_plus_id, NULL);
+    json_decref(realm);     // realm_owner lives in it
+    if(!ret) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
+    return bf;
 }
 
 /***************************************************************************
@@ -8513,10 +8680,16 @@ PRIVATE char * build_yuno_private_domain(
 PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir)
 {
     char private_domain[PATH_MAX];
-    build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain));
+    if(!build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain))) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
     const char *work_dir = yuneta_root_dir();
-    build_path(bf, bfsize, work_dir, private_domain, "bin", NULL);
+    if(!build_path(bf, bfsize, work_dir, private_domain, "bin", NULL)) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
     if(create_dir) {
         if(mkrdir(bf, yuneta_xpermission())<0) {
@@ -8563,7 +8736,10 @@ PRIVATE int remove_temp_config_files_of_yunos(hgobj gobj)
             continue;
         }
         char yuno_bin_path[PATH_MAX];
-        build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), FALSE);
+        if(!build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), FALSE)) {
+            ret = -1;   // Error already logged
+            continue;
+        }
         if(remove_temp_yuno_config_files(gobj, yuno_bin_path) < 0) {
             ret = -1;   // Error already logged
         }
@@ -8579,10 +8755,16 @@ PRIVATE int remove_temp_config_files_of_yunos(hgobj gobj)
 PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir)
 {
     char private_domain[PATH_MAX];
-    build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain));
+    if(!build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain))) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
     const char *work_dir = yuneta_root_dir();
-    build_path(bf, bfsize, work_dir, private_domain, "logs", NULL);
+    if(!build_path(bf, bfsize, work_dir, private_domain, "logs", NULL)) {
+        *bf = 0;
+        return 0;   // Error already logged
+    }
 
     if(create_dir) {
         if(mkrdir(bf, yuneta_xpermission())<0) {
@@ -9065,10 +9247,14 @@ PRIVATE gbuffer_t *build_yuno_running_script(
      *  Build the domain of yuno (defined by his realm)
      */
     char domain_dir[PATH_MAX];
-    build_yuno_private_domain(gobj, yuno, domain_dir, sizeof(domain_dir));
+    if(!build_yuno_private_domain(gobj, yuno, domain_dir, sizeof(domain_dir))) {
+        return 0;   // Error already logged
+    }
 
     char yuno_bin_path[PATH_MAX];
-    build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE);
+    if(!build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE)) {
+        return 0;   // Error already logged
+    }
 
     json_t *hs_realm = get_yuno_realm(gobj, yuno);
     if(!hs_realm) {
@@ -9461,7 +9647,9 @@ PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno)
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
 
     char yuno_bin_path[PATH_MAX];
-    build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), FALSE);
+    if(!build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), FALSE)) {
+        return NULL;    // Error already logged
+    }
     char config_mark[PATH_MAX];
     if(snprintf(config_mark, sizeof(config_mark), "%s/1-", yuno_bin_path) >= (int)sizeof(config_mark)) {
         gobj_log_error(gobj, 0,
@@ -9730,7 +9918,10 @@ PRIVATE int run_yuno(
      *  (note_yuno_launch()) and the .sh where nobody looks for them
      */
     char yuno_bin_path[PATH_MAX];
-    build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE);
+    if(!build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE)) {
+        gbuffer_decref(gbuf_sh);
+        return -1;  // Error already logged
+    }
 
     char role_plus_name[NAME_MAX];
     build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
@@ -9752,7 +9943,10 @@ PRIVATE int run_yuno(
         gbuffer_decref(gbuf_sh);
         return -1;
     }
-    build_path(script_path, sizeof(script_path), yuno_bin_path, script_name, NULL);
+    if(!build_path(script_path, sizeof(script_path), yuno_bin_path, script_name, NULL)) {
+        gbuffer_decref(gbuf_sh);
+        return -1;  // Error already logged
+    }
 
     char exec_cmd[PATH_MAX + 16];
     snprintf(exec_cmd, sizeof(exec_cmd), "%s --start", script_path);
@@ -10918,11 +11112,13 @@ PRIVATE int restart_nodes(hgobj gobj, BOOL all)
             );
             char bin_path[PATH_MAX];
             char role_plus_name[NAME_MAX];
-            build_yuno_bin_path(gobj, yuno, bin_path, sizeof(bin_path), FALSE);
             build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
-            json_t *jn_launched = yuno_launched_signature(gobj, bin_path, role_plus_name);
-            if(jn_launched) {
-                json_object_set_new(jn_b, "signature", jn_launched);
+            if(build_yuno_bin_path(gobj, yuno, bin_path, sizeof(bin_path), FALSE)) {
+                // Without a signature the yuno counts as changed: restarted
+                json_t *jn_launched = yuno_launched_signature(gobj, bin_path, role_plus_name);
+                if(jn_launched) {
+                    json_object_set_new(jn_b, "signature", jn_launched);
+                }
             }
             json_object_set_new(jn_before, SDATA_GET_ID(yuno), jn_b);
         } else if(running) {
