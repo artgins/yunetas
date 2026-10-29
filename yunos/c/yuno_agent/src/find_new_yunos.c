@@ -66,18 +66,22 @@ PUBLIC int build_yuno_release_name(
  *  changes, the SDK's land in another position: 1.0-7.27.11 compared NEWER
  *  than 1.0.1-7.27.11 (7 > 1), and an old 1.0.0-9 newer than
  *  1.0.0-7.27.11-1 (9 > 7). The pre-7.27.11 form x.y.z.0 is accepted too:
- *  its 0 sits where the SDK's major goes, so it compares older.
+ *  its 0 sits where the SDK's major goes, so it compares older. Only a 0:
+ *  up to 7.29.1 any x.y.z.N passed, and 1.9.1.8 compares NEWER than
+ *  1.9.1-7.27.11 (8 > 7).
  ***************************************************************************/
 PUBLIC BOOL yuno_version_has_a_comparable_shape(const char *version)
 {
     int numbers = 0;
     int dashes = 0;
     BOOL in_number = FALSE;
+    const char *last_number = NULL;
     for(const char *p = version; p && *p; p++) {
         if(*p >= '0' && *p <= '9') {
             if(!in_number) {
                 numbers++;
                 in_number = TRUE;
+                last_number = p;
             }
         } else if((*p == '.' || *p == '-') && in_number) {
             if(*p == '-') {
@@ -95,7 +99,10 @@ PUBLIC BOOL yuno_version_has_a_comparable_shape(const char *version)
         return FALSE;   // empty, or ends with a separator
     }
     if(dashes == 0) {
-        return (numbers == 3 || numbers == 4)? TRUE : FALSE;
+        if(numbers == 4) {
+            return strcmp(last_number, "0")==0? TRUE : FALSE;   // x.y.z.0
+        }
+        return numbers == 3? TRUE : FALSE;
     }
     return (dashes == 1 && numbers == 6)? TRUE : FALSE;
 }

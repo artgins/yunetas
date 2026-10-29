@@ -177,7 +177,8 @@ Built by [`build_yuno_private_domain()`](https://github.com/artgins/yunetas/blob
 
 ```
 <yuneta_root_dir>/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<yuno_role>_<yuno_name>/
-  ├── bin/        ← N-<role>_<name>.json (materialised configs)
+  ├── bin/        ← N-<role>_<name>.json (materialised configs), <role>^<name>.sh,
+  │                 <role>^<name>.launch.json (what it was launched with, §6.5 Caveats)
   ├── data/       ← <GClass>-<name>-persistent-attrs.json (only once a service saves one)
   └── logs/       ← N.log files
 ```
@@ -698,7 +699,10 @@ the agent gives you nothing — use the shell.
 
 c_agent.c updates the treedb blob. The launcher script is rebuilt only
 at `run-yuno`. So **changes take effect on next start**. There is no
-re-materialisation of the JSON files on disk for a running yuno.
+re-materialisation of the JSON files on disk for a running yuno. A
+`deactivate-snap` (or `activate-snap`, `yunetas upgrade-yunos`) restarts the
+yunos the change reaches, because it compares with what each yuno was
+launched with (§6.5, *Caveats*); up to 7.29.1 it kept them.
 
 ### 5.6 `disable-yuno` stops a running yuno
 
@@ -920,19 +924,39 @@ running", grep the agent log for `does NOT move forward` before anything else.
 #### Caveats
 
   - **Only the yunos whose launch changed are restarted** (since 7.28.11;
-  `all=1` for every one, as up to 7.28.10). For each running yuno,
-  `restart_nodes()` takes its launch signature (`restart_plan.c`: the saved
+  `all=1` for every one, as up to 7.28.10). When `run_yuno()` launches a
+  yuno, the agent writes its launch signature beside the configuration
+  files it launches it with, `bin/<role>^<name>.launch.json`
+  (`restart_plan.c`: the saved
   columns of its row, of the binary it runs, of its configuration, its realm
-  and its public services -- no runtime, no hook, no `_geometry`) and its
-  runtime (running, pids, channel, launch) before the reload of the treedb,
-  and the signature again after it. The same one gets its runtime back and
-  lives on; a changed one is SIGKILLed and launched again; one that is gone
-  or disabled is killed and not launched (a disabled yuno does not run, see
-  §5.6). The agent logs *"Node
-  restart: only the yunos whose launch changed"* with `kept`, `restarted`
-  and `stopped`. Up to 7.28.10 every yuno was killed: the reload loses what
-  the agent keeps in memory of a running yuno, which would otherwise be
-  launched beside itself.
+  and its public services -- no runtime, no hook, no `_geometry`, and none
+  of the saved columns that are no input of a launch: `must_play`,
+  `traced`, `start_priority`, and the `yunos` fkeys of the binary and the
+  configuration). For each running yuno, `restart_nodes()` keeps its runtime
+  (running, pids, channel, launch) before the reload of the treedb, and
+  after it compares the signature it would launch it with NOW against the
+  noted one. The same one gets its runtime back and lives on; a changed one
+  is SIGKILLed and launched again; one that is gone or disabled is killed
+  and not launched (a disabled yuno does not run, see §5.6). The file
+  lives with what it describes: the watcher, or the `.sh` by hand, launches
+  the yuno again with the same files, and the yuno outlives a restart of the
+  agent. A running yuno with no such file -- launched by an agent up to
+  7.29.1 -- is launched again too: what it runs is not known. So the first
+  restart of the node after the agent is upgraded past 7.29.1 relaunches the
+  yunos it did not launch, once. The agent logs *"Node restart: only the yunos whose launch
+  changed"* with `kept`, `restarted`, `stopped` and `launch_not_known` (the
+  restarted ones with no launch noted). Up to 7.28.10 every yuno was killed:
+  the reload loses what the agent keeps in memory of a running yuno, which
+  would otherwise be launched beside itself.
+
+    The comparison is against the LAUNCH after 7.29.1. In 7.28.11-7.29.1 the
+    signature of before was read from the treedb when the restart began, so
+    a change made to the treedb that waits for the next launch -- an
+    `update-config` of the version in use (§5.5) -- was on both sides: the
+    yuno was kept on its old configuration, with no log. And `must_play`,
+    `traced` and `start_priority` (a `trace-on-yuno`, a new start order) or
+    a new release linked to the same binary restarted yunos whose launch had
+    not changed.
 
     The yunos it does kill are SIGKILLed. It relaunches them
   once every process it killed is gone, looked at every 100 ms for 10 s: a

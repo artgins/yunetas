@@ -13,6 +13,14 @@
  *          beside itself. Now the yunos whose launch did not change keep
  *          their runtime across the reload, and only the others go.
  *
+ *          "Did not change" is against what the yuno was LAUNCHED with,
+ *          written by run_yuno() beside the files it is launched with
+ *          (note_yuno_launch()), not against the treedb as it is when the
+ *          restart begins: up to 7.29.1 an update-config
+ *          of the version in use, which waits for the next launch, was
+ *          already in the treedb on both sides of the reload, and the yuno
+ *          was kept on its old configuration with no log.
+ *
  *          It lives out of c_agent.c, which no test compiles
  *          (tests/c/c_agent_find_new_yunos).
  *
@@ -20,8 +28,12 @@
  *          All Rights Reserved.
  ***************************************************************************/
 #include <string.h>
+#include <stdio.h>
+#include <limits.h>
+#include <unistd.h>
 
 #include "find_new_yunos.h"
+#include "yuno_config_file.h"
 #include "restart_plan.h"
 
 /***************************************************************************
@@ -40,9 +52,33 @@ PRIVATE BOOL col_has_flag(json_t *jn_col, const char *flag)
 }
 
 /***************************************************************************
+ *  Saved columns that are no input of a launch, left out of the signature:
+ *  with them a restart killed yunos whose launch had not changed.
+ ***************************************************************************/
+PRIVATE const char *not_launch_columns[][2] = {
+    {"yunos",           "must_play"},       // played after the launch (play-yuno)
+    {"yunos",           "traced"},          // set on a running yuno (trace-on-yuno)
+    {"yunos",           "start_priority"},  // the order of the launches, not a launch
+    {"binaries",        "yunos"},           // the rows linked: another release linked to it
+    {"configurations",  "yunos"},           // the same
+    {0, 0}
+};
+
+PRIVATE BOOL is_a_launch_column(const char *topic_name, const char *col)
+{
+    for(int i=0; not_launch_columns[i][0]; i++) {
+        if(strcmp(not_launch_columns[i][0], topic_name)==0 &&
+                strcmp(not_launch_columns[i][1], col)==0) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  The columns of `record` (not owned) of the topic `topic_name` that are
- *  saved (`saved` TRUE) or that live in memory only (FALSE). New dict, or
- *  json null for a NULL record.
+ *  saved and an input of its launch (`saved` TRUE) or that live in memory
+ *  only (FALSE). New dict, or json null for a NULL record.
  ***************************************************************************/
 PRIVATE json_t *record_columns(
     hgobj gobj,
@@ -77,6 +113,9 @@ PRIVATE json_t *record_columns(
         BOOL is_saved = col_has_flag(jn_col, "persistent") || col_has_flag(jn_col, "fkey");
         BOOL is_hook = col_has_flag(jn_col, "hook");
         if(saved? !is_saved : (is_saved || is_hook)) {
+            continue;
+        }
+        if(saved && !is_a_launch_column(topic_name, col)) {
             continue;
         }
         json_t *jn_value = json_object_get(record, col);
@@ -154,6 +193,103 @@ PUBLIC json_t *yuno_launch_signature(
 }
 
 /***************************************************************************
+ *  The name of the file of a yuno's bin/ that keeps its launch signature
+ ***************************************************************************/
+PRIVATE int build_launch_file_name(
+    hgobj gobj,
+    char *bf,
+    size_t bfsize,
+    const char *role_plus_name
+)
+{
+    int n = snprintf(bf, bfsize, "%s.launch.json", role_plus_name);
+    if(n < 0 || (size_t)n >= bfsize) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "name of the launch file too long",
+            "role_plus_name", "%s", role_plus_name,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  See restart_plan.h
+ ***************************************************************************/
+PUBLIC int note_yuno_launch(
+    hgobj gobj,
+    hgobj gobj_resource,
+    const char *yuno_id,
+    const char *bin_path,
+    const char *role_plus_name
+)
+{
+    char filename[NAME_MAX];
+    char path[PATH_MAX];
+    if(build_launch_file_name(gobj, filename, sizeof(filename), role_plus_name)<0) {
+        // Error already logged
+        return -1;
+    }
+    build_path(path, sizeof(path), bin_path, filename, NULL);
+
+    json_t *yuno = gobj_get_node(
+        gobj_resource,
+        "yunos",
+        json_pack("{s:s}", "id", yuno_id),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    if(!yuno) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "yuno launched not found: a restart will launch it again",
+            "yuno_id",      "%s", yuno_id,
+            NULL
+        );
+        unlink(path);   // the signature of another launch would answer for this one
+        return -1;
+    }
+    json_t *jn_signature = yuno_launch_signature(gobj, gobj_resource, yuno);
+    JSON_DECREF(yuno)
+
+    gbuffer_t *gbuf = gbuffer_create(4*1024, 256*1024);
+    if(!gbuf) {
+        // Error already logged
+        JSON_DECREF(jn_signature)
+        unlink(path);   // the signature of another launch would answer for this one
+        return -1;
+    }
+    gbuffer_append_json(gbuf, jn_signature);    // owned
+    if(write_yuno_config_file(gobj, gbuf, path)<0) {
+        // Error already logged
+        unlink(path);   // the signature of another launch would answer for this one
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  See restart_plan.h
+ ***************************************************************************/
+PUBLIC json_t *yuno_launched_signature(
+    hgobj gobj,
+    const char *bin_path,
+    const char *role_plus_name
+)
+{
+    char filename[NAME_MAX];
+    if(build_launch_file_name(gobj, filename, sizeof(filename), role_plus_name)<0) {
+        // Error already logged
+        return NULL;
+    }
+    return load_json_from_file(gobj, bin_path, filename, 0);  // NULL: none (silent), or logged
+}
+
+/***************************************************************************
  *  See restart_plan.h
  ***************************************************************************/
 PUBLIC json_t *yuno_runtime_fields(
@@ -169,7 +305,7 @@ PUBLIC json_t *yuno_runtime_fields(
  *  See restart_plan.h
  ***************************************************************************/
 PUBLIC const char *restart_decision(
-    json_t *signature_before,
+    json_t *signature_launched,
     json_t *signature_after
 )
 {
@@ -180,8 +316,8 @@ PUBLIC const char *restart_decision(
     if(json_is_true(json_object_get(jn_yuno, "yuno_disabled"))) {
         return "stop";      // a disabled yuno does not run (disable-yuno kills it)
     }
-    if(json_equal(signature_before, signature_after)) {
+    if(signature_launched && json_equal(signature_launched, signature_after)) {
         return "keep";
     }
-    return "restart";
+    return "restart";   // changed, or not launched by this agent: not known
 }

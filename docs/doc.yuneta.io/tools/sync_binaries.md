@@ -87,7 +87,9 @@ no `start_priority` yet. See [`set-start-priorities`](set_start_priorities.md).
 The **version-bump** path is still **not** automated: after an `install-binary`
 the script prints the `find-new-yunos create=1` + `deactivate-snap` reminder
 (`yunetas upgrade-yunos` runs them). Up to 7.28.10 `deactivate-snap` bounced
-the whole node; since 7.28.11 it restarts only the yunos whose launch changed.
+the whole node; since 7.28.11 it restarts only the yunos whose launch changed
+(after 7.29.1, compared with what each yuno was launched with, so an
+`update-config` of the version in use reaches it).
 
 The exit code is `1` when a push failed, or when the restart of a yuno that
 the script stopped failed (since CLI 0.22.0). `yunetas sync` reads it and does

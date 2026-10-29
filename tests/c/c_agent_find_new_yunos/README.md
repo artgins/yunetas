@@ -53,6 +53,21 @@ Each row now says whether its instance at the new release exists.
    restarts a changed one, and stops one that is gone or disabled (a
    disabled yuno does not run).
 
+10. the restart compares against the signature noted at the LAUNCH
+    (`note_yuno_launch()`, which `run_yuno()` calls: it writes
+    `bin/<role>^<name>.launch.json`, read back by
+    `yuno_launched_signature()`; none before a launch), not the treedb of when
+    the restart begins: after an `update-config` of the version in use the
+    treedb agrees with itself (the 7.28.11-7.29.1 comparison, "keep") while
+    the noted launch does not ("restart"); a yuno with no launch noted is
+    restarted. `must_play`, `traced`, `start_priority` and the `yunos` fkeys
+    of the binary and configuration are left out of the signature: changing
+    them keeps the yuno.
+
+11. the shapes of a binary version `install-binary` warns of: the old
+    `x.y.z.N` passes only with N `0` (`1.9.1.8` compares newer than
+    `1.9.1-7.27.11`; up to 7.29.1 it passed).
+
 ## Run
 
 ```bash

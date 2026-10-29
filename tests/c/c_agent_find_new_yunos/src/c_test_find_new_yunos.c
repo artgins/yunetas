@@ -32,8 +32,11 @@
  *              - a release name that does not fit in NAME_MAX is refused,
  *                not cut (build_yuno_release_name(), create-yuno's).
  *              - what a restart of the node does with a running yuno:
- *                its launch signature (no runtime, no hook) and the
- *                keep / restart / stop decision (restart_plan.c);
+ *                its launch signature (no runtime, no hook, no column
+ *                that is no launch input) and the keep / restart / stop
+ *                decision (restart_plan.c), against the signature noted
+ *                at its launch: an update-config of the version in use
+ *                restarts it;
  *              - the binary and the configuration at a version are the
  *                instance of THAT version, and none for a version not
  *                installed (find_binary_version(), find_configuration_
@@ -501,6 +504,8 @@ PRIVATE int check_version_shapes_and_release_order(hgobj gobj)
         {"7.27.11",             TRUE},      // a yuno of the SDK
         {"1.9.1-7.27.11",       TRUE},      // a project yuno, since 7.27.11
         {"1.9.1.0",             TRUE},      // the form before 7.27.11
+        {"1.9.1.8",             FALSE},     // compares newer than 1.9.1-7.27.11
+        {"1.9.1.00",            FALSE},
         {"1.0-7.27.11",         FALSE},     // two own numbers
         {"1.0.0.1-7.27.11",     FALSE},     // four own numbers
         {"1.9.1-7.27",          FALSE},
@@ -723,6 +728,155 @@ PRIVATE int fail_check(hgobj gobj, const char *what, const char *got)
 }
 
 /***************************************************************************
+ *  The yuno_b row as restart_nodes() reads it, and its launch signature
+ *  now. NULL (logged) when it is not found.
+ ***************************************************************************/
+PRIVATE json_t *signature_now(hgobj gobj, hgobj gobj_node)
+{
+    json_t *yuno = gobj_get_node(
+        gobj_node,
+        "yunos",
+        json_pack("{s:s}", "id", "yuno_b"),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    if(!yuno) {
+        fail_check(gobj, "restart plan: yuno_b not found", "");
+        return NULL;
+    }
+    json_t *jn_signature = yuno_launch_signature(gobj, gobj_node, yuno);
+    JSON_DECREF(yuno)
+    return jn_signature;
+}
+
+/***************************************************************************
+ *  The signature a restart compares is the one noted at the LAUNCH
+ *  (note_yuno_launch(), from run_yuno(), in the yuno's bin/: here a
+ *  directory of the test's database), not the treedb of when the
+ *  restart begins: an update-config of the version in use waits for the
+ *  next launch, so it is already in the treedb on both sides of the reload
+ *  and, compared that way (up to 7.29.1), the yuno was kept on its old
+ *  configuration. And the saved columns that are no launch input
+ *  (must_play, traced, start_priority, the rows linked to its binary and
+ *  configuration) change nothing. Returns 0 or -1 (logged).
+ ***************************************************************************/
+PRIVATE int check_restart_against_the_launch(hgobj gobj, hgobj gobj_node)
+{
+    int result = 0;
+
+    const char *home = getenv("HOME");
+    char bin_path[PATH_MAX];
+    build_path(bin_path, sizeof(bin_path), home, "tests_yuneta", "c_agent_find_new_yunos",
+        "launch_bin", NULL);
+    mkrdir(bin_path, 02770);
+    const char *role_plus_name = "role_b^name_b";
+
+    json_t *sig_none = yuno_launched_signature(gobj, bin_path, role_plus_name);
+    if(sig_none) {
+        result += fail_check(gobj, "restart plan: a launch noted before any launch", "");
+    }
+    JSON_DECREF(sig_none)
+
+    if(note_yuno_launch(gobj, gobj_node, "yuno_b", bin_path, role_plus_name)<0) {
+        return fail_check(gobj, "restart plan: the launch of yuno_b not noted", "");
+    }
+    json_t *sig_launched = yuno_launched_signature(gobj, bin_path, role_plus_name);
+    if(!sig_launched) {
+        return fail_check(gobj, "restart plan: the launch of yuno_b not read back", "");
+    }
+
+    /*
+     *  The rows linked to the binary are a column of it, left out
+     */
+    json_t *binary = find_binary_version(gobj, gobj_node, "role_b", "2.0.0");
+    if(!json_object_get(binary, "yunos") ||
+            json_object_get(json_object_get(sig_launched, "binary"), "yunos") ||
+            json_object_get(json_object_get(sig_launched, "configuration"), "yunos")) {
+        result += fail_check(gobj, "restart plan: the yunos linked to the binary or configuration", "");
+    }
+    JSON_DECREF(binary)
+
+    /*
+     *  Played, traced, moved in the start order: the same launch
+     */
+    json_t *yuno = gobj_get_node(
+        gobj_node,
+        "yunos",
+        json_pack("{s:s}", "id", "yuno_b"),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    json_t *jn_yuno = json_object_get(sig_launched, "yuno");
+    if(!yuno || !json_object_get(yuno, "must_play") || !json_object_get(yuno, "traced") ||
+            json_object_get(jn_yuno, "must_play") || json_object_get(jn_yuno, "traced") ||
+            json_object_get(jn_yuno, "start_priority")) {
+        result += fail_check(gobj, "restart plan: must_play, traced, start_priority", "");
+    }
+    if(yuno) {
+        json_object_set_new(yuno, "must_play", json_boolean(!json_is_true(json_object_get(yuno, "must_play"))));
+        json_object_set_new(yuno, "traced", json_boolean(!json_is_true(json_object_get(yuno, "traced"))));
+        json_object_set_new(yuno, "start_priority", json_integer(77));
+        json_decref(gobj_update_node(
+            gobj_node,
+            "yunos",
+            yuno,   // owned
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            gobj
+        ));
+    }
+    json_t *sig_now = signature_now(gobj, gobj_node);
+    if(!sig_now || strcmp(restart_decision(sig_launched, sig_now), "keep")!=0) {
+        result += fail_check(gobj, "restart plan: played, traced, start order", "not keep");
+    }
+    JSON_DECREF(sig_now)
+
+    /*
+     *  update-config of the version in use: what the yuno runs is not what
+     *  the treedb holds now
+     */
+    json_t *config = find_configuration_version(gobj, gobj_node, "role_b", "name_b", "1");
+    if(!config) {
+        JSON_DECREF(sig_launched)
+        return fail_check(gobj, "restart plan: the configuration of yuno_b", "not found");
+    }
+    json_object_set_new(config, "zcontent", json_string("{\"changed\": 1}"));
+    json_decref(gobj_update_node(
+        gobj_node,
+        "configurations",
+        config,     // owned
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    ));
+
+    json_t *sig_restart_begins = signature_now(gobj, gobj_node);    // what 7.29.1 compared
+    json_t *sig_after = signature_now(gobj, gobj_node);
+    if(!sig_restart_begins || !sig_after ||
+            strcmp(restart_decision(sig_restart_begins, sig_after), "keep")!=0) {
+        result += fail_check(gobj, "restart plan: the treedb against itself", "not keep");
+    }
+    const char *decision = restart_decision(sig_launched, sig_after);
+    if(strcmp(decision, "restart")!=0) {
+        result += fail_check(gobj, "restart plan: update-config of the version in use", decision);
+    }
+
+    /*
+     *  Launched again: noted again, and the next restart keeps it
+     */
+    note_yuno_launch(gobj, gobj_node, "yuno_b", bin_path, role_plus_name);
+    json_t *sig_relaunched = yuno_launched_signature(gobj, bin_path, role_plus_name);
+    decision = restart_decision(sig_relaunched, sig_after);
+    if(strcmp(decision, "keep")!=0) {
+        result += fail_check(gobj, "restart plan: relaunched with the new configuration", decision);
+    }
+
+    JSON_DECREF(sig_relaunched)
+    JSON_DECREF(sig_launched)
+    JSON_DECREF(sig_restart_begins)
+    JSON_DECREF(sig_after)
+    return result;
+}
+
+/***************************************************************************
  *  What a restart of the node does with a running yuno (restart_plan.c):
  *  its launch signature is what it is launched with, not what it does at
  *  the moment, and the decision keeps it, restarts it or stops it.
@@ -805,6 +959,8 @@ PRIVATE int check_restart_plan(hgobj gobj, hgobj gobj_node)
         {"changed and disabled now",        sig_before, sig_disabled, "stop"},
         {"no row any more",                 sig_before, NULL, "stop"},
         {"disabled, nothing else changed",  sig_disabled_same, sig_disabled_same, "stop"},
+        {"not launched by this agent",      NULL, sig_running, "restart"},
+        {"not launched here, disabled",     NULL, sig_disabled_same, "stop"},
     };
     for(size_t i=0; i<ARRAY_SIZE(cases); i++) {
         const char *decision = restart_decision(cases[i].before, cases[i].after);
@@ -819,6 +975,8 @@ PRIVATE int check_restart_plan(hgobj gobj, hgobj gobj_node)
     JSON_DECREF(sig_disabled)
     JSON_DECREF(sig_disabled_same)
     JSON_DECREF(yuno)
+
+    result += check_restart_against_the_launch(gobj, gobj_node);
     return result;
 }
 

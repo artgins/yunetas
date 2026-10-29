@@ -3158,8 +3158,8 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Binary version neither x.y.z nor x.y.z-a.b.c: "
-                                  "its releases may not compare in order",
+            "msg",          "%s", "Binary version neither x.y.z nor x.y.z-a.b.c "
+                                  "(nor the old x.y.z.0): its releases may not compare in order",
             "role",         "%s", binary_role? binary_role : "",
             "version",      "%s", binary_version,
             NULL
@@ -9788,6 +9788,7 @@ PRIVATE int run_yuno(
             yuno_id,
             json_integer((json_int_t)start_msectimer(priv->timeout_expiration))
         );
+        note_yuno_launch(gobj, priv->resource, yuno_id, yuno_bin_path, role_plus_name);
     }
 
     int fd = newfile(script_path, yuneta_xpermission(), TRUE);
@@ -10866,10 +10867,16 @@ PRIVATE void kill_running_yuno(hgobj gobj, json_t *yuno, json_t *jn_killed)
  *  `all` every yuno is SIGKILLed and the enabled ones launched again, as up
  *  to 7.28.10. Without it, only the yunos whose launch changed go: each
  *  running yuno's launch signature (restart_plan.c: its row, binary,
- *  configuration, realm, public services) is taken before the reload and
- *  again after it; the same one keeps its runtime and stays alive, another
- *  one is killed and launched again (or not, if it is gone or disabled). A yuno that does not run is launched afterwards, if enabled, as
- *  before.
+ *  configuration, realm, public services) as run_yuno() wrote it at its
+ *  launch, in its bin/ (note_yuno_launch()), is compared with the one
+ *  after the reload; the same one keeps its runtime and stays alive,
+ *  another one is killed and launched again (or not, if it is gone or
+ *  disabled). A running yuno with no launch noted (launched by an agent up
+ *  to 7.29.1) is launched again: what it runs is not known. A yuno that does not run is launched afterwards, if
+ *  enabled, as before. Up to 7.29.1 the signature of before was taken from
+ *  the treedb when the restart began, where a change that waits for the
+ *  next launch (update-config of the version in use) already was: the yuno
+ *  was kept on what it ran.
  ***************************************************************************/
 PRIVATE int restart_nodes(hgobj gobj, BOOL all)
 {
@@ -10898,11 +10905,19 @@ PRIVATE int restart_nodes(hgobj gobj, BOOL all)
         json_t *jn_pids = json_array();
         BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
         if(running && !all) {
-            json_object_set_new(jn_before, SDATA_GET_ID(yuno), json_pack("{s:o, s:o, s:O}",
-                "signature", yuno_launch_signature(gobj, priv->resource, yuno),
+            json_t *jn_b = json_pack("{s:o, s:O}",
                 "runtime", yuno_runtime_fields(gobj, priv->resource, yuno),
                 "record", yuno
-            ));
+            );
+            char bin_path[PATH_MAX];
+            char role_plus_name[NAME_MAX];
+            build_yuno_bin_path(gobj, yuno, bin_path, sizeof(bin_path), FALSE);
+            build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
+            json_t *jn_launched = yuno_launched_signature(gobj, bin_path, role_plus_name);
+            if(jn_launched) {
+                json_object_set_new(jn_b, "signature", jn_launched);
+            }
+            json_object_set_new(jn_before, SDATA_GET_ID(yuno), jn_b);
         } else if(running) {
             pid_t pids[2] = {
                 (pid_t)kw_get_int(gobj, yuno, "yuno_pid", 0, KW_REQUIRED),
@@ -10952,6 +10967,7 @@ PRIVATE int restart_nodes(hgobj gobj, BOOL all)
         json_t *jn_kept = json_array();
         json_t *jn_restarted = json_array();
         json_t *jn_stopped = json_array();
+        json_t *jn_unknown = json_array();  // restarted: not launched by this agent
         const char *before_id; json_t *jn_b;
         json_object_foreach(jn_before, before_id, jn_b) {
             json_t *yuno_after = gobj_get_node(
@@ -10986,6 +11002,9 @@ PRIVATE int restart_nodes(hgobj gobj, BOOL all)
                     strcmp(decision, "stop")==0? jn_stopped : jn_restarted,
                     json_string(before_id)
                 );
+                if(strcmp(decision, "restart")==0 && !json_object_get(jn_b, "signature")) {
+                    json_array_append_new(jn_unknown, json_string(before_id));
+                }
             }
             JSON_DECREF(yuno_after)
         }
@@ -10997,11 +11016,13 @@ PRIVATE int restart_nodes(hgobj gobj, BOOL all)
             "kept",         "%j", jn_kept,
             "restarted",    "%j", jn_restarted,
             "stopped",      "%j", jn_stopped,
+            "launch_not_known", "%j", jn_unknown,
             NULL
         );
         JSON_DECREF(jn_kept)
         JSON_DECREF(jn_restarted)
         JSON_DECREF(jn_stopped)
+        JSON_DECREF(jn_unknown)
     }
     JSON_DECREF(jn_before)
 

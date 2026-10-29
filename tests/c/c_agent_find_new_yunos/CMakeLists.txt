@@ -47,6 +47,7 @@ SET (YUNO_SRCS
     src/c_test_find_new_yunos.c
     ${YUNETAS_BASE}/yunos/c/yuno_agent/src/find_new_yunos.c
     ${YUNETAS_BASE}/yunos/c/yuno_agent/src/restart_plan.c
+    ${YUNETAS_BASE}/yunos/c/yuno_agent/src/yuno_config_file.c
 )
 SET (YUNO_HDRS
     src/c_test_find_new_yunos.h

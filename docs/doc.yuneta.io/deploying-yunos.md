@@ -107,7 +107,9 @@ where the SDK's land. Write `"1.0"` and `1.0-7.27.11` compares NEWER than
 `1.0.1-7.27.11` (its 7 meets the 1); write `"1.0.0"`. Since 7.27.13
 `install-binary` logs a WARNING for a binary whose version is neither
 `x.y.z` nor `x.y.z-a.b.c` (or the older `x.y.z.0`), and `sync-binaries` (CLI
-1.0.1) prints one; both go on with the push.
+1.0.1) prints one; both go on with the push. The older form passes with a `0`
+only: up to 7.29.1 the agent let any `x.y.z.N` pass, and `1.9.1.8` compares
+NEWER than `1.9.1-7.27.11` (its 8 meets the 7).
 
 **Deploy is two phases: push, then promote.** The push phase (`yunetas sync`)
 uploads new binaries and configs into the agent's store. Nothing that runs
