@@ -293,7 +293,7 @@ with no id deleted every binary, those in use too.
 |---|---|---|
 | `delete-binary` | a binary record and its directory `/yuneta/repos/<tags>/<role>/<version>`; without `version=`, or with the primary's, **every version** of the id | `version=`, `force=1`, `record_only=1` |
 | `delete-config` | a configuration; without `version=`, or with the primary's, **every version** of the id | `version=`, `force=1` |
-| `delete-yuno` | a release of a yuno, or the yuno; the release of the primary, when there are others, only with `whole=1` | `yuno_release=` or `whole=1` (one of them), `force=1` |
+| `delete-yuno` | a release of a yuno, or the yuno; the release of the primary, when there are others, only with `whole=1` | `yuno_release=` or `whole=1` (one of them, not both), `force=1` |
 | `delete-realm` | a realm with no yunos | `force=1` |
 | `delete-public-service` | a public service | `force=1` |
 
@@ -318,10 +318,12 @@ one version and keep the others, name a version that is not the primary
 
 The "in use" guard reads the `yunos` of **every** version taken. Each version
 has its own list: a yuno is linked to the version it was created on
-(`create-yuno … role_version=1.0`), and a yuno that two lists name counts
-once. Up to 7.29.3 only the list of the record given was read, so a yuno that
-used an older version did not stop the delete of the primary, which took that
-version too:
+(`create-yuno … role_version=1.0`). The lists can overlap: a version installed
+later starts with a copy of the list of the primary at its install (a new
+version of a record takes the links of the primary), so it can name yunos that
+use another version. A yuno that two lists name counts once. Up to 7.29.3 only
+the list of the record given was read, so a yuno that used an older version
+did not stop the delete of the primary, which took that version too:
 
 ```bash
 ycommand -c 'delete-binary id=my_role'
@@ -329,15 +331,31 @@ ycommand -c 'delete-binary id=my_role'
 # "…: cannot delete binary 'my_role': the delete of its primary takes its 2 versions, and 1 yunos use it (use force=1 to override)"
 ```
 
+The delete of ONE version (not the primary) counts only the yunos that use
+THAT version (`role_version` for a binary, `name_version` for a
+configuration). So a version whose list it took from the primary, and that no
+yuno uses, is deleted:
+
+```bash
+# my_role 1.0 is used by yuno y9; 2.0 was installed after y9 was created, so
+# its list names y9 too; 3.0 is the primary
+ycommand -c 'delete-binary id=my_role version=2.0'   # deleted: y9 uses 1.0
+ycommand -c 'delete-binary id=my_role version=1.0'   # refused: y9 uses it
+```
+
 `delete-yuno yuno_release=` with the release of the **primary** is not one
 release: the delete of the primary takes every release of the yuno. When the
 yuno has other releases, the command refuses it and asks for `whole=1`. Up to
-7.29.3 it deleted every release:
+7.29.3 it deleted every release. `yuno_release=` and `whole=1` together are
+refused, whatever the release: the command does not guess which delete was
+meant. Up to 7.29.3 `whole=1` with a release other than the primary's deleted
+that release only:
 
 ```bash
 ycommand -c 'delete-yuno id=2120 yuno_release=1.1.0-2'   # a release behind the primary: deleted
 ycommand -c 'delete-yuno id=2120 yuno_release=1.2.0-2'   # the primary's, with others: refused
 ycommand -c 'delete-yuno id=2120 whole=1'                 # the yuno and every release
+ycommand -c 'delete-yuno id=2120 yuno_release=1.1.0-2 whole=1'   # refused: one or the other
 ```
 
 The `data` of a `delete-binary` answer has one item per version taken, with
@@ -347,13 +365,15 @@ its files and whether the agent removed them:
 [{"id": "emailsender", "version": "7.29.2", "files": "/yuneta/repos/yuneta/utils/emailsender/7.29.2", "removed": true}]
 ```
 
-A directory the agent cannot remove has `"removed": false`. The error is in
-the log, the record is deleted all the same, and the answer is an error
+A directory the agent cannot remove has `"removed": false`, and so has one it
+cannot look at (it cannot tell whether the directory is there, for example
+without permission on a parent directory). The error is in the log, the record is deleted all the same, and the answer is an error
 (`-1`) that counts the records deleted and names the directories to remove by
 hand: *"…: 1 binaries deleted, 1 of them with files the agent could not remove
 (see the log): remove them by hand: ["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*.
 Up to 7.29.3 a failed removal was not looked at, and the answer said only
-*"1 binaries deleted"*.
+*"1 binaries deleted"*; a directory the agent could not look at was not
+removed and was not named.
 
 `delete-binary record_only=1` deletes the record and leaves its files, and
 says where they are, in the comment and in the `data` (`"removed": false`):

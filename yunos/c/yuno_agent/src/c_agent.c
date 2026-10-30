@@ -790,8 +790,8 @@ SDATAPM (DTP_STRING,    "role_version", 0,              0,          "Role versio
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno name"),
 SDATAPM (DTP_STRING,    "name_version", 0,              0,          "Name version"),
 SDATAPM (DTP_STRING,    "yuno_tag",     0,              0,          "Yuno Tag"),
-SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno release; if given, delete that exact release"),
-SDATAPM (DTP_BOOLEAN,   "whole",        0,              0,          "Delete the WHOLE yuno (required when no yuno_release is given)"),
+SDATAPM (DTP_STRING,    "yuno_release", 0,              0,          "Yuno release; if given, delete that exact release (not with whole)"),
+SDATAPM (DTP_BOOLEAN,   "whole",        0,              0,          "Delete the WHOLE yuno and all of its releases (not with yuno_release)"),
 SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force delete (bypass the snap-tag guard; does NOT imply whole)"),
 SDATA_END()
 };
@@ -929,7 +929,7 @@ SDATACM2 (DTP_SCHEMA,   "delete-config",    0,                  0,              
 SDATACM2 (DTP_SCHEMA,   "",                 0,                  0,                  0,              0,              ""),
 SDATACM2 (DTP_SCHEMA,   "find-new-yunos",   0,                  0,                  pm_find_new_yunos,cmd_find_new_yunos, "List the create-yuno rows for binaries/configs newer than the primary"),
 SDATACM2 (DTP_SCHEMA,   "create-yuno",      0,                  0,                  pm_create_yuno, cmd_create_yuno, "Create a yuno; with role_version/name_version, a new release of one existing"),
-SDATACM2 (DTP_SCHEMA,   "delete-yuno",      0,                  0,                  pm_delete_yuno, cmd_delete_yuno, "Delete a release (yuno_release=...) or the whole yuno (whole=1)"),
+SDATACM2 (DTP_SCHEMA,   "delete-yuno",      0,                  0,                  pm_delete_yuno, cmd_delete_yuno, "Delete a release (yuno_release=...) or the whole yuno (whole=1), one of them"),
 SDATACM2 (DTP_SCHEMA,   "set-tag",          0,                  0,                  pm_set_tag,   cmd_set_tag,  "Set yuno tag"),
 SDATACM2 (DTP_SCHEMA,   "set-multiple",     0,                  0,                  pm_set_multiple,cmd_set_multiple,"Set yuno multiple"),
 SDATACM2 (DTP_SCHEMA,   "edit-yuno-config", 0,                  a_edit_yuno_config, pm_list_yunos,  0,              "Edit yuno configuration"),
@@ -3871,16 +3871,21 @@ PRIVATE json_t *list_delete_targets(
  *  Count yunos that actually USE the config/binary instances a delete
  *  takes, robustly.
  *
- *  Each instance (version) has its OWN `yunos` hook: a yuno is linked to
- *  the version it was created on (create-yuno role_version=/name_version=),
- *  so a delete that takes several versions reads the list of every one of
- *  them, and a yuno that two lists name counts once. Up to 7.29.3 only the
- *  list of the node given was read: a yuno pinned to another version of a
- *  key the delete took whole was not looked at.
+ *  Each instance (version) has its OWN `yunos` list (an fkey column): a
+ *  yuno is linked to the version it was created on (create-yuno
+ *  role_version=/name_version=). The lists are not disjoint: a version
+ *  installed later starts with a copy of the primary's list (the treedb's
+ *  new instance inherits the fkeys of the primary), so it can name yunos
+ *  that use another version. So a delete that takes several versions reads
+ *  the list of every one of them, a yuno that two lists name counts once,
+ *  and the delete of one version counts only the yunos on THAT version
+ *  (target_version below). Up to 7.29.3 only the list of the node given
+ *  was read: a yuno pinned to another version of a key the delete took
+ *  whole was not looked at.
  *
- *  A hook can carry STALE refs (a yuno whose record was deleted but whose
- *  hook entry lingers in memory until the next reload — the parent-hook is
- *  not always cleaned on a multi-version parent). So validate every hooked
+ *  A list can carry STALE refs (a yuno whose record was deleted but whose
+ *  ref lingers in memory until the next reload — the list is not always
+ *  cleaned on a multi-version key). So validate every listed
  *  yuno id with gobj_get_node (a deleted yuno returns NULL → skip). When
  *  target_version is non-empty, count only yunos pinned to THAT version (a
  *  yuno uses config version = its name_version, binary version = its
@@ -3889,7 +3894,7 @@ PRIVATE json_t *list_delete_targets(
  ***************************************************************************/
 PRIVATE int count_yunos_using(
     hgobj gobj,
-    json_t *instances,          // NOT owned, config/binary nodes with the "yunos" hook
+    json_t *instances,          // NOT owned, config/binary nodes with their "yunos" list
     const char *version_field,  // "name_version" (config) or "role_version" (binary)
     const char *target_version, // node's version; "" => count any version
     hgobj src
@@ -4242,14 +4247,32 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             /*
              *  Remove from store in filesystem. A directory that is not
              *  there is nothing left behind; one rmrdir() could not remove
-             *  (logged by it) is, and the answer says so.
+             *  (logged by it) is, and so is one the agent cannot look at
+             *  (access() fails with other than ENOENT): it may be there.
+             *  The answer says so. Up to 7.29.3 the second was "removed".
              */
             BOOL removed = TRUE;
-            if(access(destination,0)==0) {
+            if(access(destination, F_OK)==0) {
                 if(rmrdir(destination)<0) {
                     removed = FALSE;    // Error already logged
-                    json_array_append_new(jn_left, json_string(destination));
                 }
+            } else if(errno != ENOENT) {
+                int err = errno;
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot tell whether the directory of a deleted binary exists: not removed",
+                    "id",           "%s", role,
+                    "version",      "%s", version,
+                    "path",         "%s", destination,
+                    "errno",        "%d", err,
+                    "serrno",       "%s", strerror(err),
+                    NULL
+                );
+                removed = FALSE;
+            }
+            if(!removed) {
+                json_array_append_new(jn_left, json_string(destination));
             }
             json_array_append_new(jn_data, json_pack("{s:s, s:s, s:s, s:b}",
                 "id", role,
@@ -4262,6 +4285,11 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     JSON_DECREF(jn_units)
 
+    /*
+     *  Directories left and records deleted alone never meet in one call:
+     *  record_only=1 removes no directory, and without it every version
+     *  taken passed the name guard above, so each has its directory.
+     */
     if(result < 0) {
         jn_comment = json_sprintf("%s", gobj_log_last_message());
     } else if(json_array_size(jn_left) > 0) {
@@ -5510,6 +5538,28 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  release a snap froze, a different question.
      */
     BOOL whole = kw_get_bool(gobj, kw, "whole", 0, KW_WILD_NUMBER);
+
+    /*
+     *  One or the other: a release and the whole yuno are two deletes, and
+     *  the command does not guess which was meant. Up to 7.29.3 whole=1
+     *  with a release other than the primary's deleted that release only,
+     *  and with the primary's release every release.
+     */
+    if(by_instance && whole) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: delete-yuno takes yuno_release=<release> (one release) "
+                "or whole=1 (the yuno and all of its releases), not both",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     if(!by_instance && !whole) {
         return msg_iev_build_response(
             gobj,
@@ -5555,7 +5605,7 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  it, it is the whole yuno, and that is asked with whole=1. Up to
          *  7.29.3 it passed as one release and deleted them all.
          */
-        if(by_instance && !whole) {
+        if(by_instance) {
             BOOL whole_key = FALSE;
             json_t *taken = instances_taken_by_delete(
                 gobj, resource, "yuno_release", node, by_instance, &whole_key, src
@@ -5566,7 +5616,7 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 json_t *comment = json_sprintf(
                     "%s: cannot delete release '%s' of yuno '%s' alone: it is the primary, "
                     "and its delete takes every release of the yuno (%d). "
-                    "Add whole=1 to delete the yuno and all of its releases.",
+                    "Use whole=1 without yuno_release to delete the yuno and all of its releases.",
                     gobj_yuno_role_plus_name(),
                     SDATA_GET_STR(node, "yuno_release"),
                     SDATA_GET_ID(node),
@@ -7391,7 +7441,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     /*
      *  -1 is a fault, as C_TRANGER's: a corrupted json or a walk cut short;
-     *  what is held more than max_refcount times is the answer (V22.5.4)
+     *  what is held more than max_refcount times is the answer, not a fault
      */
     return msg_iev_build_response(gobj,
         (corrupted > 0 || truncated)? -1 : 0,
