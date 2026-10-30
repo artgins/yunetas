@@ -7387,6 +7387,10 @@ PRIVATE int64_t time_of_local_wall(int64_t wall, int64_t *on_day_before)
     long offset_after = local_offset_at((time_t)(wall + 86400));
     int64_t t_before = wall - offset_before;
     int64_t t_after = wall - offset_after;
+    if(offset_before == offset_after) {
+        *on_day_before = t_before;  // no change between: what the code below answers too
+        return t_before;
+    }
     if(local_offset_at((time_t)t_before) == offset_before) {
         *on_day_before = t_before;
         return t_before;
@@ -8414,17 +8418,20 @@ PRIVATE BOOL day_said(date_reading_t *rd)
  *  ("+0200", "+0200 10:00"). After GMT, UTC or UT it is the zone
  *  ("GMT+0200", as Date.toString() of javascript writes).
  *
- *  A sign that touches digits (`after_digits`) is a zone only right after
- *  the digits of a clock time, as ISO 8601 writes it ("10:00-05:00",
- *  "2026-10-01T10:00:00.5+02:00", "20261001T100000-0500"). Glued to the
- *  digits of a date or of epoch seconds it is no date: "2026-10-01-10:00"
- *  was read as October 1 in a zone of -10:00, at the time of day of now
- *  there (October 2 in Madrid), "2026.10-2026.10" in a zone of -20:26.
+ *  A sign that touches digits (`after_digits`) is a zone right after the
+ *  digits of a clock time, as ISO 8601 writes it ("10:00-05:00",
+ *  "2026-10-01T10:00:00.5+02:00", "20261001T100000-0500"), and after a
+ *  clock time (noon, midnight, tea) or epoch seconds said before it
+ *  ("10:00 2026-10-01-0500", "@1790000000-0500", "1790000000+0200"):
+ *  there no clock time can follow. With only a day before it, it is no
+ *  date: in "2026-10-01-10:00" the -10:00 may be a clock time as well as a
+ *  zone.
  ***************************************************************************/
 PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p, BOOL after_digits)
 {
     if((rd->zone_said && !rd->zone_utc_word) ||
-            (after_digits && p != rd->clock_end) ||
+            (after_digits && p != rd->clock_end &&
+                rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said) ||
             (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said && !day_said(rd))) {
         rd->unreadable = TRUE;
         return p + 1;
@@ -8730,11 +8737,45 @@ PRIVATE const char *read_comment(date_reading_t *rd, const char *p)
 }
 
 /***************************************************************************
+ *  tzset() when TZ is not the text it had at the last call (set or not):
+ *  localtime_r() does not look at TZ again, so a TZ changed with setenv()
+ *  alone is seen here. An unchanged TZ costs no tzset(), which with TZ
+ *  unset looks at /etc/localtime on every call. So a change of
+ *  /etc/localtime while the process runs is not seen per text (only at the
+ *  next change of TZ, or at a tzset() of the process), and neither is a TZ
+ *  set back with setenv() alone to the text of the last call after a
+ *  tzset() of the process with another TZ. A TZ of PATH_MAX bytes or more
+ *  is not kept: tzset() is called at every text.
+ ***************************************************************************/
+PRIVATE void see_tz_change(void)
+{
+    static BOOL kept = FALSE;       // last_tz (and was_set) say the TZ of the last tzset() here
+    static BOOL was_set = FALSE;
+    static char last_tz[PATH_MAX];
+
+    const char *tz = getenv("TZ");
+    if(kept) {
+        if(!tz && !was_set) {
+            return;
+        }
+        if(tz && was_set && strcmp(tz, last_tz) == 0) {
+            return;
+        }
+    }
+    tzset();
+    was_set = tz? TRUE : FALSE;
+    kept = (!tz || strlen(tz) < sizeof(last_tz))? TRUE : FALSE;
+    if(kept && tz) {
+        snprintf(last_tz, sizeof(last_tz), "%s", tz);
+    }
+}
+
+/***************************************************************************
  *  Note what each piece of `text` says
  ***************************************************************************/
 PRIVATE void read_date_text(date_reading_t *rd, const char *text)
 {
-    tzset();    // localtime_r() does not look at TZ again: a TZ changed since is seen here
+    see_tz_change();
     memset(rd, 0, sizeof(*rd));
     rd->now = time(NULL);
     rd->now_offset = local_offset_at(rd->now);
@@ -8823,8 +8864,9 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
  *  time_of_local_wall() for a local time that a change of hour repeats
  *  or skips). A day counted back that the zone skips whole is no date,
  *  and the last noon (midnight, tea) that passed is then the one of the
- *  day before it. A count of hours, minutes or seconds is taken back from
- *  the time the rest of the text says.
+ *  day before it. A count of hours, minutes or seconds counts no day: it
+ *  is taken back from the time the rest of the text says ("noon -2 hours"
+ *  is 2 hours before that noon).
  ***************************************************************************/
 PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset_minutes)
 {
@@ -8948,7 +8990,7 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         } else {
             int64_t on_day_before;
             t = time_of_local_wall(day*86400 + hour*3600 + min*60 + sec, &on_day_before);
-            if(on_day_before != t && rd->counted_back) {
+            if(on_day_before != t && rd->day_counted) {
                 return -1;  // a day counted back that the zone skipped whole
             }
             if(on_day_before != t && day_before_today) {

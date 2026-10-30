@@ -121,20 +121,30 @@
  *              with a zone is no date ("never (+0200)" was the epoch); "12
  *              noon" is noon ("12 noon" was the 12th); an offset after a
  *              date or a day is a zone ("yesterday +0000" was refused).
- *          23. a sign glued to the digits of a date or of epoch seconds is
- *              no zone ("2026-10-01-10:00" was Oct 2 at the time of now),
- *              only one right after a clock time is ("T10:00-05:00"); with
+ *          23. a sign glued to the digits of a date, with only a day
+ *              before it, is no zone ("2026-10-01-10:00" was Oct 2 at the
+ *              time of now); right after a clock time ("T10:00-05:00"), or
+ *              after a clock time or epoch seconds said before it
+ *              ("10:00 2026-10-01-0500", "@1790000000-0500"), it is; with
  *              no clock time an offset outside -12:00..+14:00 is no date
- *              ("now-2026" was read in a zone of -20:26); a count right
- *              after a month name with no day is no date ("Jan 1 pm" was
- *              January 21 at 13:00, the day of today); a clock time with
- *              a zone and no date is of the day of now in that zone; a
- *              day that the zone skips whole is no day counted back, and
- *              the last noon that passed is the one before it (in Apia on
- *              2011-12-31, "noon" and "yesterday noon" were that day's
- *              noon, ahead of now); a TZ changed with no tzset() is seen;
- *              and the limit of a zone that changes its offset twice in
- *              less than 48 hours.
+ *              ("now-2026" was read in a zone of -20:26), in a comment too
+ *              ("now (+1500)"), while after epoch seconds any offset is
+ *              read; a count right after a month name with no day is no
+ *              date ("Jan 1 pm" was January 21 at 13:00, the day of
+ *              today); a clock time with a zone and no date is of the day
+ *              of now in that zone.
+ *          24. a day that the zone skips whole is no day counted back, and
+ *              the last noon that passed is the one before it (in Apia
+ *              and Fakaofo on 2011-12-31, "noon" and "yesterday noon" were
+ *              that day's noon, ahead of now); a count of hours, minutes or
+ *              seconds counts no day ("noon -2 hours" is the 29th at
+ *              10:00); a TZ changed with no tzset() is seen; and the limit
+ *              of a zone that changes its offset twice in less than 48
+ *              hours.
+ *          25. the reader calls tzset() only when TZ changed since its last
+ *              call (1000 texts with TZ unset called it 1000 times, and
+ *              each looked at /etc/localtime); a TZ set or unset with no
+ *              tzset() is seen.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -165,6 +175,20 @@ time_t __wrap_time(time_t *t)
         *t = s_fake_now;
     }
     return s_fake_now;
+}
+
+/***************************************************************************
+ *  tzset(), counted: -Wl,--wrap=tzset (see CMakeLists.txt)
+ ***************************************************************************/
+PRIVATE int s_tzset_calls = 0;
+
+void __real_tzset(void);
+void __wrap_tzset(void);
+
+void __wrap_tzset(void)
+{
+    s_tzset_calls++;
+    __real_tzset();
 }
 
 /***************************************************************************
@@ -1750,16 +1774,19 @@ PRIVATE void test_am_pm_at_never_noon_and_zones(void)
 }
 
 /***************************************************************************
- *  23. A sign glued to the digits of a date or of epoch seconds is no
- *  zone: "2026-10-01-10:00" (Wed 21 at 11:00) was Fri 2 at 11:00, the
- *  date of October 1 at -10:00. Only an offset right after a clock time
- *  may touch it, as ISO 8601 writes it ("2026-10-01T10:00-05:00"). With no
+ *  23. A sign glued to the digits of a date with only a day before it is
+ *  no zone: "2026-10-01-10:00" (Wed 21 at 11:00) was Fri 2 at 11:00, the
+ *  date of October 1 at -10:00. An offset may touch digits right after a
+ *  clock time, as ISO 8601 writes it ("2026-10-01T10:00-05:00"), and after
+ *  a clock time (noon) or epoch seconds said before it, where no clock
+ *  time can follow ("10:00 2026-10-01-0500", "@1790000000-0500"). With no
  *  clock time an offset moves the date, and one outside -12:00..+14:00,
  *  the zones there are, is no date ("now-2026" was now, in a zone of
- *  -20:26). A count right after a month name, when the text says no
- *  day, is no date ("Jan 1 pm" was January 21 at 13:00, the day of
- *  today). A clock time with a zone and no date is of the day of now in
- *  that zone.
+ *  -20:26), in a comment too ("now (+1500)"); after epoch seconds it moves
+ *  nothing, only says the offset to show, and any offset is read. A count
+ *  right after a month name, when the text says no day, is no date ("Jan 1
+ *  pm" was January 21 at 13:00, the day of today). A clock time with a
+ *  zone and no date is of the day of now in that zone.
  ***************************************************************************/
 PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
 {
@@ -1774,7 +1801,7 @@ PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
         {"2026-10-01-05",                   "2026-10-21 11:00:00 +0200", 1},
         {"2026-10-01+0200",                 "2026-10-21 11:00:00 +0200", 1},
         {"Oct 1 2026+0000",                 "2026-10-21 11:00:00 +0200", 1},
-        {"@1790000000-0500",                "2026-10-21 11:00:00 +0200", 1},
+        {"1790000000-0500",                 "2026-10-21 11:00:00 +0200", 1},
         {"@1790000000 -0500",               "2026-09-21 16:13:20 +0200", 0},
         {"2026-10-01 -10:00",               "2026-10-02 11:00:00 +0200", 0},
         {"2026-10-01-1d",                   "2026-09-30 11:00:00 +0200", 0},
@@ -1787,6 +1814,19 @@ PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
         {"now-0500",                        "2026-10-21 11:00:00 +0200", 0},
 
         /*
+         *  After a clock time (noon) or epoch seconds said before it, a
+         *  sign glued to a date or to the seconds is a zone: no clock time
+         *  can follow
+         */
+        {"10:00 2026-10-01-0500",           "2026-10-01 17:00:00 +0200", 0},
+        {"10:00 1.10.2026-23",              "2026-10-02 11:00:00 +0200", 0},
+        {"noon 2026-10-01-0500",            "2026-10-01 19:00:00 +0200", 0},
+        {"3pm 10/01/2026-10:00",            "2026-10-02 03:00:00 +0200", 0},
+        {"@1790000000-0500",                "2026-09-21 16:13:20 +0200", 0},
+        {"@1790000000+1500",                "2026-09-21 16:13:20 +0200", 0},
+        {"1790000000+0200",                 "2026-09-21 16:13:20 +0200", 0},
+
+        /*
          *  With no clock time, an offset of a zone there is
          */
         {"now-2026",                        "2026-10-21 11:00:00 +0200", 1},
@@ -1796,10 +1836,16 @@ PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
         {"2026-10-01 -1201",                "2026-10-21 11:00:00 +0200", 1},
         {"2026-10-01 GMT+1500",             "2026-10-21 11:00:00 +0200", 1},
         {"2026-10-01 (UTC+15:00)",          "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 (+1500)",              "2026-10-21 11:00:00 +0200", 1},
+        {"now (+1500)",                     "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday (UTC-13:00)",           "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 (UTC+14:00)",          "2026-10-01 11:00:00 +0200", 0},
         {"2026-10-01 +1400",                "2026-10-01 11:00:00 +0200", 0},
         {"2026-10-01 -1200",                "2026-10-02 11:00:00 +0200", 0},
         {"noon -2300",                      "2026-10-20 13:00:00 +0200", 0},
         {"2026-10-01 10:00 +2300",          "2026-09-30 13:00:00 +0200", 0},
+        {"@1761000000 +1500",               "2025-10-21 00:40:00 +0200", 0},
+        {"@1761000000 -2359",               "2025-10-21 00:40:00 +0200", 0},
 
         /*
          *  A count right after a month name, and no day
@@ -1850,15 +1896,17 @@ PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
 }
 
 /***************************************************************************
- *  23. A day that a change of the zone skips whole is no day counted
+ *  24. A day that a change of the zone skips whole is no day counted
  *  back from today, and the last noon (midnight, tea) that passed is the
  *  one of the day before it: in Apia 2011-12-30 was skipped (from
  *  2011-12-29 23:59:59 -1000 to 2011-12-31 00:00:00 +1400), and on the
  *  31st "noon", "yesterday noon" and "yesterday 12:30" were the 31st at
- *  12:00 and 12:30, ahead of now at 00:00. A date said is read as any
- *  time a change skips ("2011-12-30 12:00" is 24 hours later).
+ *  12:00 and 12:30, ahead of now at 00:00. A count of hours, minutes or
+ *  seconds counts no day: "noon -2 hours" is 2 hours before the last noon
+ *  that passed, the 29th's. Fakaofo skipped the same day. A date said is
+ *  read as any time a change skips ("2011-12-30 12:00" is 24 hours later).
  *
- *  A TZ changed with no tzset() is seen: the reader calls it.
+ *  A TZ changed with no tzset() is seen: the reader calls it (see 25).
  *
  *  The offsets before and after a local time are taken a day away from
  *  it, so the reading is exact for a zone that never changes its offset
@@ -1889,6 +1937,20 @@ PRIVATE void test_whole_day_skipped_tzset_and_close_changes(void)
         {"2011-12-30 12:00",                "2011-12-31 12:00:00 +1400", 0},
         {"2011-12-29 12:00",                "2011-12-29 12:00:00 -1000", 0},
         {"12:30",                           "2011-12-31 12:30:00 +1400", 0},
+
+        /*
+         *  A count of hours, minutes or seconds counts no day: it is taken
+         *  back from the last noon (tea) that passed
+         */
+        {"noon -2 hours",                   "2011-12-29 10:00:00 -1000", 0},
+        {"noon 2 hours ago",                "2011-12-29 10:00:00 -1000", 0},
+        {"tea -30 minutes",                 "2011-12-29 16:30:00 -1000", 0},
+        {"noon -1 second",                  "2011-12-29 11:59:59 -1000", 0},
+        {"noon 24 hours ago",               "2011-12-28 12:00:00 -1000", 0},
+        {"2011-12-30 noon -2 hours",        "2011-12-31 10:00:00 +1400", 0},
+        {"noon -1 day",                     "2011-12-31 00:00:00 +1400", 1},
+        {"noon 1 day ago",                  "2011-12-31 00:00:00 +1400", 1},
+        {"yesterday noon -2 hours",         "2011-12-31 00:00:00 +1400", 1},
     };
     check_approxidate(first_moment, sizeof(first_moment)/sizeof(first_moment[0]));
 
@@ -1902,8 +1964,28 @@ PRIVATE void test_whole_day_skipped_tzset_and_close_changes(void)
         {"yesterday noon",                  "2011-12-31 13:00:00 +1400", 1},
         {"yesterday 12:30",                 "2011-12-31 13:00:00 +1400", 1},
         {"2 days ago noon",                 "2011-12-29 12:00:00 -1000", 0},
+        {"tea 24 hours ago",                "2011-12-28 17:00:00 -1000", 0},
     };
     check_approxidate(afternoon, sizeof(afternoon)/sizeof(afternoon[0]));
+
+    /*
+     *  Fakaofo skipped the same day, from -1100 to +1300: Sat 2011-12-31
+     *  00:00 +1300
+     */
+    setenv("TZ", "Pacific/Fakaofo", 1);
+    tzset();
+    s_fake_now = 1325242800;
+    static const approxidate_case_t fakaofo[] = {
+        {"noon",                            "2011-12-29 12:00:00 -1100", 0},
+        {"noon -2 hours",                   "2011-12-29 10:00:00 -1100", 0},
+        {"noon 2 hours ago",                "2011-12-29 10:00:00 -1100", 0},
+        {"tea -30 minutes",                 "2011-12-29 16:30:00 -1100", 0},
+        {"noon -1 second",                  "2011-12-29 11:59:59 -1100", 0},
+        {"noon -1 day",                     "2011-12-31 00:00:00 +1300", 1},
+        {"yesterday noon",                  "2011-12-31 00:00:00 +1300", 1},
+        {"yesterday",                       "2011-12-29 00:00:00 -1100", 0},
+    };
+    check_approxidate(fakaofo, sizeof(fakaofo)/sizeof(fakaofo[0]));
     s_fake_now = NOW;
 
     /*
@@ -1944,6 +2026,49 @@ PRIVATE void test_whole_day_skipped_tzset_and_close_changes(void)
 
     setenv("TZ", "Europe/Madrid", 1);
     tzset();
+}
+
+/***************************************************************************
+ *  25. The reader calls tzset() only when TZ is not the text it had at the
+ *  reader's last call: with TZ unset glibc looks at /etc/localtime at
+ *  every tzset(), and a text tkey is read at every append. A TZ changed,
+ *  set or unset with setenv() or unsetenv() alone is seen.
+ ***************************************************************************/
+PRIVATE void test_tzset_only_when_tz_changes(void)
+{
+    int error = 0;
+
+    setenv("TZ", "America/Los_Angeles", 1);
+    tzset();
+    timestamp_t t_los_angeles = approxidate_careful("2026-07-01 10:00", &error);
+    s_tzset_calls = 0;
+    for(int i = 0; i < 1000; i++) {
+        approxidate_careful("2026-07-01 10:00", &error);
+    }
+    check_number("tzset() calls for 1000 texts, TZ set and not changed", (unsigned long long)s_tzset_calls, 0);
+
+    unsetenv("TZ");
+    s_tzset_calls = 0;
+    timestamp_t t_unset = approxidate_careful("2026-07-01 10:00", &error);
+    for(int i = 0; i < 999; i++) {
+        approxidate_careful("2026-07-01 10:00", &error);
+    }
+    check_number("tzset() calls for 1000 texts, TZ unset", (unsigned long long)s_tzset_calls, 1);
+    tzset();
+    timestamp_t t_after_tzset = approxidate_careful("2026-07-01 10:00", &error);
+    check_number("TZ unset with no tzset(): the time of /etc/localtime",
+        (unsigned long long)t_unset, (unsigned long long)t_after_tzset);
+    printf("     (Los Angeles %llu, /etc/localtime %llu)\n",
+        (unsigned long long)t_los_angeles, (unsigned long long)t_after_tzset);
+
+    setenv("TZ", "Europe/Madrid", 1);
+    s_tzset_calls = 0;
+    static const approxidate_case_t madrid_again[] = {
+        {"2026-07-01 10:00",                "2026-07-01 10:00:00 +0200", 0},
+        {"2026-10-01 10:00",                "2026-10-01 10:00:00 +0200", 0},
+    };
+    check_approxidate(madrid_again, sizeof(madrid_again)/sizeof(madrid_again[0]));
+    check_number("tzset() calls for 2 texts after a setenv()", (unsigned long long)s_tzset_calls, 1);
 }
 
 /***************************************************************************
@@ -1995,6 +2120,7 @@ int main(int argc, char *argv[])
     test_am_pm_at_never_noon_and_zones();
     test_glued_signs_far_offsets_and_counts_after_a_month();
     test_whole_day_skipped_tzset_and_close_changes();
+    test_tzset_only_when_tz_changes();
 
     gobj_end();
 

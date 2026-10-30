@@ -1175,14 +1175,19 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         was read before it. A day that the zone skips whole is no day
         counted back from today: in Apia, which skipped 2011-12-30, on the
         31st "yesterday noon" and "yesterday 12:30" are no date, and
-        "noon" before noon (the last one that passed) is the 29th's; a date
+        "noon" before noon (the last one that passed) is the 29th's
+        ("noon -2 hours" its 10:00: a count of hours counts no day); a date
         said is read as any time skipped ("2011-12-30 12:00" is the 31st at
         12:00). The offsets before and after a change are taken a day
         away from the time read: exact for a zone that does not change
         its offset twice in less than 48 hours (tzdata has none since
         1970; a POSIX TZ can, "AAA0BBB-1,J60/0,J61/0", and a time of its
         one day of summer time is read an hour late). The zone is the TZ
-        of the process when the text is read (tzset() is called)
+        of the process when the text is read: tzset() is called when TZ is
+        not the text it had at the last text read (set or unset), so a TZ
+        changed with setenv() alone is seen; a change of /etc/localtime
+        while the process runs is seen at the next tzset() of the process
+        or the next change of TZ, not per text
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
         after "at" comes a time of day or a date: "at yesterday", "at
         now", "at today", "at never" are no date
@@ -1232,15 +1237,20 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         time the date is of that zone: "2026-10-01 UTC" is October 1 at
         the time of day of now in UTC; the offset must then be one of a
         zone there is, -12:00 to +14:00 ("now-2026", "yesterday -2300",
-        "2026-10-01 +1500" are no date). A clock time with a zone and no
+        "2026-10-01 +1500", "now (+1500)" are no date). After epoch
+        seconds the offset moves nothing, it only says the offset to show
+        the time with, and any offset is read ("@1761000000 +1500"), as
+        after a clock time ("10:00 +2300"). A clock time with a zone and no
         date is of the day of now in that zone: at 00:30 CEST on
         2026-10-25 (23:30 CET of the 24th) "02:30 CET" is the 24th's.
-        A sign that touches digits is an offset only right after a clock
-        time, as ISO 8601 writes it ("2026-10-01T10:00-05:00",
-        "10:00-0500"); glued to the digits of a date or of epoch seconds
-        it is no date ("2026-10-01-10:00", "1.10.2026-23",
-        "@1700000000-0500"): write "2026-10-01 -10:00". A count and its
-        unit there is a duration ("2026-10-01-1d")
+        A sign that touches digits is an offset right after a clock time,
+        as ISO 8601 writes it ("2026-10-01T10:00-05:00", "10:00-0500"),
+        and after a clock time (noon, midnight, tea) or epoch seconds said
+        before it, where no clock time can follow ("10:00 2026-10-01-0500",
+        "@1700000000-0500"). Glued to the digits of a date with only a day
+        before it, it is no date ("2026-10-01-10:00", "1.10.2026-23": the
+        -10:00 may be a clock time): write "2026-10-01 -10:00". A count and
+        its unit there is a duration ("2026-10-01-1d")
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
         "(CEST)": a zone name in a comment is the zone when no other is
         given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC); an offset in a
