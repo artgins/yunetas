@@ -7652,6 +7652,7 @@ PRIVATE const char *read_after_count(date_reading_t *rd, uintmax_t count, const 
     }
     return NULL;
 }
+
 /***************************************************************************
  *  Is a weekday, in the singular, what follows a number at `p` (after
  *  spaces, dots, commas or underscores)? "2026 Thu", "5, friday".
@@ -7669,7 +7670,6 @@ PRIVATE BOOL weekday_follows(const char *p)
     take_word(p, raw, word, sizeof(word));
     return (weekday_of_word(word) >= 0)? TRUE : FALSE;
 }
-
 
 /***************************************************************************
  *  A clock time after its hour: mm[:ss[.fraction]]
@@ -8069,6 +8069,7 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
         }
         return p;
     }
+
     if((rd->mon || rd->mday || rd->year) && weekday_follows(p)) {
         /*
          *  After a month, a day or a year the number is that date's, and
@@ -8077,7 +8078,6 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
         note_number(rd, value, digits);
         return p;
     }
-
     const char *end = read_after_count(rd, value, p);
     if(end) {
         return end;
