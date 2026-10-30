@@ -616,21 +616,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
 
-    /*
-     *  The socket of a clisrv is its own (a client's is its connect
-     *  event's, closed by the free of that event): the stop closes it when
-     *  it ends, so a clisrv destroyed before its stop ended closes it here,
-     *  after its events are stopped, the way the stop does: shutdown(SHUT_WR)
-     *  first, so its peer reads the end of the connection (a FIN) even when
-     *  data it sent is still unread, which makes a bare close() send a RST.
-     *  The FIN goes out after what this side wrote: while that output is
-     *  still in the send buffer, the close() of a socket with unread data
-     *  drops it, and the peer gets a RST and no FIN, as at the end of a stop.
-     *
-     *  shutdown() is not checked: it can only fail on a connection that is
-     *  already gone (ENOTCONN once the peer reset it), and then the close()
-     *  that follows is all there is to do.
-     */
+    // A clisrv destroyed before its stop ended: its socket closed as try_to_stop_yevents() does
     if(priv->fd_clisrv > 0) {
         shutdown(priv->fd_clisrv, SHUT_WR);
         close(priv->fd_clisrv);
@@ -1683,6 +1669,21 @@ PRIVATE void bound_the_write_in_flight(hgobj gobj)
 /***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
+ *
+ *  The socket of a clisrv is its own (a client's is its connect event's,
+ *  closed by the free of that event), and it is closed only once all its
+ *  io_uring events are stopped (tx_in_progress is then 0). shutdown(SHUT_WR)
+ *  goes before close(): Linux sends a RST instead of a FIN when close() is
+ *  called with unread data in the receive buffer (the peer's FIN arrived
+ *  just after the last data was read), and shutdown(SHUT_WR) moves the
+ *  socket to FIN_WAIT_1 first, so the close() follows the graceful
+ *  teardown and the peer can end its own. The FIN goes out after what this
+ *  side wrote: while that output is still in the send buffer, the close()
+ *  of a socket with unread data drops it, and the peer gets a RST and no
+ *  FIN. shutdown() is not checked: it can only fail on a connection that is
+ *  already gone (ENOTCONN once the peer reset it), and then the close()
+ *  that follows is all there is to do. mt_destroy() closes the socket of a
+ *  clisrv destroyed before its stop ended the same way.
  ***************************************************************************/
 #include <liburing.h> // TODO someday review stopping
 PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
@@ -1753,24 +1754,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     } else {
         log_closing_drops(gobj);
 
-        /*
-         *  Close fd only after all io_uring events are stopped.
-         *  tx_in_progress==0 is guaranteed here (it sets to_wait_stopped above).
-         *
-         *  Call shutdown(SHUT_WR) before close() to send a graceful FIN instead
-         *  of RST.  Linux sends RST when close() is called with unread data in
-         *  the receive buffer (e.g. the peer's FIN arrived just after we read
-         *  the last application data).  shutdown(SHUT_WR) transitions the socket
-         *  to FIN_WAIT_1 first, so the subsequent close() follows the graceful
-         *  TCP teardown path and the peer can complete its own shutdown().
-         *  The FIN goes out after what this side wrote: while that output is
-         *  still in the send buffer, the close() of a socket with unread data
-         *  drops it, and the peer gets a RST and no FIN.
-         *
-         *  shutdown() is not checked: it can only fail on a connection that
-         *  is already gone (ENOTCONN once the peer reset it), and then the
-         *  close() that follows is all there is to do.
-         */
+        // All io_uring events are stopped: the socket closes, shutdown() first (see the header)
         if(priv->fd_clisrv > 0) {
             if(trace_level & TRACE_URING) {
                 gobj_log_debug(gobj, 0,

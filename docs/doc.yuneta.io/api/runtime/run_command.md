@@ -179,9 +179,13 @@ typed on a terminal, a second ctrl+d gets to `B`.
 The call ends with the command, not with a process the command left in the
 background: the exit is seen by a pidfd (`pidfd_open()`), so
 `(trap '' HUP; exec sleep 3) & sleep 0.2` takes 0.2 s, not 3 s. Without a
-pidfd (a kernel older than 5.3, or kernel headers older than 5.3 on an
-architecture whose syscall number the source does not carry) a WARNING
-says so and the exit is looked for every 100 ms. Then what the command left in the terminal is passed on
+pidfd the exit is looked for every 100 ms. A kernel older than 5.3, where
+`pidfd_open()` fails, gets a WARNING at each call (*"pidfd_open() FAILED:
+the end of the command is looked for every 100 ms"*, with its `errno`). A
+build whose kernel headers are older than 5.3, on an architecture whose
+syscall number the source does not carry, makes no call: one WARNING per
+process says so (*"built without pidfd_open(): the end of a command is
+looked for every 100 ms (said once)"*). Then what the command left in the terminal is passed on
 without waiting for such a process, the terminal is closed, and the
 command is reaped. Up to 7.29.3 the terminal was never closed (one fd per
 call), and a command whose terminal was read to its end before its exit

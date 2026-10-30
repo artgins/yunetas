@@ -40,6 +40,13 @@
  *      Prototypes
  ***************************************************************************/
 
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+#ifndef SYS_pidfd_open
+PRIVATE BOOL pidfd_polling_said = FALSE;   /* the WARNING of a build without pidfd_open(), once per process */
+#endif
+
 #if !(defined(__GLIBC__) && __GLIBC_PREREQ(2, 34))
 /***************************************************************************
  *  A C library with no posix_spawn_file_actions_addclosefrom_np() (glibc
@@ -495,9 +502,11 @@ PRIVATE int reap_command(const char *command, pid_t pid, int *status, int flags)
  *
  *  The end of the command is seen by a pidfd, so a process it left in the
  *  background holding the terminal does not hold this call (without a
- *  pidfd, the exit is looked for every 100 ms). Then what is left in the
- *  terminal is passed on without waiting for such a process, the terminal
- *  is closed and the command reaped.
+ *  pidfd, the exit is looked for every 100 ms: a pidfd_open() that fails
+ *  is said with a WARNING at each call, a build without pidfd_open() once
+ *  per process). Then what is left in the terminal is passed on without
+ *  waiting for such a process, the terminal is closed and the command
+ *  reaped.
  *
  *  0 when it exited (whatever its exit code; also when the kernel reaped
  *  it, SIGCHLD at SIG_IGN, and its status is lost: then a command killed
@@ -554,16 +563,20 @@ PUBLIC int pty_sync_spawn(
     int pidfd_errno = errno;
 #else
     int pidfd = -1;
-    int pidfd_errno = ENOSYS;
+    int pidfd_errno = 0;    // no call made
+    if(!pidfd_polling_said) {
+        pidfd_polling_said = TRUE;
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "built without pidfd_open(): the end of a command is looked for every 100 ms (said once)",
+            NULL
+        );
+    }
 #endif
     if(pidfd < 0 && pidfd_errno == ESRCH) {
-        /*
-         *  No process with that pid: the command ended and was reaped
-         *  already (SIGCHLD at SIG_IGN, or a handler that reaps), so its
-         *  status is lost.
-         */
-        reaped = 1;
-    } else if(pidfd < 0) {
+        reaped = 1;     // reaped already (SIGCHLD at SIG_IGN, or a handler that reaps): status lost
+    } else if(pidfd < 0 && pidfd_errno != 0) {
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,

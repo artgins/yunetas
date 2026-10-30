@@ -487,9 +487,11 @@ An **orderly shutdown**, not a SIGKILL, performed by
    left alone.
    A yuno that cannot be killed does not stop the command: the yunos killed
    before it are waited for, the ones after it are killed, and the answer is
-   `-1` and names each one that failed with its cause (*"Can't kill 1
-   yuno(s): 7601 (Cannot kill yuno)"* when none was killed, or *"... 1 could
-   not be killed: 7601 (Cannot kill yuno)"* at the end of the wait).
+   `-1` and names each one that failed with its cause, the error of
+   `kill()` included (*"Can't kill 1 yuno(s): 7601 (Cannot kill yuno pid
+   4242: Operation not permitted (errno 1))"* when none was killed, or
+   *"... 1 could not be killed: 7601 (Cannot kill yuno pid 4242: Operation
+   not permitted (errno 1))"* at the end of the wait).
 4. **No timer-based escalation in code**. The agent trusts the signal handler
    of the yuno to shut it down. If the handler does not shut it down, the
    record of the agent keeps the yuno as "running" forever (see §5).

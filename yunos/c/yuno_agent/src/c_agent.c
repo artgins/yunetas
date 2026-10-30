@@ -6217,9 +6217,6 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
     }
 
-    /*
-     *  The yunos that could not be killed, in one text: "id (cause), ..."
-     */
     int total_failed = (int)json_array_size(jn_failed);
     gbuffer_t *gbuf_failed = gbuffer_create(256, 64*1024);
     json_t *jn_one;
@@ -10797,7 +10794,9 @@ PRIVATE int run_yuno(
 }
 
 /***************************************************************************
- *
+ *  Send the yuno its signal2kill. -1 when it cannot be signalled (logged),
+ *  with its cause, errno included, in gobj_log_last_message() for the
+ *  answer of kill-yuno.
  ***************************************************************************/
 PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
 {
@@ -10861,6 +10860,9 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                 "error",        "%d", last_errno,
                 "strerror",     "%s", strerror(last_errno),
                 NULL
+            );
+            gobj_log_set_last_message("Cannot kill yuno pid %d: %s (errno %d)",
+                (int)pid, strerror(last_errno), last_errno
             );
             ret = -1;
         }
