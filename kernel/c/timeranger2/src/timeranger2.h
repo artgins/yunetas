@@ -687,7 +687,9 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         ordinal ("5th") and the 'T' of ISO 8601 ("2026-10-01T10:00"); and
         by the '-' or '/' of a date with a month name ("Oct-1-5" is "Oct 1
         5", "01/Oct/2026" "01 Oct 2026"). A comment ("(CEST)") is passed
-        over whole. "ago", "at", "on", "the", "of" and a weekday are passed
+        over whole, also between a count and its am/pm or unit, as the
+        reader passes over it ("Oct 1 5 (CEST) pm" is 17:00 CEST; up to
+        7.29.3 it was 2005-10-01). "ago", "at", "on", "the", "of" and a weekday are passed
         over, as approxidate_careful() passes over them: they part no
         digits ("5 the 5" is "5 5") and no month from its day ("march the
         5 2026" is March 5).
@@ -717,7 +719,9 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           name, only a month and a year of 4 digits ("1st 10 2026"; "5th
           2026", the 5th of a month the text does not say, and "5th 2",
           February 5, are refused). A number alone is no hour: "Oct 29 10"
-          is 2010-10-29.
+          is 2010-10-29; after "at" it is the hour a person means, with no
+          half of the day, and approxidate_careful() refuses it ("Oct 1 at
+          10", "at 3"; "Oct 1 at 10:00", "Oct 1 at 10 pm" are dates).
         - A number that a unit, am/pm or a weekday follows is a count
           ("5 days", "3 pm", "3pm", "2 fridays"): it ends a run and is not
           in it, and the run before it must be a date, even of one number:
@@ -726,10 +730,13 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           ago" are refused. After a month, a day or a year, a number
           before a weekday is that date's ("Oct 1 2026 Thu", "Oct 5
           friday"), and so is a year (4 digits, 1970-9999) before any
-          weekday ("2026 Thu" is a year; "Oct 1 2026 thursdays" is no
-          date), as approxidate_careful() reads them. The weekday is not
-          checked against the date: "Oct 5 2026 friday" is Monday,
-          October 5.
+          weekday, as approxidate_careful() reads them ("Oct 1 2026
+          thursdays" is no date; and "2026 Thu", a weekday with no day, is
+          refused by approxidate_careful()). The weekday is not checked
+          against the date: "Oct 5 2026 friday" is Monday, October 5.
+        - Not refused: epoch seconds (9 digits or more, no leading zero)
+          alone with a comment, "1761000000 (UTC)", "(EST) 1761000000",
+          as "1761000000 UTC" (refused for a while).
         A DOT between digits cannot be refused by its shape: "1.10 2026"
         and "01.10.2026" are dates (day.month), and only
         approxidate_careful() judges it.

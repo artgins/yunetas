@@ -212,6 +212,12 @@ typedef struct {
 #define CONTENT_SCAN_PART       (64*1024)
 
 /*
+ *  The digits of the smallest epoch seconds approxidate_careful() reads
+ *  from a bare number, 100000000 (DATE_EPOCH_MIN of helpers.c)
+ */
+#define DATE_EPOCH_DIGITS   9
+
+/*
  *  The base of a key whose old files were deleted, in its directory
  *  (tranger2_delete_key_files(), DESIGN-retention.md). No file id and no
  *  key starts with '.', so the name cannot be taken for either.
@@ -18336,7 +18342,9 @@ PRIVATE BOOL digits_close_a_date(const char *s, const char *end)
  *    and a clock time between them does not change that ("Oct 1 10:00 5").
  *
  *  "1700000000 +0000" (git's raw date, a sign inside) and "01.10.2026"
- *  are not of these shapes, and stay dates.
+ *  are not of these shapes, and stay dates; nor are epoch seconds (9
+ *  digits or more, no leading zero) alone with a comment, "1761000000
+ *  (UTC)", refused for a while.
  ***************************************************************************/
 PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
 {
@@ -18459,11 +18467,12 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
 
     /*
      *  Every word digits (the first may carry a sign): numbers, unless day
-     *  month year
+     *  month year, or epoch seconds alone with a comment
      */
     p = s;
     int words = 0;
     BOOL signed_first = FALSE;
+    BOOL zero_first = FALSE;
     size_t lens[3] = {0};
     for(;;) {
         size_t len;
@@ -18480,10 +18489,16 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
         if(leading_digits(word, len) != len) {
             return FALSE;
         }
+        if(words == 0 && *word == '0') {
+            zero_first = TRUE;
+        }
         if(words < 3) {
             lens[words] = len;
         }
         words++;
+    }
+    if(words == 1 && !signed_first && !zero_first && lens[0] >= DATE_EPOCH_DIGITS) {
+        return FALSE;   // "1761000000 (UTC)", "(EST) 1761000000"
     }
     if(words > 0 && !(!signed_first && words == 3 &&
             lens[0] <= 2 && lens[1] <= 2 && lens[2] == 4)) {

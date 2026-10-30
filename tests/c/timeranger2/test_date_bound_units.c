@@ -47,6 +47,13 @@
  *  a year of 4 or 2 digits follows ("1 Oct 5" was 2005-10-01), any blank
  *  parts a count from its am/pm, and a year before a weekday is a year.
  *
+ *  A comment parts a count from its am/pm as a blank does ("Oct 1 5
+ *  (CEST) pm" was 2005-10-01); epoch seconds with a comment are a date
+ *  ("1761000000 (UTC)" was refused for a while); a weekday names a day the
+ *  text must say ("monday 10:00" was today, "2026 Thu" today in 2026); a
+ *  number alone after "at" is an hour with no half of the day ("Oct 1 at
+ *  10" was 2010-10-01).
+ *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -848,6 +855,55 @@ PRIVATE int do_test(void)
             {"Oct 1 2026 10\vpm +0000",     FALSE,  FALSE,   0, 1790892000},
             {"Oct 1 2026 10\rpm +0000",     FALSE,  FALSE,   0, 1790892000},
             {"Oct 1 2026 thursdays",        FALSE,  FALSE,  -1, 0},
+            /*  Glued and spaced: the same verdict  */
+            {"1, 2thu",                     FALSE,  FALSE,  -1, 0},
+            {"1, 2 thu",                    FALSE,  FALSE,  -1, 0},
+            {"Oct 1 5Thu",                  FALSE,  FALSE,  -1, 0},
+            {"Oct 1 5 Thu",                 FALSE,  FALSE,  -1, 0},
+            {"1 Oct 5Thu",                  FALSE,  FALSE,  -1, 0},
+            {"1 Oct 5 Thu",                 FALSE,  FALSE,  -1, 0},
+            {"5 5pm",                       FALSE,  FALSE,  -1, 0},
+            {"2026 3pm",                    FALSE,  FALSE,  -1, 0},
+            {"Oct 1st 2Thu",                FALSE,  FALSE,  -1, 0},
+            {"Oct 1st 2 Thu",               FALSE,  FALSE,  -1, 0},
+            {"5th 2026Thu",                 FALSE,  FALSE,  -1, 0},
+            {"5th 2026 Thu",                FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 5Thu",             FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 5 Thu",            FALSE,  FALSE,  -1, 0},
+            {"Oct 1 10:00 5Thu",            FALSE,  FALSE,  -1, 0},
+            {"Oct 1 10:00 5 Thu",           FALSE,  FALSE,  -1, 0},
+            {"Oct-1 5Thu",                  FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 5pm +0000",        FALSE,  FALSE,   0, 1790874000},
+            {"Oct 1 2026 5 pm +0000",       FALSE,  FALSE,   0, 1790874000},
+            /*  A comment between a count and its am/pm or unit is passed over  */
+            {"Oct 1 2026 5 (CEST) pm",      FALSE,  FALSE,   0, 1790866800},
+            {"1 Oct 2026 5 (UTC) pm",       FALSE,  FALSE,   0, 1790874000},
+            {"Oct 1 2026 5 (x) pm +0000",   FALSE,  FALSE,   0, 1790874000},
+            /*  Epoch seconds and a comment  */
+            {"1761000000 (UTC)",            FALSE,  FALSE,   0, 1761000000},
+            {"(EST) 1761000000",            FALSE,  FALSE,   0, 1761000000},
+            {"1761000000 UTC",              FALSE,  FALSE,   0, 1761000000},
+            {"1761000000 (UTC)",            TRUE,   TRUE,    0, 1761000000999LL},
+            {"0761000000 (UTC)",            FALSE,  FALSE,  -1, 0},
+            {"+1761000000 (UTC)",           FALSE,  FALSE,  -1, 0},
+            {"1761000000 (UTC) 5",          FALSE,  FALSE,  -1, 0},
+            {"1761000000 1761000000",       FALSE,  FALSE,  -1, 0},
+            {"99999999 (UTC)",              FALSE,  FALSE,  -1, 0},
+            /*  A weekday names a day the text must say  */
+            {"monday 10:00",                FALSE,  FALSE,  -1, 0},
+            {"10:00 monday",                FALSE,  FALSE,  -1, 0},
+            {"2026 Thu",                    FALSE,  FALSE,  -1, 0},
+            {"Oct 2026 Thu",                FALSE,  FALSE,  -1, 0},
+            {"Thu, 01 Oct 2026 00:00:00 +0000", FALSE, FALSE, 0, 1790812800},
+            /*  A year is no count of weekdays: write weeks  */
+            {"2000 mondays ago",            FALSE,  FALSE,  -1, 0},
+            /*  A number alone after "at" is an hour with no half of the day  */
+            {"Oct 1 at 10",                 FALSE,  FALSE,  -1, 0},
+            {"1 Oct at 10",                 FALSE,  FALSE,  -1, 0},
+            {"at 10",                       FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at 10",            FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at 10 pm +0000",   FALSE,  FALSE,   0, 1790892000},
+            {"Oct 1 2026 at 10:00 +0000",   FALSE,  FALSE,   0, 1790848800},
         };
         for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
             json_int_t value = -12345;
@@ -891,7 +947,7 @@ PRIVATE int do_test(void)
             "1st 3 pm",
             "Oct 1 10\vpm",
             "2\vdays ago",
-            "2026 Thu",
+            "2 (x) days ago",
             NULL
         };
         for(int i = 0; dates_of_now[i]; i++) {
@@ -913,6 +969,29 @@ PRIVATE int do_test(void)
                 " (%s), expected 2010-10-29\n",
                 On_Red BWhite, Color_Off, ret, value, why? why : "");
             result += -1;
+        }
+
+        /*
+         *  A comment between a count and its am/pm is passed over, as a
+         *  blank: "Oct 1 5 (CEST) pm" is October 1 of this year (or of
+         *  the year before) at 17:00, it was 2005-10-01
+         */
+        static const char *hours_of_this_year[] = {
+            "Oct 1 5 (CEST) pm",
+            "Oct 29 3 (CEST) PM",
+            "1 Oct 5 (CEST) pm",
+            "Oct 1 5 (x) pm",
+            NULL
+        };
+        time_t now = time(NULL);
+        for(int i = 0; hours_of_this_year[i]; i++) {
+            ret = tranger2_time_of_text(hours_of_this_year[i], FALSE, FALSE, &value, &why);
+            if(ret != 0 || value < (json_int_t)now - 367*DAY_SECS || value > (json_int_t)now + 11*DAY_SECS) {
+                printf("%sERROR%s --> tranger2_time_of_text('%s'): %d %" JSON_INTEGER_FORMAT
+                    " (%s), expected a date of the last year\n",
+                    On_Red BWhite, Color_Off, hours_of_this_year[i], ret, value, why? why : "");
+                result += -1;
+            }
         }
     }
     result += test_json(NULL);
