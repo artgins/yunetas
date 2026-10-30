@@ -27,13 +27,12 @@
  *
  *          After the 4 POSTs are on the wire (all synchronous in
  *          ac_on_open), the driver just waits for responses.  The
- *          BFF writes the 503 immediately (from the synchronous
- *          rejection path) and then drains POST 1 → POST 2 → POST 3
- *          via three back-to-back 300 ms KC rounds.  On the wire,
- *          order is likely: 503, 200, 200, 200 — c_prot_http_sr
- *          writes replies as they come, not in strict HTTP/1.1
- *          pipelining order.  The driver does not assume order; it
- *          counts 200s and 503s separately and verifies totals.
+ *          BFF builds the 503 at once (the synchronous rejection
+ *          path) and queues it behind the three requests before it:
+ *          answers leave in the order of their requests (RFC 9112
+ *          §9.3.2), so on the wire they are 200, 200, 200, 503, after
+ *          three back-to-back 300 ms KC rounds.  The driver counts
+ *          200s and 503s, and the 503 must be the 4th.
  *
  *          Expected state at verify time
  *          =============================
@@ -421,6 +420,16 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     priv->responses_received++;
+
+    if(status == 503 && priv->responses_received != EXPECTED_RESPONSES) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", "test8_queue_full: the 503 overtook the answers of the requests before it",
+            "position", "%d", priv->responses_received,
+            NULL
+        );
+    }
 
     if(status == 200) {
         if(!jn_body || !json_is_true(json_object_get(jn_body, "success"))) {

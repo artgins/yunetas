@@ -80,6 +80,7 @@ SET(TESTS
     test22_discovery_unreachable
     test23_cookie_no_host
     test24_no_refresh_token
+    test25_untrusted_input
 )
 
 foreach(test ${TESTS})

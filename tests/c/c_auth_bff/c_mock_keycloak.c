@@ -78,6 +78,8 @@ SDATA (DTP_STRING,      "raw_body",         SDF_RD, "",     "The body of a raw a
 SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, sent verbatim instead of the synthesised /.well-known body (lets a test return a body missing required endpoints — exercises save_oidc_discovery's failure path)"),
 SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
+SDATA (DTP_STRING,      "retry_after",      SDF_RD, "",     "If non-empty, the answers to /token carry a Retry-After header with this value"),
+SDATA (DTP_STRING,      "last_form",        SDF_RD, "",     "The body of the last /token or /logout request, as it arrived (the form of the BFF); a test clears it before a step"),
 SDATA_END()
 };
 
@@ -296,6 +298,25 @@ PRIVATE void mk_send_raw(hgobj gobj, hgobj browser_src, const char *content_type
 }
 
 /***************************************************************************
+ *  Keep the body of a request (a form, not JSON: it comes in a gbuffer)
+ *  in `last_form`
+ ***************************************************************************/
+PRIVATE void save_form(hgobj gobj, json_t *kw)
+{
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_write_str_attr(gobj, "last_form", "");
+        return;
+    }
+    char *form = gbmem_strndup(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
+    if(!form) {
+        return;  // Error already logged
+    }
+    gobj_write_str_attr(gobj, "last_form", form);
+    GBMEM_FREE(form)
+}
+
+/***************************************************************************
  *  Send a JSON response back to the http_sr child that delivered `src`.
  *  Mirrors c_auth_bff::send_json_response: status string, headers string,
  *  body JSON, EV_SEND_MESSAGE on the http_sr gobj (`src`).
@@ -305,9 +326,14 @@ PRIVATE void mk_send_json(hgobj gobj, hgobj browser_src, int status,
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    char headers[256] = "";
+    const char *retry_after = gobj_read_str_attr(gobj, "retry_after");
+    if(!empty_string(retry_after)) {
+        snprintf(headers, sizeof(headers), "Retry-After: %s\r\n", retry_after);
+    }
     json_t *kw_resp = json_pack("{s:s, s:s, s:O}",
         "code",     status_text,
-        "headers",  "",
+        "headers",  headers,
         "body",     jn_body
     );
     gobj_send_event(browser_src, EV_SEND_MESSAGE, kw_resp, gobj);
@@ -738,11 +764,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     } else if(strstr(url, "/token")) {
         priv->st_token_requests++;
+        save_form(gobj, kw);
 
         int status            = (int)gobj_read_integer_attr(gobj, "return_status");
         const char *status_tx = (status == 200) ? "200 OK"
                               : (status == 400) ? "400 Bad Request"
                               : (status == 401) ? "401 Unauthorized"
+                              : (status == 429) ? "429 Too Many Requests"
                               : (status == 500) ? "500 Internal Server Error"
                                                 : "200 OK";
 
@@ -766,6 +794,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     } else if(strstr(url, "/logout")) {
         priv->st_logout_requests++;
+        save_form(gobj, kw);
         json_t *jn_empty = json_object();
         respond_or_defer(gobj, src, 204, "204 No Content", jn_empty);
 

@@ -32,6 +32,11 @@
  *                                             this many ms via an internal
  *                                             C_TIMER child (single pending
  *                                             slot — not re-entrant).
+ *            retry_after              (str)  if set, the answers to /token
+ *                                             carry Retry-After: <this>
+ *            last_form                (str)  written by the mock: the body
+ *                                             of the last /token or /logout
+ *                                             request, as it arrived
  *
  *          Stats (custom mt_stats, counters in PRIVATE_DATA):
  *            requests_received        token endpoint hits

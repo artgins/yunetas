@@ -23,9 +23,12 @@
  *    behind), the answer carries no "refresh_expires_in", and a WARNING
  *    says it, once per process. The tokens and
  *    "expires_in"/"refresh_expires_in" of an IdP answer are data of a
- *    peer: a token that is not a string is refused (502
- *    auth_unexpected_error, a WARNING naming its type and the WARNING of
- *    the 502), and a lifetime is a JSON integer or the text of one
+ *    peer: a token that is not a string, or has a byte outside cookie-octet
+ *    (it goes into a Set-Cookie), is refused (502 auth_unexpected_error, a
+ *    WARNING naming it and the WARNING of the 502), a body longer than
+ *    BFF_IDP_BODY_MAX is not read (502 auth_unexpected_error), a
+ *    Retry-After of a 429 is passed on only as delay-seconds or an
+ *    HTTP-date, and a lifetime is a JSON integer or the text of one
  *    ("300"), else its default is used, with a WARNING naming the value.
  *    A lifetime of 0 is a token with no expiry (Keycloak's offline
  *    token): its cookie has no Max-Age (a cookie of the browser session),
@@ -55,12 +58,20 @@
  *              With no refresh_token cookie (a session opened without
  *              one) there is nothing to end at the IdP: no IdP call. The
  *              cookies are cleared only when the request carries the
- *              access_token cookie (SameSite=Strict: a same-site request)
- *              and, with allowed_origin set, its Origin is exactly that
- *              (else 403 origin_not_allowed); with no cookie at all the
- *              answer has no Set-Cookie. A refresh_token cookie of
- *              BFF_TOKEN_MAX bytes or more is not one the BFF wrote: 400
- *              token_too_large.
+ *              access_token cookie (SameSite=Strict: a same-site request);
+ *              with no cookie at all the answer has no Set-Cookie. With a
+ *              cookie, and allowed_origin set, the Origin must be exactly
+ *              that, with or without the refresh_token cookie (else 403
+ *              origin_not_allowed, no IdP call).
+ *
+ *    A token cookie longer than any the BFF writes (name and value over
+ *    BFF_COOKIE_MAX) is not one of its cookies: 400 token_too_large, in
+ *    /auth/refresh, /auth/logout and /auth/token alike.
+ *
+ *    The values put in the form to the IdP (credentials, code, the
+ *    refresh_token of a cookie) are form-urlencoded by C_PROT_HTTP_CL.
+ *    Answers leave in the order of their requests (pipelining): an answer
+ *    known at once waits behind a request still at the IdP.
  *      Returns { "success": true }.
  *
  *    POST /auth/token
@@ -162,6 +173,15 @@
 #define BFF_SET_COOKIE_MAX  (BFF_TOKEN_MAX + 512)   /* + name/attrs/Domain */
 
 /*
+ *  The largest body of an IdP answer the BFF reads (its C_PROT_HTTP_CL
+ *  `max_body_size`). A token answer carries tokens that fit a cookie
+ *  each, and a discovery document is a few KB: a longer body is not an
+ *  answer of an IdP, and is refused (502 auth_unexpected_error) after
+ *  this many bytes, not read to the maximum memory block.
+ */
+#define BFF_IDP_BODY_MAX    (1024*1024)
+
+/*
  *  The longest host name (RFC 1035: 253 bytes in its text form). The
  *  Host of a request is kept in 255 bytes (PENDING_AUTH.client_host), and
  *  the length of its name is measured on the whole Host before that
@@ -219,6 +239,7 @@ typedef struct _PENDING_AUTH {
     char        client_origin[512];     /* Origin header (for CORS) */
     char        client_host[256];       /* Host header (for cookie domain check) */
     int         client_host_name_len;   /* length of the Host name, measured before the cut */
+    json_t      *answer;                /* an answer built, waiting for its turn (see send_json_response); NULL: a request for the IdP */
 } PENDING_AUTH;
 
 /***************************************************************************
@@ -231,9 +252,14 @@ PRIVATE void arm_connect_watchdog(hgobj gobj);
 PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
     const char *error_code, const char *error_msg
 );
-PRIVATE void send_json_response(hgobj browser, int status_code,
+PRIVATE void send_json_response(hgobj gobj, hgobj browser, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers
 );
+PRIVATE void free_pending(void *item);
+PRIVATE void queue_answer(hgobj gobj, hgobj browser, json_t *kw_resp);
+PRIVATE void send_answers_in_turn(hgobj gobj);
+PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE BOOL logout_origin_allowed(hgobj gobj, const char *origin);
 PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     int status_code, const char *status_text,
     const char *error_code, const char *error_msg,
@@ -248,9 +274,6 @@ PRIVATE void answer_error_to_browser(hgobj gobj, hgobj browser,
     const char *error_code, const char *error_msg,
     const char *extra_headers,
     BOOL idp_answer_refused
-);
-PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
-    char *out, size_t out_size
 );
 PRIVATE const char *find_cookie(const char *cookie_header, const char *name,
     size_t *value_len
@@ -349,6 +372,8 @@ typedef struct _PRIVATE_DATA {
      */
     dl_list_t       dl_pending;
     int             queue_size_max;     /* cap from attr, for 503 rejection */
+    int             q_answers;          /* entries of dl_pending that are an answer waiting for its turn */
+    BOOL            answer_in_turn;     /* the request being read is answered after the ones before it */
 
     char            idp_name[NAME_MAX]; /* Name for idp gobjs */
 
@@ -499,8 +524,9 @@ PRIVATE void mt_create(hgobj gobj)
         priv->gobj_idprovider = gobj_create(
             priv->idp_name,
             C_PROT_HTTP_CL,
-            json_pack("{s:s}",
-                "url", http_url
+            json_pack("{s:s, s:i}",
+                "url", http_url,
+                "max_body_size", BFF_IDP_BODY_MAX
             ),
             gobj
         );
@@ -552,7 +578,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    dl_flush(&priv->dl_pending, gbmem_free);
+    dl_flush(&priv->dl_pending, free_pending);
+    priv->q_answers = 0;
 }
 
 /***************************************************************************
@@ -870,7 +897,7 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     PENDING_AUTH *pa;
     DL_FOREACH(&priv->dl_pending, pa) {
         json_t *jn_entry = json_pack("{s:s}",
-            "action",       action_name(pa->action)
+            "action",       pa->answer? "answer" : action_name(pa->action)
         );
         json_array_append_new(jn_queue, jn_entry);
     }
@@ -1059,26 +1086,129 @@ PRIVATE const char *find_cookie(const char *cookie_header, const char *name,
 }
 
 /***************************************************************************
- *  Extract a named cookie value from a Cookie: header string.
- *  Returns a pointer to `out`, or NULL if not found OR the value does not
- *  fit `out` (fail-closed: a clipped token is a corrupted token; treating
- *  it as missing yields a clean 401 instead of a signature failure on a
- *  remote backend with no evidence here).
+ *  A token cookie of a request (access_token or refresh_token), by the
+ *  rule of the cookies the BFF writes: its name and value take at most
+ *  BFF_COOKIE_MAX bytes (see send_token_to_browser). TOKEN_COOKIE_FOUND:
+ *  its value is in `out` (BFF_TOKEN_MAX bytes); TOKEN_COOKIE_ABSENT: no
+ *  such cookie, or empty; TOKEN_COOKIE_TOO_LARGE: longer than any the BFF
+ *  writes (not one of its cookies), its length in `value_len`.
  ***************************************************************************/
-PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
-    char *out, size_t out_size)
+typedef enum {
+    TOKEN_COOKIE_FOUND,
+    TOKEN_COOKIE_ABSENT,
+    TOKEN_COOKIE_TOO_LARGE
+} token_cookie_t;
+
+PRIVATE token_cookie_t read_token_cookie(const char *cookie_header, const char *name,
+    char *out, size_t *value_len)
 {
-    if(!out || !out_size) {
-        return NULL;
+    *value_len = 0;
+    const char *value = find_cookie(cookie_header, name, value_len);
+    if(!value || *value_len == 0) {
+        return TOKEN_COOKIE_ABSENT;
     }
-    size_t val_len = 0;
-    const char *val_start = find_cookie(cookie_header, name, &val_len);
-    if(!val_start || val_len >= out_size) {
-        return NULL;
+    if(*value_len > BFF_COOKIE_MAX - strlen(name)) {
+        return TOKEN_COOKIE_TOO_LARGE;
     }
-    memcpy(out, val_start, val_len);
-    out[val_len] = '\0';
-    return out;
+    memcpy(out, value, *value_len);
+    out[*value_len] = '\0';
+    return TOKEN_COOKIE_FOUND;
+}
+
+/***************************************************************************
+ *  The error of a token cookie longer than any the BFF writes: 400
+ *  token_too_large, the same for every endpoint that reads one.
+ ***************************************************************************/
+PRIVATE void answer_token_cookie_too_large(hgobj gobj, hgobj browser,
+    const char *name, size_t value_len, const char *cors_hdrs)
+{
+    char error_msg[160];
+    snprintf(error_msg, sizeof(error_msg),
+        "%s cookie of %zu bytes: the BFF writes none longer than %zu "
+        "(a cookie name and value take at most %d bytes)",
+        name, value_len, (size_t)(BFF_COOKIE_MAX - strlen(name)), BFF_COOKIE_MAX);
+    send_error_response(gobj, browser, 400, status_str(400),
+        "token_too_large", error_msg, cors_hdrs);
+}
+
+/***************************************************************************
+ *  The first byte of `value` that a cookie value cannot carry: outside
+ *  cookie-octet (RFC 6265 §4.1.1: no control byte, space, DQUOTE, comma,
+ *  semicolon, backslash, nor any byte over 0x7E), or -1 when there is
+ *  none. A token goes into a Set-Cookie: a ";" would add an attribute of
+ *  the IdP's choosing, a CR LF a header.
+ ***************************************************************************/
+PRIVATE int first_non_cookie_octet(const char *value)
+{
+    for(int i = 0; value[i]; i++) {
+        unsigned char c = (unsigned char)value[i];
+        if(c < 0x21 || c > 0x7E || c == '"' || c == ',' || c == ';' || c == '\\') {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  A Retry-After of the IdP that the BFF can pass on (RFC 9110 §10.2.3):
+ *  delay-seconds (1 to 10 digits) or an HTTP-date in its IMF-fixdate form
+ *  ("Sun, 06 Nov 1994 08:49:37 GMT"). Anything else -- another date form,
+ *  a sign, a byte that is not of these -- is not passed on, so a value of
+ *  the IdP can never write more than this one header.
+ ***************************************************************************/
+PRIVATE BOOL retry_after_is_valid(const char *value)
+{
+    size_t len = strlen(value);
+    if(len >= 1 && len <= 10 && strspn(value, "0123456789") == len) {
+        return TRUE;
+    }
+    /*  IMF-fixdate: "Www, DD Mmm YYYY HH:MM:SS GMT", 29 bytes  */
+    static const char *days[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+    static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    static const char shape[] = "xxx, 00 xxx 0000 00:00:00 GMT";   /* x: a name, 0: a digit */
+    if(len != sizeof(shape) - 1) {
+        return FALSE;
+    }
+    for(size_t i = 0; i < len; i++) {
+        char c = value[i];
+        if(shape[i] == '0') {
+            if(c < '0' || c > '9') {
+                return FALSE;
+            }
+        } else if(shape[i] != 'x' && c != shape[i]) {
+            return FALSE;
+        }
+    }
+    BOOL day_ok = FALSE;
+    for(size_t i = 0; i < sizeof(days)/sizeof(days[0]); i++) {
+        if(strncmp(value, days[i], 3) == 0) {
+            day_ok = TRUE;
+        }
+    }
+    BOOL month_ok = FALSE;
+    for(size_t i = 0; i < sizeof(months)/sizeof(months[0]); i++) {
+        if(strncmp(value + 8, months[i], 3) == 0) {
+            month_ok = TRUE;
+        }
+    }
+    return day_ok && month_ok;
+}
+
+/***************************************************************************
+ *  /auth/logout ends a session, so it is refused to a request from another
+ *  origin: with allowed_origin set, the Origin must be exactly it (a
+ *  missing Origin, "null", or any other text is not). With allowed_origin
+ *  unset, the BFF serves its own origin only (no CORS) and the cookies,
+ *  SameSite=Strict, are the check.
+ ***************************************************************************/
+PRIVATE BOOL logout_origin_allowed(hgobj gobj, const char *origin)
+{
+    const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
+    if(empty_string(allowed_origin)) {
+        return TRUE;
+    }
+    return strcmp(origin? origin : "", allowed_origin) == 0;
 }
 
 /***************************************************************************
@@ -1361,15 +1491,27 @@ PRIVATE json_t *redact_for_trace(json_t *jn)
  *
  *  extra_headers: raw header lines ("Set-Cookie: …\r\nSet-Cookie: …\r\n")
  *                 or NULL.
+ *
+ *  Answers leave in the order of their requests (RFC 9112 §9.3.2: a
+ *  client may pipeline them on one connection). An answer built while
+ *  reading a request (ac_on_message) with an earlier one still
+ *  unanswered (an IdP round-trip in flight, or queued) is queued behind
+ *  it, and process_next() sends it in its turn.
  ***************************************************************************/
-PRIVATE void send_json_response(hgobj browser, int status_code,
+PRIVATE void send_json_response(hgobj gobj, hgobj browser, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *kw_resp = json_pack("{s:s, s:s, s:O}",
         "code",    status_text,
         "headers", extra_headers ? extra_headers : "",
         "body",    jn_body
     );
+    if(priv->answer_in_turn) {
+        queue_answer(gobj, browser, kw_resp);
+        return;
+    }
     gobj_send_event(browser, EV_SEND_MESSAGE, kw_resp, 0);
 }
 
@@ -1508,7 +1650,7 @@ PRIVATE void answer_error_to_browser(hgobj gobj, hgobj browser,
         "error_code", error_code,
         "error",      error_msg ? error_msg : ""
     );
-    send_json_response(browser, status_code, status_text, jn_body, extra_headers);
+    send_json_response(gobj, browser, status_code, status_text, jn_body, extra_headers);
     JSON_DECREF(jn_body)
 }
 
@@ -1532,6 +1674,7 @@ PRIVATE void build_cors_headers(hgobj gobj, const char *origin,
     int n = snprintf(buf, buf_size,
         "Access-Control-Allow-Origin: %s\r\n"
         "Access-Control-Allow-Credentials: true\r\n"
+        "Access-Control-Expose-Headers: Retry-After\r\n"
         "Vary: Origin\r\n",
         allowed_origin);
     if(preflight && n < (int)buf_size) {
@@ -1550,7 +1693,7 @@ PRIVATE void build_cors_headers(hgobj gobj, const char *origin,
 PRIVATE int enqueue(hgobj gobj, const PENDING_AUTH *pa)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if((int)dl_size(&priv->dl_pending) >= priv->queue_size_max) {
+    if((int)dl_size(&priv->dl_pending) - priv->q_answers >= priv->queue_size_max) {
         priv->st_q_full_drops++;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1567,10 +1710,11 @@ PRIVATE int enqueue(hgobj gobj, const PENDING_AUTH *pa)
         return -1;
     }
     *entry = *pa;
+    entry->answer = NULL;
     dl_add(&priv->dl_pending, entry);
 
     priv->st_requests_total++;
-    uint64_t depth = (uint64_t)dl_size(&priv->dl_pending);
+    uint64_t depth = (uint64_t)(dl_size(&priv->dl_pending) - priv->q_answers);
     if(depth > priv->st_q_max_seen) {
         priv->st_q_max_seen = depth;
     }
@@ -1589,7 +1733,74 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
         return NULL;
     }
     dl_delete(&priv->dl_pending, pa, 0);
+    if(pa->answer) {
+        priv->q_answers--;
+    }
     return pa;
+}
+
+/***************************************************************************
+ *  Queue an answer behind the requests not answered yet (see
+ *  send_json_response). Takes `kw_resp`. At most queue_size_max answers
+ *  wait: a client that pipelines more than that is not a browser, and its
+ *  connection is dropped, with a WARNING.
+ ***************************************************************************/
+PRIVATE void queue_answer(hgobj gobj, hgobj browser, json_t *kw_resp)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->q_answers >= priv->queue_size_max) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF too many pipelined requests waiting for their "
+                                  "answer, connection dropped",
+            "answers",      "%d", priv->q_answers,
+            "queue_size",   "%d", priv->queue_size_max,
+            NULL
+        );
+        JSON_DECREF(kw_resp)
+        gobj_send_event(browser, EV_DROP, 0, gobj);
+        return;
+    }
+    PENDING_AUTH *entry = GBMEM_MALLOC(sizeof(*entry));
+    if(!entry) {
+        // Error already logged
+        JSON_DECREF(kw_resp)
+        gobj_send_event(browser, EV_DROP, 0, gobj);
+        return;
+    }
+    entry->answer = kw_resp;
+    dl_add(&priv->dl_pending, entry);
+    priv->q_answers++;
+}
+
+/***************************************************************************
+ *  Free an entry of dl_pending
+ ***************************************************************************/
+PRIVATE void free_pending(void *item)
+{
+    PENDING_AUTH *pa = item;
+    JSON_DECREF(pa->answer)
+    gbmem_free(pa);
+}
+
+/***************************************************************************
+ *  Send the answers at the head of the queue: their requests come before
+ *  any request still waiting for the IdP.
+ ***************************************************************************/
+PRIVATE void send_answers_in_turn(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    PENDING_AUTH *pa;
+    while((pa = dl_first(&priv->dl_pending)) && pa->answer) {
+        dequeue(gobj);
+        json_t *kw_resp = pa->answer;
+        pa->answer = NULL;
+        GBMEM_FREE(pa)
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_resp, 0);
+    }
 }
 
 /***************************************************************************
@@ -1610,7 +1821,15 @@ PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
 {
     PENDING_AUTH *pa;
 
+    send_answers_in_turn(gobj);
     while((pa = dequeue(gobj))) {
+        if(pa->answer) {
+            json_t *kw_resp = pa->answer;
+            pa->answer = NULL;
+            GBMEM_FREE(pa)
+            gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_resp, 0);
+            continue;
+        }
         char cors_hdrs[1024];
         build_cors_headers(gobj, pa->client_origin,
             cors_hdrs, sizeof(cors_hdrs), FALSE);
@@ -1717,6 +1936,19 @@ PRIVATE json_t *send_token_to_browser(
 
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
+
+    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
+    if(body_too_large > 0) {
+        // The HTTP client said it, with a WARNING
+        char error_msg[128];
+        snprintf(error_msg, sizeof(error_msg),
+            "Authentication service answered a body longer than %d bytes",
+            (int)body_too_large);
+        send_idp_answer_refused(gobj, gobj_bottom_gobj(gobj),
+            "auth_unexpected_error", error_msg, cors_hdrs);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     if(status != 200) {
         /*
@@ -1841,8 +2073,35 @@ PRIVATE json_t *send_token_to_browser(
             );
         }
 
+        /*
+         *  A 429 of the IdP passes on its Retry-After, when it is one: the
+         *  browser waits what the IdP asks, not a delay of its own
+         */
+        char extra_hdrs[sizeof(cors_hdrs) + 64];
+        snprintf(extra_hdrs, sizeof(extra_hdrs), "%s", cors_hdrs);
+        if(browser_status == 429) {
+            json_t *jn_idp_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
+            const char *retry_after = jn_idp_headers?
+                kw_get_str(gobj, jn_idp_headers, "RETRY-AFTER", "", 0) : "";
+            if(retry_after_is_valid(retry_after)) {
+                size_t n = strlen(extra_hdrs);
+                snprintf(extra_hdrs + n, sizeof(extra_hdrs) - n,
+                    "Retry-After: %s\r\n", retry_after);
+            } else if(!empty_string(retry_after)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
+                    "msg",          "%s", "👤BFF IdP answered a Retry-After that is not "
+                                          "delay-seconds nor an HTTP-date, not passed on",
+                    "action",       "%s", action_name(action),
+                    "value",        "%.64s", retry_after,
+                    NULL
+                );
+            }
+        }
+
         send_error_response(gobj, gobj_bottom_gobj(gobj), browser_status,
-            status_str(browser_status), browser_code, browser_msg, cors_hdrs);
+            status_str(browser_status), browser_code, browser_msg, extra_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -1854,7 +2113,7 @@ PRIVATE json_t *send_token_to_browser(
             // Not labelled JSON (a gbuffer), or labelled and not JSON (the parser warned)
             snprintf(error_msg, sizeof(error_msg),
                 "Authentication service answered success with a body that is not JSON");
-        } else if(json_is_string(jn_body) && empty_string(json_string_value(jn_body))) {
+        } else if(kw_get_int(gobj, kw, "body_size", 0, 0) == 0) {
             snprintf(error_msg, sizeof(error_msg),
                 "Authentication service answered success with an empty body");
         } else {
@@ -1892,6 +2151,36 @@ PRIVATE json_t *send_token_to_browser(
         send_idp_answer_refused(gobj, gobj_bottom_gobj(gobj),
             "auth_unexpected_error",
             "Authentication service answered success with no access_token", cors_hdrs);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    /*
+     *  A token is written into a Set-Cookie as it is: one with a byte a
+     *  cookie value cannot carry is refused, whole, not escaped.
+     */
+    int at_bad = first_non_cookie_octet(access_token);
+    int rt_bad = first_non_cookie_octet(refresh_token);
+    if(at_bad >= 0 || rt_bad >= 0) {
+        const char *token = at_bad >= 0? COOKIE_NAME_AT : COOKIE_NAME_RT;
+        const char *value = at_bad >= 0? access_token : refresh_token;
+        int pos = at_bad >= 0? at_bad : rt_bad;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF IdP answered a token that is not a cookie value",
+            "action",       "%s", action_name(action),
+            "token",        "%s", token,
+            "position",     "%d", pos,
+            "byte",         "0x%02X", (unsigned)(unsigned char)value[pos],
+            NULL
+        );
+        char error_msg[128];
+        snprintf(error_msg, sizeof(error_msg),
+            "Authentication service answered a %s with a byte a cookie cannot carry",
+            token);
+        send_idp_answer_refused(gobj, gobj_bottom_gobj(gobj),
+            "auth_unexpected_error", error_msg, cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -2060,7 +2349,7 @@ PRIVATE json_t *send_token_to_browser(
         );
     }
 
-    send_json_response(gobj_bottom_gobj(gobj), 200, status_str(200), jn_resp, extra);
+    send_json_response(gobj, gobj_bottom_gobj(gobj), 200, status_str(200), jn_resp, extra);
 
     JSON_DECREF(jn_resp)
     GBMEM_FREE(at_cookie)
@@ -2293,7 +2582,7 @@ PRIVATE void send_logout_success_to_browser(
     snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_clear, rt_clear);
 
     json_t *jn_resp = json_pack("{s:b}", "success", 1);
-    send_json_response(browser, 200, status_str(200), jn_resp, extra);
+    send_json_response(gobj, browser, 200, status_str(200), jn_resp, extra);
     JSON_DECREF(jn_resp)
     GBMEM_FREE(at_clear)
     GBMEM_FREE(rt_clear)
@@ -2329,13 +2618,12 @@ PRIVATE void answer_logout_without_refresh_token(
             gobj_trace_msg(gobj, "👤BFF /auth/logout: no cookie, nothing to end");
         }
         json_t *jn_resp = json_pack("{s:b}", "success", 1);
-        send_json_response(browser, 200, status_str(200), jn_resp, cors_hdrs);
+        send_json_response(gobj, browser, 200, status_str(200), jn_resp, cors_hdrs);
         JSON_DECREF(jn_resp)
         return;
     }
 
-    const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
-    if(!empty_string(allowed_origin) && strcmp(origin, allowed_origin) != 0) {
+    if(!logout_origin_allowed(gobj, origin)) {
         send_error_response(gobj, browser, 403, status_str(403),
             "origin_not_allowed",
             "Origin not allowed for /auth/logout", cors_hdrs);
@@ -2515,6 +2803,20 @@ PRIVATE json_t *save_oidc_discovery(
         STOP_TASK()
     }
 
+    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
+    if(body_too_large > 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PROTOCOL,
+            "msg",              "%s", "👤BFF OIDC discovery failed: answer body too long",
+            "max_body_size",    "%d", (int)body_too_large,
+            "issuer",           "%s", priv->issuer,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
     const char *token_ep = jn_body ?
         kw_get_str(gobj, jn_body, "token_endpoint", "", 0) : "";
@@ -2555,7 +2857,11 @@ PRIVATE void process_next(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->processing || dl_size(&priv->dl_pending) == 0) {
+    if(priv->processing) {
+        return;
+    }
+    send_answers_in_turn(gobj);
+    if(dl_size(&priv->dl_pending) == 0) {
         return;
     }
     if(!priv->discovery_done) {
@@ -2791,7 +3097,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
 
-        dl_flush(&priv->dl_pending, gbmem_free);
+        dl_flush(&priv->dl_pending, free_pending);
+    priv->q_answers = 0;
 
         if(priv->processing) {
             priv->task_valid = FALSE;
@@ -2842,8 +3149,26 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Incoming HTTP request from browser.
  *  kw: { url, request_method, headers (json), body (json) }
+ *  Its answer leaves after the answers of the requests before it (see
+ *  send_json_response).
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->answer_in_turn = priv->processing || dl_size(&priv->dl_pending) > 0;
+    int ret = read_request(gobj, kw, src);
+    priv->answer_in_turn = FALSE;
+
+    process_next(gobj);
+    return ret;
+}
+
+/***************************************************************************
+ *  A request of the browser: answered here, or queued for the IdP.
+ *  kw: { url, request_method, headers (json), body (json) }
+ ***************************************************************************/
+PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
 {
     gclass_name_t gclass_src_name = gobj_gclass_name(src);
     if(gclass_src_name == C_PROT_HTTP_SR) {
@@ -2903,7 +3228,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         build_cors_headers(gobj, origin, preflight_hdrs,
             sizeof(preflight_hdrs), TRUE);
         json_t *jn_empty = json_object();
-        send_json_response(src, 204, "204 No Content", jn_empty, preflight_hdrs);
+        send_json_response(gobj, src, 204, "204 No Content", jn_empty, preflight_hdrs);
         JSON_DECREF(jn_empty)
         KW_DECREF(kw)
         return 0;
@@ -3000,8 +3325,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(strcmp(url, "/auth/refresh") == 0) {
         /* POST /auth/refresh  (reads httpOnly cookie) */
         char rt[BFF_TOKEN_MAX];
-        if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
-                empty_string(rt)) {
+        size_t rt_len = 0;
+        token_cookie_t found = read_token_cookie(cookie_hdr, COOKIE_NAME_RT, rt, &rt_len);
+        if(found == TOKEN_COOKIE_TOO_LARGE) {
+            answer_token_cookie_too_large(gobj, src, COOKIE_NAME_RT, rt_len, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(found == TOKEN_COOKIE_ABSENT) {
             send_error_response(gobj, src, 401, status_str(401),
                 "missing_refresh_token",
                 "Missing refresh_token cookie", cors_hdrs);
@@ -3016,23 +3347,24 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     } else if(strcmp(url, "/auth/logout") == 0) {
         /* POST /auth/logout  (reads httpOnly cookie; with none, answer_logout_without_refresh_token) */
+        char rt[BFF_TOKEN_MAX];
         size_t rt_len = 0;
-        const char *rt_found = find_cookie(cookie_hdr, COOKIE_NAME_RT, &rt_len);
-        if(rt_found && rt_len >= BFF_TOKEN_MAX) {
-            char error_msg[128];
-            snprintf(error_msg, sizeof(error_msg),
-                "refresh_token cookie of %zu bytes: the BFF writes none longer than %d",
-                rt_len, (int)(BFF_COOKIE_MAX - strlen(COOKIE_NAME_RT)));
-            send_error_response(gobj, src, 400, status_str(400),
-                "token_too_large", error_msg, cors_hdrs);
+        token_cookie_t found = read_token_cookie(cookie_hdr, COOKIE_NAME_RT, rt, &rt_len);
+        if(found == TOKEN_COOKIE_TOO_LARGE) {
+            answer_token_cookie_too_large(gobj, src, COOKIE_NAME_RT, rt_len, cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
-        char rt[BFF_TOKEN_MAX];
-        if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
-                empty_string(rt)) {
+        if(found == TOKEN_COOKIE_ABSENT) {
             answer_logout_without_refresh_token(gobj, src, cors_hdrs,
                 cookie_hdr, origin, host_hdr, (size_t)pa.client_host_name_len);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(!logout_origin_allowed(gobj, origin)) {
+            send_error_response(gobj, src, 403, status_str(403),
+                "origin_not_allowed",
+                "Origin not allowed for /auth/logout", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -3080,8 +3412,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         }
         char at[BFF_TOKEN_MAX];
-        if(!extract_cookie(cookie_hdr, COOKIE_NAME_AT, at, sizeof(at)) ||
-                empty_string(at)) {
+        size_t at_len = 0;
+        token_cookie_t found = read_token_cookie(cookie_hdr, COOKIE_NAME_AT, at, &at_len);
+        if(found == TOKEN_COOKIE_TOO_LARGE) {
+            answer_token_cookie_too_large(gobj, src, COOKIE_NAME_AT, at_len, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(found == TOKEN_COOKIE_ABSENT) {
             send_error_response(gobj, src, 401, status_str(401),
                 "missing_access_token",
                 "Missing access_token cookie", cors_hdrs);
@@ -3102,7 +3440,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return 0;
         }
-        send_json_response(src, 200, "200 OK", jn_body, cors_hdrs);
+        send_json_response(gobj, src, 200, "200 OK", jn_body, cors_hdrs);
         JSON_DECREF(jn_body)
         KW_DECREF(kw)
         return 0;
@@ -3120,8 +3458,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return 0;
     }
-
-    process_next(gobj);
 
     KW_DECREF(kw)
     return 0;

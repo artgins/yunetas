@@ -81,14 +81,47 @@ Set-Cookie: refresh_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict
 
 **An IdP success that cannot be read** is answered `502` with a WARNING
 *"👤BFF IdP answer refused"*, not an ERROR: it is bad data of a peer. A token
-that is not a string, or no access_token: `auth_unexpected_error`. A body
-that is not a JSON object (empty, a proxy's HTML page, `[1, 2]`):
-`auth_empty_response`, whose `error` says which:
+that is not a string, no access_token, or a token with a byte a cookie value
+cannot carry (outside RFC 6265 `cookie-octet`: a `;`, a space, a CR LF...,
+which in a `Set-Cookie` would add an attribute or a header):
+`auth_unexpected_error`. A body that is not a JSON object (empty, a proxy's
+HTML page, `[1, 2]`, the JSON string `""`): `auth_empty_response`, whose
+`error` says which:
 
 ```
 {"success": false, "error_code": "auth_empty_response",
  "error": "Authentication service answered success with an empty body"}
 ```
+
+The BFF reads at most 1 MB of the body of an IdP answer (a token answer is a
+few KB). A longer one is not read to the end: the HTTP client logs one
+WARNING (*"HTTP body larger than its limit, message refused"*), drops the
+connection to the IdP, and the request is answered `502
+auth_unexpected_error` (*"Authentication service answered a body longer than
+1048576 bytes"*).
+
+**A `429` of the IdP** is answered `429 auth_rate_limited`, with the
+`Retry-After` of the IdP when it is delay-seconds (`120`) or an HTTP-date
+(`Wed, 21 Oct 2026 07:28:00 GMT`); any other value is not passed on, with a
+WARNING. The CORS headers of every answer carry
+`Access-Control-Expose-Headers: Retry-After`, so a SPA on another origin can
+read it:
+
+```
+HTTP/1.1 429 Too Many Requests
+Access-Control-Allow-Origin: https://<host>
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: Retry-After
+Retry-After: 120
+
+{"success": false, "error_code": "auth_rate_limited", "error": "Too many login attempts, please try again later"}
+```
+
+**Answers leave in the order of their requests.** A client may pipeline
+requests on one connection (RFC 9112 §9.3.2); an answer the BFF knows at
+once (a `400`, a `404`) waits behind a request still at the IdP. More than
+`pending_queue_size` such answers waiting drop the connection, with a
+WARNING.
 
 **A lifetime of 0** (`"refresh_expires_in": 0`, the offline token of
 Keycloak) is a token with no expiry: its cookie has no `Max-Age`, a cookie of
@@ -99,12 +132,21 @@ the browser session, and the answer says 0.
 answers `200 {"success": true}`. With no `refresh_token` cookie (a session
 opened without one), it does not call the IdP and only clears the cookies,
 with the same answer -- if the request carries the `access_token` cookie
-(`SameSite=Strict`: a same-site request) and, when `allowed_origin` is set,
-its `Origin` is exactly that (else `403 origin_not_allowed`). A request with
-no cookie (no session, or a cross-site form) gets `200 {"success": true}`
-with no `Set-Cookie`: there is nothing to end. A `refresh_token` cookie of
-4096 bytes or more is none the BFF wrote: `400 token_too_large`. A logout
-that clears the cookies answers:
+(`SameSite=Strict`: a same-site request). With or without the
+`refresh_token` cookie, when `allowed_origin` is set the `Origin` must be
+exactly that: another origin, no `Origin`, `null`, or the allowed one with
+more after it is `403 origin_not_allowed`, with no call to the IdP and no
+`Set-Cookie`. A request with no cookie (no session, or a cross-site form)
+gets `200 {"success": true}` with no `Set-Cookie`: there is nothing to end.
+
+**Token cookies the BFF did not write.** A browser keeps a cookie whose name
+and value take at most 4096 bytes, and the BFF writes no bigger one (an
+access_token of at most 4084 bytes, a refresh_token of at most 4083). A
+`refresh_token` cookie (`/auth/refresh`, `/auth/logout`) or an
+`access_token` cookie (`/auth/token`) longer than that is none the BFF
+wrote: `400 token_too_large`, *"refresh_token cookie of 4084 bytes: the BFF
+writes none longer than 4083 (a cookie name and value take at most 4096
+bytes)"*. A logout that clears the cookies answers:
 
 ```
 HTTP/1.1 200 OK

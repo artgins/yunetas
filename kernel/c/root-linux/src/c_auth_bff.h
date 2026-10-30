@@ -80,14 +80,17 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *                                 did not type anything wrong; their
  *                                 session simply timed out.
  *  account_disabled          403  Account disabled / not fully set up
- *  auth_rate_limited         429  Too many login attempts
+ *  auth_rate_limited         429  Too many login attempts (the IdP's
+ *                                 Retry-After passed on when it is
+ *                                 delay-seconds or an HTTP-date)
  *  auth_service_unavailable  502  IdP unreachable or 5xx
  *  auth_config_error         500  BFF misconfigured (bad client_id, ...)
  *  auth_unexpected_error     502  IdP returned something unexpected
  *                                 (also a success with no access_token,
- *                                 or with a token that is not a string:
- *                                 logged as a WARNING, "IdP answer
- *                                 refused", data of a peer)
+ *                                 with a token that is not a string or
+ *                                 has a byte a cookie cannot carry, or a
+ *                                 body over 1 MB: logged as a WARNING,
+ *                                 "IdP answer refused", data of a peer)
  *  auth_empty_response       502  IdP success whose body is not a JSON
  *                                 object (empty, not JSON, another JSON
  *                                 type): a WARNING, "IdP answer refused"
@@ -108,15 +111,17 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  origin_not_allowed        403  /auth/token Origin does not match
  *                                 allowed_origin, or allowed_origin unset
  *                                 (origin-pinned, fail-closed); also
- *                                 /auth/logout with no refresh_token
- *                                 cookie whose Origin is not
- *                                 allowed_origin (when it is set)
+ *                                 /auth/logout whose Origin is not
+ *                                 exactly allowed_origin (when it is
+ *                                 set), with a cookie
  *  missing_refresh_token     401  /auth/refresh called without RT cookie
  *                                 (/auth/logout without it answers
  *                                 success)
- *  token_too_large           400  /auth/logout with a refresh_token
- *                                 cookie of BFF_TOKEN_MAX bytes or more
- *                                 (not one the BFF wrote)
+ *  token_too_large           400  /auth/refresh or /auth/logout with a
+ *                                 refresh_token cookie, /auth/token with
+ *                                 an access_token cookie, whose name and
+ *                                 value pass 4096 bytes (not one the BFF
+ *                                 wrote)
  *  missing_access_token      401  /auth/token called without AT cookie
  *                                 (only reachable when expose_access_token=true)
  *  unknown_endpoint          404  URL not one of /auth/{callback,login,refresh,

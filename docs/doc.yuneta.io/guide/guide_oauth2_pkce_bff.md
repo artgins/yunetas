@@ -317,9 +317,11 @@ configure the IdP client to issue refresh tokens.
 **A lifetime of 0 is a token with no expiry.** Keycloak answers
 `"refresh_expires_in": 0` for an offline token (scope `offline_access`). A
 `Max-Age=0` would tell the browser to delete the cookie on arrival, so the BFF
-writes that cookie with no `Max-Age`: a cookie of the browser session, which
-the browser drops when the session ends. The same holds for
-`"expires_in": 0`. The answer says the 0 as it came:
+writes that cookie with no `Max-Age`: a cookie of the browser session. A
+browser drops it when its session ends, but a browser that restores its
+session (Chrome and Firefox with "continue where you left off") keeps it, so
+the cookie of an offline token can live as long as the token. The same holds
+for `"expires_in": 0`. The answer says the 0 as it came:
 
 ```
 IdP:      {"access_token": "...", "expires_in": 300,
@@ -340,13 +342,27 @@ access_token that is not a string"*. Two WARNINGs with no stack say it: one
 names the token and its type (*"👤BFF IdP answered a token that is not a
 string"*, `"type": "integer"`), and one is the answer of the 502 (*"👤BFF IdP
 answer refused"*, `"error_code": "auth_unexpected_error"`). A success with no
-access_token is refused the same way, with that second WARNING only. So is
-a success whose body is not a JSON object, answered `502 auth_empty_response`:
+access_token is refused the same way, with that second WARNING only. A token
+goes into a `Set-Cookie` as it is, so a token with a byte that a cookie value
+cannot carry (outside RFC 6265 `cookie-octet`: a control byte, a space, `"`,
+`,`, `;`, `\`) is refused too, whole: `502 auth_unexpected_error`
+(*"Authentication service answered a refresh_token with a byte a cookie
+cannot carry"*), with a WARNING that names the token, the position and the
+byte (*"👤BFF IdP answered a token that is not a cookie value"*), never the
+token. Without it, an `access_token` with `; Domain=evil.com` would add an
+attribute, and a `refresh_token` with a CR LF would begin another header. So
+is a success whose body is not a JSON object, answered `502 auth_empty_response`:
 an empty body, text that is not JSON (a proxy's HTML page), or another JSON
-type (`[1, 2]`). Its `error` says which (*"Authentication service answered
-success with an empty body"*), and a body labelled `application/json` that
-does not parse also gets the WARNING of the HTTP parser (*"data of a peer is
-not json"*). Every
+type (`[1, 2]`, the JSON string `""`). Its `error` says which
+(*"Authentication service answered success with an empty body"*, *"... with
+a body that is a JSON string, not an object"*), and a body labelled
+`application/json` that does not parse also gets the WARNING of the HTTP
+parser (*"data of a peer is not json"*). The BFF reads at most 1 MB of the
+body of an IdP answer: a longer one is not read to the end (one WARNING of
+the HTTP client, *"HTTP body larger than its limit, message refused"*, and
+the connection to the IdP dropped), and the request is answered `502
+auth_unexpected_error` (*"Authentication service answered a body longer than
+1048576 bytes"*). Every
 other 5xx of the BFF is an ERROR (*"👤BFF server error"*). A lifetime
 (`expires_in`, `refresh_expires_in`) is a JSON integer or the text of one:
 `"expires_in": "300"` is read as 300, as some IdPs send it. Anything else
@@ -354,6 +370,16 @@ other 5xx of the BFF is an ERROR (*"👤BFF server error"*). A lifetime
 (300 for `expires_in`, 1800 for `refresh_expires_in`) and a WARNING that names
 the key and the value (*"👤BFF IdP answered a lifetime that is not a number of
 seconds, its default is used"*, `"key": "expires_in"`, `"value": "300.5"`).
+
+**A `429` of the IdP passes on its `Retry-After`.** The BFF answers `429
+auth_rate_limited` with the `Retry-After` of the IdP when it is
+delay-seconds (`Retry-After: 120`) or an HTTP-date (`Retry-After: Wed, 21
+Oct 2026 07:28:00 GMT`). Any other value is not passed on, with a WARNING
+(*"👤BFF IdP answered a Retry-After that is not delay-seconds nor an
+HTTP-date, not passed on"*): a value of the IdP never writes more than that
+one header. The CORS headers of every answer carry
+`Access-Control-Expose-Headers: Retry-After`, so a SPA on another origin
+than its BFF can read it, and waits what the IdP asks.
 
 **A refresh that cannot be made is not a logout.** A network failure, a
 timeout (`gui_treedb` gives each BFF call 15 s) or a 5xx answer such as
@@ -392,15 +418,23 @@ clears both cookies with `Max-Age=0` at once, and answers
 `200 {"success": true}`. It clears them only for a request that carries the
 `access_token` cookie: the cookies are `SameSite=Strict`, so that cookie
 proves a same-site request, and a cross-site form cannot log the user out.
-With `allowed_origin` set, the `Origin` must also be exactly that origin.
+
+**With `allowed_origin` set, every logout that ends something needs exactly
+that `Origin`**, with the `refresh_token` cookie or without it. `SameSite`
+says same SITE, not same origin: a sibling subdomain sends the cookies too,
+and so does a browser that does not apply `SameSite`. Another origin, no
+`Origin`, `Origin: null`, the allowed origin with more after it
+(`https://app.example.com.evil.com`, `https://app.example.com:8443`) or a
+part of it: `403 origin_not_allowed`, no IdP call, no `Set-Cookie`. A
+browser sends `Origin` with every `POST`, same-origin included.
 
 | Request to `/auth/logout` | Answer |
 |---|---|
-| `refresh_token` cookie | IdP end-session call, both cookies cleared, `200` |
+| `refresh_token` cookie, `Origin` = `allowed_origin` (or none configured) | IdP end-session call, both cookies cleared, `200` |
 | `access_token` cookie only, `Origin` = `allowed_origin` (or none configured) | No IdP call, both cookies cleared, `200` |
-| `access_token` cookie only, another `Origin` | `403 origin_not_allowed`, no `Set-Cookie` |
+| A cookie, another `Origin` or none | `403 origin_not_allowed`, no IdP call, no `Set-Cookie` |
 | No cookie (no session, or a cross-site request) | `200 {"success": true}`, no `Set-Cookie`: nothing to end |
-| `refresh_token` cookie of 4096 bytes or more (the BFF writes none) | `400 token_too_large`, no `Set-Cookie` |
+| `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes) | `400 token_too_large`, no `Set-Cookie` |
 
 ---
 
@@ -450,6 +484,8 @@ that SPA strict.
 | **CORS** | The BFF answers only `allowed_origin`; it never reflects an arbitrary `Origin` and never answers `*` |
 | **Server-side JWT validation** | `C_AUTHZ` verifies signature via JWKS, checks expiry, issuer, claims |
 | **Token refresh** | Proactive refresh via the BFF before the access token expires |
+| **The form to the IdP** | Each key and value form-urlencoded (`+`, `%`, `&`, `=` of a password or a cookie are bytes of the value): a user cannot add parameters to a request the BFF signs with its `client_secret` |
+| **Pipelined requests** | Answered in their order (RFC 9112 §9.3.2): an answer the BFF knows at once waits behind a request still at the IdP |
 
 ---
 
@@ -496,6 +532,14 @@ bytes (limit 4083); a cookie name and value take at most 4096 bytes"*). An
 IdP that answers a success with no access_token is refused too: `502
 auth_unexpected_error`, *"Authentication service answered success with no
 access_token"*.
+
+The same rule reads the cookies that come back. A `refresh_token` cookie
+(`/auth/refresh`, `/auth/logout`) of more than 4083 bytes, or an
+`access_token` cookie (`/auth/token`) of more than 4084 (name and value over
+4096 bytes), is none the BFF wrote: `400 token_too_large`, *"refresh_token
+cookie of 4084 bytes: the BFF writes none longer than 4083 (a cookie name
+and value take at most 4096 bytes)"*, and it goes nowhere. A cookie that
+fits is taken whole.
 
 ---
 
