@@ -14,6 +14,16 @@ program:
 grep -E 'SigIgn|SigBlk' /proc/<pid>/status   # both 0
 ```
 
+Every program run by them also starts with **no fd of the caller but
+stdin, stdout and stderr**. An fd without `O_CLOEXEC` stays open across
+`exec`: up to 7.29.3 every program a yuno ran inherited each one (a
+listening socket, a log file, the other end of a pipe), and kept it open
+after the yuno closed it. Check it on a running program:
+
+```bash
+ls -l /proc/<pid>/fd    # 0, 1 and 2 only (and what the program opened)
+```
+
 **Source:** `kernel/c/root-linux/src/run_command.h`
 
 ---
@@ -47,6 +57,25 @@ command could not be run. The exit status is not returned: use
   with `2>&1` appended, which took the stderr of the last command only,
   in a buffer of 4 KB that cut a longer command with nothing said.
 - An output larger than the largest gbuffer is cut, with an error logged.
+- The command's stdin is `/dev/null`. Up to 7.29.3 it was the caller's.
+- **It returns when the output ends, not when the command ends.** The
+  output ends when no process has the pipe as its stdout or stderr. A
+  process that the command leaves in the background keeps the pipe, and
+  `run_command()` waits for it. Give such a process another stdout **and**
+  another stderr:
+
+  ```C
+  run_command("sleep 9 >/dev/null &");           // returns after 9 s: stderr is the pipe
+  run_command("sleep 9 >/dev/null 2>&1 &");      // returns at once
+  ```
+
+  Up to 7.29.3 (`popen()` with `2>&1` appended) the first form returned at
+  once, because only the stdout of the last command was the pipe.
+- A command reaped by somebody else (the caller's `SIGCHLD` at `SIG_IGN`,
+  or a handler of it that reaps) is not an error: the output is returned.
+- When it cannot be run, the ERROR says which call failed (`"failed"`:
+  `posix_spawn()`, or the call that prepared it, such as
+  `posix_spawnattr_setsigmask()`), with its `errno`.
 
 **Example**
 
@@ -91,7 +120,9 @@ int run_process2(
 
 The status of `waitpid()`: `0` when the program exited with 0 (read the rest
 with `WIFEXITED()` / `WEXITSTATUS()`). `-1`, logged, when it could not be run
-(no such program, not executable) or waited for.
+(no such program, not executable) or waited for. The ERROR names the call
+that failed (`"failed"`). A caller whose `SIGCHLD` is `SIG_IGN` gets `-1`:
+the kernel reaps the program, and its status is lost.
 
 **Notes**
 
@@ -122,7 +153,12 @@ status = run_process2("/bin/sh", sh);   // a shell command, with its status
 Spawns a command synchronously in a pseudo-terminal (via `forkpty()`),
 providing interactive terminal I/O between parent and child. The command
 starts with no signal blocked and every signal at its default, so a ctrl+c
-reaches it.
+reaches it, and with no fd of the caller but its terminal.
+
+When the caller's stdin ends (a pipe, `/dev/null`), nothing more is passed
+to the command, and it runs on until it ends. Up to 7.29.3 the end of stdin
+was read again at once, for ever, and each time one byte that was never
+read went to the command: about 500 000 bytes a second.
 
 ```C
 int pty_sync_spawn(const char *command);

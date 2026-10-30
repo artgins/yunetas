@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <signal.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <limits.h>
@@ -356,6 +358,27 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 ) {
     int __print__ = 0;
 
+    /*
+     *  The yuno's signals are blocked before anything else, whoever started
+     *  it (get_yuno_signal_set()): a --start keeps them so, and one that
+     *  comes before the watcher sets its signals waits for it -- a SIGQUIT
+     *  is then the stop, and nothing is launched. Since a program a yuno
+     *  runs starts with no signal blocked, a yuno that the agent launches
+     *  starts so too, and a SIGQUIT in that time ended it with a core dump
+     *  (up to 7.29.3 the agent's mask covered it; started by hand or by a
+     *  systemd unit it was never covered). Without --start they are given
+     *  back once the arguments are read: a foreground process keeps their
+     *  defaults until its C_YUNO blocks them.
+     */
+    sigset_t yuno_signals;
+    sigset_t starter_mask;
+    BOOL yuno_signals_blocked = TRUE;
+    get_yuno_signal_set(&yuno_signals);
+    if(sigprocmask(SIG_BLOCK, &yuno_signals, &starter_mask) < 0) {
+        print_error(0, "sigprocmask(SIG_BLOCK) FAILED, errno %d %s", errno, strerror(errno));
+        yuno_signals_blocked = FALSE;   // nothing to give back
+    }
+
     build_datetime_to_iso(__app_datetime__, sizeof(__app_datetime__), APP_DATETIME);
 
     snprintf(__argp_program_version__, sizeof(__argp_program_version__),
@@ -410,6 +433,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *------------------------------------------------*/
     struct arguments arguments = {0};
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
+
+    if(!arguments.start && yuno_signals_blocked) {
+        if(sigprocmask(SIG_SETMASK, &starter_mask, NULL) < 0) {
+            print_error(0, "sigprocmask(SIG_SETMASK) FAILED, errno %d %s", errno, strerror(errno));
+        }
+    }
 
     if(arguments.stop) {
         return daemon_shutdown(process_name) < 0? 1 : 0;   // Error already printed

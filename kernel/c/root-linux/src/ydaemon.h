@@ -12,6 +12,7 @@
  ****************************************************************************/
 #pragma once
 
+#include <signal.h>
 #include <gobj.h>
 
 #ifdef __cplusplus
@@ -51,6 +52,14 @@ PUBLIC int search_process(
     void *self
 );
 PUBLIC int get_relaunch_times(void);
+
+/*
+ *  The signals a yuno reads from its signalfd (C_YUNO): SIGPIPE, SIGTERM,
+ *  SIGALRM, SIGQUIT, SIGINT, SIGUSR1 and SIGUSR2. A yuno keeps them blocked
+ *  from its start (yuneta_entry_point()) and every child of the watcher
+ *  from its fork, so one that comes before the signalfd waits for it.
+ */
+PUBLIC void get_yuno_signal_set(sigset_t *set);
 PUBLIC int daemon_set_debug_mode(BOOL set);
 PUBLIC BOOL daemon_get_debug_mode(void);
 

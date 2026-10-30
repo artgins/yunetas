@@ -266,6 +266,13 @@ program with no shell, -1 for a program that does not exist. `copyfile()`:
 the bytes and the mode of a 300 KB copy, an existing destination kept without
 `overwrite` and replaced with it, -1 for a missing source; every failure
 logged (three ERRORs in the output are expected).
+A program run by `run_process2()`, `run_command()` or `launch_daemon()`
+starts with no signal blocked and none ignored, and with no fd of the
+caller above stderr (fd 77, opened without `O_CLOEXEC`, is looked for in
+the program's `/proc/<pid>/fd`); the command of `run_command()` reads
+`/dev/null`, not the caller's stdin (a pipe in the test). `launch_daemon()`
+with `SIGCHLD` at `SIG_IGN` answers the daemon's pid and says no
+`waitpid()` error (its stdout, where `print_error()` writes, is read).
 
 `test_replace_string` covers `replace_string()`, written again after 7.28.4
 on gbmem: every occurrence replaced left to right without overlaps (`"aaa"`,

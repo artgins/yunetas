@@ -48,10 +48,16 @@ too many arguments.
   failure was seen only when it came first; and the daemon kept the write end
   of the pipe open.
 - The daemon starts with no signal blocked and every signal at its default
-  but SIGHUP, which it ignores. Up to 7.29.3 it inherited the caller's mask
-  and ignores (a yuno's: SIGTERM, SIGINT, SIGQUIT and the rest of its
-  `signalfd` set blocked), and the first child left with `exit()`, which
-  wrote out a second time what the caller had in its stdio buffers.
+  but SIGHUP, which it ignores, and with no fd of the caller but stdin,
+  stdout and stderr ([`clean_child_before_exec()`](#clean_child_before_exec)).
+  Up to 7.29.3 it inherited the caller's mask and ignores (a yuno's:
+  SIGTERM, SIGINT, SIGQUIT and the rest of its `signalfd` set blocked) and
+  every fd of the caller without `O_CLOEXEC`, and the first child left with
+  `exit()`, which wrote out a second time what the caller had in its stdio
+  buffers.
+- A caller whose `SIGCHLD` is `SIG_IGN` (or whose handler of it reaps)
+  gets the PID too, and no error is said: the first child reaped by
+  somebody else is not a failure.
 
 **Example**
 
@@ -62,6 +68,51 @@ if(pid < 0) {
 }
 // ... the telnet connects to a listener of the test ...
 kill(pid, SIGKILL);     // the daemon itself
+```
+
+---
+
+(clean_child_before_exec)=
+### [`clean_child_before_exec()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L10042)
+
+`clean_child_before_exec()` prepares a forked child for its `exec`: the
+program starts with no signal blocked, every signal at its default, and no
+fd open but stdin, stdout, stderr and `keep_fd`. It is what
+[`launch_daemon()`](#launch_daemon), [`pty_sync_spawn()`](#pty_sync_spawn)
+and the command of `C_PTY` do before their `exec`
+([`run_process2()`](#run_process2) and [`run_command()`](#run_command) get
+the same from `posix_spawn()`).
+
+```C
+void clean_child_before_exec(int keep_fd);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `keep_fd` | `int` | An fd above stderr to keep open (a pipe that closes on the `exec` with `O_CLOEXEC`), or `-1` for none. |
+
+**Notes**
+
+- A yuno keeps its signals blocked for its `signalfd`, and a blocked or an
+  ignored signal stays so across `exec`; an fd without `O_CLOEXEC` stays
+  open across `exec`. Without this, the program inherits both.
+- A signal that cannot be set (SIGKILL, SIGSTOP, those the C library keeps
+  for itself) is left. The fds are closed with `close_range()`, or one by
+  one up to the limit of open files on a kernel without it (before 5.9).
+- Call it only in the child, after `fork()`: it changes the process it runs
+  in. Nothing is logged: the child is about to `exec`.
+
+**Example**
+
+```C
+pid_t pid = fork();
+if(pid == 0) {
+    clean_child_before_exec(-1);
+    execl("/bin/sh", "sh", "-c", command, (char *)NULL);
+    _exit(127);
+}
 ```
 
 ---
@@ -121,6 +172,20 @@ Returns `0` on normal shutdown, or a non-zero value on error.
   inspect how many relaunches have happened so far.
 - Use [`daemon_shutdown()`](#daemon_shutdown) from another process (or
   the child itself) to terminate both watcher and child cleanly.
+- A SIGQUIT to the watcher is the stop: its child is not relaunched, and
+  the watcher passes the SIGQUIT to the child it waits for. So a stop that
+  comes while the watcher forks a child, which the sender did not know,
+  stops that child too. Up to 7.29.3 only a stop that came before the
+  watcher looked at it after the fork reached the child; a later one
+  reached only the watcher, and `--stop` killed the child with SIGKILL
+  10 s later.
+- `yuneta_entry_point()` blocks the yuno's signals
+  ([`get_yuno_signal_set()`](#get_yuno_signal_set)) before it reads the
+  arguments. With `--start` they stay blocked, so a SIGQUIT that comes before
+  `daemon_run()` sets the watcher's signals is the stop: nothing is
+  launched. Up to 7.29.3 a yuno started by hand or by a systemd unit ended
+  then with a core dump. Without `--start` the signals are given back once
+  the arguments are read.
 
 ---
 
@@ -246,6 +311,36 @@ int get_relaunch_times(void);
 **Returns**
 
 The relaunch counter (0 on the first run, incremented on each restart).
+
+---
+
+(get_yuno_signal_set)=
+### [`get_yuno_signal_set()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/ydaemon.c#L1043)
+
+`get_yuno_signal_set()` fills `set` with the signals a yuno reads from its
+`signalfd` (`C_YUNO`): SIGPIPE, SIGTERM, SIGALRM, SIGQUIT, SIGINT, SIGUSR1
+and SIGUSR2. It is the one definition of that set: `C_YUNO` blocks it for
+its `signalfd`, the watcher blocks it around each `fork()` of a child, and
+`yuneta_entry_point()` blocks it from the start of a yuno.
+
+```C
+void get_yuno_signal_set(sigset_t *set);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `set` | `sigset_t *` | The set to fill. What it had is replaced. |
+
+**Example**
+
+```C
+sigset_t yuno_signals;
+get_yuno_signal_set(&yuno_signals);
+sigprocmask(SIG_BLOCK, &yuno_signals, NULL);    // pending until the signalfd reads them
+int sfd = signalfd(-1, &yuno_signals, SFD_NONBLOCK|SFD_CLOEXEC);
+```
 
 ---
 

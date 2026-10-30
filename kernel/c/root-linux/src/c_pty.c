@@ -40,7 +40,6 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int fd_duplicate(int fd);
-PRIVATE void reset_signals_before_exec(void);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
@@ -301,15 +300,22 @@ PRIVATE int mt_start(hgobj gobj)
         }
 
         if(!tty_empty) {
-            reset_signals_before_exec();
+            /*
+             *  The command of the console starts with no signal blocked,
+             *  every signal at its default and no fd of the yuno: up to
+             *  7.29.3 the shell had the yuno's signalfd set blocked (a
+             *  ctrl+c did nothing) and every fd of the yuno without
+             *  O_CLOEXEC. _exit(), not exit(): this is a copy of the yuno.
+             */
+            clean_child_before_exec(-1);
             int ret = execv(priv->argv[0], priv->argv);
             if(ret < 0) {
                 print_error(0, "forkpty() FAILED: %s", strerror(errno));
             }
-            exit(0); // Child will die after exit of execute command
+            _exit(0); // Child will die after exit of execute command
         } else {
             print_error(0, "🙋 exit master_fd, tty empty");
-            exit(0); // Child will die after receive signal
+            _exit(0); // Child will die after receive signal
         }
     }
 
@@ -674,29 +680,6 @@ PRIVATE int fd_duplicate(int fd)
     set_cloexec(fd_dup);
 
     return fd_dup;
-}
-
-/***************************************************************************
- *  The command of the console starts with no signal blocked and every
- *  signal at its default: the yuno keeps its signals blocked for its
- *  signalfd, and a blocked or an ignored signal stays so across exec. Up
- *  to 7.29.3 the shell and every program run from it had SIGINT, SIGTERM,
- *  SIGQUIT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE blocked: a ctrl+c did
- *  nothing. A signal that cannot be set (SIGKILL, SIGSTOP, those the C
- *  library keeps for itself) is left.
- ***************************************************************************/
-PRIVATE void reset_signals_before_exec(void)
-{
-    for(int sig = 1; sig < NSIG; sig++) {
-        struct sigaction sa;
-        if(sigaction(sig, NULL, &sa) == 0 && sa.sa_handler == SIG_IGN) {
-            sa.sa_handler = SIG_DFL;
-            sigaction(sig, &sa, NULL);
-        }
-    }
-    sigset_t none;
-    sigemptyset(&none);
-    sigprocmask(SIG_SETMASK, &none, NULL);
 }
 
 /***************************************************************************

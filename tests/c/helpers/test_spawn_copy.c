@@ -20,6 +20,12 @@
  *          launch_daemon(): the pid of the daemon (kill() reaches it), no
  *          zombie left, -1 for a program that cannot be run.
  *
+ *          None of them gives its program an fd of the caller above stderr
+ *          (one without O_CLOEXEC); run_command() gives it /dev/null as
+ *          stdin, not the caller's. launch_daemon() with SIGCHLD at SIG_IGN
+ *          (its first child reaped by the kernel) answers the pid and says
+ *          no error.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -30,6 +36,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <yunetas.h>
 
 #define APP "test_spawn_copy"
@@ -68,7 +75,7 @@ PRIVATE void test_run_process2(void)
         "argv reaches the program as given, with no shell splitting it"
     );
 
-    printf("     (an ERROR \"posix_spawn() FAILED\" follows, on purpose)\n");
+    printf("     (an ERROR \"Program not run: a call to spawn it FAILED\" follows, on purpose)\n");
     char *const argv_none[] = {"none", NULL};
     ok_or_fail(
         run_process2("/nonexistent/program", argv_none) == -1,
@@ -303,6 +310,157 @@ PRIVATE void test_launch_daemon(void)
 }
 
 /***************************************************************************
+ *  A file read whole, or "" (at most size - 1 bytes), waiting up to 2 s
+ *  for it to appear
+ ***************************************************************************/
+PRIVATE void wait_and_read(const char *file, char *text, size_t size)
+{
+    text[0] = 0;
+    for(int i = 0; i < 200 && !text[0]; i++) {
+        FILE *f = fopen(file, "r");
+        if(f) {
+            size_t r = fread(text, 1, size - 1, f);
+            text[r] = 0;
+            fclose(f);
+        } else {
+            usleep(10*1000);
+        }
+    }
+}
+
+/***************************************************************************
+ *  An fd of the caller without O_CLOEXEC, above stderr: no program run from
+ *  here has it. Up to 7.29.3 every one did.
+ ***************************************************************************/
+#define LEAK_FD 77
+
+PRIVATE void test_no_inherited_fds(void)
+{
+    int fd = open("/dev/null", O_RDONLY);   // no O_CLOEXEC, on purpose
+    if(fd < 0 || dup2(fd, LEAK_FD) != LEAK_FD) {
+        ok_or_fail(0, "an fd without O_CLOEXEC to leak");
+        if(fd >= 0) {
+            close(fd);
+        }
+        return;
+    }
+    close(fd);
+
+    char check[128];
+    snprintf(check, sizeof(check), "[ ! -e /proc/$$/fd/%d ]", LEAK_FD);
+    char *const argv_check[] = {"sh", "-c", check, NULL};
+    ok_or_fail(
+        run_process2("/bin/sh", argv_check) == 0,
+        "run_process2(): the program has no fd of the caller above stderr"
+    );
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+        "if [ -e /proc/$$/fd/%d ]; then echo inherited; else echo closed; fi", LEAK_FD);
+    gbuffer_t *gbuf = run_command(cmd);
+    char text[256] = "";
+    if(gbuf) {
+        snprintf(text, sizeof(text), "%.*s",
+            (int)gbuffer_leftbytes(gbuf), (char *)gbuffer_cur_rd_pointer(gbuf));
+    }
+    GBUFFER_DECREF(gbuf)
+    ok_or_fail(strcmp(text, "closed\n") == 0,
+        "run_command(): the command has no fd of the caller above stderr");
+
+    char file[PATH_MAX];
+    snprintf(file, sizeof(file), "/tmp/%s.%d.fds", APP, (int)getpid());
+    char dcmd[3*PATH_MAX + 256];
+    snprintf(dcmd, sizeof(dcmd),
+        "if [ -e /proc/$$/fd/%d ]; then echo inherited; else echo closed; fi > %s.tmp && mv %s.tmp %s",
+        LEAK_FD, file, file, file);
+    launch_daemon(TRUE, "/bin/sh", "-c", dcmd, NULL);
+    wait_and_read(file, text, sizeof(text));
+    unlink(file);
+    ok_or_fail(strcmp(text, "closed\n") == 0,
+        "launch_daemon(): the daemon has no fd of the caller above stderr");
+
+    close(LEAK_FD);
+}
+
+/***************************************************************************
+ *  run_command(): the command reads /dev/null, not the caller's stdin (a
+ *  pipe here, as a yuno's could be anything)
+ ***************************************************************************/
+PRIVATE void test_run_command_stdin(void)
+{
+    int p[2];
+    int saved = dup(STDIN_FILENO);
+    if(saved < 0 || pipe(p) < 0 || dup2(p[0], STDIN_FILENO) != STDIN_FILENO) {
+        ok_or_fail(0, "a pipe as the caller's stdin");
+        return;
+    }
+    close(p[0]);
+    gbuffer_t *gbuf = run_command("readlink /proc/self/fd/0");
+    char text[256] = "";
+    if(gbuf) {
+        snprintf(text, sizeof(text), "%.*s",
+            (int)gbuffer_leftbytes(gbuf), (char *)gbuffer_cur_rd_pointer(gbuf));
+    }
+    GBUFFER_DECREF(gbuf)
+    dup2(saved, STDIN_FILENO);
+    close(saved);
+    close(p[1]);
+    ok_or_fail(strcmp(text, "/dev/null\n") == 0,
+        "run_command(): the command's stdin is /dev/null, not the caller's");
+}
+
+/***************************************************************************
+ *  launch_daemon() with SIGCHLD at SIG_IGN: the kernel reaps the first
+ *  child, waitpid() answers ECHILD, and that is no error. Up to this fix
+ *  it said "waitpid() failed ... errno 10".
+ ***************************************************************************/
+PRIVATE void test_launch_daemon_sigchld_ignored(void)
+{
+    struct sigaction ign;
+    struct sigaction old_chld;
+    memset(&ign, 0, sizeof(ign));
+    ign.sa_handler = SIG_IGN;
+    sigaction(SIGCHLD, &ign, &old_chld);
+
+    char outfile[PATH_MAX];
+    snprintf(outfile, sizeof(outfile), "/tmp/%s.%d.stdout", APP, (int)getpid());
+    fflush(stdout);
+    int saved = dup(STDOUT_FILENO);
+    int efd = open(outfile, O_WRONLY|O_CREAT|O_TRUNC, 0600);
+    if(saved < 0 || efd < 0 || dup2(efd, STDOUT_FILENO) != STDOUT_FILENO) {
+        ok_or_fail(0, "stdout to a file (print_error() writes there)");
+        sigaction(SIGCHLD, &old_chld, NULL);
+        return;
+    }
+    close(efd);
+
+    pid_t pid = launch_daemon(TRUE, "/bin/sleep", "30", NULL);
+
+    fflush(stdout);
+    dup2(saved, STDOUT_FILENO);
+    close(saved);
+    sigaction(SIGCHLD, &old_chld, NULL);
+
+    char said[1024] = "";
+    FILE *f = fopen(outfile, "r");
+    if(f) {
+        size_t r = fread(said, 1, sizeof(said) - 1, f);
+        said[r] = 0;
+        fclose(f);
+    }
+    unlink(outfile);
+    if(said[0]) {
+        printf("     said: %s", said);
+    }
+    ok_or_fail(pid > 0, "launch_daemon() with SIGCHLD ignored: answers the pid of the daemon");
+    ok_or_fail(strstr(said, "waitpid") == NULL,
+        "launch_daemon() with SIGCHLD ignored: says no waitpid() error");
+    if(pid > 0) {
+        kill(pid, SIGKILL);
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -338,6 +496,9 @@ int main(int argc, char *argv[])
     test_copyfile();
     test_clean_signals();
     test_launch_daemon();
+    test_no_inherited_fds();
+    test_run_command_stdin();
+    test_launch_daemon_sigchld_ignored();
 
     gobj_end();
 

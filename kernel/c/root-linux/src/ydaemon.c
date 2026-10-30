@@ -52,6 +52,7 @@ PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
 PRIVATE volatile sig_atomic_t stop_requested = 0;   // the watcher got SIGQUIT: no relaunch
+PRIVATE volatile sig_atomic_t child_pid = 0;        // the child waited for: a SIGQUIT is passed to it
 PRIVATE const char *pid_file = NULL;
 
 /*
@@ -66,15 +67,11 @@ PRIVATE struct sigaction given_actions[WATCHER_SIGNALS];
 PRIVATE sigset_t given_mask;
 
 /*
- *  The signals a yuno reads from its signalfd: the set of catch_signals()
- *  in c_yuno.c, keep the two the same. They are blocked across the fork
- *  of a child, and the child keeps them blocked until its signalfd reads
- *  them: one that comes before is pending, not lost and not fatal.
+ *  The signals a yuno reads from its signalfd (get_yuno_signal_set()).
+ *  They are blocked across the fork of a child, and the child keeps them
+ *  blocked until its signalfd reads them: one that comes before is
+ *  pending, not lost and not fatal.
  */
-PRIVATE const int yuno_signals[] = {
-    SIGPIPE, SIGTERM, SIGALRM, SIGQUIT, SIGINT, SIGUSR1, SIGUSR2
-};
-#define YUNO_SIGNALS ((int)(sizeof(yuno_signals)/sizeof(yuno_signals[0])))
 PRIVATE sigset_t yuno_set;
 
 /***************************************************************************
@@ -85,10 +82,15 @@ PRIVATE sigset_t yuno_set;
  *
  *  SIGQUIT, the stop, is not ignored by the watcher: it is noted, and the
  *  child that ends after it is not relaunched, whatever its end (SA_RESTART:
- *  the waitpid() goes on). Up to 7.25.22 it was ignored, and an agent that
+ *  the wait goes on). Up to 7.25.22 it was ignored, and an agent that
  *  crashed in its orderly stop was relaunched 2 s later. It is unblocked
- *  too: a yuno that the agent launches inherits the agent's mask, where
- *  SIGQUIT is blocked for its signalfd.
+ *  too: a yuno starts with its signals blocked (entry_point.c), and one
+ *  that the agent launched up to 7.29.3 inherited the agent's mask.
+ *
+ *  And it is passed on to the child the watcher waits for (child_pid, set
+ *  with SIGQUIT blocked): whoever sent it may not know that child, made
+ *  after it listed the processes (--stop). Up to 7.29.3 the stop reached
+ *  only the watcher, and that child ran on until --stop's SIGKILL.
  *
  *  SIGHUP is ignored, as SIGTERM: the stop is SIGQUIT and nothing else.
  *  The watcher has no terminal (setsid()), so a SIGHUP can only be a stray
@@ -104,6 +106,12 @@ PRIVATE sigset_t yuno_set;
 PRIVATE void on_watcher_sigquit(int sig)
 {
     stop_requested = 1;
+    pid_t pid = (pid_t)child_pid;
+    if(pid > 0) {
+        int saved_errno = errno;
+        kill(pid, SIGQUIT);     // a failure has nobody to tell: the wait sees its end
+        errno = saved_errno;
+    }
 }
 
 PRIVATE void daemon_catch_signals(void)
@@ -113,10 +121,7 @@ PRIVATE void daemon_catch_signals(void)
         sigemptyset(&given_mask);
     }
 
-    sigemptyset(&yuno_set);
-    for(int i = 0; i < YUNO_SIGNALS; i++) {
-        sigaddset(&yuno_set, yuno_signals[i]);
-    }
+    get_yuno_signal_set(&yuno_set);
 
     struct sigaction sa_ignore;
     memset(&sa_ignore, 0, sizeof(sa_ignore));
@@ -183,8 +188,10 @@ PRIVATE void daemon_restore_signals(void)
         }
     }
     sigset_t child_mask = given_mask;
-    for(int i = 0; i < YUNO_SIGNALS; i++) {
-        sigaddset(&child_mask, yuno_signals[i]);
+    for(int sig = 1; sig < NSIG; sig++) {
+        if(sigismember(&yuno_set, sig) == 1) {
+            sigaddset(&child_mask, sig);
+        }
     }
     if(sigprocmask(SIG_SETMASK, &child_mask, NULL) < 0) {
         gobj_log_error(0, 0,
@@ -310,7 +317,9 @@ PRIVATE int relauncher(
      *  The yuno's signals are blocked across the fork: one that comes for
      *  the child before it restores its signals is pending, and not taken
      *  by the watcher's dispositions it is born with; and a SIGQUIT for the
-     *  watcher in that time waits too, and is looked at before the fork.
+     *  watcher in that time waits too: before the look at the stop it
+     *  launches nothing, after it it reaches the handler once child_pid is
+     *  set, and the handler passes it to the child.
      */
     sigset_t watcher_mask;
     BOOL blocked = TRUE;
@@ -347,20 +356,36 @@ PRIVATE int relauncher(
         /*------------------------*
          *  we are the parent
          *------------------------*/
+        child_pid = pid;    // with SIGQUIT blocked: from here a stop is passed to the child
         if(blocked && sigprocmask(SIG_SETMASK, &watcher_mask, NULL) < 0) {
             print_error(0, "sigprocmask(SIG_SETMASK) FAILED, errno %d %s", errno, strerror(errno));
         }
-        if(stop_requested) {
+        if(!blocked && stop_requested) {
             /*
-             *  The stop came while the child was forked, too late to launch
-             *  nothing and too early for whoever sent it to know the child:
-             *  passed on, it waits in the child for its signalfd
+             *  Not blocked (sigprocmask() failed, said): a stop that came
+             *  before child_pid was set reached only the handler
              */
             if(kill(pid, SIGQUIT) < 0) {
                 print_error(0, "kill(%d, SIGQUIT) FAILED, errno %d %s", (int)pid, errno, strerror(errno));
             }
         }
-        int status;
+
+        /*
+         *  Its end is waited for without reaping it, so child_pid never names
+         *  a pid that may be another process by now: until the waitpid() the
+         *  child is a zombie, and a stop passed to it does nothing
+         */
+        siginfo_t info;
+        while(waitid(P_PID, (id_t)pid, &info, WEXITED|WNOWAIT) < 0) {
+            if(errno != EINTR) {
+                print_error(PEF_EXIT,
+                    "waitid() failed, errno %d %s", errno, strerror(errno)
+                );
+                break;
+            }
+        }
+        child_pid = 0;
+        int status = 0;
         if(waitpid(pid, &status, 0) == -1) {
             print_error(PEF_EXIT,
                 "waitpid() failed, errno %d %s", errno, strerror(errno)
@@ -1008,6 +1033,23 @@ PUBLIC int search_process(
     void *self)
 {
     return linux_search_process(process_name, cb, self);
+}
+
+/***************************************************************************
+ *  See ydaemon.h. The set of C_YUNO's signalfd (c_yuno.c), of the
+ *  watcher's children (relauncher()) and of a yuno from its start
+ *  (yuneta_entry_point()): one set, so the three cannot differ.
+ ***************************************************************************/
+PUBLIC void get_yuno_signal_set(sigset_t *set)
+{
+    sigemptyset(set);
+    sigaddset(set, SIGPIPE);
+    sigaddset(set, SIGTERM);
+    sigaddset(set, SIGALRM);
+    sigaddset(set, SIGQUIT);
+    sigaddset(set, SIGINT);
+    sigaddset(set, SIGUSR1);
+    sigaddset(set, SIGUSR2);
 }
 
 /***************************************************************************

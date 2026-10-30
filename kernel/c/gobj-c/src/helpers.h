@@ -1274,6 +1274,13 @@ PUBLIC int launch_daemon( // Return pid of daemon
     ...
 );
 
+/*
+ *  In a forked child, right before its exec: no signal blocked, every
+ *  ignored signal back to its default, and every fd above stderr closed
+ *  but `keep_fd` (-1: none)
+ */
+PUBLIC void clean_child_before_exec(int keep_fd);
+
 /*------------------------------------*
  *  ### Parse url
  *------------------------------------*/

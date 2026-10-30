@@ -265,9 +265,17 @@ crashed during its orderly stop was relaunched 2 s later.
   they were set after each fork of a child: a SIGQUIT that came right after
   the first one found the default, ended the watcher, and left the child an
   orphan.
-- **SIGQUIT is unblocked.** A yuno that the agent launches inherits the
-  agent's mask, where SIGQUIT is blocked for its signalfd; the watcher would
-  hear its stop only when it looked for it.
+- **SIGQUIT is unblocked.** A yuno starts with its signals blocked (below),
+  and the watcher would hear its stop only when it looked for it.
+- **The yuno's signals are blocked from the first line of
+  `yuneta_entry_point()`.** With `--start` they stay blocked until the
+  watcher sets its signals, so a SIGQUIT that comes before is pending, and
+  then it is the stop: nothing is launched. Without `--start` they are
+  given back once the arguments are read (a foreground process keeps their
+  defaults until its `C_YUNO` blocks them). Up to 7.29.3 a yuno started by
+  hand or by a systemd unit had nothing blocked there, and a SIGQUIT ended
+  it with a core dump; one that the agent launched inherited the agent's
+  mask.
 - **SIGHUP is ignored, as SIGTERM.** The stop is SIGQUIT and nothing else
   (`--stop`, the units' `ExecStop`). The watcher has no terminal (`setsid()`),
   so a SIGHUP can only be a stray one, a `kill -HUP` by name or a script that
@@ -299,12 +307,17 @@ crashed during its orderly stop was relaunched 2 s later.
   (`LimitCORE=infinity`) and the watcher relaunched it, and a SIGUSR1 ended
   it too. Since programs run by a yuno start with an empty mask (§6), a
   yuno the agent launches starts that way as well.
-- **A stop that comes as the watcher forks reaches the child.** The watcher
-  looks at the stop with SIGQUIT blocked, so one that came before its look
-  (pending) launches nothing. One that comes after the look and before the
-  fork returns is passed on to the child (`kill(child, SIGQUIT)`), where it
-  waits for the signalfd: whoever sent it could not know the child yet, and
-  up to 7.29.3 the child ran on until `--stop`'s SIGKILL.
+- **A stop that comes while the watcher waits for a child reaches the
+  child.** The watcher looks at the stop with SIGQUIT blocked, so one that
+  came before its look (pending) launches nothing. After the fork it notes
+  the child's pid, still with SIGQUIT blocked, and from then on its handler
+  passes every SIGQUIT to that child (`kill(child, SIGQUIT)`), where it
+  waits for the signalfd. Whoever sent it may not know the child: `--stop`
+  lists the processes once, and a child forked after that is not in the
+  list. Up to 7.29.3 the child ran on until `--stop`'s SIGKILL 10 s later.
+  The watcher waits for the child's end without reaping it (`waitid()`
+  with `WNOWAIT`), forgets its pid, and only then reaps it: a SIGQUIT is
+  never passed to a pid that may be another process by then.
 
 ```bash
 grep -E 'SigIgn|SigBlk' /proc/<yuno pid>/status   # the same before and after a relaunch
@@ -621,7 +634,10 @@ and a blocked or an ignored signal stays so across `exec`. So every way the
 framework runs a program gives it an empty mask and every signal at its
 default: [`run_process2()`](#run_process2) (how the agent launches a yuno),
 [`run_command()`](#run_command), [`pty_sync_spawn()`](#pty_sync_spawn),
-`C_PTY`'s command and [`launch_daemon()`](#launch_daemon). The agent's
+`C_PTY`'s command and [`launch_daemon()`](#launch_daemon), and none of
+them gives it an fd of the yuno but stdin, stdout and stderr (an fd without
+`O_CLOEXEC` stays open across `exec`; up to 7.29.3 the program kept every
+one of them). The agent's
 `startup_command` and `cert_sync_copy_cmd`, logcenter's
 `restart_yuneta_command` and watchfs's `command` run through
 `run_process2("/bin/sh", {"sh", "-c", …})`, not `system()`: `system()` gives

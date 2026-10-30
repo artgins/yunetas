@@ -43,6 +43,7 @@
 #include <helpers.h>
 #include <command_parser.h>
 #include <log_udp_handler.h>
+#include "ydaemon.h"
 #include <yuneta_version.h>
 #include <yev_loop.h>
 #include <rotatory.h>
@@ -5421,14 +5422,7 @@ PRIVATE int catch_signals(hgobj gobj)
     int sfd;
 
     // Block signals so they aren’t handled via default signal handlers
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGPIPE);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGALRM);
-    sigaddset(&mask, SIGQUIT);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGUSR1);
-    sigaddset(&mask, SIGUSR2);
+    get_yuno_signal_set(&mask);     // the set the yuno has blocked from its start
 
     if(sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
         gobj_log_error(gobj, 0,

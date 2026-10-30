@@ -37,6 +37,7 @@
 #include <sys/wait.h>
 #include <sys/random.h> // For getrandom()
 #include <sys/un.h>
+#include <sys/syscall.h>    // SYS_close_range
 #include <syslog.h>
 #include <backtrace.h>
 #endif
@@ -9992,16 +9993,55 @@ PUBLIC void comm_prot_free(void)
 
 
 #ifdef __linux__
-/***************************************************************************
- *  The daemon starts with no signal blocked and every signal at its
- *  default, whatever its launcher has: a yuno keeps its signals blocked
- *  for its signalfd, and a blocked or an ignored signal stays so across
- *  exec. Up to 7.29.3 a daemon launched from a yuno had SIGTERM, SIGINT,
- *  SIGQUIT and the rest of the yuno's set blocked. A signal that cannot be
- *  set (SIGKILL, SIGSTOP, those the C library keeps for itself) is left.
- ***************************************************************************/
-PRIVATE void daemon_reset_signals(void)
+/*
+ *  close_range(), or where the kernel has none (before 5.9) close() of
+ *  each fd of the range up to the limit of open files. Through syscall(),
+ *  as in entry_point.c: the glibc wrapper is 2.34's.
+ */
+#if !defined(SYS_close_range) && (defined(__x86_64__) || defined(__i386__) || \
+        defined(__aarch64__) || defined(__arm__) || defined(__riscv))
+    #define SYS_close_range 436
+#endif
+PRIVATE void close_fd_range(unsigned int first, unsigned int last)
 {
+    if(first > last) {
+        return;
+    }
+#ifdef SYS_close_range
+    if(syscall(SYS_close_range, first, last, 0U) == 0) {
+        return;
+    }
+#endif
+    long max = sysconf(_SC_OPEN_MAX);
+    if(max <= 0 || max > INT_MAX) {
+        max = INT_MAX;
+    }
+    for(unsigned int fd = first; fd <= last && fd < (unsigned int)max; fd++) {
+        close((int)fd);
+    }
+}
+#endif /* __linux__ */
+
+/***************************************************************************
+ *  In a forked child, right before its exec: the program starts with no
+ *  signal blocked, every signal at its default, and no fd open but stdin,
+ *  stdout, stderr and `keep_fd` (-1: none), whatever its parent has.
+ *
+ *  A yuno keeps its signals blocked for its signalfd, and a blocked or an
+ *  ignored signal stays so across exec: up to 7.29.3 a program launched
+ *  from a yuno had SIGTERM, SIGINT, SIGQUIT and the rest of the yuno's set
+ *  blocked. An fd without O_CLOEXEC stays open across exec too: up to
+ *  7.29.3 the program inherited each one of its parent's (a listening
+ *  socket, a log file, the other end of a pipe), and held it open after
+ *  the parent closed it.
+ *
+ *  A signal that cannot be set (SIGKILL, SIGSTOP, those the C library keeps
+ *  for itself) is left. There is nobody to tell of a failure here: the
+ *  child is about to exec.
+ ***************************************************************************/
+PUBLIC void clean_child_before_exec(int keep_fd)
+{
+#ifdef __linux__
     for(int sig = 1; sig < NSIG; sig++) {
         struct sigaction sa;
         if(sigaction(sig, NULL, &sa) == 0 && sa.sa_handler == SIG_IGN) {
@@ -10012,8 +10052,17 @@ PRIVATE void daemon_reset_signals(void)
     sigset_t none;
     sigemptyset(&none);
     sigprocmask(SIG_SETMASK, &none, NULL);
+
+    if(keep_fd > STDERR_FILENO) {
+        close_fd_range(STDERR_FILENO + 1, (unsigned int)keep_fd - 1);
+        close_fd_range((unsigned int)keep_fd + 1, ~0U);
+    } else {
+        close_fd_range(STDERR_FILENO + 1, ~0U);
+    }
+#endif /* __linux__ */
 }
 
+#ifdef __linux__
 /*
  *  What the children tell the launcher, one record each (atomic: smaller
  *  than PIPE_BUF), through a pipe that closes on the daemon's exec
@@ -10043,7 +10092,8 @@ PRIVATE void tell_launcher(int fd, int what, int value)
 /***************************************************************************
  *  Launch a program as a daemon: two forks, the second child in a session
  *  of its own (setsid()), SIGHUP ignored, the rest of the signals at their
- *  default and none blocked, stdio on /dev/null if asked; then execvp().
+ *  default and none blocked, no fd open but stdio (clean_child_before_exec()),
+ *  stdio on /dev/null if asked; then execvp().
  *
  *  Return the pid of the daemon, once its exec is done: the caller can
  *  kill() it. -1 (said) when it could not be launched: a fork, setsid(),
@@ -10055,7 +10105,9 @@ PRIVATE void tell_launcher(int fd, int what, int value)
  *  returned was the first child's, which had exited (a kill() of it did
  *  nothing to the daemon) and was never reaped (a zombie per call); the
  *  pipe was read once without waiting, so an exec failure was seen only
- *  when it came first, and the daemon kept its write end open.
+ *  when it came first, and the daemon kept its write end open. A first
+ *  child reaped by somebody else (the caller's SIGCHLD at SIG_IGN, or a
+ *  handler of it that reaps) is no error.
  ***************************************************************************/
 pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
 {
@@ -10105,6 +10157,9 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
         close(pipe_fd[0]);
 
         while(waitpid(pid, NULL, 0) < 0) {   // the first child: reaped, not left a zombie
+            if(errno == ECHILD) {
+                break;  // reaped already: the caller's SIGCHLD is SIG_IGN, or its handler reaps
+            }
             if(errno != EINTR) {
                 print_error(0, "launch_daemon() waitpid(%d) failed '%s', errno %d '%s'",
                     (int)pid, program, errno, strerror(errno));
@@ -10149,12 +10204,12 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
         _exit(EXIT_FAILURE);
     }
 
-    daemon_reset_signals();
+    clean_child_before_exec(pipe_fd[1]);   // the pipe closes with the exec
     signal(SIGHUP, SIG_IGN);  // Ignore SIGHUP
 
     // Redirect standard file descriptors to /dev/null
     if(redirect_stdio_to_null) {
-        int fd = open("/dev/null", O_RDWR|O_CLOEXEC);
+        int fd = open("/dev/null", O_RDWR);     // not O_CLOEXEC: it may be one of 0, 1, 2
         if (fd == -1) {
             tell_launcher(pipe_fd[1], LAUNCH_DEVNULL_FAILED, errno);
             _exit(EXIT_FAILURE);
