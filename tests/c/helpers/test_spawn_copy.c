@@ -12,6 +12,12 @@
  *          copyfile(): the same bytes, the mode asked, an existing
  *          destination kept unless `overwrite`, -1 for a missing source.
  *
+ *          A program run by run_process2(), run_command() or launch_daemon()
+ *          starts with no signal blocked and none ignored, whatever the
+ *          caller has: a yuno keeps its signals blocked for its signalfd.
+ *          run_command() takes stdout and stderr, and a command longer than
+ *          its old 4 KB buffer.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -20,6 +26,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <yunetas.h>
 
 #define APP "test_spawn_copy"
@@ -134,6 +141,88 @@ PRIVATE void test_copyfile(void)
 }
 
 /***************************************************************************
+ *  The caller as a yuno is: its signals blocked (C_YUNO's set), and one of
+ *  them ignored, as a starter can leave it
+ ***************************************************************************/
+PRIVATE void test_clean_signals(void)
+{
+    sigset_t yuno_set;
+    sigset_t old_mask;
+    sigemptyset(&yuno_set);
+    int sigs[] = {SIGPIPE, SIGTERM, SIGALRM, SIGQUIT, SIGINT, SIGUSR1, SIGUSR2};
+    for(size_t i = 0; i < sizeof(sigs)/sizeof(sigs[0]); i++) {
+        sigaddset(&yuno_set, sigs[i]);
+    }
+    sigprocmask(SIG_BLOCK, &yuno_set, &old_mask);
+    struct sigaction ign;
+    struct sigaction old_usr2;
+    memset(&ign, 0, sizeof(ign));
+    ign.sa_handler = SIG_IGN;
+    sigaction(SIGUSR2, &ign, &old_usr2);
+
+    char *const argv_status[] = {"sh", "-c",
+        "grep -c -E '^Sig(Blk|Ign):[[:space:]]*0+$' /proc/self/status | grep -qx 2", NULL};
+    ok_or_fail(
+        run_process2("/bin/sh", argv_status) == 0,
+        "run_process2(): the program has no signal blocked and none ignored"
+    );
+
+    gbuffer_t *gbuf = run_command("grep -E '^Sig(Blk|Ign)' /proc/self/status; echo to-stderr >&2");
+    char *out = gbuf? gbuffer_cur_rd_pointer(gbuf): NULL;
+    size_t len = gbuf? gbuffer_leftbytes(gbuf): 0;
+    char text[512] = "";
+    if(out) {
+        snprintf(text, sizeof(text), "%.*s", (int)len, out);
+    }
+    ok_or_fail(
+        strstr(text, "SigBlk:\t0000000000000000") && strstr(text, "SigIgn:\t0000000000000000"),
+        "run_command(): the command has no signal blocked and none ignored"
+    );
+    ok_or_fail(strstr(text, "to-stderr") != NULL, "run_command(): stderr is in the output");
+    GBUFFER_DECREF(gbuf)
+
+    char long_cmd[6*1024];
+    size_t n = (size_t)snprintf(long_cmd, sizeof(long_cmd), "printf %%s ");
+    while(n < 5000) {
+        long_cmd[n++] = 'x';
+    }
+    long_cmd[n] = 0;
+    gbuf = run_command(long_cmd);
+    ok_or_fail(
+        gbuf && gbuffer_leftbytes(gbuf) == n - strlen("printf %s "),
+        "run_command(): a command longer than 4 KB runs whole"
+    );
+    GBUFFER_DECREF(gbuf)
+
+    char file[PATH_MAX];
+    snprintf(file, sizeof(file), "/tmp/%s.%d.daemon", APP, (int)getpid());
+    char cmd[3*PATH_MAX + 128];
+    snprintf(cmd, sizeof(cmd), "grep -E '^Sig(Blk|Ign)' /proc/self/status > %s.tmp && mv %s.tmp %s",
+        file, file, file);
+    launch_daemon(TRUE, "/bin/sh", "-c", cmd, NULL);
+    char daemon_text[256] = "";
+    for(int i = 0; i < 200 && !daemon_text[0]; i++) {
+        FILE *f = fopen(file, "r");
+        if(f) {
+            size_t r = fread(daemon_text, 1, sizeof(daemon_text) - 1, f);
+            daemon_text[r] = 0;
+            fclose(f);
+        } else {
+            usleep(10*1000);
+        }
+    }
+    unlink(file);
+    ok_or_fail(
+        strstr(daemon_text, "SigBlk:\t0000000000000000") &&
+        strstr(daemon_text, "SigIgn:\t0000000000000001"),
+        "launch_daemon(): no signal blocked, only SIGHUP ignored (a daemon)"
+    );
+
+    sigaction(SIGUSR2, &old_usr2, NULL);
+    sigprocmask(SIG_SETMASK, &old_mask, NULL);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -167,6 +256,7 @@ int main(int argc, char *argv[])
 
     test_run_process2();
     test_copyfile();
+    test_clean_signals();
 
     gobj_end();
 

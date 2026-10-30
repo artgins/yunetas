@@ -42,6 +42,11 @@ Returns the PID of the first child process if successful, or `-1` if an error oc
   returns `-1`.
 - The caller can use the returned PID to monitor or control the daemon
   process.
+- The daemon starts with no signal blocked and every signal at its default
+  but SIGHUP, which it ignores. Up to 7.29.3 it inherited the caller's mask
+  and ignores (a yuno's: SIGTERM, SIGINT, SIGQUIT and the rest of its
+  `signalfd` set blocked), and the first child left with `exit()`, which
+  wrote out a second time what the caller had in its stdio buffers.
 
 ---
 

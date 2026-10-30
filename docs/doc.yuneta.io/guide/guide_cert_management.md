@@ -124,7 +124,7 @@ not firing.
 | `cert_sync_enabled` | `1` | config, or `write-attr` (persistent) | Master on/off for the timer |
 | `cert_sync_interval_sec` | `900` | config, or `write-attr` (persistent) | Seconds between checks (floor 30) |
 | `cert_sync_store_dir` | `/yuneta/store/certs` | config only | Watched directory |
-| `cert_sync_copy_cmd` | `sudo -n /yuneta/store/certs/copy-certs.sh` | config only | Privileged copy command, run with `system()` |
+| `cert_sync_copy_cmd` | `sudo -n /yuneta/store/certs/copy-certs.sh` | config only | Privileged copy command, run with `sh -c`, with no signal blocked |
 
 The command and its directory are set in the agent's configuration only, never
 at run time: up to 7.25.21 `write-attr` could set the command the agent runs

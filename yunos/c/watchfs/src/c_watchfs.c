@@ -323,9 +323,18 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *command = gobj_read_str_attr(gobj, "command");
+    if(empty_string(command)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "No command configured: nothing run",
+            NULL
+        );
+        return -1;
+    }
 
+    char temp[4*1024];
     if(priv->use_parameter) {
-        char temp[4*1024];
         char escaped_path[1024];
         char escaped_filename[1024];
         char escaped_fullpath[2048];
@@ -340,10 +349,17 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
         shell_escape(fullpath, escaped_fullpath, sizeof(escaped_fullpath));
 
         snprintf(temp, sizeof(temp), "%s %s", command, escaped_fullpath);
-        return system(temp);
-    } else {
-        return system(command);
+        command = temp;
     }
+
+    /*
+     *  run_process2() and not system(): the command starts with no signal
+     *  blocked (system() gives it the yuno's mask, the signals the yuno
+     *  keeps for its signalfd), and SIGQUIT is not set to SIG_IGN while it
+     *  runs (that throws away a stop that is pending)
+     */
+    char *const argv[] = {"sh", "-c", (char *)command, NULL};
+    return run_process2("/bin/sh", argv);
 }
 
 

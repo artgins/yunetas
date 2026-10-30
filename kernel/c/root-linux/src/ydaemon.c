@@ -2,7 +2,7 @@
  *          ydaemon.c
  *
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
- *  Child → daemon_restore_signals() → the yuno installs its signalfd() → clean shutdown → _exit().
+ *  Child → daemon_restore_signals() → yuno's signals blocked → its signalfd() → clean shutdown → _exit().
  *
  *          Copyright (c) 2014-2018 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -65,10 +65,23 @@ PRIVATE const int watcher_signals[] = {
 PRIVATE struct sigaction given_actions[WATCHER_SIGNALS];
 PRIVATE sigset_t given_mask;
 
+/*
+ *  The signals a yuno reads from its signalfd: the set of catch_signals()
+ *  in c_yuno.c, keep the two the same. They are blocked across the fork
+ *  of a child, and the child keeps them blocked until its signalfd reads
+ *  them: one that comes before is pending, not lost and not fatal.
+ */
+PRIVATE const int yuno_signals[] = {
+    SIGPIPE, SIGTERM, SIGALRM, SIGQUIT, SIGINT, SIGUSR1, SIGUSR2
+};
+#define YUNO_SIGNALS ((int)(sizeof(yuno_signals)/sizeof(yuno_signals[0])))
+PRIVATE sigset_t yuno_set;
+
 /***************************************************************************
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
- *  Child → daemon_restore_signals() → as its starter left them → the yuno
- *  installs its signalfd() → clean shutdown → _exit().
+ *  Child → daemon_restore_signals() → as its starter left them, with the
+ *  yuno's signals blocked → the yuno installs its signalfd() → clean
+ *  shutdown → _exit().
  *
  *  SIGQUIT, the stop, is not ignored by the watcher: it is noted, and the
  *  child that ends after it is not relaunched, whatever its end (SA_RESTART:
@@ -98,6 +111,11 @@ PRIVATE void daemon_catch_signals(void)
     if(sigprocmask(SIG_SETMASK, NULL, &given_mask) < 0) {
         print_error(0, "sigprocmask() FAILED, errno %d %s", errno, strerror(errno));
         sigemptyset(&given_mask);
+    }
+
+    sigemptyset(&yuno_set);
+    for(int i = 0; i < YUNO_SIGNALS; i++) {
+        sigaddset(&yuno_set, yuno_signals[i]);
     }
 
     struct sigaction sa_ignore;
@@ -130,13 +148,24 @@ PRIVATE void daemon_catch_signals(void)
 
 /***************************************************************************
  *  The child gets back what the watcher's starter gave for the signals the
- *  watcher sets, and its mask: a relaunched child starts as the first one,
- *  and as the yuno would started in the foreground. Up to 7.29.3 the
- *  relaunched ones inherited the watcher's: SIGTERM, SIGINT, SIGALRM,
- *  SIGUSR1, SIGUSR2 and SIGPIPE ignored, which a signalfd never sees (so
- *  `kill -USR1`, the trace cycle, did nothing, and a program the yuno runs
- *  inherited them too), and SIGQUIT caught by the watcher's handler, so
- *  one that came before the yuno's signalfd was lost.
+ *  watcher sets, and its mask, plus the yuno's signals blocked: a
+ *  relaunched child starts as the first one, whoever started the watcher.
+ *  It comes out of the fork with the yuno's signals blocked (relauncher()),
+ *  and they stay so until the yuno's signalfd reads them, so one that
+ *  comes before, even before this, waits for it: the dispositions are
+ *  restored while they are blocked, and a pending signal survives that
+ *  (one the starter gave as SIG_IGN is discarded, as it would be anyway).
+ *
+ *  Up to 7.29.3 a relaunched child inherited the watcher's dispositions:
+ *  SIGTERM, SIGINT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE ignored and
+ *  SIGQUIT caught by the watcher's handler. Once the yuno blocked them for
+ *  its signalfd they reached it all the same (the kernel queues a blocked
+ *  signal even if it is ignored), but one that came before was thrown
+ *  away, a SIGQUIT by the inherited handler; and the programs the yuno ran
+ *  inherited the ignores (an ignored signal stays ignored across exec).
+ *  And the child's mask was its starter's: an empty one (a systemd unit,
+ *  a start by hand) let a SIGQUIT that came before the signalfd end the
+ *  yuno with a core dump instead of stopping it, the first child too.
  ***************************************************************************/
 PRIVATE void daemon_restore_signals(void)
 {
@@ -153,7 +182,11 @@ PRIVATE void daemon_restore_signals(void)
             );
         }
     }
-    if(sigprocmask(SIG_SETMASK, &given_mask, NULL) < 0) {
+    sigset_t child_mask = given_mask;
+    for(int i = 0; i < YUNO_SIGNALS; i++) {
+        sigaddset(&child_mask, yuno_signals[i]);
+    }
+    if(sigprocmask(SIG_SETMASK, &child_mask, NULL) < 0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
@@ -273,9 +306,29 @@ PRIVATE int relauncher(
      *  leader of the session the watcher made, so it can never get a
      *  controlling terminal back. A stop that came before the first one
      *  launches nothing: nobody would stop that child.
+     *
+     *  The yuno's signals are blocked across the fork: one that comes for
+     *  the child before it restores its signals is pending, and not taken
+     *  by the watcher's dispositions it is born with; and a SIGQUIT for the
+     *  watcher in that time waits too, and is looked at before the fork.
      */
-    if(stop_requested) {
-        return 1;
+    sigset_t watcher_mask;
+    BOOL blocked = TRUE;
+    if(sigprocmask(SIG_BLOCK, &yuno_set, &watcher_mask) < 0) {
+        print_error(0, "sigprocmask(SIG_BLOCK) FAILED, errno %d %s", errno, strerror(errno));
+        blocked = FALSE;
+    }
+    sigset_t pending;
+    sigemptyset(&pending);
+    if(blocked && sigpending(&pending) < 0) {
+        print_error(0, "sigpending() FAILED, errno %d %s", errno, strerror(errno));
+        sigemptyset(&pending);
+    }
+    if(stop_requested || sigismember(&pending, SIGQUIT)) {
+        if(blocked && sigprocmask(SIG_SETMASK, &watcher_mask, NULL) < 0) {
+            print_error(0, "sigprocmask(SIG_SETMASK) FAILED, errno %d %s", errno, strerror(errno));
+        }
+        return 1;   // a pending SIGQUIT reaches the handler as the mask is restored
     }
     uint64_t stable_timer = start_msectimer(RELAUNCH_STABLE_MS);
     pid_t pid = fork();
@@ -294,6 +347,19 @@ PRIVATE int relauncher(
         /*------------------------*
          *  we are the parent
          *------------------------*/
+        if(blocked && sigprocmask(SIG_SETMASK, &watcher_mask, NULL) < 0) {
+            print_error(0, "sigprocmask(SIG_SETMASK) FAILED, errno %d %s", errno, strerror(errno));
+        }
+        if(stop_requested) {
+            /*
+             *  The stop came while the child was forked, too late to launch
+             *  nothing and too early for whoever sent it to know the child:
+             *  passed on, it waits in the child for its signalfd
+             */
+            if(kill(pid, SIGQUIT) < 0) {
+                print_error(0, "kill(%d, SIGQUIT) FAILED, errno %d %s", (int)pid, errno, strerror(errno));
+            }
+        }
         int status;
         if(waitpid(pid, &status, 0) == -1) {
             print_error(PEF_EXIT,

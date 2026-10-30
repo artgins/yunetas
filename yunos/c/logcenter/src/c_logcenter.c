@@ -128,7 +128,7 @@ SDATA (DTP_INTEGER,     "min_free_disk",        SDF_WR|SDF_PERSIST|SDF_REQUIRED,
 SDATA (DTP_INTEGER,     "min_free_mem",         SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_MEM, "Minimun free percent memory"),
 
 SDATA (DTP_BOOLEAN,     "restart_on_alarm",     SDF_PERSIST|SDF_WR,         FALSE, "If true the logcenter will execute 'restart_yuneta_command' after receive a queue alarm. Next restart will not execute until 'timeout_restart_yuneta' has pass"),
-SDATA (DTP_STRING,      "restart_yuneta_command", SDF_RD,                   "if [ -x /yuneta/bin/restart-yuneta ]; then /yuneta/bin/restart-yuneta -s; else /yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json; fi", "Restart yuneta command, run with system(): set in the config only (up to 7.25.21 write-attr could set it, and persist it). The default restarts the agent in its systemd unit where there is one (restart-yuneta); up to 7.25.22 it started it with --start, outside the unit"),
+SDATA (DTP_STRING,      "restart_yuneta_command", SDF_RD,                   "if [ -x /yuneta/bin/restart-yuneta ]; then /yuneta/bin/restart-yuneta -s; else /yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json; fi", "Restart yuneta command, run with sh -c: set in the config only (up to 7.25.21 write-attr could set it, and persist it). The default restarts the agent in its systemd unit where there is one (restart-yuneta); up to 7.25.22 it started it with --start, outside the unit"),
 SDATA (DTP_INTEGER,     "timeout_restart_yuneta",SDF_PERSIST|SDF_WR,        "3600", "Timeout between restarts in seconds"),
 SDATA (DTP_INTEGER,     "queue_restart_limit",  SDF_PERSIST|SDF_WR,         0, "Restart yuneta when queue size is greater"),
 
@@ -1027,15 +1027,20 @@ PRIVATE void run_restart_yuneta_command(hgobj gobj)
         );
         return;
     }
-    int ret = system(restart_yuneta_command);
+    /*
+     *  run_process2() and not system(): the command starts with no signal
+     *  blocked (system() gives it the yuno's mask, the signals the yuno
+     *  keeps for its signalfd), and SIGQUIT is not set to SIG_IGN while it
+     *  runs (that throws away a stop that is pending)
+     */
+    char *const argv[] = {"sh", "-c", (char *)restart_yuneta_command, NULL};
+    int ret = run_process2("/bin/sh", argv);
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "system() FAILED: yuneta not restarted",
+            "msg",          "%s", "The restart yuneta command could not be run: yuneta not restarted",
             "command",      "%s", restart_yuneta_command,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
             NULL
         );
         return;

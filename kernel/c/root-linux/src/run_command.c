@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -24,24 +25,66 @@
  ***************************************************************************/
 
 /***************************************************************************
- *  Run a command and get the output
+ *  A program run from here starts with no signal blocked and every signal
+ *  at its default, whatever the caller has. A yuno keeps its signals
+ *  blocked for its signalfd, and a blocked or an ignored signal stays so
+ *  across exec: up to 7.29.3 every program a yuno ran had SIGTERM, SIGINT,
+ *  SIGQUIT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE blocked, so a `timeout`
+ *  it ran could not stop its child with SIGTERM, nor a ctrl+c the command
+ *  of a console.
  ***************************************************************************/
-PUBLIC gbuffer_t *run_command(const char *command) // use popen(), synchronous
+PRIVATE int spawnattr_with_clean_signals(posix_spawnattr_t *attr)
 {
-    FILE *fp;
-    char temp[4*1024];
+    sigset_t none;
+    sigset_t all;
+    sigemptyset(&none);
+    sigfillset(&all);
+    int ret = posix_spawnattr_init(attr);
+    if(ret == 0) {
+        ret = posix_spawnattr_setsigmask(attr, &none);
+    }
+    if(ret == 0) {
+        ret = posix_spawnattr_setsigdefault(attr, &all);
+    }
+    if(ret == 0) {
+        ret = posix_spawnattr_setflags(attr, POSIX_SPAWN_SETSIGMASK|POSIX_SPAWN_SETSIGDEF);
+    }
+    return ret;
+}
 
-    /* Open the command for reading. */
-    snprintf(temp, sizeof(temp), "%s 2>&1", command);
-    fp = popen(temp, "r");
-    if(fp == NULL) {
+/*
+ *  The same in a forked child, before its exec. A signal that cannot be
+ *  set (SIGKILL, SIGSTOP, those the C library keeps for itself) is left.
+ */
+PRIVATE void reset_signals_before_exec(void)
+{
+    for(int sig = 1; sig < NSIG; sig++) {
+        struct sigaction sa;
+        if(sigaction(sig, NULL, &sa) == 0 && sa.sa_handler == SIG_IGN) {
+            sa.sa_handler = SIG_DFL;
+            sigaction(sig, &sa, NULL);
+        }
+    }
+    sigset_t none;
+    sigemptyset(&none);
+    sigprocmask(SIG_SETMASK, &none, NULL);
+}
+
+/***************************************************************************
+ *  Run a command with /bin/sh -c and get its output, stdout and stderr in
+ *  one, when it ends. Synchronous. NULL (logged) when it cannot be run.
+ *  The command starts with clean signals (spawnattr_with_clean_signals()).
+ *  Up to 7.29.3 it was popen() of the command with " 2>&1" appended, in a
+ *  buffer of 4 KB that cut a longer command with nothing said, and the
+ *  redirection took only the last command of a list.
+ ***************************************************************************/
+PUBLIC gbuffer_t *run_command(const char *command) // posix_spawn() of sh -c, synchronous
+{
+    if(empty_string(command)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Can't exec command",
-            "command",      "%s", command,
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
+            "msg",          "%s", "No command to run",
             NULL
         );
         return NULL;
@@ -51,27 +94,125 @@ PUBLIC gbuffer_t *run_command(const char *command) // use popen(), synchronous
     if(!gbuf) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Can't create gbuffer",
+            "command",      "%s", command,
             NULL
         );
         return NULL;
     }
 
-    /* Read the output a line at a time - output it. */
-    while(fgets(temp, sizeof(temp), fp) != NULL) {
-        gbuffer_append(gbuf, temp, strlen(temp));
+    int fds[2];
+    if(pipe2(fds, O_CLOEXEC) < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "pipe2() FAILED",
+            "command",      "%s", command,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return NULL;
     }
-    /* close */
-    pclose(fp);
+
+    posix_spawn_file_actions_t actions;
+    posix_spawnattr_t attr;
+    int ret = posix_spawn_file_actions_init(&actions);
+    if(ret == 0) {
+        ret = posix_spawn_file_actions_adddup2(&actions, fds[1], STDOUT_FILENO);
+    }
+    if(ret == 0) {
+        ret = posix_spawn_file_actions_adddup2(&actions, fds[1], STDERR_FILENO);
+    }
+    if(ret == 0) {
+        ret = spawnattr_with_clean_signals(&attr);
+    }
+    pid_t pid = 0;
+    if(ret == 0) {
+        char *const argv[] = {"sh", "-c", (char *)command, NULL};
+        ret = posix_spawn(&pid, "/bin/sh", &actions, &attr, argv, environ);
+        posix_spawnattr_destroy(&attr);
+    }
+    posix_spawn_file_actions_destroy(&actions);
+    close(fds[1]);
+    if(ret != 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "posix_spawn() FAILED: command not run",
+            "command",      "%s", command,
+            "errno",        "%d", ret,
+            "strerror",     "%s", strerror(ret),
+            NULL
+        );
+        close(fds[0]);
+        gbuffer_decref(gbuf);
+        return NULL;
+    }
+
+    BOOL cut = FALSE;
+    char bf[4*1024];
+    while(1) {
+        ssize_t n = read(fds[0], bf, sizeof(bf));
+        if(n < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "read() of the output FAILED: output cut",
+                "command",      "%s", command,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            break;
+        }
+        if(n == 0) {
+            break;
+        }
+        if(!cut && gbuffer_append(gbuf, bf, (size_t)n) != (size_t)n) {
+            cut = TRUE;     // read on, so the command does not block on a full pipe
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "Output of the command too large: cut",
+                "command",      "%s", command,
+                "size",         "%lu", (unsigned long)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+        }
+    }
+    close(fds[0]);
+
+    int status;
+    while(waitpid(pid, &status, 0) < 0) {
+        if(errno != EINTR) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "waitpid() FAILED",
+                "command",      "%s", command,
+                "pid",          "%d", (int)pid,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            break;
+        }
+    }
 
     return gbuf;
 }
 
 /***************************************************************************
  *  Run the program `path` with `argv` and wait for its end. No shell: argv
- *  reaches the program as it is. The program inherits the signal mask and
- *  the ignored signals of the caller, as across any exec.
+ *  reaches the program as it is. The program starts with clean signals
+ *  (spawnattr_with_clean_signals()): no signal blocked, every one at its
+ *  default. Up to 7.29.3 it inherited the caller's mask and ignores.
  *
  *  Return the status of waitpid(2), 0 when the program exited with 0, or -1
  *  when it could not be run or waited for (logged).
@@ -94,7 +235,12 @@ PUBLIC int run_process2(const char *path, char *const argv[])
     }
 
     pid_t pid;
-    int ret = posix_spawn(&pid, path, NULL, NULL, argv, environ);
+    posix_spawnattr_t attr;
+    int ret = spawnattr_with_clean_signals(&attr);
+    if(ret == 0) {
+        ret = posix_spawn(&pid, path, NULL, &attr, argv, environ);
+        posix_spawnattr_destroy(&attr);
+    }
     if(ret != 0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -155,6 +301,7 @@ PUBLIC int pty_sync_spawn(
 
     } else if (pid == 0) {
         // Child
+        reset_signals_before_exec();
         int ret = execlp("/bin/sh","/bin/sh", "-c", command, (char *)NULL);
         if (ret < 0) {
             gobj_log_error(0, 0,

@@ -17,7 +17,7 @@
 extern "C"{
 #endif
 
-PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
+PUBLIC gbuffer_t *run_command(const char *command); // posix_spawn() of sh -c, synchronous
 
 PUBLIC int run_process2(  // use posix_spawn(), synchronous
     const char *path, char *const argv[]
