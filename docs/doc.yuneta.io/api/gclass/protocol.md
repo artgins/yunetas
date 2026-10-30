@@ -31,6 +31,7 @@ message.
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `crypto` | `json` | TLS config forwarded to the bottom C_TCP for `https://` URLs. Default `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — verifies the server cert against the system CA. Override with `ssl_trusted_certificate` for a private CA, or `ssl_allow_insecure_client: true` to skip verification (MITM risk). |
 | `raw_body_data` | `bool` | `TRUE` to deliver body chunks incrementally. |
+| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). See *A response too long* below. |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
 ### Sending a request: `EV_SEND_MESSAGE`
@@ -43,12 +44,20 @@ Sent to the client once it is connected (after its `EV_ON_OPEN`). The kw:
 | `resource` | `"/"` | The path of the request. |
 | `headers` | — | A dict of headers, written over the defaults (`User-Agent`, `Connection`, `Accept`, `Host`, and `Content-Type: application/json` when there is `data`). |
 | `data` | — | The body. Any json value (7.27.0+ also a bare string or number), sent compact. |
-| `query` | `""` | With `Content-Type: application/x-www-form-urlencoded`, the form as text; empty, the form is built from `data` (a dict: `k1=v1&k2=v2`). |
+| `query` | `""` | With `Content-Type: application/x-www-form-urlencoded`, the form as text, sent as it is (already encoded); empty, the form is built from `data` (a dict: `k1=v1&k2=v2`, each key and value encoded). |
 
 With `application/x-www-form-urlencoded` the form is the body, except in a
 **GET**, which carries it as the query of the resource (`/path?k1=v1`); a GET
-with no form has no `?`. The values are written as they are, not URL-encoded:
-encode them first. Up to 7.26.9 a GET lost the last character of its query.
+with no form has no `?`. A form built from `data` is form-urlencoded, each
+key and each value: the unreserved bytes of RFC 3986 (`A-Z a-z 0-9 - . _ ~`)
+as they are, a space as `+`, any other byte as `%XX`. So a `+`, `%`, `&` or
+`=` of a value is that byte for the server, never a space, an escape or the
+start of another field: pass the values as they are, never encoded.
+`{"user": "user+1@x.com", "pass": "p a%41&b=c"}` goes as
+`user=user%2B1%40x.com&pass=p+a%2541%26b%3Dc`. Up to 7.29.3 the values were
+written as they are, so a value with `&` added fields to the form. A `query`
+text is the caller's, and goes as it is. Up to 7.26.9 a GET lost the last
+character of its query.
 
 ```C
 /*  GET /users?first=0&max=50  */
@@ -78,6 +87,29 @@ gobj_send_event(gobj_http, EV_SEND_MESSAGE, json_pack("{s:s, s:s, s:[s]}",
 A request that cannot be built (a part over the maximum block, a `data` that
 cannot be dumped) is not sent: the action logs an ERROR and answers `-1`.
 
+### A response: `EV_ON_MESSAGE`
+
+The kw carries `response_status_code`, `headers` (a dict, the names in upper
+case: `RETRY-AFTER`), `body_size` (the bytes of the body), and the body: a
+`body` json for `application/json`, else a `gbuffer`. An empty body is
+`"body": ""` with `body_size` 0, which tells it apart from the JSON string
+`""` (`body_size` 2).
+
+**A response too long.** A body longer than `max_body_size` is not read to
+its end. The client logs ONE warning (*"HTTP body larger than its limit,
+message refused"*, with `body_received` and `max_body_size`), publishes
+`EV_ON_MESSAGE` with `"body_too_large": <max_body_size>` and no `body` nor
+`gbuffer` (the request waiting for it is answered), and drops the
+connection. Up to 7.29.3 a body over the max block logged an ERROR with a
+stack for every piece that arrived, and was handed up cut.
+
+```C
+json_int_t limit = kw_get_int(gobj, kw, "body_too_large", 0, 0);
+if(limit > 0) {
+    /* refuse the answer: its body passed `limit` bytes and was not read */
+}
+```
+
 ---
 
 (gclass-c-prot-http-sr)=
@@ -98,6 +130,10 @@ structured events for the application.
 |-----------|------|-------------|
 | `timeout_inactivity` | `integer` | Inactivity timeout in seconds. |
 | `subscriber` | `pointer` | Gobj receiving output events. |
+
+A request whose body is longer than half the max block of the yuno is not
+read to its end: one warning (*"HTTP body larger than its limit, message
+refused"*), no `EV_ON_MESSAGE`, and the connection is dropped.
 
 ---
 

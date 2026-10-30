@@ -31,6 +31,11 @@ PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE json_t *build_message_kw(GHTTP_PARSER *parser);
+PRIVATE void reset_message(GHTTP_PARSER *parser);
+PRIVATE void publish_message(GHTTP_PARSER *parser, json_t *kw_http);
+PRIVATE int refuse_body(GHTTP_PARSER *parser, size_t length, size_t limit);
+PRIVATE size_t body_size_limit(GHTTP_PARSER *parser);
 
 /****************************************************************
  *         Data
@@ -157,6 +162,9 @@ PUBLIC int ghttp_parser_received(
         llhttp_resume_after_upgrade(&parser->llhttp);
         return (int)consumed;
     } else if (err != HPE_OK) {
+        if(parser->body_refused) {
+            return -1;  // Warning already logged (refuse_body)
+        }
         /* Handle error. Usually just close the connection. */
         const char *peername = gobj_read_str_attr(gobj, "peername");
         const char *sockname = gobj_read_str_attr(gobj, "sockname");
@@ -277,6 +285,10 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
         /*
          *  If on_message_event is defined, then accumulate data in body variable
          */
+        size_t limit = body_size_limit(parser);
+        if(parser->body_size + length > limit) {
+            return refuse_body(parser, length, limit);
+        }
         if(!parser->gbuf_body) {
             /*
              *  Of the size of the first part of the body, up to
@@ -285,7 +297,7 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
              *  json is handed up in it
              */
             size_t initial_size = (length < RX_GBUFFER_SIZE)? length : RX_GBUFFER_SIZE;
-            parser->gbuf_body = gbuffer_create(initial_size, gbmem_get_maximum_block());
+            parser->gbuf_body = gbuffer_create(initial_size, limit + 1);
             if(!parser->gbuf_body) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -298,11 +310,121 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
                 return -1;
             }
         }
-        gbuffer_append(parser->gbuf_body, (void *)at, length);
+        if(gbuffer_append(parser->gbuf_body, (void *)at, length) != length) {
+            // Error already logged (gbuffer)
+            return refuse_body(parser, length, limit);
+        }
         parser->body_size += length;
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  The longest body kept: `max_body_size`, and never more than half the
+ *  largest memory block, so the buffer that holds it, grown by doubling,
+ *  is always one block that can be allocated.
+ ***************************************************************************/
+PRIVATE size_t body_size_limit(GHTTP_PARSER *parser)
+{
+    size_t limit = gbmem_get_maximum_block() / 2;
+    if(parser->max_body_size > 0 && parser->max_body_size < limit) {
+        limit = parser->max_body_size;
+    }
+    return limit;
+}
+
+/***************************************************************************
+ *  A body that does not fit: ONE warning, the message of a RESPONSE
+ *  published without its body (`body_too_large`), and the parser stopped
+ *  (llhttp keeps answering the error, and ghttp_parser_received() keeps
+ *  quiet about it). Returns the error for llhttp.
+ ***************************************************************************/
+PRIVATE int refuse_body(GHTTP_PARSER *parser, size_t length, size_t limit)
+{
+    hgobj gobj = parser->gobj;
+
+    const char *peername = gobj_read_str_attr(gobj, "peername");
+    const char *sockname = gobj_read_str_attr(gobj, "sockname");
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_PROTOCOL,
+        "msg",              "%s", "HTTP body larger than its limit, message refused",
+        "http_parser_type", "%s", parser->type == HTTP_RESPONSE? "response" : "request",
+        "body_received",    "%lu", (unsigned long)(parser->body_size + length),
+        "max_body_size",    "%lu", (unsigned long)limit,
+        "peername",         "%s", peername? peername : "",
+        "sockname",         "%s", sockname? sockname : "",
+        NULL
+    );
+    parser->body_refused = TRUE;
+    parser->body_size += length;
+
+    if(parser->type == HTTP_RESPONSE) {
+        if(!parser->jn_headers) {
+            parser->jn_headers = json_object();
+        }
+        json_t *kw_http = build_message_kw(parser);
+        json_object_set_new(kw_http, "body_too_large", json_integer((json_int_t)limit));
+        reset_message(parser);
+        publish_message(parser, kw_http);
+    } else {
+        reset_message(parser);
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  The kw of on_message_event, without its body
+ ***************************************************************************/
+PRIVATE json_t *build_message_kw(GHTTP_PARSER *parser)
+{
+    return json_pack("{s:i, s:s, s:i, s:i, s:O, s:I}",
+        "http_parser_type",     (int)parser->type,
+        "url",                  parser->url?parser->url:"",
+        "response_status_code", (int)llhttp_get_status_code(&parser->llhttp),
+        "request_method",       (int)llhttp_get_method(&parser->llhttp),
+        "headers",              parser->jn_headers,
+        "body_size",            (json_int_t)parser->body_size
+    );
+}
+
+/***************************************************************************
+ *  Clear the per-message application state, so the next pipelined
+ *  message starts clean.
+ *
+ *  CAREFUL: do NOT re-init llhttp here.  We are still inside
+ *  llhttp_execute, about to return from its callback so llhttp can keep
+ *  parsing the rest of the buffer.  Re-initing llhttp from inside its own
+ *  callback corrupts its internal state (cs/sp/return-stack) and llhttp
+ *  silently swallows every subsequent message in the buffer
+ *  (test8_queue_full pipelines four POSTs and only the first one ever
+ *  fired EV_ON_MESSAGE).  llhttp handles the message-to-message
+ *  transition internally for keep-alive, so we just clear our own
+ *  per-request fields.
+ ***************************************************************************/
+PRIVATE void reset_message(GHTTP_PARSER *parser)
+{
+    parser->headers_completed = 0;
+    parser->message_completed = 0;
+    parser->body_size = 0;
+    GBMEM_FREE(parser->url);
+    GBUFFER_DECREF(parser->gbuf_body)
+    JSON_DECREF(parser->jn_headers);
+    GBMEM_FREE(parser->cur_key);
+    GBMEM_FREE(parser->last_key);
+}
+
+/***************************************************************************
+ *  Publish or send on_message_event
+ ***************************************************************************/
+PRIVATE void publish_message(GHTTP_PARSER *parser, json_t *kw_http)
+{
+    if(parser->send_event) {
+        gobj_send_event(parser->gobj, parser->on_message_event, kw_http, parser->gobj);
+    } else {
+        gobj_publish_event(parser->gobj, parser->on_message_event, kw_http);
+    }
 }
 /***************************************************************************
  *  Callbacks must return 0 on success.
@@ -337,13 +459,7 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
         /*
          *  The cur_request (with the body) is ready to use.
          */
-        json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
-            "http_parser_type",     (int)parser->type,
-            "url",                  parser->url?parser->url:"",
-            "response_status_code", (int)llhttp_get_status_code(&parser->llhttp),
-            "request_method",       (int)llhttp_get_method(&parser->llhttp),
-            "headers",              parser->jn_headers
-        );
+        json_t *kw_http = build_message_kw(parser);
         const char *content_type = kw_get_str(gobj, parser->jn_headers, "CONTENT-TYPE", "", 0);
         if(!parser->gbuf_body) {
             json_object_set_new(kw_http, "body", json_string(""));
@@ -369,34 +485,8 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
             }
         }
 
-        /*
-         *  Reset the per-message application state so the next pipelined
-         *  request starts clean.
-         *
-         *  CAREFUL: do NOT re-init llhttp here.  We are still inside
-         *  llhttp_execute, about to return 0 from this callback so llhttp
-         *  can keep parsing the rest of the buffer.  Re-initing llhttp
-         *  from inside its own callback corrupts its internal state
-         *  (cs/sp/return-stack) and llhttp silently swallows every
-         *  subsequent message in the buffer (test8_queue_full pipelines
-         *  four POSTs and only the first one ever fired EV_ON_MESSAGE).
-         *  llhttp handles the message-to-message transition internally
-         *  for keep-alive, so we just clear our own per-request fields.
-         */
-        parser->headers_completed = 0;
-        parser->message_completed = 0;
-        parser->body_size = 0;
-        GBMEM_FREE(parser->url);
-        GBUFFER_DECREF(parser->gbuf_body)
-        JSON_DECREF(parser->jn_headers);
-        GBMEM_FREE(parser->cur_key);
-        GBMEM_FREE(parser->last_key);
-
-        if(parser->send_event) {
-            gobj_send_event(gobj, parser->on_message_event, kw_http, gobj);
-        } else {
-            gobj_publish_event(gobj, parser->on_message_event, kw_http);
-        }
+        reset_message(parser);
+        publish_message(parser, kw_http);
     }
     return 0;
 }

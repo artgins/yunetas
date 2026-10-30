@@ -14,6 +14,10 @@
  *          - `data` {"a": "1", "b": "xyz"} -> GET /path?a=1&b=xyz
  *          - `query` "q=hello"             -> GET /search?q=hello
  *          - neither                       -> GET /plain (no '?')
+ *          - `data` {"user": "user+1@x.com", "pass": "p a%41&b=c~-._*"}
+ *            -> GET /form?user=user%2B1%40x.com&pass=p+a%2541%26b%3Dc~-._%2A
+ *            each key and value form-urlencoded, so a "+" is not a space
+ *            for the server and a "&" does not begin another field.
  *          And a POST whose `data` is a json string, "hello": its body is
  *          "\"hello\"". Up to 7.26.9 json_dumps() refused a json that is
  *          not a dict or a list, and the client crashed on its NULL.
@@ -45,10 +49,11 @@ PRIVATE const char *expected_lines[] = {
     "GET /path?a=1&b=xyz HTTP/1.1",
     "GET /search?q=hello HTTP/1.1",
     "GET /plain HTTP/1.1",
+    "GET /form?user=user%2B1%40x.com&pass=p+a%2541%26b%3Dc~-._%2A HTTP/1.1",
     "POST /echo HTTP/1.1",
     NULL
 };
-#define EXPECTED_REQUESTS   4
+#define EXPECTED_REQUESTS   5
 #define EXPECTED_BODY       "\"hello\""   // the last request's: a json string
 
 /*---------------------------------------------*
@@ -339,7 +344,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The client is connected: the three GETs, and the POST
+ *  The client is connected: the four GETs, and the POST
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -349,6 +354,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         send_get(gobj, "/path", "", json_pack("{s:s, s:s}", "a", "1", "b", "xyz"));
         send_get(gobj, "/search", "q=hello", NULL);
         send_get(gobj, "/plain", "", NULL);
+        send_get(gobj, "/form", "",
+            json_pack("{s:s, s:s}", "user", "user+1@x.com", "pass", "p a%41&b=c~-._*"));
         gobj_send_event(priv->gobj_client, EV_SEND_MESSAGE,
             json_pack("{s:s, s:s, s:s}", "method", "POST", "resource", "/echo", "data", "hello"),
             gobj

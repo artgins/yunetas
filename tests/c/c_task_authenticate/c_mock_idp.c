@@ -32,6 +32,7 @@ SDATA (DTP_INTEGER,     "return_status_token",      SDF_RD, "200",    "HTTP stat
 SDATA (DTP_INTEGER,     "return_status_discovery",  SDF_RD, "200",    "HTTP status returned by /.well-known/openid-configuration"),
 SDATA (DTP_JSON,        "override_token_body",      SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /token envelope"),
 SDATA (DTP_JSON,        "override_discovery_body",  SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /.well-known body (e.g. to omit endpoints)"),
+SDATA (DTP_DICT,        "expected_form",            SDF_RD, "{}",     "If non-empty, each key must be in the /token form ONCE, with this value once decoded; else the mock logs an ERROR and answers 400 invalid_grant"),
 SDATA_END()
 };
 
@@ -120,6 +121,97 @@ PRIVATE json_t *build_token_envelope(void)
 }
 
 /***************************************************************************
+ *  Decode a part of a form, application/x-www-form-urlencoded, into `out`
+ ***************************************************************************/
+PRIVATE void decode_form_text(const char *text, size_t len, char *out)
+{
+    size_t o = 0;
+    for(size_t i = 0; i < len; i++) {
+        if(text[i] == '+') {
+            out[o++] = ' ';
+        } else if(text[i] == '%' && i + 2 < len) {
+            char hex[3] = {text[i+1], text[i+2], 0};
+            out[o++] = (char)strtol(hex, NULL, 16);
+            i += 2;
+        } else {
+            out[o++] = text[i];
+        }
+    }
+    out[o] = '\0';
+}
+
+/***************************************************************************
+ *  The /token form against `expected_form`: TRUE when each key of it is
+ *  in the form once, with its value. A mismatch is logged.
+ ***************************************************************************/
+PRIVATE BOOL form_as_expected(hgobj gobj, json_t *kw)
+{
+    json_t *expected = gobj_read_json_attr(gobj, "expected_form");
+    if(json_object_size(expected) == 0) {
+        return TRUE;
+    }
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    char *form = gbuf?
+        gbmem_strndup(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf)) :
+        gbmem_strdup("");
+    if(!form) {
+        return FALSE;  // Error already logged
+    }
+
+    json_t *jn_form = json_object();
+    const char *p = form;
+    while(*p) {
+        size_t field_len = strcspn(p, "&");
+        const char *eq = memchr(p, '=', field_len);
+        size_t key_len = eq? (size_t)(eq - p) : field_len;
+        char *key = gbmem_malloc(key_len + 1);
+        char *value = gbmem_malloc(field_len + 1);
+        if(key && value) {
+            decode_form_text(p, key_len, key);
+            value[0] = '\0';
+            if(eq) {
+                decode_form_text(eq + 1, field_len - key_len - 1, value);
+            }
+            json_t *jn_values = json_object_get(jn_form, key);
+            if(!jn_values) {
+                jn_values = json_array();
+                json_object_set_new(jn_form, key, jn_values);
+            }
+            json_array_append_new(jn_values, json_string(value));
+        }
+        GBMEM_FREE(key)
+        GBMEM_FREE(value)
+        p += field_len;
+        if(*p == '&') {
+            p++;
+        }
+    }
+
+    BOOL ok = TRUE;
+    const char *key;
+    json_t *jn_value;
+    json_object_foreach(expected, key, jn_value) {
+        json_t *jn_values = json_object_get(jn_form, key);
+        if(json_array_size(jn_values) != 1 ||
+                strcmp(json_string_value(json_array_get(jn_values, 0)),
+                    json_string_value(jn_value)? json_string_value(jn_value) : "") != 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_APP,
+                "msg",      "%s", "mock-idp: the /token form has not a key once, with its value",
+                "key",      "%s", key,
+                "form",     "%.300s", form,
+                NULL
+            );
+            ok = FALSE;
+        }
+    }
+    JSON_DECREF(jn_form)
+    GBMEM_FREE(form)
+    return ok;
+}
+
+/***************************************************************************
  *  Send a JSON response back to the http_sr child that delivered `src`.
  ***************************************************************************/
 PRIVATE void send_resp(hgobj gobj, hgobj http_sr, int status,
@@ -205,9 +297,15 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                               : (status == 500) ? "500 Internal Server Error"
                                                 : "200 OK";
 
+        BOOL form_ok = form_as_expected(gobj, kw);
+        if(!form_ok) {
+            status = 400;
+            status_tx = "400 Bad Request";
+        }
+
         json_t *override = gobj_read_json_attr(gobj, "override_token_body");
         json_t *jn_body;
-        if(override && json_object_size(override) > 0) {
+        if(form_ok && override && json_object_size(override) > 0) {
             jn_body = json_deep_copy(override);
         } else if(status == 200) {
             jn_body = build_token_envelope();

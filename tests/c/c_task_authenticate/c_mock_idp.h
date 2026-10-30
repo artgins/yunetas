@@ -14,6 +14,10 @@
  *            override_token_body   if non-empty, sent verbatim instead of
  *                                  the synthesised token envelope (lets a
  *                                  test return a malformed body)
+ *            expected_form         if non-empty, a dict: each key must be
+ *                                  in the /token form ONCE, with that
+ *                                  value once decoded; else an ERROR and a
+ *                                  400 invalid_grant
  *            override_discovery_body
  *                                  if non-empty, sent verbatim instead of
  *                                  the synthesised discovery JSON (lets a

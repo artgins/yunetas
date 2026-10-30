@@ -18,6 +18,7 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 | `test1_discovery` | Happy path with `issuer` only — exercises `action_discover` + `result_save_discovery` + `action_get_token` + `action_logout`. |
 | `test2_explicit_endpoints` | `token_endpoint` + `end_session_endpoint` set explicitly — discovery is skipped, the chain runs `action_get_token` + `action_logout` directly. |
 | `test4_discovery_failure` | Discovery body omits `token_endpoint` — `result_save_discovery` rejects it, logs an error, and publishes `EV_ON_TOKEN` with `result=-1`. |
+| `test5_form_encoding` | The user `user+1@x.com` with the password `p+a%41&client_id=evil&grant_type=x`. `C_PROT_HTTP_CL` form-urlencodes each key and value, so the mock (`expected_form`) finds ONE `grant_type`, ONE `client_id`, and the credentials as they are; a mismatch is an ERROR of the mock and a 400. Expects `result=0`. |
 
 ## Mock IdP (`C_MOCK_IDP`)
 
@@ -28,7 +29,9 @@ substring:
   (issuer/token_endpoint/end_session_endpoint) derived from the request
   Host header.  Tests can override the body verbatim via
   `override_discovery_body`.
-* `/token` → returns a synthesised token envelope with all the
+* `/token` → when `expected_form` (a dict) is set, each of its keys must be
+  in the form once, with that value once decoded, else an ERROR and a 400;
+  then returns a synthesised token envelope with all the
   `KW_REQUIRED` fields that `result_get_token` reads
   (access_token, refresh_token, expires_in, refresh_expires_in,
   token_type, session_state, scope).  Tokens are plain placeholder

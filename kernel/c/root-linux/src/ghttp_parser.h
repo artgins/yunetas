@@ -30,6 +30,8 @@ typedef struct _GHTTP_PARSER {
     //char *body;
     size_t body_size;
     gbuffer_t *gbuf_body;
+    size_t max_body_size;   // largest body kept (on_message_event); 0, or more than half the largest memory block: that half
+    BOOL body_refused;      // a body passed max_body_size: the parser is stopped, already said
 
     char *cur_key;  // key can arrive in several callbacks
     char *last_key; // save last key for the case value arriving in several callbacks
@@ -66,12 +68,19 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
                 "response_status_code": (int) status_code,
                 "request_method":       (int) method,
                 "headers":              (json_object) jn_headers,
+                "body_size":            (int) bytes of the body,
 
                 if content-type == application/json
                     "body":             (anystring2json)
                 else
                     "gbuffer":          gbuffer with full body
             }
+            A body longer than `max_body_size` is not kept: the parser logs
+            ONE warning and stops (ghttp_parser_received() returns -1, the
+            caller drops the connection). A RESPONSE parser publishes the
+            message first, with "body_too_large": (int) max_body_size and
+            no "body" nor "gbuffer", so the request waiting for it is
+            answered; a REQUEST parser publishes nothing.
         */
 
     BOOL send_event  // TRUE: use gobj_send_event() to parent, FALSE: use gobj_publish_event()

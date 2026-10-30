@@ -37,6 +37,9 @@
  *              Prototypes
  ***************************************************************/
 PRIVATE int check_url(hgobj gobj);
+PRIVATE GHTTP_PARSER *create_response_parser(hgobj gobj);
+PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text);
+PRIVATE size_t form_text_max_size(const char *text);
 
 /***************************************************************
  *              Data
@@ -51,6 +54,7 @@ SDATA (DTP_INTEGER, "timeout_inactivity",SDF_WR,        "60000",    "Timeout ina
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_DICT,    "crypto",           SDF_RD,         "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto forwarded to the bottom C_TCP for https:// urls. Verifies the server cert against the system CA by default; override with ssl_trusted_certificate for a private CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),
+SDATA (DTP_INTEGER, "max_body_size",    SDF_RD,         "0",        "Largest body of a response kept, in bytes; 0, or more than half the largest memory block (gbmem): that half. A longer one is refused with ONE warning: EV_ON_MESSAGE carries `body_too_large` (this limit) and no body, and the connection is dropped"),
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -102,26 +106,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    BOOL raw_body_data = gobj_read_bool_attr(gobj, "raw_body_data");
-    if(!raw_body_data) {
-        priv->parsing_response = ghttp_parser_create(
-            gobj,
-            HTTP_RESPONSE,  // http_parser_type
-            NULL,           // on_header_event
-            NULL,           // on_body_event
-            EV_ON_MESSAGE,  // on_message_event ==> publish the full message in a gbuffer
-            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
-        );
-    } else {
-        priv->parsing_response = ghttp_parser_create(
-            gobj,
-            HTTP_RESPONSE,  // http_parser_type
-            EV_ON_HEADER,   // on_header_event
-            EV_ON_MESSAGE,  // on_body_event  ==> publish the partial message with original buffer pointer
-            NULL,           // on_message_event
-            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
-        );
-    }
+    priv->parsing_response = create_response_parser(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
@@ -291,6 +276,79 @@ PRIVATE int check_url(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The parser of the responses of a connection
+ ***************************************************************************/
+PRIVATE GHTTP_PARSER *create_response_parser(hgobj gobj)
+{
+    GHTTP_PARSER *parser;
+    BOOL raw_body_data = gobj_read_bool_attr(gobj, "raw_body_data");
+    if(!raw_body_data) {
+        parser = ghttp_parser_create(
+            gobj,
+            HTTP_RESPONSE,  // http_parser_type
+            NULL,           // on_header_event
+            NULL,           // on_body_event
+            EV_ON_MESSAGE,  // on_message_event ==> publish the full message in a gbuffer
+            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+        );
+    } else {
+        parser = ghttp_parser_create(
+            gobj,
+            HTTP_RESPONSE,  // http_parser_type
+            EV_ON_HEADER,   // on_header_event
+            EV_ON_MESSAGE,  // on_body_event  ==> publish the partial message with original buffer pointer
+            NULL,           // on_message_event
+            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+        );
+    }
+    json_int_t max_body_size = gobj_read_integer_attr(gobj, "max_body_size");
+    if(parser && max_body_size > 0) {
+        parser->max_body_size = (size_t)max_body_size;
+    }
+    return parser;
+}
+
+/***************************************************************************
+ *  The bytes a text takes at most once encoded (each byte as %XX)
+ ***************************************************************************/
+PRIVATE size_t form_text_max_size(const char *text)
+{
+    return 3 * strlen(text);
+}
+
+/***************************************************************************
+ *  Append a key or a value of a form, application/x-www-form-urlencoded:
+ *  the unreserved bytes of RFC 3986 (ALPHA, DIGIT, "-", ".", "_", "~")
+ *  as they are, a space as "+", every other byte as %XX. So a "+", a "%",
+ *  a "&" or a "=" of a value is that byte for the server, never a space,
+ *  an escape, or the start of another field.
+ ***************************************************************************/
+PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    for(const unsigned char *p = (const unsigned char *)text; *p; p++) {
+        unsigned char c = *p;
+        char enc[3];
+        size_t n = 1;
+        if((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                c == '-' || c == '.' || c == '_' || c == '~') {
+            enc[0] = (char)c;
+        } else if(c == ' ') {
+            enc[0] = '+';
+        } else {
+            enc[0] = '%';
+            enc[1] = hex[c >> 4];
+            enc[2] = hex[c & 0x0F];
+            n = 3;
+        }
+        if(gbuffer_append(gbuf, enc, n) != n) {
+            return -1;  // Error already logged
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Parse a http message
  *  Return -1 if error: you must close the socket.
  *  Return 0 if no new request.
@@ -354,26 +412,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         ghttp_parser_destroy(priv->parsing_response);
         priv->parsing_response = 0;
     }
-    BOOL raw_body_data = gobj_read_bool_attr(gobj, "raw_body_data");
-    if(!raw_body_data) {
-        priv->parsing_response = ghttp_parser_create(
-            gobj,
-            HTTP_RESPONSE,  // http_parser_type
-            NULL,           // on_header_event
-            NULL,           // on_body_event
-            EV_ON_MESSAGE,  // on_message_event ==> publish the full message in a gbuffer
-            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
-        );
-    } else {
-        priv->parsing_response = ghttp_parser_create(
-            gobj,
-            HTTP_RESPONSE,  // http_parser_type
-            EV_ON_HEADER,   // on_header_event
-            EV_ON_MESSAGE,  // on_body_event  ==> publish the partial message with original buffer pointer
-            NULL,           // on_message_event
-            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
-        );
-    }
+    priv->parsing_response = create_response_parser(gobj);
 
     set_timeout(priv->timer, priv->timeout_inactivity);
 
@@ -487,14 +526,11 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(!empty_string(query)) {
             content = gbmem_strdup(query);
         } else {
-            // for k in form_data:
-            //     v = form_data[k]
-            //     if not data:
-            //         data += """%s=%s""" % (k,v)
-            //     else:
-            //         data += """&%s=%s""" % (k,v)
-
-            size_t ln = kw_content_size(jn_data_);
+            size_t ln = 1;
+            json_object_foreach(jn_data_, key, v) {
+                const char *value = json_string_value(v);
+                ln += form_text_max_size(key) + 1 + form_text_max_size(value? value : "") + 1;
+            }
             gbuffer_t *gbuf = gbuffer_create(ln, ln);
             if(!gbuf) {
                 // Error already logged
@@ -523,16 +559,20 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
                     );
                     continue;
                 }
-                if(more) {
-                    gbuffer_append_string(gbuf, "&");
+                if((more && gbuffer_append_string(gbuf, "&") != 1) ||
+                        append_form_text(gbuf, key) < 0 ||
+                        gbuffer_append_string(gbuf, "=") != 1 ||
+                        append_form_text(gbuf, value) < 0) {
+                    // Error already logged
+                    more = -1;
+                    break;
                 }
-                gbuffer_append_string(gbuf, key);
-                gbuffer_append_string(gbuf, "=");
-                gbuffer_append_string(gbuf, value);
                 more++;
             }
-            char *p = gbuffer_cur_rd_pointer(gbuf);
-            content = gbmem_strdup(p);
+            if(more >= 0) {
+                char *p = gbuffer_cur_rd_pointer(gbuf);
+                content = gbmem_strdup(p);
+            }
             GBUFFER_DECREF(gbuf)
         }
         if(!content) {
