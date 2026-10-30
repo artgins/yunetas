@@ -1294,7 +1294,7 @@ PRIVATE void test_command_word(void)
     check(same, "(p) write-tty for the audit exactly when the parser runs write-tty");
 
     /*
-     *  The reviewer's forms: no hash of the keystroke anywhere
+     *  The forms a hash could hide in: no hash of the keystroke anywhere
      */
     const char *hA = "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd";   // sha256 of "A"
     const char *forms[] = {

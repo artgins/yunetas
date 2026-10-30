@@ -204,7 +204,7 @@ PRIVATE void mt_create(hgobj gobj)
          *  take it away before the recursive remove follows it.
          */
         char link[PATH_MAX];
-        build_path(link, sizeof(link), priv->path_import, "taller", "escape", NULL);
+        build_path(link, sizeof(link), priv->path_import, "site", "escape", NULL);
         unlink(link);
         rmrdir(priv->path_import);
     }
@@ -821,8 +821,8 @@ PRIVATE int run_tests(hgobj gobj)
     /*-----------------------------------------------*
      *  6: import-assets, and it cannot be led out
      *-----------------------------------------------*/
-    result += write_fixture(gobj, "taller/plano.png", PNG_FIXTURE "plan", PNG_FIXTURE_LEN + 4);
-    result += write_fixture(gobj, "taller/notes.txt", "not an asset\n", 13);
+    result += write_fixture(gobj, "site/plan.png", PNG_FIXTURE "plan", PNG_FIXTURE_LEN + 4);
+    result += write_fixture(gobj, "site/notes.txt", "not an asset\n", 13);
 
     /*  '..' is refused by name, an absolute path lands INSIDE the root  */
     resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "../"));
@@ -839,7 +839,7 @@ PRIVATE int run_tests(hgobj gobj)
     /*  a symlink out of the root is not followed  */
     {
         char link[PATH_MAX];
-        build_path(link, sizeof(link), priv->path_import, "taller", "escape", NULL);
+        build_path(link, sizeof(link), priv->path_import, "site", "escape", NULL);
         unlink(link);
         if(symlink("/etc", link) < 0) {
             result += fail(gobj, "cannot create the symlink bait");
@@ -849,13 +849,13 @@ PRIVATE int run_tests(hgobj gobj)
     /*  and it is not led out by starting AT one either: the walk reads
      *  every entry with lstat and follows no link it finds, but the
      *  directory it starts at is opened.  */
-    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller/escape"));
+    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "site/escape"));
     if(resp_result(resp) == 0) {
         result += fail(gobj, "import-assets started at a symlink out of its import_root");
     }
     JSON_DECREF(resp)
 
-    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "taller"));
+    resp = ask_node(gobj, "import-assets", json_pack("{s:s}", "source_dir", "site"));
     if(resp_result(resp) != 0) {
         result += fail(gobj, "import-assets failed");
     } else {
@@ -869,7 +869,7 @@ PRIVATE int run_tests(hgobj gobj)
         }
         char plan_sha[SHA256_HEX_LEN + 1];
         sha256_hex(PNG_FIXTURE "plan", PNG_FIXTURE_LEN + 4, plan_sha, sizeof(plan_sha));
-        if(strcmp(kw_get_str(gobj, stats, "files`taller/plano.png", "", 0), plan_sha) != 0) {
+        if(strcmp(kw_get_str(gobj, stats, "files`site/plan.png", "", 0), plan_sha) != 0) {
             gobj_trace_json(gobj, stats, "import stats");
             result += fail(gobj, "import-assets did not answer path -> id");
         }

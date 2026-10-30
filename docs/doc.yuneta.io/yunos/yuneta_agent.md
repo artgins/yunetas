@@ -300,7 +300,7 @@ with no id deleted every binary, those in use too.
 ```bash
 ycommand -c 'delete-binary id=emailsender version=7.29.2'
 ycommand -c 'delete-config id=emailsender version=3'
-ycommand -c 'delete-yuno id=2120 whole=1'
+ycommand -c 'delete-yuno id=4120 whole=1'
 ycommand -c 'delete-realm id=stress.example.com'
 ycommand -c 'list-public-services'            # the id of a public service is a number
 ycommand -c 'delete-public-service id=3'
@@ -352,10 +352,10 @@ meant. Up to 7.29.3 `whole=1` with a release other than the primary's deleted
 that release only:
 
 ```bash
-ycommand -c 'delete-yuno id=2120 yuno_release=1.1.0-2'   # a release behind the primary: deleted
-ycommand -c 'delete-yuno id=2120 yuno_release=1.2.0-2'   # the primary's, with others: refused
-ycommand -c 'delete-yuno id=2120 whole=1'                 # the yuno and every release
-ycommand -c 'delete-yuno id=2120 yuno_release=1.1.0-2 whole=1'   # refused: one or the other
+ycommand -c 'delete-yuno id=4120 yuno_release=1.1.0-2'   # a release behind the primary: deleted
+ycommand -c 'delete-yuno id=4120 yuno_release=1.2.0-2'   # the primary's, with others: refused
+ycommand -c 'delete-yuno id=4120 whole=1'                 # the yuno and every release
+ycommand -c 'delete-yuno id=4120 yuno_release=1.1.0-2 whole=1'   # refused: one or the other
 ```
 
 The `data` of a `delete-binary` answer has one item per version taken, with
@@ -395,7 +395,7 @@ center running a scenario, its step's whole deadline). Since 7.25.16 the
 command is answered at once when it reached none of them,
 
 ```text
-yuneta_agent^node-a: set-period: yuno stress runs but is not connected to the agent (starting or stopping): nothing sent
+yuneta_agent^node-a: set-period: yuno gen1 runs but is not connected to the agent (starting or stopping): nothing sent
 ```
 
 and when it reached only some, the others are named in a warning of the
@@ -410,9 +410,9 @@ Monitor workspace of gui_agent uses when it talks to an agent directly.
 
 ```bash
 # every 2 s: the state, the cpu and the stats of each yuno's service
-watch-yuno-stats ids=stress,2120,5120 period=2000
+watch-yuno-stats ids=gen1,4120,4520 period=2000
 # `id:service` reads another service than the one named as the role
-watch-yuno-stats ids=5120:db_tracks,2 period=5000
+watch-yuno-stats ids=4520:db_tracks,2 period=5000
 # end it (closing the connection ends it too)
 watch-yuno-stats stop=1
 ```
@@ -434,12 +434,12 @@ request came from -- the way the Terminal's PTY mirror sends `EV_TTY_DATA`
 -- three kinds per yuno and period, the event's `data` being:
 
 ```json
-{"yuno_id": "2120", "kind": "state", "missing": false,
+{"yuno_id": "4120", "kind": "state", "missing": false,
  "yuno_running": true, "yuno_playing": true, "yuno_disabled": false}
-{"yuno_id": "2120", "kind": "cpu", "service": "", "result": 0, "comment": "",
+{"yuno_id": "4120", "kind": "cpu", "service": "", "result": 0, "comment": "",
  "data": {"cpu": 15, "start_date": "...", "uptime": 86400, "mem_rss_kb": 5324,
           "mem_node_available_percent": 35, "disk_min_free_percent": 73, "...": "..."}}
-{"yuno_id": "2120", "kind": "app", "service": "", "result": 0, "comment": "",
+{"yuno_id": "4120", "kind": "app", "service": "", "result": 0, "comment": "",
  "data": {"txMsgs": 3966, "rxMsgs": 3966, "rxMsgsec": 500, "...": "..."}}
 ```
 
@@ -454,7 +454,7 @@ one browser were one requester and shared a watch) and its connection
 (`cc_connection`). Hops deeper in the stack are written by the client as it
 likes and are never read: up to 7.25.20 the agent took the LAST one, so a
 client could add a hop naming another user's watch, and stop or replace it. One yuno may be named with several services
-(`ids=5120,5120:db_tracks`), and an id that is not a yuno of this agent no
+(`ids=4520,4520:db_tracks`), and an id that is not a yuno of this agent no
 longer refuses the whole watch: it is watched, its `state` says `missing`, and
 the answer names it (`data.missing`,
 *"watching 3 yunos every 2000 ms, 1 of them not found here"*). A watch lives `watch_ttl` (60000 ms) unless it
@@ -492,7 +492,7 @@ writes it only when the web client's request named the event), or by a client
 connected directly:
 
 ```json
-{"ids": "2120,5120", "period": 2000, "__relays__": ["EV_YUNO_STATS"]}
+{"ids": "4120,4520", "period": 2000, "__relays__": ["EV_YUNO_STATS"]}
 ```
 
 Otherwise it is refused (*"this client does not say it takes EV_YUNO_STATS

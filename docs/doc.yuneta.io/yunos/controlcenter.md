@@ -114,7 +114,7 @@ event, in its request:
 
 ```json
 {"agent_id": "node-a",
- "cmd2agent": "watch-yuno-stats ids=2120,5120 period=2000",
+ "cmd2agent": "watch-yuno-stats ids=4120,4520 period=2000",
  "__relays__": ["EV_YUNO_STATS"]}
 ```
 
@@ -256,14 +256,14 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_fleet -> gate_hub -> db_tracks",
+    "description": "sim_load -> gate_hub -> db_tracks",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",    "id": "stress", "service": "sim_fleet", "rate": "tx"},
-        {"key": "gate",   "id": "2120",   "label": "gate_hub",
+        {"key": "sim",    "id": "gen1",   "service": "sim_load", "rate": "tx"},
+        {"key": "gate",   "id": "4120",   "label": "gate_hub",
          "queue_service": "__output_side__"},
-        {"key": "tracks", "id": "5120",   "label": "db_tracks"}
+        {"key": "tracks", "id": "4520",   "label": "db_tracks"}
     ],
     "links": [["sim", "gate"], ["gate", "tracks"]],
     "actions": {
@@ -334,7 +334,7 @@ How the steps go depends on the action:
   step that fails does not keep the others from going. The run ends when
   every step has answered, failed, or timed out, with result `-1` if any
   did not succeed, and the comment names them (*"2 of 16 steps failed; step
-  0 (pp1): ...; step 5 (pp6): not answered in 30000 ms"*). A step on a node
+  0 (gen1): ...; step 5 (gen6): not answered in 30000 ms"*). A step on a node
   whose agent is not connected fails at once; an agent that disconnects
   fails only its own steps. Up to 7.28.3 these were serial too, so a stop
   ended at the first yuno that did not answer, and the yunos after it never
@@ -425,9 +425,9 @@ line the client wrote:
 
 ```bash
 ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b period=2000'
-# -> the agent of node-b gets: watch-yuno-stats ids=pp9:sim_fleet,pp10:sim_fleet,pp11:sim_fleet,2120,2120:__output_side__,2130,2130:__output_side__,2140,2140:__output_side__,5120 period=2000
+# -> the agent of node-b gets: watch-yuno-stats ids=gen9:sim_load,gen10:sim_load,gen11:sim_load,4120,4120:__output_side__,4130,4130:__output_side__,4140,4140:__output_side__,4520 period=2000
 ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b keys=tracks'
-# -> watch-yuno-stats ids=5120 period=2000
+# -> watch-yuno-stats ids=4520 period=2000
 ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b stop=1'
 ```
 
@@ -516,7 +516,7 @@ of steps, `on` and `off`, as those of an action, where a step that names no
 `yuno` goes to the switch's own:
 
 ```json
-{"key": "pp12", "id": "pp12", "service": "sim_fleet", "rate": "tx", "node": "node-a",
+{"key": "gen12", "id": "gen12", "service": "sim_load", "rate": "tx", "node": "node-a",
  "switch": {
      "on":  [{"command": "set-devices devices=20"}, {"command": "set-period period=1000"},
              {"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
@@ -525,8 +525,8 @@ of steps, `on` and `off`, as those of an action, where a step that names no
 ```
 
 ```bash
-ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=pp12'
-ycommand ... -c 'run-scenario scenario_id=load-20k action=off scenario_yuno=pp12'
+ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=gen12'
+ycommand ... -c 'run-scenario scenario_id=load-20k action=off scenario_yuno=gen12'
 ```
 
 `save-scenario` refuses a switch without both lists, or with a step that
@@ -537,7 +537,7 @@ state is a `start` or a `resume` (*"a switch is turned on only while its
 scenario runs"*) -- because a scenario that is not running has no `max_run`
 stop to turn it off again. `off` runs in any state. A switch run is a run
 like the others (one at a time, under `run-scenarios`, written in
-`scenario_runs` with its steps, answered *"run ...: on pp12 done, 4 steps"*,
+`scenario_runs` with its steps, answered *"run ...: on gen12 done, 4 steps"*,
 told by `EV_SCENARIO_RUN_ENDED`), but it changes neither the state of the
 scenario nor its `max_run` clock: the scenario's `stop` is what turns every
 switch off, so its steps must reach every yuno that has one. `run_in_flight`

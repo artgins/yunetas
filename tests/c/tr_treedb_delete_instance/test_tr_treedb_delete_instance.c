@@ -2259,7 +2259,7 @@ PRIVATE int test_unlink_clears_every_instance_of_the_child(void)
 {
     int result = 0;
     const char *test = "an unlink clears the ref in every instance of the child";
-    const char *DB = "tr_delete_instance_links_r19a";
+    const char *DB = "tr_delete_instance_links_aa";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2332,7 +2332,7 @@ PRIVATE int test_delete_sees_unheld_instances_naming_it(void)
 {
     int result = 0;
     const char *test = "a delete of a parent sees the unheld instances that name it";
-    const char *DB = "tr_delete_instance_links_r19b";
+    const char *DB = "tr_delete_instance_links_ab";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2395,7 +2395,7 @@ PRIVATE int test_forced_delete_leaves_no_ref_in_any_instance(void)
 {
     int result = 0;
     const char *test = "a forced delete leaves no ref in any instance of a child";
-    const char *DB = "tr_delete_instance_links_r19c";
+    const char *DB = "tr_delete_instance_links_ac";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2449,7 +2449,7 @@ PRIVATE int test_relink_of_a_sibling_instance_is_quiet(void)
 {
     int result = 0;
     const char *test = "a relink of an instance its parent does not hold is quiet";
-    const char *DB = "tr_delete_instance_links_r19d";
+    const char *DB = "tr_delete_instance_links_ad";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2493,7 +2493,7 @@ PRIVATE int test_snap_key_with_instances_and_no_primary(void)
 {
     int result = 0;
     const char *test = "with a snap active a key created after it has no primary";
-    const char *DB = "tr_delete_instance_links_r19e";
+    const char *DB = "tr_delete_instance_links_ae";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2793,7 +2793,7 @@ PRIVATE int test_unrefs_are_taken_back(void)
 {
     int result = 0;
     const char *test = "the unrefs of a write that does not go are taken back";
-    const char *DB = "tr_delete_instance_links_r19f";
+    const char *DB = "tr_delete_instance_links_af";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2884,7 +2884,7 @@ PRIVATE int test_forced_delete_keeps_the_newest_record(void)
     /*
      *  1. An instance P does not hold
      */
-    const char *DB = "tr_delete_instance_links_r20a";
+    const char *DB = "tr_delete_instance_links_ba";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -2921,7 +2921,7 @@ PRIVATE int test_forced_delete_keeps_the_newest_record(void)
     /*
      *  2. A child P holds, and a new instance of it
      */
-    DB = "tr_delete_instance_links_r20b";
+    DB = "tr_delete_instance_links_bb";
     tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
     set_expected_results(test, NULL, NULL, NULL, 1);
@@ -2963,7 +2963,7 @@ PRIVATE int test_taken_back_delete_keeps_the_newest_record(void)
 {
     int result = 0;
     const char *test = "a delete taken back keeps the newest record of each key";
-    const char *DB = "tr_delete_instance_links_r20c";
+    const char *DB = "tr_delete_instance_links_bc";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -3021,7 +3021,7 @@ PRIVATE int test_relink_through_a_dict_hook_keeps_the_sibling(void)
 {
     int result = 0;
     const char *test = "a relink through a dict hook keeps the sibling instance";
-    const char *DB = "tr_delete_instance_links_r20d";
+    const char *DB = "tr_delete_instance_links_bd";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 
@@ -3075,7 +3075,7 @@ PRIVATE int test_shot_keeps_the_newest_record(void)
 {
     int result = 0;
     const char *test = "a shot keeps the newest record of each key";
-    const char *DB = "tr_delete_instance_links_r20e";
+    const char *DB = "tr_delete_instance_links_be";
     char path_root[PATH_MAX];
     json_t *tranger = new_links_db(test, DB, path_root, sizeof(path_root), &result);
 

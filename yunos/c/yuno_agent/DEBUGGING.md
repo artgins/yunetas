@@ -1502,7 +1502,7 @@ it used, so a malformed value shows up as `window_max: 0`.
 
 Worked example (an application's `db_history`, 2026-09-20): sixteen blocks read as six json
 arrays plus two strings of 91 and 93 characters; `YUNETA_TRACK_MEM_DUMP=1`
-printed the text of the strings, which named the field (`observaciones` of six
+printed the text of the strings, which named the field (`notes` of six
 `places` nodes); the window gave the stacks, which put the allocation in the
 treedb load — and that was the trap, because the holder was a configuration
 built afterwards. What closed it was reproducing the leak in an isolated copy

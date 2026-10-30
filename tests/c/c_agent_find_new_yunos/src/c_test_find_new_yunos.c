@@ -542,7 +542,7 @@ PRIVATE int check_version_shapes_and_release_order(hgobj gobj)
         {"1.9.1-7.27.11",   "12",   "1.9.1-7.27.11",    "13"},  // a new config
         {"1.9.1-7.27.11",   "12",   "1.9.1-7.27.12",    "3"},   // the binary first
         {"1.9.1-8.0.0",     "1",    "1.9.2-7.27.11",    "1"},   // its own version first
-        {"1.0.0",           "1",    "1.0.0-7.27.11",    "1"},   // gate_modbus_tcp's step
+        {"1.0.0",           "1",    "1.0.0-7.27.11",    "1"},   // an old app version to the new form
         {"7.27.10",         "1",    "7.27.11",          "1"},   // a yuno of the SDK
     };
     for(size_t i=0; i<ARRAY_SIZE(order); i++) {

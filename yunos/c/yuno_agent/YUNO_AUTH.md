@@ -1066,7 +1066,7 @@ The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.2
 All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
 only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
 default. **Besides that gate, C_AUTHZ asks a permission of its own, always**
-(since the cloud review of 2026-10-02): a command from a peer (its kw carries
+(since 7.25.22): a command from a peer (its kw carries
 the `__username__` of the entry gate) needs the permission of the users
 treedb's C_NODE, `treedb_authzs`, as `link-nodes` does -- `read` to list
 (`users`, `accesses`, `roles`, `user-roles`, `user-authzs`, `list-jwk`),

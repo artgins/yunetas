@@ -209,8 +209,8 @@ barrier is what forbids it.
   skips it: it never writes.
 - **The base becomes `total.purged`.** `update_totals_of_key_cache()`
   (l. 12765) counts from it.
-- **On a replica that already holds the cells of the key** (as implemented,
-  after the reviews of 2026-10-21), a base it cannot read does NOT flag the
+- **On a replica that already holds the cells of the key** (as implemented
+  since 7.27.5), a base it cannot read does NOT flag the
   key: the cells sum the rows it counted of the files purged, which is the
   master's base unless it missed a late row of them, so the numbering stays
   the master's. It keeps receiving the new records, drops the cells whose
@@ -280,7 +280,7 @@ that takes `total.rows` as the last rowid takes `purged + rows`.
 | `get_segments`: backward walk (l. 14395) | `partial_rows2 = total` | `purged + rows` |
 | `tranger2_match_metadata` (l. 14461) | the same resolution | the same change |
 | `first_segment_row` (l. 14703) | the same resolution, twice | the same change |
-| `tranger2_iterator_get_page`, unfiltered (l. 13727) | `from_rowid` is a global rowid in `1..total` | a **position**, read as `g_rowid = base + position` with the base the key had **at the open of the iterator** (as implemented, after the review of 2026-10-21: with the base of now, a purge between two pages moved every position and a client paging forward skipped live rows). The positions of the rows purged since the open come back empty. A filtered iterator keeps its index across a purge (g_rowids do not move) and skips the rows purged |
+| `tranger2_iterator_get_page`, unfiltered (l. 13727) | `from_rowid` is a global rowid in `1..total` | a **position**, read as `g_rowid = base + position` with the base the key had **at the open of the iterator** (as implemented since 7.27.5: with the base of now, a purge between two pages moved every position and a client paging forward skipped live rows). The positions of the rows purged since the open come back empty. A filtered iterator keeps its index across a purge (g_rowids do not move) and skips the rows purged |
 | `key_cache_stamp` (l. 13875) | rows, files, last file | unchanged (as implemented): a purge always changes the files, and calls the retake itself. Adding `purged` changed the stamp of every key never purged |
 | `update_totals_of_key_cache` (l. 12765) | sums the cells | sums the cells. `purged` is kept apart |
 

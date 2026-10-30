@@ -124,19 +124,19 @@ one generator is turned on or off while the others go on -- to climb the load
 one fleet at a time:
 
 ```json
-{"key": "pp12", "id": "pp12", "service": "sim_fleet", "rate": "tx", "node": "node-a",
+{"key": "gen12", "id": "gen12", "service": "sim_load", "rate": "tx", "node": "node-a",
  "switch": {"on":  [{"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
             "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]}}
 ```
 
 ```bash
-ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=pp12'
+ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=gen12'
 ```
 
 `on` runs in order, and only while the scenario RUNS (its last run that changed
 its state is a start or a resume), so the `max_run` stop is always there to
 turn it off; `off` sends its steps at once, in any state. A switch run is
-written and told like any other run (*"on pp12 done, 2 steps"*), but changes
+written and told like any other run (*"on gen12 done, 2 steps"*), but changes
 neither the state of the scenario nor its `max_run` clock: the scenario's
 `stop` must reach every yuno with a switch. gui_agent draws the switch on the
 yuno's card. Details: `docs/doc.yuneta.io/yunos/controlcenter.md`.
@@ -218,14 +218,14 @@ A scenario is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_fleet -> gate_hub -> db_tracks",
+    "description": "sim_load -> gate_hub -> db_tracks",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",    "id": "stress", "service": "sim_fleet", "rate": "tx"},
-        {"key": "gate",   "id": "2120",   "label": "gate_hub",
+        {"key": "sim",    "id": "gen1",   "service": "sim_load", "rate": "tx"},
+        {"key": "gate",   "id": "4120",   "label": "gate_hub",
          "queue_service": "__output_side__"},
-        {"key": "tracks", "id": "5120",   "label": "db_tracks"}
+        {"key": "tracks", "id": "4520",   "label": "db_tracks"}
     ],
     "links": [["sim", "gate"], ["gate", "tracks"]],
     "actions": {
@@ -242,7 +242,7 @@ A scenario is a document saved whole:
 (7.27.21+) names the service that holds a yuno's output queue when it is not
 the one it is watched on: a gate's queue towards its store is in
 `__output_side__`, and its main service reports none. `watch-scenario` adds
-it to the watch (`ids=2120,2120:__output_side__`), and the console shows that
+it to the watch (`ids=4120,4120:__output_side__`), and the console shows that
 queue on the card and in a chart of its own. `agent_url`
 instead of `node` makes a DIRECT scenario, which the web console watches
 through its own link to that agent (and which `run-scenario` refuses). An

@@ -609,9 +609,9 @@ be weighed again, not as settled.
     external principal);
   - set `enable_command_authz: true` per yuno, the agent first, staging →
     production. (User management no longer waits for it: C_AUTHZ asks the
-    permissions of `treedb_authzs` on its own since the cloud review of
-    2026-10-02; the gate is still what guards every OTHER command, the
-    agent's `install-binary` / `run-yuno` among them.)
+    permissions of `treedb_authzs` on its own since 7.25.22; the gate is still
+    what guards every OTHER command, the agent's `install-binary` / `run-yuno`
+    among them.)
 - **Subscription gate.** `enable_subscription_authz` (YUNO_AUTH.md §4.6) is
   default-off too. Enabling it needs the same role model, and every user of a
   treedb GUI needs `read` on the C_NODE and C_TRANGER services it watches

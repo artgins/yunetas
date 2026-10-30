@@ -223,10 +223,10 @@ declaring nothing but the column. A client that sends the full reference
 already is taken as it is:
 
 ```json
-{"id": "E22000041",
+{"id": "dev-0041",
  "foto": "<sha256>",
  "__files__": {"foto": {"content64": "...",
-                        "original_name": "E22000041.jpg",
+                        "original_name": "dev-0041.jpg",
                         "content_type": "image/jpeg"}}}
 ```
 
@@ -245,7 +245,7 @@ sends json, so it carries `content64`. A C caller over an ievent channel puts a
 real `gbuffer` in the kw and the manifest says where each file is inside it:
 
 ```json
-{"id": "E22000041",
+{"id": "dev-0041",
  "foto": "<sha256>",
  "qr":   "<sha256>",
  "__files__": {"foto": {"offset": 0,     "size": 40123, "original_name": "..."},
@@ -393,7 +393,7 @@ Two things it carries over from `C_ASSETS`, and one it must add:
   `source_path`; §3 removed that column on purpose, because the same bytes are
   one asset and a single path is a lie. So the bridge has to come back in the
   ANSWER instead of being stored: the loader already knows that
-  `E22000041.jpg` belongs to device `E22000041` — it only needs the id that
+  `dev-0041.jpg` belongs to device `dev-0041` — it only needs the id that
   file got. Told once, at import time, and then thrown away. The path stays a
   fact of the load, which is where §3 said it belonged.
 
@@ -1115,7 +1115,7 @@ yes and puts the file somewhere else.
 
 - **`import-assets` could be started AT a symlink out of its root.** The walk
   follows no link it finds inside the tree (`lstat` on every entry), but the
-  directory it STARTS at is opened: `source_dir=taller/escape`, with that
+  directory it STARTS at is opened: `source_dir=site/escape`, with that
   name a link to `/etc`, walked `/etc`. The path is resolved with
   `realpath()` now and must still be inside the resolved `import_root` —
   which is also what makes the `path -> id` map it answers relative to the

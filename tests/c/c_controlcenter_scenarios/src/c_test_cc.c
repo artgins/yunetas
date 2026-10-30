@@ -2129,8 +2129,8 @@ PRIVATE json_t *switch_scenario(BOOL with_off, const char *on_yuno)
         "id", SW_SCENARIO,
         "node", AGENT_HOST,
         "yunos",
-            "key", "sim", "id", "pp1", "service", "sim_fleet", "switch", jn_switch,
-            "key", "gate", "id", "2120",
+            "key", "sim", "id", "gen1", "service", "sim_load", "switch", jn_switch,
+            "key", "gate", "id", "4120",
         "actions",
             "start", "yuno", "gate", "command", "play-yuno",
             "stop", "yuno", "gate", "command", "pause-yuno"
@@ -2208,15 +2208,15 @@ PRIVATE int test_switch(hgobj gobj, hgobj client)
         ret += fail(gobj, "nothing refused reaches the agent", "");
     }
 
-    const char *start_lines[] = {"command-yuno id=2120 command=play-yuno", 0};
+    const char *start_lines[] = {"command-yuno id=4120 command=play-yuno", 0};
     ret += run_serial(gobj, client, "start", NULL, start_lines, "the start of sw");
     count_received(client, EV_MT_COMMAND_ANSWER, 0);
     ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", "gate"), client),
         -1, "yuno 'gate' has no switch", "on of a yuno with no switch is refused");
 
     const char *on_lines[] = {
-        "command-yuno id=pp1 service=sim_fleet command=set-controllers controllers=5",
-        "command-yuno id=pp1 service=sim_fleet command=resume-generation",
+        "command-yuno id=gen1 service=sim_load command=set-controllers controllers=5",
+        "command-yuno id=gen1 service=sim_load command=resume-generation",
         0
     };
     ret += run_serial(gobj, client, "on", "sim", on_lines, "on sends its steps in order, to its yuno");
@@ -2250,7 +2250,7 @@ PRIVATE int test_switch(hgobj gobj, hgobj client)
     ret += run_serial(gobj, client, "on", "sim", on_lines, "a switch does not change the state");
     count_received(client, EV_MT_COMMAND_ANSWER, 0);
 
-    const char *stop_lines[] = {"command-yuno id=2120 command=pause-yuno", 0};
+    const char *stop_lines[] = {"command-yuno id=4120 command=pause-yuno", 0};
     response = gobj_command(priv->cc, "run-scenario", run_kw(client, "stop", NULL), client);
     JSON_DECREF(response)
     requests = agent_requests(gobj);

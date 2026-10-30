@@ -360,13 +360,13 @@ organisation that holds the network, the network name and its range.
 The source is **RDAP**, the JSON successor of whois, over HTTPS:
 
 ```
-GET https://rdap.db.ripe.net/ip/51.38.52.119
+GET https://rdap.db.ripe.net/ip/198.51.100.23
 Accept: application/rdap+json
 
-200  {"name": "SD-1G-SBG3-S327B-326B", "country": "FR",
-      "startAddress": "51.38.52.0", "endAddress": "51.38.55.255",
-      "entities": [{"roles": ["registrant"], "handle": "ORG-OS3-RIPE",
-                    "vcardArray": ["vcard", [["fn", {}, "text", "OVH SAS"], …]]}, …]}
+200  {"name": "EXAMPLE-NET-1", "country": "FR",
+      "startAddress": "198.51.100.0", "endAddress": "198.51.100.255",
+      "entities": [{"roles": ["registrant"], "handle": "ORG-EX1-RIPE",
+                    "vcardArray": ["vcard", [["fn", {}, "text", "Example Hosting"], …]]}, …]}
 ```
 
 One service answers for every address: RIPE sends an address that is not
@@ -542,10 +542,10 @@ zero. Against zero, the first morning reads as *everything doubled*.
     "latency": {"count": 0, "sum": 0.0, "max": 0.0, "buckets": [0]},
     "latency_summary": {"avg": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0},
     "top": {"paths": [], "not_found": [], "referrers": [], "agents": [],
-            "clients": [{"key": "51.38.52.119", "count": 9,
-                         "whois": {"country": "FR", "org": "OVH SAS",
-                                   "net": "SD-1G-SBG3-S327B-326B",
-                                   "range": "51.38.52.0 - 51.38.55.255",
+            "clients": [{"key": "198.51.100.23", "count": 9,
+                         "whois": {"country": "FR", "org": "Example Hosting",
+                                   "net": "EXAMPLE-NET-1",
+                                   "range": "198.51.100.0 - 198.51.100.255",
                                    "source": "rdap.db.ripe.net",
                                    "looked_up_at": 1790072400}}]},
     "server_errors": [{"host": "", "client": "", "status": 500, "path": "", "hour": 0}],

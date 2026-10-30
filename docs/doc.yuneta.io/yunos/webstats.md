@@ -123,13 +123,13 @@ not hold to the registry that does (`8.8.8.8` → ARIN, `1.1.1.1` → APNIC), an
 the lookup follows the redirect. The row of the record gets:
 
 ```json
-{"key": "51.38.52.119", "count": 9,
- "whois": {"country": "FR", "org": "OVH SAS", "net": "SD-1G-SBG3-S327B-326B",
-           "range": "51.38.52.0 - 51.38.55.255", "source": "rdap.db.ripe.net",
+{"key": "198.51.100.23", "count": 9,
+ "whois": {"country": "FR", "org": "Example Hosting", "net": "EXAMPLE-NET-1",
+           "range": "198.51.100.0 - 198.51.100.255", "source": "rdap.db.ripe.net",
            "looked_up_at": 1790072400}}
 ```
 
-and the mail prints `51.38.52.119  FR  OVH SAS SD-1G-SBG3-S327B-326B  9`.
+and the mail prints `198.51.100.23  FR  Example Hosting EXAMPLE-NET-1  9`.
 
 - **The stored days are the cache.** An address answered in the last
   `whois_cache_days` days is taken from those records and not asked again, so

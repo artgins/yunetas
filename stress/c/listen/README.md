@@ -95,9 +95,9 @@ Cons:
     Remember: legacy method is only one accept event for all TCP gobjs: own time to search one free.
 
 JS1:
-    /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 5000 -d 20
+    /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 203.0.113.10 -c 5000 -d 20
 JS2:
-    /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 15000 -d 30
+    /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 203.0.113.10 -c 15000 -d 30
 
 Config:
 
@@ -161,9 +161,9 @@ HERE we don't have protections against overload, i.e. more than 11000 connection
 so the clients must wait timeout (2 minutes in my test) for receive a close of the socket by the kernel.
 
 JS1:
-/yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 5000 -d 20
+/yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 203.0.113.10 -c 5000 -d 20
 JS2:
-/yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 5000 -d 30
+/yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 203.0.113.10 -c 5000 -d 30
 
 Result:
 CPU with peaks of 60%, near all the time in 0% !!

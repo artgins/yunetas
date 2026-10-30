@@ -250,20 +250,20 @@ container keeps a copy of the reference and yours is still alive.*
 **Use `o` for what you just built. Use `O` for what belongs to somebody else:**
 
 ```c
-json_t *naves = json_array();               // built here, one owner
+json_t *buildings = json_array();           // built here, one owner
 ...
-json_array_append_new(talleres, json_pack(
+json_array_append_new(sites, json_pack(
     "{s:s, s:O, s:o}",
-    "id",            taller_id,
-    "observaciones", kw_get_list(gobj, w, "observaciones", json_array(), 0),
-    "naves",         naves                  // 'o': handed over, not freed here
+    "id",            site_id,
+    "notes",         kw_get_list(gobj, w, "notes", json_array(), 0),
+    "buildings",     buildings              // 'o': handed over, not freed here
 ));
 ```
 
 A real bug of this exact shape (2026-09-20, an application's `db_history`): a locally built
 array was packed with `s:O` instead of `s:o`, so it had two owners and only one
-of them freed it. Freeing the configuration left the whole branch behind — 1207
-blocks, 63 KB, on every configuration sent to a box. One character.
+of them freed it. Freeing the configuration left the whole branch behind, on
+every configuration sent to a box. One character.
 
 ---
 

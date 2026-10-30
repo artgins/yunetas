@@ -346,7 +346,7 @@ PUBLIC void print_track_mem(void)
      *  at THIS instant and nothing the report itself allocates.
      *
      *  Measured 2026-09-20 while chasing a db_history: this guard did NOT
-     *  change that yuno's count (1207 before and after), so what it reports
+     *  change that yuno's count (the same before and after), so what it reports
      *  there was already busy when the walk began. The guard closes the
      *  hazard, it does not explain that case.
      */

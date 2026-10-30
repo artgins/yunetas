@@ -357,7 +357,7 @@ persisted `topic_cols.json` masks the new in-memory schema (§3.4).
 non-master `C_NODE` now answer
 
 ```
-ERROR -1: gate_hub^2020: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
+ERROR -1: gate_hub^4020: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
 ```
 
 Before 7.13.0 they answered **success**: the node was built in the in-memory

@@ -20342,7 +20342,7 @@ PUBLIC json_t *treedb_import_files(
      *  And RESOLVED, not only spelled: the walk never follows a symlink it
      *  finds inside the tree (it reads every entry with lstat), but the
      *  directory it STARTS at is opened -- so a link at the top of
-     *  `source_dir` (`import_root/taller/escape -> /etc`) was walked as if
+     *  `source_dir` (`import_root/site/escape -> /etc`) was walked as if
      *  it were the root's own. The confinement is the whole security of
      *  this command, so it is checked on the path both ends really name.
      */

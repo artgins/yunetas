@@ -345,12 +345,12 @@ here is a candidate for promotion to Tier 1:
   command (a pattern, an optional realm/yuno, a cap on the lines answered)
   is the Tier-1 answer.
 - **Putting a yuno's `data/` (and its queues) in a tmpfs** (2026-10-25). The
-  generator fleets of the performance test (`sim_fleet` pp12-pp17 on one
-  node, as pp1-pp5 on a staging node) cannot run their queues on a node's HDDs
-  (every save of their counters fsyncs), so the node got a tmpfs
-  (`mount -t tmpfs ... /mnt/simram`, with sudo) and each yuno's realm dir a
-  `data -> /mnt/simram/data/<name>` symlink made BEFORE its first run. The
-  binary, the configs, the yunos and their run are Tier 1 (`install-binary`,
+  generator fleets of the performance test (`sim_load` gen12-gen17 on one
+  node, as gen1-gen5 on a staging node) cannot run their queues on a node's
+  HDDs (every save of their counters fsyncs), so the node got a tmpfs (`mount
+  -t tmpfs ... /mnt/simram`, with sudo) and each yuno's realm dir a `data ->
+  /mnt/simram/data/<name>` symlink made BEFORE its first run. The binary, the
+  configs, the yunos and their run are Tier 1 (`install-binary`,
   `create-config`, `create-yuno`, `run-yuno`), but the mount and the symlink
   are a shell on the node -- and a reboot drops the mount, so it is done
   again. A per-yuno `data_path` the agent honours (or a `tmpfs` flag of the
@@ -434,15 +434,15 @@ application.**
 `authz_checker()` ([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c))
 opens with `gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies
 **everyone** — fail-closed by design. Three yunos had no such service:
-`db_tracks_edge` (controller), `db_tracks` (central) and `gate_meter`
+`db_tracks_edge` (controller), `db_tracks_hub` (central) and `gate_meter`
 (controller). Every authz-guarded command answered `-403 No permission` to
 every principal, `yuneta_admin@artgins.com` with the `root` role included. Not
 a permissions problem: there was nobody to read the permissions. Their own logs
 said it plainly — `{"function": "authz_checker", "msg": "No gclass authz
 found"}`.
 
-None of the three listens outside its node (`tcp://127.0.0.1:5030`,
-`tcp://127.0.0.1:5020`, and loopback + `/dev/ttyUSB0` respectively), so **SSH
+None of the three listens outside its node (`tcp://127.0.0.1:4530`,
+`tcp://127.0.0.1:4520`, and loopback + `/dev/ttyUSB0` respectively), so **SSH
 was the only way to touch them**. Under a seal there would have been none at
 all — a Tier-3 entry created by omission rather than by a missing command, and
 invisible until someone tries.
@@ -451,7 +451,7 @@ The fix is per-yuno configuration, not framework: declare the `authz` service
 (`C_AUTHZ`, priority 0) and point it at the node's authzs store as a
 **follower** (`Authz.master: false`, `Authz.authz_service: <store>`). The
 store's master stays the yuno that carries `Authz.initial_load`
-(`db_history_edge.1630` / `db_history.1620`). `master` governs who may WRITE
+(`db_history_edge.4630` / `db_history.4620`). `master` governs who may WRITE
 the authz store — it is not a privilege level, and a follower authorizes just
 as well as a master.
 

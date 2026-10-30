@@ -903,7 +903,7 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
      *  An orphan nothing ever linked: imported bytes
      */
     char dir[PATH_MAX];
-    build_path(dir, sizeof(dir), path_database, "incoming", "taller", NULL);
+    build_path(dir, sizeof(dir), path_database, "incoming", "site", NULL);
     mkrdir(dir, 02770);
     char path[PATH_MAX];
     build_path(path, sizeof(path), dir, "orphan.pdf", NULL);
@@ -913,12 +913,12 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
     fclose(f);
     char import_root[PATH_MAX];
     build_path(import_root, sizeof(import_root), path_database, "incoming", NULL);
-    json_t *imported = treedb_import_files(tranger, TREEDB_NAME, import_root, "taller", FALSE, "tester");
+    json_t *imported = treedb_import_files(tranger, TREEDB_NAME, import_root, "site", FALSE, "tester");
     if(!imported || kw_get_int(0, imported, "imported", 0, 0) != 1) {
         printf("%s  FAIL: import did not bring the orphan%s\n", On_Red BWhite, Color_Off);
         result += -1;
     } else {
-        const char *mapped = kw_get_str(0, imported, "files`taller/orphan.pdf", "", 0);
+        const char *mapped = kw_get_str(0, imported, "files`site/orphan.pdf", "", 0);
         if(strcmp(mapped, sha(orphan, strlen(orphan)))!=0) {
             printf("%s  FAIL: import did not answer path -> id: '%s'%s\n", On_Red BWhite, mapped, Color_Off);
             result += -1;

@@ -588,7 +588,7 @@ check "/ is the root of PID 1: the hardware" "$(field source)" "dmi-product-uuid
 #   user namespace, refused by a security module or the runtime, or no
 #   root): the mount on / is compared, /proc/1/mountinfo against
 #   /proc/self/mountinfo, device and root, never the mount id. The same one
-#   is the system, whatever the image left in it (the box of a review: /run
+#   is the system, whatever the image left in it (a test container: /run
 #   on ext4 holding /run/systemd/container "docker", where a root with
 #   `setpriv --bounding-set=-sys_ptrace` stored a random uuid as a container
 #   and the next full root replaced it). Another one is a container's (or a

@@ -533,7 +533,7 @@ What is refused, in the order it is asked:
 | A `treedb_name` that breaks the topic rule, or holds a `^` (a gobj name cannot hold it: its `C_TRANGER` was not created, a CRITICAL) | `` its name breaks the name rule (empty, '.', '..', '/', '`' or '^') `` |
 | A name that starts with `__`, the namespace of the system (`__system__` is the store of the schemas, and its lock was a CRITICAL), or any other name of a store ([`tranger2_reserved_name_fault()`](<#tranger2_reserved_name_fault>)): a leading `.`, a `.json` or `.bak` suffix. The name is the id of the treedb's node in the `treedbs` topic of `__system__`, which cannot start with a `.`: a treedb `.x` was opened, its projection was refused with an ERROR outside the window of the peer, it ran with no projection, and its `save-schema` answered *"projection ... is not complete"* (new after 7.26.9). The rule is a peer's: the yuno's CODE can still open a `.x` treedb (the code is trusted with its names), and it runs as it always ran -- with no projection in `__system__`, an ERROR at its open | *"a name starting with '__' is of the system"*, *"a name starting with '.' is a hidden file of the store"*, *"a name ending in '.json' is a file of the store"* |
 | A name with `.treedb_schema.json` in it (the treedb cuts the name there, and registered it under another name than its `C_NODE`'s) | *"a name with '.treedb_schema.json' in it is cut there by the treedb"* |
-| A name too long for the names made from it. Each one must fit `NAME_MAX`: the file `.<name>.treedb_schema.json.tmp` of `apply-schema`, and the id of the list of the `__assets__` index, `treedb-<yuno>-C_TRANGER-tranger_<name>-<name>-__assets__-`. `<yuno>` is the yuno that opens it, `<role>^<name>` (only `<role>` for a yuno with no name). The id is 38 bytes + the yuno and its `-` + 2 times the name: in `db_history^1620` (16 bytes with its `-`), the name is 100 bytes at most. Before the yuno was in the id (up to 7.27.10), the limit was 108 bytes | *"its name is too long for the names of the files and lists made from it"* |
+| A name too long for the names made from it. Each one must fit `NAME_MAX`: the file `.<name>.treedb_schema.json.tmp` of `apply-schema`, and the id of the list of the `__assets__` index, `treedb-<yuno>-C_TRANGER-tranger_<name>-<name>-__assets__-`. `<yuno>` is the yuno that opens it, `<role>^<name>` (only `<role>` for a yuno with no name). The id is 38 bytes + the yuno and its `-` + 2 times the name: in `db_history^4620` (16 bytes with its `-`), the name is 100 bytes at most. Before the yuno was in the id (up to 7.27.10), the limit was 108 bytes | *"its name is too long for the names of the files and lists made from it"* |
 | A `filename_mask` that is not ONE file name. It names the files of the records (`strftime()` of their time), so it is made of letters, digits, `-`, `_` and the conversions that write only digits and `-`: `%Y %y %C %G %g %m %d %j %H %I %M %S %U %W %V %u %w %s %F` (the names of months and days depend on the locale). Each conversion counts as 20 bytes, and the expansion with `.json` must fit `NAME_MAX`. `../../tmp/evil` wrote the records out of the store, and `%Y/%m` made a CRITICAL of every append | *"a path separator"*, *"a '.' (a leading '.' or '..')"*, *"a conversion that may write more than digits and '-'"*, *"an expansion that may not fit a file name"* |
 | `exit_on_error` other than `0`, `import_root` not empty, `impose_c_schema` true: the yuno's code sets them, never a command (a CRITICAL exits with `exit_on_error`; `import_root` is where `import-assets` reads files from) | *"exit_on_error is set by the yuno's code, not by a command"* |
 | A `treedb_schema` that is not a json object | *"treedb_schema must be a json object"* |
@@ -1109,8 +1109,8 @@ A treedb node often owns something that is not JSON — a photo, a plan, a
 signed pdf. Those bytes cannot go *in* the treedb: it is held in memory and
 timeranger2 rewrites the whole record on every update, so a 40 KB photo would
 be rewritten every time its node changed state and would ride along in every
-page of `nodes`. Measured on one census: 12 134 blobs, 346 MB on disk, would
-be ~460 MB of RAM for the life of the yuno.
+page of `nodes`. An example: 10 000 photos of 30 KB are 300 MB on disk, and
+would be ~400 MB of RAM for the life of the yuno (base64 is a third larger).
 
 So **you mark a column `file`, and treedb gives you a pseudo-filesystem**: you
 hand it a file, you get it back; the *index* lives in memory and the *content*
@@ -1143,16 +1143,16 @@ on disk. Design note:
 
 ```json
 {"topic_name": "devices",
- "record": {"id": "E22000041",
+ "record": {"id": "dev-0041",
             "foto": "",
-            "__files__": {"foto": {"content64": "...", "original_name": "E22000041.jpg",
+            "__files__": {"foto": {"content64": "...", "original_name": "dev-0041.jpg",
                                    "content_type": "image/jpeg"}}},
  "options": {"create": 1, "autolink": 1}}
 ```
 
 - **Treedb re-hashes what arrives.** A client may put the sha256 in the column
   up front, ask `node` whether that asset exists and skip the bytes if it does
-  (a census reload then sends ~0 instead of 346 MB) — but the id is a claim,
+  (a reload of a whole inventory then sends ~0 instead of 300 MB) — but the id is a claim,
   never an authority: a wrong id with good bytes is refused, and a bare id of
   an asset nobody stored is refused. A bare id of an existing asset links it.
   A column may also arrive holding the **full** reference, and then it must be

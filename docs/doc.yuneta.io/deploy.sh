@@ -321,6 +321,24 @@ if ! grep -qE '^[[:space:]]*Sitemap:' "${ORIGIN}robots.txt"; then
 fi
 echo "robots.txt installed at /robots.txt"
 
+# sitemap.xml, rewritten to the real address.  myst builds it by asking its own
+# development server, and the theme takes the address from the request, so
+# every <loc> -- and the href of its stylesheet -- named
+# http://localhost:3000.  There is no option for it (the theme reads only the
+# request), so the address is replaced here, after the build and before the
+# --delete rsync.  doc.yuneta.io, as in robots.txt: the pages belong there.
+SITE_URL="https://doc.yuneta.io"
+sed -i "s|http://localhost:3000|${SITE_URL}|g" "${ORIGIN}sitemap.xml"
+if grep -q "localhost" "${ORIGIN}sitemap.xml"; then
+    echo "ERROR: sitemap.xml still names localhost" >&2
+    exit 1
+fi
+if ! grep -q "<loc>${SITE_URL}/installation</loc>" "${ORIGIN}sitemap.xml"; then
+    echo "ERROR: sitemap.xml does not list ${SITE_URL}/installation" >&2
+    exit 1
+fi
+echo "sitemap.xml lists the pages at ${SITE_URL}"
+
 # The manifest, its icons and the service worker, for the tags injected above.
 # myst copies no raw files, and the rsync below deletes what it does not carry,
 # so they are installed here like the landing.  See pwa/README.md.

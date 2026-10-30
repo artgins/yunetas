@@ -140,12 +140,21 @@
   `node-a`/`node-b`, `myapp`, `app.example.com`, `ops@example.com`). The
   retention design, the design of the `file` columns and the 7.27.10
   performance report give their figures without saying whose data or which
-  node they come from, and the old entries of this CHANGELOG cite no review
-  by its id. Comments, tests and docs keep
-  what was fixed without the review citation, and "before the fix" names the
-  release. The same in gobj-js, gobj-ui and yunos-js; the gui_agent QA reads
-  the ids of the installation it checks from the environment or
-  `~/.yuneta/.qa-creds`.
+  node they come from. The old entries of this CHANGELOG cite no review,
+  neither by its id nor in words: the numbered reviews of 7.27.0 are its
+  "groups" of fixes, a dated review is the release it went into. Comments,
+  tests and docs keep what was fixed without the review citation, and "before
+  the fix" names the release. The examples carry nothing of an application:
+  no figures of its data, no words of its data model (a `sites` / `buildings`
+  / `devices` inventory instead), no yuno ids or ports of its nodes
+  (`db_history^4620`, `gate_hub^4020`, a `sim_load` fleet `gen1`..`gen17`,
+  yunos `4120`/`4520`), no meter models, and no address of a company server (the
+  documentation ranges, `198.51.100.0/24`, `203.0.113.0/24`). The same in
+  gobj-js, gobj-ui and yunos-js; the gui_agent QA reads the ids of the
+  installation it checks from the environment or `~/.yuneta/.qa-creds`.
+  `deploy.sh` of doc.yuneta.io writes `https://doc.yuneta.io` in the
+  `sitemap.xml` that myst builds: every address in it was
+  `http://localhost:3000`.
 - **The agent refuses a `role^name` that does not fit.**
   `build_role_plus_name()` cut a `role^name` longer than `NAME_MAX` without a
   log, and the run script and configuration files were written under the cut
@@ -615,8 +624,8 @@ machine code. The yunos are 0 to 4 KB larger (stripped).
   the ones that were there before included (*"modbus exception"*,
   *"Modbus Timeout"*, *"NOT confirmed"*, *"NOT sent"*): a meter password
   goes as a write, and the log goes to the logcenter.
-  Written for the meter setup commands of a field gate (SATEC EM235 PRO and
-  BFM II).
+  Written for the meter setup commands of a field gate (a Modbus energy
+  meter).
   **The requests' numbers are numbers.** `id`, `address`, `size` and each
   `value` are read as the command parser reads an integer: `"abc"`, `null`,
   `"010"`, `20.9`, `"12ab"` and an id `"x"` are refused (they were 0, 8,
@@ -1282,13 +1291,13 @@ three CVEs. A full release: `gobj-c` changes, and every yuno links it.
 
 Tests: `yunetas test` on the dev machine, 337/338. The one that failed,
 `test_c_udp_s_tx`, could not bind its fixed port 34282 because a yuno running
-on the machine (`gate_energia`) held it as its ephemeral UDP port, a chance
+on the machine (`gate_energy`) held it as its ephemeral UDP port, a chance
 collision; no UDP code changed, and the same test passed in the full run of
 the morning (338/338, `c717c9cd9`). Its fixed port inside the ephemeral range
 is a fault of the test, in the TODO. Performance: a short study, against
 7.28.5 (the last release with one), of the only benchmark on changed code
-(`perf_ievent`, which `json2gbuf()` is on): -1.24% round trips per second,
-t = -1.9, noise ([performance](https://doc.yuneta.io/performance)).
+(`perf_ievent`, which `json2gbuf()` is on): -1.24% round trips per second, t =
+-1.9, noise ([performance](https://doc.yuneta.io/performance)).
 
 - **msg2db spent the `default` of a column** (`_set_volatil_values()` in
   `tr_msg2db.c`). It read each field of a message with
@@ -1897,7 +1906,7 @@ study: the change builds a command line.
   main service reports none. `save-scenario` checks it like `service`
   (*"yunos[N]: queue_service: letters, digits and _ . ^ -"*), and
   `watch-scenario` watches the yuno on it too
-  (`watch-yuno-stats ids=2120,2120:__output_side__ ...`). The web console
+  (`watch-yuno-stats ids=4120,4120:__output_side__ ...`). The web console
   (gui_agent 1.0.4) shows that queue on the card and in a chart of its own:
   those are the queues to watch in a load test. `test_c_controlcenter_scenarios`
   case 14.
@@ -2134,7 +2143,7 @@ and 7.27.10's code relinked with the new code placement measured the same as
   others, the open of one wiped what the others had pending, and the close of
   one took the directory away from the rest. Three yunos started together
   logged *"mkdir() FAILED"* (`EEXIST`). The id now starts with the yuno,
-  `treedb-<role>^<name>-...` (`treedb-db_history^1620-C_TRANGER-...`), in
+  `treedb-<role>^<name>-...` (`treedb-db_history^4620-C_TRANGER-...`), in
   the lists of the indexes of every topic and in those of `__snaps__` and
   `__graphs__`. The yuno is the same at each start, so a restart takes its
   own directory back, as it did. Out of a yuno (`treedb_list --follow`) the
@@ -2142,7 +2151,7 @@ and 7.27.10's code relinked with the new code placement measured the same as
     - **The name of a treedb opened by a command is shorter now**: the id of
       the list of `__assets__` holds the yuno, so the limit is 38 bytes + the
       yuno and its `-` + 2 times the name, inside `NAME_MAX` (98 bytes in
-      `db_history^1620`; it was 108).
+      `db_history^4620`; it was 108).
     - **`tools/treedb/check_store_schemas.py --list-ids-yuno <role>^<name>`**:
       its `LIST` estimate counts the yuno too, taken as 32 bytes when it is
       not given.
@@ -2414,7 +2423,7 @@ no hot path uses.
 
 - **`C_PROT_MODBUS_M` publishes only what the cycle read, and a TCP exception
   no longer stalls the connection** (`modules/c/modbus`). Two defects, found
-  with a field gate polling SATEC meters over Modbus TCP:
+  with a field gate polling energy meters over Modbus TCP:
     - It published, at the end of each cycle, every variable of every slave,
       also those whose read timed out or was answered with an exception: the
       cells keep the last value received, or zero if none ever came, so a
@@ -2440,7 +2449,7 @@ no hot path uses.
     - Over TCP, `framehead_consume()` waited after every exception response
       for a 2-byte CRC that TCP does not carry: each exception cost
       `timeout_response` and held the poll of every slave of the connection
-      (a SATEC BFM II with one submeter answering exceptions went from one
+      (an energy meter with one submeter answering exceptions went from one
       reading a second to one every ~8 s). The CRC is now added to an
       exception only for RTU/ASCII.
   The span of a variable in cells, computed twice, is now one function
@@ -2966,7 +2975,7 @@ node. There is no performance report, because no hot path changed.
   survive. Every SPA took it in the round (gui_agent 0.29.102, gui_treedb
   0.17.164, every consumer application, the js_gui template and the demo), the
   client production application after its staging. Checked live: each note on a
-  service and on a timer of db_history^1630; console clean on every host.
+  service and on a timer of db_history^4630; console clean on every host.
 
 ## v7.27.3 (2026-10-19)
 
@@ -3221,8 +3230,7 @@ only those two checks taken out of the same `tr_treedb.c` it runs at 2.33 us,
 as 7.26.9 -- about 0.1 us per write, the saved update included. The yunos are
 1.3-1.4% larger (stripped).
 
-Out of the seventeenth review (the cloud review), read while
-7.26.9 was being deployed.
+Group 1 of the fixes, found while 7.26.9 was being deployed.
 
 - **fix: `c_node` refuses two more peer mistakes with a WARNING, not the
   treedb's ERROR**. An `update-node` of a node that does not exist,
@@ -3268,10 +3276,10 @@ Out of the seventeenth review (the cloud review), read while
 - **docs:** the 7.26.9 release body nests its sub-bullets again (the 4 spaces
   stripped from every line had flattened them).
 
-Out of the eighteenth review:
+Group 2 of the fixes:
 
 - **What a peer gets wrong in a treedb command is a WARNING** (the leftovers
-  in the nineteenth review below). `C_NODE` refuses before calling the treedb,
+  in group 3 below). `C_NODE` refuses before calling the treedb,
   after the permission: a record that is not a json object or whose `id` is
   not a string (create, update, delete; also a `content64` that decodes to
   something else -- it was read on as a path of the wrong type, two ERRORs
@@ -3297,13 +3305,13 @@ Out of the eighteenth review:
   backs up to the character's start, and the 26 capped comments of
   `C_NODE`, `C_IEVENT_SRV` and the agent's watch request use it.
 - `data.md`: the MyST label `treedb-file-columns` had moved to the new section
-  of the nineteenth review (two links led to it); C_NODE's refusal table says
+  of group 3 (two links led to it); C_NODE's refusal table says
   what each command answers. `log.md`: SDK 7.26.8 logged `%1$s`/`%qd`/`%I64d`
   (the forms with `*` and `%j…` were the crashing ones); `%m` ignores a
   precision.
 - `c_node`'s seed-link check reads the hook map by key, as `_link_nodes()`.
 
-Out of the nineteenth review:
+Group 3 of the fixes:
 
 - **fix: the peer's window reached the subscribers**. The mark of
   `treedb_set_peer_data()` is process-wide and the treedb publishes its
@@ -3325,7 +3333,7 @@ Out of the nineteenth review:
   a dict fkey ref whose fields are not strings (read by key, said once);
   `import-db` of an unknown topic, records that are not a list, or a record
   of a wrong shape (refused before the treedb, counted in `errores`).
-- A `null` record id is absent again, as before the twentieth review: the
+- A `null` record id is absent again, as before group 4: the
   treedb makes it (uuid, rowid, qualified) or says it is required.
 - The last byte caps a peer or an operator can reach -- `C_IEVENT_SRV`'s
   service refusals, `C_YUNO`'s ip, the control center's command checks --
@@ -3355,7 +3363,7 @@ Out of the nineteenth review:
   + ' required'`), and `not saved yet` (written WITHOUT `t()` by
   `yui_file_field.js`). gui_agent 0.29.40, gui_treedb 0.17.107.
 
-Out of the twentieth review:
+Group 4 of the fixes:
 
 - **BREAKING: the command parser types every parameter** (`command_parser.c`),
   required or optional, from the line, the kw or its default alike. A
@@ -3363,7 +3371,7 @@ Out of the twentieth review:
   array; a `DTP_INTEGER`/`DTP_REAL`/`DTP_BOOLEAN` takes a number or a boolean,
   never an object or an array; text is read AS the type (`"5"` -> 5 by
   strtoll/strtod with the whole text consumed -- replaced by the JSON grammar
-  in the twenty-third review, below; a boolean as true/false, yes/no, on/off
+  in group 7, below; a boolean as true/false, yes/no, on/off
   or a number); a `null` is no value. Another shape is refused BEFORE the
   handler (so before its authz check): `-1`, a WARNING when the kw carries
   `__username__` (a peer), an ERROR with a stack from C. The line has the last
@@ -3398,8 +3406,8 @@ Out of the twentieth review:
   an absent fkey only when it drops the links the node had (an
   `import-db` of valid records warned for each).
 - `kw_find_path()` with `verbose` FALSE logs nothing for a path that is not
-  there (a peer's `print-tranger path=` reached it; see the twenty-first
-  review below for the last two cases); `authzs authz=<unknown>` answers with
+  there (a peer's `print-tranger path=` reached it; see group 5
+  below for the last two cases); `authzs authz=<unknown>` answers with
   a WARNING, not an ERROR, and caps the name.
 - **`C_TRANGER` and `C_TREEDB` refuse what a peer gets wrong, with a
   WARNING, before the library** (five passes of fixes and
@@ -3439,8 +3447,8 @@ Out of the twentieth review:
     `TRANGER2_VERSION_MAX`), every topic as `create-topic` would judge it,
     `file` columns sharing an `__assets__` hook, the store, and a topic
     another database owns. A C caller (the agent, the control center,
-    mqtt_broker, the db_history yunos) keeps its path of before the twentieth
-    review exactly. **fix: a peer could close the treedb of a paused
+    mqtt_broker, the db_history yunos) keeps its path of before group 4
+    exactly. **fix: a peer could close the treedb of a paused
     mqtt_broker**, which keeps its `C_TREEDB` and treedb from `mt_start` to
     `mt_stop` -- freed memory at the next play. `close-treedb` from a peer
     never closes a treedb the yuno's code opened, playing or paused, with or
@@ -3492,7 +3500,7 @@ Out of the twentieth review:
   click crosses the FSM (new INPUT events, no new output event). gui_agent
   0.29.42, gui_treedb 0.17.109; every SPA on `^7.26.28` and deployed.
 
-Out of the twenty-first review:
+Group 5 of the fixes:
 
 - **BREAKING: the parser hands the handler the EXACT type**, and a
   caller gets what it did not before -- `-1` for a real with decimals given to
@@ -3583,7 +3591,7 @@ Out of the twenty-first review:
   and no title. Every SPA on `^7.26.31` and deployed, the migrated
   application in the deploy round.
 
-Out of the twenty-second review:
+Group 6 of the fixes:
 
 - **BREAKING: the parser stores a parameter under its DECLARED name**, and a
   handler gets what it did not before: `cmd N=5` arrives as `"n"`, and the
@@ -3596,7 +3604,7 @@ Out of the twenty-second review:
   true; a string reached the handler other than it was sent. A `DTP_JSON`
   keeps it as it came.
 - **BREAKING: the text of a real is a decimal number** (and of the JSON
-  grammar since the twenty-third review, below): `0x10` was `16.0` (`strtod()`
+  grammar since group 7, below): `0x10` was `16.0` (`strtod()`
   reads hex, which an integer never took) and is `-1` now, and an underflow is
   a number (`1e-400` is `0.0`), only an overflow refused. The text of an
   integer or a boolean stays an integer: `2.0` is refused, the json `2.0`
@@ -3673,8 +3681,8 @@ Out of the twenty-second review:
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
-- **JS layer: gobj-ui 7.26.35 to 7.26.40, gobj-js 7.26.20** (the
-  twenty-third review). gobj-ui: a window whose host
+- **JS layer: gobj-ui 7.26.35 to 7.26.40, gobj-js 7.26.20** (group
+  7). gobj-ui: a window whose host
   names no `$parent`
   outlives a logout and the next shell takes it in -- since 7.26.31 it stayed
   alive with its DOM detached, and gui_agent's developer window vanished after
@@ -3715,7 +3723,7 @@ Out of the twenty-second review:
   `src/yui_uplot_ink.js` (`yui_uplot_axes()`), for an app's own uPlot too.
   Every SPA on `^7.26.40` / `^7.26.20` and deployed.
 
-Out of the twenty-third review:
+Group 7 of the fixes:
 
 - **BREAKING: a number written as text is one of the JSON grammar**
   (`command_parser.c`), the whole text: the text of an integer, and of a
@@ -3808,18 +3816,18 @@ Out of the twenty-third review:
   its refcount (a corrupted cycle, a json `json_object_set_new()`'d into two
   places) is `corrupted`, at the path of the reach too many; the root counts
   the caller's reference. It ended on such a cycle and said nothing. Its cost,
-  as measured in the twenty-fourth review (below): 24 to 48 bytes per json
+  as measured in group 8 (below): 24 to 48 bytes per json
   walked, up to 72 while its set doubles, plus 32 per dict or list; with no
   memory left it says `truncated`. `check-json` keeps its rule: `-1` for a
   corrupted json or a walk cut short. Test `kw1`.
-- `CHANGELOG`: the bullets of the twenty-second review that change what a
+- `CHANGELOG`: the bullets of group 6 that change what a
   caller receives say BREAKING. Docs: `command_parser.md` (the JSON grammar,
   with examples; the extra text; the limit), `json_helper.md` (`truncated` in
   the example, `json_nul_fault()`), `string_helper.md`, `guide_sdata.md`,
   `gclass.md`, `ievent.md`, `msg_ievent.md`, `system.md`, `data.md`,
   `treedb.md`, `test_suite.md`, `kernel/c/README.md`.
 
-Out of the twenty-fourth review:
+Group 8 of the fixes:
 
 - **The word after `Bearer` or `Basic` is masked when it can be a credential,
   never when it reads as prose** (`mask_secrets_inline()`,
@@ -3929,9 +3937,9 @@ Out of the twenty-fourth review:
   `mqtt.md`, `guide_sdata.md`, `api/js/logging.md`, `test_suite.md`,
   `ENTRY_POINT.md`.
 
-Out of the security review of those commits (`2e8d0589f`):
+Group 9 of the fixes, a security check of those commits (`2e8d0589f`):
 
-- **fix: the masking of the twenty-fourth review showed what 7.26.9 masked;
+- **fix: the masking of group 8 showed what 7.26.9 masked;
   each rule judges the text as it came now, and 7.26.9's reading is kept
   whole** (`mask_secrets_inline()`, `json_mask_secrets()`,
   `mask_secrets_in_text()`). A rule masked, or jumped over, its value before
@@ -3955,7 +3963,7 @@ Out of the security review of those commits (`2e8d0589f`):
   `db_pass='password'=hunter2` showed `hunter2`. Now 7.26.9's reading of the
   parameters is kept whole too, inline and in a dump: its names, and no shape.
   Measured position by position against the library of 7.26.9 on 318 008
-  generated texts, nothing it hid shows. Against the twenty-third review /
+  generated texts, nothing it hid shows. Against group 7 /
   gobj-js 7.26.20, only the set of the masking of prose shows: the word after
   a bare `Bearer` that is shorter than 8 characters, a word of prose of 8 to
   23, or dots only (8 876 of the 232 444 texts inline, 8 448 in a dump), and
@@ -4022,8 +4030,8 @@ Out of the security review of those commits (`2e8d0589f`):
   hides, the record does not write; 400 000 in a longer run, none). Docs:
   `string_helper.md`, `gbuffer.md`, `msg_ievent.md`, `ievent.md`, `data.md`,
   `yuneta_agent.md`, `DEBUGGING.md`, `test_suite.md`, `api/js/logging.md`.
-- **JS layer: gobj-ui 7.26.41 and 7.26.42, gobj-js 7.26.21** (the
-  twenty-fourth review and the security review above). gobj-ui: what the
+- **JS layer: gobj-ui 7.26.41 and 7.26.42, gobj-js 7.26.21** (groups
+  8 and 9 above). gobj-ui: what the
   reader does to a table of a `C_YUI_FORM` (a cell edited, a row added or
   deleted, a nested table) is `edited` whatever the record the form opened
   with -- a form that opened changed unwired its tables, so their edit was
@@ -4054,7 +4062,7 @@ Out of the security review of those commits (`2e8d0589f`):
   and blanks, punctuation and parameter names: no credential. Every SPA on
   `^7.26.42` / `^7.26.21` and deployed.
 
-Out of the twenty-fifth review, each finding checked before it was
+Group 10 of the fixes, each finding checked before it was
 fixed:
 
 - **fix: the kernel read a gobj it had just destroyed, at the end of the
@@ -4242,7 +4250,7 @@ fixed:
   masking pages say what each figure compares against.
 
 - **JS layer: gobj-ui 7.26.43 and 7.26.44, gobj-js 7.26.22 and 7.26.23,
-  gui_agent 0.29.54, gui_treedb 0.17.120** (the twenty-fifth review). gobj-js: the masking above
+  gui_agent 0.29.54, gui_treedb 0.17.120** (group 10). gobj-js: the masking above
   (a URL query token; 7.26.19's reading kept whole; a name judged like C, in
   ASCII case and by its last 128 UTF-8 bytes; an eyJ header with no dot of
   its own; no server text logged unmasked by `C_IEVENT_CLI`; as fast as
@@ -4270,7 +4278,7 @@ fixed:
   logout included (the C transport logs an ended session nowhere: it is
   `EV_ON_CLOSE`), and the reason of a failed open was logged unmasked.
 
-Out of the twenty-sixth review, each finding checked before it was
+Group 11 of the fixes, each finding checked before it was
 fixed:
 
 - **fix: destroying a RUNNING gobj whose stop says farewell at once freed it
@@ -4333,7 +4341,7 @@ fixed:
   over a leaf with no call and no step of the watch: 69 -> 41 on the tree of
   100 x 100, 69 -> 81.5 (+18%) on the binary tree. The figures depend on the
   compiler: clang 21 at `-O2` gives 62 -> 33 and 62.5 -> 76.5, gcc 15.2 at
-  `-O3` 61 -> 36 and 61 -> 74, and a review on another toolchain (gcc 13.3
+  `-O3` 61 -> 36 and 61 -> 74, and a run on another toolchain (gcc 13.3
   `-O2 -g -DNDEBUG`) measured 68 -> 96.5 on the binary tree (98.5 before the
   leaf was skipped). `gobj_start_tree()` + `gobj_stop_tree()`: 892 -> 920
   (+3%) and 897 -> 989 (+10%, most of it the frames of `gobj_start()` /
@@ -4445,7 +4453,7 @@ fixed:
   `let`s, and no longer cuts a long list at exit; `deploy-round` reads a
   range's history by value and refuses a shallow clone.
 
-Out of the twenty-seventh review, each finding checked before it was
+Group 12 of the fixes, each finding checked before it was
 fixed:
 
 - **fix, BREAKING: `gobj_play()` says when nothing is playing.** A play
@@ -4470,7 +4478,7 @@ fixed:
   its place, refused"*, `MSGSET_PROTOCOL`), the frame dropped, the channel
   kept. An empty `dst_service` no longer logs *"service EMPTY"* (an ERROR with
   a stack), and is still published; one that is no service is dropped (see the
-  BREAKING entry of the twenty-eighth review below). A stats or command
+  BREAKING entry of group 13 below). A stats or command
   request of the server for a service that does not exist (*"Service not
   found"*) logs the name masked and capped; it was in clear. What the C and
   the gobj-js clients do with a frame they refuse is not always the same (the
@@ -4509,8 +4517,8 @@ fixed:
   value; `validate-locales` no longer hangs on a locale's timer and reads
   const-named methods and written spreads.
 
-Out of the twenty-eighth review, each finding checked before it was fixed
-(most of it regressions of the twenty-seventh review's fixes, folded into
+Group 13 of the fixes, each finding checked before it was fixed
+(most of it regressions of the fixes of group 12, folded into
 their entries above: the walks of the tree, `gobj_destroy_named_children()`,
 the URL password under a cap, the stats/command `service` masked):
 
@@ -4566,7 +4574,7 @@ the URL password under a cap, the stats/command `service` masked):
   does not call a rename; `validate-locales` reads an element of a const array
   as that element and fails on an unhandled rejection.
 
-Out of the twenty-ninth review, each finding checked before it was
+Group 14 of the fixes, each finding checked before it was
 fixed (the walks of the tree are marked BREAKING above, with their measured
 cost):
 
@@ -4587,7 +4595,7 @@ cost):
   configuration of the tree or of the apps writes 0. Test
   `c_tcp_inactivity/test5`.
 
-Out of the thirtieth review, each finding checked before it was
+Group 15 of the fixes, each finding checked before it was
 fixed (the walks' cost figures and the reconnection floor are corrected in
 their entries above):
 
@@ -4645,8 +4653,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   default, so each would have got a dangling pointer. They return NULL now
   (the error is already logged).
   `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
-  all five returned the freed pointer. Found by the cloud review of the JS
-  layer, comparing an empty path in JS and C.
+  all five returned the freed pointer. Found comparing an empty path in JS
+  and C.
 - **fix: the other half -- with `KW_CREATE`, `kw_get_dict()` / `kw_get_list()`
   handed back an orphan default when the path held a value of another type,
   or `kw` was NULL** (and `kw_get_dict_value()` with a NULL `kw`): unwritten,
@@ -4731,8 +4739,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
     - a name that is a DIRECTORY -- a treedb, a topic, a msg2db and its topics
       -- follows `tranger2_name_is_identifier()` (`timeranger2.h`): not empty,
       not `.` or `..`, no `/` and no `` ` ``; the rule timeranger2 already
-      applied to a topic. A leading `.` is allowed (the checks of the twelfth
-      review in treedb refused it, and timeranger2 did not).
+      applied to a topic. A leading `.` is allowed (the earlier checks in treedb
+      refused it, and timeranger2 did not).
     - a COLUMN name -- a column id, a hook, an fkey -- is only a key, and
       follows `treedb_col_name_is_identifier()` (`tr_treedb.h`): not empty
       and no `` ` ``. A `/`, `.` or `..` in a column is fine: it never broke
@@ -4834,7 +4842,7 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   does the same).
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, the cloud review, sixteen rounds).** Submodules
+  (sixteen rounds).** Submodules
   `kernel/js/gobj-js` 7.26.0 → **7.26.19**, `kernel/js/gobj-ui` 7.26.7 →
   **7.26.24**, and `yunos/js` (gui_agent 0.29.38, gui_treedb 0.17.105); every
   release is in the CHANGELOG of its own repository. What a consumer has to
@@ -5021,8 +5029,8 @@ functions, all documented).
 
 ## v7.26.4 (2026-10-05)
 
-The tests and their tooling, after four rounds of cloud verification of the
-suite's speed work (the cloud review). One real defect fixed: 18 tests linked
+The tests and their tooling, after four rounds of verification of the
+suite's speed work. One real defect fixed: 18 tests linked
 the kernel archives by a bare name and ran on the old library after a
 change of the one they test. No change in the libraries or in the yunos, so
 a node running 7.26.x needs no upgrade. The suite passes in parallel on the
@@ -5033,14 +5041,14 @@ dev machine (298/298, `ctest -j8`) and on the staging node (298/298, `-j8`). The
   `ctest -j`** (`RUN_SERIAL`): `test_yevent_timer_once1`, `_once2`,
   `_periodic1`, `_kept_after_post`, `test_c_timer`, `test_c_timer0`,
   `test_static_resolv_numeric`. `test_yevent_timer_once1` failed once in
-  the cloud verification's parallel suite (1.80 s, window 0.9-1.1 s).
+  the verification's parallel suite (1.80 s, window 0.9-1.1 s).
   And `timeranger2/test_fs_watcher_overflow`, which asserts the watcher's
   cost per directory on a big tree against a small one (at most 6 times):
   the staging node's parallel suite (`-j8`, load ~4) failed it with 48 us
   against 713; it passes alone in 31 s. And `test_c_controlcenter_scenarios`,
   whose rate of a burst over its 1.5 s tick fails when the load stretches the
-  tick over 50% (the last test of that class, by the fifth check of the cloud
-  review).
+  tick over 50% (the last test of that class, by the fifth check of the
+  verification).
 - **`scripts/check_test_databases.py` no longer erases why a test failed.**
   ctest truncates `Testing/Temporary/LastTest.log` on every run, its
   `--show-only` too: the check keeps the file and puts it back. And the CLI
@@ -5053,16 +5061,16 @@ dev machine (298/298, `ctest -j8`) and on the staging node (298/298, `-j8`). The
 
 - **18 tests are relinked again when a kernel library changes.** The 14
   `tr_treedb_*` tests, `tr_dt_unknown`, `perf_timeranger2`, `perf_tr_treedb`
-  and `perf_rotatory` named `libtimeranger2.a`, `libyev_loop.a`,
-  `libytls.a` and `libyunetas-gobj.a` bare in `target_link_libraries()`: a
-  `-l` search, not a dependency of the link. After a change in timeranger2
-  or gobj -- what they test -- they ran on the OLD library, silently. The
-  `make clean` of `yunetas test` hid it, and then (7.26.1-7.26.2) the
-  reinstall of the root tree. They name them `${LIB_DEST_DIR}/lib*.a` now:
-  a marker appended to `gobj.c` reaches every test binary that holds gobj
-  code (286), where it reached 268. Found by the cloud verification of the
-  review. **`scripts/check_test_links.py`** fails on an archive named
-  bare in a `CMakeLists.txt` of `tests/c`, `performance/c` or `stress/c`.
+  and `perf_rotatory` named `libtimeranger2.a`, `libyev_loop.a`, `libytls.a`
+  and `libyunetas-gobj.a` bare in `target_link_libraries()`: a `-l` search,
+  not a dependency of the link. After a change in timeranger2 or gobj -- what
+  they test -- they ran on the OLD library, silently. The `make clean` of
+  `yunetas test` hid it, and then (7.26.1-7.26.2) the reinstall of the root
+  tree. They name them `${LIB_DEST_DIR}/lib*.a` now: a marker appended to
+  `gobj.c` reaches every test binary that holds gobj code (286), where it
+  reached 268. Found by the verification. **`scripts/check_test_links.py`**
+  fails on an archive named bare in a `CMakeLists.txt` of `tests/c`,
+  `performance/c` or `stress/c`.
 - **`scripts/check_test_databases.py`: two tests that can use one directory
   at the same time are found**, as `check_test_ports.py` finds two that use
   one port. It reads the directories of each test from its sources (also the
@@ -5164,7 +5172,7 @@ building the SDK in it at its next build of that tree (the changed
 A release of the test suite and its tools: no change in the libraries or in
 the yunos, so a node running 7.26.0 needs no upgrade. `yunetas test` (CLI
 0.21.0) compiles with `make -j` and no `make clean`, and runs ctest in
-parallel from this SDK on. On the review's 4-core machine, a run with no
+parallel from this SDK on. On a 4-core machine, a run with no
 change in the sources went from ~31 minutes to ~7-8.
 
 - **The tests declare what they share, so `ctest -j` runs the suite.** The
@@ -6525,7 +6533,7 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   a second watch. Those two now fail at once with their own ERROR. The test
   "dir fds" now checks that no descriptor is left open after the stop.
 
-### Risks the review named
+### Risks found
 
 - **timeranger2: a delete no longer walks every open key.** To close the
   descriptors of the deleted key, the master (at `tranger2_delete_key()`) and
@@ -7314,8 +7322,8 @@ code before it, except the few this list marks "(no red test)".
 - **A frame before the session is parsed whole, up to the maximum block**
   (also in 7.25.20): an identity card is small, but nothing caps a frame sent
   before it. The masking of that frame is bounded since this release.
-- The rest of the open items are in `TODO.md`, "Found by the last review before
-  the merge" and "Defects open after 7.25.20".
+- The rest of the open items are in `TODO.md`, "Found before the merge"
+  and "Defects open after 7.25.20".
 
 ## v7.25.20 (2026-09-30)
 
@@ -7456,7 +7464,7 @@ promotion.
 
 ## v7.25.16 (2026-09-30)
 
-A lite release (control center and agent only): the two points the review of
+A lite release (control center and agent only): the two points
 7.25.15 left in TODO.
 
 ### Control center: two editors of one scenario
@@ -7490,7 +7498,7 @@ A lite release (control center and agent only): the two points the review of
 
 A lite release (control center and agent only, rule of 2026-09-29): only
 those two binaries change, and only they are deployed. It closes what a
-review of the scenarios and their live view found, after running the
+check of the scenarios and their live view found, after running the
 stress scenario of an application end to end from the console.
 
 ### Control center: a web client is its connection; runs end when their agent goes
@@ -7528,7 +7536,7 @@ stress scenario of an application end to end from the console.
   by at the control center (`input_channel`): two tabs of one browser were one
   requester, the second replacing the first watch at each renewal, and a hidden
   tab stopping the other's.
-- One yuno can be watched through several services (`ids=5120,5120:db`); the
+- One yuno can be watched through several services (`ids=4520,4520:db`); the
   last one named used to replace the others.
 - An id that is not a yuno of the agent no longer refuses the whole watch: it
   is watched, its `state` says `missing`, and the answer names it
@@ -11473,12 +11481,12 @@ spread, are in `performance/c/README.md`.
 
 ## v7.25.4 (2026-09-23)
 
-### The 2026-09-23 review of the 2026-09-22 treedb/timeranger work
+### A read-only check of the 2026-09-22 treedb/timeranger work
 
-A third, read-only review of the fixes of 2026-09-16 and 2026-09-22 (six
-reviewers, repros against `outputs/lib`) found 12 mediums and ~35 lows that
-no test caught. All of them are fixed below, each with a test that was red
-before where one could be written.
+A read-only check of the fixes of 2026-09-16 and 2026-09-22 (repros against
+`outputs/lib`) found 12 mediums and ~35 lows that no test caught. All of them
+are fixed below, each with a test that was red before where one could be
+written.
 
 **BREAKING**
 
@@ -11571,9 +11579,9 @@ before where one could be written.
 **New tests:** `test_stop_reopen`, `test_append_md_contract`,
 `test_rt_disk_multi_feed` (feed hijack), `tr_treedb_files` 20, `tr_treedb_hook_rename` 5,
 a walk of C_TREEDB's command table refusing a denied user plus replica
-refusals, N11 with a real save over a dict-shaped file,
+refusals, a real save over a dict-shaped schema file,
 `test_command_delete_user` 8-9, `test_late_record` in both directions,
-and the N1 traversal test given a real loop and a reachable victim.
+and the traversal test given a real loop and a reachable victim.
 
 ### gobj-ui 7.25.5, yunos-js gui_treedb 0.17.57 / gui_agent 0.22.78
 
@@ -11663,7 +11671,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
   flight logged, backticks in change ids, Apply tooltip). Deployed to every
   consumer. JS API index regenerated.
 
-### The lows of the 2026-09-22 review, C side
+### The lows of that check, C side
 
 - timeranger2: a `topic_desc.json` that does not load answers NULL at once
   (it went on with `topic == NULL` through seventeen spurious errors), and
@@ -11706,21 +11714,20 @@ These behaviour changes shipped in 7.25.3 without the flag:
 ### gobj-ui 7.25.3, yunos-js gui_agent 0.22.76
 
 - `kernel/js/gobj-ui` -> 7.25.3: the schema editor rebuilds its drafts from
-  the host (`EV_DRAFTS`, N13). `yunos/js` -> gui_agent 0.22.76: the Schemas
+  the host (`EV_DRAFTS`). `yunos/js` -> gui_agent 0.22.76: the Schemas
   tab reads `draft_changed` off every `saved-schema` answer and sends it to
   every editor under its tree; both SPAs on gobj-ui ^7.25.3. JS API index
   regenerated.
 
 ### timeranger2: a marked md2 file is not read whole at every wake-up of a follower
 
-- A file the master marked `.unordered` (a late record, M16) was read whole
-  by `load_cache_cell_from_disk()`, and a follower loads the cell again on
-  every append of the master: each append cost the follower every row of
-  that file, 32 bytes a row (N12 of the 2026-09-22 review). The cell in
-  memory already holds the range of the rows it counted, so only the rows
-  after them are read (`widen_cell_from_rows()` from `rows + 1`) and the two
-  ranges are joined. `test_late_record`: a marked file that keeps growing
-  serves the new rows, the late one and the old ones alike.
+- A file the master marked `.unordered` (a late record) was read whole by
+  `load_cache_cell_from_disk()`, and a follower loads the cell again on every
+  append of the master: each append cost the follower every row of that file,
+  32 bytes a row. The cell in memory already holds the range of the rows it
+  counted, so only the rows after them are read (`widen_cell_from_rows()` from
+  `rows + 1`) and the two ranges are joined. `test_late_record`: a marked file
+  that keeps growing serves the new rows, the late one and the old ones alike.
 
 ### C_TREEDB: `saved-schema` says which topics the draft changes
 
@@ -11729,34 +11736,34 @@ These behaviour changes shipped in 7.25.3 without the flag:
   `save-schema` uses (`draft_changed_from_rows()`). The schema editor kept
   that mark in the memory of one session only, so a reload of the page, a
   reconnect or its Refresh lost the chip, the banner and the export warning
-  while `__system__` still differed from the file (N13); gobj-ui 7.25.3
+  while `__system__` still differed from the file; gobj-ui 7.25.3
   rebuilds them from this answer, which gui_agent 0.22.76 hands it. Red test
   in `test_c_treedb_system_schema`.
 
 ### gobj-ui 7.25.2, yunos-js gui_agent 0.22.75
 
 - `kernel/js/gobj-ui` -> 7.25.2: a topic form's write is answered every way
-  it ends, the transport closing and a write asked with no session included
-  (N8 of the 2026-09-22 review), and a form busy twice comes back whole
-  (N9). `yunos/js` -> gui_agent 0.22.75: an apply-schema that one owner
-  refuses after another applied goes on to the restart and says who refused
-  (N10); both SPAs take gobj-ui ^7.25.2. JS API index regenerated.
+  it ends, the transport closing and a write asked with no session included,
+  and a form busy twice comes back whole. `yunos/js` -> gui_agent 0.22.75:
+  an apply-schema that one owner refuses after another applied goes on to
+  the restart and says who refused; both SPAs take gobj-ui ^7.25.2. JS API
+  index regenerated.
 
 ### C_TREEDB: the diff of a save reads a schema file whose topics are a dict
 
-- `save-schema` (and `saved-schema`, `diff-schema`) diff the draft against
-  the file in use through `diff_treedb_schema()`, which read the file's
-  topics with `kw_get_list()`: a file whose `topics` is a DICT keyed by name
-  -- what a node opened with `impose_c_schema` off wrote before 7.25.0, from
+- `save-schema` (and `saved-schema`, `diff-schema`) diff the draft against the
+  file in use through `diff_treedb_schema()`, which read the file's topics
+  with `kw_get_list()`: a file whose `topics` is a DICT keyed by name -- what
+  a node opened with `impose_c_schema` off wrote before 7.25.0, from
   `get_treedb_schema()` as it was -- read as no topic at all, so every topic
   was "changed", `nothing to save` never answered, and every `topic_version`
-  and the `schema_version` were bumped and written again at each save (N11
-  of the 2026-09-22 review). The topics are read as a list whatever shape
-  the file holds them in (`schema_topics_as_list()`), a dict's topic taking
-  its name as `id`; and `schema_topic_version()` no longer logs *"kw must be
-  list or dict"* for a topic a dict-shaped file does not hold. Red test in
-  `test_c_treedb_system_schema`: the same file in use as a list and as a
-  dict gives the same changes.
+  and the `schema_version` were bumped and written again at each save. The
+  topics are read as a list whatever shape the file holds them in
+  (`schema_topics_as_list()`), a dict's topic taking its name as `id`; and
+  `schema_topic_version()` no longer logs *"kw must be list or dict"* for a
+  topic a dict-shaped file does not hold. Red test in
+  `test_c_treedb_system_schema`: the same file in use as a list and as a dict
+  gives the same changes.
 
 ### C_NODE: `activate-snap` answers result 0; C_AUTHZ: `enable-user` answers the refusal
 
@@ -11764,18 +11771,18 @@ These behaviour changes shipped in 7.25.3 without the flag:
   the command's result: the id of the activated snap since the 7.25.0 side
   fix that made the library return it (0 before, unless switching snaps).
   `ycommand` takes its exit code from `result`, and a client testing for 0
-  read a success as a failure. The result is 0 on success (N6 of the
-  2026-09-22 review; the agent, which tests `>= 0`, never noticed).
+  read a success as a failure. The result is 0 on success (the
+  agent, which tests `>= 0`, never noticed).
 - `enable-user` handed the return of `gobj_update_node()` to the response
   as it was: a refused update (a replica, any refusal of the treedb)
   answered result 0, *"User enabled"*, with no record. It answers -1, as
-  `disable-user` does since 7.25.0 (N7). Red tests in `test_c_node_authz`
+  `disable-user` does since 7.25.0. Red tests in `test_c_node_authz`
   and `test_command_delete_user`.
 - And underneath, in the library: `treedb_update_node()` answered the node
   whatever `treedb_save_node()` said, and moved the node in memory before
   the save. On a replica the append is refused (*"NO master"*) and the
-  update "worked" until the next reload -- pattern 1 of the 2026-09-21
-  review, which the command-level guards of 7.25.0 covered for C_NODE's
+  update "worked" until the next reload -- the pattern the command-level
+  guards of 7.25.0 covered for C_NODE's
   commands and not for `gobj_update_node()` (C_AUTHZ, the agent). A saved
   update on a replica is refused BEFORE the memory moves, with *"Cannot
   update node, NO master"*; a memory-only update (`save` FALSE) goes on;
@@ -11790,18 +11797,18 @@ These behaviour changes shipped in 7.25.3 without the flag:
   *"already open"* (result 0, no data) to its own id after a close and reopen
   of the topic, a `delete-topic` + `create-topic` or a stop/start of the
   service, and every `get-page` after it -1, until a `close-iterator` by
-  hand (N3 of the 2026-09-22 review; the identity resolution of 7.25.0
+  hand (the identity resolution of 7.25.0
   closed the use-after-free and kept the entries).
 - `get_single_key_page()` cuts a backward window with the LIVE row count of
   the key, the one the page's `total_rows` carries, where it used the count
   frozen at the open: once the key grew, *"newest first"* skipped the newest
-  rows and a page past the old count came back empty (N4). A filtered
+  rows and a page past the old count came back empty. A filtered
   iterator pages its index, which does not grow.
 - A multi-key iterator (`rkey`) keeps ONE rt_mem over the topic, `only_md`
   and fed to nobody, for its `key_deleted` callback: a key deleted and
   created again between two pages was judged intact by its presence in the
   topic's cache and paged with the row count of the dead one, result 0 and
-  no log; it answers -1 *"was deleted"* now, like a one-key iterator (N5).
+  no log; it answers -1 *"was deleted"* now, like a one-key iterator.
 - Tests: `test_c_tranger` opens the same ids again after a topic reopen,
   pages a growing key backward, and deletes and re-creates a key under an
   `rkey` iterator (red before).
@@ -12032,9 +12039,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
 
 ## v7.25.0 (2026-09-21)
 
-### C_TRANGER: a multi-key iterator holds no iterator per key (M22)
-
-The memory half of M22 of the 2026-09-21 review.
+### C_TRANGER: a multi-key iterator holds no iterator per key
 
 - `open-iterator rkey=...` kept one full tranger2 iterator per matching key
   for the life of the iterator -- keys x files of memory, +147 MB for one
@@ -12044,9 +12049,9 @@ The memory half of M22 of the 2026-09-21 review.
   page touches, and closes them. Same answers, same `total_rows`, frozen at
   open as before. A filtered page rebuilds the index of the keys it reads.
 - A topic closed and opened again still makes such an iterator "gone" (the
-  A4 rule): the topic carries an epoch in memory, and the iterator is valid
-  only on the opening it was made on. A deleted key is found by asking the
-  topic, since no part iterator is there to be marked.
+  identity rule of a handle): the topic carries an epoch in memory, and the
+  iterator is valid only on the opening it was made on. A deleted key is found
+  by asking the topic, since no part iterator is there to be marked.
 - gui_treedb 0.17.54: the whole-topic Rows card is no longer remembered and
   reopened on every visit; its options offer `keys (regex)`, filled with
   `.*`; a new Rows card starts at `from rowid = -100`.
@@ -12054,8 +12059,6 @@ The memory half of M22 of the 2026-09-21 review.
   page; red against the previous library).
 
 ### treedb: the fkey mark is derived, and no file carries it -- a hook can be renamed
-
-M2 and M3 of the 2026-09-21 review.
 
 - `parse_hooks()` marks each child fkey column with the one hook that fills
   it (`"fkey": {parent_topic: hook}`), and the loader keeps only the links it
@@ -12069,7 +12072,7 @@ M2 and M3 of the 2026-09-21 review.
   read from a file of an older release is ignored; `treedb_open_db()` writes
   the schema file and the topics' cols without it. In memory (and in
   `descs`) the mark is as it was.
-- **M3: a ref to a hook that no longer exists is stale.** What a renamed or
+- **A ref to a hook that no longer exists is stale.** What a renamed or
   removed hook leaves in every child (`departments^d1^users`) hangs from
   nothing, and unlinking it failed on the missing hook (since 3fea635f3), so
   the child could be neither relinked, cleaned nor force-deleted.
@@ -12082,7 +12085,7 @@ M2 and M3 of the 2026-09-21 review.
 
 ### C_TREEDB: an edit of a schema is a draft; save-schema publishes it, apply-schema puts it in use (BREAKING)
 
-M36 of the 2026-09-21 review, the owner's design. With gobj-ui 7.23.196 (the
+With gobj-ui 7.23.196 (the
 schema editor stops raising versions and marks drafts) and gui_agent 0.22.74
 (Save, the imposed banner, and an Apply dialog with the relaunched yuno and
 the changes).
@@ -12094,7 +12097,7 @@ the changes).
 
 - **An edit of `__system__` moves no version.** Every write to a `cols` or
   `topics` node used to raise `topic_version` and `schema_version` (the
-  "a write publishes itself" of M8), so an edit half made was already the
+  "a write publishes itself" rule, below), so an edit half made was already the
   schema of the next start. The writes are drafts now; `publish_schema_change()`
   is gone, and so is the `__schema_publishing__` marker the projector set to
   keep it from answering its own writes.
@@ -12122,14 +12125,12 @@ the changes).
 - Docs: `YUNO_TREEDB.md` ("A treedb never opens from `__system__`", the
   three-step cycle with examples), the C_TREEDB page (the attribute and the
   three commands), and the C_NODE permission table, which still listed
-  `system-schema` and `trace` as open to anyone (M41 closed that).
+  `system-schema` and `trace` as open to anyone (closed in this release, below).
 - Test: `c_treedb_system_schema` -- edits and creates/deletes are drafts, the
   whole save/saved/apply cycle (red against the previous library), and three
   checks rewritten on the new model; its expected log is a table now.
 
 ### treedb: a `now` column is stamped by every write, `writable` or not
-
-M5 of the 2026-09-21 review, the owner's option B.
 
 - **7.24.0 stamped a `now` column on an update only if it was `writable`**,
   and its CHANGELOG said there were two `now` columns in the tree. There are
@@ -12152,8 +12153,6 @@ M5 of the 2026-09-21 review, the owner's option B.
 
 ### treedb: a `rowid` id is not handed out again under an active snap
 
-M4 of the 2026-09-21 review, the owner's option A.
-
 - **The seed of the rowid counter read the treedb's id index**, which, with a
   snap active, holds only what the snap loaded. In a store with no
   `last_rowid_id` yet, a create without id got the id of a node created after
@@ -12168,8 +12167,6 @@ M4 of the 2026-09-21 review, the owner's option A.
   create got `8`, the id of the node the snap did not load).
 
 ### treedb: `force` unlinks the children, `ignore_snaps` deletes what a snap holds (BREAKING)
-
-M11 and M12 of the 2026-09-21 review, the owner's option A.
 
 - **`force` meant two things, and every caller that wanted one got both.**
   `treedb_delete_node()` read it as "unlink the children" AND as "delete a
@@ -12196,9 +12193,9 @@ M11 and M12 of the 2026-09-21 review, the owner's option A.
 - Tests: `tr_treedb_snap_clone` and `tr_treedb_delete_instance` pin both
   halves (red against the previous library).
 
-### The loose ends of the 2026-09-21 review: M15, M26, M31, M41, M42
+### Commands that answered success, permissions, tests
 
-- **M15 -- commands that answered success for what they did not do.**
+- **Commands that answered success for what they did not do.**
   - The agent's `update-binary` and `update-config` answered `0` when the
     record was not updated (`gobj_update_node()` returned NULL), and
     `sync-binaries` counted the binary installed; `delete-realm` answered `0`
@@ -12216,15 +12213,15 @@ M11 and M12 of the 2026-09-21 review, the owner's option A.
     from ONE; the others kept it while its fkey no longer named them, and
     then refused every unlink and a forced delete until a reload. An unlink
     takes the child out of every instance's hook.
-- **M41 -- C_NODE: three commands answered anyone.** `system-schema` and the
+- **C_NODE: three commands answered anyone.** `system-schema` and the
   `set-link-events` display ask `read`, `trace` (process-wide) asks `update`.
   `test_c_node_authz` walks C_NODE's command table instead of a hand-written
   list, so a command added without a permission fails it.
-- **M42 -- tests.** `test_c_node_authz` opens the same treedb as a REPLICA and
+- **Tests.** `test_c_node_authz` opens the same treedb as a REPLICA and
   checks that every write answers READ-ONLY and changes nothing; gobj-js'
   `kwid.test.js` pins the 7.21.0 fix it did not (a record without `id` is
   logged).
-- **M26, M31 -- gobj-ui 7.23.195.** A writable time column keeps its seconds
+- **gobj-ui 7.23.195.** A writable time column keeps its seconds
   across a save; record text in the treedb table is a text node, never HTML.
 - Tests: `command_delete_user` (the role cases), `tr_treedb_update_instance`
   (a dict hook over a pkey2 child, and an unlink from one instance; red
@@ -12234,35 +12231,31 @@ M11 and M12 of the 2026-09-21 review, the owner's option A.
 
 ### treedb + C_TRANGER: a schema write is checked and published whole; a session takes its lists
 
-M6, M7, M8 and M21 of the 2026-09-21 review (`TODO.md`).
-
-- **`create-topic` wrote a topic before checking its columns** (M6) and
+- **`create-topic` wrote a topic before checking its columns** and
   answered *"Topic created!"* for one with no columns or no `id` column, which
   the next open could not load. `treedb_create_topic()` now validates the
   columns first, as `parse_schema()` does at an open, and refuses with
   *"Topic refused: bad columns"* and the reason: nothing is written. A failed
   `tranger2_create_topic()` is no longer ignored either.
-- **A column written to `__system__` skipped two rules an open applies** (M7):
+- **A column written to `__system__` skipped two rules an open applies**:
   a `file` column must be a string `fkey`, and a `hook`/`fkey` column cannot
   be both nor be of any type but dict, list or string. Stored, such a column
   lost its whole topic at the next open. They are refused at the write now,
   with *"Column definition refused"*.
-- **"A schema write publishes itself" was false for two doors** (M8): a column
+- **"A schema write publishes itself" was false for two doors**: a column
   created with its link (`autolink`/`refs`) and a DELETE raised no version, so
   the change was stored and never reached the running treedb. Create, link and
   delete published like update did -- superseded, in this same release, by
-  M36 below: no write publishes any more, `save-schema` does.
-- **A live `open-list` belonged to nobody** (M21): no owner was stamped and no
+  the drafts above: no write publishes any more, `save-schema` does.
+- **A live `open-list` belonged to nobody**: no owner was stamped and no
   reaper walked the lists, so one opened by a session that then died went on
   collecting every append in memory until the yuno stopped. It is the
   session's now, like its iterators: closed with the session's `EV_ON_CLOSE`,
   kept while the session lives.
-- Tests: `tr_treedb_schema_parse` (M6), `c_treedb_system_schema` (M7, M8) and
-  `c_tranger` (M21), each red against the previous library.
+- Tests: `tr_treedb_schema_parse`, `c_treedb_system_schema` and
+  `c_tranger`, each red against the previous library.
 
 ### timeranger2: a topic name stays inside its database, and a replica cannot delete a topic
-
-A1, A2 and A3 of the 2026-09-21 review (`TODO.md`).
 
 - **A topic name from the wire reached the filesystem unchecked** — the only
   test was "not empty". With a `read` permission on a C_TRANGER, a name such
@@ -12292,7 +12285,7 @@ A1, A2 and A3 of the 2026-09-21 review (`TODO.md`).
 
 ### C_TRANGER: deleting a key no longer stops the master through an open iterator
 
-A5 of the 2026-09-21 review (`TODO.md`), its first half.
+Its first half; the second is below.
 
 - **An iterator open on a key that is then deleted.** A filtered iterator
   pages over its own row index, and `tranger2_delete_key()` removes the files
@@ -12314,7 +12307,7 @@ A5 of the 2026-09-21 review (`TODO.md`), its first half.
 
 ### timeranger2: a failed READ never exits the process
 
-A5 of the 2026-09-21 review, its second half (the decision: a read that fails
+The second half of the deleted key above (the decision: a read that fails
 has written nothing, so it is no reason to leave).
 
 - **`get_topic_rd_fd()` no longer applies `on_critical_error`.** It still logs
@@ -12338,8 +12331,6 @@ has written nothing, so it is no reason to leave).
 
 ### C_TRANGER: a handle is judged by its identity, not by its topic's name
 
-A4 and M22 of the 2026-09-21 review.
-
 - **A topic closed and opened again made its stale handles look alive.**
   C_TRANGER kept the POINTER of every iterator / rt / list it opened for a
   client and judged it alive by asking whether a topic of that NAME was
@@ -12356,7 +12347,7 @@ A4 and M22 of the 2026-09-21 review.
   array, maintained by open and close. It walked the array, and every open
   calls it to refuse a duplicate, so a multi-key iterator of N keys opened in
   O(N²) — and resolving by identity at each page would have made every page
-  that too. The memory side of M22 (one full iterator per key under
+  that too. The memory side (one full iterator per key under
   `rkey=.*`) is NOT addressed here: see `TODO.md`. The index holds the same
   iterator objects as the array, so `print-tranger` (C_TRANGER) now shows
   each open iterator twice, under `iterators` and under `iterators_by_id`;
@@ -12368,7 +12359,7 @@ A4 and M22 of the 2026-09-21 review.
 
 ### treedb: a link that cannot be made no longer orphans a node, and +New no longer overwrites
 
-- **M1 — `treedb_replace_links()` unlinked first and linked after.** A new
+- **`treedb_replace_links()` unlinked first and linked after.** A new
   parent that could not be linked (it does not exist, its hook does not link
   that column, the node itself, a cycle) left the child with NO parent, on
   disk, `EV_TREEDB_NODE_UNLINKED` published and no `LINKED`; `update-node`
@@ -12378,7 +12369,7 @@ A4 and M22 of the 2026-09-21 review.
   (`link_can_be_made()`) before any old one is undone. The record is still
   saved, and `update-node` answers **-1**: *"node 'x' saved, but its links
   were NOT changed"*.
-- **M28 — `update-node` gets `options.create_only`**: a NEW node, and one
+- **`update-node` gets `options.create_only`**: a NEW node, and one
   that exists is refused (*"Node already exists"*); `create` alone is an
   upsert. gobj-ui 7.23.194's +New sends it: a taken id used to overwrite the
   record and, with `autolink` and empty selects, unlink it.
@@ -12387,9 +12378,9 @@ A4 and M22 of the 2026-09-21 review.
   command, red: success) and 8d (`create_only`, red: overwritten and
   unlinked).
 
-### timeranger2: block 7 of the 2026-09-21 review (the cache cell)
+### timeranger2: the cache cell
 
-- **M16 — after a late record, time-range queries hid records.** A cell's
+- **After a late record, time-range queries hid records.** A cell's
   `[fr_t, to_t]` was rebuilt from the FIRST and LAST md2 rows, and a late
   record (a `__t__` below what its file holds) is the last row with a lower
   time: a follower at once, and the master after a reload, dropped the file
@@ -12399,35 +12390,35 @@ A4 and M22 of the 2026-09-21 review.
   a load reads a marked file WHOLE for its range (only that one: a year of
   daily files read whole would be a gigabyte per key at startup). A follower
   merges the ranges it knew with the ones it reads instead of replacing them.
-- **M17 — every append cost O(md2 files of the key).** `find_cache_cell()`
+- **Every append cost O(md2 files of the key).** `find_cache_cell()`
   walked the cells from the first one, with two `snprintf` of `NAME_MAX` each,
   to find the one the record went into — which is the last one, or after it,
   almost always. It looks at the last cell first, and takes its base from the
-  key's total. Measured with the review's program, appends to the last file:
+  key's total. Measured with a test program, appends to the last file:
   1 file 3.8 us, 365 files 3.9 us, 3650 files 3.9 us (they were 3.7 / 32 /
   318 us).
-- **M18 — a follower with two disk feeds on one key lost records of two
+- **A follower with two disk feeds on one key lost records of two
   files.** The watermark was one per (feed, key), and a batch touching two
   files of the key reseeded the second feed's mark on the second file before
   it had read the first — a late record and a current one, or just a
   rotation while the follower was busy: that feed lost both. One mark per
-  (feed, key, FILE) now, never seeded over another file's. Verified with the
-  review's two-process program (master + a SIGSTOPped follower): the second
+  (feed, key, FILE) now, never seeded over another file's. Verified with a
+  two-process program (master + a SIGSTOPped follower): the second
   feed got `W@3` alone, it gets `W C E X Y` now, rotation case included.
 - New test `tests/c/timeranger2/test_late_record.c` (red: the follower and the
-  reloaded master did not serve the record inside the range). M18 needs two
-  processes to show, so its check stays out of ctest; the in-process case is
-  in the same test and stays green.
+  reloaded master did not serve the record inside the range). The two feeds
+  need two processes to show, so its check stays out of ctest; the in-process
+  case is in the same test and stays green.
 
-### C_TRANGER + gui_treedb 0.17.53: block 4 of the 2026-09-21 review
+### C_TRANGER + gui_treedb 0.17.53: paging iterators of a session
 
-- **M19 — closing the LAST Live card of a session reaped its paging
+- **Closing the LAST Live card of a session reaped its paging
   iterators**, and its Rows cards answered "Iterator not found" from then
   on. `mt_subscription_deleted` still closes the subscriber's feeds, and its
   iterators only when nothing else will: a session is watched, and its
   `EV_ON_CLOSE` takes them when it dies. gui_treedb re-opens, once, a card
   whose iterator is gone.
-- **M20 — "newest first" served the oldest page.** `open-iterator
+- **"Newest first" served the oldest page.** `open-iterator
   backward=1` did nothing, and on an UNFILTERED one-key iterator
   `get-page backward=1` kept the window counted from the start and only
   reversed it (the library's contract, pinned by
@@ -12436,7 +12427,7 @@ A4 and M22 of the 2026-09-21 review.
   from the END, read forward and reversed, whether the key is filtered or
   not; and a `get-page` that does not say takes the direction given at the
   open. gui_treedb sends the direction on every page.
-- **M35 — gui_treedb's replica detection did nothing** (fixed in gui_treedb
+- **gui_treedb's replica detection did nothing** (fixed in gui_treedb
   0.17.53 alone: `treedb-info` carries its service in `__md_command__`, and
   storing the scanned services keeps `master`).
 - Tests: `test_c_tranger` (a get-page of an iterator opened backward, red:
@@ -12444,50 +12435,51 @@ A4 and M22 of the 2026-09-21 review.
   "Iterator not found"); gui_treedb `treedb_info.test.js`,
   `rows_page.test.js`.
 
-### gobj-ui 7.23.193: block 3 of the 2026-09-21 review
+### gobj-ui 7.23.193: the treedb views
 
 The `kernel/js/gobj-ui` submodule moves to 7.23.193 (its `CHANGELOG.md` has the
 detail): a row delete crosses the confirm dialog by the row's `id` and no longer
-by its position, which could delete another record (A6); a refused Save keeps
-the form open on what was typed (M25, new attr `form_waits_for_answer` with
+by its position, which could delete another record; a refused Save keeps
+the form open on what was typed (new attr `form_waits_for_answer` with
 `EV_WRITE_DONE` / `EV_WRITE_REFUSED`); a card of the graph follows its UPDATED
-again (M33); a `__graphs__` echo no longer marks other topics' unsaved layout
-as saved (M32); and M24, M27, M29, M30.
+again; a `__graphs__` echo no longer marks other topics' unsaved layout
+as saved; and four smaller fixes.
 
-### Block 2 of the 2026-09-21 review: disable-user, the agent deletes, snaps
+### disable-user, the agent deletes, snaps
 
-- **A7 — `disable-user` never dropped the user's live sessions, and used a
+- **`disable-user` never dropped the user's live sessions, and used a
   freed node.** C_AUTHZ handed the NODE to `EV_REJECT_USER`, which reads
   `username` (the node keys on `id`): the lookup failed, the sessions stayed
   authenticated (`disabled` is only read at login), and the event freed the
   node the response then handed out. It passes `{username}` now, as
   `delete-user` already did, and a failed update is answered as one.
-- **A8 — four agent deletes handed a borrowed list element to
+- **Four agent deletes handed a borrowed list element to
   `gobj_delete_node()`**, which owns its kw: `delete-public-service`,
   `delete-realm`, `delete-binary`, `delete-config`. The element was freed
   inside its list and the list's decref then wrote into freed memory —
   silent, which is why daily `delete-binary` never crashed. They pass a
   `kw_incref()` now, and `gobj.h` says `owned` on both parameters.
-- **M14 — every `update-node` command WITHOUT `options` logged an ERROR with
+- **Every `update-node` command WITHOUT `options` logged an ERROR with
   a stack** ("kw must be list or dict", from asking the absent options for
   `create`). It is the form the docs use with ycommand.
-- **A9 — `shoot-snap` while a snap is active restored the whole treedb to
+- **`shoot-snap` while a snap is active restored the whole treedb to
   it.** Every key took the clone branch, the clone became the newest record,
   and the deactivation reloaded the photo over everything written since.
   `treedb_shoot_snap()` refuses while a snap is active, and while the treedb
   is still loaded from one.
-- **M10 — a replica could shoot, activate and deactivate a snap**: the shot
+- **A replica could shoot, activate and deactivate a snap**: the shot
   ended in the critical "Cannot save record tag" (an `exit(0)` with
   `on_critical_error=2`), and deactivate answered success after changing
   only memory. The library refuses on a replica and C_NODE answers READ-ONLY.
-- **M9 — the two snapshot guards of the deletes opened when they could not
+- **The two snapshot guards of the deletes opened when they could not
   read the records.** They refuse now; `force` still overrides.
 - Tests: `command_delete_user` (disable-user, red: a logged error),
   `c_node_link_events` (update-node without options, red: the ERROR),
   `tr_treedb_snap_clone` (a shot refused while a snap is active, red: the
   live payload came back as the photo's; and a replica, red: the critical).
-  A8 and M9 have no red test: A8 corrupts freed memory without a trace, and
-  M9 needs `tranger2_open_list()` to fail, which a clean test cannot make.
+  The agent deletes and the snapshot guards have no red test: the first
+  corrupts freed memory without a trace, and the second needs
+  `tranger2_open_list()` to fail, which a clean test cannot make.
 
 ## v7.24.1 (2026-09-20)
 
@@ -12499,7 +12491,7 @@ as saved (M32); and M24, M27, M29, M30.
   end of the list BEFORE it logs anything and stops there: the report is what
   was busy at that instant and nothing the report itself allocates. Measured
   while chasing a `db_history`, this guard did NOT change that yuno's count
-  (1207 before and after), so what it reports there was already busy when the
+  (the same before and after), so what it reports there was already busy when the
   walk began — the guard closes the hazard, it does not explain that case,
   and the comment in the code says so.
 - **`check_failed_list()` logs the `ref` too.** Filtering by SIZE catches
@@ -12885,7 +12877,7 @@ ahead is imposed on top. Tests 9 and 10 already pinned that an edit in
 
 ### treedb: a snapshot freezes what it shot (BREAKING for who relied on the latest snap following)
 
-The design question the 2026-09-15 review left. A save inherited the snap
+A design question left open. A save inherited the snap
 tag the node carried in memory: after `shoot-snap S` every later update was
 written INTO S, so `activate-snap S` answered the updated content and only
 the creations made after the shot were reverted. The latest snap never froze;
@@ -13039,8 +13031,8 @@ doc links repinned to 7.23.171.
 ### gobj-ui 7.23.170: the form's Save sends the pkey2 back
 
 `kernel/js/gobj-ui` -> 7.23.170, `yunos/js` and every consumer on
-`^7.23.170`, deployed by the round to the eight hosts. Found auditing 7.23.168
-(A8 of the 2026-09-15 review): the rule for what a form writes back --
+`^7.23.170`, deployed by the round to the eight hosts. Found auditing 7.23.168:
+the rule for what a form writes back --
 writable, fkey, file, or the pkey -- left out the SECONDARY keys.
 `yunos.yuno_release` is `persistent, required` and not `writable`, so the
 `update-node` went out with no pkey2 and C_NODE resolved it to the PRIMARY
@@ -13119,7 +13111,7 @@ the previous library it hands out `4`, the deleted id, for `7`.
 
 ### JS: gobj-js 7.21.0, gobj-ui 7.23.169, and the yunos that ride them
 
-**gobj-js 7.21.0** closes the `kwid_*` review: `kwid_find_one_record()` crashed
+**gobj-js 7.21.0** closes the `kwid_*` findings: `kwid_find_one_record()` crashed
 with a `TypeError` when there was no data (it read `.length` off the `null`
 `kwid_collect()` answers for a `kw` that is neither a list nor a dict, and one
 caller hands it the `data` of a command answer, which is missing exactly when
@@ -13130,8 +13122,8 @@ semantics. 19 new cases in `tests/kwid.test.js`, which nothing covered before.
 The version jumped 7.16.6 → 7.21.0 and skipped four: the first two indices are
 the SDK's, and this package had drifted again.
 
-**gobj-ui 7.23.169** closes the nine gobj-ui findings of the 2026-09-15 treedb
-review — every action crosses the FSM now (the Op-column pencil, the confirm
+**gobj-ui 7.23.169** closes nine gobj-ui findings in the treedb views —
+every action crosses the FSM now (the Op-column pencil, the confirm
 dialogs, the kws that carried G6 event objects, the writes run from DOM
 callbacks), the table's search no longer matches the COUNT of a hook,
 `ac_unselect_rows()` reads its own attr, the toolbar and the search box carry
@@ -13268,7 +13260,7 @@ happens fails.
 
 ### C_TREEDB: `mt_treedbs` answers the list its contract promises
 
-Last finding of the 2026-09-15 review (M-C8). A framework method answers what
+A framework method answers what
 its contract says, and `gobj_treedbs()` says "a list with treedb names".
 C_TREEDB's `mt_treedbs` answered a `msg_iev_build_response` **envelope** when
 the user had no `read`: a dict, which a caller reads as a treedb named
@@ -13284,7 +13276,7 @@ refusal. Against the previous library the refusal case fails.
 
 ### C_NODE: every command that reads or writes the treedb asks for a permission
 
-From the 2026-09-15 review. C_NODE checks a permission inside each command
+C_NODE checks a permission inside each command
 handler, with or without the global `enable_command_authz` gate. Only `nodes`
 (`read`) and the node writes did. Every other read answered anyone the
 routing gate let in, and so did four **writes**. It matters only in a yuno
@@ -13314,7 +13306,7 @@ Against the previous library it fails for every command listed above.
 
 ### timeranger2: an append to an earlier file goes to that file's place
 
-From the 2026-09-15 review (M-T2). A key's cache has one cell per md2 file,
+A key's cache has one cell per md2 file,
 in the order the load gives them (by file name). A global rowid is a position
 in that order. The append path looked only at the LAST cell, so a record whose
 `__t__` belongs to an earlier file got a second cell of that file at the end.
@@ -13340,7 +13332,7 @@ every check, on the master and on the follower.
 
 ### timeranger2: a follower hears a deleted key once per feed; a feed can close itself from its callback
 
-From the 2026-09-15 review (M-T1, M-T3). Reproduced with a master and a
+Reproduced with a master and a
 follower that had inotify armed. `test_delete_key_propagation` never armed it:
 it put `yev_loop` in the config, which `tranger2_startup()` overwrites with its
 parameter.
@@ -13374,7 +13366,7 @@ self-closing feed that neither fired nor closed.
 
 ### treedb: an update cannot change a pkey2 value; the snapshot clone moves the node's metadata
 
-Two findings of the 2026-09-15 treedb review. Both were reproduced against the
+Two defects. Both were reproduced against the
 installed library before the fix, and each now has a test.
 
 - **`treedb_update_node()` refuses a kw that changes a pkey2 value**
@@ -13434,7 +13426,7 @@ Test: `tr_treedb_relink`.
 ### treedb views: the form writes back only what goes back; a JSON drill keeps its path (gobj-ui 7.23.168, gui_treedb 0.17.34)
 
 `kernel/js/gobj-ui` -> 7.23.168, and the same range in the consumers
-(`npm run deploy-round`). From the 2026-09-15 treedb review (A8, A9, A10):
+(`npm run deploy-round`). Three fixes:
 
 - **The form's Save no longer writes the read-only fields back.** It
   published the whole kw, read-only fields included, as an `update-node` with
@@ -14722,8 +14714,8 @@ is how two of them stayed missing in five apps at once.
 **And the last one is Tabulator's own DOM** (`7.23.119`, `7.23.120`): it
 draws one filter box per filterable column and gives it NOTHING — no
 label, no `aria-label`, no placeholder — so the alarms window had five
-anonymous text boxes under Equipo / Nombre / Alarma / Estado /
-Descripción. The name is composed from the column's title, which costs one
+anonymous text boxes under Device / Name / Alarm / State /
+Description. The name is composed from the column's title, which costs one
 consumer key with an interpolation instead of one per column, and it runs
 on a language change too. It took two goes: the obvious key name,
 `filter column`, ALREADY existed in two apps as that box's placeholder and
@@ -14803,7 +14795,7 @@ keys `nodes`, `full`, `compact`, `expand node`, `collapse node`, `hexagon`,
 ### The focused legend chip is highlighted, not pressed (gobj-ui 7.23.74)
 
 `kernel/js/gobj-ui` -> 7.23.74 and `yunos/js` -> both SPAs on `^7.23.74`.
-Two loose ends of the `7.23.73` review, found reviewing the review.
+Two loose ends of the `7.23.73` review, found checking its fixes.
 
 **The body of a focused chip wore a state it does not own.** The body is the
 show/hide toggle of its topic, and that is what its `aria-pressed` says; the
@@ -14819,8 +14811,7 @@ there are three of each since `7.23.70`.
 ### A review of the graph and authz rounds (gobj-ui 7.23.73)
 
 `kernel/js/gobj-ui` -> 7.23.73 and `yunos/js` -> both SPAs on `^7.23.73`.
-Three findings of a review of the `7.23.66`-`7.23.72` round; the backend
-half of the same review lives in an application's repository.
+Three findings of a review of the `7.23.66`-`7.23.72` round.
 
 **The treedb layouts died on a deep tree.** `layout_tree`, `layout_radial`
 and `layout_outline` walked the spanning tree with recursion -- the natural
@@ -14899,7 +14890,7 @@ reveals the whole topic; the per-topic route one page (7.23.67).
 ### The treedb graph opens FOLDED, like a JSON viewer (gobj-ui 7.23.66)
 
 `kernel/js/gobj-ui` -> 7.23.66 and `yunos/js` -> gui_treedb on `^7.23.66`. A
-treedb drawn whole was a pile: a nave with a hundred and forty devices was a
+treedb drawn whole was a pile: a building with a hundred and forty devices was a
 row of a hundred and forty cards, and a 6400-record treedb built a DOM card
 for every record before the first pixel. The graph now reads the treedb as a
 tree by its hooks: every record is fetched, only the visible ones become G6
@@ -15012,7 +15003,7 @@ NOT counted as an asset collected. Test 16.
 
 The walk follows no link it finds inside the tree — it reads every entry
 with `lstat` — but the directory it STARTS at is opened, so
-`source_dir=taller/escape` with `import_root/taller/escape -> /etc` walked
+`source_dir=site/escape` with `import_root/site/escape -> /etc` walked
 `/etc` as if it were the root's own. The confinement is the whole security of
 this command, so the path is now resolved with `realpath()` and must still be
 inside the resolved `import_root`. `tests/c/c_assets` case 6 baits it with
