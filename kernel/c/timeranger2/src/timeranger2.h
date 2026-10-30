@@ -668,13 +668,14 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     match_cond (from_t, to_t, from_tm, to_tm) and a text tkey -- one rule
     for both, the command parser's for an integer:
       - "" is no time: 0 (no bound; no tkey value).
-      - A text longer than 256 bytes is refused, whatever it holds (*why
-        "a time text longer than 256 bytes"): no date needs more, and the
-        reading takes time that grows with the length of a text that may
-        come from a peer.
       - The text of a JSON integer, -?(0|[1-9][0-9]*), is that integer, in
         the unit of its axis ("1761000000000" on a ms axis is milliseconds,
-        "-5" a negative, relative bound).
+        "-5" a negative, relative bound). Past what a json_int_t holds it is
+        -2, of any length (*why "an integer past what a time holds").
+      - Any other text longer than 256 bytes is refused (*why "a time text
+        longer than 256 bytes"): no date needs more, and the reading takes
+        time that grows with the length of a text that may come from a
+        peer.
       - A text written as another number is refused: blanks around it
         (" 5", "5 "), leading zeros ("007"), a '+' ("+5"), decimals or an
         exponent ("10.5", ".5", "1E5"), a decimal comma ("1,5", "10,5",
@@ -696,7 +697,8 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         7.29.3 it was 2005-10-01). "ago", "at", "on", "the", "of" and a weekday are passed
         over, as approxidate_careful() passes over them: they part no
         digits ("5 the 5" is "5 5") and no month from its day ("march the
-        5 2026" is March 5).
+        5 2026" is March 5). The reader takes "ago" only right after its
+        count: "1 day 5 ago" is no date (it was October 4).
         - A comma between two digits ("1,5 days ago", "2026,10,01",
           "1,5:29"), read as September 26, January 10, the 1st at 05:29.
           Three are a date's and kept: the decimal comma of the seconds of
@@ -725,9 +727,12 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           February 5, are refused). A number alone is no hour: "Oct 29 10"
           is 2010-10-29; after "at" (or "at the") a person means a time,
           and approxidate_careful() refuses a number alone there, of any
-          value ("Oct 1 at 10", "at 3", "Oct 1 at 24", "Oct 1 at the 10",
-          "at 10.30"; "Oct 1 at 10:00", "Oct 1 at 10 pm" and "at 5 Oct
-          2026", a day before a month name, are dates).
+          value ("Oct 1 at 10", "at 3", "Oct 1 at 24", "Oct 1 at the 10"),
+          a count back ("at 5 days", "at 2 fridays ago"), and a number with
+          dots and no year of 4 digits ("at 10.30", "at 10.30.00"); "Oct 1
+          at 10:00", "Oct 1 at 10 pm", "at 15h" and "at 10h30" (15:00 and
+          10:30, as Spanish and French write them), "at 5 Oct 2026" and
+          "at 5 of October" (a day before a month name) are dates.
         - A number that a unit, am/pm or a weekday follows is a count
           ("5 days", "3 pm", "3pm", "2 fridays"): it ends a run and is not
           in it, and the run before it must be a date, even of one number:
@@ -739,7 +744,10 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           weekday, as approxidate_careful() reads them ("Oct 1 2026
           thursdays" is no date; and "2026 Thu", a weekday with no day, is
           refused by approxidate_careful()). The weekday is not checked
-          against the date: "Oct 5 2026 friday" is Monday, October 5.
+          against a date: "Oct 5 2026 friday" is Monday, October 5; beside
+          a day counted from today approxidate_careful() refuses a weekday
+          that is not that day's ("now Mon" on a Wednesday), and a second
+          weekday ("Mon Thu now").
         - Not refused: epoch seconds (9 digits or more, no leading zero)
           alone with a comment, "1761000000 (UTC)", "(EST) 1761000000",
           as "1761000000 UTC" (refused for a while). Without a comment a
@@ -754,7 +762,8 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         lenient past these shapes ("yesterday 10.30" is now): a time that
         must be exact is written as an integer or as ISO 8601.
     Return 0 and the time in *value; -1 for a text that is no time, -2 for
-    a time past what a json_int_t holds; *why (when not NULL) says it.
+    a time past what a json_int_t holds (an integer of 300 digits too);
+    *why (when not NULL) says it.
     Nothing is logged: the text comes from a peer or a user, the caller
     says it.
 */

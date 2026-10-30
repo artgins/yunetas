@@ -59,10 +59,19 @@
  *  month name is ("at 5 Oct 2026", refused for a while); epoch seconds
  *  with a blank or a mark and no comment are a number, refused (",
  *  1761000000", "_1761000000", as " 1761000000"); a count of zero and
- *  "now" are today ("0 days ago Mon", refused for a while); "ago" with no
- *  count before it is no date ("5 (days) ago" was the 5th). A text longer
- *  than 256 bytes is refused, whatever it holds: a long hostile one took
- *  approxidate_careful() seconds.
+ *  "now" are today ("0 days ago Wed" on a Wednesday, refused for a
+ *  while); "ago" with no count before it is no date ("5 (days) ago" was
+ *  the 5th). A text longer than 256 bytes is refused: a long hostile one
+ *  took approxidate_careful() seconds; but the text of a JSON integer is
+ *  an integer, of any length, and past what a time holds it is -2.
+ *
+ *  "ago" follows its count ("1 day 5 ago" was October 4); right after
+ *  "at", "15h" and "10h30" are clock times ("at 15h" was 15 hours back)
+ *  and any other count with a unit is no date; "at 5 of October" is a
+ *  date; a weekday beside "now", "today" or a count back of zero is
+ *  today's, and a text says one ("now Mon" and "Mon Thu now" were today);
+ *  after "at" a date of numbers with dots needs a year of 4 digits ("at
+ *  10.30.00" was 2000-10-30).
  *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
@@ -934,6 +943,25 @@ PRIVATE int do_test(void)
             /*  "ago" needs a count  */
             {"5 (days) ago",                FALSE,  FALSE,  -1, 0},
             {"5 ago",                       FALSE,  FALSE,  -1, 0},
+            /*  ... right before it  */
+            {"1 day 5 ago",                 FALSE,  FALSE,  -1, 0},
+            {"yesterday 5 ago",             FALSE,  FALSE,  -1, 0},
+            /*  After "at", "15h" and "10h30" are clock times, another count is no date  */
+            {"Oct 1 2026 at 15h +0000",     FALSE,  FALSE,   0, 1790866800},
+            {"Oct 1 2026 at 10h30 +0000",   FALSE,  FALSE,   0, 1790850600},
+            {"at 15h ago",                  FALSE,  FALSE,  -1, 0},
+            {"at 5 days",                   FALSE,  FALSE,  -1, 0},
+            {"at 2 hours ago",              FALSE,  FALSE,  -1, 0},
+            /*  "of" between a day and its month name after "at"  */
+            {"at 5 of October 2026 00:00:00 +0000", FALSE, FALSE, 0, 1791158400},
+            /*  One weekday in a text  */
+            {"Mon Thu, 01 Oct 2026",        FALSE,  FALSE,  -1, 0},
+            /*  After "at" a date of numbers with dots needs a year of 4 digits  */
+            {"at 10.30.00",                 FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at 10.30.00",      FALSE,  FALSE,  -1, 0},
+            {"at 1.10.2026 00:00:00 +0000", FALSE,  FALSE,   0, 1790812800},
+            /*  An integer past what a time holds, of any length  */
+            {"9223372036854775808",         FALSE,  FALSE,  -2, 0},
         };
         for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
             json_int_t value = -12345;
@@ -950,11 +978,47 @@ PRIVATE int do_test(void)
         }
 
         /*
-         *  A text longer than 256 bytes is refused whatever it holds: 256
-         *  bytes of a date and blanks are a date, 257 are not, and nor is a
-         *  long hostile text (approxidate_careful() took seconds on
-         *  "at", 20000 comments, "on", 20000 "the")
+         *  A text longer than 256 bytes is refused: 256 bytes of a date and
+         *  blanks are a date, 257 are not, and nor is a long hostile text
+         *  (approxidate_careful() took seconds on "at", 20000 comments,
+         *  "on", 20000 "the"). The text of a JSON integer is an integer of
+         *  any length: past what a time holds (-2), as one of 20 digits is
+         *  (a development version answered -1, "longer than 256 bytes",
+         *  from 257 digits on)
          */
+        {
+            char digits[302];
+            for(int sign = 0; sign <= 1; sign++) {
+                memset(digits, '9', sizeof(digits));
+                digits[0] = sign? '-' : '9';
+                digits[300] = 0;
+                json_int_t v = -12345;
+                const char *w = NULL;
+                int r = tranger2_time_of_text(digits, FALSE, FALSE, &v, &w);
+                json_t *jn_text = json_string(digits);
+                json_int_t vj = -12345;
+                const char *wj = NULL;
+                int rj = tranger2_time_of_json_text(jn_text, FALSE, FALSE, &vj, &wj);
+                JSON_DECREF(jn_text)
+                if(r != -2 || !w || strcmp(w, "an integer past what a time holds") != 0 ||
+                        rj != -2 || !wj || strcmp(wj, w) != 0) {
+                    printf("%sERROR%s --> an integer of 300 bytes: %d (%s), json %d (%s), expected -2\n",
+                        On_Red BWhite, Color_Off, r, w? w : "", rj, wj? wj : "");
+                    result += -1;
+                }
+            }
+            memset(digits, '9', sizeof(digits));
+            digits[300] = 'x';
+            digits[301] = 0;
+            json_int_t v = -12345;
+            const char *w = NULL;
+            int r = tranger2_time_of_text(digits, FALSE, FALSE, &v, &w);
+            if(r != -1 || !w || strcmp(w, "a time text longer than 256 bytes") != 0) {
+                printf("%sERROR%s --> 300 digits and a letter: %d (%s), expected -1\n",
+                    On_Red BWhite, Color_Off, r, w? w : "");
+                result += -1;
+            }
+        }
         {
             char bf[300];
             const char *date = "2026-10-01T00:00:00+0000";
@@ -1047,9 +1111,8 @@ PRIVATE int do_test(void)
             "Oct 1 10\vpm",
             "2\vdays ago",
             "2 (x) days ago",
-            "0 days ago Mon",
-            "zero days ago Mon",
-            "now Mon",
+            "0 days ago",
+            "now 2026",
             NULL
         };
         for(int i = 0; dates_of_now[i]; i++) {
@@ -1086,6 +1149,43 @@ PRIVATE int do_test(void)
             NULL
         };
         time_t now = time(NULL);
+
+        /*
+         *  A weekday beside "now", "today" or a count back of zero must be
+         *  today's (on another day "now Mon" was today), and a text says
+         *  one weekday ("Mon Thu now" was today). Read against the real
+         *  clock: a case whose day changed during the call is not judged.
+         */
+        static const char *weekday_names[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+        static const char *with_weekday[] = {"now %s", "today %s", "0 days ago %s", "zero days ago %s"};
+        for(size_t i = 0; i < sizeof(with_weekday)/sizeof(with_weekday[0]); i++) {
+            for(int shift = 0; shift < 7; shift += 3) {
+                struct tm before, after;
+                time_t t0 = time(NULL);
+                localtime_r(&t0, &before);
+                char text[64];
+                snprintf(text, sizeof(text), with_weekday[i], weekday_names[(before.tm_wday + shift)%7]);
+                ret = tranger2_time_of_text(text, FALSE, FALSE, &value, &why);
+                time_t t1 = time(NULL);
+                localtime_r(&t1, &after);
+                if(before.tm_wday != after.tm_wday) {
+                    continue;
+                }
+                if((shift == 0 && ret != 0) || (shift != 0 && ret != -1)) {
+                    printf("%sERROR%s --> tranger2_time_of_text('%s'): %d (%s), expected %s\n",
+                        On_Red BWhite, Color_Off, text, ret, why? why : "",
+                        shift == 0? "today" : "no date");
+                    result += -1;
+                }
+            }
+        }
+        ret = tranger2_time_of_text("Mon Thu now", FALSE, FALSE, &value, &why);
+        if(ret != -1) {
+            printf("%sERROR%s --> tranger2_time_of_text('Mon Thu now'): %d (%s), expected no date\n",
+                On_Red BWhite, Color_Off, ret, why? why : "");
+            result += -1;
+        }
+
         for(int i = 0; hours_of_this_year[i]; i++) {
             ret = tranger2_time_of_text(hours_of_this_year[i], FALSE, FALSE, &value, &why);
             if(ret != 0 || value < (json_int_t)now - 367*DAY_SECS || value > (json_int_t)now + 11*DAY_SECS) {

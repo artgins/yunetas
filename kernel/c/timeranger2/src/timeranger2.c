@@ -18558,10 +18558,14 @@ PUBLIC int tranger2_time_of_text(
 
     if(!text || !*text) {
         ret = 0;    // no time: no bound, no tkey value
-    } else if(strnlen(text, TIME_TEXT_MAX + 1) > TIME_TEXT_MAX) {
-        why_ = TIME_TEXT_TOO_LONG;
-        ret = -1;
     } else if(is_json_integer_text(text)) {
+        /*
+         *  Before the limit of length: an integer of any length is past
+         *  what a time holds, and says so (a development version answered
+         *  "longer than 256 bytes" from 257 digits on, and -1, which its
+         *  callers take for a text that is no date). Its shape is checked
+         *  in one pass that stops at the first byte that is no digit.
+         */
         errno = 0;
         long long v = strtoll(text, NULL, 10);
         if(errno == ERANGE) {
@@ -18570,6 +18574,9 @@ PUBLIC int tranger2_time_of_text(
         } else {
             *value = (json_int_t)v;
         }
+    } else if(strnlen(text, TIME_TEXT_MAX + 1) > TIME_TEXT_MAX) {
+        why_ = TIME_TEXT_TOO_LONG;
+        ret = -1;
     } else if(is_number_shaped_text(text)) {
         why_ = "a number that is not the text of a JSON integer";
         ret = -1;
@@ -18619,12 +18626,6 @@ PUBLIC int tranger2_time_of_json_text(
         return -1;
     }
     const char *text = json_string_value(jn_text);
-    if(json_string_length(jn_text) > TIME_TEXT_MAX) {
-        if(why) {
-            *why = TIME_TEXT_TOO_LONG;
-        }
-        return -1;
-    }
     if(json_string_length(jn_text) != strlen(text)) {
         if(why) {
             *why = "a text with a NUL in it";
