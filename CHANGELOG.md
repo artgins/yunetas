@@ -95,6 +95,14 @@
   every program a yuno ran had `SigBlk: 0x7a06` (unless dash cleared it), so
   a `timeout` it ran could not stop its child with SIGTERM, and ctrl+c did
   nothing in a console. In 7.29.3 and older.
+- **`launch_daemon()` returns the daemon's pid, after its exec, reaps its
+  first child, and reports a failed launch.** Up to 7.29.3 it returned the
+  pid of the first child, which had already exited, so a `kill()` of it did
+  nothing to the daemon; that child was never reaped (a zombie per call);
+  the error pipe was read once without waiting, so an exec failure was
+  missed unless it came first, and the daemon kept the pipe open. More than
+  255 arguments were cut with nothing said; now they are refused. In 7.29.3
+  and older.
 - **`run_command()` takes the whole command and all of its stderr.** It is
   `posix_spawn()` of `/bin/sh -c` with stdout and stderr on its pipe. Up to
   7.29.3 it was `popen()` of the command with `2>&1` appended, in a 4 KB
@@ -150,6 +158,12 @@
   log. A directory that cannot be looked at (`access()` fails with something
   other than ENOENT, such as no permission on a parent) may still be there:
   it is not counted as removed either. The unchecked removal is in 7.29.3.
+- **Every command answer of `yuneta_agent` and `yuneta_agent22` starts with
+  the yuno that answers.** 154 comments did not (140 in the agent, 14 in
+  agent22): `pong`, "Yuno not found", "Select some … please", the
+  run/kill/play/pause counters, the console commands. An answer relayed by
+  the control center, or mixed with other agents' answers, did not say which
+  agent gave it. In 7.29.3 and older.
 - **A delete the agent's treedb refuses says which record, its cause, and
   what was deleted before it.** This covers `delete-binary` (count,
   directories left, files kept), `delete-config`, `delete-realm` and
