@@ -393,9 +393,9 @@
       A treedb is held in memory in full, and timeranger2 rewrites the
       <em>whole record</em> on every update. Put a photo in a column and every
       change of that device &mdash; a state flag, a timestamp &mdash; rewrites the photo
-      with it, in base64, in the log and in RAM. Measured on one real census:
-      <b>12&nbsp;134 images, 346&nbsp;MB on disk</b>, which carried inside the records
-      would be some <b>460&nbsp;MB of RAM, permanently</b>, rewritten on every touch.
+      with it, in base64, in the log and in RAM. Ten thousand photos of 30&nbsp;KB
+      are <b>300&nbsp;MB on disk</b>; carried inside the records they would be some
+      <b>400&nbsp;MB of RAM, permanently</b> (base64 adds a third), rewritten on every touch.
     </p>
     <p>
       So the bytes live beside the treedb and the column holds an

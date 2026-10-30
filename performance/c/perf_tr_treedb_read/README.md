@@ -57,4 +57,4 @@ As [`perf_tr_treedb`](../perf_tr_treedb/README.md#against-another-release):
 link the benchmark against the `tr_treedb.c` of each release (its object
 before the libraries), run the two binaries alternated, and compare the CPU
 time. The cases are short, so a machine with noise needs more rounds: 16 on
-the VM of the performance audit (`performance/audit/round-5-subscriptions-treedb.md`).
+a VM.

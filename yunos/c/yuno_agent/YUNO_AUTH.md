@@ -1005,7 +1005,7 @@ Points found so far (verified this session unless noted):
 
 10. **How an SPA user acts on an INTERNAL yuno is undecided**, and the default
     answer bypasses the matrix entirely. Today the working pattern
-    (`gate_plug` in two applications, `gate_energy` in a third one)
+    (an application gate, `gate_energy` in this example)
     is `public_services: ['__top_side__']`: the SPA opens a session straight to
     the yuno and calls e.g. `set-power`, which carries no
     `gobj_user_has_authz()` guard — so the authenticated session IS the

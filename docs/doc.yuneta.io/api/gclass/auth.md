@@ -197,12 +197,12 @@ The service in a yuno's `main.c`, and its first configuration:
 ```
 
 ```bash
-ycommand -c "command-yuno id=1620 service=idp command=set-kc-config \
+ycommand -c "command-yuno id=4620 service=idp command=set-kc-config \
     kc_base_url=https://auth.example.com kc_realm=example \
     kc_admin_client_id=yuneta-admin kc_admin_client_secret=<secret> \
     kc_redirect_uri=https://app.example.com/ kc_email_client_id=app"
-ycommand -c "command-yuno id=1620 service=idp command=register-idp-user email=ana@example.com firstName=Ana"
-ycommand -c "command-yuno id=1620 service=idp command=list-idp-users search=ana"
+ycommand -c "command-yuno id=4620 service=idp command=register-idp-user email=ana@example.com firstName=Ana"
+ycommand -c "command-yuno id=4620 service=idp command=list-idp-users search=ana"
 ```
 
 Details of the provisioning flow: [`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md).

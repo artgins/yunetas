@@ -390,8 +390,8 @@ that time. The slices keep it answering; the pass costs the same.
 What the pass costs is mostly the owner's: the watcher's own part is a
 `readdir()` per directory and a lookup in an index of the watched paths, built
 once per pass. 7.25.10 rebuilt that index in every slice -- 50000 paths every
-20 ms -- so its own cost grew with the tree, and on the central a pass over
-50501 directories took 7 minutes. `tests/c/timeranger2/test_fs_watcher_overflow`
+20 ms -- so its own cost grew with the tree, and on a node with about 50 000
+key directories a pass took 7 minutes. `tests/c/timeranger2/test_fs_watcher_overflow`
 measures it (the pass less the owner's time, per directory) on a tree of 4096
 directories and on one of 69632, on the same machine, and fails when the big
 one costs more than twice the small one plus 20 us: with the index once per
@@ -411,7 +411,7 @@ Here the owner took most of it (a test's owner that sleeps 100 us per
 directory); a large `ms_loop` would say the slices were waiting for a busy
 loop instead.
 
-What it said on an application's central node, a timeranger2 follower of 50501 keys
+What it said on a production node, a timeranger2 follower of about 50 000 keys
 while its master wrote a backlog of ~9 GB (2026-09-27): passes of 142-335 s,
 **65-78 % in the owner**, 22-35 % in the loop, and **1.1-1.7 s in the
 watcher** -- whatever the length of the pass. The owner's time is the records

@@ -26,13 +26,13 @@ A treedb is a **memory database**, and timeranger2 rewrites the **whole record**
 on every update. So a photo cannot be a field of a node: it would sit in RAM for
 the life of the yuno and be rewritten every time the node changed state.
 
-Measured on one real store (2026-09-04), in round figures:
+For scale, ten thousand photos of 30 KB each:
 
 | | |
 |---|---|
-| blobs | **about 12,000** |
-| on disk | **about 350 MB** |
-| the same as base64 in records | **~460 MB of RAM, permanently** |
+| blobs | **10,000** |
+| on disk | **300 MB** |
+| the same as base64 in records | **~400 MB of RAM, permanently** |
 
 That is the whole reason the bytes live outside the record. It is **not** a
 reason for them to live outside timeranger2: *index in memory, content on disk*
@@ -321,7 +321,7 @@ Two rules the write path cannot bend:
 - **The base64 is TRANSPORT and dies at the door.** It arrives in the kw, treedb
   writes the blob and the index node, and it is dropped from the record. A field
   that *carries* the bytes and a field that *keeps* them are one word apart and
-  460 MB apart (§1).
+  400 MB apart (§1).
 - **The blob first, the node second** — which is not a precaution, it is what
   timeranger already does: the content, then the index. Interrupted the other
   way round leaves a node pointing at nothing, and nothing repairs that on its
@@ -674,7 +674,7 @@ note that, if it broke, would break **quietly**:
 1. **The bytes are not in the record.** Write a node with a `file` column; the
    blob is on disk under `.blobs/`, the index node is in `__assets__`, the fkey
    is on the child — and the stored record contains no `content64` and no
-   `__files__`. This is the 460 MB of §1, and it has to be asserted, not
+   `__files__`. This is the 400 MB of §1, and it has to be asserted, not
    assumed.
 2. **The id is the hash of the BYTES.** Send a wrong id with good bytes: the
    write is refused. A client that lies must not be able to file one file's

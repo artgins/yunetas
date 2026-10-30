@@ -441,9 +441,8 @@ a permissions problem: there was nobody to read the permissions. Their own logs
 said it plainly — `{"function": "authz_checker", "msg": "No gclass authz
 found"}`.
 
-None of the three listens outside its node (`tcp://127.0.0.1:4530`,
-`tcp://127.0.0.1:4520`, and loopback + `/dev/ttyUSB0` respectively), so **SSH
-was the only way to touch them**. Under a seal there would have been none at
+None of the three listens outside its node (loopback ports only, plus a
+serial line for the meter gate), so **SSH was the only way to touch them**. Under a seal there would have been none at
 all — a Tier-3 entry created by omission rather than by a missing command, and
 invisible until someone tries.
 
@@ -478,8 +477,8 @@ architecture. A narrower role is possible without touching any code.
 **PENDING — how an SPA user acts on an internal yuno.** Two doors exist today
 and the choice is not yet made:
 
-- **(a) A public service on the yuno.** `gate_plug` (two
-  applications) and `gate_energy` (a third one) declare
+- **(a) A public service on the yuno.** An application gate (call it
+  `gate_energy` here, an example name) declares
   `public_services: ['__top_side__']` with a `service_descriptor`, so the SPA
   opens a session **straight to the yuno** and calls `set-power` — the agent is
   not in the path. It works, it is in production, and it is the one that gets

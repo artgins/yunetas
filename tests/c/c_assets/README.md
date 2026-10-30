@@ -8,7 +8,7 @@ What it checks:
   computed outside this program (`sha256sum`), so the id is checked against
   an independent answer and not against the code that produces it.
 - Storing the same bytes twice is **one** asset, not two. That is what makes
-  a whole census reload create nothing at all.
+  a whole reload of the same images create nothing at all.
 - `get-asset` answers **inline** when no web server is configured and with a
   **signed url** once one is. The fallback is the whole reason a caller has a
   single code path, so both shapes are exercised in the same run.

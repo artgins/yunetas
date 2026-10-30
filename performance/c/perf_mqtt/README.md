@@ -23,5 +23,5 @@ It prints one line:
 #TIME (count: 100000): elapsed 2984490860 ns, ops/sec      33506 : mqtt qos0 round trips
 ```
 
-What a publication costs, where, and what round 4 of the performance audit
-took off it: `performance/audit/round-4-inter-yuno-http-mqtt.md`.
+What the performance round of 7.28.0 took off a publication is in the
+`CHANGELOG.md` section of that release.

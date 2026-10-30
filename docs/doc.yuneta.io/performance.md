@@ -376,7 +376,7 @@ path. The yunos are the same size (stripped: +0 or +4 KB).
 
 ## 7.28.0 against 7.27.11
 
-7.28.0 is a performance round over the whole C SDK, taken from a cloud audit
+7.28.0 is a performance round over the whole C SDK, taken from an audit
 and reviewed commit by commit, and it makes jansson Yuneta's own JSON library
 (`github.com/artgins/jansson`, tag `2.15.1-yuneta.1`). It is measured against
 7.27.11, the last release with a study, before the tag. The releases between

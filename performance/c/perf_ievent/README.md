@@ -27,5 +27,4 @@ It prints one line:
 ```
 
 Most of what a round trip costs is jansson's: the parse of every frame
-received and the dump of every frame sent (see
-`performance/audit/round-4-inter-yuno-http-mqtt.md`).
+received and the dump of every frame sent.

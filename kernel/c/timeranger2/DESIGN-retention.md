@@ -371,7 +371,7 @@ Measured on 2026-10-21: a purge of about 3,000 keys (an application's store), on
 | dev machine (NVMe) | 0.2 s | 3.9 s | 0.4 s |
 
 **The barrier is per key.** A slice of 100 keys blocks the yuno for at most
-about 180 ms on the slowest node, and the whole census is purged in about 30
+about 180 ms on the slowest node, and the whole store is purged in about 30
 ticks, once a day. A batch is 3 to 8 times faster, but `syncfs()` flushes
 every dirty page of the filesystem, not only the purge's. On a node that
 appends hundreds of records per second, its time depends on what other

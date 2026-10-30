@@ -496,7 +496,7 @@ gone does not launch them again (it finds them alive) --, and the answer of
 the connected ones adds how many were signalled.
 
 ```bash
-ycommand -c 'kill-yuno id=5020 force=1'
+ycommand -c 'kill-yuno id=4520 force=1'
 # yuneta_agent^node: 1 yuno(s) alive but not connected to the agent: signalled (9), not waited for: a run-yuno before they are gone does not launch them again
 # data: [{"id": "4520", "yuno_role": "db_tracks", "pids": [6933, 6934]}]
 ```

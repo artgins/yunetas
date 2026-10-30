@@ -125,7 +125,7 @@ one fleet at a time:
 
 ```json
 {"key": "gen12", "id": "gen12", "service": "sim_load", "rate": "tx", "node": "node-a",
- "switch": {"on":  [{"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
+ "switch": {"on":  [{"command": "set-controllers controllers=100"}, {"command": "resume-generation"}],
             "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]}}
 ```
 
@@ -218,21 +218,23 @@ A scenario is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_load -> gate_hub -> db_tracks",
+    "description": "sim_load -> gate_hub -> db_tracks, both nodes",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",    "id": "gen1",   "service": "sim_load", "rate": "tx"},
-        {"key": "gate",   "id": "4120",   "label": "gate_hub",
+        {"key": "sim",         "id": "gen1",   "service": "sim_load", "rate": "tx"},
+        {"key": "gate_edge",   "id": "4120",   "label": "gate_hub",
          "queue_service": "__output_side__"},
-        {"key": "tracks", "id": "4520",   "label": "db_tracks"}
+        {"key": "tracks_edge", "id": "4520",   "label": "db_tracks"},
+        {"key": "gate_hub",    "id": "4120",   "label": "gate_hub", "node": "node-b"},
+        {"key": "tracks_hub",  "id": "4520",   "label": "db_tracks", "node": "node-b"}
     ],
-    "links": [["sim", "gate"], ["gate", "tracks"]],
+    "links": [["sim", "gate_edge"], ["gate_edge", "tracks_edge"], ["gate_hub", "tracks_hub"]],
     "actions": {
         "start":  [{"yuno": "sim", "command": "set-controllers controllers=10"},
                    {"yuno": "sim", "command": "resume-generation"}],
         "stop":   [{"yuno": "sim", "command": "set-controllers controllers=0"}],
-        "report": [{"yuno": "gate", "service": "__yuno__", "command": "view-config"}]
+        "report": [{"yuno": "gate_edge", "service": "__yuno__", "command": "view-config"}]
     },
     "view": {"mode": "graph"}
 }

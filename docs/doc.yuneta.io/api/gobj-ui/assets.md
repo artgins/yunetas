@@ -178,7 +178,7 @@ Turns what was read into the write: the record takes the **id** in each picked
 column, and the bytes go beside it in `__files__`. That key is not a column —
 it is an instruction to the treedb write path, consumed and dropped at the
 door. A field that *carries* the bytes and a field that *keeps* them are one
-word apart and 460 MB of RAM apart.
+word apart and 400 MB of RAM apart.
 
 (js_yui_file_sha256)=
 ### [`yui_file_sha256(buffer)`](https://github.com/artgins/gobj-ui.js/blob/7.29.2/src/yui_file_field.js#L102)

@@ -328,8 +328,8 @@ its `treedb_system_schema` and a replica of a data treedb that it shares with
 another yuno.
 
 ```
-db_history    (1620):  "Authz.master": true    → master of the authzs store
-gate_hub      (2020):  "Authz.master": false   → replica of the same store
+db_history    (4620):  "Authz.master": true    → master of the authzs store
+gate_hub      (4020):  "Authz.master": false   → replica of the same store
 ```
 
 **Asking a running yuno: `treedb-info`.** Until 7.13.0 the flag was not

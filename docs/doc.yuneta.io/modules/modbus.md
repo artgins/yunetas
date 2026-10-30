@@ -156,7 +156,7 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
   | `big endian` (default) | `ABCD` | the Modbus convention, high word first |
   | `little endian` | `DCBA` | |
   | `big endian byte swap` | `BADC` | |
-  | `little endian byte swap` | `CDAB` | low word first (SATEC and many meters) |
+  | `little endian byte swap` | `CDAB` | low word first (common in energy meters) |
 
   The forms with `_` (`little_endian_byte_swap`) are accepted too.
 - **`multiplier`** has two behaviours: **1 or more is applied as an integer,

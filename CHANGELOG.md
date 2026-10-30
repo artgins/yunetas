@@ -659,11 +659,12 @@
   (names are resolved by block, not by function).
 - **gui_agent 1.2.3** (`yunos/js`): the placeholder of a role's scope and the
   examples name no private project, and `scripts/qa.mjs` takes the ids of the
-  installation it checks from the environment or `~/.yuneta/.qa-creds`. After
-  1.2.3 (`main`), a check fails before it opens anything when a setting it
-  needs is not set, and names it; the gates of the held scenario, the number
-  of its generators and the codes of its nodes are settings too, with no
-  default (`QA_QUEUE_GATES`, `QA_SWITCH_COUNT`, `QA_NODE_CODES`).
+  installation it checks from the environment or `~/.yuneta/.qa-creds`.
+- **gui_agent 1.2.4** (`yunos/js`): a check of `scripts/qa.mjs` fails before
+  it opens anything when a setting it needs is not set, and names it; the
+  gates of the held scenario, the number of its generators and the codes of
+  its nodes are settings too, with no default (`QA_QUEUE_GATES`,
+  `QA_SWITCH_COUNT`, `QA_NODE_CODES`).
 - **gobj-js 7.29.0** (`kernel/js/gobj-js`): `build_path()` keeps a root `/`
   and a `..` never goes above the first segment, as in C.
 
@@ -1386,8 +1387,8 @@ Two errors that said nothing, and the openresty that fronts the SPAs out of
 three CVEs. A full release: `gobj-c` changes, and every yuno links it.
 
 Tests: `yunetas test` on the dev machine, 337/338. The one that failed,
-`test_c_udp_s_tx`, could not bind its fixed port 34282 because a yuno running
-on the machine (`gate_energy`) held it as its ephemeral UDP port, a chance
+`test_c_udp_s_tx`, could not bind its fixed port 34282 because another yuno
+running on the machine held it as its ephemeral UDP port, a chance
 collision; no UDP code changed, and the same test passed in the full run of
 the morning (338/338, `c717c9cd9`). Its fixed port inside the ephemeral range
 is a fault of the test, in the TODO. Performance: a short study, against
@@ -1887,13 +1888,13 @@ once per start.
 
 ## v7.28.0 (2026-10-25)
 
-A full release: a performance round over the C SDK, taken from a cloud
-audit (branch `claude/laughing-pasteur-o80yf7`) and reviewed commit by
-commit, and jansson as Yuneta's own JSON library (`artgins/jansson`, tag
-`2.15.1-yuneta.1`, linux-ext-libs 1.26). Every binary is rebuilt: a node
-that builds from source reruns `./extrae.sh && ./configure-libs.sh` FIRST,
-then the SDK and every yuno. The API is the same. Suite on the dev machine
-only: 329/329 after a clean build, under `ulimit -Sn 1024`.
+A full release: a performance round over the C SDK, taken from an audit
+and reviewed commit by commit, and jansson as Yuneta's own JSON library
+(`artgins/jansson`, tag `2.15.1-yuneta.1`, linux-ext-libs 1.26). Every
+binary is rebuilt: a node that builds from source reruns `./extrae.sh &&
+./configure-libs.sh` FIRST, then the SDK and every yuno. The API is the
+same. Suite on the dev machine only: 329/329 after a clean build, under
+`ulimit -Sn 1024`.
 
 - **Performance study** against 7.27.11, the last release with a study
   (7.27.12 to 7.27.21 inside it; they changed only `c_authz.c` in the
@@ -1914,10 +1915,8 @@ only: 329/329 after a clean build, under `ulimit -Sn 1024`.
   `performance/reports/7.28.0.html`. `perf_tr_treedb_read` raises gbmem's
   limit: its N of 8 000 did not fit in the default 64 MB with
   `CONFIG_DEBUG_TRACK_MEMORY` (*"REACHED MAX_SYSTEM_MEMORY"*).
-- **A performance round, taken from a cloud audit of the C SDK** (branch
-  `claude/laughing-pasteur-o80yf7`, its documents in `performance/audit/`
-  there). Every commit was reviewed again and cherry-picked one by one; the
-  ones that added cached state for a small gain, or changed a gclass's
+- **A performance round, taken from an audit of the C SDK.** Every commit
+  was reviewed again and cherry-picked one by one; the ones that added cached state for a small gain, or changed a gclass's
   lifecycle, were left out (a `C_TIMER` subscribed to the yuno's tick for
   its life, a static cache of topics in timeranger2, the memo of a file id,
   the state of a treedb's events and a column reading held for a whole
@@ -7935,7 +7934,7 @@ every yuno (TCP and websocket clients, rt_disk followers) and the agent.
 - 7.25.10's sliced pass rebuilt, in EVERY slice of 20 ms, the index of the
   watched paths by path (the watch table is indexed by `wd`): 50000 entries
   per slice. The watcher's own cost per directory grew with the tree -- 254 us
-  at 69632 directories -- and on an application's central node a pass over 50501
+  at 69632 directories -- and on a production node a pass over about 50 000
   key directories took 7 minutes, and the next one more than 20. The index is
   now built once per pass (and grows with the watches the pass adds): 73 us per
   directory, a pass of 16 s instead of 29 in the test.
@@ -14986,13 +14985,13 @@ reveals the whole topic; the per-topic route one page (7.23.67).
 ### The treedb graph opens FOLDED, like a JSON viewer (gobj-ui 7.23.66)
 
 `kernel/js/gobj-ui` -> 7.23.66 and `yunos/js` -> gui_treedb on `^7.23.66`. A
-treedb drawn whole was a pile: a building with a hundred and forty devices was a
-row of a hundred and forty cards, and a 6400-record treedb built a DOM card
+treedb drawn whole was a pile: a site with two hundred devices was a row of
+two hundred cards, and a treedb of several thousand records built a DOM card
 for every record before the first pixel. The graph now reads the treedb as a
 tree by its hooks: every record is fetched, only the visible ones become G6
 nodes -- the roots, `expand_depth` levels under them (default 2), one page
 (`fold_page_size`, default 24) of children per hook, a `+N` chip after each
-page, and a pill per hook on the card (`▸ devices 142`) that opens or folds
+page, and a pill per hook on the card (`▸ devices 200`) that opens or folds
 it. `dagre` reads left to right, with the ports turned to the sides.
 The arithmetic is `treedb_fold_model.js`, pure and tested. New consumer i18n
 key `show more`. The JS API docs are repinned to the new tag.
@@ -15606,7 +15605,7 @@ image that node holds unreachable. Both say so now.
 
 Three refusals of `store_asset` — empty, over `max_size`, `content_type` not
 allowed — put the reason in the answer and nothing in the log. The answer
-reaches whoever called; the log is what somebody reads when twelve thousand
+reaches whoever called; the log is what somebody reads when thousands of
 images went by and a few did not arrive.
 
 And `yui_asset_element()`'s `onerror` drew the marker and told nobody. It
@@ -15641,9 +15640,9 @@ carry one of each.
 Both fixes above were in `main` and reachable by nobody. A node that carries
 a runtime-only SDK — `outputs/`, `outputs_ext/`, `tools/`, no `kernel/` and no
 `.git` — cannot rebuild the framework, so a fix reaches it as a **package** or
-it does not reach it. The inventory on a central node stored its twelve
-thousand assets and linked **none** of them, because its `store_asset` was the
-one that writes `source_path` as a string.
+it does not reach it. An inventory on such a node stored its thousands of
+assets and linked **none** of them, because its `store_asset` was the one that
+writes `source_path` as a string.
 
 Three releases in a row have been cut for this reason. It is worth saying
 plainly: **for those nodes a commit is not a fix; a tag is.**
@@ -15687,8 +15686,7 @@ svg served from the app's own origin runs script.
 right for a migration and wrong for a norm: the initial data of a yuno
 belongs in `yunos/batches/`, on the authoring side, and the deploy sends it
 from there. A batch line carries ONE file (`content64=$$(...)`), so an inventory
-of twelve thousand images is either twelve thousand commands or a few dozen
-bundles.
+of ten thousand images is either ten thousand commands or a few dozen bundles.
 
 `put-assets` takes a bundle: a JSON array of
 `{original_name, source_path, content_type, content64}` — the same form the
@@ -16094,7 +16092,7 @@ touching anything:
 
 | input | what it returned |
 |---|---|
-| `{"1630": {...}}` -- **a yuno id** | an **array of 1631 elements** |
+| `{"4630": {...}}` -- **a yuno id** | an **array of 4631 elements** |
 | `{"a": {}}` / `{"a": []}` | the key **disappeared** |
 | `` {"a`b": 1} `` | it was split into `{"a": {"b": 1}}` |
 | `{"a": {"": 1}}` | it came back `{"a": 1}`, one level short |
