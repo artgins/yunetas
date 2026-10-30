@@ -736,8 +736,8 @@ log_format vhost '$remote_addr - $remote_user [$time_local] "$request" '
   glance and in the parser.
 
 **Rollout.** The configs are not in this repo. Each one is owned by an
-operations repo and is uploaded by its own `deploy-conf.sh`
-(see `reference_nginx_config_ownership`): `artgins` and the `yuneta.io` root in
+operations repo and is uploaded by its own `deploy-conf.sh`, so a config
+edited in place on a node is overwritten by the next upload: `artgins` and the `yuneta.io` root in
 the artgins ops repo on branch `master`, and each application's domains in
 the repo of that application, one per node. Patch
 the repo and the node in the same session, `diff` them, `nginx -t` **before**

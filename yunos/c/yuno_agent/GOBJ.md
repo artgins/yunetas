@@ -41,8 +41,8 @@ kernel/c/root-linux/src/c_timer.c    ← the gclass
                        c_timer.h     ← public registration entry
 ```
 
-A gclass file always exposes exactly two public symbols (CLAUDE.md hard
-rule, `feedback_gclass_public_interface`):
+A gclass file always exposes exactly two public symbols (a hard rule of
+`CLAUDE.md`):
 
 ```c
 GOBJ_DECLARE_GCLASS(C_TIMER);
@@ -188,8 +188,7 @@ starts every child too — **except** ones marked with the
 `gcflag_manual_start` gclass flag. Most CHILD-pattern gclasses do not
 set that flag, so they get started automatically.
 
-**The `gobj_create_pure_child` gotcha** (memory
-`feedback_gobj_js_gotchas`):
+**The `gobj_create_pure_child` gotcha** (C and JS alike):
 `gobj_create_pure_child()` marks the new gobj with
 `gobj_flag_pure_child`, and some constructors also imply
 `gcflag_manual_start`. If your pure child does nothing after creation,
@@ -254,7 +253,7 @@ The ones that matter most often:
 | `SDF_PERSIST`    | Survives a yuno restart. Loaded on `mt_create` if persistence backend is installed. Not writable by `write-attr` without `SDF_WR` (it was up to 7.25.22). |
 | `SDF_VOLATIL`    | Set by the framework or by other gclasses on this gobj. Read-only from user code. |
 | `SDF_STATS`      | Treated as a statistic for stats output.                              |
-| `SDF_RSTATS`     | Resettable stat — **requires `mt_reading` wired** to compute on read. See `feedback_mt_reading_for_rstats`. |
+| `SDF_RSTATS`     | Resettable stat — **requires `mt_reading` wired** to compute on read (§8.4). |
 | `SDF_PSTATS`     | Persistent stat (combination of `SDF_PERSIST` + stat semantics).      |
 | `SDF_DEPRECATED` | Logged-warning attribute, still accepted (see `c_authz`'s `authz_yuno_role`). |
 | `SDF_AUTHZ_R` / `SDF_AUTHZ_W` / `SDF_AUTHZ_X` / `SDF_AUTHZ_S` / `SDF_AUTHZ_RS` | Demand the matching authz. ⚠️ Currently **not enforced** for commands (see [`YUNO_AUTH.md`](YUNO_AUTH.md) §4.5). |
@@ -280,11 +279,9 @@ int           gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t v
 Plus bulk APIs:
 
 - `gobj_read_attrs(gobj, include_flag, src)` ([`gobj.c:3546`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/gobj.c#L3546)) — returns
-  a JSON object with every attr matching `include_flag`. Recently
-  patched to route through `mt_reading` (memory
-  `project_gobj_read_attrs_fix`,
-  2026-05-22) so `SDF_RSTATS` counters now show their live values in
-  bulk reads. Same fix mirrored in the JS side.
+  a JSON object with every attr matching `include_flag`. It routes
+  through `mt_reading` (since 2026-05-22), so `SDF_RSTATS` counters show
+  their live values in bulk reads. The JS side does the same.
 - `gobj_write_attrs(gobj, kw, include_flag, src)` ([`gobj.c:3622`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/gobj.c#L3622)) —
   bulk write.
 
@@ -395,7 +392,7 @@ const char *gobj_name(gobj);                    // instance name
 const char *gobj_gclass_name(gobj);             // gclass name ("C_TIMER")
 const char *gobj_short_name(gobj);              // "gclass^name"
 const char *gobj_full_name(gobj);               // full path
-const char *gobj_yuno_role_plus_name();         // current yuno's role+name (used in command response prefixes — see feedback_build_command_response_yuno_prefix)
+const char *gobj_yuno_role_plus_name();         // current yuno's role+name (the prefix of every non-empty jn_comment of a cmd_* answer)
 ```
 
 Predicates ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/gobj.c)):
@@ -648,15 +645,12 @@ they release the resource before the `mt_destroy` of the parent runs.
 
 The framework returns the **stored** value of an attr unless the gclass
 provides `mt_reading`. For counters that auto-reset on read (`SDF_RSTATS`),
-this means that you always see `0` if you forgot the method. See
-`feedback_mt_reading_for_rstats`
-and `project_gobj_read_attrs_fix`
-for the bulk-read variant (fixed 2026-05-22).
+this means that you always see `0` if you forgot the method. Keep the attr
+name and the `priv` field name identical. The bulk read
+(`gobj_read_attrs()`) goes through `mt_reading` too (since 2026-05-22).
 
 ### 8.5 Prefer explicit lifecycle over framework-deferred destroy
 
-Memory
-`feedback_explicit_lifecycle`:
 *Yuneta is not a JVM*. Prefer **static child ownership** (the parent
 keeps a `hgobj` pointer in `priv`, destroys it itself at the right
 moment) over framework-level deferred-destroy mechanisms. Cleaner, no
@@ -664,15 +658,12 @@ hidden ordering dependencies.
 
 ### 8.6 `gobj_create_pure_child` does not auto-start
 
-([`gobj.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/gobj.c), memory
-`feedback_gobj_js_gotchas`).
+([`gobj.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/gobj.c); the same holds in gobj-js).
 You must call `gobj_start(child)` or rely on `gobj_start_tree(parent)`.
 
 ### 8.7 No sync read inside a `yev_loop` callback
 
-Memory
-`feedback_no_sync_read_in_yev_cb`:
-interactive sub-modes, for example completion prompts, must use an ncurses
+Interactive sub-modes, for example completion prompts, must use an ncurses
 overlay, an in-mode flag and FSM transitions. They must **never** use a
 blocking `read(STDIN_FILENO)` from inside a `yev_loop` callback. The same
 applies to any blocking syscall. The loop has one thread, and a block on
@@ -680,8 +671,6 @@ that thread kills the yuno.
 
 ### 8.8 No sync stop or destroy of the publisher in a published-event callback
 
-Memory
-`feedback_no_sync_stop_in_pub_callback`:
 `gobj_stop_tree(publisher)` from inside an `EV_ON_*` subscriber re-enters
 the publisher mid-iteration. Defer it: post the continuation to yourself
 with [`gobj_post_event`](#post-message)
@@ -838,8 +827,7 @@ is hosted as a child is a breaking change for every host.
 
 ### 8.9 A gclass `.h` exposes only `register_*` + `GOBJ_DECLARE_GCLASS`
 
-CLAUDE.md hard rule, memory
-`feedback_gclass_public_interface`.
+A hard rule of `CLAUDE.md`.
 Every interaction with a gclass goes through attrs / commands / events /
 lmethods / stats — never through a direct API exposed in the `.h`.
 
@@ -851,8 +839,6 @@ internally — `json_*` is fine.
 
 ### 8.11 No static `json_t *` caches
 
-Memory
-`feedback_no_static_json_cache`:
 `static json_t *cached` leaks at [`gobj_end`](#gobj_end) under
 `CONFIG_DEBUG_TRACK_MEMORY`. Parse on each call or hand the cache to a
 gobj that has a lifecycle.

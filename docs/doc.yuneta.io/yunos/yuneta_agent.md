@@ -420,7 +420,7 @@ center running a scenario, its step's whole deadline). Since 7.25.16 the
 command is answered at once when it reached none of them,
 
 ```text
-yuneta_agent^node-a: set-period: yuno gen1 runs but is not connected to the agent (starting or stopping): nothing sent
+yuneta_agent^node-a: set-interval: yuno gen1 runs but is not connected to the agent (starting or stopping): nothing sent
 ```
 
 and when it reached only some, the others are named in a warning of the

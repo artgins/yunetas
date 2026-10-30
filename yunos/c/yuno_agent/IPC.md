@@ -741,7 +741,9 @@ Note the comment in the source: `// OLD msg_iev_build_webix()`. Legacy
 codebases still mention the old name. Both names mean the same thing.
 
 The agent's `YUNO_LIFECYCLE.md` shows the [`gobj_yuno_role_plus_name()`](#gobj_yuno_role_plus_name) prefix
-convention for `jn_comment`. See `feedback_build_command_response_yuno_prefix`.
+convention for `jn_comment`: every non-empty comment of a `cmd_*` answer
+starts with the yuno identity (`"%s: ..."`), so an operator who reads an
+answer knows which yuno gave it.
 
 ### 5.5 `gobj_stats` and `EV_MT_STATS`
 
@@ -802,8 +804,8 @@ the `child_tree_filter` attribute ([`c_tcp_s.c`](https://github.com/artgins/yune
 ### 6.3 HTTP server example: [`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr) → `C_TCP_S`
 
 [`c_prot_http_sr.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_prot_http_sr.c): builds a `ghttp_parser` (a wrapper around
-**llhttp**. Yuneta replaced the older `http_parser` library with it. See the
-memory note `project_llhttp_integration`.) Output event:
+**llhttp**. Yuneta replaced the older `http_parser` library with it, because
+`http_parser` is no longer maintained.) Output event:
 `EV_ON_MESSAGE` with parsed headers, method, URL, body in `kw`.
 
 Service gclass subscribes to that and dispatches by URL or method.
@@ -826,8 +828,10 @@ subscribers, and the parent is the natural subscriber for CHILD-pattern
 gclasses.
 
 You also see `__top_side__` and `__bottom_side__` as keys inside `kw` in some
-cross-yuno cases, for example master and non-master treedb access (see the
-memory note `feedback_cross_yuno_via_store_not_command`). Those are routing
+cross-yuno cases, for example master and non-master treedb access. (A yuno
+that must read a topic of another yuno opens that yuno's store as non-master;
+it does not send commands to it, because a command reaches another yuno only
+if that yuno is connected as a service.) Those are routing
 markers in the `kw`. They are not the same as the gobj-tree convention.
 
 ### 6.6 TLS
@@ -876,7 +880,7 @@ of view of the yuno, a SPA and another yuno are the same.
 
 The SPA sends `EV_IDENTITY_CARD` over the WS like a C client. The
 `jwt` field is typically read from the browser session ([Keycloak](https://www.keycloak.org/) token,
-see auth memory notes). The server's identity card validation is the
+see [`YUNO_AUTH.md`](YUNO_AUTH.md)). The server's identity card validation is the
 same code path as for C clients ([`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_ievent_srv.c)).
 
 ### 7.2 What a SPA can do
@@ -921,7 +925,8 @@ subscription model" section gives the rule. The diagnostic emoji is `📛`.
 It is the explicit *"missing subscriber is not a bug for this event"*
 annotation. If you use it to silence a noisy warning, it often hides a real
 mismatch between the SERVICE pattern and the CHILD pattern. CLAUDE.md is
-clear on this. See `feedback_gclass_visual_layout`.
+clear on this: the flag says that a missing subscriber is not a bug; it is
+not a generic noise suppressor.
 
 ### 8.4 Subscription lists are in **both** gobjs
 

@@ -339,6 +339,32 @@ if ! grep -q "<loc>${SITE_URL}/installation</loc>" "${ORIGIN}sitemap.xml"; then
 fi
 echo "sitemap.xml lists the pages at ${SITE_URL}"
 
+# The site config embedded in every page, rewritten for the same reason: the
+# theme writes the address of the request into it ("domain":
+# "http://localhost:3000"), in the html of each page and in the json the
+# client router loads for it.  Only that key is replaced: a page that talks
+# about localhost:3000 in its text keeps its text.
+python3 - "$ORIGIN" "$SITE_URL" <<'PYEOF'
+import sys, pathlib
+root, site_url = pathlib.Path(sys.argv[1]), sys.argv[2]
+old = '"domain":"http://localhost:3000"'
+new = '"domain":"%s"' % site_url
+count = 0
+left = []
+for f in list(root.rglob('*.html')) + list(root.rglob('*.json')):
+    text = f.read_text(encoding='utf-8')
+    if old in text:
+        f.write_text(text.replace(old, new), encoding='utf-8')
+        count += 1
+    if '"domain":"http://localhost' in text.replace(old, new):
+        left.append(str(f))
+if left:
+    sys.exit('ERROR: %d built file(s) still name localhost as the domain, e.g. %s' % (len(left), left[0]))
+if new not in (root / 'index.html').read_text(encoding='utf-8'):
+    sys.exit('ERROR: index.html carries no "domain":"%s"' % site_url)
+print('page configs name %s as the domain (%d files rewritten)' % (site_url, count))
+PYEOF
+
 # The manifest, its icons and the service worker, for the tags injected above.
 # myst copies no raw files, and the rsync below deletes what it does not carry,
 # so they are installed here like the landing.  See pwa/README.md.

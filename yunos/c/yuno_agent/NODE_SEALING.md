@@ -345,8 +345,8 @@ here is a candidate for promotion to Tier 1:
   command (a pattern, an optional realm/yuno, a cap on the lines answered)
   is the Tier-1 answer.
 - **Putting a yuno's `data/` (and its queues) in a tmpfs** (2026-10-25). The
-  generator fleets of the performance test (`sim_load` gen12-gen17 on one
-  node, as gen1-gen5 on a staging node) cannot run their queues on a node's
+  generator fleets of a load test (several `sim_load` yunos on one node)
+  cannot run their queues on a node's
   HDDs (every save of their counters fsyncs), so the node got a tmpfs (`mount
   -t tmpfs ... /mnt/simram`, with sudo) and each yuno's realm dir a `data ->
   /mnt/simram/data/<name>` symlink made BEFORE its first run. The binary, the
@@ -478,12 +478,12 @@ architecture. A narrower role is possible without touching any code.
 and the choice is not yet made:
 
 - **(a) A public service on the yuno.** An application gate (call it
-  `gate_energy` here, an example name) declares
+  `gate_device` here, an example name) declares
   `public_services: ['__top_side__']` with a `service_descriptor`, so the SPA
-  opens a session **straight to the yuno** and calls `set-power` — the agent is
+  opens a session **straight to the yuno** and calls `set-output` — the agent is
   not in the path. It works, it is in production, and it is the one that gets
   reached for by default. It also un-seals that yuno quietly: the yuno stops
-  being internal for that service, and `cmd_set_power` carries no
+  being internal for that service, and `cmd_set_output` carries no
   `gobj_user_has_authz` guard, so the authenticated session **is** the
   permission.
 - **(b) Through the agent (`command-yuno`), the yuno staying internal.**

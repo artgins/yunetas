@@ -160,7 +160,7 @@ still reported and fails the test.
     the run in `run_in_flight` (its id, action, user, start); the steps are
     answered out of order and the second one -1, and the run still waits
     for the last one. Then it ends with -1 and *"1 of 3 steps failed; step 1
-    (command-yuno id=1235 command=pause-generation): the yuno refused"*, the
+    (command-yuno id=1235 command=pause-load): the yuno refused"*, the
     other steps keep their result 0 in `scenario-runs`, and `scenarios`
     gives no `run_in_flight`. Its **pause**, in the phase after case 16's,
     with `run_step_timeout` set to 300 ms and the second step never

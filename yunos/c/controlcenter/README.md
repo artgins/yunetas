@@ -124,19 +124,19 @@ one generator is turned on or off while the others go on -- to climb the load
 one fleet at a time:
 
 ```json
-{"key": "gen12", "id": "gen12", "service": "sim_load", "rate": "tx", "node": "node-a",
- "switch": {"on":  [{"command": "set-controllers controllers=100"}, {"command": "resume-generation"}],
-            "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]}}
+{"key": "gen2", "id": "gen2", "service": "sim_load", "rate": "tx", "node": "node-a",
+ "switch": {"on":  [{"command": "set-clients clients=100"}, {"command": "resume-load"}],
+            "off": [{"command": "pause-load"}, {"command": "set-clients clients=0"}]}}
 ```
 
 ```bash
-ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=gen12'
+ycommand ... -c 'run-scenario scenario_id=load-test action=on scenario_yuno=gen2'
 ```
 
 `on` runs in order, and only while the scenario RUNS (its last run that changed
 its state is a start or a resume), so the `max_run` stop is always there to
 turn it off; `off` sends its steps at once, in any state. A switch run is
-written and told like any other run (*"on gen12 done, 2 steps"*), but changes
+written and told like any other run (*"on gen2 done, 2 steps"*), but changes
 neither the state of the scenario nor its `max_run` clock: the scenario's
 `stop` must reach every yuno with a switch. gui_agent draws the switch on the
 yuno's card. Details: `docs/doc.yuneta.io/yunos/controlcenter.md`.
@@ -179,7 +179,7 @@ by a user who may run it, the answer says *"it was running: its yunos are
 left as they are"*, and a WARNING names the user.
 
 ```json
-{"id": "load-20k", "max_run": 2100, "node": "node-b", ...}
+{"id": "load-test", "max_run": 2100, "node": "node-b", ...}
 ```
 
 ## Permissions scoped to scenarios
@@ -187,7 +187,7 @@ left as they are"*, and a WARNING names the user.
 Every scenario command checks its permission (`read-scenarios`,
 `write-scenarios`, `run-scenarios`) with the `scenario_id` it acts on, so a
 role of the `authz` store whose `parameters` scope a permission
-(`{"scenario_id": ["load-20k"]}`, C_AUTHZ 7.27.15+) grants it for
+(`{"scenario_id": ["load-test"]}`, C_AUTHZ 7.27.15+) grants it for
 those scenarios only: `scenarios` lists only them, the others are refused by
 id, and `save-scenario` checks the id it saves. Such a user watches a scenario
 live with `watch-scenario` -- the control center builds the agent's watch from
@@ -231,9 +231,9 @@ A scenario is a document saved whole:
     ],
     "links": [["sim", "gate_edge"], ["gate_edge", "tracks_edge"], ["gate_hub", "tracks_hub"]],
     "actions": {
-        "start":  [{"yuno": "sim", "command": "set-controllers controllers=10"},
-                   {"yuno": "sim", "command": "resume-generation"}],
-        "stop":   [{"yuno": "sim", "command": "set-controllers controllers=0"}],
+        "start":  [{"yuno": "sim", "command": "set-clients clients=10"},
+                   {"yuno": "sim", "command": "resume-load"}],
+        "stop":   [{"yuno": "sim", "command": "set-clients clients=0"}],
         "report": [{"yuno": "gate_edge", "service": "__yuno__", "command": "view-config"}]
     },
     "view": {"mode": "graph"}

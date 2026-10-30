@@ -498,7 +498,7 @@ PRIVATE int test_save_scenario_as_string(hgobj gobj, hgobj client)
     json_t *jn_text = json_string(
         "{\"id\": \"string-form-scenario-0001\", \"node\": \"" AGENT_HOST "\","
         " \"yunos\": [{\"id\": \"1234\"}],"
-        " \"actions\": {\"start\": [{\"yuno\": \"1234\", \"command\": \"resume-generation\"}]}}"
+        " \"actions\": {\"start\": [{\"yuno\": \"1234\", \"command\": \"resume-load\"}]}}"
     );
     char *encoded = json_dumps(jn_text, JSON_ENCODE_ANY);
     JSON_DECREF(jn_text)
@@ -539,9 +539,9 @@ PRIVATE int test_save_refuses_framework_keys(hgobj gobj, hgobj client)
     int ret = 0;
 
     const char *commands[] = {
-        "resume-generation __md_iev__=x",
-        "resume-generation __username__=root",
-        "resume-generation __md_command__=x",
+        "resume-load __md_iev__=x",
+        "resume-load __username__=root",
+        "resume-load __md_command__=x",
         0
     };
     for(int i=0; commands[i]; i++) {
@@ -556,7 +556,7 @@ PRIVATE int test_save_refuses_framework_keys(hgobj gobj, hgobj client)
     }
 
     json_t *kw = client_kw(gobj_name(client));
-    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
+    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-load rate=10"));
     ret += check_response(gobj,
         gobj_command(priv->cc, "save-scenario", kw, client),
         0,
@@ -576,8 +576,8 @@ PRIVATE int test_run_checks_old_scenarios(hgobj gobj, hgobj client)
 
     hgobj treedb = gobj_find_service("treedb_controlcenter", TRUE);
     const char *commands[] = {
-        "resume-generation __username__=root",
-        "resume-generation id=4321",
+        "resume-load __username__=root",
+        "resume-load id=4321",
         0
     };
     for(int i=0; commands[i]; i++) {
@@ -1068,7 +1068,7 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
         -1, "No permission to 'command-agent'", "the viewer may not command an agent");
 
     kw = viewer_kw(client);
-    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
+    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-load rate=10"));
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
         -1, "no permission to 'write-scenarios'", "the viewer may not save 'scn'");
 
@@ -1080,18 +1080,18 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
     kw = viewer_kw(client);
     json_object_set_new(kw, "__username__", json_string("writer"));
     json_object_set_new(kw, "scenario_id", json_string("scn"));
-    json_object_set_new(kw, "scenario", scenario_with_step("not-scn", "resume-generation rate=10"));
+    json_object_set_new(kw, "scenario", scenario_with_step("not-scn", "resume-load rate=10"));
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
         -1, "no permission to 'write-scenarios'", "a scenario_id beside another scenario is no permission");
     kw = viewer_kw(client);
     json_object_set_new(kw, "__username__", json_string("writer"));
-    json_object_set_new(kw, "scenario", scenario_with_step("wr", "resume-generation rate=10"));
+    json_object_set_new(kw, "scenario", scenario_with_step("wr", "resume-load rate=10"));
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
         0, "scenario created: wr", "the writer of 'wr' saves it");
     /*  "scn" runs (case 4 started it): writing it would be running it  */
     kw = viewer_kw(client);
     json_object_set_new(kw, "__username__", json_string("writer"));
-    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-generation rate=10"));
+    json_object_set_new(kw, "scenario", scenario_with_step("scn", "resume-load rate=10"));
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
         -1, "scn' runs: saving it needs 'run-scenarios' too", "the writer may not save a running scn");
 
@@ -1269,8 +1269,8 @@ PRIVATE json_t *max_run_scenario(json_int_t max_run)
         "max_run", max_run,
         "yunos", "id", "1234",
         "actions",
-            "start", "yuno", "1234", "command", "resume-generation",
-            "stop", "yuno", "1234", "command", "pause-generation"
+            "start", "yuno", "1234", "command", "resume-load",
+            "stop", "yuno", "1234", "command", "pause-load"
     );
 }
 
@@ -1346,7 +1346,7 @@ PRIVATE int test_max_run_start(hgobj gobj, hgobj client)
      */
     kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "__username__", json_string("writer"));
-    json_t *scn = scenario_with_step("scn", "resume-generation rate=10");
+    json_t *scn = scenario_with_step("scn", "resume-load rate=10");
     json_object_set_new(scn, "max_run", json_integer(1));
     json_object_set_new(kw, "scenario", scn);
     ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
@@ -1375,7 +1375,7 @@ PRIVATE int test_max_run_stopped(hgobj gobj)
     if(!step) {
         return -1;
     }
-    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "pause-generation")) {
+    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "pause-load")) {
         ret += fail(gobj, "the stop step of mr", kw_get_str(gobj, step, "__command__", "", 0));
     }
     agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "paused");
@@ -1482,8 +1482,8 @@ PRIVATE json_t *mrx_scenario(void)
         "max_run", (json_int_t)1,
         "yunos", "id", "1234", "id", "9999", "node", GHOST_HOST,
         "actions",
-            "start", "yuno", "1234", "command", "resume-generation",
-            "stop", "yuno", "9999", "command", "pause-generation"
+            "start", "yuno", "1234", "command", "resume-load",
+            "stop", "yuno", "9999", "command", "pause-load"
     );
 }
 
@@ -1567,7 +1567,7 @@ PRIVATE int test_max_run_no_node_reached(hgobj gobj)
         return fail(gobj, "the stop of mrx goes to the agent of its node when it connects",
             "the agent got no request");
     }
-    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "pause-generation")) {
+    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "pause-load")) {
         ret += fail(gobj, "the stop step of mrx", kw_get_str(gobj, step, "__command__", "", 0));
     }
     json_t *kw = msg_iev_build_response(gobj, 0, json_string("paused"), 0, 0, json_deep_copy(step));
@@ -1629,8 +1629,8 @@ PRIVATE json_t *mrn_scenario(void)
         "max_run", (json_int_t)1,
         "yunos", "id", "1234",
         "actions",
-            "start", "yuno", "1234", "command", "resume-generation",
-            "stop", "yuno", "1234", "command", "pause-generation"
+            "start", "yuno", "1234", "command", "resume-load",
+            "stop", "yuno", "1234", "command", "pause-load"
     );
 }
 
@@ -1758,9 +1758,9 @@ PRIVATE json_t *parallel_scenario(void)
         const char *action;
         const char *command;
     } defs[] = {
-        {"start",   "resume-generation"},
-        {"stop",    "pause-generation"},
-        {"pause",   "pause-generation"},
+        {"start",   "resume-load"},
+        {"stop",    "pause-load"},
+        {"pause",   "pause-load"},
         {0, 0}
     };
 
@@ -1959,7 +1959,7 @@ PRIVATE int test_parallel_stop(hgobj gobj, hgobj client)
         return ret;
     }
     requests = agent_requests(gobj);
-    if(check_parallel_requests(gobj, requests, "pause-generation",
+    if(check_parallel_requests(gobj, requests, "pause-load",
             "a stop sends every step at once") < 0) {
         JSON_DECREF(requests)
         return ret - 1;
@@ -1996,7 +1996,7 @@ PRIVATE int test_parallel_stop(hgobj gobj, hgobj client)
 
     const char *failure =
         "stop failed, 2 of 3 steps done: 1 of 3 steps failed; "
-        "step 1 (command-yuno id=1235 command=pause-generation): the yuno refused";
+        "step 1 (command-yuno id=1235 command=pause-load): the yuno refused";
     if(count_received(client, EV_MT_COMMAND_ANSWER, failure) != 1) {
         ret += fail(gobj, "a stop ends when every step answered, naming the one that failed", failure);
     }
@@ -2043,7 +2043,7 @@ PRIVATE int test_parallel_unanswered_sent(hgobj gobj)
         return ret;
     }
     json_t *requests = agent_requests(gobj);
-    if(check_parallel_requests(gobj, requests, "pause-generation",
+    if(check_parallel_requests(gobj, requests, "pause-load",
             "a pause sends every step at once") < 0) {
         JSON_DECREF(requests)
         return ret - 1;
@@ -2078,7 +2078,7 @@ PRIVATE int test_parallel_unanswered_ended(hgobj gobj)
     char failure[256];
     snprintf(failure, sizeof(failure),
         "pause failed, 2 of 3 steps done: 1 of 3 steps failed; "
-        "step 1 (command-yuno id=1235 command=pause-generation): not answered in %d ms",
+        "step 1 (command-yuno id=1235 command=pause-load): not answered in %d ms",
         PAR_STEP_TIMEOUT_MS);
     if(count_received(client, EV_MT_COMMAND_ANSWER, failure) != 1) {
         ret += fail(gobj, "a pause ends at its deadline, naming the step not answered", failure);
@@ -2116,13 +2116,13 @@ PRIVATE json_t *switch_scenario(BOOL with_off, const char *on_yuno)
 {
     json_t *jn_switch = json_pack("{s:[{s:s, s:s}, {s:s}]}",
         "on",
-            "yuno", on_yuno, "command", "set-controllers controllers=5",
-            "command", "resume-generation"
+            "yuno", on_yuno, "command", "set-clients clients=5",
+            "command", "resume-load"
     );
     if(with_off) {
         json_object_set_new(jn_switch, "off", json_pack("[{s:s}, {s:s}]",
-            "command", "pause-generation",
-            "command", "set-controllers controllers=0"
+            "command", "pause-load",
+            "command", "set-clients clients=0"
         ));
     }
     return json_pack("{s:s, s:s, s:[{s:s, s:s, s:s, s:o}, {s:s, s:s}], s:{s:[{s:s, s:s}], s:[{s:s, s:s}]}}",
@@ -2215,8 +2215,8 @@ PRIVATE int test_switch(hgobj gobj, hgobj client)
         -1, "yuno 'gate' has no switch", "on of a yuno with no switch is refused");
 
     const char *on_lines[] = {
-        "command-yuno id=gen1 service=sim_load command=set-controllers controllers=5",
-        "command-yuno id=gen1 service=sim_load command=resume-generation",
+        "command-yuno id=gen1 service=sim_load command=set-clients clients=5",
+        "command-yuno id=gen1 service=sim_load command=resume-load",
         0
     };
     ret += run_serial(gobj, client, "on", "sim", on_lines, "on sends its steps in order, to its yuno");
@@ -2233,8 +2233,8 @@ PRIVATE int test_switch(hgobj gobj, hgobj client)
     }
     json_t *requests = agent_requests(gobj);
     if(json_array_size(requests) != 2 ||
-            !strstr(kw_get_str(gobj, json_array_get(requests, 0), "__command__", "", 0), "pause-generation") ||
-            !strstr(kw_get_str(gobj, json_array_get(requests, 1), "__command__", "", 0), "controllers=0")) {
+            !strstr(kw_get_str(gobj, json_array_get(requests, 0), "__command__", "", 0), "pause-load") ||
+            !strstr(kw_get_str(gobj, json_array_get(requests, 1), "__command__", "", 0), "clients=0")) {
         ret += fail(gobj, "off sends its steps at once", "");
     }
     ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", run_kw(client, "on", "sim"), client),

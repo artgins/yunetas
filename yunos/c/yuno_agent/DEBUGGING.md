@@ -1238,8 +1238,8 @@ an infinite recursion.
 The correction at [`c_ievent_cli.js`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/js/gobj-js/src/c_ievent_cli.js) is to call
 `set_remote_log_functions(null)` **before** anything publishes `EV_ON_CLOSE`.
 That call clears the hooks and resets them to the console (see
-[`helpers.js`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/js/gobj-js/src/helpers.js)). The memory note "Remote-log unwire order" records the
-incident.
+[`helpers.js`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/js/gobj-js/src/helpers.js)). The rule holds for every teardown path of a SPA
+(logout, open error, failed restore): unwire the remote log first.
 
 ---
 
@@ -1367,8 +1367,7 @@ scoped to one gclass.
 ### 10.7 SPA dev-panel teardown order
 
 `set_remote_log_functions(null)` MUST come before
-[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.29.3/modules/c/mqtt/src/c_prot_mqtt.c#L1582) / `destroy_shell`. See §8 and memory
-`feedback_remote_log_unwire_order`.
+[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.29.3/modules/c/mqtt/src/c_prot_mqtt.c#L1582) / `destroy_shell`, in every teardown path. See §8.
 
 ### 10.8 Deep tracing has no `ycommand` switch
 

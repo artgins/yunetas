@@ -468,8 +468,6 @@ tranger2_set_rt_key_deleted_callback(handle, cb, user_data);
 `tranger2_open_rt_disk` or `tranger2_open_iterator`. Pre-2026-05-26
 followers that polled their cache on a timer can drop the timer.
 
-Memory: `project_tranger2_delete_record_deferred`.
-
 ### 2.10 Durability
 
 `tranger2_append_record` performs the write but **does not `fsync`**
@@ -816,8 +814,7 @@ topic's `id` index, once nested inside its parent's hook) carries the
 
 ### 3.5 The `topic_cols.json` versioning trap
 
-Memory
-`feedback_treedb_schema_versioning`:
+The rule:
 
 > Any `cols` change needs a higher `topic_version`. If you do not raise it,
 > the persisted `topic_cols.json` continues to mask the new schema. Delete

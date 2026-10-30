@@ -269,9 +269,9 @@ watch, or just a group of yunos to watch. It is a document saved whole:
     ],
     "links": [["sim", "gate_edge"], ["gate_edge", "tracks_edge"], ["gate_hub", "tracks_hub"]],
     "actions": {
-        "start":  [{"yuno": "sim", "command": "set-controllers controllers=10"},
-                   {"yuno": "sim", "command": "resume-generation"}],
-        "stop":   [{"yuno": "sim", "command": "set-controllers controllers=0"}],
+        "start":  [{"yuno": "sim", "command": "set-clients clients=10"},
+                   {"yuno": "sim", "command": "resume-load"}],
+        "stop":   [{"yuno": "sim", "command": "set-clients clients=0"}],
         "report": [{"yuno": "gate_edge", "service": "__yuno__", "command": "view-config"}]
     },
     "view": {"mode": "graph"}
@@ -385,16 +385,16 @@ it builds, with the authenticated user and nothing else of the request, so a
 permissions declare `scenario_id` as the key they may be scoped on (7.27.15)
 -- and a
 role row like this one, in the control center's `authz` store, lets its users
-read `load-20k` and nothing else:
+read `load-test` and nothing else:
 
 ```json
 {
-    "id": "load-20k-viewer",
-    "description": "Sees the scenario load-20k",
+    "id": "load-test-viewer",
+    "description": "Sees the scenario load-test",
     "realm_id": "<the realm of the control center>",
     "service": "controlcenter",
     "permission": "read-scenarios",
-    "parameters": {"scenario_id": ["load-20k"]}
+    "parameters": {"scenario_id": ["load-test"]}
 }
 ```
 
@@ -426,11 +426,11 @@ takes them in its `__relays__`). The agent never gets a
 line the client wrote:
 
 ```bash
-ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b period=2000'
-# -> the agent of node-b gets: watch-yuno-stats ids=gen9:sim_load,gen10:sim_load,gen11:sim_load,4120,4120:__output_side__,4130,4130:__output_side__,4140,4140:__output_side__,4520 period=2000
-ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b keys=tracks'
+ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b period=2000'
+# -> the agent of node-b gets: watch-yuno-stats ids=gen3:sim_load,gen4:sim_load,gen5:sim_load,4120,4120:__output_side__,4130,4130:__output_side__,4140,4140:__output_side__,4520 period=2000
+ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b keys=tracks'
 # -> watch-yuno-stats ids=4520 period=2000
-ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b stop=1'
+ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b stop=1'
 ```
 
 **What may I do here?** `my-permissions` answers, for the user who asks, every
@@ -442,8 +442,8 @@ Scenarios only:
 ```bash
 ycommand ... -c 'my-permissions'
 # -> {"list-agents": false, "command-agent": false, "drop-agent": false, "logout-user": false,
-#     "write-tty": false, "read-scenarios": ["load-20k"],
-#     "write-scenarios": false, "run-scenarios": ["load-20k"]}
+#     "write-tty": false, "read-scenarios": ["load-test"],
+#     "write-scenarios": false, "run-scenarios": ["load-test"]}
 ```
 
 **When the permissions change** (7.27.16+). The control center watches its
@@ -467,7 +467,7 @@ the user signs in and lands on it.
 start may run, in seconds (0 = no limit, a week at most):
 
 ```json
-{"id": "load-20k", "node": "node-b", "max_run": 2100, "yunos": [...], "actions": {...}}
+{"id": "load-test", "node": "node-b", "max_run": 2100, "yunos": [...], "actions": {...}}
 ```
 
 A `start` that did any step schedules the scenario's `stop` `max_run` seconds
@@ -509,7 +509,7 @@ delete takes its stop steps and its max_run stop, and leaves its yunos as
 they are -- *"scenario 'x' runs: deleting it needs 'run-scenarios' too"*:
 
 ```bash
-ycommand ... -c 'delete-scenario scenario_id=load-20k'   # stop it first, or hold run-scenarios
+ycommand ... -c 'delete-scenario scenario_id=load-test'   # stop it first, or hold run-scenarios
 ```
 
 **A generator turned on or off by hand: the `switch` of a yuno** (7.28.6+).
@@ -518,17 +518,17 @@ of steps, `on` and `off`, as those of an action, where a step that names no
 `yuno` goes to the switch's own:
 
 ```json
-{"key": "gen12", "id": "gen12", "service": "sim_load", "rate": "tx", "node": "node-a",
+{"key": "gen2", "id": "gen2", "service": "sim_load", "rate": "tx", "node": "node-a",
  "switch": {
-     "on":  [{"command": "set-devices devices=20"}, {"command": "set-period period=1000"},
-             {"command": "set-controllers controllers=100"}, {"command": "resume-generation"}],
-     "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]
+     "on":  [{"command": "set-streams streams=20"}, {"command": "set-interval interval=1000"},
+             {"command": "set-clients clients=100"}, {"command": "resume-load"}],
+     "off": [{"command": "pause-load"}, {"command": "set-clients clients=0"}]
  }}
 ```
 
 ```bash
-ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=gen12'
-ycommand ... -c 'run-scenario scenario_id=load-20k action=off scenario_yuno=gen12'
+ycommand ... -c 'run-scenario scenario_id=load-test action=on scenario_yuno=gen2'
+ycommand ... -c 'run-scenario scenario_id=load-test action=off scenario_yuno=gen2'
 ```
 
 `save-scenario` refuses a switch without both lists, or with a step that
@@ -539,7 +539,7 @@ state is a `start` or a `resume` (*"a switch is turned on only while its
 scenario runs"*) -- because a scenario that is not running has no `max_run`
 stop to turn it off again. `off` runs in any state. A switch run is a run
 like the others (one at a time, under `run-scenarios`, written in
-`scenario_runs` with its steps, answered *"run ...: on gen12 done, 4 steps"*,
+`scenario_runs` with its steps, answered *"run ...: on gen2 done, 4 steps"*,
 told by `EV_SCENARIO_RUN_ENDED`), but it changes neither the state of the
 scenario nor its `max_run` clock: the scenario's `stop` is what turns every
 switch off, so its steps must reach every yuno that has one. `run_in_flight`

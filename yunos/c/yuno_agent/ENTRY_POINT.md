@@ -129,7 +129,7 @@ tracked under `CONFIG_DEBUG_TRACK_MEMORY`.
 **before** `yuneta_entry_point` returns gets libc-tracked memory that
 `gbmem` cannot free later → false leaks. Put that setup inside
 `register_yuno_and_more()` (which runs at §3.10 below), never in `main()`.
-See memory `feedback_test_json_allocator_timing`.
+The canonical example is `tests/c/c_task_authenticate/`.
 
 ### 3.5 Logging boot
 
@@ -150,7 +150,8 @@ variable_config (compiled, intended to be overridden) +
 
 `view-config` on a running yuno (`ycommand command-yuno id=<id>
 service=__yuno__ command=view-config`) returns **this merged result**, not
-the on-disk file. See memory `feedback_yuno_runtime_config`.
+the on-disk file. Verify any claim about a running yuno's config with
+`view-config`, never from the external JSON alone.
 
 ### 3.7 Environment registration
 

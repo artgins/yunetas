@@ -2320,7 +2320,7 @@ PRIVATE json_t *refuse_scenario_command(
 /***************************************************************************
  *  Has the user `permission` on THIS scenario? A role may grant a
  *  permission for some scenarios only (C_AUTHZ `parameters`, e.g.
- *  {"scenario_id": ["load-20k"]}): the check carries the id the
+ *  {"scenario_id": ["load-test"]}): the check carries the id the
  *  command acts on and who asks (the user C_IEVENT_SRV authenticated), and
  *  NOTHING of the client's kw -- a key of it could answer for a scope. A
  *  NULL id asks the permission with no scenario: only an unscoped grant

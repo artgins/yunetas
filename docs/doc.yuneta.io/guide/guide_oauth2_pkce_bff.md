@@ -46,9 +46,16 @@ The BFF port is not fixed: it is the `url` of the `auth_bff`'s configuration
 | `gui_agent` | `https://<host>:1806` (agents plane), `https://<host>:1807` (agent22 plane) |
 | `gui_treedb` | `https://<host>:1808` |
 
-On `localhost` the `gui_treedb` dev server proxies `/auth/*` to the BFF, so
-the BFF base is same-origin there. The localhost example of the yuno
-(`yunos/c/auth_bff/batches/localhost/auth_bff.1801.json`) listens on 1801.
+On `localhost` the `gui_treedb` dev server proxies `/auth/*` to
+`https://localhost:1808` (`gui_treedb/vite.config.js`), so the BFF base is
+same-origin there and the local BFF must listen on 1808. The localhost example
+of the yuno (`yunos/c/auth_bff/batches/localhost/auth_bff.1801.json`) listens
+on 1801. To use it with the dev server, set its `__bff_secure_url__` to
+`https://0.0.0.0:1808` before you load the batch:
+
+```json
+"__bff_secure_url__": "https://0.0.0.0:1808"
+```
 
 ---
 
@@ -121,8 +128,10 @@ This is the flow of `gui_agent` and `gui_treedb`.
  │    &client_secret=...  (only if the client is confidential)            │
  │                                                                        │
  │  The IdP responds with:                                                │
- │    { access_token, refresh_token, id_token, expires_in,                │
+ │    { access_token, refresh_token, expires_in,                          │
  │      refresh_expires_in, token_type: "Bearer" }                        │
+ │  Some IdPs add an id_token (it depends on the IdP and the scope);      │
+ │  the BFF does not use it.                                              │
  └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -133,9 +142,9 @@ This is the flow of `gui_agent` and `gui_treedb`.
  │  ├── Sets the cookies on the HTTP response:                            │
  │  │                                                                     │
  │  │   Set-Cookie: access_token=<JWT>; Max-Age=<expires_in>;             │
- │  │     Path=/; HttpOnly; Secure; SameSite=Strict; Domain=<host>        │
+ │  │     Path=/; HttpOnly; Secure; SameSite=Strict[; Domain=<domain>]    │
  │  │   Set-Cookie: refresh_token=<JWT>; Max-Age=<refresh_expires_in>;    │
- │  │     Path=/; HttpOnly; Secure; SameSite=Strict; Domain=<host>        │
+ │  │     Path=/; HttpOnly; Secure; SameSite=Strict[; Domain=<domain>]    │
  │  │                                                                     │
  │  └── Returns to the browser (NO tokens in the body):                   │
  │      {                                                                 │
@@ -151,8 +160,8 @@ This is the flow of `gui_agent` and `gui_treedb`.
  ┌─────────────────────────────────────────────────────────────────────────┐
  │  STEP 4: The browser opens the WebSocket (authenticated)               │
  │                                                                        │
- │  The Domain of the cookie has no port, so the browser attaches it to   │
- │  the Upgrade request to any port of the same host:                     │
+ │  A cookie is not scoped by port, so the browser attaches it to the     │
+ │  Upgrade request to any port of the same host:                         │
  │                                                                        │
  │  GET wss://app.example.com:1996/  HTTP/1.1                             │
  │  Upgrade: websocket                                                    │
@@ -369,13 +378,18 @@ Set-Cookie: access_token=<JWT>;
   HttpOnly;             ← JavaScript cannot access (no document.cookie)
   Secure;               ← Only sent over HTTPS
   SameSite=Strict;      ← Never sent on cross-site requests (CSRF protection)
-  Domain=<host>         ← No port: shared by the BFF port and the WebSocket port
+  Domain=<domain>       ← Only when cookie_domain is set and matches the Host
 ```
 
-The `Domain` attribute is what lets the cookie set by the BFF (for example on
-port 1808) travel with the WebSocket Upgrade request to another port of the
-same host. It comes from `cookie_domain`, which the BFF checks against the
-request's `Host` header.
+A cookie is not scoped by port (RFC 6265), so the cookie that the BFF sets
+(for example on port 1808) travels with the WebSocket Upgrade request to any
+other port of the same host, with or without `Domain`. The `Domain` attribute
+extends the cookie to the subdomains of `cookie_domain`. The BFF writes it
+only when `cookie_domain` is set and the request's `Host` (without its port)
+is that domain or one of its subdomains. When the `Host` does not match, the
+BFF omits `Domain`, logs a WARNING (*"cookie_domain does not match request
+Host, omitting Domain attribute"*), and the cookie binds to the exact host of
+the request.
 
 ---
 
@@ -403,9 +417,9 @@ request's `Host` header.
 |------|---------|---------|
 | `issuer` | — (required) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for a public client). |
-| `cookie_domain` | `""` | `Domain=` attribute on the cookies. Cross-checked against the request `Host` header — never trust a mismatched `Host`. |
+| `cookie_domain` | `""` | `Domain=` attribute on the cookies. Written only when the request `Host` is this domain or a subdomain of it; otherwise omitted, with a WARNING. Empty: never written (host-only cookies). |
 | `allowed_origin` | `""` | The CORS origin. Empty: no cross-origin access. Also the origin `/auth/token` is pinned to. |
-| `allowed_redirect_uri` | `""` | The prefix a `/auth/callback` `redirect_uri` must start with. |
+| `allowed_redirect_uri` | `""` | The prefix a `/auth/callback` `redirect_uri` must start with. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `expose_access_token` | `false` | Enables `/auth/token`. Needs `allowed_origin`. |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store by default. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_idp_keycloak` `kc_crypto` attribute mirrors this for its Keycloak admin calls.) |
 | `pending_queue_size` | `16` (clamped to `[1, 1024]`) | Depth of the per-channel pending IdP request queue. Raised on front-line BFFs under burst. |
@@ -431,7 +445,10 @@ in production:
   `exec_timeout` (`idp_timeout_ms`, answered `504 auth_timeout`). The wait to
   connect is a `C_TIMER` child of the BFF (`idp_connect_timeout_ms`), armed
   only while the outbound is disconnected; when discovery never completed the
-  answer is `502 auth_service_unavailable`. Both bump `idp_timeouts`. A
+  answer is `502 auth_service_unavailable`. `idp_timeouts` counts every IdP
+  task that ends by one of the two watchdogs: a login, callback, refresh or
+  logout (answered `504 auth_timeout`) and the discovery (each request queued
+  behind it is answered `502`). A
   failed discovery is retried at the next request, not by a timer.
 - **Stable error_code for GUI i18n.** Every error response carries a
   stable `error_code` (snake_case, for example `session_expired`,
@@ -439,8 +456,12 @@ in production:
   `c_auth_bff.h`). The human `error` message is
   localisable in the GUI. `error_code` is the i18n translation key and
   never changes between releases.
-- **Log hygiene.** 4xx IdP replies are logged as `INFO`, not `ERROR` —
-  a wrong password is not a server error. All secrets (cookies, passwords,
+- **Log hygiene.** An answer to the browser with a 4xx status (a wrong
+  password, an expired session) is logged as a WARNING (*"👤BFF request
+  rejected"*), not an ERROR — a wrong password is not a server error. A 5xx
+  answer is an ERROR (*"👤BFF server error"*). When the IdP's answer maps to
+  one of the generic codes, one more ERROR line carries what the IdP said
+  (*"👤BFF IdP rejected the request"*). All secrets (cookies, passwords,
   authorization headers, client_secret) are redacted by
   [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c#L1023) with case-insensitive key matching.
 - **Stats.** `mt_stats` exposes:
@@ -459,15 +480,22 @@ in production:
 The SPA has no table of hosts: one build serves every deployment, and the BFF
 URL is derived from the host that serves the SPA.
 
+This is `gui_treedb/src/conf/deploy.js`:
+
 ```javascript
-const BFF_PORT = 1808;   /* auth_bff of this SPA */
+const BFF_PORT = 1808;   /* auth_bff for the treedb GUI plane */
 
 function deploy_info()
 {
-    let host = window.location.hostname;
+    let host = (typeof window !== "undefined" && window.location && window.location.hostname)
+        ? window.location.hostname : "localhost";
+
+    let tenant = (host.split(".")[0]) || "local";
     let is_local = (host === "localhost" || host === "127.0.0.1");
+
     return {
         host:    host,
+        tenant:  tenant,
         bff_url: is_local ? "" : `https://${host}:${BFF_PORT}`
     };
 }

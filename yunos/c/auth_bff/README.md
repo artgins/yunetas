@@ -17,8 +17,9 @@ which JavaScript cannot read.
 - Exchanges a PKCE authorization code for tokens (`/auth/callback`,
   `grant_type=authorization_code`), for an SPA that uses the IdP's own login
   page.
-- Stores the tokens in `HttpOnly; Secure; SameSite=Strict` cookies, with a
-  `Domain` and no port.
+- Stores the tokens in `HttpOnly; Secure; SameSite=Strict` cookies. They
+  carry `Domain` only when `cookie_domain` is set and matches the request's
+  host (see *Configuration*).
 - Refreshes the tokens, and answers who the user is (`/auth/refresh`).
 - Logs out at the IdP and clears the cookies (`/auth/logout`).
 - Optionally gives the access token to one pinned origin (`/auth/token`), for
@@ -38,7 +39,7 @@ Browser SPA ──WSS upgrade──> backend yuno (any port of the same host)
                                       Cookie header, C_AUTHZ verifies it
 ```
 
-The cookie `Domain` has no port, so a cookie set by the BFF travels with the
+A cookie is not scoped by port, so a cookie set by the BFF travels with the
 WebSocket upgrade to any port of the same host name.
 
 The port is the yuno's configuration. The in-repo SPAs expect their BFF on
@@ -78,9 +79,12 @@ The IdP is configured with `issuer` (discovery through
 "allowed_redirect_uri": "https://<host>/"
 ```
 
-`cookie_domain` is checked against the request's `Host` header, and a request
-whose host does not match gets no cookie. `allowed_redirect_uri` is the prefix
-a `/auth/callback` `redirect_uri` must start with. The full attribute list
+`cookie_domain` is checked against the request's `Host` header. When the host
+is that domain or one of its subdomains, the cookies carry `Domain=<cookie_domain>`
+and reach the subdomains too. When it does not match, the cookies are set
+without `Domain` (bound to the exact host) and the BFF logs a WARNING. Empty:
+the cookies never carry `Domain`. `allowed_redirect_uri` is the prefix
+a `/auth/callback` `redirect_uri` must start with (empty: not checked). The full attribute list
 (`crypto`, `pending_queue_size`, `idp_timeout_ms`, `idp_connect_timeout_ms`,
 `expose_access_token`) is the `attrs_table` of `c_auth_bff.c`.
 

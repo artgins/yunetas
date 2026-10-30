@@ -20,9 +20,9 @@ Yuneta kernel, so they don't conflict with any system-wide version.
 | linenoise       | https://github.com/antirez/linenoise                |
 
 > Yuneta migrated its HTTP parser from `http-parser` (Joyent, archived)
-> to **`llhttp`** (Node.js). See memory `project_llhttp_integration` —
-> the `ghttp_parser` wrapper has been buggy in the past, treat it as
-> suspect first when investigating HTTP issues.
+> to **`llhttp`** (Node.js). The `ghttp_parser` wrapper that bridges it to
+> the gobj events has been buggy in the past: treat it as the first suspect
+> when you investigate an HTTP issue, before llhttp itself.
 
 **Their licenses are in `THIRD-PARTY-NOTICES`** at the root of the
 repository, which the `.deb` and `.rpm` install: adding a library here, moving
@@ -36,8 +36,7 @@ OpenResty is updating that file in the same commit.
 | nginx     | https://github.com/nginx/nginx.git        |
 | openresty | https://openresty.org/download/ (release tarball, sha256 pinned in `repos2clone.sh`) |
 
-> **Linking policy is NOT uniform across this directory** (see memory
-> `project_ext_libs_vendoring_policy`).
+> **Linking policy is NOT uniform across this directory.**
 >
 > - **Yuneta kernel** links static against the `.a` files in
 >   `outputs_ext/`. This is what gives `CONFIG_FULLY_STATIC=y` its
@@ -47,7 +46,7 @@ OpenResty is updating that file in the same commit.
 >   broke nginx in subtle ways. Each consumer of an ext-lib has to
 >   declare its linking mode.
 >
-> Companion rule (`project_ext_libs_consumer_migration`): when
+> Companion rule: when
 > `configure-libs.sh` flips a flag, every header/CMakeLists consumer
 > migration must ship in the **same commit**, else the next maintainer
 > reverts it (v1.9 → v1.10 → v1.11 cycle).
@@ -55,8 +54,8 @@ OpenResty is updating that file in the same commit.
 ### nginx CVE-2026-42945
 
 Resolved in this repo at commit `322d4cb03` by rebuilding the openresty
-+ pcre + zlib + libssl stack. Private deployed projects still need
-their own rebuild.
++ pcre + zlib + libssl stack. A node or an application built before that
+commit needs its own rebuild.
 
 ### nginx CVE-2026-9256
 

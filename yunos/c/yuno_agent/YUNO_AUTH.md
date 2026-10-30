@@ -105,7 +105,7 @@ checklist that a new GUI must implement. This chapter is the prose behind it.
 
 ### 2.1 Why a BFF (and not the SPA talking to Keycloak)
 
-Tokens live in **HttpOnly cookies**, scoped by domain (no port). JavaScript
+Tokens live in **HttpOnly cookies** (a cookie is not scoped by port). JavaScript
 cannot read them, and XSS attacks cannot extract them. The SPA only knows
 "am I authenticated" by the response code of API calls. Yuneta deployments
 require it.
@@ -181,16 +181,21 @@ Built in [`make_set_cookie()`](https://github.com/artgins/yunetas/blob/7.29.3/ke
 
 ```
 Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
-            Path=/; HttpOnly; Secure; SameSite=Strict; Domain=<host>
+            Path=/; HttpOnly; Secure; SameSite=Strict[; Domain=<cookie_domain>]
 ```
 
 - `HttpOnly` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)) — JS cannot read.
 - `Secure` — HTTPS only.
 - `SameSite=Strict` — no cross-site CSRF.
 - `Path=/` — sent with all requests to the origin.
-- `Domain` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)) — set from `cookie_domain` attr, no port.
-  Means a cookie set by the BFF on port 1801 is automatically sent with
-  the WebSocket upgrade to ports 1600 / 1800 / etc on the same hostname.
+- `Domain` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)) — `cookie_domain`, written only
+  when that attr is set and the request's `Host` (without its port) is that
+  domain or a subdomain of it. On a mismatch the BFF omits it and logs a
+  WARNING, and the cookie binds to the exact host. `Domain` extends the cookie
+  to the subdomains; it is not what carries it to another port. A cookie is
+  not scoped by port, so a cookie set by the BFF on port 1801 is sent with the
+  WebSocket upgrade to ports 1600 / 1800 / etc of the same host name in any
+  case.
 - `Max-Age` — `expires_in` for access, `refresh_expires_in` for refresh.
 
 Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
@@ -207,8 +212,8 @@ Logout clears both with `Max-Age=0` ([`c_auth_bff.c`](https://github.com/artgins
 | `client_id`            | required            | OAuth2 client id. Also the value the JWT's `azp` claim must match. |
 | `client_secret`        | optional            | Empty for public clients with PKCE.                  |
 | `redirect_uri`         | per-request         | From the callback request body.                      |
-| `allowed_redirect_uri` | required            | Allow-list prefix for `/auth/callback` redirect_uri. |
-| `cookie_domain`        | required            | Domain attribute for cookies (no port).              |
+| `allowed_redirect_uri` | optional            | Allow-list prefix for `/auth/callback` redirect_uri. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `cookie_domain`        | optional            | Domain attribute for cookies (no port). Empty: host-only cookies. See §2.4. |
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
 
@@ -282,8 +287,8 @@ illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:
 "cookie_domain": ""
 ```
 
-In production deployments the project's Keycloak gives those four
-realm. See §7 for the project conventions.
+In a production deployment, those four values come from the client of the
+project's Keycloak realm. See §7 for the project conventions.
 
 ### 2.8 Diagnose a failure of the IdP
 
@@ -328,21 +333,26 @@ Two issues are known and not fixed:
 ### 3.1 The Cookie crossing the WS upgrade
 
 The browser's WebSocket upgrade request includes the cookies set by the
-BFF (same Domain). [`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr) parses the headers, and the resulting
-gobj tree carries the `Cookie` header through the upgrade into
-[`C_IEVENT_SRV`](#gclass-c-ievent-srv) (or [`C_AUTHZ`](#gclass-c-authz) acting as the external gate).
+BFF (same host; a cookie is not scoped by port).
+[`C_WEBSOCKET`](#gclass-c-websocket) parses the headers of the upgrade and
+passes the `Cookie` header to [`C_IEVENT_SRV`](#gclass-c-ievent-srv) as
+`http_cookie` in the kw of `EV_ON_OPEN`.
 
 ### 3.2 Reading the JWT
 
 [`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_ievent_srv.c) declares two volatile attributes the channel
 exposes after auth:
 
-- `http_cookie` — the raw cookie header (set by `c_authz` during upgrade).
-- `jwt_payload` — the decoded JWT payload, also set by `c_authz`.
+- `http_cookie` — the raw cookie header. `C_WEBSOCKET` captures it during
+  the upgrade, and `C_IEVENT_SRV` writes it from the kw of `EV_ON_OPEN`.
+- `jwt_payload` — the decoded JWT payload, set by `c_authz` once the token
+  is verified.
 
 The comment at [`c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_ievent_srv.c) is explicit: *"HACK set by c_authz,
-this gclass is an external entry gate!"*. The actual cookie→JWT path
-runs **inside `C_AUTHZ`**, not `C_IEVENT_SRV`.
+this gclass is an external entry gate!"* — it is about `jwt_payload`. The
+path is split in two: `C_IEVENT_SRV` takes the `access_token` out of
+`http_cookie` and puts it in the identity card (unless the card already
+carries a `jwt`), and **`C_AUTHZ` verifies it** and writes `jwt_payload`.
 
 ### 3.3 Signature verification: libjwt
 
@@ -443,19 +453,19 @@ role with no `parameters` grants as before.
 
 ```json
 {
-    "id": "load-20k-viewer",
+    "id": "load-test-viewer",
     "realm_id": "*",
     "service": "controlcenter",
     "permission": "read-scenarios",
-    "parameters": {"scenario_id": ["load-20k"]},
+    "parameters": {"scenario_id": ["load-test"]},
     "permissions": [
         {"permission": "run-scenarios"},
-        {"permission": "write-scenarios", "parameters": {"scenario_id": "load-20k-draft"}}
+        {"permission": "write-scenarios", "parameters": {"scenario_id": "load-test-draft"}}
     ]
 }
 ```
 
-That role reads and runs `load-20k` and writes `load-20k-draft`,
+That role reads and runs `load-test` and writes `load-test-draft`,
 and a check of `read-scenarios` with no `scenario_id` in its kw is refused:
 the scope cannot match a key that is not there. The values are compared as
 json -- `"1"` does not match `1`, nor `"S1"` `"s1"` -- and a key is read from
@@ -1004,9 +1014,9 @@ Points found so far (verified this session unless noted):
 
 10. **How an SPA user acts on an INTERNAL yuno is undecided**, and the default
     answer bypasses the matrix entirely. Today the working pattern
-    (an application gate, `gate_energy` in this example)
+    (an application gate, `gate_device` in this example)
     is `public_services: ['__top_side__']`: the SPA opens a session straight to
-    the yuno and calls e.g. `set-power`, which carries no
+    the yuno and calls e.g. `set-output`, which carries no
     `gobj_user_has_authz()` guard — so the authenticated session IS the
     permission, and the gate of point 1 never sees it. The alternative is
     `command-yuno` through the agent, which does reach the yuno's `C_AUTHZ`
@@ -1260,11 +1270,16 @@ The convention from
 
 ### 7.2 Bootstrap checklist for a new project
 
-1. Create the realm in Keycloak (`<project>` or `<project>connect`).
-2. Register the OAuth2 client in that realm:
-   - Public client (no client_secret) if browser-only.
-   - Confidential client (with secret) if server-to-server.
-   - Set `Valid Redirect URIs` to the BFF's callback.
+1. Create the realm in Keycloak (`<project>`).
+2. Register the OAuth2 client of the BFF in that realm:
+   - **Direct Access Grants: On.** `/auth/login` uses `grant_type=password`,
+     the flow of the in-repo SPAs. A client without it refuses every login:
+     Keycloak answers `unauthorized_client`, the browser gets the generic
+     `auth_unexpected_error`, and the log line of §2.8 names the cause.
+   - Public client (no client_secret), or confidential (with the secret in
+     the BFF config).
+   - Only if the BFF also serves `/auth/callback`: Standard Flow On, PKCE
+     S256, and `Valid Redirect URIs` set to the SPA's callback.
    - Set `Web Origins` to the SPA's origin.
 3. Write `yunos/c/auth_bff/batches/<host>/auth_bff.<port>.json`:
 
@@ -1352,7 +1367,7 @@ enough:
 
 | Client       | Type              | Used by            | Grant                |
 |--------------|-------------------|--------------------|----------------------|
-| SPA client   | public, with PKCE | auth_bff + browser | `authorization_code` |
+| SPA client   | public or confidential | auth_bff | `password` (`/auth/login`: Direct Access Grants On); `authorization_code` with PKCE only for `/auth/callback` |
 | admin client | confidential      | `C_IDP_KEYCLOAK`   | `client_credentials` |
 
 The admin client needs a service account. That service account needs the
@@ -1560,20 +1575,22 @@ its JWT logins at the restart with nothing in its log.
 
 ### 8.1 `client_secret` in cleartext in batches
 
-The localhost batch shows `client_secret: ""` (empty), but production
-batches in private repos commit the real secret in cleartext JSON. There
-is no encrypted-secret-store integration today. If you commit a
-production batch to git, the secret is in history forever — rotate it
-in Keycloak first.
+The localhost batch shows `client_secret: ""` (empty). A batch config is
+cleartext JSON, and there is no encrypted-secret-store integration today, so
+a real secret written into a batch is readable by anyone who reads the file.
+Keep the secret out of every batch you commit: commit it blank and supply the
+real value only on the node. If a real secret reaches git, it stays in the
+history forever — rotate it in Keycloak first.
 
 ### 8.2 SMTP password in cleartext
 
 `stress/c/listen/deploy-yuno/emailsender.artgins.json:7` has an SMTP
-password field in cleartext (the public repo example carries a
-placeholder, but the private repos have the real value). See
-`project_emailsender_smtp_secret`:
-pending env-var migration + rotation as of 2026-05-15. The same secret
-also lives in the agent's treedb at runtime.
+password field in cleartext JSON; the example carries a placeholder. The
+rule is the same as for `client_secret` (§8.1): a committed batch carries the
+password blank, and the real value is set only on the node. There is no
+environment-variable or secret-store path for it yet. Once loaded, the
+password is also stored in the agent's treedb, in clear, with the rest of
+the configuration.
 
 ### 8.3 The command authz check is OFF by default
 
@@ -1678,13 +1695,16 @@ broadcast is best-effort, not transactional.
 
 ```bash
 # 1. realm + client in Keycloak first
-#    - realm name: <project>connect (convention)
-#    - client: public + PKCE, valid redirect uri = https://<project>.example/auth/callback
+#    - realm name: <project>
+#    - client: Direct Access Grants On (/auth/login uses grant_type=password;
+#      without it every login is refused)
+#    - only if /auth/callback is used: Standard Flow + PKCE S256,
+#      valid redirect uri = https://<project>.example/auth/callback
 
 # 2. write the batch config
 cat > /yuneta/development/yunetas/yunos/c/auth_bff/batches/<host>/auth_bff.1801.json <<'EOF'
 {
-    "issuer":               "https://auth.<project>.example/realms/<project>connect/",
+    "issuer":               "https://auth.<project>.example/realms/<project>/",
     "client_id":            "<project>-spa",
     "client_secret":        "",
     "cookie_domain":        "<project>.example",
