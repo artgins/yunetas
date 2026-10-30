@@ -8,6 +8,10 @@
  *          open on the tty: one is its own (the pty never hangs up), any
  *          other is a C_UART's.
  *
+ *          - An empty write, with nothing in flight: its EV_TX_READY comes
+ *            a turn later, never inside the send. In the fixes after
+ *            7.29.3 none came, and a host that advances only on
+ *            EV_TX_READY waited for ever.
  *          - A write of 64 KB, more than the line takes at once: the write
  *            is short, and the C_UART must send the rest, in order, and
  *            publish EV_TX_READY once, when all of it went. Up to 7.29.3 the
@@ -70,6 +74,7 @@
 
 typedef enum {
     PHASE_CONNECT1 = 0,         // the first open
+    PHASE_EMPTY_WRITE,          // an empty write: its EV_TX_READY, a turn later
     PHASE_SHORT_WRITE,          // 64 KB must arrive whole, and EV_TX_READY once
     PHASE_RECONNECT,            // dropped: it must open again
     PHASE_HELD_STOP,            // a write held: the stop at the timeout
@@ -781,12 +786,12 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     switch(priv->phase) {
         case PHASE_CONNECT1:
             /*
-             *  The write of 64 KB: more than the line takes at once
+             *  An empty write, with nothing in flight: ignored, with a
+             *  warning, and its EV_TX_READY comes a turn later
              */
-            priv->phase = PHASE_SHORT_WRITE;
-            slave_read(gobj, SLAVE_COUNT);
-            send_pattern(gobj, 0, 0);       // empty: ignored, with a warning
-            send_pattern(gobj, 0, TX_SIZE);
+            priv->phase = PHASE_EMPTY_WRITE;
+            send_pattern(gobj, 0, 0);
+            check_count(gobj, "EV_TX_READY", priv->tx_ready, 0, "inside the send of an empty write");
             set_timeout(priv->timer, PHASE_MAX_MS);
             break;
 
@@ -931,6 +936,18 @@ PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->tx_ready++;
+    if(priv->phase == PHASE_EMPTY_WRITE) {
+        /*
+         *  The write of 64 KB: more than the line takes at once
+         */
+        check_count(gobj, "EV_TX_READY", priv->tx_ready, 1, "an empty write");
+        priv->tx_ready = 0;
+        priv->phase = PHASE_SHORT_WRITE;
+        slave_read(gobj, SLAVE_COUNT);
+        send_pattern(gobj, 0, 0);       // empty, the 64 KB behind it: one EV_TX_READY for both
+        send_pattern(gobj, 0, TX_SIZE);
+        set_timeout(priv->timer, PHASE_MAX_MS);
+    }
     check_short_write_done(gobj);
 
     JSON_DECREF(kw)

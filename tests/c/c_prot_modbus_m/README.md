@@ -173,8 +173,11 @@ or stops reading it to fill the line. It counts the fds open on the tty, and
 the events the `C_UART` publishes to it.
 
 - An empty write first: ignored, with a warning (*"uart tx data empty,
-  ignored"*). Against 7.29.3 it was an error; in the fixes after it, it
-  dropped the line.
+  ignored"*), and with nothing in flight its `EV_TX_READY` comes a turn
+  later, never inside the send. Against 7.29.3 it was an error; in the fixes
+  after it, it dropped the line, and then no `EV_TX_READY` came (*"A phase
+  did not end"*, phase 1). A second empty write right before the 64 KB one:
+  one `EV_TX_READY` for both.
 - A write of 64 KB, more than the line takes at once: all of it arrives, in
   order, and `EV_TX_READY` comes once. Against SDK 7.29.3 the write was short
   and its rest lost: 11,776 bytes arrived, then `EV_TX_READY` (*"A phase did

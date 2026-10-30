@@ -1,16 +1,38 @@
 /***********************************************************************
  *          C_UDP.C
- *          Udp GClass.
+ *          Udp GClass: a UDP client. Its socket is connected to its url:
+ *          it sends there, and reads what comes from there.
  *
- *          TODO not checked
+ *          Not registered by the SDK: a yuno that uses it includes c_udp.h
+ *          and calls register_c_udp().
  *
- *          GClass of UDP level 0 uv-mixin
+ *          States: ST_STOPPED, ST_IDLE (started: it reads, and sends),
+ *          ST_WAIT_STOPPED (a stop waiting for its read to be canceled and
+ *          its send in flight to complete). EV_TX_DATA in ST_IDLE; output
+ *          events EV_RX_DATA, EV_TX_READY and EV_STOPPED, to its parent (or
+ *          its subscriber).
+ *
+ *          One datagram is sent at a time, the others wait in a queue, and
+ *          EV_TX_READY is published when the queue is done. A datagram that
+ *          cannot be sent is dropped and the next one goes, as in C_UDP_S.
+ *          The stop contract is C_TCP's: every stop of a running C_UDP ends
+ *          in ST_STOPPED and publishes EV_STOPPED once, the last thing it
+ *          does with itself; the datagrams waiting in the queue go with the
+ *          stop.
+ *
+ *          Up to 7.29.3 it was a port never finished: register_c_udp()
+ *          failed (EV_STOPPED declared as an input that no state takes),
+ *          c_udp.h declared another name, the completion of its connect was
+ *          "event type NOT IMPLEMENTED", only the first datagram was sent,
+ *          a stop published nothing and did not wait for the send in flight,
+ *          and its read event leaked.
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <errno.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -48,8 +70,10 @@ SDATA (DTP_STRING,      "url",          SDF_RD,     "",     "Url to connect"),
 SDATA (DTP_INTEGER,     "connxs",       SDF_STATS,  0,      "Current connections"),
 SDATA (DTP_INTEGER,     "rx_buffer_size", SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 
-SDATA (DTP_INTEGER,     "txBytes",      SDF_RSTATS,     "0", "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxBytes",      SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_INTEGER,     "txBytes",      SDF_RSTATS,     "0", "Bytes transmitted"),
+SDATA (DTP_INTEGER,     "rxBytes",      SDF_RSTATS,     "0", "Bytes received"),
+SDATA (DTP_INTEGER,     "txMsgs",       SDF_RSTATS,     "0", "Datagrams transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",       SDF_RSTATS,     "0", "Datagrams received"),
 SDATA (DTP_STRING,      "peername",     SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,      "sockname",     SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 
@@ -106,6 +130,7 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *gbuf_txing;
 
     BOOL no_tx_ready_event;
+    BOOL tx_ready_posted;           // an EV_TX_READY posted to itself (post_tx_ready())
     int tx_in_progress;
 
     alive_t *alive;                 // the markers of the publishes in progress (see alive_t)
@@ -151,6 +176,45 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  A reset of the stats writes the counters, which live in priv
+     */
+    if(path && strcmp(path, "txBytes")==0) {
+        priv->txBytes = 0;
+    } else if(path && strcmp(path, "rxBytes")==0) {
+        priv->rxBytes = 0;
+    } else if(path && strcmp(path, "txMsgs")==0) {
+        priv->txMsgs = 0;
+    } else if(path && strcmp(path, "rxMsgs")==0) {
+        priv->rxMsgs = 0;
+    }
+}
+
+/***************************************************************************
+ *      Framework Method reading: the counters live in priv. Up to 7.29.3
+ *      there was none, and txBytes and rxBytes read 0 for ever
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txBytes")==0) {
+        v.found = 1;
+        v.v.i = priv->txBytes;
+    } else if(strcmp(name, "rxBytes")==0) {
+        v.found = 1;
+        v.v.i = priv->rxBytes;
+    } else if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
+    }
+    return v;
 }
 
 /***************************************************************************
@@ -159,6 +223,17 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_in_this_state(gobj, ST_STOPPED) || priv->yev_connect) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Initial wrong udp state: a start before the stop ended",
+            "state",        "%s", gobj_current_state(gobj),
+            NULL
+        );
+        return -1;
+    }
 
     const char *url = gobj_read_str_attr(gobj, "url");
     priv->yev_connect = yev_create_connect_event(
@@ -175,13 +250,17 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Cannot connect tcp gobj",
+            "msg",          "%s", "Cannot create the udp socket",
+            "url",          "%s", url,
             NULL
         );
-        //try_to_stop_yevents(gobj);
         return -1;
     }
-    yev_start_event(priv->yev_connect);
+    if(yev_start_event(priv->yev_connect) < 0) {
+        // Error already logged
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
+        return -1;
+    }
 
     /*
      *  Info of "connecting..."
@@ -218,11 +297,20 @@ PRIVATE int mt_start(hgobj gobj)
         } else {
             gbuffer_clear(yev_get_gbuf(priv->yev_reading));
         }
-
-        yev_start_event(priv->yev_reading);
     }
-
     gobj_change_state(gobj, ST_IDLE);
+
+    if(!priv->yev_reading || yev_start_event(priv->yev_reading) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot start the read of the udp socket: stopped",
+            "url",          "%s", url,
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
 
     return 0;
 }
@@ -232,9 +320,9 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    try_to_stop_yevents(gobj);
-
     gobj_reset_volatil_attrs(gobj);
+
+    try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
 
     return 0;
 }
@@ -258,6 +346,9 @@ PRIVATE void mt_destroy(hgobj gobj)
             NULL
         );
     }
+
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
 
     GBUFFER_DECREF(priv->gbuf_txing);
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
@@ -317,29 +408,46 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         }
     }
 
-    // if(priv->tx_in_progress > 0) {
-    //     to_wait_stopped = TRUE;
-    // }
+    if(priv->tx_in_progress > 0) {
+        to_wait_stopped = TRUE;     // its completion comes to this gobj
+    }
+
+    /*
+     *  What waits to be sent goes with the stop. The datagram in flight
+     *  is held by its send event, which completes on its own.
+     */
+    size_t queued = dl_size(&priv->dl_tx);
+    if(queued > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP client stopped: the datagrams waiting to be sent are dropped",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "dropped",      "%d", (int)queued,
+            NULL
+        );
+    }
+    GBUFFER_DECREF(priv->gbuf_txing)
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
 
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
-        if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-            gobj_change_state(gobj, ST_STOPPED);
-        } else {
-            gobj_change_state(gobj, ST_STOPPED);
-            // set_disconnected(gobj);
-        }
+        gobj_change_state(gobj, ST_STOPPED);
+        gobj_publish_event(gobj, EV_STOPPED, 0);    // the last thing: the host may destroy it
     }
 }
 
 /***************************************************************************
  *  What an EV_TX_DATA must not carry. 0: send it. 1: an empty gbuffer,
- *  nothing to send: ignored, with a warning, and no EV_TX_READY for it (up
- *  to 7.29.3 it was a send that cannot start: an error, its event lost, and every later datagram held in the queue for ever). -1: a
- *  gbuffer already queued or in flight, whose bytes the first send
- *  consumes: refused, with an error (up to 7.29.3 it was queued again,
- *  which failed and lost a reference).
+ *  nothing to send: ignored, with a warning (up to 7.29.3 it was a send
+ *  that cannot start: an error, its event lost, and every later datagram
+ *  held in the queue for ever); its EV_TX_READY comes from post_tx_ready().
+ *  -1: a gbuffer already queued or in flight here, whose bytes the first
+ *  send consumes: refused, with an error (up to 7.29.3 it was queued again,
+ *  which failed and lost a reference). A gbuffer in flight in ANOTHER
+ *  transport is not seen: a gbuffer handed to a transport is its own until
+ *  its EV_TX_READY.
  ***************************************************************************/
 PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
 {
@@ -481,7 +589,34 @@ PRIVATE int write_data(hgobj gobj)
 }
 
 /***************************************************************************
- *  Try more writes
+ *  The EV_TX_READY of a send from inside the sender's gobj_send_event(): an
+ *  empty one, which sends nothing, or one that did not start (dropped).
+ *  With a datagram in flight or queued, the EV_TX_READY of that one stands
+ *  for it. It is posted to itself (ac_tx_ready_posted()), never published
+ *  here: a host that sends its next datagram in its EV_TX_READY would
+ *  recurse, and with every send failing, for as long as it sends. In the
+ *  fixes after 7.29.3 a send that did not start published it here, and an
+ *  empty one got none: a host that advances only on EV_TX_READY waited for
+ *  ever.
+ ***************************************************************************/
+PRIVATE void post_tx_ready(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->no_tx_ready_event || priv->tx_ready_posted) {
+        return;
+    }
+    if(priv->gbuf_txing || priv->tx_in_progress > 0 || dl_size(&priv->dl_tx) > 0) {
+        return;     // the EV_TX_READY of what is in flight comes when it ends
+    }
+    if(gobj_post_event(gobj, EV_TX_READY, json_object(), gobj) < 0) {
+        return;     // Error already logged
+    }
+    priv->tx_ready_posted = TRUE;
+}
+
+/***************************************************************************
+ *  Try more writes, at the completion of a send
  ***************************************************************************/
 PRIVATE void try_more_writes(hgobj gobj)
 {
@@ -734,6 +869,20 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 #endif
 
 /***************************************************************************
+ *  The addresses of the connected socket, as C_TCP says them
+ ***************************************************************************/
+PRIVATE void get_peer_and_sock_name(hgobj gobj, int fd)
+{
+    char temp[60];
+
+    get_peername(temp, sizeof(temp), fd);
+    gobj_write_str_attr(gobj, "peername", temp);
+
+    get_sockname(temp, sizeof(temp), fd);
+    gobj_write_str_attr(gobj, "sockname", temp);
+}
+
+/***************************************************************************
  *  The marker of a publish in progress (see alive_t)
  ***************************************************************************/
 PRIVATE void alive_push(PRIVATE_DATA *priv, alive_t *marker)
@@ -749,7 +898,7 @@ PRIVATE void alive_pop(PRIVATE_DATA *priv, alive_t *marker)
 }
 
 /***************************************************************************
- *  TODO not checked
+ *  The completions of the connect, the read and the sends
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
@@ -850,21 +999,48 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     if(yev_event_is_idle(yev_event)) {
                         gbuffer_clear(yev_get_gbuf(yev_event));
-                        yev_start_event(yev_event);
+                        if(yev_start_event(yev_event) < 0) {
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_SYSTEM,
+                                "msg",          "%s", "Cannot start the read of the udp socket again: stopped",
+                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                                NULL
+                            );
+                            try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
+                        }
                     }
 
                 } else {
                     /*
-                     *  Disconnected
+                     *  The read ends: canceled by a stop, or the socket
+                     *  failed. A connected udp socket fails its read with
+                     *  ECONNREFUSED when nothing listens at the url, and a
+                     *  read of an empty datagram is taken as the end
+                     *  (EPIPE): either one stops the client, with an
+                     *  error, and EV_STOPPED tells its host. Up to 7.29.3
+                     *  only a trace said so.
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(trace) {
+                    if(gobj_is_running(gobj) && yev_get_result(yev_event) != -ECANCELED) {
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "UDP: read FAILED, the client stops",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            NULL
+                        );
+                    } else if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                            "msg",          "%s", "UDP: read FAILED",
-                            "msg2",         "%s", "🌐UDP: read FAILED",
+                            "msg",          "%s", "UDP: read stopped",
+                            "msg2",         "%s", "🌐UDP: read stopped",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
@@ -881,76 +1057,123 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             }
             break;
 
+        case YEV_CONNECT_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  The socket has its peer. Up to 7.29.3 this
+                     *  completion was "event type NOT IMPLEMENTED"
+                     */
+                    get_peer_and_sock_name(gobj, yev_get_fd(yev_event));
+                    if(trace_level & TRACE_CONNECT_DISCONNECT) {
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "UDP connected",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            NULL
+                        );
+                    }
+                    break;
+                }
+
+                if(gobj_is_running(gobj) && yev_get_result(yev_event) != -ECANCELED) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                        "msg",          "%s", "UDP: connect FAILED, the client stops",
+                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "errno",        "%d", -yev_get_result(yev_event),
+                        "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                        NULL
+                    );
+                }
+                try_to_stop_yevents(gobj);
+            }
+            break;
+
         case YEV_WRITE_TYPE:
             {
                 priv->tx_in_progress--;
 
-                if(yev_state == YEV_ST_IDLE) {
-                    if(gobj_is_running(gobj)) {
-                        /*
-                         *  See if all data was transmitted
-                         */
-                        priv->txBytes += (json_int_t)yev_get_result(yev_event);
-                        if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
-                            if(trace_level & TRACE_MACHINE) {
-                                trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
-                                    !gobj_is_running(gobj)?"!!":"",
-                                    gobj_gclass_name(gobj), gobj_name(gobj),
-                                    gobj_current_state(gobj),
-                                    (long)gbuffer_leftbytes(yev_get_gbuf(yev_event))
-                                );
-                            }
+                /*
+                 *  The completion of the datagram being sent, not of one
+                 *  sent before a stop (its gbuffer was dropped by the stop)
+                 */
+                BOOL is_txing = priv->gbuf_txing &&
+                    yev_get_gbuf(yev_event) == priv->gbuf_txing;
 
-                            if(yev_start_event(yev_event) == 0) {
-                                priv->tx_in_progress++;
-                                break;
-                            }
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_SYSTEM,
-                                "msg",          "%s", "Cannot send the rest of a datagram: dropped",
-                                "len",          "%d", (int)gbuffer_leftbytes(yev_get_gbuf(yev_event)),
-                                NULL
+                if(!gobj_is_running(gobj)) {
+                    /*
+                     *  A stop waits for its sends: destroy the write event
+                     */
+                    yev_destroy_event(yev_event);
+                    try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
+                    break;
+                }
+
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  See if all data was transmitted
+                     */
+                    priv->txBytes += (json_int_t)yev_get_result(yev_event);
+                    if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
+                        if(trace_level & TRACE_MACHINE) {
+                            trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
+                                !gobj_is_running(gobj)?"!!":"",
+                                gobj_gclass_name(gobj), gobj_name(gobj),
+                                gobj_current_state(gobj),
+                                (long)gbuffer_leftbytes(yev_get_gbuf(yev_event))
                             );
                         }
 
-                        if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
-                            try_more_writes(gobj);
+                        if(yev_start_event(yev_event) == 0) {
+                            priv->tx_in_progress++;
+                            break;
                         }
-                        yev_destroy_event(yev_event);
-                    } else {
-                        yev_destroy_event(yev_event);
-                        try_to_stop_yevents(gobj);
-                    }
-
-                } else {
-                    /*
-                     *  Disconnected
-                     */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
-
-                    if(trace) {
-                        gobj_log_debug(gobj, 0,
+                        gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                            "msg",          "%s", "UDP: write FAILED",
-                            "msg2",         "%s", "🌐UDP: write FAILED",
-                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                            "errno",        "%d", -yev_get_result(yev_event),
-                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
-                            "p",            "%p", yev_event,
-                            "fd",           "%d", yev_get_fd(yev_event),
+                            "msgset",       "%s", MSGSET_SYSTEM,
+                            "msg",          "%s", "Cannot send the rest of a datagram: dropped",
+                            "len",          "%d", (int)gbuffer_leftbytes(yev_get_gbuf(yev_event)),
                             NULL
                         );
                     }
 
-                    yev_destroy_event(yev_event);
-
-                    try_to_stop_yevents(gobj);
+                } else {
+                    /*
+                     *  The kernel refused THIS datagram (nothing listens at
+                     *  the url: ECONNREFUSED; too big: EMSGSIZE). It is
+                     *  dropped and the next one is sent, as in C_UDP_S. Up
+                     *  to 7.29.3 it was taken as a disconnection: the
+                     *  client stopped, and only a trace said so.
+                     */
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                        "msg",          "%s", "UDP: datagram refused by the kernel, dropped",
+                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                        "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                        "errno",        "%d", -yev_get_result(yev_event),
+                        "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                        NULL
+                    );
                 }
 
+                /*
+                 *  The next datagram. Up to 7.29.3 this asked for
+                 *  ST_CONNECTED, a state C_UDP does not have: the first
+                 *  datagram was sent, every later one waited in the queue
+                 *  for ever, and EV_TX_READY never came (C_UDP_S had the
+                 *  same up to 7.25.4)
+                 */
+                yev_destroy_event(yev_event);
+                if(is_txing && gobj_in_this_state(gobj, ST_IDLE)) {
+                    try_more_writes(gobj);
+                }
             }
             break;
 
@@ -1003,6 +1226,9 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     int checked = check_tx_data(gobj, gbuf);
     if(checked != 0) {
+        if(checked > 0) {
+            post_tx_ready(gobj);    // an empty datagram: its EV_TX_READY
+        }
         KW_DECREF(kw)
         return checked < 0? -1 : 0;     // Error already logged
     }
@@ -1010,10 +1236,44 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!priv->gbuf_txing) {
         priv->gbuf_txing = gbuffer_incref(gbuf);
         if(write_data(gobj) < 0) {
-            try_more_writes(gobj);  // Error already logged: this one is dropped
+            GBUFFER_DECREF(priv->gbuf_txing)    // Error already logged: this one is dropped
+            post_tx_ready(gobj);
         }
     } else {
         enqueue_write(gobj, gbuffer_incref(gbuf));
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The EV_TX_READY posted to itself by post_tx_ready(), a turn later:
+ *  published if nothing is in flight nor queued. Otherwise a datagram sent
+ *  since publishes it when it ends, or the C_UDP was stopped. Declared in
+ *  every state, because the state may change before it comes. Only C_UDP
+ *  posts it: EV_TX_READY is an output event, no host sends it.
+ ***************************************************************************/
+PRIVATE int ac_tx_ready_posted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_TX_READY is an output event, it is not sent to a C_UDP",
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    priv->tx_ready_posted = FALSE;
+    if(gobj_in_this_state(gobj, ST_IDLE) && !priv->no_tx_ready_event &&
+            !priv->gbuf_txing && priv->tx_in_progress == 0 && dl_size(&priv->dl_tx) == 0) {
+        return gobj_publish_event(gobj, EV_TX_READY, kw);
     }
 
     KW_DECREF(kw)
@@ -1032,6 +1292,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_start = mt_start,
     .mt_stop = mt_stop,
     .mt_writing = mt_writing,
+    .mt_reading = mt_reading,
 };
 
 /*------------------------*
@@ -1068,13 +1329,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_stopped[] = {
+        {EV_TX_READY,           ac_tx_ready_posted, 0},
         {0, 0, 0}
     };
     ev_action_t st_wait_stopped[] = {
+        {EV_TX_READY,           ac_tx_ready_posted, 0},
         {0, 0, 0}
     };
     ev_action_t st_idle[] = {
         {EV_TX_DATA,            ac_tx_data,         0},
+        {EV_TX_READY,           ac_tx_ready_posted, 0},
         {0, 0, 0}
     };
 
@@ -1089,7 +1353,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_DATA,            0},
         {EV_RX_DATA,            EVF_OUTPUT_EVENT},
         {EV_TX_READY,           EVF_OUTPUT_EVENT},
-        {EV_STOPPED,            0},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

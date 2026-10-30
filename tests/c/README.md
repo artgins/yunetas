@@ -68,6 +68,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_qiogate_stats` | `C_QIOGATE`'s queue gauges (`msgs_in_queue`, `pending_acks`) in the stats of a `C_MQIOGATE` above it, one entry per child |
 | `c_tcp_s_stats` | The connection stats of `C_TCP_S`, with `child_tree_filter` and with the new method: `connxs` counts the connections held now and `tconnxs` those accepted since the start, as attributes and in `stats` (both read 0 up to 7.25.20) |
 | `c_udp_s_tx` | `C_UDP_S` sends every datagram of its queue, and drops one it cannot send (no peer address: an error; refused by the kernel: a warning) and goes on listening |
+| `c_udp_tx` | `C_UDP` (the UDP client, registered by the test) sends every datagram of its queue in order, publishes `EV_TX_READY` when the queue is done and one turn after an empty send, counts what it sent, and its stop publishes `EV_STOPPED` |
 | `c_udp_s_restart` | `C_UDP_S` reads and sends again after a stop and a start (a file on the old socket number; a stop and a start in the same turn), and publishes `EV_STOPPED` |
 | `c_udp_s_self_stop` | `C_UDP_S` whose next read cannot start says it and stops by itself, and the stop ends (`EV_STOPPED`) with a send in flight; a `udps://` url is refused at the start |
 | `c_fs` | `C_FS` publishes one `EV_FS_CHANGED` per change of the watched tree: a file created, written and removed (3), a directory created (1) and a directory removed (1, which up to 7.25.20 published nothing and leaked its kw) |
@@ -156,7 +157,7 @@ and `/o4xa`
 
 | Directory | New binaries |
 |---|---|
-| `c_agent_find_new_yunos`, `c_controlcenter_scenarios`, `c_ievent_srv_identity_card`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_tcp_s_stats`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_gss_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `c_fs`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
+| `c_agent_find_new_yunos`, `c_controlcenter_scenarios`, `c_ievent_srv_identity_card`, `c_ievent_srv_peer_subs`, `c_node_failed_save`, `c_subscription_authz`, `c_tcp_s_ip_lists`, `c_tcp_s_stats`, `c_treedb_literal_wins`, `c_udp_s_tx`, `c_udp_tx`, `c_udp_s_restart`, `c_udp_s_self_stop`, `c_gss_udp_s_self_stop`, `c_udp_s_rx`, `c_udp_s_echo`, `c_fs`, `command_binary_kw`, `tr_treedb_failed_save`, `tr_treedb_load_failed` | new directories, one binary each (`test_<directory>`) |
 | `gbuffer` | `test_gbmem_realloc_refused` |
 | `c_subscriptions` | `test_subs_test3` |
 | `kw` | `test_kw_set_dict_value` |

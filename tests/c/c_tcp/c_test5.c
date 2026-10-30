@@ -11,7 +11,10 @@
  *          - an EV_TX_DATA with an EMPTY gbuffer: nothing to send, it is
  *            ignored, with a warning, and the connection stays up. Up to
  *            7.29.3 it was a write that cannot start, and the connection
- *            was dropped, with two errors;
+ *            was dropped, with two errors. With nothing in flight, its
+ *            EV_TX_READY comes a turn later, never inside the send: in the
+ *            fixes after 7.29.3 none came, and a host that advances only on
+ *            EV_TX_READY waited for ever;
  *          - the same gbuffer sent twice: the second is refused (-1), with
  *            an error. Up to 7.29.3 it was queued again;
  *          - an empty gbuffer to the write of the TLS output
@@ -29,10 +32,12 @@
  *          connection stayed up, and the stop waited in ST_WAIT_STOPPED
  *          for ever.
  *
- *              1. EV_CONNECTED -> the writes above
- *              2. 1 s later: the connection must have been dropped
+ *              1. EV_CONNECTED -> the empty write
+ *              2. 500 ms later: its EV_TX_READY must have come, once ->
+ *                 the other writes above
+ *              3. 1 s later: the connection must have been dropped
  *                 (EV_DISCONNECTED) once, by the last; the C_TCP is stopped
- *              3. 1 s later: the C_TCP must be in ST_STOPPED
+ *              4. 1 s later: the C_TCP must be in ST_STOPPED
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -88,6 +93,7 @@ typedef struct _PRIVATE_DATA {
     int connected;
     int disconnected;
     int stopped;
+    int tx_ready;
 } PRIVATE_DATA;
 
 
@@ -230,6 +236,40 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
     );
 }
 
+/***************************************************************************
+ *  The same gbuffer twice, and a write that does not start
+ ***************************************************************************/
+PRIVATE void send_bad_writes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, "twice");
+    gbuffer_incref(gbuf);   // the second send
+    gobj_send_event(
+        priv->gobj_tcp,
+        EV_TX_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+        gobj
+    );
+    if(gobj_send_event(
+            priv->gobj_tcp,
+            EV_TX_DATA,
+            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+            gobj
+        ) != -1) {
+        test_fail(gobj, "TEST: the same gbuffer sent twice was not refused");
+    }
+
+    gbuf = gbuffer_create(16, 16);
+    gobj_send_event(
+        priv->gobj_tcp,
+        EV_SEND_ENCRYPTED_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        gobj
+    );
+}
+
 
 
 
@@ -241,8 +281,7 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 
 
 /***************************************************************************
- *  Connected: an empty write, the same gbuffer twice, and a write that does
- *  not start
+ *  Connected: an empty write, with nothing in flight
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -260,34 +299,11 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(priv->disconnected != 0 || !gobj_in_this_state(priv->gobj_tcp, ST_CONNECTED)) {
             test_fail(gobj, "TEST: an empty write dropped the connection");
         }
-
-        gbuf = gbuffer_create(16, 16);
-        gbuffer_append_string(gbuf, "twice");
-        gbuffer_incref(gbuf);   // the second send
-        gobj_send_event(
-            priv->gobj_tcp,
-            EV_TX_DATA,
-            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
-            gobj
-        );
-        if(gobj_send_event(
-                priv->gobj_tcp,
-                EV_TX_DATA,
-                json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
-                gobj
-            ) != -1) {
-            test_fail(gobj, "TEST: the same gbuffer sent twice was not refused");
+        if(priv->tx_ready != 0) {
+            test_fail(gobj, "TEST: the EV_TX_READY of an empty write came inside the send");
         }
-
-        gbuf = gbuffer_create(16, 16);
-        gobj_send_event(
-            priv->gobj_tcp,
-            EV_SEND_ENCRYPTED_DATA,
-            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
-            gobj
-        );
         priv->phase = 1;
-        set_timeout(priv->timer, 1000);
+        set_timeout(priv->timer, 500);
     }
 
     KW_DECREF(kw)
@@ -321,6 +337,19 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->tx_ready++;
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  The other events of the transport: nothing to do
  ***************************************************************************/
 PRIVATE int ac_transport_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -343,13 +372,28 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case 1:
+            if(priv->tx_ready != 1) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: an empty write with nothing in flight did not get one EV_TX_READY",
+                    "tx_ready",     "%d", priv->tx_ready,
+                    NULL
+                );
+            }
+            send_bad_writes(gobj);
+            priv->phase = 2;
+            set_timeout(priv->timer, 1000);
+            break;
+
+        case 2:
             if(priv->disconnected != 1) {
                 test_fail(gobj, "TEST: a write that did not start did not drop the connection");
             }
             if(gobj_is_running(priv->gobj_tcp)) {
                 gobj_stop(priv->gobj_tcp);
             }
-            priv->phase = 2;
+            priv->phase = 3;
             set_timeout(priv->timer, 1000);
             break;
 
@@ -433,7 +477,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DISCONNECTED,       ac_disconnected,    0},
         {EV_STOPPED,            ac_stopped,         0},
         {EV_RX_DATA,            ac_transport_event, 0},
-        {EV_TX_READY,           ac_transport_event, 0},
+        {EV_TX_READY,           ac_tx_ready,        0},
         {0, 0, 0}
     };
 

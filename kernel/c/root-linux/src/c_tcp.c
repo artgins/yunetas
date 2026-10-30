@@ -256,6 +256,7 @@ typedef struct _PRIVATE_DATA {
     dl_list_t dl_tx_encrypted;      // TLS output waiting for the write in flight
 
     BOOL no_tx_ready_event;
+    BOOL tx_ready_posted;           // an EV_TX_READY posted to itself (post_tx_ready())
     int tx_in_progress;
     json_int_t max_tx_in_progress;
 
@@ -1380,12 +1381,14 @@ PRIVATE void try_more_writes(hgobj gobj)
 
 /***************************************************************************
  *  What an EV_TX_DATA must not carry. 0: send it. 1: an empty gbuffer,
- *  nothing to send: ignored, with a warning, and no EV_TX_READY for it (up
- *  to 7.29.3 it was a write that cannot start, and the connection was
- *  dropped, with two errors). -1: a gbuffer already queued or in flight,
- *  whose bytes the first write consumes: refused, with an error (up to
- *  7.29.3 it was queued again, which failed and lost a reference, or the
- *  second write found it empty and dropped the connection).
+ *  nothing to send: ignored, with a warning (up to 7.29.3 it was a write
+ *  that cannot start, and the connection was dropped, with two errors); its
+ *  EV_TX_READY comes from post_tx_ready(). -1: a gbuffer already queued or
+ *  in flight here, whose bytes the first write consumes: refused, with an
+ *  error (up to 7.29.3 it was queued again, which failed and lost a
+ *  reference, or the second write found it empty and dropped the
+ *  connection). A gbuffer in flight in ANOTHER transport is not seen: a
+ *  gbuffer handed to a transport is its own until its EV_TX_READY.
  ***************************************************************************/
 PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
 {
@@ -1415,6 +1418,31 @@ PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  The EV_TX_READY of an empty write, which sends nothing: a host that
+ *  advances only on EV_TX_READY waited for ever (the fixes after 7.29.3).
+ *  With a write in flight or queued, the EV_TX_READY of that one stands
+ *  for it. It is posted to itself (ac_tx_ready_posted()), never published
+ *  here: this runs inside the sender's gobj_send_event(), and a host that
+ *  sends its next write in its EV_TX_READY would recurse.
+ ***************************************************************************/
+PRIVATE void post_tx_ready(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->no_tx_ready_event || priv->tx_ready_posted) {
+        return;
+    }
+    if(priv->gbuf_txing || priv->tx_in_progress > 0 ||
+            dl_size(&priv->dl_tx) > 0 || dl_size(&priv->dl_tx_encrypted) > 0) {
+        return;     // the EV_TX_READY of what is in flight comes when it ends
+    }
+    if(gobj_post_event(gobj, EV_TX_READY, json_object(), gobj) < 0) {
+        return;     // Error already logged
+    }
+    priv->tx_ready_posted = TRUE;
 }
 
 /***************************************************************************
@@ -2327,6 +2355,9 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     int checked = check_tx_data(gobj, gbuf);
     if(checked != 0) {
+        if(checked > 0) {
+            post_tx_ready(gobj);    // an empty write: its EV_TX_READY
+        }
         KW_DECREF(kw)
         return checked < 0? -1 : 0;     // Error already logged
     }
@@ -2364,6 +2395,41 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
      *  freed it again on a negative answer.
      */
     write_encrypted_data(gobj, gbuffer_incref(gbuf));
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The EV_TX_READY posted to itself by post_tx_ready(), a turn later:
+ *  published if the connection is still up with nothing in flight nor
+ *  queued. Otherwise a write sent since publishes it when it ends, or the
+ *  connection is gone and the host was told (EV_DISCONNECTED). Declared in
+ *  every state, because the state may change before it comes. Only C_TCP
+ *  posts it: EV_TX_READY is an output event, no host sends it.
+ ***************************************************************************/
+PRIVATE int ac_tx_ready_posted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_TX_READY is an output event, it is not sent to a C_TCP",
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    priv->tx_ready_posted = FALSE;
+    if(gobj_in_this_state(gobj, ST_CONNECTED) && !priv->no_tx_ready_event &&
+            !priv->gbuf_txing && priv->tx_in_progress == 0 &&
+            dl_size(&priv->dl_tx) == 0 && dl_size(&priv->dl_tx_encrypted) == 0) {
+        return gobj_publish_event(gobj, EV_TX_READY, kw);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -2605,22 +2671,26 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_CONNECT,                ac_connect,                 ST_WAIT_CONNECTED},
         {EV_TIMEOUT,                ac_connect,                 ST_WAIT_CONNECTED},
         {EV_TX_DATA,                ac_tx_data_disconnected,    0},
+        {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}
     };
 
     ev_action_t st_stopped[] = {
+        {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}
     };
 
     ev_action_t st_wait_stopped[] = {
         {EV_TX_DATA,                ac_tx_data_closing,         0},
         {EV_DROP,                   ac_drop,                    0}, // someone insists
+        {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}
     };
 
     ev_action_t st_wait_connected[] = {
         {EV_TX_DATA,                ac_tx_data_queued,          0},
         {EV_DROP,                   ac_drop,                    0},
+        {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}
     };
 
@@ -2628,6 +2698,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
         {EV_TX_DATA,                ac_tx_data_queued,          0},
         {EV_DROP,                   ac_drop,                    0},
+        {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}
     };
 
@@ -2636,6 +2707,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
         {EV_TIMEOUT,                ac_timeout_inactivity,      0},
         {EV_DROP,                   ac_drop,                    0},
+        {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}
     };
 

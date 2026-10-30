@@ -143,15 +143,42 @@ destroyed in `ST_WAIT_STOPPED`).
 ### What a host must not send
 
 - An EMPTY gbuffer has nothing to send: it is ignored, with a WARNING
-  (*"tcp tx data empty, ignored"*), the connection stays up, and no
-  `EV_TX_READY` comes for it. Up to 7.29.3 it was a write that does not start
-  (below): two ERRORs, and the connection dropped.
+  (*"tcp tx data empty, ignored"*), and the connection stays up. Up to 7.29.3
+  it was a write that does not start (below): two ERRORs, and the connection
+  dropped.
 - A gbuffer already queued, or the one in flight, is REFUSED: the send
   answers -1, with an ERROR (*"tcp tx data already queued or in flight,
   refused"*). The write consumes the bytes of its gbuffer, so the same
   bytes twice are two gbuffers. Up to 7.29.3 it was queued again, which
   failed and lost a reference, or its second write found it empty and
   dropped the connection.
+- A gbuffer handed to a transport is that transport's until its
+  `EV_TX_READY`: do not give it to a second transport (or to the same one
+  again, or write into it) meanwhile. The refusal above sees a gbuffer
+  waiting in the queue of ANY transport, but not one in flight in another
+  one: there two writes would read and consume the same bytes. The check is
+  not made, on purpose: it would need a mark in every gbuffer, kept by every
+  consumer, for a misuse no caller in the SDK makes. To send the same bytes
+  to two peers, send each its own gbuffer, copied BEFORE the first send:
+
+  ```C
+  size_t len = gbuffer_leftbytes(gbuf);
+  gbuffer_t *copy = gbuffer_create(len, len);
+  gbuffer_append(copy, gbuffer_cur_rd_pointer(gbuf), len);
+  gobj_send_event(gobj_tcp_a, EV_TX_DATA,
+      json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf), gobj);
+  gobj_send_event(gobj_tcp_b, EV_TX_DATA,
+      json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)copy), gobj);
+  ```
+
+`EV_TX_READY` after an empty write: with nothing in flight nor queued, it
+comes ONE turn later (the transport posts it to itself), never inside the
+`gobj_send_event()` of the sender; with a write in flight or queued, the
+`EV_TX_READY` of that one stands for it. So a host that advances only on
+`EV_TX_READY` goes on after an empty write, and does not recurse into its own
+send. Only in `ST_CONNECTED`: a write sent while disconnected gets none. In the
+fixes after 7.29.3 an empty write got no `EV_TX_READY` at all, and such a host
+waited for ever. `tests/c/c_tcp` (`test5`).
 
 ```C
 gbuffer_t *gbuf = gbuffer_create(16, 16);      // EMPTY
@@ -159,10 +186,12 @@ gobj_send_event(gobj_tcp, EV_TX_DATA,
     json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),   // the kw owns the gbuffer
     gobj
 );
-// WARNING "tcp tx data empty, ignored": nothing sent, still connected
+// WARNING "tcp tx data empty, ignored": nothing sent, still connected,
+// and EV_TX_READY on the next turn when nothing else was in flight
 ```
 
-The same holds in `C_UDP`, `C_UDP_S` (*"udp tx data ..."*) and
+The same holds in [`C_UDP`](#gclass-c-udp), `C_UDP_S` (*"udp tx data ..."*,
+but `C_UDP_S` publishes no `EV_TX_READY` at all) and
 [`C_UART`](#gclass-c-uart) (*"uart tx data ..."*).
 
 ### A write that does not start
@@ -480,30 +509,62 @@ certificate's CN -- which is how gui_agent's *For TreeDB* export finds
 (gclass-c-udp)=
 ## C_UDP
 
-UDP client transport — send and receive datagrams.
+UDP client transport. Its socket is connected to its `url`: it sends there,
+and reads what comes from there.
+
+`C_UDP` is **not registered by the SDK** and `yunetas.h` does not include
+its header: a yuno that uses it includes `c_udp.h` and registers it.
+
+```C
+#include <c_udp.h>
+
+result += register_c_udp();     // in register_yuno_and_more()
+
+priv->gobj_udp = gobj_create("udp", C_UDP,
+    json_pack("{s:s}", "url", "udp://127.0.0.1:9000"),
+    gobj    // the parent hears EV_RX_DATA, EV_TX_READY and EV_STOPPED
+);
+gobj_start(priv->gobj_udp);
+```
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_CONNECTED` |
-| **Input events** | `EV_CONNECT`, `EV_TX_DATA`, `EV_DROP`, `EV_TIMEOUT` |
-| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY` |
+| **States** | `ST_STOPPED`, `ST_IDLE` (started: it reads and sends), `ST_WAIT_STOPPED` (a stop waiting for its read to be canceled and its send in flight to complete) |
+| **Input events** | `EV_TX_DATA` (in `ST_IDLE`) |
+| **Output events** | `EV_RX_DATA`, `EV_TX_READY` (every datagram queued is sent), `EV_STOPPED` (the stop is done) |
+
+A host of `C_UDP` (it is a CHILD: its parent hears it unless a `subscriber`
+is given) declares the three output events in its FSM.
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Connection URL. |
-| `rx_buffer_size` | `integer` | Receive buffer size. |
+| `url` | `string` | The peer, for example `udp://127.0.0.1:9000`. |
+| `rx_buffer_size` | `integer` | Receive buffer size (default `4096`). |
+| `peername` / `sockname` | `string` | The peer and the local address, once connected. |
 | `txBytes` / `rxBytes` | `integer` | Byte counters (stats). |
-| `txMsgs` / `rxMsgs` | `integer` | Message counters (stats). |
+| `txMsgs` / `rxMsgs` | `integer` | Datagram counters (stats). |
 
-`EV_TX_DATA` sends one datagram at a time; the others wait in a queue. An
-empty gbuffer is ignored, with a warning (*"udp tx data empty, ignored"*);
-a gbuffer already queued or in flight is refused (-1, *"udp tx data already
-queued or in flight, refused"*). A datagram that cannot be sent is dropped,
-with an error (*"Cannot send datagram: dropped"*), and the next one is sent.
-Up to 7.29.3 a send that did not start (an empty gbuffer was one) leaked its
-event, and held every later datagram in the queue for ever.
+### Transmit
+
+`EV_TX_DATA` sends one datagram at a time; the others wait in a queue, in
+order, and `EV_TX_READY` is published when the queue is done. An empty
+gbuffer is ignored, with a warning (*"udp tx data empty, ignored"*), and with
+nothing in flight nor queued its `EV_TX_READY` comes one turn later (see
+[`C_TCP`](#gclass-c-tcp), *What a host must not send*). A gbuffer already
+queued or in flight is refused (-1, *"udp tx data already queued or in
+flight, refused"*).
+
+A datagram that cannot be sent is dropped, and the next one is sent:
+
+- a send that does not start: an ERROR, *"Cannot send datagram: dropped"*.
+  When that happens inside the host's `EV_TX_DATA` with nothing else in
+  flight, its `EV_TX_READY` comes one turn later too, never inside the send:
+  a host that sends its next datagram in its `EV_TX_READY` would recurse;
+- a datagram the KERNEL refuses (nothing listens at the url:
+  `ECONNREFUSED`; too big: `EMSGSIZE`): a WARNING, *"UDP: datagram refused
+  by the kernel, dropped"*, with the `errno`.
 
 ```C
 gbuffer_t *gbuf = gbuffer_create(64, 64);
@@ -513,6 +574,32 @@ gobj_send_event(gobj_udp, EV_TX_DATA,
     gobj
 );
 ```
+
+### Receive and stop
+
+Every datagram from the peer is published as `EV_RX_DATA`. A read that fails
+stops the client, with an ERROR (*"UDP: read FAILED, the client stops"*) and
+`EV_STOPPED`: a connected UDP socket fails its read with `ECONNREFUSED` when
+nothing listens at the url, and an EMPTY datagram is read as the end of the
+socket. The host starts it again when it wants.
+
+The stop contract is the one of [`C_TCP`](#gclass-c-tcp): every stop of a
+running `C_UDP` ends in `ST_STOPPED` and publishes `EV_STOPPED` once, when
+its read is canceled and its send in flight completes: a turn after the stop
+at least, since the read is always in flight. The datagrams still waiting in the queue are
+dropped (a WARNING says how many). `EV_STOPPED` is the last thing it does
+with itself: the host may destroy it there. A start before the stop has
+ended is refused, with an ERROR (*"Initial wrong udp state"*).
+
+Up to 7.29.3 `C_UDP` was a port never finished: `register_c_udp()` failed
+(*"SMachine: input_list's event NOT in state"*: `EV_STOPPED` declared as an
+input), `c_udp.h` declared another gclass name (`C_PROT_UDP`), the completion
+of its connect was *"UDP: event type NOT IMPLEMENTED"*, only the first
+datagram was sent (the completion asked for `ST_CONNECTED`, a state it does
+not have: the others waited in the queue for ever and `EV_TX_READY` never
+came), a refused datagram stopped it with only a trace, a stop published
+nothing and did not wait for its send, its read event leaked, and `txBytes` /
+`rxBytes` read 0 for ever. `tests/c/c_udp_tx`.
 
 ---
 
@@ -793,8 +880,12 @@ and deaf.
 What a host must not send:
 
 - An empty gbuffer is ignored, with a warning (*"uart tx data empty,
-  ignored"*), and no `EV_TX_READY` comes for it. In 7.29.3 it was an error,
-  and a write event lost with its gbuffer.
+  ignored"*). With nothing in flight nor queued its `EV_TX_READY` comes one
+  turn later, never inside the send; with a write in flight or queued, the
+  `EV_TX_READY` of that one stands for it (as in [`C_TCP`](#gclass-c-tcp)).
+  In 7.29.3 it was an error, and a write event lost with its gbuffer; in the
+  fixes after it, no `EV_TX_READY` came, and a host that advances only on it
+  waited for ever.
 - A gbuffer already queued, or the one in flight, is refused: the send
   answers -1, with an error (*"uart tx data already queued or in flight,
   refused"*). To send the same bytes twice, send two gbuffers. In 7.29.3
@@ -843,8 +934,17 @@ running `C_UART` ends in `ST_STOPPED`, with its tty closed,
 flight: its read and its write are freed with the line, as a drop frees
 them (the event loop frees each one when its completion comes, and calls
 nothing). So a `gobj_start()` right after `gobj_stop()`, in the same turn,
-opens the device again: a host that changes the `url` of its line does
-exactly that.
+is taken, and opens the device again: a host that changes the `url` of its
+line does exactly that.
+
+A start never opens the device inside `gobj_start()`: it opens it 100 ms
+later, on its timer, the start after a stop like any other. The open of a
+tty is synchronous, so an open inside the start would publish
+`EV_CONNECTED` inside the host's `gobj_start()`, before the host is ready
+for it; a `C_TCP`'s `EV_CONNECTED` comes later too, when its connect
+completes. A timer, and not an event posted to itself: a stop before the open
+cancels the timer, while a posted `EV_CONNECT` would still come, to a stopped
+`C_UART`.
 
 ```C
 gobj_write_str_attr(priv->gobj_uart, "url", "/dev/ttyUSB1");

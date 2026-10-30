@@ -125,9 +125,10 @@ static int register_yuno_and_more(void)
     json_t *errors_list = json_array();
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
-    // uart1: open, an empty write, open again after the drop, the stop, started again
+    // uart1: open, two empty writes, open again after the drop, the stop, started again
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data empty, ignored"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data empty, ignored"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data while disconnected, dropped"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));

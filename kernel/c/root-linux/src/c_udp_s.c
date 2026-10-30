@@ -554,11 +554,13 @@ PRIVATE int udp_set_broadcast(int fd, int on)
 
 /***************************************************************************
  *  What an EV_TX_DATA must not carry. 0: send it. 1: an empty gbuffer,
- *  nothing to send: ignored, with a warning, and no EV_TX_READY for it (up
- *  to 7.29.3 it was a send that cannot start: two errors, and the datagram dropped). -1: a
- *  gbuffer already queued or in flight, whose bytes the first send
- *  consumes: refused, with an error (up to 7.29.3 it was queued again,
- *  which failed and lost a reference).
+ *  nothing to send: ignored, with a warning (up to 7.29.3 it was a send
+ *  that cannot start: two errors, and the datagram dropped). C_UDP_S
+ *  publishes no EV_TX_READY at all. -1: a gbuffer already queued or in
+ *  flight here, whose bytes the first send consumes: refused, with an error
+ *  (up to 7.29.3 it was queued again, which failed and lost a reference).
+ *  A gbuffer in flight in ANOTHER transport is not seen: a gbuffer handed
+ *  to a transport is its own until its send is done.
  ***************************************************************************/
 PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
 {

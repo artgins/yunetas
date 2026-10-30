@@ -12,7 +12,7 @@
  *          as a drop frees them (the loop frees each event when its
  *          completion comes, with no callback), so there is no
  *          ST_WAIT_STOPPED, and a gobj_start() right after gobj_stop(), in
- *          the same turn, opens the line again. EV_STOPPED is the last thing
+ *          the same turn, is taken. EV_STOPPED is the last thing
  *          it does with itself; so is EV_DISCONNECTED when a host destroys it
  *          there. A host declares EV_DISCONNECTED and EV_STOPPED in its FSM.
  *          A stop, a drop (EV_DROP) or a disconnection does not wait for
@@ -24,9 +24,20 @@
  *          is published when the last write queued is done. The queue is
  *          bounded by max_tx_queue (0, the default: no bound, as C_TCP);
  *          full, it drops its oldest write, with an error. An empty write is
- *          ignored, with a warning; a gbuffer already queued or in flight is
- *          refused, with an error; a write while disconnected is dropped,
+ *          ignored, with a warning, and with nothing in flight nor queued
+ *          its EV_TX_READY comes a turn later (posted to itself, never
+ *          inside the sender's send); a gbuffer already queued or in flight
+ *          is refused, with an error; a write while disconnected is dropped,
  *          with an error, as C_TCP does.
+ *
+ *          The start opens the tty 100 ms later, on its timer, and never
+ *          inside gobj_start(): the open is synchronous, so an open there
+ *          would publish EV_CONNECTED inside the host's start, before the
+ *          host is ready for it. C_TCP's EV_CONNECTED comes later too, when
+ *          its connect completes. A start after a stop, in the same turn,
+ *          is the same start: the line opens 100 ms later, and a stop before
+ *          that cancels the timer (a posted EV_CONNECT could not be
+ *          canceled, and would come to a stopped C_UART).
  *
  *          A read or a write the kernel interrupts (EINTR) goes again, but
  *          an interruption repeated MAX_EINTR_BURST times within
@@ -85,6 +96,7 @@ PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE int set_disconnected(hgobj gobj, const char *cause);
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
 PRIVATE int write_next(hgobj gobj);
+PRIVATE void post_tx_ready(hgobj gobj);
 PRIVATE void cut_the_writes(hgobj gobj);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE json_int_t time_to_reconnect(hgobj gobj);
@@ -165,6 +177,7 @@ typedef struct _PRIVATE_DATA {
     dl_list_t dl_tx;            // the gbuffers waiting for it, in order
     json_int_t max_tx_queue;
     json_int_t tx_queue_dropped;    // writes dropped by a full queue, said 1 of max_tx_queue
+    BOOL tx_ready_posted;       // an EV_TX_READY posted to itself (post_tx_ready())
     char inform_disconnection;
     BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
     int eintr_count;            // interruptions of the burst in course (see interrupted_again())
@@ -261,8 +274,7 @@ PRIVATE int mt_start(hgobj gobj)
         NULL
     );
 
-    // HACK el start de tty lo hace el timer
-    set_timeout(priv->gobj_timer, 100);
+    set_timeout(priv->gobj_timer, 100);     // the open, never inside the start (see the header)
 
     return 0;
 }
@@ -1256,6 +1268,30 @@ PRIVATE int write_next(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The EV_TX_READY of an empty write, which sends nothing: a host that
+ *  advances only on EV_TX_READY waited for ever (the fixes after 7.29.3).
+ *  With a write in flight or queued, the EV_TX_READY of that one stands
+ *  for it. It is posted to itself (ac_tx_ready_posted()), never published
+ *  here: this runs inside the sender's gobj_send_event(), and a host that
+ *  sends its next write in its EV_TX_READY would recurse. As C_TCP.
+ ***************************************************************************/
+PRIVATE void post_tx_ready(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->tx_ready_posted) {
+        return;
+    }
+    if(priv->yev_client_tx || dl_size(&priv->dl_tx) > 0) {
+        return;     // the EV_TX_READY of what is in flight comes when it ends
+    }
+    if(gobj_post_event(gobj, EV_TX_READY, json_object(), gobj) < 0) {
+        return;     // Error already logged
+    }
+    priv->tx_ready_posted = TRUE;
+}
+
+/***************************************************************************
  *  End the stop, at once: ST_STOPPED, the line gone as in a drop (the
  *  writes cut, the read stopped and freed in flight or not, the tty
  *  closed), EV_DISCONNECTED if it was connected, and EV_STOPPED, the last
@@ -1552,9 +1588,10 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  An empty write has nothing to send: ignored. In 7.29.3 it was a
-     *  write that cannot start (an error), lost with its gbuffer; in the
-     *  fixes after it, the line was dropped, with three errors
+     *  An empty write has nothing to send: ignored, and its EV_TX_READY
+     *  comes a turn later. In 7.29.3 it was a write that cannot start (an
+     *  error), lost with its gbuffer; in the fixes after it, the line was
+     *  dropped, with three errors
      */
     if(gbuffer_leftbytes(gbuf) == 0) {
         gobj_log_warning(gobj, 0,
@@ -1564,6 +1601,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
             NULL
         );
+        post_tx_ready(gobj);
         KW_DECREF(kw)
         return 0;
     }
@@ -1622,6 +1660,40 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
     write_next(gobj);   // on failure: logged, the line dropped
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The EV_TX_READY posted to itself by post_tx_ready(), a turn later:
+ *  published if the line is still up with nothing in flight nor queued.
+ *  Otherwise a write sent since publishes it when it ends, or the line is
+ *  gone and the host was told (EV_DISCONNECTED). Declared in every state,
+ *  because the state may change before it comes. Only C_UART posts it:
+ *  EV_TX_READY is an output event, no host sends it.
+ ***************************************************************************/
+PRIVATE int ac_tx_ready_posted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_TX_READY is an output event, it is not sent to a C_UART",
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    priv->tx_ready_posted = FALSE;
+    if(gobj_in_this_state(gobj, ST_CONNECTED) &&
+            !priv->yev_client_tx && dl_size(&priv->dl_tx) == 0) {
+        return gobj_publish_event(gobj, EV_TX_READY, kw);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -1711,17 +1783,20 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_stopped[] = {
+        {EV_TX_READY,           ac_tx_ready_posted,         0},
         {0,0,0}
     };
     ev_action_t st_disconnected[] = {
         {EV_CONNECT,            ac_connect,                 0},
         {EV_TIMEOUT,            ac_timeout_disconnected,    0},  // send EV_CONNECT
         {EV_TX_DATA,            ac_tx_data_disconnected,    0},
+        {EV_TX_READY,           ac_tx_ready_posted,         0},
         {0,0,0}
     };
     ev_action_t st_connected[] = {
         {EV_TX_DATA,            ac_tx_data,                 0},
         {EV_DROP,               ac_drop,                    0},
+        {EV_TX_READY,           ac_tx_ready_posted,         0},
         {0,0,0}
     };
     states_t states[] = {
