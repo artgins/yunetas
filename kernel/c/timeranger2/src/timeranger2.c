@@ -17968,6 +17968,18 @@ PRIVATE BOOL word_is_am_pm(const char *word, size_t len)
 }
 
 /***************************************************************************
+ *  Is the word (its leading letters) "noon" or "midnight", in any case?
+ *  A 12 before it is their hour ("12 noon"), as approxidate_careful()
+ *  reads it right after "at" or with no date before it.
+ ***************************************************************************/
+PRIVATE BOOL word_is_noon_or_midnight(const char *word, size_t len)
+{
+    len = leading_letters(word, len);
+    return ((len == 4 && strncasecmp(word, "noon", 4) == 0) ||
+        (len == 8 && strncasecmp(word, "midnight", 8) == 0))? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Does the word (its leading letters) make the number before it a
  *  count, as approxidate_careful() reads one: a unit ("2 days", "5 h",
  *  "3 M"), am/pm ("3 pm"), or a weekday ("2 friday", "2 fridays"). A
@@ -18375,10 +18387,13 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
     run_place_t next_place = RUN_AFTER_NOTHING; // the place of a run that starts now
     BOOL prev_in_run = FALSE;   // the word before is the last of the run
     BOOL date_said = FALSE;     // a month, a day or a year came before
+    BOOL after_at = FALSE;      // the word before is "at" (or "at the")
     const char *p = s;
     for(;;) {
         size_t len;
         const char *word = next_word_of_text(s, p, &len);
+        BOOL word_after_at = after_at;
+        after_at = FALSE;
         const char *count_end = NULL;   // a count: where it ends, past its word
         BOOL count_am_pm = FALSE;
         BOOL digits = FALSE;
@@ -18392,6 +18407,10 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
                 if(next && word_makes_a_count(next, next_len,
                         !date_said && !year, !year, &count_am_pm)) {
                     count_end = next + next_len;
+                } else if(next && len == 2 && word[0] == '1' && word[1] == '2' &&
+                        (word_after_at || !date_said) &&
+                        word_is_noon_or_midnight(next, next_len)) {
+                    count_end = next + next_len;    // "12 noon", "Oct 1 at 12 noon": noon's hour
                 } else {
                     digits = TRUE;
                 }
@@ -18434,6 +18453,10 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
         }
         prev_in_run = FALSE;
         if(word && !count_end && word_is_passed_over(word, len)) {
+            if((len == 2 && strncasecmp(word, "at", 2) == 0) ||
+                    (word_after_at && len == 3 && strncasecmp(word, "the", 3) == 0)) {
+                after_at = TRUE;
+            }
             p = word + len;
             continue;
         }

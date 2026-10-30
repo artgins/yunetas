@@ -748,8 +748,11 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           against a date: "Oct 5 2026 friday" is Monday, October 5; beside
           a day counted from today approxidate_careful() refuses a weekday
           that is not that day's ("now Mon" on a Wednesday; the day the
-          text counted, in the UTC offset of now), and a second weekday
-          ("Mon Thu now").
+          text counted, in the zone said or the UTC offset of now), and a
+          second weekday ("Mon Thu now"). A 12 that noon or midnight
+          follows is their hour, right after "at" or with no date before
+          it, as approxidate_careful() reads it: it ends a run too ("Oct 1
+          2026 at 12 noon" is a date; "2026 12 noon" is refused).
         - Not refused: epoch seconds (9 digits or more, no leading zero)
           alone with a comment, "1761000000 (UTC)", "(EST) 1761000000",
           as "1761000000 UTC" (refused for a while). Without a comment a
@@ -762,7 +765,14 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         to milliseconds when `in_ms`; `end_of_second` (an end bound) then
         takes the last millisecond of its second. approxidate_careful() is
         lenient past these shapes ("yesterday 10.30" is now): a time that
-        must be exact is written as an integer or as ISO 8601.
+        must be exact is written as an integer or as ISO 8601. A local
+        time that a change of hour repeats is its first one, and one that
+        a change of hour skips is read with the offset before the change
+        (in Madrid "2026-10-25 02:30" is 02:30 +0200, "2026-03-29 02:30"
+        03:30 +0200), whatever text was read before it; am/pm with no
+        hour ("today pm"), a day word right after "at" ("at yesterday")
+        and "never" with a zone ("never (+0200)") are no date, and an
+        offset after a date or a day is its zone ("yesterday +0000").
     Return 0 and the time in *value; -1 for a text that is no time, -2 for
     a time past what a json_int_t holds (an integer of 300 digits too);
     *why (when not NULL) says it.

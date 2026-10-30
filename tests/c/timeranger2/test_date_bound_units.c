@@ -79,6 +79,15 @@
  *  "15:00 am" were 15:00); "never" is a whole text ("now never" was the
  *  epoch); "today noon" is today's noon (before noon it was yesterday's).
  *
+ *  A local time that a change of hour repeats is its first one, whatever
+ *  text was read before it (in Madrid "2026-10-25 02:30" was 02:30 +0100
+ *  after a text of the 26th); am/pm needs an hour ("today pm" was 23:00
+ *  at 11:00); after "at" a time of day or a date ("at yesterday" was
+ *  read); "never" with a zone is no date ("never (+0200)" was the epoch);
+ *  "12 noon" is noon, and ends a run of digits ("Oct 1 2026 at 12 noon"
+ *  was refused); an offset after a date or a day is its zone ("yesterday
+ *  +0000" was refused, "yesterday UTC" read).
+ *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -987,6 +996,25 @@ PRIVATE int do_test(void)
             /*  "10.2026" is no date, after "at" or not  */
             {"at 10.2026",                  FALSE,  FALSE,  -1, 0},
             {"10.2026",                     FALSE,  FALSE,  -1, 0},
+            /*  am/pm needs an hour  */
+            {"pm",                          FALSE,  FALSE,  -1, 0},
+            {"today pm",                    FALSE,  FALSE,  -1, 0},
+            {"pm 3",                        FALSE,  FALSE,  -1, 0},
+            {"Oct 1st 2026 am +0000",       FALSE,  FALSE,  -1, 0},
+            /*  After "at" a time of day or a date  */
+            {"at yesterday",                FALSE,  FALSE,  -1, 0},
+            {"at now",                      FALSE,  FALSE,  -1, 0},
+            {"at today",                    FALSE,  FALSE,  -1, 0},
+            {"at never",                    FALSE,  FALSE,  -1, 0},
+            /*  "never" with no zone  */
+            {"never (+0200)",               FALSE,  FALSE,  -1, 0},
+            {"never (CEST)",                FALSE,  FALSE,  -1, 0},
+            /*  "12 noon" is noon  */
+            {"12 noon Oct 1 2026 +0000",    FALSE,  FALSE,   0, 1790856000},
+            {"Oct 1 2026 at 12 noon +0000", FALSE,  FALSE,   0, 1790856000},
+            {"Oct 1 2026 at the 12 noon +0000", FALSE, FALSE, 0, 1790856000},
+            {"Oct 1 2026 12 noon +0000",    FALSE,  FALSE,  -1, 0},
+            {"2026 12 noon",                FALSE,  FALSE,  -1, 0},
             /*  An integer past what a time holds, of any length  */
             {"9223372036854775808",         FALSE,  FALSE,  -2, 0},
         };
@@ -1246,6 +1274,81 @@ PRIVATE int do_test(void)
                 result += -1;
             }
         }
+
+        /*
+         *  Two texts that say the same time: "12 noon" is noon, and an
+         *  offset after a date or a day is read as a zone name is.
+         *  Against the real clock: a case whose second changed during
+         *  the calls is not judged.
+         */
+        static const char *same_time[][2] = {
+            {"12 noon",                     "noon"},
+            {"12 midnight",                 "midnight"},
+            {"yesterday 12 noon",           "yesterday noon"},
+            {"yesterday +0000",             "yesterday UTC"},
+            {"2026-10-01 +0000",            "2026-10-01 UTC"},
+            {"2026-10-01 -0500",            "2026-10-01 EST"},
+            {"now +0200",                   "now CEST"},
+        };
+        for(size_t i = 0; i < sizeof(same_time)/sizeof(same_time[0]); i++) {
+            json_int_t value2 = 0;
+            const char *why2 = NULL;
+            time_t t0 = time(NULL);
+            ret = tranger2_time_of_text(same_time[i][0], FALSE, FALSE, &value, &why);
+            int ret2 = tranger2_time_of_text(same_time[i][1], FALSE, FALSE, &value2, &why2);
+            if(time(NULL) != t0) {
+                continue;
+            }
+            if(ret != 0 || ret2 != 0 || value != value2) {
+                printf("%sERROR%s --> tranger2_time_of_text('%s'): %d %" JSON_INTEGER_FORMAT
+                    " (%s), expected that of '%s': %d %" JSON_INTEGER_FORMAT " (%s)\n",
+                    On_Red BWhite, Color_Off, same_time[i][0], ret, value, why? why : "",
+                    same_time[i][1], ret2, value2, why2? why2 : "");
+                result += -1;
+            }
+        }
+
+        /*
+         *  A local time that a change of hour repeats is the first one,
+         *  and one that it skips is read with the offset before the
+         *  change, whatever text was read before it (in Madrid
+         *  "2026-10-25 02:30" was 02:30 +0100 after a text of the 26th,
+         *  and 02:30 +0200 after one of 01:30 that day)
+         */
+        char *tz_before = getenv("TZ")? gbmem_strdup(getenv("TZ")) : NULL;
+        setenv("TZ", "Europe/Madrid", 1);
+        tzset();
+        static const struct {
+            const char *text;
+            json_int_t value;
+        } changes_of_hour[] = {
+            {"2026-10-25 01:30",            1792884600},
+            {"2026-10-25 02:30",            1792888200},    // 02:30 +0200
+            {"2026-10-26 10:00",            1793005200},
+            {"2026-10-25 02:30",            1792888200},
+            {"2026-10-25 02:30 +0100",      1792891800},
+            {"2026-03-28 10:00",            1774688400},
+            {"2026-03-29 02:30",            1774747800},    // 03:30 +0200
+            {"2026-03-30 10:00",            1774857600},
+            {"2026-03-29 02:30",            1774747800},
+        };
+        for(size_t i = 0; i < sizeof(changes_of_hour)/sizeof(changes_of_hour[0]); i++) {
+            ret = tranger2_time_of_text(changes_of_hour[i].text, FALSE, FALSE, &value, &why);
+            if(ret != 0 || value != changes_of_hour[i].value) {
+                printf("%sERROR%s --> tranger2_time_of_text('%s') in Madrid: %d %" JSON_INTEGER_FORMAT
+                    " (%s), expected %" JSON_INTEGER_FORMAT "\n",
+                    On_Red BWhite, Color_Off, changes_of_hour[i].text, ret, value, why? why : "",
+                    changes_of_hour[i].value);
+                result += -1;
+            }
+        }
+        if(tz_before) {
+            setenv("TZ", tz_before, 1);
+            gbmem_free(tz_before);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset();
 
         for(int i = 0; hours_of_this_year[i]; i++) {
             ret = tranger2_time_of_text(hours_of_this_year[i], FALSE, FALSE, &value, &why);
