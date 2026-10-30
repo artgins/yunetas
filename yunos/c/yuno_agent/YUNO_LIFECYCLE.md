@@ -494,8 +494,9 @@ An **orderly shutdown**, not a SIGKILL, performed by
    not permitted (errno 1))"* at the end of the wait), or *"yuno PID NULL"*
    for a record with no pid. The answer names the first 50 failures and
    counts the rest: *"Can't kill 1200 yuno(s): 7601 (...), ..., 7650 (...)
-   ... and 1150 more (see the log)"*. Each failure has its ERROR in the log
-   (*"Cannot kill yuno"*, with its `yuno_id`, `pid` and error).
+   ... and 1150 more (see the log)"*. Each failure has its ERROR in the log:
+   *"Cannot kill yuno"*, with its `yuno_id`, `pid` and error, or *"yuno PID
+   NULL"*, with its `yuno_id` and no error, for a record with no pid.
    A yuno that is already gone (`kill()` answers `ESRCH`) is no failure: it
    counts as killed, and its `EV_ON_CLOSE` is waited for like the others.
    A process closes its sockets when it exits, before it can be reaped, so
