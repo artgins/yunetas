@@ -67,6 +67,17 @@
   every yuno; `delete-realm` every realm with no yunos; `delete-public-service`
   every public service. Each refuses an empty id now (*"delete-X needs an id:
   without one it selects every X"*). In 7.29.3 and older.
+- **A daemon takes the first SIGQUIT and no other, so a stop that reaches it
+  twice no longer cuts its orderly stop.** Since the watcher passes a
+  SIGQUIT on to its child (unreleased), the agents' unit `ExecStop`,
+  `--stop` and the agent's kill-yuno of an unconnected yuno reach the child
+  twice, and `quit_by_signal()` took the second as "now" and `_exit(0)`ed
+  mid-stop, skipping the end of `stop_services()`, `gobj_end()`, the memory
+  audit and the log close (`--stop` cut 17 of 20 stops of a real yuno). A
+  foreground process still exits on the second signal; a hung daemon is
+  ended by SIGKILL (`--stop`, `TimeoutStopSec`, `kill-yuno force=1`). Only
+  in unreleased code: 7.29.3 had the same `_exit`, but every stop path sent
+  the child one SIGQUIT.
 - **The watcher passes a stop to the child it waits for.** A SIGQUIT that
   came after the watcher looked at the stop, after a fork, reached only the
   watcher; `--stop` had listed the processes before that fork, so it killed
@@ -115,6 +126,17 @@
   255 arguments were cut with nothing said; now they are refused. A first
   child reaped by somebody else (the caller's SIGCHLD at `SIG_IGN`) is not
   an error. In 7.29.3 and older.
+- **`close_fd_range()` (now public) closes only the open fds on a kernel
+  without `close_range()`**: it walks `/proc/self/fd` instead of looping up
+  to the limit, which under `LimitNOFILE=infinity` was four million
+  `close()` per program a yuno ran (0.37 s). The `--start` of every yuno had
+  the same loop (in 7.29.3) and calls it now. On a glibc older than 2.34, an
+  fd above the soft limit no longer fails `run_command()`/`run_process2()`
+  (it gets `O_CLOEXEC`; unreleased).
+- **`launch_daemon()` keeps its pipe above stderr**: with stdin and stdout
+  closed in the caller the pipe took fds 0 and 1, the daemon's `/dev/null`
+  replaced its write end, and the pid of a program never run was returned.
+  In 7.29.3.
 - **`run_command()` takes the whole command and all of its stderr.** It is
   `posix_spawn()` of `/bin/sh -c` with stdout and stderr on its pipe. Up to
   7.29.3 it was `popen()` of the command with `2>&1` appended, in a 4 KB
@@ -138,10 +160,13 @@
   program kept each fd of the yuno that had no `O_CLOEXEC` (a listening
   socket, a log file), and the `run_command()` command read the caller's
   stdin. In 7.29.3 and older.
-- **`pty_sync_spawn()` stops reading stdin at its end.** Up to 7.29.3 it read
-  stdin again at once, for ever, and wrote a byte never read to the command
-  each time (about 500 000 bytes a second). The `C_PTY` child leaves with
-  `_exit()`. In 7.29.3 and older.
+- **`pty_sync_spawn()` stops reading stdin at its end and passes it on.** Up
+  to 7.29.3 it read stdin again at once, for ever, and wrote a byte never
+  read to the command each time (about 500 000 bytes a second), and never an
+  EOF. Now the command gets the terminal's EOF character (twice after a line
+  not ended; nothing in raw mode), so `cat >/dev/null; echo DONE` ends; the
+  master is closed (one fd leaked per call) and the command is always
+  reaped. The `C_PTY` child leaves with `_exit()`. In 7.29.3 and older.
 - **The watcher sets its signals before its first fork, unblocks SIGQUIT and
   ignores SIGHUP.** A SIGQUIT right after the first fork found the default
   disposition, ended the watcher and left the yuno an orphan; a SIGHUP ended
@@ -202,6 +227,29 @@
   `delete-realm`, `delete-public-service`, `delete-binary`, `delete-config`
   and `delete-yuno` answered an empty cause, or the cause of an older,
   unrelated failure. In 7.29.3 and older.
+- **yuno_agent: a create or update the treedb refuses with a WARNING answers
+  "(see the log)" as its cause, not an empty or an older one.**
+  `create-realm`, `update-realm`, `update-public-service`, `install-binary`,
+  `update-binary`, `create-config`, `update-config` and `create-yuno` clear
+  the last message before the operation whose cause they answer, as the
+  deletes do. In 7.29.3 (those answers read `gobj_log_last_message()`
+  directly).
+- **C_AUTH_BFF: an OIDC discovery that times out is logged and counted in
+  `idp_timeouts`.** The discovery task ending by timeout moved no counter,
+  and with no request queued it logged nothing. It logs an ERROR (*"OIDC
+  discovery: IdP did not answer in time"*) and counts like the timeout of a
+  browser request. In 7.29.3. `c_auth_bff/test20_discovery_timeout`.
+- **C_AUTH_BFF: the username and email of a big access_token are read
+  again.** The JWT payload was read into 2 KB, so a token with many roles
+  (about 4 KB) answered the login, callback or refresh with an empty username
+  and email, silently. The buffer is sized for the whole token, and a payload
+  that cannot be read logs a WARNING. In 7.29.3.
+  `c_auth_bff/test21_big_token`.
+- **C_AUTH_BFF: the header and the error catalog say what the code does**:
+  the five POST endpoints plus OPTIONS and no fixed port; `token_too_large`
+  and `internal_error` (both 500), and `missing_refresh_token` for
+  `/auth/logout` too; 502, not 503, for the drain after a failed discovery.
+  Comments only.
 - **A delete the agent's treedb refuses says which record, its cause, and
   what was deleted before it.** This covers `delete-binary` (count,
   directories left, files kept), `delete-config`, `delete-realm` and
@@ -220,6 +268,13 @@
   `whole=1` is refused: they are two deletes and the command does not guess
   (with a release other than the primary's it deleted only that one, with the
   primary's every release). In 7.29.3.
+- **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
+  SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
+  superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1
+  and 1.1.2. What each carries is in its own CHANGELOG: no private name,
+  citation or footprint in comments, docs and examples; the SPAs on the
+  current libraries, a deadline on every call to the auth BFF, and a login
+  denial said in the language of the app.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -229,12 +284,25 @@
   unused in-repo), the BFF port per SPA (1806/1807, 1808), session restore,
   refresh with backoff and the opt-in `/auth/token`. The `auth_bff` README
   and page say the same, and no comment cites a security check-list id.
+- **Docs: no notes store cited, no secret's whereabouts, and the auth docs
+  match `c_auth_bff.c`.** The yuno_agent chapters and two READMEs named
+  entries of a private notes store; each now says its rule, and YUNO_AUTH §8
+  no longer says where a real secret lives. Rejections are WARNINGs, not
+  INFO; `idp_timeouts` covers both watchdogs; `Domain` is written only when
+  `cookie_domain` matches the Host, and a cookie is not scoped by port;
+  `allowed_redirect_uri` and `cookie_domain` are optional; `http_cookie`
+  comes from C_WEBSOCKET/C_IEVENT_SRV; `/auth/login` needs Direct Access
+  Grants (client table, checklist, recipe); the local gui_treedb dev server
+  proxies `/auth` to 1808. The scenario examples use a neutral load
+  generator (`set-clients`, `pause-load`, `load-test`, `gen2`..`gen5`,
+  `gate_device`/`set-output`). `deploy.sh` rewrites the site domain embedded
+  in every built page, as it does for `sitemap.xml`.
 - **Docs:** the public examples name no private project, client, node or
   person, and nothing cites a private review. The scope examples of the
   control center (`c_authz.c`, `c_controlcenter.c`, its README and page), the
   treedb API examples, the OAuth2 BFF guide, `YUNO_AUTH.md`, `NODE_SEALING.md`,
   the webstats record, the audit examples and `test_audit_record.c` use
-  generic names (`stress.example.com`, `load-20k`, `stress-demo`,
+  generic names (`stress.example.com`, `load-test`, `stress-demo`,
   `node-a`/`node-b`, `myapp`, `app.example.com`, `ops@example.com`). The
   retention design, the design of the `file` columns and the 7.27.10
   performance report give their figures without saying whose data or which
@@ -245,7 +313,7 @@
   the fix" names the release. The examples carry nothing of an application:
   no figures of its data, no words of its data model (a `sites` / `buildings`
   / `devices` inventory instead), no yuno ids or ports of its nodes
-  (`db_history^4620`, `gate_hub^4020`, a `sim_load` fleet `gen1`..`gen17`,
+  (`db_history^4620`, `gate_hub^4020`, a `sim_load` fleet `gen1`..`gen5`,
   yunos `4120`/`4520`), no meter models, and no address of a company server (the
   documentation ranges, `198.51.100.0/24`, `203.0.113.0/24`). The same in
   gobj-js, gobj-ui and yunos-js; the gui_agent QA reads the ids of the
@@ -422,10 +490,15 @@
   day, as a date (`"Thu, 01 Oct 2026"`) or counted from today
   (`"yesterday Tue"`, `"2 days ago Mon"`); else the text is no date, and a
   time bound or tkey written that way is refused. The weekday is still not
-  checked against that day. A count back of zero and `"now"` name today, as
-  `"today"` does: `"0 days ago Mon"` and `"now Mon"` are today (a development
-  version refused them; 7.29.3 read them right). `test_date_text` §15-16. In
-  7.29.3 and older.
+  checked against a calendar date (`"Oct 5 2026 friday"` is Monday, October
+  5). A count back of zero and `"now"` name today, as `"today"` does: `"0
+  days ago Wed"` and `"now Wed"` are today on a Wednesday. Beside a day
+  counted from today (`now`, `today`, a count back, `yesterday`, `last
+  friday`) the weekday must be that day's, in the zone the text gives: on a
+  Wednesday `"now Mon"`, `"0 days ago Mon"`, `"yesterday Wed"` and `"now 2026
+  Mon"` are no date (7.29.3 read today, today, yesterday and 1988). A text
+  says one weekday: `"Mon Thu now"` and `"Mon Thu, 01 Oct 2026"` are no date.
+  `test_date_text` §15-18. In 7.29.3 and older.
 - **No number alone after `at` is a date** (`approxidate_careful()`):
   `"Oct 1 at 10"` was 2010-10-01, `"at 10"` the 10th of the month,
   `"1 Oct at 3"` 2003-10-01, `"Oct 1 at 24"` 2024-10-01, `"Oct 1 at 30"`
@@ -435,9 +508,17 @@
   no hour at all: it is no date now, whatever its value, and so is one after
   `at the` (`"Oct 1 at the 10"` was 2010-10-01). `"at 10.30"`, 10:30 for a
   person, was October 30 and is no date (write `"at 10:30"`; `"at
-  1.10.2026"` is still October 1). A number before a month name is a day:
-  `"at 5 Oct 2026"` is read (a development version refused it, while `"at 26
-  Oct 2026"` passed). `"Oct 1 at 10 pm"`, `"Oct 1 at 10:00"` and `"at
+  1.10.2026"` is still October 1). `"at 10.30.00"`, 10:30:00 for a person,
+  was 2000-10-30: after `at` a date of numbers with dots needs its year of 4
+  digits (`"at 1.10.26"`, which may be 01:10:26, is refused too). A count back
+  right after `at` is no date either (`"at 5 days"`, `"at 2 fridays ago"`,
+  `"at 15 h"`), but an hour with an `h`, as Spanish and French write it, is a
+  clock time of 24 hours: `"at 15h"` is 15:00 and `"at 10h30"` 10:30 (up to
+  7.29.3 15 hours back, and 10 hours back from the 30th, a date ahead);
+  `"15h"` anywhere else is still 15 hours back. A number before a month name is a day:
+  `"at 5 Oct 2026"` and `"at 5 of October"` are read (a development version
+  refused the first while `"at 26 Oct 2026"` passed, and the second because
+  it did not pass over `of`). `"Oct 1 at 10 pm"`, `"Oct 1 at 10:00"` and `"at
   2026-10-01 10:00"` are read. The piece after `at` is found once: a
   development version looked for it again from every piece, so a text of
   `"at"`, many comments, `"on"` and many `"the"` took time that grew with the
@@ -445,17 +526,24 @@
   7.29.3 and older.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
-  bounds and tkeys), with *"a time text longer than 256 bytes"*, whatever it
-  holds, as a C text and as a json string. No date needs more (the longest
+  bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text
+  and as a json string, but for the text of a JSON integer: an integer of
+  any length is past what a time holds, -2 *"an integer past what a time
+  holds"*, as one of 20 digits is. No date needs more (the longest
   form a program writes is about 66 bytes), and the reader takes time that
   grows with the length of a text that may come from a peer or a command
   parameter. `test_date_bound_units`. 7.29.3 had no limit.
-- **`ago` needs a count before it** (`approxidate_careful()`): with none it
+- **`ago` needs its count right before it** (`approxidate_careful()`): with
+  none it
   was passed over and the number left was a day, so `"5 (days) ago"` (a
   comment holding the unit) and `"5 ago"` were the 5th of the month, and
-  `"Oct 1 ago"` October 1. `ago` says how long back a count is: with no
+  `"Oct 1 ago"` October 1. A count anywhere before it was enough, so a number
+  between them was a day: `"1 day 5 ago"` and `"yesterday 5 ago"` were
+  October 4. `ago` now follows its count with only blanks, dots, commas,
+  underscores or comments between them (`"2 days (x) ago"` is read). `ago`
+  says how long back a count is: with no
   count, `"yesterday"` or weekday back before it, the text is no date, and a
-  time bound or tkey written that way is refused. `test_date_text` §16. In
+  time bound or tkey written that way is refused. `test_date_text` §16, §18. In
   7.29.3 and older.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
@@ -623,6 +711,18 @@
   host (example added). New test `c_prot_modbus_m/test5`: a `C_UART` hosted
   by the test on a pty (held stop, held destroy, drop, short write, stop and
   start in one turn, refused writes).
+- **A `C_UDP` started while its stop waits no longer stops by itself**
+  (unreleased): its read event was reused, and the completion of its cancel
+  could land on the new read, which then failed (*"UDP: read FAILED, the
+  client stops"*). Each start creates a new read, as `C_UDP_S` does.
+  `test_c_udp_tx_refused`.
+- **A `C_TCP` clisrv destroyed before its stop ended closes its socket**: a
+  socket leaked and the peer never saw the end. In 7.29.3. `c_tcp/test9`.
+- **`C_UDP` and `C_UDP_S` destroyed before their `EV_STOPPED` no longer log
+  *"GObj NOT STOPPED. UV handler ACTIVE!"*,** a check from the libuv code:
+  the destroy cancels what is in flight and the loop frees it with no
+  callback, as in `C_TCP`. `gobj_destroy()` still reports a running gobj. In
+  7.29.3 (log only).
 - **C_TCP, C_UDP and C_UDP_S ignore an empty write, with a warning** (*"tcp
   tx data empty, ignored"*, *"udp tx data empty, ignored"*), and no
   `EV_TX_READY` comes for it, as in `C_UART`. In 7.29.3 an empty gbuffer was
@@ -2247,7 +2347,7 @@ study: the change is in the check of a permission, which no benchmark runs.
   its scope in the kw; a scoped `deny` applies unless the kw carries a key
   of its scope with a value out of it. A role with no `parameters` grants
   as before. `{"permission":
-  "read-scenarios", "parameters": {"scenario_id": ["load-20k"]}}`
+  "read-scenarios", "parameters": {"scenario_id": ["load-test"]}}`
   reads that scenario and nothing else. A `parameters` that is not a dict
   grants nothing and logs an ERROR. New test `authz_scoped_permissions`.
 - **`deny` of an entry of a role's `permissions` is optional** (false, as it
