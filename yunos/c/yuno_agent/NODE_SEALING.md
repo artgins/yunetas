@@ -95,8 +95,8 @@ reachable **three** ways, and they are **not** equivalent:
   our 7.8.x nodes the homing is clean: `.com`→`yuneta_agent`,
   `.ovh`→`yuneta_agent22`. Legacy 6.x nodes can home differently.)
 - **The controlcenter is a multi-tenant hub.** One CC (artgins) is the
-  reverse-channel endpoint for *many* independent fleets (start-fleet, the
-  normedan hospital nodes, a CESGA cluster of ~15, raspz, …). Any operator it
+  reverse-channel endpoint for *many* independent fleets (the nodes of
+  several customers, a cluster of ~15, single boards, …). Any operator it
   authenticates with the `command-agent` permission can address every agent
   registered there. **Under a seal the controlcenter's security IS the whole
   fleet's security** — it needs the strongest hardening in the network. (This is

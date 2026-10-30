@@ -946,8 +946,8 @@ Points found so far (verified this session unless noted):
    `cmd_command_agent` ([`c_controlcenter.c`](src/c_controlcenter.c)) checks
    only the flat `command-agent` permission on the CC. A holder can then
    address **every agent registered on that CC**. The artgins CC is a
-   **multi-tenant hub**: start-fleet, normedan hospital nodes, a CESGA cluster
-   of about 15 nodes, raspz and more. One CC-root operator therefore reaches
+   **multi-tenant hub**: the nodes of several customers, a cluster of about
+   15 nodes, single boards and more. One CC-root operator therefore reaches
    every node of every tenant. This needs a role and permission model that
    scopes which agents and tenants a CC role can `command-agent`, and which
    cmd2agent verbs it can forward.
