@@ -694,14 +694,14 @@ run again. The yunos are 0 to 8 KB larger (stripped).
 - **The node uuid by hand, on a node without the package**
   (`packages/install-yuneta-node-uuid.sh`). A node that builds from source
   does not install the `.deb`/`.rpm` (it would replace `outputs/` with
-  archives of another glibc), so 7.29.1 left wattyzer, hidraulia, artgins and
-  the dev machine with their random uuid. The script does what the package
-  does -- `/usr/libexec/yuneta/yuneta-node-uuid`, root's, `restorecon` under
-  SELinux; the `ExecStartPre` of both agent units as a drop-in, unless the
-  unit already carries it; `ensure` -- and writes only what differs, so a
-  second run says "Nothing changed" with the same uuid. Run with `-n` it only
-  tells. Checked on the three package nodes (nothing to do, twice) and on a
-  source node.
+  archives of another glibc), so 7.29.1 left the staging node, a client
+  production node, the company server and the dev machine with their random
+  uuid. The script does what the package does --
+  `/usr/libexec/yuneta/yuneta-node-uuid`, root's, `restorecon` under SELinux;
+  the `ExecStartPre` of both agent units as a drop-in, unless the unit already
+  carries it; `ensure` -- and writes only what differs, so a second run says
+  "Nothing changed" with the same uuid. Run with `-n` it only tells. Checked on
+  the three package nodes (nothing to do, twice) and on a source node.
 - **The packages no longer copy the web servers' runtime state**
   (`copy_webserver_tree()` in both packagers). `/yuneta/bin/nginx` and
   `/yuneta/bin/openresty` were copied whole, so the `*_temp` directories
@@ -1046,8 +1046,8 @@ commands, and the handshake and Close of a websocket, once per session.
 - **yuno_agent: `activate-snap` / `deactivate-snap` restart only the yunos
   whose launch changed** (`restart_nodes()`). They SIGKILLed every yuno of the
   node and launched the enabled ones again, so a `yunetas upgrade-yunos` of
-  one binary restarted the whole node (7 yunos of the yunovatios central for
-  one `db_history_ce`). Each running yuno's launch signature -- the saved
+  one binary restarted the whole node (7 yunos of a central node for one
+  `db_history`). Each running yuno's launch signature -- the saved
   columns of its row, of the binary it runs, of its configuration, its realm
   and its public services (`restart_plan.c`) -- is taken before the reload of
   the agent's treedb and after it: the same one gets back its runtime (the
@@ -1056,9 +1056,9 @@ commands, and the handshake and Close of a websocket, once per session.
   killed and not launched. An INFO
   *"Node restart: only the yunos whose launch changed"* lists `kept`,
   `restarted` and `stopped`. `all=1` restarts every yuno, as before. Checked
-  on wattyzer: a `deactivate-snap` with nothing changed kept the 22 pids, an
-  upgrade of `logcenter` changed only its pid, `all=1` changed all 22. Cases
-  in `c_agent_find_new_yunos`.
+  on the staging node: a `deactivate-snap` with nothing changed kept the 22
+  pids, an upgrade of `logcenter` changed only its pid, `all=1` changed all 22.
+  Cases in `c_agent_find_new_yunos`.
 - **`C_WEBSOCKET` takes `Connection: upgrade` in any case.** The server
   looked for `Upgrade` with a case-sensitive `strstr()`, so a client that
   sends the token in lower case (Node's `WebSocket`, `connection: upgrade`;
@@ -1332,18 +1332,16 @@ those two gclasses.
   `yuno_skeleton/templates` builds both projects with a citizen yuno in
   them, and runs the JS service in node. Both carry the web frontend in
   `gui/`: the JS GUI scaffold (Vite, gobj-js, gobj-ui's declarative shell)
-  moved here from `wattyzer/templates/js_gui/`, a private repository, and
-  is kept once in `skeletons/project_base/`, which both entries `extends`
-  (new catalog key: copied first, a file in both is an error). New key
-  `keep` leaves i18next's `{{name}}` and `{{n}}` as they are.
-  `check_project_gui.sh` generates a project and installs and builds its
-  gui; gobj-ui's deploy round runs it. The scaffold titled its README and
-  its yuno "Foo GUI GUI". yuno-skeleton ends with an error on an input
-  that runs out (a required prompt was asked again for ever), refuses a
-  project name outside `[a-z0-9_]`, and refuses to overwrite a non-template
-  file too. `SCAFFOLDING.md` and `GOBJ.md`
-  recipes still passed the name as an argument, and one used a role of 17
-  characters (the tool takes 15).
+  moved here from a private application repository, and is kept once in
+  `skeletons/project_base/`, which both entries `extends` (new catalog key:
+  copied first, a file in both is an error). New key `keep` leaves i18next's
+  `{{name}}` and `{{n}}` as they are. `check_project_gui.sh` generates a project
+  and installs and builds its gui; gobj-ui's deploy round runs it. The scaffold
+  titled its README and its yuno "Foo GUI GUI". yuno-skeleton ends with an error
+  on an input that runs out (a required prompt was asked again for ever),
+  refuses a project name outside `[a-z0-9_]`, and refuses to overwrite a
+  non-template file too. `SCAFFOLDING.md` and `GOBJ.md` recipes still passed the
+  name as an argument, and one used a role of 17 characters (the tool takes 15).
 
 - **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
   (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
@@ -1359,10 +1357,10 @@ those two gclasses.
 ## v7.28.6 (2026-10-25)
 
 A lite release: only the control center changes (`yunos/c/controlcenter`),
-and only it is deployed (1996/1997 on a.com). Tests: the control center's own
-(`test_c_controlcenter_scenarios`, case 18 new) and gui_agent's vitest suite,
-on the dev machine. No performance study: no benchmark runs the control
-center, so no figure of the trend can move.
+and only it is deployed (1996/1997 on the company server). Tests: the control
+center's own (`test_c_controlcenter_scenarios`, case 18 new) and gui_agent's
+vitest suite, on the dev machine. No performance study: no benchmark runs the
+control center, so no figure of the trend can move.
 
 - **The switch of a yuno of a scenario.** A yuno may carry `switch: {on:
   [steps], off: [steps]}` (steps as those of an action; a step that names no
@@ -1465,9 +1463,8 @@ unlink of two nodes, +1.67%, t = 2.4); `performance/reports/7.28.5.json`.
       `helpers.h`: `skip_prefix()`, `signed_add_overflows()`,
       `unsigned_add_overflows()`, `maximum_*_value_of_type()`,
       `bitsizeof()`, `parse_timestamp` and `TIME_MAX`. Checked in yunetas,
-      gobj-js, gobj-ui, yunos-js, yunovatios, tui_yunetas, wattyzer,
-      estadodelaire, hidraulia, yunomusica and yunovideo: none calls them.
-      `timestamp_t` and `PRItime` stay.
+      gobj-js, gobj-ui, yunos-js, tui_yunetas and every consumer application:
+      none calls them. `timestamp_t` and `PRItime` stay.
     - **A text that is no date is refused**, with the error flag, where the
       port read another date in silence: `"2 days from now"` and
       `"in 3 days"` were days BACK, `"1.5 hours ago"` was May 1st,
@@ -1487,9 +1484,9 @@ unlink of two nodes, +1.67%, t = 2.4); `performance/reports/7.28.5.json`.
     - **A date with no year** is of this year unless it is more than 10
       days ahead (one rule; the port had two, by month and by days).
     - `parse_date_basic()` refuses a word it does not know
-      (`"2026-10-01 10:00:00 junk"` was read). The `published_at` of
-      `gate_auraair` (estadodelaire, hidraulia), ISO 8601 with
-      milliseconds and `Z`, reads the same.
+      (`"2026-10-01 10:00:00 junk"` was read). The `published_at` of a gate
+      of two client applications, ISO 8601 with milliseconds and `Z`, reads
+      the same.
     - `show_date_relative()` writes one unit in the singular
       (`1 second ago`, `1 year, 1 month ago`).
     - The zone abbreviations are a table of their own, each with its
@@ -1564,10 +1561,9 @@ unlink of two nodes, +1.67%, t = 2.4); `performance/reports/7.28.5.json`.
   every package with code in an app's bundle -- the Font Awesome attribution
   of `yui_icons.css` and the notice of gobj-js's `sprintf.js` among them --
   because Vite 8 drops every comment of a bundle, `/*!` included. The deploy
-  round put it in all of them: gui_agent 1.1.2, gui_treedb 1.0.2, wattyzer,
-  the two yunovatios GUIs, estadodelaire, hidraulia, yunomusica, yunovideo,
-  the `js_gui` template and the demo; each host serves `/licenses.txt`. The
-  JS API pages are repinned to the 7.28.0 tags.
+  round put it in all of them: gui_agent 1.1.2, gui_treedb 1.0.2, every consumer
+  application, the `js_gui` template and the demo; each host serves
+  `/licenses.txt`. The JS API pages are repinned to the 7.28.0 tags.
 
 ## v7.28.4 (2026-10-25)
 
@@ -1583,8 +1579,8 @@ links. The suite ran on the dev machine. The performance study is against
   `disk_min_free_size_gigas`: the fullest of `/yuneta` and the filesystem of
   the store of each of its `C_TRANGER`s, looked for once a minute and
   measured at every reading. `disk_free_percent` told only of `/yuneta`: the
-  queues of the simulators of wattyzer filled a ramdisk of 26 GB unseen, and
-  each simulator died on a message it could not save (`c_qiogate`'s CRITICAL
+  queues of the simulators of an application filled a ramdisk of 26 GB unseen,
+  and each simulator died on a message it could not save (`c_qiogate`'s CRITICAL
   *"Message NOT SAVED in the queue"*), in a loop, for a day.
   `tests/c/c_yuno_stats`.
 - **A queue gate with a full disk refuses messages, it no longer aborts.**
@@ -1597,7 +1593,7 @@ links. The suite ran on the dev machine. The performance study is against
   again. What is in the queue is still delivered, and the gate recovers by
   itself. Up to 7.28.3 the CRITICAL *"Message NOT SAVED in the queue"*
   aborted the yuno, which loaded its queue and aborted again, in a loop
-  (the simulators of wattyzer, for a day). `tests/c/c_qiogate_stats`.
+  (the simulators of an application, for a day). `tests/c/c_qiogate_stats`.
 - **The control center stops, pauses and reports every yuno of a scenario at
   once.** A `stop`, `pause` or `report` run sends all its steps together,
   within one `run_step_timeout`, records each result, and ends with `-1`
@@ -1629,7 +1625,7 @@ the agent.
   each, and freeing the list read gobjs already destroyed: two ERRORs,
   *"gobj DESTROYING with references"* and *"iter gobj with refs <= 0"*, and
   a read of freed memory, at a stop that came right after a deploy (seen on
-  wattyzer and on the dev machine). The list is freed first now.
+  the staging node and on the dev machine). The list is freed first now.
 - **The web console (gui_agent 1.0.7)**: the live view of a scenario puts
   its charts to the right of the graph of yunos on a wide screen (under it
   on a narrow one), and the series of each chart are folded behind a
@@ -1660,13 +1656,13 @@ TCP echo with an append measured -0.94%, t = -5.3, in the rotation, and
   with the result, the fd and what the fd is now, and reads them again -- on
   a new signalfd when its fd was closed under it (the number may be another
   file by then, which is not closed). Ten failures in a row and it stops
-  trying, with an ERROR that says the yuno is deaf. The agents of hidraulia
-  and artgins showed that end: the stop of their unit timed out into a
-  SIGKILL after a day or two of running (what ended the read was never
-  seen, and could not be reproduced). Every yuno links `c_yuno`: every
-  binary is rebuilt. `tests/c/c_yuno_signal_read` puts `/dev/null` on the
-  signalfd's number and checks that a SIGQUIT still stops the yuno (up to
-  7.28.1 the test hung: not even its own auto-kill, a SIGALRM, reached it).
+  trying, with an ERROR that says the yuno is deaf. The agents of a client
+  production node and of the company server showed that end: the stop of their
+  unit timed out into a SIGKILL after a day or two of running (what ended the
+  read was never seen, and could not be reproduced). Every yuno links `c_yuno`:
+  every binary is rebuilt. `tests/c/c_yuno_signal_read` puts `/dev/null` on the
+  signalfd's number and checks that a SIGQUIT still stops the yuno (up to 7.28.1
+  the test hung: not even its own auto-kill, a SIGALRM, reached it).
 
 ## v7.28.1 (2026-10-25)
 
@@ -1799,8 +1795,8 @@ only: 329/329 after a clean build, under `ulimit -Sn 1024`.
 ## v7.27.21 (2026-10-24)
 
 A lite release of the controlcenter: only it is deployed (1996/1997 on
-a.com). The test it touches ran on the dev machine. No performance study:
-the change builds a command line.
+the company server). The test it touches ran on the dev machine. No performance
+study: the change builds a command line.
 
 - **controlcenter: a yuno of a scenario may name its `queue_service`**, the
   service that holds its output queue when it is not the one it is watched
@@ -1816,8 +1812,8 @@ the change builds a command line.
 ## v7.27.20 (2026-10-24)
 
 A lite release of the controlcenter (the C_AUTHZ it links): only it is
-deployed (1996/1997 on a.com). Suite on the dev machine: see below. No
-performance study: the change is in the check of a permission.
+deployed (1996/1997 on the company server). Suite on the dev machine: see below.
+No performance study: the change is in the check of a permission.
 
 - **C_AUTHZ: the scope of a grant is weighed only when its own permission is
   asked** (and `*`'s). Up to 7.27.19 every grant of the user's roles was
@@ -1825,15 +1821,15 @@ performance study: the change is in the check of a permission.
   -- `read-scenarios` on `scenario_id` -- read as undeclared when another
   permission was asked (`command-agent`, at every `my-permissions`), and
   logged *"a role scopes a permission on a key it does not declare"* once
-  per role and check. What was granted did not change. Seen on a.com after
-  the deploy of 7.27.19, at the login of the scoped user.
+  per role and check. What was granted did not change. Seen on the company
+  server after the deploy of 7.27.19, at the login of the scoped user.
   `authz_scoped_permissions` checks that a good scope logs nothing.
 
 ## v7.27.19 (2026-10-24)
 
 A lite release of the controlcenter, which replaces 7.27.18 before it was
-activated (its binary was installed on a.com, not promoted). The tests it
-touches ran on the dev machine. No performance study.
+activated (its binary was installed on the company server, not promoted). The
+tests it touches ran on the dev machine. No performance study.
 
 - **controlcenter: while a scenario RUNS, saving it needs `run-scenarios`
   too** -- a run of it in flight, or its last run that did anything is not a
@@ -1865,9 +1861,9 @@ activated anywhere. Never activated either: 7.27.19 replaced it.
 
 A lite release of the controlcenter: a test left running is stopped. Never
 activated: 7.27.18 replaced it the same day. Only
-the controlcenter is deployed (1996/1997 on a.com). The tests it touches ran
-on the dev machine (`test_c_controlcenter_scenarios`). No performance study:
-no benchmark runs it.
+the controlcenter is deployed (1996/1997 on the company server). The tests it
+touches ran on the dev machine (`test_c_controlcenter_scenarios`). No
+performance study: no benchmark runs it.
 
 - **controlcenter: `max_run`, the stop of a test left running.** A scenario
   may say how many seconds a start may run (`max_run`, 0 = none, a week at
@@ -1891,7 +1887,7 @@ no benchmark runs it.
 
 A lite release of the controlcenter: a console learns that what its user may
 do changed, without a reload. Only the controlcenter is deployed (1996/1997
-on a.com). The tests it touches ran on the dev machine
+on the company server). The tests it touches ran on the dev machine
 (`test_c_controlcenter_scenarios`, `authz_scoped_permissions`). No
 performance study: no benchmark runs it.
 
@@ -1931,9 +1927,9 @@ A lite release of the controlcenter: a user can be let see ONE scenario.
 Never deployed: 7.27.15 replaced it the same day.
 `C_AUTHZ` (in every yuno) gains the scope of a role's `parameters`, but a
 role without `parameters` grants as before, so only the controlcenter is
-deployed (1996/1997 on a.com); the other yunos take it with the next full
-release. The suite ran on the dev machine: 325/325. No performance study:
-the change is in the check of a permission, which no benchmark runs.
+deployed (1996/1997 on the company server); the other yunos take it with the
+next full release. The suite ran on the dev machine: 325/325. No performance
+study: the change is in the check of a permission, which no benchmark runs.
 
 - **The `yunetas` CLI 1.0.2** (on PyPI): the table of `sync-binaries` stays
   in line with the long versions of 7.27.11 (`2.17.3-7.27.13`). Its role,
@@ -2045,7 +2041,7 @@ and 7.27.10's code relinked with the new code placement measured the same as
   others, the open of one wiped what the others had pending, and the close of
   one took the directory away from the rest. Three yunos started together
   logged *"mkdir() FAILED"* (`EEXIST`). The id now starts with the yuno,
-  `treedb-<role>^<name>-...` (`treedb-db_history_ce^1620-C_TRANGER-...`), in
+  `treedb-<role>^<name>-...` (`treedb-db_history^1620-C_TRANGER-...`), in
   the lists of the indexes of every topic and in those of `__snaps__` and
   `__graphs__`. The yuno is the same at each start, so a restart takes its
   own directory back, as it did. Out of a yuno (`treedb_list --follow`) the
@@ -2053,7 +2049,7 @@ and 7.27.10's code relinked with the new code placement measured the same as
     - **The name of a treedb opened by a command is shorter now**: the id of
       the list of `__assets__` holds the yuno, so the limit is 38 bytes + the
       yuno and its `-` + 2 times the name, inside `NAME_MAX` (98 bytes in
-      `db_history_ce^1620`; it was 108).
+      `db_history^1620`; it was 108).
     - **`tools/treedb/check_store_schemas.py --list-ids-yuno <role>^<name>`**:
       its `LIST` estimate counts the yuno too, taken as 32 bytes when it is
       not given.
@@ -2071,12 +2067,11 @@ and 7.27.10's code relinked with the new code placement measured the same as
   SDK release installs it in a new slot and keeps the old one. The agent
   compares a version number by number, split at `.` and `-` (`version_cmp()`),
   so `1.9.1-7.27.11` is newer than `1.9.1.0` and older than `1.9.1-7.28.0`
-  and `1.9.1-8.0.0`. The 30 project yunos of estadodelaire, hidraulia,
-  wattyzer and yunovatios use it, and so do the `yuno-skeleton` templates.
-  **The first build with it is a version bump of every project yuno**:
-  `yunetas sync`, then `yunetas upgrade-yunos`. Each slot is about 35 MB per
-  yuno and release, as for the yunos of the SDK (50-64 slots per role on the
-  nodes today).
+  and `1.9.1-8.0.0`. The 30 yunos of four consumer applications use it, and so
+  do the `yuno-skeleton` templates. **The first build with it is a version bump
+  of every project yuno**: `yunetas sync`, then `yunetas upgrade-yunos`. Each
+  slot is about 35 MB per yuno and release, as for the yunos of the SDK (50-64
+  slots per role on the nodes today).
 - **The `yunetas` CLI 1.0.0** (on PyPI; 0.23.6 with its version renumbered to
   one digit per segment) compares a version split at `-`
   too, as `version_cmp()` does, and a missing segment counts as 0. Split at
@@ -2101,12 +2096,12 @@ functions let it skip both:
   already json text, and checks the text itself, so a topic never holds a
   record nobody can read back.
 
-With them, yunovatios' `db_tracks_ce` stores 2.2 times more frames per second
-on the same machine (24,700 -> 53,300). On a production node (Xeon E-2386G) it holds
-20,000 records/s at 55% of one core: 36,375,974 records in 30 minutes,
-0 duplicates and 0 gaps (`tr2check`). The release also fixes a queue that sent
-its own metadata with every message, and a pinned yuno that logged an error at
-each start.
+With them, an application's `db_tracks` stores 2.2 times more frames per second
+on the same machine (24,700 -> 53,300). On a production node (Xeon E-2386G) it
+holds 20,000 records/s at 55% of one core: 36,375,974 records in 30 minutes, 0
+duplicates and 0 gaps (`tr2check`). The release also fixes a queue that sent its
+own metadata with every message, and a pinned yuno that logged an error at each
+start.
 
 The suite passed 324 of 324 on the dev machine only, with four jobs. The
 performance study is against 7.27.7, the last release with a study (7.27.8
@@ -2131,14 +2126,14 @@ external libraries were checked, and all are at their latest versions.
   nothing is pinned: it used to be silent, and the bound let one cpu past the
   last through. `sched_priority <= 0` no longer asks for `SCHED_RR`.
   New test `c_yuno_cpu_core` (`test1` a pin, `test2` a cpu that does not
-  exist), red against 7.27.9. Found pinning the yunos of hidraulia for the
-  performance test.
+  exist), red against 7.27.9. Found pinning the yunos of a client
+  application for the performance test.
 - **A queue message is read back as it was queued** (`trq_msg_json()`,
   `kernel/c/timeranger2/src/tr_queue.c`). The read of a record adds the
   `__md_tranger__` of the queue's own store, and the append to a queue topic
   (keyed by rowid) adds `"__rowid__": "__rowid__"`; `trq_msg_json()` returned
   both. So a `C_QIOGATE` sent them with every message, and a consumer that
-  stores frames as they arrive (yunovatios' and hidraulia's `db_tracks`)
+  stores frames as they arrive (the `db_tracks` of two applications)
   stored the `"__rowid__"`. Both are removed now. The message's metadata is in
   `trq_msg_md()`. The API page said the json was not the caller's; it is.
   Test `tr_queue/test_tr_queue1` (red against 7.27.9).
@@ -2284,8 +2279,8 @@ this, and the new test `c_prot_modbus_m/test1` covers the three defects.
 nginx goes to `release-1.31.8` (`linux-ext-libs` 1.25), with no security
 fix. The other external libraries were checked and are at their latest
 versions. The suite passed 317 of 317 on the dev machine only: from this
-release there is no second run on wattyzer. There is no performance study:
-the user decided it for this release, and the change is in a module that
+release there is no second run on the staging node. There is no performance
+study: the user decided it for this release, and the change is in a module that
 no hot path uses.
 
 - **`C_PROT_MODBUS_M` logs a failing block once, as a warning**
@@ -2316,13 +2311,13 @@ no hot path uses.
   its reason and the next one is tried, before the state changes. The builder
   no longer returns an empty message over RTU/ASCII after logging: it refuses
   the write (*"Modbus write NOT IMPLEMENTED for this protocol"*). No consumer
-  sends writes today (yunovatios, hidraulia, wattyzer and estadodelaire were
-  checked), which is how it survived. Checked with a probe yuno against a
-  simulated meter: two writes reach it once each and the readings go on; an
-  unbuildable write and a write answered with an exception do not stop them.
-  Still open, and said on the doc page: a coil write (function 05) sends the
-  value as given instead of `0xFF00`/`0x0000`, and several values (functions
-  15 and 16) are not built as Modbus frames.
+  sends writes today (the four consumer applications were checked), which is how
+  it survived. Checked with a probe yuno against a simulated meter: two writes
+  reach it once each and the readings go on; an unbuildable write and a write
+  answered with an exception do not stop them. Still open, and said on the doc
+  page: a coil write (function 05) sends the value as given instead of
+  `0xFF00`/`0x0000`, and several values (functions 15 and 16) are not built as
+  Modbus frames.
 
 - **`C_PROT_MODBUS_M` publishes only what the cycle read, and a TCP exception
   no longer stalls the connection** (`modules/c/modbus`). Two defects, found
@@ -2340,15 +2335,15 @@ no hot path uses.
       are cleared after the whole slave is decoded (two variables can share a
       cell) and on a disconnection. **A subscriber can now receive a message
       with fewer variables than the map declares**, and must not read a
-      missing one as zero. The consumers checked (the yunovatios gates, through
-      their data contract, which marks a partial reading as suspect, and
-      hidraulia's ESP32 `esp_caudal`, which merges each message into the
-      last one) handle it, and so does hidraulia's Raspberry gateway
-      (`rasp_caudal`, a GUF120 over RTU): it copies only the keys that arrive,
-      and a derived total whose integer part or multiplier is missing is not
-      computed. estadodelaire and wattyzer have no Modbus. A consumer that
-      depends on it can refuse to build without it:
-      `c_prot_modbus_m.h` defines `C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ`.
+      missing one as zero. The consumers checked (the gates of one
+      application, through their data contract, which marks a partial reading
+      as suspect, and a client application's ESP32 gate, which merges each
+      message into the last one) handle it, and so does that client's
+      Raspberry gateway (a flow meter over RTU): it copies only the keys that
+      arrive, and a derived total whose integer part or multiplier is missing
+      is not computed. The other two applications have no Modbus. A consumer
+      that depends on it can refuse to build without it: `c_prot_modbus_m.h`
+      defines `C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ`.
     - Over TCP, `framehead_consume()` waited after every exception response
       for a 2-byte CRC that TCP does not carry: each exception cost
       `timeout_response` and held the poll of every slave of the connection
@@ -2402,7 +2397,7 @@ release also ships the `yunetas` CLI 0.23.1-0.23.5, gobj-ui
 is a forced treedb delete, +21% of CPU. It appeared in 7.27.6, and its
 report is `performance/reports/7.27.7.html`. nginx 1.31.8 is out, but it
 is not taken: it has no security fix, and it changes `working_directory`.
-The suite passed 316 of 316 on the dev machine. On wattyzer, `test_c_fs`
+The suite passed 316 of 316 on the dev machine. On the staging node, `test_c_fs`
 stopped once in the first full run (see `TODO.md`), and the second full run
 passed: 316, with 1 skipped.
 
@@ -2812,11 +2807,10 @@ says when a new version is deployed.
   on focus or visibility, on `online`, on `vite:preloadError`, every hour (a
   user-approved exception to *no polling*, for screens that never get the
   focus) and on every backend `EV_ON_OPEN`. Wired into gui_agent 0.29.104,
-  gui_treedb 0.17.166, wattyzer, estadodelaire, hidraulia, the two yunovatios
-  GUIs and the `js_gui` template. All are deployed with QA OK. Every SPA
-  deploy script now uploads with `rsync --delete-after --delay-updates`, so a
-  page loaded during an upload never gets an `index.html` whose chunks are not
-  there yet.
+  gui_treedb 0.17.166, every consumer application's GUI and the `js_gui`
+  template. All are deployed with QA OK. Every SPA deploy script now uploads
+  with `rsync --delete-after --delay-updates`, so a page loaded during an upload
+  never gets an `index.html` whose chunks are not there yet.
 - **The forwarding shims `tools/agent/sync_binaries.py`, `sync_configs.py` and
   `set_start_priorities.py` are removed (BREAKING for a runbook that calls
   them).** The tools ship inside the `yunetas` CLI since 7.8.5 (CLI 0.17.0),
@@ -2830,16 +2824,16 @@ A patch release with two fixes of the C runtime and tools. The yuno that the
 agent launched again at once (a node restart) no longer exits because the
 dead yuno still holds its port. And the table tools align a cell that holds
 non-ASCII characters. A yuno takes the first fix when it is built again with
-this SDK. The suite passed 310 of 310 on the dev machine and on wattyzer.
-There is no performance report, because no hot path changed.
+this SDK. The suite passed 310 of 310 on the dev machine and on the staging
+node. There is no performance report, because no hot path changed.
 
 - **`C_TCP_S` listens again when its address is in use at the start**, for
   `listen_retry_msec` (new attribute, 5000 by default; 0: no retry), at each
   tick of the yuno's periodic timeout. A yuno killed and launched at once
   finds its port held by the dead one for a while: the io_uring ring of a
   process is torn down after the process is gone, and the accept pending on
-  it holds the listening socket until then. Measured on the yunovatios
-  controller with a liburing program (SIGKILL, `waitpid()`, then `bind()`):
+  it holds the listening socket until then. Measured on a controller node
+  with a liburing program (SIGKILL, `waitpid()`, then `bind()`):
   the port was held after the reap in 30 rounds of 30, 4-10 ms on an idle
   VM, and none without io_uring. The agent's restart of a node
   (`deactivate-snap`, the last step of every relay) kills every yuno and
@@ -2860,8 +2854,8 @@ There is no performance report, because no hot path changed.
   (`ycommand`, `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`).
   They padded and cut with `"%-*.*s"`, which counts BYTES: each non-ASCII
   character of a cell pulled every column after it one place to the left.
-  `"Espana · A Coruna"` has two 2-byte dots, so in the `list-controllers` of
-  the yunovatios central the four columns after it were two places off. The
+  `"North · South · East"` has two 2-byte dots, so in the `list-controllers`
+  of a central node the four columns after it were two places off. The
   cut could also split a character. Headers were widened to their
   `strlen()`, the same mistake. Commands had been writing their headers
   without accents ("Ubicacion", "Al dia") to dodge it. Two helpers in
@@ -2871,21 +2865,21 @@ There is no performance report, because no hot path changed.
   characters are not measured. Tested in `test_kw1`, and checked against the
   central's live `list-controllers`: the cell fills its 34 columns, and the
   next column sits under its header.
-- **SDK 7.27.3 deployed on every node** (local, wattyzer first, artgins,
-  yunovatios controlador and central by package, hidraulia), and **gobj-ui
-  7.27.28: the trace notes say what the yuno keeps.** A gobj card says that a
-  service's traces survive a restart, or that any other gobj's end with the
-  yuno; the gclass viewer that the gclass' survive. Every SPA took it in the
-  round (gui_agent 0.29.102, gui_treedb 0.17.164, wattyzer 0.1.56, yunovatios
-  central 0.7.104 / controlador 0.5.105, yunomusica 2.37.6, yunovideo
-  1.0.12, estadodelaire 2.0.66, the js_gui template and the demo), and
-  hidraulia 2.0.21 after its staging. Checked live: each note on a service
-  and on a timer of db_history_co^1630; console clean on every host.
+- **SDK 7.27.3 deployed on every node** (local, the staging node first, the
+  company server, the controller and central nodes by package, a client
+  production node), and **gobj-ui 7.27.28: the trace notes say what the yuno
+  keeps.** A gobj card says that a service's traces survive a restart, or that
+  any other gobj's end with the yuno; the gclass viewer that the gclass'
+  survive. Every SPA took it in the round (gui_agent 0.29.102, gui_treedb
+  0.17.164, every consumer application, the js_gui template and the demo), the
+  client production application after its staging. Checked live: each note on a
+  service and on a timer of db_history^1630; console clean on every host.
 
 ## v7.27.3 (2026-10-19)
 
 An abbreviated release, one fix of the C runtime, tested on the dev machine
-only (the user's call): no suite, no wattyzer, no performance report.
+only (the user's call): no suite, no staging node, no performance
+report.
 
 - **A gobj's trace is saved only for a named service, under its service
   name** (`c_yuno.c`: `set-gobj-trace`, `set-gobj-no-trace`). At start up
@@ -2893,7 +2887,7 @@ only (the user's call): no suite, no wattyzer, no performance report.
   trace was saved under the name the command was given: the gobj tree of
   gui_agent gives the FULL name, so its traces were saved for nothing and the
   next start logged *"GClass NOT FOUND: <full name>"* as an ERROR (seen on
-  gate_enchufe^2046 of wattyzer after the 7.27.2 deploy). Now a service's
+  a gate of the staging node after the 7.27.2 deploy). Now a service's
   trace survives a restart whatever name it was set by, and any other gobj's
   lasts until the yuno ends, as the docs said. An entry saved by an older
   release is dropped at the next start with a WARNING, *"Saved trace of no
@@ -2910,7 +2904,7 @@ A small release. One change of the C runtime: `gobj2json()` answers
 `play_methods`, whether the gobj's gclass has an `mt_play` or an `mt_pause`,
 and it is one of `view-gobj-tree`'s default options -- a viewer needs it to
 stop calling paused a running gobj that has nothing to play (15 of the 18
-gclasses of a db_history_ce). The rest are the JS rounds since 7.27.1:
+gclasses of a db_history). The rest are the JS rounds since 7.27.1:
 gobj-ui 7.27.0 -> 7.27.27 (the icon round, the treedb topic table, the
 remote gobj tree of a yuno with its traces in three scopes, the minimap, the
 gclass viewer), gui_agent 0.29.79 -> 0.29.101 and the SPAs that took them,
@@ -2919,7 +2913,7 @@ all of them already deployed.
 No performance report and no A/B: nothing on a hot path changed. The
 external libraries were checked first (`kernel/c/linux-ext-libs` 1.24 is
 upstream's latest of each). Suite 309/309 on the dev machine (clean build,
-`ulimit -Sn 1024`) and on wattyzer.
+`ulimit -Sn 1024`) and on the staging node.
 
 - **gobj-ui 7.27.27: each trace scope where it belongs, and the gclass
   viewer reviewed.** The kernel's trace levels (`machine`, `create_delete`...)
@@ -2934,12 +2928,10 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   720px window), puts the short zones first and the long tables across
   the whole width, capped at 20 rows. gui_agent 0.29.101 sends
   `set-global-trace`; every SPA took it in the round (gui_treedb 0.17.163,
-  wattyzer 0.1.55, yunovatios central 0.7.103 / controlador 0.5.104,
-  yunomusica 2.37.5, yunovideo 1.0.11, estadodelaire 2.0.65, the js_gui
-  template and the demo). Checked live in the three scopes (wattyzer: set
-  and put back); console clean on every host. Hidraulia 2.0.20 followed
-  after its staging (estadodelaire 2.0.65): QA OK on the build and on
-  hidrauliaconnect.es.
+  every consumer application, the js_gui template and the demo). Checked
+  live in the three scopes (on the staging node: set and put back); console
+  clean on every host. The client production application followed after its
+  staging: QA OK on the build and on its production host.
 
 - **gobj-ui 7.27.26: the gobj tree has a minimap, and stops calling paused
   what has nothing to play.** The minimap appears from 20 cards on; its
@@ -2947,16 +2939,15 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   (`yui_graph_minimap.js`). A running gobj whose gclass has neither
   `mt_play` nor `mt_pause` reads `● running` in green: from the gclass in
   a local tree, from `play_methods` (below) in a remote one. Deployed by the
-  round to every SPA (gui_agent 0.29.100, gui_treedb 0.17.162, wattyzer
-  0.1.54, yunovatios central 0.7.99 / controlador 0.5.100, yunomusica
-  2.37.4, yunovideo 1.0.10, estadodelaire 2.0.64, the js_gui template and
-  the demo). Console checked on every host: clean but for G6's two usual
-  warnings. Hidraulia was not deployed.
+  round to every SPA (gui_agent 0.29.100, gui_treedb 0.17.162, the consumer
+  applications, the js_gui template and the demo). Console checked on every
+  host: clean but for G6's two usual warnings. The client production
+  application was not deployed.
 
 - **`gobj2json()` answers `play_methods`**: `true` when the gobj's gclass
   has an `mt_play` or an `mt_pause`. It is one of `view-gobj-tree`'s
   default `options` too. Most gclasses have neither (15 of the 18 of a
-  db_history_ce), and a gobj of theirs that runs and does not play is not
+  db_history), and a gobj of theirs that runs and does not play is not
   paused: it is doing all it can. The gobj tree of gui_agent (gobj-ui
   7.27.26) reads it to stop calling those gobjs paused. A yuno shows it
   once it is rebuilt with this SDK.
@@ -2971,10 +2962,9 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   0.29.98 carries it; the other apps get it from the next deploy round.
 
 - **Deploy round of gobj-ui 7.27.23 to every SPA.** gui_treedb, gui_agent,
-  wattyzer, both yunovatios GUIs, yunomusica, estadodelaire, the js_gui
-  template and the demo went through the round. yunovideo 1.0.7 and
-  hidraulia 2.0.17 (after its staging, estadodelaire 2.0.61) were deployed on
-  their own. Every app carries the new i18n keys of 7.27.22-7.27.23. The
+  the consumer applications, the js_gui template and the demo went through
+  the round; two applications (one after its staging) were deployed on their
+  own. Every app carries the new i18n keys of 7.27.22-7.27.23. The
   console was checked on every deployed host: clean, apart from G6's two
   usual warnings.
 
@@ -2990,7 +2980,7 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   `gclass` and `fullname`, and a gobj trace is not re-applied when the yuno
   starts (only gclass and global ones are), so it ends with the yuno.
   Deployed to artgins.yunetacontrol.com, checked live (tree, trace on and off
-  on wattyzer, backend gclass).
+  on the staging node, backend gclass).
 
 - **gui_agent 0.29.94: a live card can be paused, or read once.** In the cards
   mode of the Scenarios live view, each card has pause/resume and *read once*
@@ -3003,20 +2993,20 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   artgins.yunetacontrol.com, checked live.
 
 - **SPAs: source maps are no longer published.** Every SPA (gui_agent,
-  gui_treedb, wattyzer, estadodelaire, hidraulia, both yunovatios GUIs, and
-  the `js_gui` template) builds with `sourcemap: "hidden"`: the maps stay in
-  `dist/` to decode a stack from the remote log, the bundle carries no
-  `sourceMappingURL`, and the deploy rsync hides `*.map` (its `--delete`
-  removed the maps already served). A deployed map exposed the whole source
-  of the private repos. Page load is unchanged (a browser fetches a map only
-  with devtools open). All deployed, hidraulia after staging; QA clean.
+  gui_treedb, every consumer application, and the `js_gui` template) builds with
+  `sourcemap: "hidden"`: the maps stay in `dist/` to decode a stack from the
+  remote log, the bundle carries no `sourceMappingURL`, and the deploy rsync
+  hides `*.map` (its `--delete` removed the maps already served). A deployed map
+  exposed the whole source of the private repos. Page load is unchanged (a
+  browser fetches a map only with devtools open). All deployed, the client
+  production application after staging; QA clean.
 
 - **gobj-ui submodule: maplibre-gl 6.15.0** (lockfile and test-app only, no
   gobj-ui release; peer floor stays `^6.14.0`). No breaking change and no
   change of the worker protocol; it fixes `load`/`idle` firing early when a
   tile fails and Safari 26.6+ stalling tiles after the page was in the
-  background. Every SPA that mounts a map (test-app, both yunovatios GUIs,
-  estadodelaire, hidraulia) raised and deployed; worker 6.15.0 served.
+  background. Every SPA that mounts a map (test-app and the applications
+  with a map) raised and deployed; worker 6.15.0 served.
 
 - **JS layer: gobj-ui 7.27.1 -> 7.27.18, the icon round.** Every SPA and
   the library were reviewed for icons, one app at a time, against two rules:
@@ -3033,14 +3023,14 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   theme toggle shows the CURRENT theme (moon in dark, sun in light), with a
   menu or without one; its tooltip names the action. A final audit counted
   755 icon uses, none undefined. No behaviour changed. gui_agent 0.29.90,
-  gui_treedb 0.17.155; every SPA on `^7.27.18` and deployed, hidraulia after
-  estadodelaire was validated in staging.
+  gui_treedb 0.17.155; every SPA on `^7.27.18` and deployed, the client
+  production application after it was validated in staging.
 
 - **JS layer: gobj-ui 7.27.21, `EV_VIEW_SHOWN`.** A view that the shell
   shows again after hiding it (`keep_alive`) is told so, if it declares the
   event; `C_YUI_SERVICE_VIEW` hands it to its hosted view and `C_YUI_NODE`
   down its path. It lets a view keep its state across navigation and still
-  read its data again. The yunovatios GUIs moved every route from
+  read its data again. The GUIs of one application moved every route from
   `lazy_destroy` to `keep_alive` on top of it (the map kept losing its camera).
   gui_agent 0.29.93, gui_treedb 0.17.158; every SPA on `^7.27.21` and deployed.
 - **JS layer: gobj-ui 7.27.20, the topic table came back empty.** After
@@ -3050,10 +3040,10 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   stayed drawn for the bottom. `C_YUI_NODE` now rebuilds only its chrome when
   the child already hangs in its body, and the table gives its scroll back on
   its next sight. gui_agent 0.29.92, gui_treedb 0.17.157; every SPA on
-  `^7.27.20` and deployed; yunovatios QA `--check tabreturn` green on the
-  deployed central.
+  `^7.27.20` and deployed; an application's QA `--check tabreturn` green on
+  its deployed central node.
 - **JS layer: gobj-ui 7.27.19, the treedb topic table.** Three faults found
-  on the yunovatios central. Tabulator's `autoResize` took a hidden tab
+  on an application's central node. Tabulator's `autoResize` took a hidden tab
   (`display:none`, 0x0) for a resize and redrew a table with no layout, so
   every visit to another tab moved the reader a dozen rows up; the table now
   watches its own size (`EV_TABLE_RESIZED`) and redraws when seen again or
@@ -3084,7 +3074,7 @@ nodes: no code of Yuneta changed. `kernel/c/linux-ext-libs` 1.24:
 
 Every node that builds from source runs `./extrae.sh && ./configure-libs.sh`
 again, and every yuno is rebuilt. Suite 309/309 on the dev machine and on
-wattyzer with the new libraries.
+the staging node with the new libraries.
 
 Performance against 7.27.0 (each release built on its own `outputs_ext`, run
 alternately, 16 rounds; details in `performance/c/README.md`): TLS round trips
@@ -3095,8 +3085,8 @@ KiB).
 
 ## v7.27.0 (2026-10-15)
 
-A hardening release, out of nineteen more rounds of review (yunovatios
-`REV-CLOUD.md`, V17..V35; V31..V34 went into the entries of earlier rounds)
+A hardening release, out of nineteen more rounds of review (the cloud
+review, V17..V35; V31..V34 went into the entries of earlier rounds)
 of the C kernel and the JS layer. A minor version, because it changes
 contracts. What a user of the SDK has to know:
 
@@ -3138,7 +3128,7 @@ only those two checks taken out of the same `tr_treedb.c` it runs at 2.33 us,
 as 7.26.9 -- about 0.1 us per write, the saved update included. The yunos are
 1.3-1.4% larger (stripped).
 
-Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
+Out of the seventeenth review (the cloud review, V17), read while
 7.26.9 was being deployed.
 
 - **fix: `c_node` refuses two more peer mistakes with a WARNING, not the
@@ -3179,7 +3169,7 @@ Out of the seventeenth review (yunovatios `REV-CLOUD.md`, V17), read while
   every SPA runs that one from its `prebuild` and keeps no copy (V17.3.4):
   the copies had drifted into three families with different rules, and two
   of them skipped `t('topic') + ':'` as a key built by concatenation, so the
-  gobj tree's *"topic:"* went untranslated in wattyzer and yunovatios. An
+  gobj tree's *"topic:"* went untranslated in two applications. An
   import conflict of a hook map names the hook column it is written in
   (V17.3.5). gui_agent 0.29.39, gui_treedb 0.17.106; every SPA on
   `^7.26.25` and deployed.
@@ -3226,7 +3216,7 @@ Out of the nineteenth review (V19):
 - **fix: the peer's window reached the subscribers** (V19.2). The mark of
   `treedb_set_peer_data()` is process-wide and the treedb publishes its
   `EV_TREEDB_NODE_*` synchronously, so a subscriber that wrote from its
-  handler (`db_history_ce` -> `C_AUTHZ` -> `treedb_authzs`) had its own
+  handler (`db_history` -> `C_AUTHZ` -> `treedb_authzs`) had its own
   faults lowered to WARNINGs. The treedb turns the mark off around every call
   of its publication callback. **The tests now assert the priority**:
   `capture_log_write()` adds `"__priority__"` to the captured log, and an
@@ -3256,22 +3246,22 @@ Out of the nineteenth review (V19):
 - **JS layer: gobj-ui 7.26.27.** A module publishes the keys it hands to
   `t()` as data in an exported `<NAME>_I18N_KEYS` array, and
   `validate-locales` asks for them wherever the module is mounted
-  (`yui_dev.js`: the 51 keys of the Developer window, of which yunomusica
-  lacked 35 -- added in its 10 languages). The 11 controls of the property
-  popovers of the treedb's node graph (`C_G6_NODES_TREE`) are named and change
-  language. `validate-locales`: a key
-  that only ends like a plural form is a key, ordinals per language, an
-  endonym only when it is a locale's `name`, a declared attr name no source
-  uses fails, tests are not read. gui_agent 0.29.41, gui_treedb 0.17.108.
+  (`yui_dev.js`: the 51 keys of the Developer window, of which one
+  application lacked 35 -- added in its 10 languages). The 11 controls of the
+  property popovers of the treedb's node graph (`C_G6_NODES_TREE`) are named and
+  change language. `validate-locales`: a key that only ends like a plural form
+  is a key, ordinals per language, an endonym only when it is a locale's `name`,
+  a declared attr name no source uses fails, tests are not read. gui_agent
+  0.29.41, gui_treedb 0.17.108.
 - **JS layer: gobj-ui 7.26.26.** `validate-locales` compares plurals per
   language (`Intl.PluralRules`), takes endonyms as literals, reads the app's
-  `attr_keys` / `array_keys` from its `package.json` (the names of the
-  yunovatios orchestrator were written in the published script), reads the
-  source recursively and follows a dynamic import. yunomusica runs it now
-  (10 languages; 17 keys added). It saw three keys that reached `t()` by
-  variable or `setAttribute`: `apply`, `node id required` (it was
-  `t('node id') + ' required'`), and `not saved yet` (written WITHOUT `t()`
-  by `yui_file_field.js`). gui_agent 0.29.40, gui_treedb 0.17.107.
+  `attr_keys` / `array_keys` from its `package.json` (the names of one
+  application's orchestrator were written in the published script), reads the
+  source recursively and follows a dynamic import. That 10-language app runs it
+  now (10 languages; 17 keys added). It saw three keys that reached `t()` by
+  variable or `setAttribute`: `apply`, `node id required` (it was `t('node id')
+  + ' required'`), and `not saved yet` (written WITHOUT `t()` by
+  `yui_file_field.js`). gui_agent 0.29.40, gui_treedb 0.17.107.
 
 Out of the twentieth review (V20):
 
@@ -3296,10 +3286,9 @@ Out of the twentieth review (V20):
   parameter it takes in several shapes ON PURPOSE must be declared
   `DTP_JSON`. Retyped for that reason: `C_NODE` `set-link-events` `set`,
   `C_IDP_KEYCLOAK`'s `brief`, `enabled`, `emailVerified`, `requiredActions`
-  and `actions`, `C_PROT_MODBUS_M`'s `address`/`size` (and, in the projects,
-  yunovatios' `set-coordinates` `lng`/`lat` and wattyzer's `gate_pvpc`
-  `body`). New test `command_parameter_types` (the whole matrix). Docs:
-  `command_parser.md`.
+  and `actions`, `C_PROT_MODBUS_M`'s `address`/`size` (and, in the
+  applications, a `set-coordinates` `lng`/`lat` and a gate's `body`). New test
+  `command_parameter_types` (the whole matrix). Docs: `command_parser.md`.
 - **fix: `treedb_create_node()` on a uuid topic read a stack buffer out of
   its scope** (V20.2.1): the generated id lived in a `char[]` declared inside
   the `if`, and was used after it -- reachable by a peer's `create-node` or
@@ -3488,10 +3477,10 @@ Out of the twenty-first review (V21):
   `data` marker over what it can read as keys; a published list may spread
   one of its module; `acorn` is a dependency. gui_agent 0.29.43, gui_treedb
   0.17.110; every SPA on `^7.26.29` and deployed.
-- **JS layer: gobj-ui 7.26.30 and 7.26.31, and estadodelaire leaves v1.** The
-  v1 freeze of estadodelaire was lifted and its GUI moved to v2 (the
-  declarative shell), its plan in `estadodelaire/gui/MIGRACION_V2.md`;
-  hidraulia, now the last v1 consumer, is next. What it needed went into the
+- **JS layer: gobj-ui 7.26.30 and 7.26.31, and a client application leaves
+  v1.** Its v1 freeze was lifted and its GUI moved to v2 (the declarative
+  shell), with a migration plan in its own repository; the other client
+  application, now the last v1 consumer, is next. What it needed went into the
   library: a menu entry carries a badge with a tone (`badge`, `badge_tone`,
   `yui_shell_set_nav_item_badge()`, the toolbar's setter taking the tone
   too; 7.26.30). And three bugs only a real app showed (7.26.31): a
@@ -3500,8 +3489,8 @@ Out of the twenty-first review (V21):
   own), so the confirmation of a window's own close opened UNDER it, out of
   reach -- it mounts in the shell's overlay layer now; Tabulator's header
   filters and row boxes, and the fields of `C_YUI_FORM`, had an aria-label
-  and no title. Every SPA on `^7.26.31` and deployed, estadodelaire in the
-  deploy round.
+  and no title. Every SPA on `^7.26.31` and deployed, the migrated
+  application in the deploy round.
 
 Out of the twenty-second review (V22):
 
@@ -3581,15 +3570,15 @@ Out of the twenty-second review (V22):
   'exec' mode (a sub-form) is the dict its fields fill again, not `null`.
   7.26.8 sent the sub-form's node through the json conversion like a field
   somebody typed, which handed its `null` on, and `kw_set_dict_value()`
-  refused to write the fields below it: every save of an estadodelaire
-  device's settings wiped its alarm colours (one device, repaired from its
+  refused to write the fields below it: every save of a client application's
+  device settings wiped its alarm colours (one device, repaired from its
   previous record). Every SPA on `^7.26.33` and deployed.
 - **JS layer: gobj-ui 7.26.34.** fix: a table field of `C_YUI_FORM` that
   does not validate refuses the save -- Tabulator's `validate()` answers
   `true` or the LIST of the bad cells, and `!validate()` never refused a
   list, so a `required` cell left empty was saved. A template item may carry
   Tabulator validators of its own, which its column runs besides
-  `required` (estadodelaire's alarm editor refuses a trigger value its
+  `required` (a client application's alarm editor refuses a trigger value its
   measure can never match). A colour field is cleared to `#000000` rather
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
@@ -3613,7 +3602,7 @@ Out of the twenty-second review (V22):
   each app's patch version with its range. gobj-js: the secret names and the
   masking by value of the C kernel (above), and the `set` of the trace
   commands read with the C grammar. 7.26.36: the composed title of a dock
-  chip (a window with a data half) changes language -- estadodelaire's QA,
+  chip (a window with a data half) changes language -- a client app's QA,
   which switches the language and reads every name again, found it. 7.26.37:
   the editor of a boolean cell is a box to tick, not the whole cell -- the
   rule that sizes a cell editor to its cell reached the checkbox of the
@@ -3623,12 +3612,12 @@ Out of the twenty-second review (V22):
   modal takes back the history entry the browser Back took only once the
   question is over -- put back at once, it went above the question's own, and
   every Back stacked one more question (the treedb record form in its phone
-  sheet; estadodelaire's device views, sheets on a phone since its 2.0.6).
+  sheet; a client application's device views, sheets on a phone).
   7.26.39: closing a `C_YUI_FORM` asks only for what the reader changed --
   a new attr, `edited` (typed, cleared, pasted), decides `EV_WINDOW_TO_CLOSE`,
   while `changes` keeps meaning that the form is not what is stored: a record
   that lacks a defaulted field opened changed, and its close asked every time
-  with nothing of the reader's to lose (16 of 19 devices of estadodelaire).
+  with nothing of the reader's to lose (16 of 19 devices of a client app).
   7.26.40: the values of the Y axis of a chart can be read on the dark scheme
   -- uPlot always draws a Y axis with its own black, and `C_YUI_UPLOT` inked
   only the axes it was handed, by default the X alone; the ink moves to
@@ -3810,11 +3799,11 @@ Out of the twenty-fourth review (V24):
   `register_yuno_and_more()` is an ERROR and `exit(-1)`, as a refused gclass of
   the core. The yuno ran, and its services failed later with *"gclass NOT
   FOUND"*. Every `register_yuno_and_more()` of the trees (204: the SDK, its
-  tests, wattyzer, estadodelaire, hidraulia, yunovatios) answers `0` or the sum
-  of what its `register_c_*()` answer (each `create_gclass()`: `0` or `-1`), so
-  none stops on a success; the 19 mains of the SDK that dropped those answers
-  (the agents, `controlcenter`, `mqtt_broker`, `logcenter`, `emailsender`, the
-  utils...) and the two templates of `yuno-skeleton` hand them back now. Test
+  tests, four consumer applications) answers `0` or the sum of what its
+  `register_c_*()` answer (each `create_gclass()`: `0` or `-1`), so none stops
+  on a success; the 19 mains of the SDK that dropped those answers (the agents,
+  `controlcenter`, `mqtt_broker`, `logcenter`, `emailsender`, the utils...) and
+  the two templates of `yuno-skeleton` hand them back now. Test
   `register_refused_gclass` (new). A second `yunetas_register_c_core()` -- the
   entry point calls it before `register_yuno_and_more()` -- is refused with an
   ERROR that says so (*"yunetas_register_c_core() called twice: ..."*); it
@@ -3837,7 +3826,7 @@ Out of the twenty-fourth review (V24):
   `tr_treedb_update_instance`, `tr_treedb_files`.
 - `is_secret_name()`'s doc says its known effect, accepted: an ordinary name
   with a segment `pass`, `pin` or `otp` is a secret's too (`gpio_pin`, a `pass`
-  that counts passes, `first_pass`, wattyzer's `sum_sla_pass`).
+  that counts passes, `first_pass`, an application's `sum_pass`).
 - Tests (red on the old library, green on the new): `secret_attrs`
   (`test_secret_attrs`, `test_secret_traffic`), `kw1`,
   `c_ievent_srv_identity_card` (three cards: a secret in the name of an event,
@@ -3948,33 +3937,31 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   above). gobj-ui: what the reader does to a table of a `C_YUI_FORM` (a cell
   edited, a row added or deleted, a nested table) is `edited` whatever the
   record the form opened with -- a form that opened changed unwired its
-  tables, so their edit was lost by a close that did not ask (estadodelaire's
-  devices without their alarm colours) --; a change of language no longer
-  adds a copy of every column title, and the titles of a form's tables change
-  language (`yui_tabulator_relocalize()` takes them); every change of a badge
-  is said, as text, in one message per turn; the canvas of a G6 graph is
-  named and shows its focus (new consumer keys `json graph`, `gobj tree
-  graph`, `treedb graph`, `fsm graph`); a nav or toolbar item without a
-  `name` is named by a key, by one rule everywhere; the openers of the schema
-  editor are named controls, and its topics table is a table; a gclass viewer
-  goes where the window it was opened from goes, and the windows of a
-  destroyed shell go to the shell still alive; a promise of a `before_close`
-  guard that settles with `true` closes the modal; `validate-locales` counts
-  every write to an unmarked `let` (its
-  rule is flow-insensitive, by design: a sentinel that is no key fails),
-  fails a translated text wherever a key is read, reads the iteration
+  tables, so their edit was lost by a close that did not ask (a client
+  application's devices without their alarm colours) --; a change of language no
+  longer adds a copy of every column title, and the titles of a form's tables
+  change language (`yui_tabulator_relocalize()` takes them); every change of a
+  badge is said, as text, in one message per turn; the canvas of a G6 graph is
+  named and shows its focus (new consumer keys `json graph`, `gobj tree graph`,
+  `treedb graph`, `fsm graph`); a nav or toolbar item without a `name` is named
+  by a key, by one rule everywhere; the openers of the schema editor are named
+  controls, and its topics table is a table; a gclass viewer goes where the
+  window it was opened from goes, and the windows of a destroyed shell go to the
+  shell still alive; a promise of a `before_close` guard that settles with
+  `true` closes the modal; `validate-locales` counts every write to an unmarked
+  `let` (its rule is flow-insensitive, by design: a sentinel that is no key
+  fails), fails a translated text wherever a key is read, reads the iteration
   callbacks exactly and `.bind()`, and asks for the id a nameless item or node
   is named by; `deploy-round` tests each app before deploying it, shows every
-  step's output, refuses a range it cannot raise safely, and takes a template
-  as a target. gobj-js: the masking of the C kernel above -- after `Bearer` or
+  step's output, refuses a range it cannot raise safely, and takes a template as
+  a target. gobj-js: the masking of the C kernel above -- after `Bearer` or
   `Basic` the word that can be a credential, a JWE, a `name: value`, each rule
   on the text as it came --, with the same answers as C on 230 078 texts.
   Measured against gobj-js 7.26.20 on those texts, what it shows that 7.26.20
   hid is V24.4.2's set (the word after a bare `Bearer` that is shorter than 8
-  characters, prose of 8 to 23 or dots only), the second word of `Bearer
-  Bearer tok` (whose `tok` is masked now), and blanks, punctuation and
-  parameter names: no credential. Every SPA on `^7.26.42` / `^7.26.21` and
-  deployed.
+  characters, prose of 8 to 23 or dots only), the second word of `Bearer Bearer
+  tok` (whose `tok` is masked now), and blanks, punctuation and parameter names:
+  no credential. Every SPA on `^7.26.42` / `^7.26.21` and deployed.
 
 Out of the twenty-fifth review (V25), each finding checked before it was
 fixed:
@@ -4185,8 +4172,8 @@ fixed:
   lowers a range. The yunos: three transports and timers taken down on the
   next turn. gobj-ui 7.26.44: a click on a row of a form's table WROTE its
   `selectable` attr with no value instead of reading it (since v1); gobj-js
-  7.26.22 refuses that write, and the console check of the deployed
-  estadodelaire found the click throwing -- the library's own suite ran
+  7.26.22 refuses that write, and the console check of a deployed client
+  application found the click throwing -- the library's own suite ran
   against gobj-js 7.26.3 and runs against `^7.26.22` now. gobj-js 7.26.23:
   `C_IEVENT_CLI` warned on every close of its websocket, the clean one of a
   logout included (the C transport logs an ended session nowhere: it is
@@ -4528,9 +4515,9 @@ their entries above):
 
 ## v7.26.9 (2026-10-11)
 
-A hardening release, out of sixteen rounds of review (yunovatios
-`REV-CLOUD.md`, V1..V16) of the JS layer first and of the C kernel after.
-What a user of the SDK has to know:
+A hardening release, out of sixteen rounds of review (the cloud review, V1..V16)
+of the JS layer first and of the C kernel after. What a user of the SDK has to
+know:
 
 - **The `kw_*` readers with `KW_CREATE` answer what the kw holds, or NULL**,
   never a freed or orphan default; a `null` at the leaf is "no value".
@@ -4568,7 +4555,7 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   (the error is already logged).
   `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
   all five returned the freed pointer. Found by the cloud review of the JS
-  layer (yunovatios `REV-CLOUD.md` §V9.2), comparing an empty path in JS and C.
+  layer (§V9.2), comparing an empty path in JS and C.
 - **fix: the other half -- with `KW_CREATE`, `kw_get_dict()` / `kw_get_list()`
   handed back an orphan default when the path held a value of another type,
   or `kw` was NULL** (and `kw_get_dict_value()` with a NULL `kw`): unwritten,
@@ -4604,12 +4591,12 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   at the leaf is "no value" for `KW_CREATE`: `kw_get_dict()` / `kw_get_list()`
   replace it, as a missing key -- only a value of another type is refused. (No
   release ever replaced it: up to 7.26.8 a null there handed back an orphan.)
-  yunovatios `REV-CLOUD.md` §V11.1.
+  Cloud review §V11.1.
 - **A name that comes from data is a KEY, never a path: one sweep over every
-  `kw_*` call with a variable path** (264 calls, yunovatios `REV-CLOUD.md`
-  §V12.1). The readers and writers split a path at `` ` ``, so an id, a pkey2
-  value, a client id or a name a user or a peer chooses addressed the wrong
-  place the day it held one. Fixed, by key (`json_object_*`):
+  `kw_*` call with a variable path** (264 calls, cloud review §V12.1). The
+  readers and writers split a path at `` ` ``, so an id, a pkey2 value, a client
+  id or a name a user or a peer chooses addressed the wrong place the day it
+  held one. Fixed, by key (`json_object_*`):
     - `tr_treedb`: `delete_node()` (deleting `q`b` took the instance `b` out of
       `q`); the id and pkey2 indexes looked up by key; `treedb_close_topic()`
       (a `delete-topic` of `users`id` extracted the id index of `users`); a
@@ -4650,8 +4637,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
   the ten new ones fail, the UTF-8 one with a segfault (and the four of the
   null-at-the-leaf rule fail on the code before it).
-- **TWO name rules for timeranger2 and treedb** (yunovatios `REV-CLOUD.md`
-  §V13.1, §V14.2), each a new public function:
+- **TWO name rules for timeranger2 and treedb** (cloud review §V13.1,
+  §V14.2), each a new public function:
     - a name that is a DIRECTORY -- a treedb, a topic, a msg2db and its
       topics -- follows `tranger2_name_is_identifier()` (`timeranger2.h`):
       not empty, not `.` or `..`, no `/` and no `` ` ``; the rule timeranger2
@@ -4685,22 +4672,21 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
     - gobj-ui 7.26.22: the schema editor, its import and its validation apply
       the same two rules.
 - **A name with a `.` works: the treedb looks its names up by KEY**
-  (yunovatios `REV-CLOUD.md` §V15.1). `kwid_get()` splits its path at
-  `` ` `` AND at `.` -- unlike the `kw_get_*()` readers -- and `tr_treedb`,
-  `tr_msg2db`, `c_node` and `c_tranger` built its paths from topic, hook and
-  fkey names: a link to a topic `par.v1` answered -1, a hook `kids.all` was
-  "link field not found" at the open, a hook `..` never linked, and a msg2db
-  topic `.hid` was "NOT FOUND". New `kwid_get_by_keys()` (`kwid.h`): the
-  segments are given one by one and never split; a NULL segment is "not
-  found", not a terminator; call it as `KWID_GET_BY_KEYS(gobj, kw, flag,
-  key, ...)`, which counts the keys at compile time (a count written by hand
-  that missed one returned the column instead of its `hook`, and the seeds
-  of `c_node` stopped linking). Every such path (28) goes through it; the
-  `kwid_get()` doc says it splits at `.`. Only `KW_VERBOSE` is read by it, and
-  the treedb does not pass it where it says the error itself (it was said
-  twice, §V16.2). `tests/c/tr_treedb_delete_instance`
-  links, lists and unlinks through a topic `par.v1`, a hook `kids.all`, an
-  fkey `par.ent` and a hook `..`.
+  (cloud review §V15.1). `kwid_get()` splits its path at `` ` `` AND at `.` --
+  unlike the `kw_get_*()` readers -- and `tr_treedb`, `tr_msg2db`, `c_node` and
+  `c_tranger` built its paths from topic, hook and fkey names: a link to a topic
+  `par.v1` answered -1, a hook `kids.all` was "link field not found" at the
+  open, a hook `..` never linked, and a msg2db topic `.hid` was "NOT FOUND". New
+  `kwid_get_by_keys()` (`kwid.h`): the segments are given one by one and never
+  split; a NULL segment is "not found", not a terminator; call it as
+  `KWID_GET_BY_KEYS(gobj, kw, flag, key, ...)`, which counts the keys at compile
+  time (a count written by hand that missed one returned the column instead of
+  its `hook`, and the seeds of `c_node` stopped linking). Every such path (28)
+  goes through it; the `kwid_get()` doc says it splits at `.`. Only `KW_VERBOSE`
+  is read by it, and the treedb does not pass it where it says the error itself
+  (it was said twice, §V16.2). `tests/c/tr_treedb_delete_instance` links, lists
+  and unlinks through a topic `par.v1`, a hook `kids.all`, an fkey `par.ent` and
+  a hook `..`.
 - **`c_node`: a name a command hands it is the peer's data, ONE criterion**
   (§V15.3): an unknown topic (node, nodes, create/update/delete-node, hooks,
   links, desc(s), instances, pkey2s, parents, children, jtree, and both topics
@@ -4709,8 +4695,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   a wrong child ref are a WARNING with the name capped and a refusal, before
   any method logs its ERROR. `pkey2s` of an unknown topic answered 0 pkey2s
   with no log. `tests/c/c_node_commands` pins six refusals.
-- **fix: `c_node` checks the PERMISSION before the topic** (yunovatios
-  `REV-CLOUD.md` §V16.1): in create-node, update-node, delete-node and nodes
+- **fix: `c_node` checks the PERMISSION before the topic** (cloud review
+  §V16.1): in create-node, update-node, delete-node and nodes
   the topic check of this cycle ran first, so a peer without the permission
   was told "Topic not found" -- which topics exist -- and could raise
   warnings at will. It gets -403 now, as before the check existed
@@ -4761,7 +4747,7 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   does the same). §V13.4, §V14.1.
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
-  (2026-10-10/11, yunovatios `REV-CLOUD.md`, sixteen rounds).** Submodules
+  (2026-10-10/11, the cloud review, sixteen rounds).** Submodules
   `kernel/js/gobj-js` 7.26.0 → **7.26.19**, `kernel/js/gobj-ui` 7.26.7 →
   **7.26.24**, and `yunos/js` (gui_agent 0.29.38, gui_treedb 0.17.105); every
   release is in the CHANGELOG of its own repository. What a consumer has to
@@ -4770,7 +4756,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
       the app calls `set_strings_are_text(true)` (gobj-js 7.26.3+), which every
       v2 app here does; markup is said with `html_markup()`. gobj-ui publishes
       `scripts/check-markup-strings.mjs` for a consumer's `prebuild`. The
-      default does not flip in 7.x (estadodelaire and hidraulia would break).
+      default does not flip in 7.x (two v1 client applications would
+      break).
     - Path writers walk a list by index only and never grow it; `kw_delete()`
       and an empty or non-string path behave as in C. Where they still differ,
       said in the docs: a list index (C reads it with `atoi()`, so ``l`1x``
@@ -4801,8 +4788,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   cannot create one: a follower whose master still ran an older binary (a
   node upgraded follower first, or a follower starting before its master)
   failed its open with *"Cannot create __icons__ topic"* (critical) and the
-  yuno never started -- seen on the local central, `gate_central` and
-  `db_tracks_ce` against `db_history_ce` 2.9.3. The replica now opens without
+  yuno never started -- seen on a local central node, a central gate and
+  `db_tracks` against `db_history` 2.9.3. The replica now opens without
   the topic, logs *"__icons__ not created by the master yet, the replica opens
   without it"* (warning), and finds it on its next open. Test 20b of
   `tr_treedb_files`; it runs the replica with `on_critical_error` set, because
@@ -4948,11 +4935,11 @@ functions, all documented).
 ## v7.26.4 (2026-10-05)
 
 The tests and their tooling, after four rounds of cloud verification of the
-suite's speed work (`REV-CLOUD.md`). One real defect fixed: 18 tests linked
+suite's speed work (the cloud review). One real defect fixed: 18 tests linked
 the kernel archives by a bare name and ran on the old library after a
 change of the one they test. No change in the libraries or in the yunos, so
 a node running 7.26.x needs no upgrade. The suite passes in parallel on the
-dev machine (298/298, `ctest -j8`) and on wattyzer (298/298, `-j8`). The
+dev machine (298/298, `ctest -j8`) and on the staging node (298/298, `-j8`). The
 `yunetas` CLI goes with it: 0.21.2.
 
 - **The tests that assert a time window of the wall clock run alone under
@@ -4962,11 +4949,11 @@ dev machine (298/298, `ctest -j8`) and on wattyzer (298/298, `-j8`). The
   the cloud verification's parallel suite (1.80 s, window 0.9-1.1 s).
   And `timeranger2/test_fs_watcher_overflow`, which asserts the watcher's
   cost per directory on a big tree against a small one (at most 6 times):
-  wattyzer's parallel suite (`-j8`, load ~4) failed it with 48 us against
-  713; it passes alone in 31 s. And `test_c_controlcenter_scenarios`, whose
-  rate of a burst over its 1.5 s tick fails when the load stretches the
-  tick over 50% (the last test of that class, by the fifth check of
-  `REV-CLOUD.md`).
+  the staging node's parallel suite (`-j8`, load ~4) failed it with 48 us
+  against 713; it passes alone in 31 s. And `test_c_controlcenter_scenarios`,
+  whose rate of a burst over its 1.5 s tick fails when the load stretches the
+  tick over 50% (the last test of that class, by the fifth check of the cloud
+  review).
 - **`scripts/check_test_databases.py` no longer erases why a test failed.**
   ctest truncates `Testing/Temporary/LastTest.log` on every run, its
   `--show-only` too: the check keeps the file and puts it back. And the CLI
@@ -4986,8 +4973,8 @@ dev machine (298/298, `ctest -j8`) and on wattyzer (298/298, `-j8`). The
   `make clean` of `yunetas test` hid it, and then (7.26.1-7.26.2) the
   reinstall of the root tree. They name them `${LIB_DEST_DIR}/lib*.a` now:
   a marker appended to `gobj.c` reaches every test binary that holds gobj
-  code (286), where it reached 268. Found by the cloud verification of
-  `REV-CLOUD.md`. **`scripts/check_test_links.py`** fails on an archive named
+  code (286), where it reached 268. Found by the cloud verification of the
+  review. **`scripts/check_test_links.py`** fails on an archive named
   bare in a `CMakeLists.txt` of `tests/c`, `performance/c` or `stress/c`.
 - **`scripts/check_test_databases.py`: two tests that can use one directory
   at the same time are found**, as `check_test_ports.py` finds two that use
@@ -5025,7 +5012,7 @@ dev machine (298/298, `ctest -j8`) and on wattyzer (298/298, `-j8`). The
 ## v7.26.3 (2026-10-05)
 
 A fix of the test suite: 7.26.2's suite failed on two nodes running it in
-parallel (hidraulia, artgins), because the groups of
+parallel (a client production node, the company server), because the groups of
 `test_c_treedb_literal_wins` exhausted the per-user inotify instances. No
 change in the libraries or in the yunos, so a node running 7.26.0 to 7.26.2
 needs no upgrade.
@@ -5035,16 +5022,16 @@ needs no upgrade.
   `early` ran in ONE step of the loop. The watcher of a treedb that closes
   releases its inotify instance only when the loop completes its cancel, so
   a group held up to ~1900 instances. Since 7.26.2 runs the groups at once,
-  they reached the per-user limit of 4096: on hidraulia `ctest -j12` failed
-  `emailsender/late_server`, `test_fs_watcher_overflow` and the group
-  `early` with *"inotify_init1() FAILED: The user limit on the total number
-  of INOTIFY INSTANCES has been reached"*. Each step now runs one scenario
-  or one iteration, and the steps are 10 ms apart, as the test asked:
-  `C_TIMER0` instead of `C_TIMER`, whose steps ran on the yuno's 1 s tick.
-  The largest group now holds ~290 instances, and the whole suite peaks at
-  ~700 instead of ~3860. The groups at once still take ~34 s. The whole
-  suite in parallel then passed on hidraulia (298/298, 164 s) and artgins
-  (298/298, 534 s).
+  they reached the per-user limit of 4096: on the client production node `ctest
+  -j12` failed `emailsender/late_server`, `test_fs_watcher_overflow` and the
+  group `early` with *"inotify_init1() FAILED: The user limit on the total
+  number of INOTIFY INSTANCES has been reached"*. Each step now runs one
+  scenario or one iteration, and the steps are 10 ms apart, as the test asked:
+  `C_TIMER0` instead of `C_TIMER`, whose steps ran on the yuno's 1 s tick. The
+  largest group now holds ~290 instances, and the whole suite peaks at ~700
+  instead of ~3860. The groups at once still take ~34 s. The whole suite in
+  parallel then passed on the client production node (298/298, 164 s) and the
+  company server (298/298, 534 s).
 
 ## v7.26.2 (2026-10-05)
 
@@ -5162,8 +5149,8 @@ writes the record of its sequence first. Everything else within its noise.
 - **`with_link_events` is on by default** (`C_NODE`, `C_TREEDB`,
   `C_AUTHZ`): a link publishes `EV_TREEDB_NODE_LINKED` / `UNLINKED`, not the
   parent's `EV_TREEDB_NODE_UPDATED`. A yuno served by a **v1** SPA sets it
-  `0` in its `C_TREEDB` and in its `C_AUTHZ`'s kw (estadodelaire and
-  hidraulia do, in `db_history`); a gobj that subscribes to every event of a
+  `0` in its `C_TREEDB` and in its `C_AUTHZ`'s kw (the two v1 client
+  applications do, in `db_history`); a gobj that subscribes to every event of a
   treedb service declares the two events or subscribes only what it
   handles; a GUI that shows a parent's hooks needs gobj-ui 7.25.26 or later.
 - **`write-attr` writes only `SDF_WR` attributes.** A script that set a
@@ -5315,15 +5302,15 @@ writes the record of its sequence first. Everything else within its noise.
     - A yuno served by a **v1** SPA (it reads the parent's update) sets it
       off: `"with_link_events", 0` where it creates its `C_TREEDB`, and
       `'kw': {'with_link_events': false}` in its `C_AUTHZ` when the SPA
-      edits `treedb_authzs` (estadodelaire and hidraulia do, in
+      edits `treedb_authzs` (the two v1 client applications do, in
       `db_history`).
     - A gobj that subscribes to EVERY event of a treedb service, or the
       parent of a `C_NODE` hosted as a pure child (subscribed to everything),
       now receives the two events, and an FSM that does not declare them
       answers *"Event NOT DEFINED in state"*. Subscribe the events handled,
       or declare the two. `C_MQTT_BROKER` now subscribes only
-      `EV_TREEDB_NODE_CREATED/UPDATED/DELETED` of its treedb (wattyzer's
-      `db_history_wz` the same).
+      `EV_TREEDB_NODE_CREATED/UPDATED/DELETED` of its treedb (an
+      application's `db_history` the same).
     - A GUI that shows the parent's hooks needs gobj-ui 7.25.26
       (`C_YUI_TREEDB_TOPICS` re-reads the parent on a link event; the graph
       already followed them): gui_agent 0.29.10, gui_treedb 0.17.76. The
@@ -5432,9 +5419,9 @@ writes the record of its sequence first. Everything else within its noise.
   the user that authenticated it, so it separates topics, not users.
 - **CLI (yunetas 0.20.4 on PyPI): `yunetas build` warns when two builds
   install a yuno of the same role** in `outputs/yunos`, where the last one
-  overwrites the other (yunovatios' `gate_caudal` reached hidraulia that
-  way): a red WARNING per role, read from each tree's
-  `install_manifest.txt`.
+  overwrites the other (a gate role built by two applications reached a
+  client production node that way): a red WARNING per role, read from each
+  tree's `install_manifest.txt`.
 - **Tests:** `test_secret_attrs`' no-fallocate case no longer passes
   untested when the seccomp filter cannot be installed (the child exits 2);
   `test_rt_disk_overflow`'s reborn case no longer hangs to the ctest timeout
@@ -5444,7 +5431,7 @@ writes the record of its sequence first. Everything else within its noise.
   relative to the key's last record again.** Since v7 it reached the
   matcher raw, compared with an unsigned `__t__` (-86400 became ~1.8e19),
   and no record matched, silently: a `db_history` that starts with
-  `from_t=-86400` (hidraulia, estadodelaire, wattyzer) never read what had
+  `from_t=-86400` (three consumer applications) never read what had
   arrived while it was stopped. `get_segments()` resolves it against the
   key's last record -- its `t`, and its `tm` (the last row of the file that
   holds the key's highest `t`): `from` after `last - N`, that bound
@@ -5739,15 +5726,14 @@ packages are attached to the existing tag `7.25.22`.
 - **rpm: the agents' units start under SELinux.** 7.25.22-1 runs the two
   agents in native systemd units, and systemd (`init_t`) cannot exec a
   `default_t` file -- everything under `/yuneta` is, outside the policy. On
-  yunovatios-central (Rocky 9, enforcing) the agent's unit died with
-  `203/EXEC`, *"Failed to locate executable /yuneta/agent/yuneta_agent:
-  Permission denied"* (`avc: denied { execute } ... scontext=init_t
-  tcontext=default_t`), and `%post`, as designed, left agent22 running
-  outside its unit rather than stopping both. `%post` now labels
-  `/yuneta/agent/yuneta_agent` and `yuneta_agent22` `bin_t` (`semanage
-  fcontext` + `restorecon`, `chcon` where the policy tools are missing), as
-  it already did for the web server's wrapper. A binary moved in by hand on
-  such a node takes the rule back with `restorecon`. The `.deb` is
+  a Rocky 9 test VM (enforcing) the agent's unit died with `203/EXEC`, *"Failed
+  to locate executable /yuneta/agent/yuneta_agent: Permission denied"* (`avc:
+  denied { execute } ... scontext=init_t tcontext=default_t`), and `%post`, as
+  designed, left agent22 running outside its unit rather than stopping both.
+  `%post` now labels `/yuneta/agent/yuneta_agent` and `yuneta_agent22` `bin_t`
+  (`semanage fcontext` + `restorecon`, `chcon` where the policy tools are
+  missing), as it already did for the web server's wrapper. A binary moved in by
+  hand on such a node takes the rule back with `restorecon`. The `.deb` is
   unchanged (Debian runs no SELinux by default).
 
 ## v7.25.22 (2026-10-02)
@@ -5803,8 +5789,8 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   value persisted by an older release (`write-attr`, `add-jwk`) is no longer
   read: put the keys in `Authz.jwks` and the role in `Authz.default_role`.
   `add-jwk` / `remove-jwk` still change the running set, until the yuno
-  restarts. yunovatios sets `default_role` with `write-attr` in its
-  deployment notes: move it to the batch config.
+  restarts. An application that sets `default_role` with `write-attr` in
+  its deployment notes moves it to the batch config.
 - **A frame before the session is limited** (`max_pre_session_frame` of
   `C_IEVENT_SRV`, 64 KB by default): a client that sends a bigger identity
   card needs it raised.
@@ -5851,7 +5837,7 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
 - **`gobj_stats()` of a `C_IOGATE` or a `C_QIOGATE` answers the envelope**
   (`{"result", "comment", "schema", "data"}`) like every other `mt_stats`; the
   counters are under `data`. A project that read them bare reads 0 now:
-  yunovatios' `c_sim_controller.c` was migrated (it reads the queue's
+  an application's simulator gclass was migrated (it reads the queue's
   `msgs_in_queue` / `pending_acks` attrs). A `C_CHANNEL` read by its parent
   still answers the bare data.
 - **C_YUNO's `uptime` is in seconds since the yuno started.** It was the
@@ -6119,8 +6105,8 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   done, so a new instance could meet the old one's exclusive resources, or
   the launch found the old one alive and skipped it. It waits now for the
   pids it killed (every 100 ms, 10 s at most, then relaunches and names the
-  ones left). (no red test; on wattyzer the relaunch began 1 s after the
-  kills)
+  ones left). (no red test; on the staging node the relaunch began 1 s
+  after the kills)
 - **Agent: `kill-yuno` reaches a yuno alive but not connected.** It
   selected only the yunos the agent saw running, so one that lost its
   channel or outlived a restart of the agent answered *"Yuno not found or
@@ -6128,7 +6114,8 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   search of the launch sweeps) now get the same signal on their watcher and
   child (`signal2kill`, SIGKILL with `force=1`) and are said at once in the
   answer with their pids: nothing will say they closed. (no red test: no
-  agent harness; checked on wattyzer with a stopped webstats, 2026-10-02)
+  agent harness; checked on the staging node with a stopped webstats,
+  2026-10-02)
 - **ytls: a session freed inside ANY callback is no longer read.** The
   owner (C_TCP) frees the session from inside a callback when a write cannot
   start or a subscriber drops the connection. Only `on_clear_data_cb` was
@@ -6144,7 +6131,7 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
 - **The agents are native systemd units, and systemd sees them.** The agent
   was a SysV script that `systemd-sysv-generator` wrapped: an agent started
   outside it (by hand, by an xscript) left `systemctl status yuneta_agent`
-  saying *inactive* while it ran -- an acceptance test on yunovatios central
+  saying *inactive* while it ran -- an acceptance test on a central node
   (Rocky 9.7) failed on it -- and `yuneta_agent22` had no unit at all.
   `yuneta_agent.service` (named like the script, so systemd takes it instead
   of the generated one) and `yuneta_agent22.service` (independent: either can
@@ -6159,8 +6146,8 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   own, so a second agent that met the first and left took the first with
   it). The package restarts both units (the main agent first, agent22 once
   it runs), stopping first an agent that runs outside its unit; the SysV
-  script stays for another init. Checked by hand on wattyzer (Debian 13);
-  through the built packages, and on Rocky, before the release (`TODO.md`).
+  script stays for another init. Checked by hand on the staging node (Debian
+  13); through the built packages, and on Rocky, before the release (`TODO.md`).
   (no red test)
 - **The agents' units: a removal of the `.deb` stops every unit, and a hung
   agent does not outlive its unit.** The `postrm` disabled the units through
@@ -6169,8 +6156,8 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   enabled). `prerm` does it inline now. And with `KillMode=process` the
   final SIGKILL of a stop that timed out reached only the watcher: an agent
   hung in its shutdown stayed in the cgroup; `ExecStopPost` kills what is
-  left of the unit's own agent there. Checked on wattyzer with a SIGSTOPped
-  agent22 (no red test).
+  left of the unit's own agent there. Checked on the staging node with a
+  SIGSTOPped agent22 (no red test).
 - **gui_agent's bottom bar no longer clips its fifth item on a phone**
   (gobj-ui 7.25.24, gui_agent 0.29.8, gui_treedb 0.17.75). Bulma's `.level`
   put a 0.75rem gap between items that carry their padding: at 360px the bar
@@ -6232,12 +6219,12 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   12, red: the rates of the last tick while paused); the config check and the
   period have no red test.
 - **Control center: `__input_side__` is not autostarted nor autoplayed** in
-  the realm configs of a.com (its operation repo, config 7, not deployed
-  yet). The control center starts and plays it in `mt_play`, as
+  the realm configs of the company server (its operation repo, config 7, not
+  deployed yet). The control center starts and plays it in `mt_play`, as
   `__top_side__`: autostarted, it listened from the yuno's start, and an agent
   that connected to a control center run with `play=0` logged *"Publish event
-  WITHOUT subscribers"*. A realm config of your own does the same (the
-  example is in `controlcenter.md`).
+  WITHOUT subscribers"*. A realm config of your own does the same (the example
+  is in `controlcenter.md`).
 - **C_QIOGATE: the size of its queue can be read through a C_MQIOGATE.**
   `msgs_in_queue` and `pending_acks` were said only by the gate's own
   `mt_stats`, and a C_MQIOGATE asks its children with `build_stats()`, which
@@ -6357,7 +6344,7 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   `disks/<rt_id>/` where it was, while the master kept linking new records
   into it: a key directory made in between made the removal fail
   (*"rmdir() FAILED ... Directory not empty"*, every orderly stop of a
-  `db_history_ce` reading 3000 records/s), the directory stayed, and the
+  `db_history` reading 3000 records/s), the directory stayed, and the
   master, which closes its side only when it hears the directory go, went on
   making a directory and a link per key and file into it (an id that never
   came back grew for ever). The reader now renames the directory away
@@ -6421,13 +6408,13 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
   life. Under a random load of a master in another process (appends,
   deletes, rewrites 0-20 us apart, a follower slowed 0-100 us a record, 3
   feeds and 4 keys), 7 to 11 of the 12 feed and key pairs got a life out of
-  order; none now, on the dev kernel and on wattyzer's 6.12, and the last
-  life of every key is heard whole. Cost: none on the append path (22.4 us
+  order; none now, on the dev kernel and on the staging node's 6.12, and the
+  last life of every key is heard whole. Cost: none on the append path (22.4 us
   a record and feed, both), +5% on the 69632-key flood of
-  `test_rt_disk_overflow` (18.1 -> 19.0 s, an open and a watch through
-  /proc per new key directory). Tests `test_delete_key_propagation` (new
-  "a stale link", fails on the code before it locally too: `[R2 DEL]`;
-  "race in the batch" passes 30 in 30 on wattyzer, 1 in 10 before) and
+  `test_rt_disk_overflow` (18.1 -> 19.0 s, an open and a watch through /proc per
+  new key directory). Tests `test_delete_key_propagation` (new "a stale link",
+  fails on the code before it locally too: `[R2 DEL]`; "race in the batch"
+  passes 30 in 30 on the staging node, 1 in 10 before) and
   `test_fs_watcher_overflow` (new "dir fds").
 - **Out of descriptors, that read no longer uses memory freed or a
   descriptor closed.** The check of a life borrowed its record of what was
@@ -7278,13 +7265,12 @@ measures 7.25.20 against 7.25.5.
 
 ## v7.25.19 (2026-09-30)
 
-The end of the lost webstats report of wattyzer, and what it turned up:
+The end of the lost webstats report of the staging node, and what it turned up:
 the report's IP addresses as `[a.b.c.d]` (OVH read one as a phone number and
 dropped the mail), secrets masked where attrs are shown, the persistent-attrs
-file 0600, and the SMTP refusal text in the log. A kernel change, so the
-suite ran on both machines (215/215 each); deployed as emailsender and
-webstats on every node -- the other yunos take the masking at their next
-build.
+file 0600, and the SMTP refusal text in the log. A kernel change, so the suite
+ran on both machines (215/215 each); deployed as emailsender and webstats on
+every node -- the other yunos take the masking at their next build.
 
 ### Kernel: secrets are not shown, and not left world-readable
 
@@ -7314,7 +7300,7 @@ build.
 - OVH's outbound relay read `34.140.132.132` as a Spanish phone number (+34
   and nine digits) and, in a report full of addresses marked "banned",
   accepted the mail (`250 queued`) and delivered it to NOBODY: no bounce,
-  not in Junk, not at gmail or outlook either. wattyzer's report of
+  not in Junk, not at gmail or outlook either. The staging node's report of
   2026-09-29 was the first with such an address, bisected down to one row
   of Top clients; Google Cloud addresses start with 34, so it recurs.
   The mail (and `preview-report`) now writes every standalone IPv4 as
@@ -7324,10 +7310,10 @@ build.
 ## v7.25.18 (2026-09-30)
 
 emailsender and webstats only: no kernel change. Found chasing a webstats
-report of wattyzer that stopped arriving (OVH accepts it -- `250 queued` --
-and it is lost after the relay; the cause is still being narrowed down, see
-TODO). Each node takes it with `install-binary` of the two roles and the
-usual promotion.
+report of the staging node that stopped arriving (OVH accepts it -- `250 queued`
+-- and it is lost after the relay; the cause is still being narrowed down, see
+TODO). Each node takes it with `install-binary` of the two roles and the usual
+promotion.
 
 ### emailsender: the `smtp` trace no longer writes the credentials
 
@@ -7336,7 +7322,7 @@ usual promotion.
   password in clear, in the yuno's log and from there in the logcenter's. It
   names the mechanism now (`>>> AUTH PLAIN <credentials not traced>`). Found
   tracing a report that did not arrive; the two lines that had been written
-  on wattyzer were overwritten in place.
+  on the staging node were overwritten in place.
 
 ### webstats: a rebuilt day with no access log keeps (and sends) the stored report
 
@@ -7418,7 +7404,7 @@ A lite release (control center and agent only): the two points the review of
 A lite release (control center and agent only, rule of 2026-09-29): only
 those two binaries change, and only they are deployed. It closes what a
 review of the scenarios and their live view found, after running the
-`yunovatios-stress` scenario end to end from the console.
+stress scenario of an application end to end from the console.
 
 ### Control center: a web client is its connection; runs end when their agent goes
 
@@ -7520,9 +7506,10 @@ center's binary changes, and only it is deployed.
   `services` (declared inventory, viewer launcher) and `users` (a copy of each
   user at login, read by nobody: the users are the `authz` store's), the
   `lists` / `viewer_engines` draft, `ac_treedb_node_*` (they acted only on a
-  `treedb_purezadb` of another project), the attrs `enabled_new_users` and
+  treedb of another project), the attrs `enabled_new_users` and
   `enabled_new_devices`, and the authz entries `list-groups`, `list-tracks`,
-  `realtime-track`. On a.com the three inventory topics were empty.
+  `realtime-track`. On the company server the three inventory topics were
+  empty.
 - **A login is no longer refused while the control center boots.**
   `ac_user_login()` answered `EV_AUTHZ_USER_LOGIN` -- a veto point -- with -1
   until its treedb opened, only because it could not copy the user yet; that
@@ -7533,8 +7520,8 @@ center's binary changes, and only it is deployed.
   Their subscribers are optional (the agent, the mqtt broker); a yuno that has
   none logged *"Publish event WITHOUT subscribers"* on every login -- the
   control center did, from the moment it stopped subscribing (seen deploying
-  this release on a.com: 29 in the first minute). Reaches each yuno at its
-  next rebuild.
+  this release on the company server: 29 in the first minute). Reaches each yuno
+  at its next rebuild.
 
 ### JS: gui_agent 0.29.0, the Scenarios workspace, in place of Monitor and Statistics
 
@@ -7604,8 +7591,8 @@ center's binary changes, and only it is deployed.
   Monitor: a left-to-right graph of the yunos of one scenario (the agent url,
   the yunos, the links the messages follow) with cpu %, msg/s in and out,
   queue and state per yuno, and two uPlot charts over a 5-60 minute window.
-  First written for yunovatios' stress tests (sim_controllers -> gate_central
-  -> db_tracks_ce), and it matches what `ycommand` measures on them.
+  First written for an application's stress tests (simulators -> a central
+  gate -> `db_tracks`), and it matches what `ycommand` measures on them.
 - **It is the first transport of the console that does not go through the
   control center**: it talks to the agent's `wss://<node>:1993` with the
   access_token it gets from the BFF's `/auth/token`, so that plane's BFF needs
@@ -7618,7 +7605,7 @@ center's binary changes, and only it is deployed.
   yuno + start. Confirmed in a dialog that lists the commands; a production
   scenario (no `test`) shows none. A service that keeps its counters in
   private fields behind `mt_reading` does not honour `__reset__` unless its
-  `mt_stats` does it (the yunovatios yunos do not yet).
+  `mt_stats` does it (the yunos of one application do not yet).
 - **Through the control center, several nodes (0.25.0)**: a scenario that
   says `node` instead of `agent_url` sends every command as `command-agent
   agent_id=<node>` on the console's own link — no token leaves the BFF and
@@ -7649,8 +7636,8 @@ center's binary changes, and only it is deployed.
 
 - With `--yunos-dir`, the table was built from the staged binary but the upload
   sent `$$(<role>)`, which `ycommand` resolves in `outputs/yunos`: on a node
-  where two projects build the same role (hidraulia's `gate_caudal`), the row
-  said `REBUILD 1.9.0.0` and the upload was the other project's 1.6.1.0. The
+  where two projects build the same role (a gate of a client application), the
+  row said `REBUILD 1.9.0.0` and the upload was the other project's 1.6.1.0. The
   command now carries the file's path. The wait for a yuno to stop before a
   same-version `update-binary` goes from 15 to 60 s.
 
@@ -7659,7 +7646,8 @@ center's binary changes, and only it is deployed.
 - `yunetas test` leaves one `build/<timestamp>.txt` per ctest run, the history
   a release compares timings against, and `init` recreated the root `build/`
   with `rm -rf`: the clean rebuild of a version bump wiped it (7.25.12 lost it
-  on the dev machine and on wattyzer). `init` now carries those logs across.
+  on the dev machine and on the staging node). `init` now carries those logs
+  across.
 
 ## v7.25.12 (2026-09-28)
 
@@ -7668,9 +7656,10 @@ center's binary changes, and only it is deployed.
 - The INFO that closes a pass after an inotify overflow adds `slices`,
   `ms_owner`, `ms_watcher`, `ms_loop` and `max_loop_ms`: the owner's
   callbacks, the walk, and the loop's own work between slices. On
-  yunovatios' central some passes took 251 and 680 s while the yuno digested a
-  queue; measured with it, such passes are 65-78 % owner (handing over the
-  backlog of records), 22-35 % loop and 1.1-1.7 s walk: not the watcher.
+  an application's central node some passes took 251 and 680 s while the yuno
+  digested a queue; measured with it, such passes are 65-78 % owner (handing
+  over the backlog of records), 22-35 % loop and 1.1-1.7 s walk: not the
+  watcher.
 
 ### emailsender: rejected SMTP credentials stop the yuno, they are not retried
 
@@ -7679,10 +7668,11 @@ center's binary changes, and only it is deployed.
   the url and the username) and exits with code 0 (`LOG_OPT_EXIT_ZERO`), so
   neither the watcher nor the agent relaunches it. It used to treat the refusal
   as a link drop and retry every few seconds: 768 refused logins in 54 minutes
-  on hidraulia on 2026-09-28, the pattern that got an address banned from the
-  whole OVH mail cluster in July. The in-flight message stays at the head of
-  `emails_queue` without spending a retry. `C_SMTP_SESSION` reports the refusal
-  on `EV_ON_CLOSE` as `auth_rejected`, apart from the per-message `code`.
+  on a client production node on 2026-09-28, the pattern that got an address
+  banned from the whole OVH mail cluster in July. The in-flight message stays at
+  the head of `emails_queue` without spending a retry. `C_SMTP_SESSION` reports
+  the refusal on `EV_ON_CLOSE` as `auth_rejected`, apart from the per-message
+  `code`.
 
 ### CLI 0.20.0: secret overlays removed (BREAKING)
 
@@ -7723,12 +7713,11 @@ center's binary changes, and only it is deployed.
 
 ## v7.25.11 (2026-09-27)
 
-Found by the third gate-outage test of yunovatios' central: three *"Event
-NOT DEFINED in state"* that a connection going down produced, all in the
-window between a transport deciding to close and the layers above learning
-it; and a pass after an inotify overflow whose own cost grew with the tree.
-Rebuild every yuno (TCP and websocket clients, rt_disk followers) and the
-agent.
+Found by the third gate-outage test of an application's central node: three
+*"Event NOT DEFINED in state"* that a connection going down produced, all in the
+window between a transport deciding to close and the layers above learning it;
+and a pass after an inotify overflow whose own cost grew with the tree. Rebuild
+every yuno (TCP and websocket clients, rt_disk followers) and the agent.
 
 ### root-linux: data that arrives or leaves while a connection closes
 
@@ -7755,9 +7744,9 @@ agent.
 - 7.25.10's sliced pass rebuilt, in EVERY slice of 20 ms, the index of the
   watched paths by path (the watch table is indexed by `wd`): 50000 entries
   per slice. The watcher's own cost per directory grew with the tree -- 254 us
-  at 69632 directories -- and on yunovatios' central a pass over 50501 key
-  directories took 7 minutes, and the next one more than 20. The index is now
-  built once per pass (and grows with the watches the pass adds): 73 us per
+  at 69632 directories -- and on an application's central node a pass over 50501
+  key directories took 7 minutes, and the next one more than 20. The index is
+  now built once per pass (and grows with the watches the pass adds): 73 us per
   directory, a pass of 16 s instead of 29 in the test.
 - `test_fs_watcher_overflow` now measures that cost (the pass less the
   owner's time) and fails above 200 us per directory.
@@ -7775,15 +7764,15 @@ agent.
 
 The recovery from an inotify overflow (7.25.9) now keeps the yuno answering:
 the pass over the watched tree runs in slices of 20 ms per loop turn. Found by
-the second gate-outage test of yunovatios' central, where one pass held a
-`db_history_ce` deaf for four minutes. Every yuno that reads a timeranger2
-topic of another yuno must be rebuilt against this SDK.
+the second gate-outage test of an application's central node, where one
+pass held a `db_history` deaf for four minutes. Every yuno that reads a
+timeranger2 topic of another yuno must be rebuilt against this SDK.
 
 ### timeranger2 (fs_watcher): the pass after an overflow gives the loop back
 
 - **7.25.9 recovered from an inotify overflow in one piece**: the owner
   rescanned the whole tree inside the single `FS_OVERFLOW_TYPE` call. A
-  timeranger2 follower of 50000 keys on the busy disk of yunovatios' central
+  timeranger2 follower of 50000 keys on the busy disk of a central node
   took 56 s, then 243 s, and the yuno answered nothing meanwhile -- its agent,
   its commands, its timers.
 - Now the watcher runs the pass itself, a slice of 20 ms per loop turn: every
@@ -7806,8 +7795,8 @@ topic of another yuno must be rebuilt against this SDK.
 
 An inotify queue overflow no longer aborts the yuno: the watcher recovers in
 place and its owner rebuilds its view from the filesystem, where what the lost
-events said still is. Found by yunovatios' stress test of its central, where a
-`db_history_ce` following a busy `db_tracks_ce` lived in a crash loop under a
+events said still is. Found by an application's stress test of its central node,
+where a `db_history` following a busy `db_tracks` lived in a crash loop under a
 burst. Every yuno that reads a timeranger2 topic of another yuno (an rt_disk
 feed) must be rebuilt against this SDK.
 
@@ -7815,8 +7804,8 @@ feed) must be rebuilt against this SDK.
 
 - **An `IN_Q_OVERFLOW` of a watcher aborted the yuno** to be relaunched and
   reload clean. Under a sustained burst the reload met the next overflow: in
-  yunovatios' stress test of its central, a `db_history_ce` following a
-  `db_tracks_ce` at ~3000 records/s over ~60000 keys aborted five times in two
+  an application's stress test of its central node, a `db_history` following
+  a `db_tracks` at ~3000 records/s over ~60000 keys aborted five times in two
   hours, and each relaunch spent 2-3 minutes catching up before falling again.
 - Now the watcher recovers in place: a WARNING, a watch set on every directory
   of a recursive tree that was not watched, and the owner called once with the
@@ -7843,10 +7832,10 @@ feed) must be rebuilt against this SDK.
 
 A TLS fix in `C_TCP`: under a burst, a connection could have two writes in
 flight, and a short one then sent its rest out of order -- the peer answered
-"bad record mac" and dropped the link. Found by yunovatios' stress test of its
-central, where the drain after a gate outage barely converged because of it.
-Every yuno that speaks TLS must be rebuilt against this SDK (the gclass is
-linked into each binary).
+"bad record mac" and dropped the link. Found by an application's stress test
+of its central node, where the drain after a gate outage barely converged
+because of it. Every yuno that speaks TLS must be rebuilt against this SDK (the
+gclass is linked into each binary).
 
 ### TCP (C_TCP): TLS "bad record mac" under a burst -- one write in flight
 
@@ -7859,9 +7848,9 @@ linked into each binary).
   write for each at once; and the completion of any write took the next
   message while another was still in flight. It shows under a burst on a full
   socket -- clients resending their windows when a gate comes back -- and how
-  often depends on the kernel: yunovatios' stress test of its central (Rocky 9,
-  kernel 5.14) dropped links 13606 times in 25 minutes, and the drain after a
-  4-minute outage barely converged.
+  often depends on the kernel: an application's stress test of its central node
+  (Rocky 9, kernel 5.14) dropped links 13606 times in 25 minutes, and the drain
+  after a 4-minute outage barely converged.
 - Now a connection has ONE write in flight, TLS included: encrypted output
   waits in a queue while a write is in flight, it goes before the next clear
   message, and the queue is discarded with the TLS session it belongs to.
@@ -7881,9 +7870,9 @@ linked into each binary).
 
 A leak fix and nothing else in C: every `return` from inside a `SWITCHS` case
 lost a compiled regex, and every gate with an output queue returned from one per
-message. Found by yunovatios' stress test of its central. The JS submodules move
-to maplibre-gl 6.11.2 and vite 8.3.1. Every yuno must be rebuilt against this
-SDK to lose the leak.
+message. Found by an application's stress test of its central node. The JS
+submodules move to maplibre-gl 6.11.2 and vite 8.3.1. Every yuno must be rebuilt
+against this SDK to lose the leak.
 
 ### Helpers: a `return` inside a `SWITCHS` case leaked a compiled regex
 
@@ -7893,9 +7882,9 @@ SDK to lose the leak.
   gbmem: invisible to the gbmem audit and to `cur_system_memory`. 29 of the 63
   `SWITCHS` of the tree return from a case, several once per message:
   `C_MQIOGATE`'s `ac_send_message` (every gate with an output queue lost
-  ~1.1 KB per message; a `gate_central` of yunovatios' stress test reached
-  1 GB in 25 minutes), `c_prot_modbus_m`, `tr_treedb`, `tr_msg2db`, `yev_loop`
-  and the frame decoders of the projects. Found by a gdb breakpoint on `malloc`
+  ~1.1 KB per message; a central gate of an application's stress test reached 1
+  GB in 25 minutes), `c_prot_modbus_m`, `tr_treedb`, `tr_msg2db`, `yev_loop` and
+  the frame decoders of the projects. Found by a gdb breakpoint on `malloc`
   (gbmem allocates with `calloc`, so `malloc` catches only what bypasses it).
 - Now `SWITCHS` allocates nothing and `CASES_RE` matches through the new
   `str_match_regex()`, which compiles, matches and frees on the spot: leaving a
@@ -7929,8 +7918,8 @@ agents. No change in timeranger2, treedb or the transports.
 - The static resolver (`CONFIG_FULLY_STATIC`) sent a numeric address of the
   other family to DNS: `getaddrinfo("::1")` asked for `AF_INET` (a `src_url` of
   `[::1]` bound for the IPv4 address of a destination) fell through to an A
-  query, and a slow nameserver stalled the event loop (3.1 s on wattyzer,
-  WARNING *"getaddrinfo() BLOCKED the event loop"*). It answers
+  query, and a slow nameserver stalled the event loop (3.1 s on the staging
+  node, WARNING *"getaddrinfo() BLOCKED the event loop"*). It answers
   `EAI_ADDRFAMILY` at once now, as glibc does, and `AI_NUMERICHOST` with a name
   answers `EAI_NONAME` with no lookup. Test: `test_static_resolv_numeric`.
 
@@ -7979,8 +7968,8 @@ code before it, except those listed under "No red test" in `TODO.md`.
   It names its backup `~/<topic>.<key>.<file>.orig` and refuses to overwrite
   one, writes through `$f.tmp` + `mv` (a failure leaves the `.md2` unchanged),
   and writes nothing when more than one boundary passes. A scan of ~21 500 md2
-  files on four stores (local, wattyzer, both yunovatios) found none. See
-  `deploying-yunos.md`.
+  files on four stores (local, the staging node, two application nodes) found
+  none. See `deploying-yunos.md`.
 - **Before upgrading, run `save-schema` for any draft you want to keep.** An
   unsaved draft that added a topic or column is taken as left by 7.25.4; a
   topic deleted as an unsaved draft is restored by the first open when the
@@ -8082,11 +8071,11 @@ code before it, except those listed under "No red test" in `TODO.md`.
   `__filter__` and the `__global__` of a peer's subscription). A subscription
   beyond them is refused, with a WARNING logged once (*"SUBSCRIBING refused,
   the peer holds max_subscriptions"*). A gate whose peers subscribe per
-  device must raise the cap before the upgrade: the SPAs of hidraulia
-  subscribe twice per device. Set it in the `kw` of the `C_IEVENT_SRV` of the
-  gate's channel tree, for example
-  `{"name": "input-(^^__range__^^)", "gclass": "C_IEVENT_SRV", "kw":
-  {"max_subscriptions": 20000}}` (see ievent.md, "What a peer may hold").
+  device must raise the cap before the upgrade: the SPAs of a client
+  application subscribe twice per device. Set it in the `kw` of the
+  `C_IEVENT_SRV` of the gate's channel tree, for example `{"name":
+  "input-(^^__range__^^)", "gclass": "C_IEVENT_SRV", "kw": {"max_subscriptions":
+  20000}}` (see ievent.md, "What a peer may hold").
 - **A peer's `__global__` keys that start with `_` are dropped**, with a WARNING
   (*"SUBSCRIBING keys a peer may not set, ignored"*, with `keys`, at most one
   each 10 s), as are a `gbuffer` key and the peer's `__local__`: of a peer's
@@ -8459,12 +8448,12 @@ code before it, except those listed under "No red test" in `TODO.md`.
   md2 row is not damage (below, "An md2 that ends in a part of a row"). An
   ERROR names the id with `served=N`, and the new `msg2db_id_incomplete()`
   tells "unknown" from "none" while the msg2db stays open. For the db_history
-  alarms of the projects (wattyzer, yunovatios, estadodelaire, hidraulia),
-  until an absent alarm's next message: a device that reports it active gets
-  it announced as new (a notification may repeat), a clear that was in the
-  unread message is not announced, and `msg2db_list_messages()` leaves it
-  out. `tr_msg2db.md` shows how a consumer can use `msg2db_id_incomplete()`
-  to avoid the repeat; no project repo was changed.
+  alarms of the consumer applications, until an absent alarm's next message: a
+  device that reports it active gets it announced as new (a notification may
+  repeat), a clear that was in the unread message is not announced, and
+  `msg2db_list_messages()` leaves it out. `tr_msg2db.md` shows how a consumer
+  can use `msg2db_id_incomplete()` to avoid the repeat; no project repo was
+  changed.
 - **An append that was never acknowledged is not damage.** When the md2 of
   an append cannot be opened or created, or its seek or write fails, the
   content written for it is truncated back, BEFORE the critical log (*"Cannot
@@ -9883,8 +9872,8 @@ spread, are in `performance/c/README.md`.
   `/yuneta/realms/agent/agent/audit/`. At start and at each new audit file the
   agent removes the audit files older than that (only names with the shape of
   the audit mask, never a link) and logs one INFO *"Old audit files removed"*
-  with the names. Up to 7.25.4 nothing was removed (19 GB on wattyzer). An
-  existing large directory is swept at the first start: to keep more, set
+  with the names. Up to 7.25.4 nothing was removed (19 GB on the staging node).
+  An existing large directory is swept at the first start: to keep more, set
   `agent.audit_keep_days` in `yuneta_agent.json` before that start. New
   `rotatory_remove_old_files()`; the sweep at a new audit file runs inside the
   write of its first record (once a day, or at a size rotation).
@@ -9912,7 +9901,7 @@ spread, are in `performance/c/README.md`.
   content (the `sha256sum` of the binary). A secret is never written: the value
   of a parameter named like `password`, `pwd`, `secret`, `token`, `jwt`,
   `private_key`, `api_key` (set with `write-attr attribute=api_key value=...` on
-  wattyzer's `gate_pvpc`), `apikey`, `x-api-key`, `cookie`, `session_key`,
+  an application's gate), `apikey`, `x-api-key`, `cookie`, `session_key`,
   `__session_id__`, `auth_data`, `passphrase`, `credential`, `authorization`,
   `bearer` or `salt` (and the `value` of a `write-attr` of such an attribute,
   also as `{attribute, value}` in a json object of the kw) is `<redacted>`, in
@@ -9951,11 +9940,11 @@ spread, are in `performance/c/README.md`.
   keystrokes: 922 KB, now 945 bytes). A field of a `__md_iev__` hop from a peer
   that is not a string is written as `""`, with one WARNING (*"Audit: bad
   __md_iev__ from a peer, written as empty"*). An `install-binary` of a 32 MB
-  yuno went from 134 MB to 541 bytes (wattyzer wrote 0.6-1.2 GB of audit on a
-  deploy day). A day of audit that crosses `max_megas_audit_file` continues in
-  `.OLD.1`, `.OLD.2`, ...: up to 7.25.4 each size rotation removed the previous
-  `.OLD`, so a day that crossed the limit twice lost its first part (wattyzer
-  lost the mornings of 22 and 23 September 2026). New
+  yuno went from 134 MB to 541 bytes (the staging node wrote 0.6-1.2 GB of audit
+  on a deploy day). A day of audit that crosses `max_megas_audit_file` continues
+  in `.OLD.1`, `.OLD.2`, ...: up to 7.25.4 each size rotation removed the
+  previous `.OLD`, so a day that crossed the limit twice lost its first part
+  (the staging node lost the mornings of 22 and 23 September 2026). New
   `rotatory_keep_all_old_files()` (off by default: the yuno logs keep their one
   `.OLD`).
 - The agent flushes every audit record before the command runs (one `write()`
@@ -10397,8 +10386,8 @@ spread, are in `performance/c/README.md`.
   kept it owed after such an echo). The shell dialogs' default
   labels are the i18n keys `ok`, `yes`, `no`, `delete`, `cancel` (they were
   English literals no locale holds); `yui_install` asks `install this app`.
-  Every consumer SPA that shows these dialogs carries the keys (yunovatios
-  `gui-common` got `ok`); yunomusica shows none of them.
+  Every consumer SPA that shows these dialogs carries the keys (one
+  application's shared GUI module got `ok`).
 - gui_agent 0.22.90: Apply is off while a Save of schemas is unanswered and
   refused if it arrives anyway (confirmed before the Save answered, the apply
   dropped the Save's answers and Save stayed off for good). The Apply dialog
@@ -10562,25 +10551,25 @@ spread, are in `performance/c/README.md`.
   `mt_publication_filter` see the publisher's kw; every other subscriber
   shares the publisher's kw, at no cost. `mt_inject_event()` works on a
   shallow copy with `__md_iev__` copied deep. No JS consumer sets
-  `__global__` / `__local__` (gobj-ui, yunos-js, wattyzer, yunovatios,
-  estadodelaire, hidraulia, yunomusica: 0 hits), so gui_agent 0.22.97 and
-  gui_treedb 0.17.70 only take the fixed runtime (gobj-js `^7.25.8`);
-  gobj-ui's devDependency moved to `^7.25.8`, with no gobj-ui release.
-  The rule is written in docs/doc.yuneta.io/api/js/events.md.
+  `__global__` / `__local__` (gobj-ui, yunos-js and every consumer application:
+  0 hits), so gui_agent 0.22.97 and gui_treedb 0.17.70 only take the fixed
+  runtime (gobj-js `^7.25.8`); gobj-ui's devDependency moved to `^7.25.8`, with
+  no gobj-ui release. The rule is written in
+  docs/doc.yuneta.io/api/js/events.md.
 - **gobj-ui 7.25.22, gui_agent 0.22.98, gui_treedb 0.17.71: a raw-json
   drill in flight when the session drops is answered** (SDK 7.25.4 too).
   gobj-ui 7.25.21 answered a drill that could not go out, not one already
   sent: the transport answers nothing in flight on a close, a plain
   reconnect keeps the same view and viewer, and the stub stayed on
-  "loading" for the life of the viewer (gui_treedb, wattyzer, yunovatios;
+  "loading" for the life of the viewer (gui_treedb, two applications;
   gui_agent's link answers on the close). `C_YUI_TREEDB_TOPICS` /
   `C_YUI_TREEDB_GRAPH` keep the drilled paths in flight and answer each one
   `EV_SUBTREE_ERROR {path, i18n: "the connection dropped"}` on the
   disconnect edge (`EV_TRANSPORT_STATE`, or the shell's
   `EV_CONNECTION_STATE` for the topics view), so a click once the session
   is back asks again; a failure that lands for a path already answered is a
-  warning. New consumer key `the connection dropped` in gui_treedb,
-  wattyzer and yunovatios gui-common (gui_agent had it).
+  warning. New consumer key `the connection dropped` in gui_treedb and two
+  applications (gui_agent had it).
 
 ### BREAKING
 
@@ -11505,8 +11494,8 @@ and the N1 traversal test given a real loop and a reachable victim.
   - `EV_DRAFTS` replaces the host's draft marks instead of adding to them.
   - A form write no longer hangs after a websocket drop in ANY host:
     `yui_shell_set_connection_state()` publishes `EV_CONNECTION_STATE`, and
-    `C_YUI_TREEDB_TOPICS` listens to it on its shell. wattyzer and
-    yunovatios did not forward `EV_TRANSPORT_STATE`.
+    `C_YUI_TREEDB_TOPICS` listens to it on its shell. Two applications did
+    not forward `EV_TRANSPORT_STATE`.
   - Pending writes are keyed by topic and serial.
   - The pkey2 of an update is sent as the record had it, not through a
     `datetime-local` widget, which loses the seconds.
@@ -11521,10 +11510,10 @@ and the N1 traversal test given a real loop and a reachable victim.
   - Toasts stay re-translatable.
 - `yunos/js` -> gui_treedb 0.17.57: placeholders and titles of the Rows
   options, and the "records were gone" text says what happened.
-- Deployed to every consumer; hidraulia (v1) untouched. Every deployed SPA
-  was loaded with a real login, a websocket session and one forced
-  reconnect. Zero errors, after a pre-existing `C_IEVENT_CLI` trace-level
-  lookup in yunomusica was fixed.
+- Deployed to every consumer; the v1 client application untouched. Every
+  deployed SPA was loaded with a real login, a websocket session and one
+  forced reconnect. Zero errors, after a pre-existing `C_IEVENT_CLI`
+  trace-level lookup in one application was fixed.
 
 ### C_TREEDB: apply-schema asks `create-delete`, save-schema `write`
 
@@ -11889,7 +11878,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
   the parser's error, the length) with a dump capped at 256 bytes and no
   stack -- the decoder-severity rule. `gbuf2json(gbuf, 2)`, which callers
   used for that, logs an ERROR with a stack and the whole buffer, and names
-  no peer: an internet scanner on a yunovatios gate left exactly that.
+  no peer: an internet scanner on an application's gate left exactly that.
 - Switched: `c_qiogate` (the ack of the remote gate -- which also went on
   with a NULL ack and logged more errors; it returns now), `logcenter` (a
   truncated UDP datagram is a warning, not an error with a stack) and
@@ -11902,7 +11891,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
 - The console asks `saved-schema` of every treedb it shows, and most have no
   saved schema: the missing file reached `kw_get_int()` as NULL and logged
   *"kw must be list or dict"* (`path: schema_version`) on each call -- seen in
-  the agent of wattyzer after 7.25.1. `apply-schema`, `save-schema` and
+  the agent of the staging node after 7.25.1. `apply-schema`, `save-schema` and
   `treedbs` read the same files the same way; all five sites go through
   `schema_version_of()`, 0 for a file that is not there. Test:
   `c_treedb_system_schema` asks `saved-schema` and `treedbs` before any save
@@ -11928,7 +11917,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
 - **Per treedb: `dynamic_schema_treedbs`** (list, configuration, not
   persistent) names the treedbs that open from their schema file whatever
   `impose_c_schema` says, which stays the default of every other one:
-  `'global': {'treedbs.dynamic_schema_treedbs': ['treedb_wattyzer']}`. The
+  `'global': {'treedbs.dynamic_schema_treedbs': ['treedb_myapp']}`. The
   yuno's code still wins.
 - **New command `treedbs`** in C_TREEDB: the treedbs the service opened
   (`treedb_system_schema` first), with `impose_c_schema` as it applies to
@@ -12057,11 +12046,10 @@ M5 of the 2026-09-21 review, the owner's option B.
 
 - **7.24.0 stamped a `now` column on an update only if it was `writable`**,
   and its CHANGELOG said there were two `now` columns in the tree. There are
-  about twenty more -- the "Update Time" of wattyzer, estadodelaire, hidraulia,
-  yunovatios, the mqtt broker and treedb_authzs -- declared
-  `['persistent','time','now']`, with no `writable`: they stayed frozen at
-  the create. `now` is stamped by EVERY write now, persistent or volatile;
-  `writable` plays no part.
+  about twenty more -- the "Update Time" of the consumer applications, the mqtt
+  broker and treedb_authzs -- declared `['persistent','time','now']`, with no
+  `writable`: they stayed frozen at the create. `now` is stamped by EVERY write
+  now, persistent or volatile; `writable` plays no part.
 - **The instant a thing was born is a `time` column without `now`.** A create
   with no value gives it the clock and an update leaves it alone -- which is
   what `__assets__.t` (when the bytes arrived) needs, so it lost `now`
@@ -12423,7 +12411,7 @@ as saved (M32); and M24, M27, M29, M30.
   that walk into an endless one, each line feeding the next. It now takes the
   end of the list BEFORE it logs anything and stops there: the report is what
   was busy at that instant and nothing the report itself allocates. Measured
-  while chasing `db_history_ce`, this guard did NOT change that yuno's count
+  while chasing a `db_history`, this guard did NOT change that yuno's count
   (1207 before and after), so what it reports there was already busy when the
   walk began — the guard closes the hazard, it does not explain that case,
   and the comment in the code says so.
@@ -12619,16 +12607,15 @@ as saved (M32); and M24, M27, M29, M30.
 - **A record takes a snap's tag exactly once, from `shoot-snap`.**
   `treedb_save_node()` and `treedb_create_node()` took the tag of the
   ACTIVATED snap (08ba69dcb, 7.23.0), so what was written during a rollback
-  went into the photo being looked at. On wattyzer, with snap "18-sep"
-  active, `install-binary auth_bff 7.23.0` appended a record tagged 1, and
-  the snap then held two records of the key. Every write is now tag 0.
-  With a snap active, the primary index is still the snap's records, and
-  the pkey2 indexes hold every other instance. A write made meanwhile
-  reaches the primary index after the snap is deactivated. Meta-topics
-  (`__snaps__`, `__graphs__`, `__assets__`) are no longer tagged while a
-  snap is active either. `test_tr_treedb_snap_clone` pins it: without the
-  fix the update and the create under snap A are tagged 1, and A no longer
-  shows its shot content.
+  went into the photo being looked at. On the staging node, with snap "18-sep"
+  active, `install-binary auth_bff 7.23.0` appended a record tagged 1, and the
+  snap then held two records of the key. Every write is now tag 0. With a snap
+  active, the primary index is still the snap's records, and the pkey2 indexes
+  hold every other instance. A write made meanwhile reaches the primary index
+  after the snap is deactivated. Meta-topics (`__snaps__`, `__graphs__`,
+  `__assets__`) are no longer tagged while a snap is active either.
+  `test_tr_treedb_snap_clone` pins it: without the fix the update and the create
+  under snap A are tagged 1, and A no longer shows its shot content.
 
 ### The Developer window is readable (gobj-ui 7.23.184-7.23.185)
 
@@ -12636,8 +12623,8 @@ as saved (M32); and M24, M27, M29, M30.
   uses rem: controls at 1rem with a finger's padding, traffic and log text
   at 0.9375rem, only secondary text under 0.9rem. 7.23.185 indents the
   expanded JSON four characters per level (`4ch`, it was 16px, about two).
-  Consumers moved to `^7.23.185`: gui_treedb 0.17.51, gui_agent 0.22.73,
-  yunovatios gui-central/gui-controlador and wattyzer.
+  Consumers moved to `^7.23.185`: gui_treedb 0.17.51, gui_agent 0.22.73 and
+  three application GUIs.
 
 ### treedb: a collapsed view with metadata is no longer a "pure node"
 
@@ -12667,7 +12654,7 @@ as saved (M32); and M24, M27, M29, M30.
   (`EV_REQUEST_JSON`, a new output event of the hosted child, declared by
   its one host `C_YUI_TREEDB_TOPICS`), which reads `nodes` with
   `with_metadata`. Consumers moved to `^7.23.183`: gui_treedb 0.17.49,
-  gui_agent 0.22.71, yunovatios gui-central/gui-controlador and wattyzer.
+  gui_agent 0.22.71 and three application GUIs.
 
 ### Toolbars: the common buttons keep one order (gobj-ui 7.23.182, gui_treedb 0.17.48, gui_agent 0.22.70)
 
@@ -12928,9 +12915,9 @@ app with no websocket) sends those commands and never analyses messages: its
 "Periodic" filter -- which counted signatures and hid a whole burst of commands
 as "recurring" -- is gone, and Periodic is now the `timer_periodic` level, i.e.
 `EV_TIMEOUT_PERIODIC`. Mute and No poll are gone. gobj-ui v1 1.0.4 (npm
-`legacy`) ports its dev panel to the commands; the mains of hidraulia,
-estadodelaire and yunomusica stop passing the removed attrs, and the
-`setup_locale()` of six apps stops reading `trace_i18n` from the yuno.
+`legacy`) ports its dev panel to the commands; the mains of three applications
+stop passing the removed attrs, and the `setup_locale()` of six apps stops
+reading `trace_i18n` from the yuno.
 
 Found using the deployed window, same round: gobj-js 7.22.1 fixes
 `current_timestamp()`, which wrote UTC time followed by the local offset (two
@@ -13656,8 +13643,8 @@ by an operator who decided to:
 
 With sshd stopped on Debian, `sshd -t` fails for a missing `/run/sshd`
 (systemd removes it with the unit); every script creates it, as Debian's init
-script does, and retries. Verified on wattyzer (OpenSSH 10.0p2): audit 0 FAIL /
-0 WARN, the flood guard installed and in effect.
+script does, and retries. Verified on the staging node (OpenSSH 10.0p2): audit 0
+FAIL / 0 WARN, the flood guard installed and in effect.
 
 Upgrading from 7.20.0-3: the `.rpm` erases the drop-in and the jail (an
 edited one is kept as `.rpmsave`); dpkg leaves the drop-in in place as an
@@ -13678,7 +13665,7 @@ Both packages install `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` with
 On 2026-09-13 an Internet-wide password botnet, 2,000-3,000 attempts an hour
 per node, filled sshd's slots for unauthenticated connections, and past 10 of
 them sshd dropped new connections at random: up to 1,464 drops an hour on the
-yunovatios controller, the operator's logins and the deploy tools' rsync
+controller node, the operator's logins and the deploy tools' rsync
 among them. Password login was already off, so the botnet could not get in;
 it only took the slots. With these two lines, applied by hand on three nodes
 that day, the drops went to zero.
@@ -13700,7 +13687,7 @@ that day, the drops went to zero.
 
 The `.rpm` installs `/etc/fail2ban/jail.d/yuneta-sshd.conf`, `[sshd]` enabled
 with `backend = systemd`. Debian enables that jail in its own
-`defaults-debian.conf`; RHEL ships none enabled, so `yunovatios-central` had
+`defaults-debian.conf`; RHEL ships none enabled, so a Rocky 9 node had
 fail2ban running and nothing watching sshd. `fail2ban-server` requires
 `python3-systemd` on EL9. `%post` runs `fail2ban-client -t` before reloading
 fail2ban, with the same set-aside rule: a jail fail2ban cannot configure
@@ -13724,7 +13711,7 @@ tcontext=unconfined_service_t tclass=process`, and the policy does not audit
 it (it shows only with `semodule -DB`). So the guard failed, the signal was
 skipped EVERY night without a word, `logrotate.service` ended successfully,
 and nginx went on writing to the rotated `access.log.1` until the next restart
-of the web server. On `yunovatios-central` every rotated file ended at a
+of the web server. On a Rocky 9 node every rotated file ended at a
 deploy, never at midnight.
 
 The guard now asks `/proc/<pid>/comm` whether the pid is a live `nginx`
@@ -13756,7 +13743,7 @@ ycommand -c 'command-yuno id=<id> service=<treedb> command=set-link-events set=1
   `EV_TREEDB_NODE_UNLINKED` with the relationship (`hook_name`,
   `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`).
 - `set=0`: it publishes the parent's `EV_TREEDB_NODE_UPDATED`, what the v1
-  SPAs (estadodelaire, hidraulia) read.
+  SPAs of two client applications read.
 - No `set`: the current value.
 
 It acts at once, on the open treedb. It is either/or for EVERY subscriber of
@@ -13959,7 +13946,7 @@ light (`+N not shown`, `+M in hidden topics`). Consumer keys `not shown`,
 - gobj-ui's `deploy-round` reports a consumer whose build FAILED as failed (it
   read back `OK`: a build refused in `prebuild` leaves `dist/` as it was), and
   its `--check` flags a consumer BEHIND the version or NOT REBUILT since its
-  install. wattyzer and both yunovatios GUIs had stayed two rounds behind that
+  install. Three application GUIs had stayed two rounds behind that
   way, on ten JSON-viewer keys of 7.23.144 they did not define.
 
 ### The JSON viewer compares two documents, and keeps them (gobj-ui 7.23.144)
@@ -13970,7 +13957,7 @@ id of the flat form (`json2flat` / `flat_diff`), added / removed / changed --
 in place of the viewers. The pasted texts and the layout are kept in
 `localStorage` (`storage_key`), so the pad opens as it was left. gui_agent
 0.22.61 and gui_treedb 0.17.31 take it with the new keys; the gobj-ui demo
-(demo.yuneta.io, niyamaka.com) opens it from its top toolbar too.
+(demo.yuneta.io and a second test domain) opens it from its top toolbar too.
 
 gui_treedb 0.17.32: its About no longer lists the connections -- the
 Diagnostics table keeps the deployment identity and the session.
@@ -14006,8 +13993,8 @@ is required"* -- for a file that plainly has one: `kw_get_str()` gives the
 default for a number (and logs *"path MUST BE a json str"*, which names the
 cause). The answer now says *"Configuration __version__ is required, as a
 string"*, with the yuno identity in front. Found when `yunetas sync-configs`
-picked up a data file of yunovatios' batches (renamed there with the `_`
-prefix of the other data files).
+picked up a data file of an application's batches (renamed there with the
+`_` prefix of the other data files).
 
 ## v7.19.0 (2026-09-10)
 
@@ -14038,8 +14025,8 @@ The topics view's `graph` button returns to the graph as it was left, its
 focused topic included, through a new shell helper,
 `yui_shell_last_route_under()` (a page-lifetime mirror of the routes visited).
 A node's child spec can now declare `remember_position`, so a config can make
-a treedb node's tabs point at where each workspace was left -- yunovatios
-turns it on for its treedb nodes.
+a treedb node's tabs point at where each workspace was left -- one
+application turns it on for its treedb nodes.
 
 ### The treedb topic cards lose the graph icon and gain the topic's shape (gobj-ui 7.23.139)
 
@@ -14055,7 +14042,8 @@ it hangs from and the ones that hang from it -- from the desc, no request.
 `graph` button left of `raw json` opens the whole treedb as a graph with no
 topic highlighted -- the only way in used to be a card's graph icon, which
 always focuses that card's topic. Derived from the host's card route
-template, so gui_treedb, gui_agent and yunovatios get it with no change.
+template, so gui_treedb, gui_agent and the applications get it with no
+change.
 
 ### The treedb graph: a toolbar in three parts, and never a blank view (gobj-ui 7.23.137)
 
@@ -14102,7 +14090,7 @@ same from one load to the next -- no longer decides where a chip sits.
   after a reload, no topic default reaching them). An edge is saved now only
   where it differs from what it inherits. `reset all edges` clears what the
   old Save froze.
-- Six new i18n keys, added in gui_agent, gui_treedb, wattyzer and yunovatios.
+- Six new i18n keys, added in gui_agent, gui_treedb and two applications.
 
 ### The treedb graph: one outline, no browser menu, a way back (gobj-ui 7.23.133)
 
@@ -14120,15 +14108,15 @@ same from one load to the next -- no longer decides where a chip sits.
 - **An edge has a menu** in edition mode (`edge properties`, `unlink`), and a
   port out of edition gets its node's menu instead of an empty one.
 - **The port menu gains the way back**: `reset port`, `reset topic ports`,
-  `reset all ports`. New i18n keys, added in gui_agent, gui_treedb, wattyzer
-  and yunovatios.
+  `reset all ports`. New i18n keys, added in gui_agent, gui_treedb and two
+  applications.
 
 ### The rule, written down (gobj-ui 7.23.132)
 
 The sweep of the last sections became a **norm**, in the place each reader
 already looks: `CLAUDE.md` here (JS GUI conventions), gobj-ui's `README`
-(Conventions) and `CLAUDE.md`, and the `CLAUDE.md` of `yunos/js`, wattyzer and
-yunovatios.
+(Conventions) and `CLAUDE.md`, and the `CLAUDE.md` of `yunos/js` and of two
+applications.
 
 > **EVERY control carries a `title` AND an `aria-label`, and both are
 > translatable. No exceptions.**
@@ -14158,8 +14146,8 @@ and switch language.**
 
 The last windows nobody had dumped: the **frontend view**, the **site map**,
 **about**, **preferences**, the five **login screens**, the **overlay layer**
-(a toast and each of the three confirm shapes), and the **yunovatios
-controlador**, the one SPA that had never been read at all.
+(a toast and each of the three confirm shapes), and **an application's
+controller GUI**, the one SPA that had never been read at all.
 
 **One defect, and it is a shape the sweep had not met: an `<option>`.** The
 frontend view's eight layout labels were written into its `LAYOUTS` table and
@@ -14174,11 +14162,11 @@ left-right`): the two graphs sit side by side in the same console, so the same
 layout is called the same thing in both — the toolbar-vocabulary rule, applied
 to a select.
 
-**In wattyzer's login**, the three quick-control `aria-label`s went through
-`t()` with no key on the element, and `paint_i18n` made up for it with a
-hand-written list of three selectors. It works, and it is a list somebody has
-to remember to extend the next time a button lands in that header — so the keys
-go on the elements and the repaint walks the attribute, the way the other three
+**In an application's login**, the three quick-control `aria-label`s went
+through `t()` with no key on the element, and `paint_i18n` made up for it with a
+hand-written list of three selectors. It works, and it is a list somebody has to
+remember to extend the next time a button lands in that header — so the keys go
+on the elements and the repaint walks the attribute, the way the other three
 SPAs already did.
 
 Read back: **zero controls without a name** in any of them. What still does not
@@ -14189,7 +14177,7 @@ and readouts (*"19 px"*).
 ### The Developer window read in English, and the guard could not see it (gobj-ui 7.23.130)
 
 `kernel/js/gobj-ui` -> 7.23.130, and the vocabulary added in `yunos/js` (both
-SPAs), with accent fixes in wattyzer and the yunovatios GUIs.
+SPAs), with accent fixes in three application GUIs.
 
 The dump pointed at the Developer window. In `gui_agent` and `gui_treedb`,
 **22 of its 32 elements never changed language**: the trace chips, the group
@@ -14211,7 +14199,7 @@ the check.
 
 Along the way, four Spanish words that had lost their accent — *Creacion*,
 *Automata*, *Trafico*, *Periodico* — and three *"Solo"* that need one. They came
-from wattyzer's bundle, where these translations were first written, and
+from an application's bundle, where these translations were first written, and
 travelled into every consumer that copied them.
 
 Read back on all five deployed sites: **1 of 32**, and it is *"I18n"*, the same
@@ -14267,7 +14255,7 @@ the graph legend's topics — data, not prose.
 ### The same dump on the two yunos (gobj-ui 7.23.123 - 7.23.127)
 
 `kernel/js/gobj-ui` -> 7.23.127, `yunos/js` -> both SPAs on it, and the same
-range in wattyzer and the two yunovatios GUIs.
+range in three application GUIs.
 
 The deployed-DOM dump of the previous section, run against `gui_agent` and
 `gui_treedb`. **Zero controls without a name in either** -- the shapes the
@@ -14315,7 +14303,7 @@ change above all.
 ### A name for every control, read back from the deployed DOM (gobj-js 7.16.6, gobj-ui 7.23.121 - 7.23.122)
 
 `kernel/js/gobj-js` -> 7.16.6, `kernel/js/gobj-ui` -> 7.23.122, `yunos/js` ->
-both SPAs on those two, and the same in wattyzer and the two yunovatios GUIs.
+both SPAs on those two, and the same in three application GUIs.
 
 The tooltip sweep of the previous section ended on the windows nobody had
 looked at yet -- devices, and whatever was left. The method changed for this
@@ -14345,7 +14333,7 @@ at mount never sees the new arrows. A deployed Spanish map offered *"scroll
 left"*. They go through `t()` where they are built now, and keep their keys so
 a language change still reaches them.
 
-**In wattyzer**: 24 controls with no name at all, and 17 literal
+**In one application**: 24 controls with no name at all, and 17 literal
 `aria-label`s. A Bulma `field` puts the `<label>` BESIDE the control, with no
 `for` and no wrapping, so it names the box for the eye and for nothing else;
 the name goes on the control itself, from the label's own KEY, so the two
@@ -14354,27 +14342,27 @@ i18n label, where the literal overrides the translated text for a reader. Two
 more findings came from the dump alone: a language switch never reached an
 OPEN modal (every modal of that app is appended to the body, and the switch
 repainted only the shell's container), and the brand announced itself as
-*"wattyzer go to root"* in both languages -- `app_config.json` holds i18n keys
+*"<app> go to root"* in both languages -- `app_config.json` holds i18n keys
 in DATA and nothing asked for them, so `validate-locales` reads it now, the
-way the yunovatios copy already did.
+way another application's copy already did.
 
-**In yunovatios**: the two census selects of the device card and the
+**In another application**: the two census selects of the device card and the
 select-all checkbox of the controllers view had no name; and maplibre labels
 its own chrome in English, never through the app's i18next, so zoom, compass,
 fullscreen, geolocate and the attribution toggle all read English on a Spanish
 map. The map takes `locale: yui_maplibre_locale(t)` at construction --
 maplibre reads it once, when each control builds its DOM -- and
 `yui_maplibre_relocalize()` on a language change, which is the half a `locale`
-alone cannot do. Same open-dialog fix as wattyzer's.
+alone cannot do. Same open-dialog fix as the first application's.
 
-Read back at the end: **zero controls without a name** across eight wattyzer
-windows and seven of central; what still does not change language there is
-treedb DATA (family names, a place), which is right.
+Read back at the end: **zero controls without a name** across eight windows
+of the first application and seven of the second; what still does not change
+language there is treedb DATA (family names, a place), which is right.
 
 ### A contrast sweep of the whole GUI, measured (gobj-ui 7.23.84 - 7.23.120)
 
 `kernel/js/gobj-ui` -> 7.23.120, `yunos/js` -> both SPAs on `^7.23.120`,
-and the same range in wattyzer and the two yunovatios GUIs. It began as a review
+and the same range in three application GUIs. It began as a review
 of the treedb graph round and became a sweep of every surface the library
 draws, with **`getComputedStyle` in a browser and not an eye**: a ratio ends
 an argument, "it looks washed out" does not.
@@ -14462,13 +14450,13 @@ if the app mounts a graph, because a stylesheet rides its JS import. So the
 JSON viewer's view switch had grown a `--bulma-link` fill of its own (a
 STATE wearing a colour that names a kind of ACTION), the gclass viewer's two
 switches wore `is-active` with **no rule behind them anywhere** (1.3:1), and
-yunovatios kept a copy of the rule under a third name, `is-pressed`, with
-the reason written in its `app.css`. The rule and `set_pressed_state()` move
-to `yui_toolbar.js` / `.css`, where a toolbar's toggle belongs
-(`lib_graph.js` re-exports the helper); every one of those sites now says it
-the same way. Bulma's own `is-active`, measured, is a 10-point lightness
-shift -- 1.27:1 light, 1.33:1 dark, against 9.44:1 / 8.46:1 -- and it shares
-its declaration with `:active`, the look of a finger down right now.
+one application kept a copy of the rule under a third name, `is-pressed`, with
+the reason written in its `app.css`. The rule and `set_pressed_state()` move to
+`yui_toolbar.js` / `.css`, where a toolbar's toggle belongs (`lib_graph.js`
+re-exports the helper); every one of those sites now says it the same way.
+Bulma's own `is-active`, measured, is a 10-point lightness shift -- 1.27:1
+light, 1.33:1 dark, against 9.44:1 / 8.46:1 -- and it shares its declaration
+with `:active`, the look of a finger down right now.
 
 `7.23.102` finishes it in `C_YUI_PERIOD`, the last place a STATE wore a
 colour: the granularity in use and the picked calendar cell were an
@@ -14492,7 +14480,7 @@ light and 3.53:1 in dark -- less luminance than the pill (9.44 / 8.46)
 and a different hue, which is what says *this one, of these*. Filled: the
 graph's three node views, the JSON viewer's three, the gclass viewer's
 two switches, the period's granularities and its picked calendar cell,
-and the map's three modes in yunovatios. Still pressed, because they are
+and the map's three modes in one application. Still pressed, because they are
 toggles: node labels, the legend's loose and focus buttons, the graph's
 anchor and its selection mode, the alarms view's *active only*.
 
@@ -14578,8 +14566,8 @@ does the half a locale cannot — maplibre reads its strings ONCE, when each
 control builds its DOM, so a language change has to rewrite what is drawn.
 The notice is also HELD for 2s: maplibre shows it 100ms and fades it for a
 second more, and this GUI has no transitions, so what was left was a blink
-— worse than no notice. That recipe was already solved in yunovatios'
-`yv_map_base.js`, which is where it was found; the library learnt it
+— worse than no notice. That recipe was already solved in an application's
+map base class, which is where it was found; the library learnt it
 instead of inventing a second one, and the app keeps its own.
 
 **And then the rest of the tooltips** (`7.23.112`), swept for the two
@@ -14627,10 +14615,10 @@ now. The flag checkboxes are NOT a defect: each sits inside its own
 the label IS written `<label for={name}>`, which reads like a correct
 association — except `for` matches an **id**, and no control of that form
 sets one; they carry `name`. So every field of every form the library
-builds (the treedb record editor, wattyzer's, yunovatios') was unlabelled
-for anything that is not an eye. The name goes on the control from the
-label's own key, in the one place a field is finished — not as an `id`,
-because two forms can be open at once and duplicate ids would break both.
+builds (the treedb record editor, and those of the applications) was unlabelled
+for anything that is not an eye. The name goes on the control from the label's
+own key, in the one place a field is finished — not as an `id`, because two
+forms can be open at once and duplicate ids would break both.
 
 **The graphs window closed it** (`7.23.117`, `7.23.118`), and the last two
 came from READING the deployed toolbar rather than the source: the treedb
@@ -14745,7 +14733,7 @@ there are three of each since `7.23.70`.
 
 `kernel/js/gobj-ui` -> 7.23.73 and `yunos/js` -> both SPAs on `^7.23.73`.
 Three findings of a review of the `7.23.66`-`7.23.72` round; the backend
-half of the same review lives in the yunovatios repo.
+half of the same review lives in an application's repository.
 
 **The treedb layouts died on a deep tree.** `layout_tree`, `layout_radial`
 and `layout_outline` walked the spanning tree with recursion -- the natural
@@ -14843,7 +14831,7 @@ key `show more`. The JS API docs are repinned to the new tag.
 whether or not it was the name already stored, and every update appends an
 instance: a repeated `import-assets` over the same directory added one
 instance per asset that said exactly what the previous one said (12,134 rows
-of nothing on the yunovatios census). The name is compared with the stored
+of nothing on an application's census). The name is compared with the stored
 one first, and only a NEW name is written. Test 17 of
 `tests/c/tr_treedb_files`.
 
@@ -15084,7 +15072,7 @@ Forwarded by NAME and not by sweeping the kw, because the kw of a command
 carries the caller's own keys too (`__username__`, the routing metadata)
 and none of them is an attribute of a treedb.
 
-Found by migrating a real host (yunovatios) to `file` columns, which is
+Found by migrating a real host application to `file` columns, which is
 what a migration is for.
 
 
@@ -15173,7 +15161,7 @@ cascade-deleted like any other node. Design and its review:
 - **Migration: none.** The `assets` topic of a host and its `as_<col>` hooks
   are replaced by the derived `__assets__`; the fkey literal in every record
   changes, so a store built on `C_ASSETS` is wiped and rebuilt through
-  `import-assets`. The hosts (yunovatios) change `['fkey']` to
+  `import-assets`. The host applications change `['fkey']` to
   `['fkey','file']` on `foto`/`qr`/`plano`, drop their `assets` topic and
   rebuild.
 - New suite `tests/c/tr_treedb_files` (the eight claims of the design that
@@ -15313,7 +15301,7 @@ The worker and its shared chunk were the only assets of the bundle emitted
 under a FIXED name, so a static host serving `/assets/` with a long max-age
 hands a returning browser the OLD worker against the new bundle — and worker
 and main thread speak a private protocol that changes between maplibre
-versions. Paid for in yunovatios, where a cached 6.4.1 worker made the 6.7.0
+versions. Paid for in an application, where a cached 6.4.1 worker made the 6.7.0
 `GlyphManager` answer `t.codePointAt is not a function` once per tile. The
 emitted names now carry the installed version.
 
@@ -15458,7 +15446,7 @@ and each of those files came from its own path, which is what a loader links
 by. `source_path` held one, so it held the **last one written** and lost the
 rest.
 
-It is not a corner case. In the yunovatios census **148 measurement points
+It is not a corner case. In an application's census **148 measurement points
 share one byte-identical photograph**: content-addressed that is a single
 asset, so 147 of them named a path no asset carried, were never even looked
 up, and came out with no image. **The load reported success**, and it was
@@ -15569,8 +15557,8 @@ the test drives them as strings the way the agent does.
 
 A treedb node often owns something that is not json — a photo, a plan, a
 signed pdf — and today those bytes live wherever whoever loaded them put
-them. In yunovatios that is 356 MB of census images under
-`/yuneta/store/resources/censo_memorias/`, referenced from `devices.foto`
+them. In one application that is 356 MB of census images under
+`/yuneta/store/resources/<census>/`, referenced from `devices.foto`
 as a free string, pushed to the node by an `rsync` from a developer's
 laptop. Nothing owns them: no command writes one, so a user cannot add or
 replace a photo from the SPA or from `ycommand`; nothing checks the path
@@ -15614,7 +15602,7 @@ a leaked url.
 
 **`import-assets` is the bulk path, and it moves no bytes at all.** One
 command walks a directory that is already on the node and turns it into N
-assets — for the yunovatios census, 12 281 files that are already sitting
+assets — for an application's census, 12 281 files that are already sitting
 in the store. Sending hundreds of megabytes through the control plane, one
 base64 message per file, is the thing it exists to avoid. It reads an
 arbitrary path, so it is confined to a configured `import_root` and refused
@@ -15682,7 +15670,7 @@ deployment that genuinely has no authz db, produce the identical line. The
 format is `%s` now, and the line also carries `master`, which is what tells
 the two apart.
 
-Found on a from-scratch yunovatios install: `db_tracks_ce` and `db_tracks_co`
+Found on a from-scratch install of an application: its two `db_tracks`
 checked 24 ms and 22 ms before their store existed, came up with authz
 disabled for the life of the process, and answered `list-users` with nothing
 while the master listed three accounts.
@@ -15695,15 +15683,14 @@ and `tr_treedb` does not know which links matter — so `unlink-nodes`, an
 `update-node` with `autolink` that did not repeat the fkeys (what kw omits,
 `treedb_clean_node()` drops), a `force` delete of the parent, or a
 `link-nodes` into a single-valued fkey could still leave the seed hanging off
-nothing until the next start re-linked it. A scope in yunovatios is exactly
+nothing until the next start re-linked it. A scope in one application is exactly
 such a link. `C_NODE`, the owner of `initial_load`, now refuses those four
 writes when they would cut a link a seed is declared with (*"initial_load:
-cannot unlink a seed link"*, *"... update would drop a seed link"*, *"...
-cannot delete the parent of a seed link"*, *"... link would overwrite a seed
-link"*); `force` overrides none. No column flag was added: a flag would
-freeze the column for every record of the topic, and the declaration already
-says which links matter. The links a person adds to a seed afterwards stay
-ordinary.
+cannot unlink a seed link"*, *"... update would drop a seed link"*, *"... cannot
+delete the parent of a seed link"*, *"... link would overwrite a seed link"*);
+`force` overrides none. No column flag was added: a flag would freeze the column
+for every record of the topic, and the declaration already says which links
+matter. The links a person adds to a seed afterwards stay ordinary.
 
 The fourth one is the least obvious, and it is why the guard cannot be read
 off the other three: **a link does not always add.** `_link_nodes()` branches
@@ -15781,7 +15768,7 @@ was always redundant.
 
 ## 7.16.3
 
-Cut so that the webstats change reaches the yunovatios nodes: they carry a
+Cut so that the webstats change reaches two application nodes: they carry a
 sparse SDK, so an SDK yuno cannot be built there and only arrives in the
 `.deb` / `.rpm`.
 
@@ -16731,8 +16718,8 @@ that really is only in the store. Which is what the panel is for.
 - **A proposed url built on the realm id** (`yunos-js` 0.17.1). The agent
     console's *For TreeDB* copy read the FQDN from one place only, the
     `__ssl_certificate__` config variable, and fell through to the realm id
-    when it was absent — proposing `demo.hidrauliaconnect.es` for a backend
-    whose certificate says `hidrauliaconnect.es`. The evidence was in the
+    when it was absent — proposing `demo.app.example.com` for a backend
+    whose certificate says `app.example.com`. The evidence was in the
     same config, written where it is USED (`crypto.ssl_certificate` of the
     gate), and is now read there too: the gate wearing the top port wins, a
     wildcard certificate names no host, and the realm id is the last resort.
@@ -16893,7 +16880,7 @@ CHANGELOG.
     `email_from` names it, and the config composes it: `json_config` resolves
     `(^^__hostname__^^)` inside a string, so
     `"C_WEBSTATS.email_from": "(^^__hostname__^^)@artgins.com"` reaches the
-    yuno already resolved to `wattyzer@artgins.com`. The yuno stays out of it
+    yuno already resolved to `node-a@artgins.com`. The yuno stays out of it
     — no domain and no address shape built in — and any other variable works
     the same way. Empty leaves the sender to the email service, as before.
 
@@ -16989,7 +16976,7 @@ CHANGELOG.
 
     No in-repo consumer registers `C_YUI_MAP`, so no yuno changes here. The
     same fix ships on the frozen v1 line as **1.0.2** (npm dist-tag `legacy`),
-    for estadodelaire and hidraulia, which is where it was found.
+    for the two v1 client applications, which is where it was found.
 
 ## 7.15.0
 
@@ -17277,7 +17264,7 @@ CHANGELOG.
     a consumer from resolving to a version without that fix, so the floor is
     what moves. `yunos/js/gui_treedb` declares maplibre itself and moves too.
 
-    Not affected: the v1 line. `estadodelaire` and `hidraulia` are the two SPAs
+    Not affected: the v1 line. Two client applications are the two SPAs
     that actually mount a map in production and they are on `maplibre-gl`
     `^5.24.0`, which is the last 5.x there is — the fix is not backported, so
     the only way out of it is the migration to v2.
@@ -17391,7 +17378,7 @@ four backends, and a collapsed node hiding the yunos it has open.
         one point every route passes through and written again only by the tab
         branch, so a route that forgets to clear it cannot exist.
 
-    Also: a **yuno tab names its node** (`yuneta_agent · wattyzer`). Every node
+    Also: a **yuno tab names its node** (`yuneta_agent · node-a`). Every node
     runs a `yuneta_agent`, so two tabs of two nodes read the same and there was
     no way to know which one you were typing into.
 
@@ -17459,8 +17446,8 @@ addressed by a counter, and starts being addressed by its own name.
 
 - **BREAKING (stored data): `topics` and `cols` of `__system__` are keyed by
     the QUALIFIED name, not by a rowid.** The id of a node is now the id of its
-    parent, a dot, and its own name — `treedb_yunovatioscodb.yunos` for a topic,
-    `treedb_yunovatioscodb.yunos.yuno_role` for a column.
+    parent, a dot, and its own name — `treedb_myapp.yunos` for a topic,
+    `treedb_myapp.yunos.yuno_role` for a column.
 
     The collision it has to avoid is real: a topic name is unique only inside
     its treedb, so keyed by the bare name the second treedb of a store
@@ -17917,19 +17904,19 @@ leaked a whole `kw` per call.
     cell.
 
     Every v2 consumer took it and is deployed: `gui_treedb`
-    (artgins.ytreedb.com), wattyzer (app.wattyzer.com, which was two releases
-    behind and also gains the schema button), both yunovatios GUIs, and
-    `gui_agent` on both control-center planes — that one mounts no treedb
-    table, so what it takes is 5.12.0's idempotent `register_c_yui_json()`. The
-    two v1 apps, estadodelaire and hidraulia, stay on the frozen `1.0.1` line
-    by design.
+    (artgins.ytreedb.com), an application on the staging node (which was two
+    releases behind and also gains the schema button), two more application
+    GUIs, and `gui_agent` on both control-center planes — that one mounts no
+    treedb table, so what it takes is 5.12.0's idempotent
+    `register_c_yui_json()`. The two v1 client applications stay on the frozen
+    `1.0.1` line by design.
 
     Three of those apps had to **define the keys the library now asks of their
     own i18next**, which their prebuild validators caught: `show json`
     everywhere, plus the JSON viewer's `too many rows; collapse some branches`
-    in wattyzer, reachable there since the viewer entered the treedb stack. An
-    undefined key renders as the key itself and never changes language — the
-    failure that is invisible by construction.
+    in one application, reachable there since the viewer entered the treedb
+    stack. An undefined key renders as the key itself and never changes language
+    — the failure that is invisible by construction.
 
 ### Fixed
 
@@ -17963,7 +17950,7 @@ leaked a whole `kw` per call.
     exists"*, its topic node was never created, its hooks then failed with
     *"link topic not found"*, its rebuilt schema failed `parse_schema`, and
     `get_client_treedb_schema` fell back to the C literal — in silence. The
-    local controlador's store holds five treedbs and its projection held one.
+    local controller's store holds five treedbs and its projection held one.
 
     `topics` is keyed by rowid now, with the name in the pkey2 `value`, exactly
     as `cols` has been since V6 — the same flaw, solved for columns and never
@@ -18018,7 +18005,7 @@ leaked a whole `kw` per call.
     `__system__` and never reached the topic. A topic's version cannot go
     backwards now, for the same reason `schema_version` cannot.
 
-    Verified end to end on a real schema: the local yunovatios controlador,
+    Verified end to end on a real schema: a local controller node,
     degraded by the lossy projector, recovered `language`'s `["es","en"]` and
     its `"es"` default, and `cluster`'s `false` — a scalar boolean default that
     a blob used to replace with `{}`. System schema 9 → 12.
@@ -18027,7 +18014,7 @@ leaked a whole `kw` per call.
     trigger.** It destroys the treedb's `C_NODE` and its `C_TRANGER`, and an
     owner keeps raw handles no framework cleanup can reach: the service pointer,
     the `tranger` json_t read from it, copies of both on a hot path, and
-    whatever else was opened on that same tranger — `db_history_co` opens its
+    whatever else was opened on that same tranger — a `db_history` opens its
     `msg2db_alarms` there. Freed underneath, the next record processed writes
     into released memory. Every in-tree consumer closes only from `mt_pause`, so
     the command now refuses while the yuno plays and points at the pair that
@@ -18065,8 +18052,8 @@ leaked a whole `kw` per call.
     not found"* as an error. It asks with a list now, which is silent when
     empty.
 
-- Landing page: carded [yunomusica.com](https://yunomusica.com) as the second
-    live example — a shipped SPA on `C_YUI_SHELL` + `C_YUI_NAV`, installable and
+- Landing page: carded a shipped application as the second
+    live example — an SPA on `C_YUI_SHELL` + `C_YUI_NAV`, installable and
     offline, next to the shell demo that exists to show the shell.
 
 - **gobj-ui submodule 5.11.0 → 5.11.1**, which exports
@@ -18106,7 +18093,7 @@ leaked a whole `kw` per call.
     calls **wanted** — the newest version the existing range already accepted —
     and never to **latest**, so a major cannot enter through a sweep.
 
-    That rule is what protects the two v1 apps: estadodelaire and hidraulia keep
+    That rule is what protects the two v1 client applications: they keep
     gobj-ui at `1.0.1` (the frozen line), maplibre-gl at `5.24.0` (v6 is ESM-only
     and needs the worker wired) and vanilla-jsoneditor at `0.23.8`. All three
     are majors, and a major is a migration to plan, not a number to raise.
@@ -18118,9 +18105,9 @@ leaked a whole `kw` per call.
 
     Verified by build, not by the number in the file: all eleven install, the
     nine with a build script build, and the two libraries pass 39 and 256 tests.
-    Worth knowing — **estadodelaire and hidraulia declare vitest and ship no test
-    file**, so the build is the only gate their bump passed, and they are the two
-    that cost the most to repair.
+    Worth knowing — **the two v1 client applications declare vitest and ship
+    no test file**, so the build is the only gate their bump passed, and they
+    are the two that cost the most to repair.
 
 - **`--repin` for the JS docs.** A submodule bump moves a tag, and every
     hand-written `blob/<tag>/` link into that repository goes stale with it.
@@ -18565,7 +18552,7 @@ allowed to start at all.
     labelled `default_t`. The SysV script could exec that, because `initrc_t`
     may; systemd cannot. The unit shipped in 7.10.0-2 died with `203/EXEC`
     — *"Failed to locate executable /yuneta/bin/yuneta-webserver: Permission
-    denied"* — retried four times, gave up, and `yunovatios-central` stayed
+    denied"* — retried four times, gave up, and a Rocky 9 node stayed
     two and a half hours with no web server at all.
 
     The `.rpm` now labels the wrapper `bin_t` (with `semanage fcontext` +
@@ -18575,7 +18562,7 @@ allowed to start at all.
     systemd execs, and what it execs in turn is reached from its own domain.
 
     Debian is untouched by this, which is exactly why it was not seen before
-    shipping: the same revision on `yunovatios-controlador` came up fine.
+    shipping: the same revision on a Debian node came up fine.
 
 ### Changed
 
@@ -18775,13 +18762,14 @@ agent with its second agent still running.
   was resting on a field the update command did not maintain, and `sync-configs`
   drives its whole `UPDATE` path through that command.
 
-  Found on `e.com`: the `webstats` row still announced *"1: initial load"* long
-  after its content had stopped reading the dead openresty tree. The content
-  was right, the label was two edits stale, and nothing anywhere said so.
+  Found on the staging node: the `webstats` row still announced *"1: initial
+  load"* long after its content had stopped reading the dead openresty tree. The
+  content was right, the label was two edits stale, and nothing anywhere said
+  so.
 
   **How far it had spread: one row.** The five nodes were swept afterwards,
   comparing every config row's column against the `__description__` its own
-  content carries — 51 rows over 546 stored records — and the `e.com` one was
+  content carries — 51 rows over 546 stored records — and the staging one was
   the only mismatch. The reason is the convention itself: an edit normally
   **bumps `__version__`**, which takes the `create-config` path and writes the
   column correctly. `update-config` overwrites the row in use, which is the
@@ -18879,7 +18867,7 @@ two nodes, installing 7.9.11-2 on them and probing them end to end.
   serves would stop matching once it answered 200. That holds for a static site
   and collapses on a single-page app: with `try_files $uri $uri/ /index.html`
   every unknown path answers **200** with `index.html`, so `/wp-login.php` came
-  back 200 and the filter matched nothing. Both yunovatios consoles were
+  back 200 and the filter matched nothing. Two application consoles were
   running the jail blind — enabled, healthy, watching the right file, and
   incapable of ever banning anybody.
 
@@ -19246,12 +19234,12 @@ the package rather than the other way round.
   submodule bump). `gui_agent` and `gui_treedb` pointed `@yuneta/gobj-js` and
   `@yuneta/gobj-ui` at the `kernel/js/*` submodule checkouts, which tied a
   build to the superproject and to whatever those working trees held. They now
-  resolve `^7.9.6` / `^5.8.2` from the registry, like wattyzer — **so there
-  are no `file:` consumers left**, and a local edit under `kernel/js/**`
-  reaches an app only after `npm publish` plus a range bump. The `file:` deps
-  were symlinks and forced `resolve.preserveSymlinks`, which loads duplicate
-  module instances; that flag and the `src/` aliases are gone, and `dedupe`
-  now also lists `@yuneta/gobj-js`.
+  resolve `^7.9.6` / `^5.8.2` from the registry, like the reference v2
+  application — **so there are no `file:` consumers left**, and a local edit
+  under `kernel/js/**` reaches an app only after `npm publish` plus a range
+  bump. The `file:` deps were symlinks and forced `resolve.preserveSymlinks`,
+  which loads duplicate module instances; that flag and the `src/` aliases are
+  gone, and `dedupe` now also lists `@yuneta/gobj-js`.
 
 - **Both JS yunos install as a WebAPK.** Each ships a complete manifest
   (`display: standalone`, `start_url`, `scope`, 192/512 PNG icons and a
@@ -19618,8 +19606,8 @@ the package rather than the other way round.
 
   `gui_treedb` pins `^6.1.0`, because an application takes the floor it was
   tested against. `gobj-ui` keeps its peer range at `^6.0.0`, because a
-  library must not force the update on estadodelaire, hidraulia or wattyzer
-  for fixes it does not itself depend on.
+  library must not force the update on the consumer applications for
+  fixes it does not itself depend on.
 
 ### Added
 
@@ -19640,7 +19628,7 @@ the package rather than the other way round.
   the failure path replacing the failure it was reporting.
 
   Published to npm as a patch ahead of the SDK; consumers on the registry
-  (wattyzer, estadodelaire, hidraulia) get it by bumping their range.
+  (the consumer applications) get it by bumping their range.
 
 - **The Spanish artifact of `/navigation` is in the repo**, beside the page it
   translates (`docs/doc.yuneta.io/navigation/artifact/`), with the script that
@@ -19657,10 +19645,10 @@ the package rather than the other way round.
   only holds while a view hangs off a route the shell itself declares — under a
   `C_YUI_NODE` tree the parent is the NODE, with no `use_hash`, no `item_index`
   and no `EV_ROUTE_REQUESTED`. Latent here (gui_treedb mounts on declared
-  routes); it is what actually broke yunovatios, whose treedb views moved under
-  a node tree. The `EV_ROUTE_CHANGED` subscription keeps using the parent on
-  purpose — a subscription goes to whoever PUBLISHES — and its variable is now
-  named `host` to keep the two apart.
+  routes); it is what actually broke an application whose treedb views moved
+  under a node tree. The `EV_ROUTE_CHANGED` subscription keeps using the parent
+  on purpose — a subscription goes to whoever PUBLISHES — and its variable is
+  now named `host` to keep the two apart.
 
 ### Tools
 
@@ -19689,7 +19677,7 @@ the package rather than the other way round.
 ### Documentation
 
 - **The declarative shell has a public demo: [demo.yuneta.io](https://demo.yuneta.io).**
-  The `gobj-ui` test-app was only reachable at `niyamaka.com`, a domain whose
+  The `gobj-ui` test-app was only reachable at a partner's domain, whose
   name says nothing about Yuneta, and no page linked to it. It now has its own
   host on the documentation box, with its own certificate, and
   `doc.yuneta.io` links to it under *See it run*. It shows every `C_YUI_NAV`
@@ -19698,7 +19686,7 @@ the package rather than the other way round.
   The script that deploys it was untracked, listed in `.git/info/exclude`, so
   nobody could reproduce the deployment from a clone. `test-app/deploy.sh`
   replaces it: the host is an argument, `demo.yuneta.io` is the default,
-  `niyamaka.com` stays for mobile testing, and it curl-verifies the result
+  the partner's domain stays for mobile testing, and it curl-verifies the result
   instead of reporting success on the rsync alone.
 
 - **`/guide-folders`: the `tools` entry linked to the CHANGELOG.** The list of
@@ -21004,7 +20992,7 @@ v2 SPA).
       cards open.
 
     - **fix(timeranger2): a brand-new key made every rt_disk follower log an
-      `unlink() FAILED`.** On staging, `agregador_wz` logged one *"unlink()
+      `unlink() FAILED`.** On staging, an aggregator yuno logged one *"unlink()
       FAILED, errno 2 (No such file or directory)"* per new key — an hourly
       bucket meant an hourly ERROR in the log, and monitors alerting on nothing.
 
@@ -21388,7 +21376,7 @@ their own repositories (`@yuneta/gobj-js`, `@yuneta/gobj-ui` CHANGELOGs); the
       endpoint is an invisible `404`) **and** fail-closed Origin pinning (the token
       is emitted only when the request `Origin` exactly matches `allowed_origin`,
       else `403 origin_not_allowed`; enabling the flag without pinning an origin
-      yields nothing). Every existing BFF (wattyzer, estadodelaire, hidraulia) keeps
+      yields nothing). Every existing BFF (the consumer applications') keeps
       full SEC-06 — they never enable the flag. The server side already accepts an
       identity-card JWT with priority over the cookie (`c_ievent_srv.c`) and
       validates it against the issuer JWKS (`c_authz.c`); each remote backend must
@@ -21549,12 +21537,12 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       published it to subscribers — diverging from the C kernel (where
       `mt_stop` stops the bottom transport and `ac_on_close` publishes
       `EV_ON_CLOSE` when a session was open). Consumers that drive their logout
-      UI teardown from that event (estadodelaire) stopped hiding the app. 7.6.7
-      keeps `.onclose` wired and instead guards the handler with
+      UI teardown from that event (a client application) stopped hiding the app.
+      7.6.7 keeps `.onclose` wired and instead guards the handler with
       `gobj_is_destroying()`, so only the stop+destroy-in-the-same-turn case
       (gui_agent) bails out silently while a stop that keeps the gobj alive
-      still gets its `EV_ON_CLOSE`. wattyzer/gui_agent (explicit teardown) are
-      unaffected. gobj-js-only patch: `YUNETA_VERSION` stays 7.6.6.
+      still gets its `EV_ON_CLOSE`. Apps with an explicit teardown (gui_agent)
+      are unaffected. gobj-js-only patch: `YUNETA_VERSION` stays 7.6.6.
     - **refactor(decoders): protocol decode errors caused by a malformed packet
       from the peer are now warnings, not errors.** Across the protocol gclasses
       (`c_prot_tcp4h`, `c_websocket`, `ghttp_parser`, `c_prot_mqtt`,
@@ -21668,8 +21656,8 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       snapshot (history not preserved), single line on `main`, tag `7.6.5`
       tracking `YUNETA_VERSION`. **Clone with `--recurse-submodules`** (or
       `git submodule update --init`). The submodule sits at the original path,
-      so local `file:` consumers (`wattyzer`, in-repo `yunos/js/gui_treedb`)
-      resolve unchanged and npm consumers (`estadodelaire`, `hidraulia`) are
+      so local `file:` consumers (an application, in-repo `yunos/js/gui_treedb`)
+      resolve unchanged and npm consumers (two client applications) are
       unaffected. New publish flow: bump `package.json` in lockstep with
       `YUNETA_VERSION` and `npm publish` **in the standalone repo**, then bump
       the submodule pointer here. `.gitmodules` uses the HTTPS url (so
@@ -21759,12 +21747,12 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
         - **`main`/v2** (npm dist-tag `latest`, tag `2.0.0`+, `src/` layout) —
           active development: the declarative shell
           (`C_YUI_SHELL/NAV/PAGER/WIZARD`) on top of the legacy stack. **The
-          yunetas submodule now tracks this line**, and `wattyzer` consumes that
-          checkout locally via a `file:` dependency (importing
+          yunetas submodule now tracks this line**, and an application consumes
+          that checkout locally via a `file:` dependency (importing
           `@yuneta/gobj-ui/src/*` by package specifier).
         - **`v1`** (npm dist-tag `legacy`, tag `1.0.1`, `src/` layout) — the
           frozen legacy GClass GUI stack. Consumed from the **npm registry** as
-          `@yuneta/gobj-ui@^1.0.1` by `estadodelaire`, `hidraulia` and the
+          `@yuneta/gobj-ui@^1.0.1` by two client applications and the
           in-repo `yunos/js/gui_treedb` (NOT a local `file:` — the local
           submodule is v2 now).
       The old `lib-yui` name collided with Yahoo's YUI on npm; only the package
@@ -21775,9 +21763,9 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
     - **build(js): `@yuneta/gobj-js` is versioned to `YUNETA_VERSION` and
       published to npm.** `kernel/js/gobj-js/package.json` now tracks the SDK
       version (currently `7.6.5`); bump it in lockstep and `npm publish`.
-      `estadodelaire`/`hidraulia` consume it from the registry
-      (`@yuneta/gobj-js@^7.6.5`); `wattyzer` and `yunos/js/gui_treedb` keep a
-      local `file:` dependency on `kernel/js/gobj-js`.
+      Two client applications consume it from the registry
+      (`@yuneta/gobj-js@^7.6.5`); one application and `yunos/js/gui_treedb` keep
+      a local `file:` dependency on `kernel/js/gobj-js`.
 
 ## 7.6.5
     - **security(libjwt): re-review against upstream v3.4.0 and backport the
@@ -22121,14 +22109,14 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       in `c_authz.c`; the no-treedb path yields just the primary service). This
       implements the long-standing `available_services` TODO: a single
       authentication legitimately grants several services (the multi-service GUI
-      frontends authenticate against `db_history_wz` and reach
-      `treedb_wattyzer` / `treedb_authzs` / …), while a service outside the
-      granted set is refused. The authorized set derives from real roles, not
-      the client-supplied `required_services`, so it cannot be spoofed.
-      Validated end-to-end: the wattyzer SPA against a patched `db_history_wz`
-      logs in, opens its ievent channel, and loads multi-service data with zero
-      gate denials. (`ac_mt_command` cross-service reach stays gated by the
-      default-off per-command authz — threat-model T7, an accepted posture.)
+      frontends authenticate against `db_history` and reach `treedb_myapp` /
+      `treedb_authzs` / …), while a service outside the granted set is refused.
+      The authorized set derives from real roles, not the client-supplied
+      `required_services`, so it cannot be spoofed. Validated end-to-end: an
+      application's SPA against a patched `db_history` logs in, opens its ievent
+      channel, and loads multi-service data with zero gate denials.
+      (`ac_mt_command` cross-service reach stays gated by the default-off
+      per-command authz — threat-model T7, an accepted posture.)
     - **security(root-linux): resolve the `C_PTY` `process` attr against a
       trusted-dir allowlist, never `$PATH`.** The remote-settable `process`
       value (set by the authz-gated `open-console` command) reached `execvp()`,
@@ -23140,16 +23128,14 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       piped every line in, and one common non-fatal `-1` (e.g.
       `install-binary` returning "Binary already exists" for a
       slot that's already filled) silently swallows the rest.
-      Surfaced on the 7.4.3 wattyzer deploy: binaries got
-      registered, then `find-new-yunos` + `deactivate-snap`
-      vanished, leaving yunos on the old release until the
-      trailing commands were re-run by hand. Fix: in
-      `stdin_pipe_mode` every command behaves as `ignore-fail`
-      (no queue clear on error). Explicit `-` prefix path stays.
-      Repro matrix (4 install-binary in pipe, slot pre-filled):
-      before fix 3/4 responses, after fix 4/4. The earlier
-      "WS frame interleaving" hypothesis logged in TODO.md was
-      ruled out (kept as a post-mortem trail).
+      Surfaced on the 7.4.3 staging deploy: binaries got registered, then
+      `find-new-yunos` + `deactivate-snap` vanished, leaving yunos on the old
+      release until the trailing commands were re-run by hand. Fix: in
+      `stdin_pipe_mode` every command behaves as `ignore-fail` (no queue clear
+      on error). Explicit `-` prefix path stays. Repro matrix (4 install-binary
+      in pipe, slot pre-filled): before fix 3/4 responses, after fix 4/4. The
+      earlier "WS frame interleaving" hypothesis logged in TODO.md was ruled out
+      (kept as a post-mortem trail).
 
     - **fix(emailsender): retry queued emails instead of
       dead-lettering on the first failure, and persist the body**.
@@ -23191,7 +23177,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       dragged OpenSSL/libssh2/c-ares/libidn2/libpsl/libnghttp2/3/
       zlib/brotli into its runtime graph. The dev-host glibc kept
       bumping while production stayed on older versions (e.g. 2.36
-      on `app.wattyzer.com`), so emailsender was the one yuno where
+      on the staging node), so emailsender was the one yuno where
       every upgrade needed a build environment matched to the
       target — and it was deliberately skipped from the 7.4.1
       deploy bundle for that reason. Three new building blocks
@@ -23237,7 +23223,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       URL schema; auto-inline-image HTML rewriting was a libcurl
       `curl_mime_*` feature not reimplemented). The `cmd_send_
       email` command schema is unchanged; existing callers (the
-      whole estadodelaire batch + every realm config) keep
+      whole batch of a client application + every realm config) keep
       working without edits.
 
     - **feat(ycommand): long-lived stdin-pipe session keeps OAuth2
@@ -23268,7 +23254,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       Auth happens once; the rest of the session is free. Tested
       against local `ws://127.0.0.1:1991` (4-line batches and
       delayed sequences with 3 s gaps between lines) and against
-      `wss://app.wattyzer.com:1993` + OAuth2 (three commands with
+      `wss://app.example.com:1993` + OAuth2 (three commands with
       2 s gaps, single ROPC). Backwards-compatible: the pre-existing
       `-c` and `-i` paths are untouched, the pipe-mode trigger is a
       strict superset of the previous synchronous fgets behaviour,
@@ -23511,7 +23497,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       but without restarting the daemon. Added as `YUNO_LIFECYCLE.md`
       §6.5 + §6.6 (rollback via `shoot-snap` / `activate-snap`) and
       refreshed `CLAUDE.md` §3 with the same-version vs version-bump
-      split. Verified live with `gate_pvpc 1.3.1.0 → 1.3.1.1`
+      split. Verified live with `gate_meter 1.3.1.0 → 1.3.1.1`
       on the local agent.
 
 ## v7.4.0 -- 26/May/2026
@@ -23520,21 +23506,17 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
       `C_YUI_WIZARD`, `shell_modals` and every `shell_*_helpers`
       module + the full Playwright e2e suite and the `test-app/`
-      vite project) was already being maintained from the
-      wattyzer-vendored copy at `wattyzer/gui/src/lib-yui`. The
-      kernel copy was just dead weight in the bundle consumed
-      by estadodelaire (legacy apps that only use
-      `C_YUI_MAIN` + `WINDOW` + `TABS` + routing) and the two
-      copies had drifted enough to make every fold-back a
-      conflict. Verified by grep that neither legacy consumer
-      imports any shell symbol before deleting. `dist/lib-yui.es.js`
-      is now 3.4 MB / gzip 706 KB (~25% lighter). Migration: if
-      you need the declarative shell, the canonical copy is
-      `wattyzer/gui/src/lib-yui/` (private repo) as of
-      2026-05-15. The yuno-skeleton `js_gui` scaffold that
-      referenced `register_c_yui_shell` was dropped here too;
-      the replacement scaffold lives in
-      `wattyzer/templates/js_gui/`.
+      vite project) was already being maintained from a copy vendored in a
+      private application repository. The kernel copy was just dead weight in
+      the bundle consumed by a client application (legacy apps that only use
+      `C_YUI_MAIN` + `WINDOW` + `TABS` + routing) and the two copies had drifted
+      enough to make every fold-back a conflict. Verified by grep that neither
+      legacy consumer imports any shell symbol before deleting.
+      `dist/lib-yui.es.js` is now 3.4 MB / gzip 706 KB (~25% lighter).
+      Migration: if you need the declarative shell, the canonical copy is the
+      one in that private repository as of 2026-05-15. The yuno-skeleton
+      `js_gui` scaffold that referenced `register_c_yui_shell` was dropped here
+      too; the replacement scaffold lives in the same repository.
     - **chore(ext-libs): three security bumps (v1.12 → v1.13 →
       v1.14)**. v1.12: nginx 1.28.3 → 1.30.1 (CVE-2026-42945),
       openresty → 1.29.2.4, openssl 3.6.1 → 3.6.2. v1.13: nginx
@@ -23600,10 +23582,9 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       typedef and setter — no breaking signature change to
       `open_rt_mem` / `open_rt_disk` / `open_iterator`. Coverage:
       `tests/c/timeranger2/test_delete_key_propagation.c` (5
-      sub-cases). Wattyzer's "tombstone-then-delete" workaround in
-      `db_history_wz` becomes redundant after one production cycle
-      of coexistence — cleanup planned in the wattyzer repo, not
-      here.
+      sub-cases). An application's "tombstone-then-delete" workaround in its
+      `db_history` becomes redundant after one production cycle of coexistence —
+      cleanup planned in that application's repo, not here.
     - **fix(tr_treedb): repair `treedb_delete_instance`
       (pkey2-index cleanup only)**. The function was a dead
       copy-paste of `treedb_delete_node` with the real work
@@ -23670,8 +23651,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       twin guard initially added to `c_prot_modbus_m` was
       reverted in a follow-up: the modbus-master flow does
       not expose the same cascade (see `GOBJ.md §8.13`).
-      Verified live on `app.wattyzer.com` across the
-      controlcenter dial-out loop.
+      Verified live on the staging node across the controlcenter dial-out loop.
     - **fix(gobj): `gobj_read_attrs` honours `mt_reading` via a new
       `item2json` helper**.  The bulk reader (behind `view-attrs`,
       introspection and `db_save_persistent_attrs`) was the only
@@ -23700,8 +23680,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       passing that to `Intl.DateTimeFormat` throws `RangeError`
       and breaks SPA bootstrap. Guard with a string +
       `"undefined"` check, fall back to `undefined` so Intl
-      resolves to the system locale. Fold-back of wattyzer
-      `1bf08aa`.
+      resolves to the system locale. Fold-back of an application's fix.
     - **feat(yuno_agent): `stats-yuno` defaults `service` to the
       matched `yuno_role`**. `cmd_stats_yuno` previously passed
       an empty `service` when the operator didn't spell it out,
@@ -23709,13 +23688,12 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       `C_YUNO` instance) and returned only the few attrs declared
       on `c_yuno` — typically all zero, missing the real
       `SDF_RSTATS` counters that live on the citizen service
-      (e.g. `C_AUTOMATIONS_WZ`'s `alarms_seen` /
-      `tracks_seen` / `fires_seen` / `runs_done`). Convention is
-      `gobj_create_default_service(yuno_role, GCLASS, ...)` so
-      service name == yuno role; the operator now gets the real
-      counters with the natural `stats-yuno yuno_role=X`
-      invocation. Pass `service=__yuno__` to explicitly query the
-      top `C_YUNO` attrs (previous default).
+      (e.g. an application gclass's `alarms_seen` / `tracks_seen` / `fires_seen`
+      / `runs_done`). Convention is `gobj_create_default_service(yuno_role,
+      GCLASS, ...)` so service name == yuno role; the operator now gets the real
+      counters with the natural `stats-yuno yuno_role=X` invocation. Pass
+      `service=__yuno__` to explicitly query the top `C_YUNO` attrs (previous
+      default).
     - **fix(tr_treedb): include the required-field name in error
       logs**. The three "Field required" `gobj_log_error` sites in
       `check_desc_field` / `normalize_node_field_value` /
@@ -23789,9 +23767,8 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       (and downstream apps) silently built against 0.3.0 and updates
       had no effect.  Peer range is now `^7.3.3` and a
       `file:../gobj-js` devDependency makes local builds use the
-      in-tree source.  Downstream apps (wattyzer, estadodelaire)
-      must likewise repin and reinstall so they stop
-      resolving 0.3.0.
+      in-tree source.  Downstream apps must likewise repin and reinstall so they
+      stop resolving 0.3.0.
 
     - **feat(lib-yui): shell-mountable developer panel**.
       `build_dev_panel` plus a new `C_YUI_GOBJ_TREE_JS` hierarchical
@@ -24097,7 +24074,7 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       `setup_locale()` so a future dotted key (e.g. device-namespace)
       doesn't fall silently to nested-lookup.  Same
       `scripts/validate-locales.mjs` + `prebuild` wiring as
-      wattyzer.  Auth_bff snake_case codes kept as-is (wire
+      the reference v2 application.  Auth_bff snake_case codes kept as-is (wire
       contract, see `c_auth_bff.c`).
 
     - **feat(yuno-skeleton): locale convention + validator**.  The
