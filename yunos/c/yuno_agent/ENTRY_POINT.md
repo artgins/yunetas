@@ -319,6 +319,10 @@ crashed during its orderly stop was relaunched 2 s later.
   The watcher waits for the child's end without reaping it (`waitid()`
   with `WNOWAIT`), forgets its pid, and only then reaps it: a SIGQUIT is
   never passed to a pid that may be another process by then.
+  So a stop sent to the watcher AND to the child (`--stop`, the `ExecStop`
+  of the agents' units, the agent's `kill-yuno` of a yuno it does not know
+  running) reaches the child twice; a daemon takes the first one and no
+  other (§6).
 
 ```bash
 grep -E 'SigIgn|SigBlk' /proc/<yuno pid>/status   # the same before and after a relaunch
@@ -603,7 +607,7 @@ The handler ([`c_yuno.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/
 
 | Signal               | First time                                            | Second time                  |
 |----------------------|-------------------------------------------------------|------------------------------|
-| SIGQUIT / SIGINT / SIGALRM | `set_yuno_must_die()` → exit code 0 → [`yev_loop_run`](#yev_loop_run) returns → clean shutdown → watcher does **not** relaunch | `_exit(0)` immediately (still exit code 0, still no relaunch) |
+| SIGQUIT / SIGINT / SIGALRM | `set_yuno_must_die()` → exit code 0 → [`yev_loop_run`](#yev_loop_run) returns → clean shutdown → watcher does **not** relaunch | **daemon**: nothing more, the orderly stop goes on — **foreground**: `_exit(0)` immediately (still exit code 0) |
 | SIGUSR1              | cycle global trace level (off → L0 → L1 → L2 → off)   | same                         |
 | SIGUSR2              | toggle deep tracing                                   | same                         |
 | SIGTERM              | **daemon** (`--start`): ignored — **foreground**: same as SIGQUIT | daemon: ignored — foreground: `_exit(0)` |
@@ -614,9 +618,17 @@ the signalfd exists is read by it, not lost and not fatal.
 
 Three consequences:
 
-  - **Sending SIGQUIT to a healthy yuno is the correct way to ask it to
-  stop.** The first SIGQUIT is a request. The second is a hard stop
-  that still leaves the watcher satisfied.
+- **Sending SIGQUIT to a healthy yuno is the correct way to ask it to
+  stop.** The first SIGQUIT is a request. In the foreground the second is
+  "I said now" (a second ctrl+c). A daemon takes the first one and no
+  other: its stop is sent to the watcher, which passes it on (§4.2), and to
+  the child as well, so a second SIGQUIT is the same stop arriving twice.
+  Taken as an order, it was an `_exit()` in the middle of the orderly stop
+  (the end of the stop of the services, `gobj_end()`, the memory audit, the
+  close of the logs): with the watcher that passes the stop, `--stop` cut 17
+  of 20 stops of a yuno in a check. A daemon hung in its stop is ended by a
+  SIGKILL: `--stop`'s after 10 s, the unit's after `TimeoutStopSec`,
+  `kill-yuno force=1`.
 - **A daemon ignores SIGTERM.** `init` can send it on shutdown, and a stray
   `killall` should not take a node's yunos down. A daemon depends on the
   agent's `kill-yuno` (which sends SIGQUIT), or on the SIGQUIT + SIGKILL

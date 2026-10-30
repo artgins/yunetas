@@ -644,8 +644,20 @@ typedef struct _PRIVATE_DATA {
 
 /***************************************************************************
  *  Orderly shutdown asked by a signal.
- *  The second signal is taken as "I said now": exit with 0 so the ydaemon
- *  watcher does not relaunch us.
+ *
+ *  In the FOREGROUND the second signal is taken as "I said now" (a second
+ *  ctrl+c): exit with 0 at once.
+ *
+ *  A DAEMON takes the first one and no other: its stop is sent to its
+ *  watcher, which passes it to the child, and to the child as well (the
+ *  ExecStop of the agents' units, --stop, the agent's kill-yuno of a yuno
+ *  it does not know running), so a second SIGQUIT is the same stop arriving
+ *  twice, not an order. Taken as an order, it was an _exit() in the middle
+ *  of the orderly stop, as soon as the watcher passed the stop on: the end
+ *  of the stop of the services, gobj_end(), the memory audit and the close
+ *  of the logs were skipped. A daemon hung in its stop is ended by a
+ *  SIGKILL: --stop's after its wait, the unit's after TimeoutStopSec,
+ *  kill-yuno force=1.
  ***************************************************************************/
 PRIVATE void quit_by_signal(void)
 {
@@ -653,8 +665,7 @@ PRIVATE void quit_by_signal(void)
 
     tries++;
     set_yuno_must_die();
-    if(tries > 1) {
-        // exit with 0 to avoid the watcher to relaunch the daemon
+    if(tries > 1 && !yuneta_is_daemon()) {
         _exit(0);
     }
 }
