@@ -18,7 +18,11 @@ Every program run by them also starts with **no fd of the caller but
 stdin, stdout and stderr**. An fd without `O_CLOEXEC` stays open across
 `exec`: up to 7.29.3 every program a yuno ran inherited each one (a
 listening socket, a log file, the other end of a pipe), and kept it open
-after the yuno closed it. Check it on a running program:
+after the yuno closed it. On a glibc older than 2.34 (no
+`posix_spawn_file_actions_addclosefrom_np()`) each open fd is closed one by
+one, and one at or above the soft limit of open files, which
+`posix_spawn_file_actions_addclose()` refuses, is given `O_CLOEXEC` instead;
+before, such an fd failed the whole spawn. Check it on a running program:
 
 ```bash
 ls -l /proc/<pid>/fd    # 0, 1 and 2 only (and what the program opened)
@@ -155,10 +159,20 @@ providing interactive terminal I/O between parent and child. The command
 starts with no signal blocked and every signal at its default, so a ctrl+c
 reaches it, and with no fd of the caller but its terminal.
 
-When the caller's stdin ends (a pipe, `/dev/null`), nothing more is passed
-to the command, and it runs on until it ends. Up to 7.29.3 the end of stdin
-was read again at once, for ever, and each time one byte that was never
-read went to the command: about 500 000 bytes a second.
+When the caller's stdin ends (a pipe, `/dev/null`), the command gets the
+end of its terminal's input, as a person types it: the end-of-file
+character of the terminal (`VEOF`, ctrl+d), twice after a line not ended
+(the first gives the line). So `cat >/dev/null; echo DONE` ends. Nothing is
+sent when the command put its terminal in raw mode, where that character is
+a byte like any other. Up to 7.29.3 the end of stdin was read again at once,
+for ever, and each time one byte that was never read went to the command:
+about 500 000 bytes a second, and never the end.
+
+When the command ends, what it left in the terminal is passed on without
+waiting for a process it left in the background, the terminal is closed,
+and the command is reaped. Up to 7.29.3 the terminal was never closed (one
+fd per call), and a command whose terminal was read to its end before its
+exit was seen was not reaped (a zombie) and answered `-1`.
 
 ```C
 int pty_sync_spawn(const char *command);
@@ -172,4 +186,5 @@ int pty_sync_spawn(const char *command);
 
 **Returns**
 
-`0` on success, `-1` on failure.
+`0` when the command exited, whatever its exit code; `-1` when it could
+not be run, was killed by a signal, or could not be followed (logged).

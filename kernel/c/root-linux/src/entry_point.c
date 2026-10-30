@@ -19,7 +19,6 @@
 #include <argp-standalone.h>
 #include <pwd.h>
 #include <fcntl.h>
-#include <sys/syscall.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>
@@ -461,36 +460,16 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(__as_daemon__) {
 
         /*
-         *  Close all open files. close_range() closes them all, whatever the
-         *  limit: the loop up to _SC_OPEN_MAX missed an fd inherited above a
-         *  soft limit lowered after it was opened, and with the limit the
-         *  agent's CLI sets (1048576) it was a million close() calls (up to
-         *  7.25.21). The loop stays for a kernel without close_range (< 5.9).
-         *  Called through syscall(): the glibc wrapper is 2.34's, and a build
-         *  on an older glibc did not compile (up to 7.25.22). Its number
-         *  comes from the kernel headers; with headers older than 5.9 it is
-         *  given here (436 on every architecture since the syscall tables
-         *  were unified at 424), else that build always took the loop. A
-         *  kernel without it answers ENOSYS, and the loop runs.
+         *  Close all open files (close_fd_range(): close_range(), or the
+         *  ones /proc/self/fd lists on a kernel without it, before 5.9).
+         *  The loop up to _SC_OPEN_MAX missed an fd inherited above a soft
+         *  limit lowered after it was opened, and with the limit the agent's
+         *  CLI sets (1048576) it was a million close() calls (up to
+         *  7.25.21). Up to 7.29.3 a kernel without close_range() still took
+         *  that loop: with LimitNOFILE=infinity (fs.nr_open, 4000000 with
+         *  the package's sysctl), four million close() at each start.
          */
-        long closed = -1;
-#if !defined(SYS_close_range) && (defined(__x86_64__) || defined(__i386__) || \
-        defined(__aarch64__) || defined(__arm__) || defined(__riscv))
-    #define SYS_close_range 436
-#endif
-#ifdef SYS_close_range
-        closed = syscall(SYS_close_range, 0U, ~0U, 0U);
-#endif
-        if(closed < 0) {
-            long maxfd = sysconf(_SC_OPEN_MAX);
-            if(maxfd == -1) {
-                #define BD_MAX_CLOSE 8192
-                maxfd = BD_MAX_CLOSE;         // if we don't know then guess
-            }
-            for(int fd = 0; fd < maxfd; fd++) {
-                close(fd);
-            }
-        }
+        close_fd_range(0, ~0U);
 
         int fd = open("/dev/null", O_RDWR);
         if(fd != STDIN_FILENO) {

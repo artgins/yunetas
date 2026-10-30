@@ -10085,15 +10085,83 @@ PUBLIC void comm_prot_free(void)
 #ifdef __linux__
 /*
  *  close_range(), or where the kernel has none (before 5.9) close() of
- *  each fd of the range up to the limit of open files. Through syscall(),
- *  as in entry_point.c: the glibc wrapper is 2.34's.
+ *  each fd of the range that is open, as /proc/self/fd lists them; only
+ *  without /proc, close() of each fd of the range up to the limit of open
+ *  files. Through syscall(), as in entry_point.c: the glibc wrapper is
+ *  2.34's, and getdents64() needs no memory (the child of a fork).
+ *
+ *  The walk of /proc/self/fd is glibc's closefrom() fallback: the fds of
+ *  a read of the directory are closed, and the directory is read again
+ *  from its start while one was. A loop up to the limit was millions of
+ *  close() with LimitNOFILE=infinity (fs.nr_open).
  */
 #if !defined(SYS_close_range) && (defined(__x86_64__) || defined(__i386__) || \
         defined(__aarch64__) || defined(__arm__) || defined(__riscv))
     #define SYS_close_range 436
 #endif
-PRIVATE void close_fd_range(unsigned int first, unsigned int last)
+struct close_fd_dirent64 {
+    uint64_t d_ino;
+    int64_t d_off;
+    unsigned short d_reclen;
+    unsigned char d_type;
+    char d_name[];
+};
+
+PRIVATE int close_open_fds_of_range(unsigned int first, unsigned int last)
 {
+    int dfd = open("/proc/self/fd", O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(dfd < 0) {
+        return -1;
+    }
+    char bf[2048] __attribute__((aligned(8)));
+    while(1) {
+        long n = syscall(SYS_getdents64, dfd, bf, sizeof(bf));
+        if(n < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            close(dfd);
+            return -1;
+        }
+        if(n == 0) {
+            break;
+        }
+        BOOL closed = FALSE;
+        for(long off = 0; off < n; ) {
+            struct close_fd_dirent64 *e = (struct close_fd_dirent64 *)(bf + off);
+            off += e->d_reclen;
+            const char *s = e->d_name;
+            if(*s < '0' || *s > '9') {
+                continue;   // "." and ".."
+            }
+            unsigned long fd = 0;
+            while(*s >= '0' && *s <= '9' && fd <= INT_MAX) {
+                fd = fd * 10 + (unsigned long)(*s - '0');
+                s++;
+            }
+            if(*s || fd > INT_MAX || (int)fd == dfd || fd < first || fd > last) {
+                continue;
+            }
+            close((int)fd);
+            closed = TRUE;
+        }
+        if(closed && lseek(dfd, 0, SEEK_SET) < 0) {
+            close(dfd);
+            return -1;
+        }
+    }
+    close(dfd);
+    return 0;
+}
+
+#endif /* __linux__ */
+
+/***************************************************************************
+ *  Close every fd of [first, last] that is open (see above)
+ ***************************************************************************/
+PUBLIC void close_fd_range(unsigned int first, unsigned int last)
+{
+#ifdef __linux__
     if(first > last) {
         return;
     }
@@ -10102,6 +10170,9 @@ PRIVATE void close_fd_range(unsigned int first, unsigned int last)
         return;
     }
 #endif
+    if(close_open_fds_of_range(first, last) == 0) {
+        return;
+    }
     long max = sysconf(_SC_OPEN_MAX);
     if(max <= 0 || max > INT_MAX) {
         max = INT_MAX;
@@ -10109,8 +10180,8 @@ PRIVATE void close_fd_range(unsigned int first, unsigned int last)
     for(unsigned int fd = first; fd <= last && fd < (unsigned int)max; fd++) {
         close((int)fd);
     }
-}
 #endif /* __linux__ */
+}
 
 /***************************************************************************
  *  In a forked child, right before its exec: the program starts with no
@@ -10198,6 +10269,11 @@ PRIVATE void tell_launcher(int fd, int what, int value)
  *  when it came first, and the daemon kept its write end open. A first
  *  child reaped by somebody else (the caller's SIGCHLD at SIG_IGN, or a
  *  handler of it that reaps) is no error.
+ *
+ *  The ends of the pipe are above stderr: a caller with stdin or stdout
+ *  closed gave them 0 and 1, the daemon's /dev/null took the place of the
+ *  write end, and an exec failure went to /dev/null: the pid of a program
+ *  never run was answered.
  ***************************************************************************/
 pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
 {
@@ -10212,6 +10288,20 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
     if (pipe2(pipe_fd, O_CLOEXEC) == -1) {
         print_error(0, "launch_daemon() pipe failed '%s', errno %d '%s'", program, errno, strerror(errno));
         return -1;
+    }
+    for(int k = 0; k < 2; k++) {
+        if(pipe_fd[k] <= STDERR_FILENO) {
+            int fd = fcntl(pipe_fd[k], F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+            if(fd < 0) {
+                print_error(0, "launch_daemon() fcntl(F_DUPFD_CLOEXEC) failed '%s', errno %d '%s'",
+                    program, errno, strerror(errno));
+                close(pipe_fd[0]);
+                close(pipe_fd[1]);
+                return -1;
+            }
+            close(pipe_fd[k]);
+            pipe_fd[k] = fd;
+        }
     }
 
     pid_t pid = fork();

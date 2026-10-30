@@ -24,7 +24,9 @@
  *          (one without O_CLOEXEC); run_command() gives it /dev/null as
  *          stdin, not the caller's. launch_daemon() with SIGCHLD at SIG_IGN
  *          (its first child reaped by the kernel) answers the pid and says
- *          no error.
+ *          no error. launch_daemon() from a caller with stdin and stdout
+ *          closed says an exec failure. pty_sync_spawn() leaves no fd and no
+ *          zombie, and passes the end of its stdin to the command.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -461,6 +463,173 @@ PRIVATE void test_launch_daemon_sigchld_ignored(void)
 }
 
 /***************************************************************************
+ *  Run fn() in a child of its own, with its stdin and stdout as given (-1:
+ *  the caller's), and wait for it up to `seconds`: its exit code, or -2
+ *  when it did not end (it is killed then)
+ ***************************************************************************/
+PRIVATE int run_in_child(int (*fn)(void), int in_fd, int out_fd, int seconds)
+{
+    fflush(stdout);
+    pid_t pid = fork();
+    if(pid < 0) {
+        return -1;
+    }
+    if(pid == 0) {
+        if(in_fd >= 0) {
+            dup2(in_fd, STDIN_FILENO);
+        }
+        if(out_fd >= 0) {
+            dup2(out_fd, STDOUT_FILENO);
+        }
+        _exit(fn());
+    }
+    for(int i = 0; i < seconds * 100; i++) {
+        int status;
+        pid_t w = waitpid(pid, &status, WNOHANG);
+        if(w == pid) {
+            return WIFEXITED(status)? WEXITSTATUS(status) : -1;
+        }
+        usleep(10*1000);
+    }
+    kill(pid, SIGKILL);
+    waitpid(pid, NULL, 0);
+    return -2;
+}
+
+/***************************************************************************
+ *  launch_daemon() from a caller with stdin and stdout closed: the ends of
+ *  its pipe are not 0 and 1, so the daemon's /dev/null does not take the
+ *  place of the one that says an exec failure. Up to this fix the failure
+ *  went to /dev/null and the pid of a program never run was answered.
+ ***************************************************************************/
+PRIVATE int launch_with_stdio_closed(void)
+{
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    pid_t pid = launch_daemon(TRUE, "/nonexistent/program", NULL);
+    if(pid > 0) {
+        kill(pid, SIGKILL);
+        return 1;
+    }
+    pid = launch_daemon(TRUE, "/bin/sleep", "30", NULL);
+    if(pid <= 0) {
+        return 2;
+    }
+    char path[PATH_MAX];
+    char target[PATH_MAX];
+    int ret = 0;
+    for(int fd = 0; fd <= 2; fd++) {
+        snprintf(path, sizeof(path), "/proc/%d/fd/%d", (int)pid, fd);
+        ssize_t n = readlink(path, target, sizeof(target) - 1);
+        target[n > 0? n : 0] = 0;
+        if(strcmp(target, "/dev/null") != 0) {
+            ret = 3;
+        }
+    }
+    kill(pid, SIGKILL);
+    return ret;
+}
+
+PRIVATE void test_launch_daemon_stdio_closed(void)
+{
+    int devnull = open("/dev/null", O_WRONLY|O_CLOEXEC);
+    int r = run_in_child(launch_with_stdio_closed, -1, devnull, 10);
+    close(devnull);
+    if(r != 0) {
+        printf("     the child answered %d\n", r);
+    }
+    ok_or_fail(r == 0,
+        "launch_daemon() with stdin and stdout closed: an exec failure answers -1, "
+        "a daemon has /dev/null as 0, 1 and 2"
+    );
+}
+
+/***************************************************************************
+ *  pty_sync_spawn(): no fd and no zombie left per call, and the end of the
+ *  caller's stdin reaches the command as the end of its terminal's input.
+ *  Up to this fix the master of the terminal stayed open (one fd per call),
+ *  the command was not reaped when the master was read to its end first,
+ *  and a command that read its stdin to the end never got it.
+ ***************************************************************************/
+PRIVATE int count_my_fds(void)
+{
+    int n = 0;
+    DIR *d = opendir("/proc/self/fd");
+    struct dirent *e;
+    while(d && (e = readdir(d))) {
+        if(e->d_name[0] != '.') {
+            n++;
+        }
+    }
+    if(d) {
+        closedir(d);
+    }
+    return n;
+}
+
+PRIVATE int pty_no_fd_no_zombie(void)
+{
+    int before = count_my_fds();
+    for(int i = 0; i < 3; i++) {
+        if(pty_sync_spawn("true") != 0) {
+            return 1;
+        }
+        if(my_zombies() != 0) {
+            return 2;
+        }
+    }
+    return (count_my_fds() == before)? 0 : 3;
+}
+
+PRIVATE int pty_stdin_end(void)
+{
+    return pty_sync_spawn("cat >/dev/null; echo DONE") == 0? 0 : 1;
+}
+
+PRIVATE int pty_stdin_end_in_a_line(void)
+{
+    return pty_sync_spawn("cat; echo; echo DONE") == 0? 0 : 1;
+}
+
+PRIVATE void test_pty_sync_spawn(void)
+{
+    char file[PATH_MAX];
+    snprintf(file, sizeof(file), "/tmp/%s.%d.pty", APP, (int)getpid());
+    int devnull = open("/dev/null", O_RDONLY|O_CLOEXEC);
+    int out = open(file, O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC, 0600);
+
+    int r = run_in_child(pty_no_fd_no_zombie, devnull, out, 10);
+    if(r != 0) {
+        printf("     the child answered %d\n", r);
+    }
+    ok_or_fail(r == 0, "pty_sync_spawn(): answers 0, leaves no fd and no zombie");
+
+    r = run_in_child(pty_stdin_end, devnull, out, 10);
+    char text[512];
+    wait_and_read(file, text, sizeof(text));
+    ok_or_fail(r == 0 && strstr(text, "DONE") != NULL,
+        "pty_sync_spawn(): a command that reads its stdin to the end ends (stdin at its end)");
+
+    if(ftruncate(out, 0) == 0 && lseek(out, 0, SEEK_SET) == 0) {
+        int p[2];
+        if(pipe2(p, O_CLOEXEC) == 0) {
+            ssize_t w = write(p[1], "abc", 3);     // a line not ended
+            close(p[1]);
+            r = run_in_child(pty_stdin_end_in_a_line, p[0], out, 10);
+            close(p[0]);
+            wait_and_read(file, text, sizeof(text));
+            ok_or_fail(w == 3 && r == 0 && strstr(text, "abc") && strstr(text, "DONE"),
+                "pty_sync_spawn(): the end of stdin after a line not ended reaches the command too");
+        } else {
+            ok_or_fail(0, "a pipe as the stdin of pty_sync_spawn()");
+        }
+    }
+    close(out);
+    close(devnull);
+    unlink(file);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -499,6 +668,8 @@ int main(int argc, char *argv[])
     test_no_inherited_fds();
     test_run_command_stdin();
     test_launch_daemon_sigchld_ignored();
+    test_launch_daemon_stdio_closed();
+    test_pty_sync_spawn();
 
     gobj_end();
 

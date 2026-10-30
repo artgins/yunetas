@@ -30,6 +30,12 @@
  *  A C library with no posix_spawn_file_actions_addclosefrom_np() (glibc
  *  older than 2.34, that a source build may still have): each fd above
  *  stderr open now is closed one by one. 0 or the error.
+ *
+ *  posix_spawn_file_actions_addclose() refuses (EBADF) an fd at or above
+ *  the soft limit of open files, which one opened before the limit was
+ *  lowered is: that one gets O_CLOEXEC instead, and the exec of the
+ *  program closes it. A yuno never execs itself, so the flag changes
+ *  nothing for it. Up to this fix such an fd failed the whole spawn.
  ***************************************************************************/
 PRIVATE int add_close_of_open_fds(posix_spawn_file_actions_t *actions)
 {
@@ -37,6 +43,7 @@ PRIVATE int add_close_of_open_fds(posix_spawn_file_actions_t *actions)
     if(!d) {
         return errno;
     }
+    long soft_limit = sysconf(_SC_OPEN_MAX);
     int ret = 0;
     int dfd = dirfd(d);
     struct dirent *e;
@@ -44,6 +51,13 @@ PRIVATE int add_close_of_open_fds(posix_spawn_file_actions_t *actions)
         char *end;
         long fd = strtol(e->d_name, &end, 10);
         if(end == e->d_name || *end || fd <= STDERR_FILENO || fd == dfd) {
+            continue;
+        }
+        if(soft_limit > 0 && fd >= soft_limit) {
+            int flags = fcntl((int)fd, F_GETFD);
+            if(flags < 0 || fcntl((int)fd, F_SETFD, flags|FD_CLOEXEC) < 0) {
+                ret = errno;
+            }
             continue;
         }
         ret = posix_spawn_file_actions_addclose(actions, (int)fd);
@@ -373,10 +387,65 @@ PUBLIC int run_process2(const char *path, char *const argv[])
 }
 
 /***************************************************************************
+ *  The end of the caller's stdin, passed to the command of pty_sync_spawn()
+ *  as a person types it: the end-of-file character of its terminal (VEOF,
+ *  ctrl+d). In canonical mode it ends a read() with what the line holds,
+ *  so a line not ended takes two: the first gives the line, the second the
+ *  end. Nothing in raw mode (the command set it so): there VEOF is a byte
+ *  like any other.
+ ***************************************************************************/
+PRIVATE void send_end_of_input(int master, BOOL line_open)
+{
+    struct termios tio;
+    if(tcgetattr(master, &tio) < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "tcgetattr() FAILED: the end of stdin not passed to the command",
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return;
+    }
+    if(!(tio.c_lflag & ICANON)) {
+        return;
+    }
+    cc_t eof = tio.c_cc[VEOF];
+    int times = line_open? 2 : 1;
+    for(int i = 0; i < times; i++) {
+        if(write(master, &eof, 1) != 1) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "write() FAILED: the end of stdin not passed to the command",
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            return;
+        }
+    }
+}
+
+/***************************************************************************
  *  Run a command with /bin/sh -c in a pseudo terminal, and pass the
  *  caller's terminal to it and its output to the caller's, until it ends.
  *  The command starts with no signal blocked, every signal at its default
  *  and no fd of the caller but the terminal (clean_child_before_exec()).
+ *
+ *  At the end of the caller's stdin the command gets the end of its
+ *  terminal's input (send_end_of_input()), so `cat >/dev/null` ends. When
+ *  the command ends, what it left in the terminal is passed on without
+ *  waiting for a process it left in the background, the terminal is
+ *  closed and the command reaped. 0 when it exited (whatever its exit
+ *  code), -1 when it could not be run, was killed by a signal, or could
+ *  not be followed (said).
+ *
+ *  Up to 7.29.3 the terminal was never closed (one fd per call), the
+ *  command was not reaped when its terminal was read to its end before
+ *  its exit was seen (a zombie, and -1 for a command that exited), and a
+ *  command that read its stdin to the end never got it.
  ***************************************************************************/
 PUBLIC int pty_sync_spawn(
     const char *command
@@ -414,85 +483,103 @@ PUBLIC int pty_sync_spawn(
                 "strerror",     "%s", strerror(errno),
                 NULL
             );
-            _exit(-errno);
         }
-    } else {
-        // Parent
-        BOOL stdin_open = TRUE;
-        while(1) {
-            fd_set read_fd;
-            fd_set write_fd;
-            fd_set except_fd;
-
-            FD_ZERO(&read_fd);
-            FD_ZERO(&write_fd);
-            FD_ZERO(&except_fd);
-
-            FD_SET(master, &read_fd);
-            if(stdin_open) {
-                FD_SET(STDIN_FILENO, &read_fd);
-            }
-
-            select(master+1, &read_fd, &write_fd, &except_fd, NULL);
-
-            char input;
-            char output;
-
-            if (FD_ISSET(master, &read_fd)) {
-                if (read(master, &output, 1) != -1) {   // read from program
-                    ssize_t x = write(STDOUT_FILENO, &output, 1);   // write to tty
-                    if(x) {} // avoid warning
-                } else {
-                    break;
-                }
-            }
-
-            if (stdin_open && FD_ISSET(STDIN_FILENO, &read_fd)) {
-                ssize_t x = read(STDIN_FILENO, &input, 1);  // read from tty
-                if(x == 0 || (x < 0 && errno != EINTR && errno != EAGAIN)) {
-                    /*
-                     *  The end of the caller's stdin (or its error): nothing
-                     *  more to pass on. Up to 7.29.3 it was read again at
-                     *  once, for ever, and each time a byte that was never
-                     *  read was written to the program.
-                     */
-                    stdin_open = FALSE;
-                } else if(x > 0) {
-                    x = write(master, &input, 1);   // write to program
-                    if(x) {} // avoid warning
-                }
-            }
-
-            int status;
-            if (waitpid(pid, &status, WNOHANG) && WIFEXITED(status)) {
-                /*
-                 *  Drain any data still buffered in the master pty
-                 *  before returning.  Without this, short-running
-                 *  non-interactive commands (cat, head, jq …) lose
-                 *  their tail: the parent reads one byte per loop
-                 *  iteration, so a 4 KiB-buffered output that arrives
-                 *  in one shot gets a single byte drained — then the
-                 *  WIFEXITED check fires on the next iteration and we
-                 *  return, discarding the other 4095 bytes.
-                 *
-                 *  Reading in larger chunks here is safe because the
-                 *  child has already exited; we just want to flush
-                 *  whatever's still in the kernel's pty buffer.  On
-                 *  Linux the master read returns -1 with errno=EIO
-                 *  once the slave side is fully closed, which breaks
-                 *  the drain loop.
-                 */
-                char drain_buf[4096];
-                ssize_t n;
-                while((n = read(master, drain_buf, sizeof(drain_buf))) > 0) {
-                    ssize_t w = write(STDOUT_FILENO, drain_buf, n);
-                    if(w) {} // avoid warning
-                }
-                return 0;
-            }
-        }
-        return -1;
+        _exit(-errno);
     }
 
-    return -1;
+    /*
+     *  Parent
+     */
+    BOOL stdin_open = TRUE;
+    BOOL line_open = FALSE;     // bytes passed to the command since its last newline
+    BOOL reaped = FALSE;
+    int status = 0;
+    while(!reaped) {
+        fd_set read_fd;
+        FD_ZERO(&read_fd);
+        FD_SET(master, &read_fd);
+        if(stdin_open) {
+            FD_SET(STDIN_FILENO, &read_fd);
+        }
+
+        if(select(master+1, &read_fd, NULL, NULL, NULL) < 0) {
+            if(errno == EINTR) {
+                continue;
+            }
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "select() FAILED",
+                "command",      "%s", command,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            break;
+        }
+
+        if(FD_ISSET(master, &read_fd)) {
+            char output;
+            ssize_t x = read(master, &output, 1);   // read from program
+            if(x > 0) {
+                x = write(STDOUT_FILENO, &output, 1);   // write to tty
+                if(x) {} // avoid warning
+            } else if(!(x < 0 && errno == EINTR)) {
+                break;  // EIO: the terminal has no user left, the command ended
+            }
+        }
+
+        if(stdin_open && FD_ISSET(STDIN_FILENO, &read_fd)) {
+            char input;
+            ssize_t x = read(STDIN_FILENO, &input, 1);  // read from tty
+            if(x == 0 || (x < 0 && errno != EINTR && errno != EAGAIN)) {
+                stdin_open = FALSE;
+                send_end_of_input(master, line_open);
+            } else if(x > 0) {
+                x = write(master, &input, 1);   // write to program
+                if(x > 0) {
+                    line_open = (input != '\n')? TRUE : FALSE;
+                }
+            }
+        }
+
+        if(waitpid(pid, &status, WNOHANG) == pid) {
+            reaped = TRUE;
+        }
+    }
+
+    /*
+     *  What the command left in the terminal, without waiting: a process
+     *  it left in the background may hold the terminal open
+     */
+    int flags = fcntl(master, F_GETFL);
+    if(flags >= 0 && fcntl(master, F_SETFL, flags|O_NONBLOCK) == 0) {
+        char drain_buf[4096];
+        ssize_t n;
+        while((n = read(master, drain_buf, sizeof(drain_buf))) > 0) {
+            ssize_t w = write(STDOUT_FILENO, drain_buf, (size_t)n);
+            if(w) {} // avoid warning
+        }
+    }
+    close(master);
+
+    while(!reaped) {
+        if(waitpid(pid, &status, 0) == pid) {
+            reaped = TRUE;
+        } else if(errno != EINTR) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "waitpid() FAILED",
+                "command",      "%s", command,
+                "pid",          "%d", pid,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+    }
+
+    return WIFEXITED(status)? 0 : -1;
 }

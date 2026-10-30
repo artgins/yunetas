@@ -286,6 +286,14 @@ the program's `/proc/<pid>/fd`); the command of `run_command()` reads
 `/dev/null`, not the caller's stdin (a pipe in the test). `launch_daemon()`
 with `SIGCHLD` at `SIG_IGN` answers the daemon's pid and says no
 `waitpid()` error (its stdout, where `print_error()` writes, is read).
+`launch_daemon()` from a child with stdin and stdout closed answers -1 for a
+program that cannot be run (7.29.3: the pid of a program never run) and
+gives a daemon `/dev/null` as 0, 1 and 2. `pty_sync_spawn()`, in a child
+with a 10 s limit: three calls answer 0 and leave no fd and no zombie
+(7.29.3: one fd per call), and a command that reads its stdin to the end
+ends when the caller's stdin ends, after a line ended or not (`cat
+>/dev/null; echo DONE` with stdin `/dev/null`, and `abc` with no newline
+through a pipe; 7.29.3: never).
 
 `test_replace_string` covers `replace_string()`, written again after 7.28.4
 on gbmem: every occurrence replaced left to right without overlaps (`"aaa"`,

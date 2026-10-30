@@ -58,6 +58,10 @@ too many arguments.
 - A caller whose `SIGCHLD` is `SIG_IGN` (or whose handler of it reaps)
   gets the PID too, and no error is said: the first child reaped by
   somebody else is not a failure.
+- A caller with stdin or stdout closed is no different: the ends of the
+  pipe are put above stderr. Before, they took fds 0 and 1, the daemon's
+  `/dev/null` took the place of the write end, and an `exec` failure went to
+  `/dev/null`: the PID of a program never run was answered.
 
 **Example**
 
@@ -99,8 +103,11 @@ void clean_child_before_exec(int keep_fd);
   ignored signal stays so across `exec`; an fd without `O_CLOEXEC` stays
   open across `exec`. Without this, the program inherits both.
 - A signal that cannot be set (SIGKILL, SIGSTOP, those the C library keeps
-  for itself) is left. The fds are closed with `close_range()`, or one by
-  one up to the limit of open files on a kernel without it (before 5.9).
+  for itself) is left. The fds are closed with `close_range()`; on a kernel
+  without it (before 5.9), the ones open, as `/proc/self/fd` lists them, and
+  only without `/proc` one by one up to the limit of open files. Before, that
+  loop was the only way, and under `LimitNOFILE=infinity` it was millions of
+  `close()` per program run.
 - Call it only in the child, after `fork()`: it changes the process it runs
   in. Nothing is logged: the child is about to `exec`.
 
@@ -113,6 +120,44 @@ if(pid == 0) {
     execl("/bin/sh", "sh", "-c", command, (char *)NULL);
     _exit(127);
 }
+```
+
+---
+
+(close_fd_range)=
+### [`close_fd_range()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L10042)
+
+`close_fd_range()` closes every fd of `[first, last]` that is open: with
+`close_range()`, or on a kernel without it (before 5.9) each one that
+`/proc/self/fd` lists. It is what
+[`clean_child_before_exec()`](#clean_child_before_exec) uses, and what a
+yuno started with `--start` uses to close everything it inherited.
+
+```C
+void close_fd_range(unsigned int first, unsigned int last);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `first` | `unsigned int` | The first fd to close. |
+| `last` | `unsigned int` | The last fd to close, `~0U` for all of them. |
+
+**Notes**
+
+- Only without `/proc` does it close one by one up to the limit of open
+  files. Up to 7.29.3 that loop was the only way on a kernel without
+  `close_range()`: under `LimitNOFILE=infinity` (`fs.nr_open`, 4000000 with
+  the package's sysctl) it was four million `close()` for each program a
+  yuno ran, and at each `--start`.
+- Nothing is logged: a child about to `exec`, or a daemon at its start, has
+  nobody to tell.
+
+**Example**
+
+```C
+close_fd_range(STDERR_FILENO + 1, ~0U);     // keep stdin, stdout and stderr
 ```
 
 ---
