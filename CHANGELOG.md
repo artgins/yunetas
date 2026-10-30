@@ -310,8 +310,10 @@
 - **`kill-yuno` goes on when a yuno cannot be killed.** It stopped at the
   first failure: the yunos already killed were not waited for, and the ones
   after it were not killed. Every yuno is tried now, and the answer is -1
-  and names each failure with its cause, the error of `kill()` included
-  (*"7601 (Cannot kill yuno pid 4242: Operation not permitted (errno 1))"*). In 7.29.3.
+  and names the first 50 failures with their cause, the error of `kill()`
+  included (*"7601 (Cannot kill yuno pid 4242: Operation not permitted
+  (errno 1))"*), and counts the rest (*"... and 1150 more (see the log)"*);
+  each failure has its ERROR in the log. In 7.29.3.
 - **`kill-yuno` with SIGKILL no longer fails for a yuno it did kill.** A
   watcher that could not be signalled made the command answer *"Can't kill
   yuno: (see the log)"* and stop there, without waiting for the yuno it had
@@ -351,12 +353,13 @@
   the current libraries, a deadline on every call to the auth BFF, and a login
   denial said in the language of the app.
 - **Docs and examples: one set of example ids.** The examples, tests and
-  docs of every public repo use `db_history^7301`/`7302`, `gate_b^7401`,
-  `gate_probe^7701`, `gate_a`/`gate_b` (role label `gate`),
-  `events_a`/`events_b`, `db_events`, the topic `raw_events`, ports
-  7601-7605/7501-7502, nodes node A / node B, and the ramdisk
-  `/mnt/ramdisk`. `kw/test_json_flat` and gobj-js's json_flat tests use the
-  same ids.
+  docs of the SDK, gobj-js, gobj-ui and yunos-js take their ids from one
+  set: `db_history^7301`/`7302`, `gate_b^7401`, `gate_probe^7701`,
+  `gate_a`/`gate_b` (role label `gate`), `events_a`/`events_b`, `db_events`,
+  the topic `raw_events`, the yuno ids `7501`, `7601`, `7602`, `7604` and
+  `7605`, the nodes `node-a`/`node-b` (node A / node B in prose), and the
+  ramdisk `/mnt/ramdisk`. `kw/test_json_flat` and gobj-js's json_flat tests
+  use the same ids.
 - **Docs and tests: the `file` column examples are generic** (in 7.29.3).
   The `tr_treedb_files`, `c_assets` and `tr_treedb_delete_instance` tests,
   the treedb and `C_NODE` API pages, the asset helpers page, the
@@ -398,12 +401,14 @@
   The entries of this CHANGELOG say what each release fixed: the fixes of
   7.27.0 are in numbered "groups", and each fix is under the release it went
   into. Comments, tests and docs say what is fixed, and "before the fix"
-  names the release. The examples use a `sites` / `buildings` / `devices`
-  inventory, generic yuno ids and ports (`db_history^7301`, `gate_b^7401`, a
-  `sim_load` fleet `gen1`..`gen5`, yunos `7601`/`7501`), and the
-  documentation address ranges (`198.51.100.0/24`, `203.0.113.0/24`). The
-  same in gobj-js, gobj-ui and yunos-js; the gui_agent QA reads the ids of
-  the installation it checks from the environment or `~/.yuneta/.qa-creds`.
+  names the release. The examples use generic topics (`items` and `sites`
+  for the `file` columns, `places` and `devices` for `main_topic`), generic
+  yuno ids (`db_history^7301`, `gate_b^7401`, a `sim_load` fleet
+  `gen1`..`gen5`, yunos `7601`/`7501`), and the documentation address ranges
+  (`198.51.100.0/24`, `203.0.113.0/24`). gobj-js, gobj-ui and yunos-js use
+  generic names too (the treedb example of gobj-ui is an inventory of
+  `sites`, `owners`, `devices` and `notes`); the gui_agent QA reads the ids
+  of the installation it checks from the environment or `~/.yuneta/.qa-creds`.
   `deploy.sh` of doc.yuneta.io writes `https://doc.yuneta.io` in the
   `sitemap.xml` that myst builds: every address in it was
   `http://localhost:3000`.
@@ -24049,17 +24054,18 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
       `C_YUI_WIZARD`, `shell_modals` and every `shell_*_helpers`
       module + the full Playwright e2e suite and the `test-app/`
-      vite project) was already being maintained from a copy vendored in
-      another repository. The kernel copy was just dead weight in
-      the bundle consumed by a client application (legacy apps that only use
-      `C_YUI_MAIN` + `WINDOW` + `TABS` + routing) and the two copies had drifted
-      enough to make every fold-back a conflict. Verified by grep that neither
-      legacy consumer imports any shell symbol before deleting.
-      `dist/lib-yui.es.js` is now 3.4 MB / gzip 706 KB (~25% lighter).
-      Migration: if you need the declarative shell, the canonical copy is the
-      one in that repository as of 2026-05-15. The yuno-skeleton
-      `js_gui` scaffold that referenced `register_c_yui_shell` was dropped here
-      too; the replacement scaffold lives in the same repository.
+      vite project) was already maintained outside the kernel. The kernel
+      copy was just dead weight in the bundle consumed by two client
+      applications (legacy apps that only use `C_YUI_MAIN` + `WINDOW` +
+      `TABS` + routing) and the two copies had drifted enough to make every
+      fold-back a conflict. Verified by grep that neither legacy consumer
+      imports any shell symbol before deleting. `dist/lib-yui.es.js` is now
+      3.4 MB / gzip 706 KB (~25% lighter). The yuno-skeleton `js_gui`
+      scaffold that referenced `register_c_yui_shell` was dropped here too.
+      Migration: the declarative shell is published in `@yuneta/gobj-ui`
+      2.0.0 and later (`github.com/artgins/gobj-ui.js`, branch `main`, since
+      2026-06-16), and the GUI scaffold is the `gui/` of the `project`
+      templates of `yuno-skeleton`.
     - **chore(ext-libs): three security bumps (v1.12 → v1.13 →
       v1.14)**. v1.12: nginx 1.28.3 → 1.30.1 (CVE-2026-42945),
       openresty → 1.29.2.4, openssl 3.6.1 → 3.6.2. v1.13: nginx
