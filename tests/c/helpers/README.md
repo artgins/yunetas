@@ -313,6 +313,28 @@ the day before. A count of days moves the day and one of hours the time
 (`"noon 1 day ago"` is yesterday's noon, `"noon 24 hours ago"` the day before
 yesterday's). What is looked at after a 12 and a minus sign is passed in time
 (20000 comments).
+§23: a sign glued to the digits of a date or of epoch seconds is no zone
+(`"2026-10-01-10:00"`, `"1.10.2026-23"`, `"2026.10-2026.10"`,
+`"@1790000000-0500"`; a development version read the first as October 1 in
+a zone of -10:00, October 2 in Madrid), and one right after the digits of a
+clock time is (`"2026-10-01T10:00-05:00"`, `"20261001T100000-0500"`); a count
+with its unit is still a duration there (`"2026-10-01-1d"`). With no clock
+time an offset outside -12:00..+14:00 is no date (`"now-2026"`, `"yesterday
+-2300"`, `"2026-10-01 (UTC+15:00)"`); with one it is read (`"noon -2300"`). A
+count right after a month name is no date when the text says no day (`"Jan 1
+pm"`, `"Oct 1 pm"`, `"Oct 5 days ago"`, `"Oct 2 fridays"`; 7.29.3: January 21
+at 13:00, the day of today, October 16, October 9); with a day it is read
+(`"Oct 1 3 pm"`, `"1 Oct 3 pm"`). A clock time with a zone and no date is of
+the day of now in that zone (at 00:30 CEST on 2026-10-25, `"02:30 CET"` is the
+24th). In Apia, which skipped 2011-12-30 whole, a day counted back that falls
+on it is no date (`"yesterday noon"`, `"yesterday 12:30"`, `"last friday
+noon"`; 7.29.3 read the second as the 31st at 12:30, ahead of now), and the
+last noon that passed is the one of the 29th (`"noon"`, `"tea"`); a date said
+there is read as any time a change skips (`"2011-12-30 12:00"` is the 31st at
+12:00). A `TZ` changed with `setenv()` alone is seen. And the limit of the
+reading of a local time, in two POSIX zones: exact when two changes are 48
+hours apart, an hour late inside a summer time of one day. What is looked at
+after a month name is passed in time.
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

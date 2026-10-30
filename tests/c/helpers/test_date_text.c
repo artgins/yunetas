@@ -121,6 +121,20 @@
  *              with a zone is no date ("never (+0200)" was the epoch); "12
  *              noon" is noon ("12 noon" was the 12th); an offset after a
  *              date or a day is a zone ("yesterday +0000" was refused).
+ *          23. a sign glued to the digits of a date or of epoch seconds is
+ *              no zone ("2026-10-01-10:00" was Oct 2 at the time of now),
+ *              only one right after a clock time is ("T10:00-05:00"); with
+ *              no clock time an offset outside -12:00..+14:00 is no date
+ *              ("now-2026" was read in a zone of -20:26); a count right
+ *              after a month name with no day is no date ("Jan 1 pm" was
+ *              January 21 at 13:00, the day of today); a clock time with
+ *              a zone and no date is of the day of now in that zone; a
+ *              day that the zone skips whole is no day counted back, and
+ *              the last noon that passed is the one before it (in Apia on
+ *              2011-12-31, "noon" and "yesterday noon" were that day's
+ *              noon, ahead of now); a TZ changed with no tzset() is seen;
+ *              and the limit of a zone that changes its offset twice in
+ *              less than 48 hours.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1736,6 +1750,203 @@ PRIVATE void test_am_pm_at_never_noon_and_zones(void)
 }
 
 /***************************************************************************
+ *  23. A sign glued to the digits of a date or of epoch seconds is no
+ *  zone: "2026-10-01-10:00" (Wed 21 at 11:00) was Fri 2 at 11:00, the
+ *  date of October 1 at -10:00. Only an offset right after a clock time
+ *  may touch it, as ISO 8601 writes it ("2026-10-01T10:00-05:00"). With no
+ *  clock time an offset moves the date, and one outside -12:00..+14:00,
+ *  the zones there are, is no date ("now-2026" was now, in a zone of
+ *  -20:26). A count right after a month name, when the text says no
+ *  day, is no date ("Jan 1 pm" was January 21 at 13:00, the day of
+ *  today). A clock time with a zone and no date is of the day of now in
+ *  that zone.
+ ***************************************************************************/
+PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  A sign glued to a date: Wed 2026-10-21 11:00 CEST
+         */
+        {"2026-10-01-10:00",                "2026-10-21 11:00:00 +0200", 1},
+        {"10/01/2026-10:00",                "2026-10-21 11:00:00 +0200", 1},
+        {"1.10.2026-23",                    "2026-10-21 11:00:00 +0200", 1},
+        {"2026.10-2026.10",                 "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01-05",                   "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01+0200",                 "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 2026+0000",                 "2026-10-21 11:00:00 +0200", 1},
+        {"@1790000000-0500",                "2026-10-21 11:00:00 +0200", 1},
+        {"@1790000000 -0500",               "2026-09-21 16:13:20 +0200", 0},
+        {"2026-10-01 -10:00",               "2026-10-02 11:00:00 +0200", 0},
+        {"2026-10-01-1d",                   "2026-09-30 11:00:00 +0200", 0},
+        {"2026-10-01T10:00-05:00",          "2026-10-01 17:00:00 +0200", 0},
+        {"2026-10-01T10:00:00.5-05:00",     "2026-10-01 17:00:00 +0200", 0},
+        {"2026-10-01 10:00:00+05:00",       "2026-10-01 07:00:00 +0200", 0},
+        {"20261001T100000-0500",            "2026-10-01 17:00:00 +0200", 0},
+        {"01/Oct/2026:10:00:00+0200",       "2026-10-01 10:00:00 +0200", 0},
+        {"10:00-0500",                      "2026-10-21 17:00:00 +0200", 0},
+        {"now-0500",                        "2026-10-21 11:00:00 +0200", 0},
+
+        /*
+         *  With no clock time, an offset of a zone there is
+         */
+        {"now-2026",                        "2026-10-21 11:00:00 +0200", 1},
+        {"now +1500",                       "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday -2300",                 "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 +1401",                "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 -1201",                "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 GMT+1500",             "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 (UTC+15:00)",          "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 +1400",                "2026-10-01 11:00:00 +0200", 0},
+        {"2026-10-01 -1200",                "2026-10-02 11:00:00 +0200", 0},
+        {"noon -2300",                      "2026-10-20 13:00:00 +0200", 0},
+        {"2026-10-01 10:00 +2300",          "2026-09-30 13:00:00 +0200", 0},
+
+        /*
+         *  A count right after a month name, and no day
+         */
+        {"Jan 1 pm",                        "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 pm",                        "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 am",                        "2026-10-21 11:00:00 +0200", 1},
+        {"October 1 pm",                    "2026-10-21 11:00:00 +0200", 1},
+        {"Oct, 1 pm",                       "2026-10-21 11:00:00 +0200", 1},
+        {"Oct (x) 1 pm",                    "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 3pm",                         "2026-10-21 11:00:00 +0200", 1},
+        {"2026 Oct 1 pm",                   "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 5 days ago",                  "2026-10-21 11:00:00 +0200", 1},
+        {"Oct five days ago",               "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 2 fridays",                   "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 3 pm",                      "2026-10-01 15:00:00 +0200", 0},
+        {"Jan 1 3 pm",                      "2026-01-01 15:00:00 +0100", 0},
+        {"1 Oct 3 pm",                      "2026-10-01 15:00:00 +0200", 0},
+        {"Oct 1st 3 pm",                    "2026-10-01 15:00:00 +0200", 0},
+        {"the 5th of October 3 pm",         "2026-10-05 15:00:00 +0200", 0},
+        {"Oct 1 2 fridays",                 "2026-09-18 11:00:00 +0200", 0},
+        {"Oct 5 friday",                    "2026-10-05 11:00:00 +0200", 0},
+        {"Oct 2026 1 pm",                   "2026-10-21 13:00:00 +0200", 0},
+        {"3 pm Oct",                        "2026-10-21 15:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+
+    /*
+     *  A clock time with a zone and no date is of the day of now in that
+     *  zone: Sun 2026-10-25 00:30 CEST is Sat 2026-10-24 23:30 CET
+     */
+    s_fake_now = 1792881000;
+    static const approxidate_case_t day_of_the_zone[] = {
+        {"02:30 CET",                       "2026-10-24 03:30:00 +0200", 0},
+        {"02:30 +0100",                     "2026-10-24 03:30:00 +0200", 0},
+        {"02:30",                           "2026-10-25 02:30:00 +0200", 0},
+        {"today 02:30 CET",                 "2026-10-24 03:30:00 +0200", 0},
+    };
+    check_approxidate(day_of_the_zone, sizeof(day_of_the_zone)/sizeof(day_of_the_zone[0]));
+    s_fake_now = NOW;
+
+    /*
+     *  What is looked at after a month name is passed in time
+     */
+    check_long_text("Oct", "(x)", 20000, " 1 pm", "2026-10-21 11:00:00 +0200", 1);
+    check_long_text("Oct 1", "(x)", 20000, " 3 pm", "2026-10-01 15:00:00 +0200", 0);
+    check_long_text("Oct 1 10:00", "(x)", 20000, "-0500", "2026-10-01 17:00:00 +0200", 0);
+}
+
+/***************************************************************************
+ *  23. A day that a change of the zone skips whole is no day counted
+ *  back from today, and the last noon (midnight, tea) that passed is the
+ *  one of the day before it: in Apia 2011-12-30 was skipped (from
+ *  2011-12-29 23:59:59 -1000 to 2011-12-31 00:00:00 +1400), and on the
+ *  31st "noon", "yesterday noon" and "yesterday 12:30" were the 31st at
+ *  12:00 and 12:30, ahead of now at 00:00. A date said is read as any
+ *  time a change skips ("2011-12-30 12:00" is 24 hours later).
+ *
+ *  A TZ changed with no tzset() is seen: the reader calls it.
+ *
+ *  The offsets before and after a local time are taken a day away from
+ *  it, so the reading is exact for a zone that never changes its offset
+ *  twice in less than 48 hours: tzdata has no such zone since 1970 (its
+ *  shortest interval is 6.96 days). A POSIX TZ can have it: with a summer
+ *  time of one day a time of that day is read with the offset of the days
+ *  around it.
+ ***************************************************************************/
+PRIVATE void test_whole_day_skipped_tzset_and_close_changes(void)
+{
+    setenv("TZ", "Pacific/Apia", 1);
+    tzset();
+
+    /*
+     *  Sat 2011-12-31 00:00 +1400, the first moment after the day skipped
+     */
+    s_fake_now = 1325239200;
+    static const approxidate_case_t first_moment[] = {
+        {"noon",                            "2011-12-29 12:00:00 -1000", 0},
+        {"tea",                             "2011-12-29 17:00:00 -1000", 0},
+        {"yesterday noon",                  "2011-12-31 00:00:00 +1400", 1},
+        {"yesterday 12:30",                 "2011-12-31 00:00:00 +1400", 1},
+        {"1 day ago 12:30",                 "2011-12-31 00:00:00 +1400", 1},
+        {"last friday noon",                "2011-12-31 00:00:00 +1400", 1},
+        {"2 days ago 12:30",                "2011-12-29 12:30:00 -1000", 0},
+        {"midnight",                        "2011-12-31 00:00:00 +1400", 0},
+        {"yesterday",                       "2011-12-29 00:00:00 -1000", 0},
+        {"2011-12-30 12:00",                "2011-12-31 12:00:00 +1400", 0},
+        {"2011-12-29 12:00",                "2011-12-29 12:00:00 -1000", 0},
+        {"12:30",                           "2011-12-31 12:30:00 +1400", 0},
+    };
+    check_approxidate(first_moment, sizeof(first_moment)/sizeof(first_moment[0]));
+
+    /*
+     *  Sat 2011-12-31 13:00 +1400
+     */
+    s_fake_now = 1325286000;
+    static const approxidate_case_t afternoon[] = {
+        {"noon",                            "2011-12-31 12:00:00 +1400", 0},
+        {"today noon",                      "2011-12-31 12:00:00 +1400", 0},
+        {"yesterday noon",                  "2011-12-31 13:00:00 +1400", 1},
+        {"yesterday 12:30",                 "2011-12-31 13:00:00 +1400", 1},
+        {"2 days ago noon",                 "2011-12-29 12:00:00 -1000", 0},
+    };
+    check_approxidate(afternoon, sizeof(afternoon)/sizeof(afternoon[0]));
+    s_fake_now = NOW;
+
+    /*
+     *  A TZ changed with no tzset()
+     */
+    setenv("TZ", "America/Los_Angeles", 1);
+    static const approxidate_case_t no_tzset[] = {
+        {"2026-10-01 10:00",                "2026-10-01 10:00:00 -0700", 0},
+    };
+    check_approxidate(no_tzset, sizeof(no_tzset)/sizeof(no_tzset[0]));
+
+    /*
+     *  Two changes 48 hours apart: exact. Summer time from 2027-03-01
+     *  00:00 to 2027-03-03 01:00, local.
+     */
+    setenv("TZ", "AAA0BBB-1,J60/0,J62/1", 1);
+    tzset();
+    static const approxidate_case_t two_days[] = {
+        {"2027-03-01 00:30",                "2027-03-01 01:30:00 +0100", 0},
+        {"2027-03-01 12:00",                "2027-03-01 12:00:00 +0100", 0},
+        {"2027-03-03 00:30",                "2027-03-03 00:30:00 +0100", 0},
+        {"2027-03-03 01:30",                "2027-03-03 01:30:00 +0000", 0},
+    };
+    check_approxidate(two_days, sizeof(two_days)/sizeof(two_days[0]));
+
+    /*
+     *  Two changes 24 hours apart, the limit: summer time from 2027-03-01
+     *  00:00 to 2027-03-02 00:00, local. The offsets a day away are those
+     *  of winter, and a time of that day is read with them, an hour later.
+     */
+    setenv("TZ", "AAA0BBB-1,J60/0,J61/0", 1);
+    tzset();
+    static const approxidate_case_t one_day[] = {
+        {"2027-03-01 12:00",                "2027-03-01 13:00:00 +0100", 0},
+        {"2027-03-02 12:00",                "2027-03-02 12:00:00 +0000", 0},
+    };
+    check_approxidate(one_day, sizeof(one_day)/sizeof(one_day[0]));
+
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1782,6 +1993,8 @@ int main(int argc, char *argv[])
     test_noon_never_at_and_am_pm();
     test_repeated_and_skipped_hours();
     test_am_pm_at_never_noon_and_zones();
+    test_glued_signs_far_offsets_and_counts_after_a_month();
+    test_whole_day_skipped_tzset_and_close_changes();
 
     gobj_end();
 

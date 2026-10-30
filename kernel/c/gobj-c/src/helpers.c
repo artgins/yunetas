@@ -7242,6 +7242,7 @@ typedef struct {
     int min;
     int sec;
     int ampm;               // 'a', 'p' or 0
+    const char *clock_end;  // right after the digits of the clock time: an offset may touch it
     BOOL hour_of_24;        // an hour with an 'h' after "at" ("at 15h"): of 24 hours, no am/pm
     int special_hour;       // -1, or the hour of noon (12), midnight (0), tea (17)
 
@@ -7280,6 +7281,9 @@ typedef struct {
                                 // a number alone there is no date
     const char *after_count_piece;  // the first piece after the last count back, found once:
                                     // the only place for its "ago"
+    const char *after_month_piece;  // the first piece after the last month name, found once
+    BOOL count_after_month; // a count right after a month name ("Oct 1 pm"): the text must
+                            // say a day, or the count is a misread one
 
     BOOL vague;             // a piece that is not an absolute date (refused by parse_date_basic)
     int understood;         // pieces that say something
@@ -7362,24 +7366,39 @@ PRIVATE long local_offset_at(time_t t)
  *    02:30 of 2026-10-25 is 02:30 +0200, not 02:30 +0100;
  *  - a local time that the change skips is that many minutes after the
  *    change: in Madrid 02:30 of 2026-03-29 is 02:30 +0100, 03:30 +0200.
- *  The offsets before and after are taken a day away from `wall`, as no
- *  zone changes its hour twice in two days. mktime() is not used: with
- *  tm_isdst -1 glibc picks the hour that repeats with what its last call
- *  cached, and one text would be one time or the other depending on the
- *  text read before it.
+ *  When that carries it to a later day (a change that skips a whole day,
+ *  as the one of Apia on 2011-12-30), `*on_day_before` is the time read
+ *  with the offset after the change instead: that clock time on the day
+ *  before the one skipped. Else it is the time returned.
+ *
+ *  The offsets before and after are those of a day before and a day
+ *  after `wall`, so the reading is exact for a zone that does not change
+ *  its offset twice in less than 48 hours. tzdata has no such zone since
+ *  1970 (its shortest interval is 6.96 days); a POSIX TZ can have one:
+ *  "AAA0BBB-1,J60/0,J61/0" keeps a summer time of one day, and a time of
+ *  that day is read with the offset of the days around it, an hour late.
+ *  mktime() is not used: with tm_isdst -1 glibc picks the hour that
+ *  repeats with what its last call cached, and one text would be one time
+ *  or the other depending on the text read before it.
  ***************************************************************************/
-PRIVATE int64_t time_of_local_wall(int64_t wall)
+PRIVATE int64_t time_of_local_wall(int64_t wall, int64_t *on_day_before)
 {
     long offset_before = local_offset_at((time_t)(wall - 86400));
     long offset_after = local_offset_at((time_t)(wall + 86400));
     int64_t t_before = wall - offset_before;
     int64_t t_after = wall - offset_after;
     if(local_offset_at((time_t)t_before) == offset_before) {
+        *on_day_before = t_before;
         return t_before;
     }
     if(local_offset_at((time_t)t_after) == offset_after) {
+        *on_day_before = t_after;
         return t_after;
     }
+    int64_t reached = wall + offset_after - offset_before;
+    int64_t wall_day = wall/86400 - ((wall%86400 < 0)? 1 : 0);
+    int64_t reached_day = reached/86400 - ((reached%86400 < 0)? 1 : 0);
+    *on_day_before = (reached_day != wall_day)? t_after : t_before;
     return t_before;    // a time the change skips
 }
 
@@ -8324,6 +8343,9 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
     }
     const char *end = read_after_count(rd, value, p, right_after_at(rd, start));
     if(end) {
+        if(rd->after_month_piece == start) {
+            rd->count_after_month = TRUE;
+        }
         return end;
     }
     note_lone_number(rd, start, p, value, digits);
@@ -8391,10 +8413,18 @@ PRIVATE BOOL day_said(date_reading_t *rd)
  *  as "yesterday UTC", "2026-10-01 -05". Before them a sign is no date
  *  ("+0200", "+0200 10:00"). After GMT, UTC or UT it is the zone
  *  ("GMT+0200", as Date.toString() of javascript writes).
+ *
+ *  A sign that touches digits (`after_digits`) is a zone only right after
+ *  the digits of a clock time, as ISO 8601 writes it ("10:00-05:00",
+ *  "2026-10-01T10:00:00.5+02:00", "20261001T100000-0500"). Glued to the
+ *  digits of a date or of epoch seconds it is no date: "2026-10-01-10:00"
+ *  was read as October 1 in a zone of -10:00, at the time of day of now
+ *  there (October 2 in Madrid), "2026.10-2026.10" in a zone of -20:26.
  ***************************************************************************/
-PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
+PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p, BOOL after_digits)
 {
     if((rd->zone_said && !rd->zone_utc_word) ||
+            (after_digits && p != rd->clock_end) ||
             (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said && !day_said(rd))) {
         rd->unreadable = TRUE;
         return p + 1;
@@ -8526,6 +8556,7 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
             return read_named_month_rest(rd, mon, mday, sep, p_day);
         }
         note_date(rd, 0, mon, 0);
+        rd->after_month_piece = skip_to_next_piece(NULL, end);
         return end;
     }
 
@@ -8641,6 +8672,9 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
             rd->unreadable = TRUE;
             return end;
         }
+        if(rd->after_month_piece == p) {
+            rd->count_after_month = TRUE;
+        }
         return after;
     }
 
@@ -8700,6 +8734,7 @@ PRIVATE const char *read_comment(date_reading_t *rd, const char *p)
  ***************************************************************************/
 PRIVATE void read_date_text(date_reading_t *rd, const char *text)
 {
+    tzset();    // localtime_r() does not look at TZ again: a TZ changed since is seen here
     memset(rd, 0, sizeof(*rd));
     rd->now = time(NULL);
     rd->now_offset = local_offset_at(rd->now);
@@ -8708,9 +8743,11 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
     rd->weekday_target = -1;
     rd->weekday_named = -1;
 
-    const char *p = text? text : "";
+    const char *start = text? text : "";
+    const char *p = start;
     while(*p && !rd->unreadable) {
         unsigned char c = (unsigned char)*p;
+        int hour_before = rd->hour;
         if(isspace(c) || c == ',' || c == '_' || c == '.') {
             p++;
         } else if(c == '(') {
@@ -8733,7 +8770,7 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
              */
             p = read_signed_duration(rd, p);
         } else if(c == '+' || c == '-') {
-            p = read_zone_offset(rd, p);
+            p = read_zone_offset(rd, p, (p > start && isdigit((unsigned char)p[-1]))? TRUE : FALSE);
         } else if(c == '@') {
             p++;
             if(!isdigit((unsigned char)*p)) {
@@ -8760,6 +8797,9 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
         } else {
             rd->unreadable = TRUE;
         }
+        if(hour_before < 0 && rd->hour >= 0) {
+            rd->clock_end = p;
+        }
     }
     if(!rd->zone_said && rd->comment_offset_said) {
         rd->zone_said = TRUE;
@@ -8777,11 +8817,14 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
  *
  *  Without a clock time the date moves in the offset of the zone said,
  *  else in the UTC offset of now: whole days are 24 hours, and a date
- *  keeps the time of day of now in that offset. A clock time (or noon,
- *  midnight, tea) is of the zone said, else a local one, of the date
- *  reached (see time_of_local_wall() for a local time that a change of
- *  hour repeats or skips). A count of hours, minutes or seconds is taken
- *  back from the time the rest of the text says.
+ *  keeps the time of day of now in that offset, which must be of a zone
+ *  there is (-12:00 to +14:00). A clock time (or noon, midnight, tea) is
+ *  of the zone said, else a local one, of the date reached (see
+ *  time_of_local_wall() for a local time that a change of hour repeats
+ *  or skips). A day counted back that the zone skips whole is no date,
+ *  and the last noon (midnight, tea) that passed is then the one of the
+ *  day before it. A count of hours, minutes or seconds is taken back from
+ *  the time the rest of the text says.
  ***************************************************************************/
 PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset_minutes)
 {
@@ -8870,8 +8913,13 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         }
         day -= back + 7*(rd->weekday_count - 1);
     }
+    BOOL day_before_today = FALSE;
     if(rd->special_hour >= 0 && !day_named && now_clock < rd->special_hour*3600) {
         day--;      // with no day named, the last noon (midnight, tea) that passed
+        day_before_today = TRUE;
+    }
+    if(rd->count_after_month && !rd->mday) {
+        return -1;  // "Oct 1 pm", "Oct 5 days ago": the 1 (5) is the day, misread as a count
     }
 
     int64_t t;
@@ -8898,11 +8946,21 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         if(rd->zone_said) {
             t = day*86400 + hour*3600 + min*60 + sec - rd->zone_offset;
         } else {
-            t = time_of_local_wall(day*86400 + hour*3600 + min*60 + sec);
+            int64_t on_day_before;
+            t = time_of_local_wall(day*86400 + hour*3600 + min*60 + sec, &on_day_before);
+            if(on_day_before != t && rd->counted_back) {
+                return -1;  // a day counted back that the zone skipped whole
+            }
+            if(on_day_before != t && day_before_today) {
+                t = on_day_before;
+            }
         }
     } else {
         if(rd->ampm) {
             return -1;  // am/pm says the half of the day of an hour: "pm", "today pm" say none
+        }
+        if(rd->zone_said && (rd->zone_offset < -12*3600 || rd->zone_offset > 14*3600)) {
+            return -1;  // the date would move by an offset of no zone: "now-2026", "yesterday -2300"
         }
         frame_clock = now_clock;
         t = day*86400 + now_clock - frame_offset;
