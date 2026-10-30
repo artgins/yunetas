@@ -231,7 +231,11 @@ far ahead in both orders read as written (`"5.4.2027"` is April 5); epoch
 seconds no calendar holds, or past the year 9999 (`"1761000000000"`,
 milliseconds), are refused; a zone after noon (`"noon +0200"`) is read; and a
 clock time of too many digits in the basic form of ISO 8601 is refused without
-overflowing an integer.
+overflowing an integer. And a weekday after a date names it: the number before
+it is that date's day or year (`"Oct 1 2026 Thu"` is October 1, `"Oct 5
+friday"` October 5), where the port and 7.29.3 read a count of weekdays back
+(1987-12-03 for the first); with no date before it, or in the plural, it stays
+a count (`"2 wednesday"`, `"Oct 1 2 fridays"`).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

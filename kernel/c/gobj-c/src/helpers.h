@@ -1112,7 +1112,10 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "noon" "midnight" "tea" (17:00): the last one that passed; a zone
         after it says where: "noon +0200", "noon CEST"
         "last friday": the Friday before today; "2 friday" ("2 fridays ago"):
-        the one before it
+        the one before it. After a month, a day or a year a number before a
+        weekday is that date's, the weekday only names it: "Oct 1 2026 Thu"
+        is Oct 1 (up to 7.29.3 it was 2026 Thursdays back), "Oct 5 friday"
+        Oct 5; in the plural it stays a count ("Oct 1 2 fridays")
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
 

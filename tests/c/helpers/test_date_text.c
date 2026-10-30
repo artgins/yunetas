@@ -64,6 +64,8 @@
  *              zone name in a comment (7.28.5 to 7.29.3 took the name and
  *              lost the offset; REV-CLOUD V46.3), but not one that is
  *              not whole ("(UTC-05:0)" was -05; V47.2).
+ *          13. a weekday after a date names it: "Oct 1 2026 Thu" is that
+ *              day, not 2026 Thursdays back (1987-12-03, up to 7.29.3).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -826,6 +828,32 @@ PRIVATE void test_offset_in_a_comment(void)
 }
 
 /***************************************************************************
+ *  13. A weekday after a date names it: the number before it is that
+ *  date's day or year, not a count of weekdays back. The port of git's
+ *  date.c, and the rewrite up to 7.29.3, read "Oct 1 2026 Thu" as 2026
+ *  Thursdays back (1987-12-03) and "Oct 5 friday" as 5 Fridays back.
+ ***************************************************************************/
+PRIVATE void test_weekday_after_a_date(void)
+{
+    static const approxidate_case_t cases[] = {
+        {"Oct 1 2026 Thu",                  "2026-10-01 11:00:00 +0200", 0},
+        {"1 Oct 2026 Thu",                  "2026-10-01 11:00:00 +0200", 0},
+        {"Oct 1, 2026, Thursday 10:00",     "2026-10-01 10:00:00 +0200", 0},
+        {"Oct 1 26 Thu",                    "2026-10-01 11:00:00 +0200", 0},
+        {"Oct 5 friday",                    "2026-10-05 11:00:00 +0200", 0},
+        {"2026-10-01 5 friday",             "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  With no date before it, or in the plural, it is a count
+         */
+        {"2 wednesday",                     "2026-10-07 11:00:00 +0200", 0},
+        {"yesterday 1 wednesday",           "2026-10-14 11:00:00 +0200", 0},
+        {"Oct 1 2 fridays",                 "2026-09-18 11:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -862,6 +890,7 @@ int main(int argc, char *argv[])
     test_forms_of_the_port();
     test_more_forms_of_the_port();
     test_offset_in_a_comment();
+    test_weekday_after_a_date();
 
     gobj_end();
 
