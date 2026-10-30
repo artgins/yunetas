@@ -595,7 +595,8 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 gobj,
                 -1,
                 json_sprintf(
-                    "%s: Too much opened consoles: %d", gobj_yuno_role_plus_name(),
+                    "%s: Too much opened consoles: %d",
+                    gobj_yuno_role_plus_name(),
                     (int)kw_size(priv->list_consoles)
                 ),
                 0,
@@ -652,7 +653,8 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("%s: Console gobj not found: '%s'", gobj_yuno_role_plus_name(), name),
+                json_sprintf("%s: Console gobj not found: '%s'",
+                    gobj_yuno_role_plus_name(), name),
                 0,
                 0,
                 kw  // owned
@@ -665,7 +667,8 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("%s: Error opening console: '%s'", gobj_yuno_role_plus_name(), name),
+                json_sprintf("%s: Error opening console: '%s'",
+                    gobj_yuno_role_plus_name(), name),
                 0,
                 0,
                 kw  // owned

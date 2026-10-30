@@ -10835,16 +10835,17 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
         }
     }
 
-    if(signal2kill == SIGKILL) {
+    if(signal2kill == SIGKILL && ret == 0) {
         // Kill the watcher
         if(watcher_pid) {
             if(kill(watcher_pid, signal2kill)<0) {
                 int last_errno = errno;
                 if(last_errno != ESRCH) { // No such process
-                    gobj_log_info(gobj, 0,
+                    // Not a failure of the kill: a watcher whose child ends by SIGKILL leaves by itself
+                    gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "Cannot kill watcher yuno",
+                        "msg",          "%s", "Cannot kill the watcher of the yuno: the yuno got its SIGKILL",
                         "yuno_id",      "%s", yuno_id,
                         "watcher_pid",  "%d", (int)watcher_pid,
                         "yuno_role",    "%s", yuno_role,
@@ -10854,7 +10855,6 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                         "strerror",     "%s", strerror(last_errno),
                         NULL
                     );
-                    ret = -1;
                 }
             }
         }
