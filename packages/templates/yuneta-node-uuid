@@ -96,8 +96,9 @@
 #   instead (/proc/1/mountinfo, which anybody may read): another one is a
 #   container's, the same one is the system (a root started without
 #   CAP_SYS_PTRACE on the box itself: a SysV start, a hand-run `ensure`, a
-#   postinst from a trimmed provisioning agent). With neither, nothing is
-#   told and this is taken for the system.
+#   postinst from a trimmed provisioning agent). Where PID 1's mountinfo
+#   cannot be read either, a root in a user namespace or without
+#   CAP_SYS_PTRACE is a container's; anybody else is taken for the system.
 #
 #   The package's install runs `ensure --installing`: in a container or a
 #   chroot it stores nothing and exits 3, because the install may be the
@@ -345,8 +346,8 @@ run_fstype() {
 #              distrobox) or without CAP_SYS_PTRACE (Docker's) cannot. So
 #              the mount on / is compared instead (root_mount()), and
 #              /proc/1/mountinfo may be read by anybody
-#     unknown  no PID 1 in /proc, or PID 1's mountinfo unreadable: as if it
-#              were the system, what was done before this check
+#     unknown  no PID 1 in /proc, or no mount on / in PID 1's mountinfo: as
+#              if it were the system, what was done before this check
 #
 #   A root that cannot look but has PID 1's mount on / is the system. Without
 #   this comparison a root started without CAP_SYS_PTRACE on the box (a SysV
@@ -354,6 +355,28 @@ run_fstype() {
 #   took itself for a container: it stored a random uuid, and the next full
 #   root replaced it with the hardware's.
 #
+#   Where PID 1's mountinfo cannot be read either (a security module that
+#   refuses both, e.g. a pod run with hostPID under SELinux), what was asked
+#   before the mount on / was compared is asked: a root in a user namespace
+#   or without CAP_SYS_PTRACE is a container's ("hidden"), anybody else
+#   "unknown". Taken for the system there, a container's root read the
+#   host's DMI and took the host's uuid.
+#
+INIT_USER_NS="user:[4026531837]"
+CAP_SYS_PTRACE=19
+
+root_is_a_containers() {
+    local userns caps
+    userns="$(readlink "${SYSROOT}/proc/self/ns/user" 2>/dev/null)"
+    if [ -n "$userns" ] && [ "$userns" != "$INIT_USER_NS" ]; then
+        return 0
+    fi
+    caps="$( { sed -n 's/^CapEff:[[:space:]]*//p' < "${SYSROOT}/proc/self/status"; } 2>/dev/null )"
+    if [[ "$caps" =~ ^[0-9a-fA-F]{1,16}$ ]] && (( ((0x$caps >> CAP_SYS_PTRACE) & 1) == 0 )); then
+        return 0
+    fi
+    return 1
+}
 
 #
 #   The mount on / in a mountinfo: "<major:minor> <root>" of the last one
@@ -361,21 +384,23 @@ run_fstype() {
 #   the process the file belongs to; none when that root is no mount point,
 #   a chroot into a directory). The mount id is not compared: a private mount
 #   namespace (`unshare -m`, a unit's PrivateTmp=) has its own copy of the
-#   same mount.
+#   same mount. Returns 1 when the file cannot be read.
 #
 root_mount() {
     local id parent devno root mp rest m=""
     if [ ! -r "$1" ]; then
-        return 0
+        return 1
     fi
     # The redirection inside the group: its error goes to /dev/null too
-    {
+    if ! {
         while IFS=' ' read -r id parent devno root mp rest; do
             if [ "$mp" = "/" ]; then
                 m="$devno $root"
             fi
         done < "$1"
-    } 2>/dev/null
+    } 2>/dev/null; then
+        return 1    # root passes -r and the open can still be refused
+    fi
     printf '%s' "$m"
 }
 
@@ -393,8 +418,13 @@ root_of_pid1() {    # same | other | hidden | unknown
         printf 'unknown'
         return 0
     fi
-    theirs="$(root_mount "${SYSROOT}/proc/1/mountinfo")"
-    if [ -z "$theirs" ]; then
+    if ! theirs="$(root_mount "${SYSROOT}/proc/1/mountinfo")"; then
+        if [ "$(id -u)" = "0" ] && root_is_a_containers; then
+            printf 'hidden'
+        else
+            printf 'unknown'
+        fi
+    elif [ -z "$theirs" ]; then
         printf 'unknown'
     elif [ "$(root_mount "${SYSROOT}/proc/self/mountinfo")" = "$theirs" ]; then
         printf 'same'

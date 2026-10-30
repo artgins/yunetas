@@ -588,7 +588,7 @@ check "/ is the root of PID 1: the hardware" "$(field source)" "dmi-product-uuid
 #   user namespace, refused by a security module or the runtime, or no
 #   root): the mount on / is compared, /proc/1/mountinfo against
 #   /proc/self/mountinfo, device and root, never the mount id. The same one
-#   is the system, whatever the image left in it (the box of V50.1.2: /run
+#   is the system, whatever the image left in it (the box of a review: /run
 #   on ext4 holding /run/systemd/container "docker", where a root with
 #   `setpriv --bounding-set=-sys_ptrace` stored a random uuid as a container
 #   and the next full root replaced it). Another one is a container's (or a
@@ -646,7 +646,7 @@ check "PID 1's root hidden, no / in PID 1's mountinfo: as the system" "$(field s
 hidden_board
 rm -f "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
 run ensure
-check "PID 1's root hidden, PID 1's mountinfo unreadable: as the system" "$(field source)" "dmi-product-uuid"
+check "PID 1's root hidden, PID 1's mountinfo unreadable, no root: as the system" "$(field source)" "dmi-product-uuid"
 
 #
 #   The same against the real kernel, as a normal user. The root of a user
@@ -696,6 +696,50 @@ if unshare -Ur true >/dev/null 2>&1; then
     fi
 else
     echo "skip - unshare -Ur refused here: no emulation of a root that cannot look at PID 1's root"
+fi
+
+#
+#   PID 1's mountinfo unreadable too (a security module that refuses both,
+#   e.g. a pod run with hostPID under SELinux): the mount on / tells
+#   nothing, and what was asked before it was compared is asked again. A
+#   root in a user namespace or without CAP_SYS_PTRACE is a container's (it
+#   read the host's DMI when taken for the system); a root with it, refused
+#   all the same, and a normal user (the fake above) are taken for the system. A
+#   root is a root of a user namespace here (unshare -Ur), its namespace and
+#   capabilities faked in the fake /proc/self; a socket stands for a
+#   mountinfo that root may not open (`-r` passes, the open fails).
+#
+set_self_caps() {    # <user namespace inode> <CapEff>
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/self/ns"
+    ln -sfn "user:[$1]" "${YUNETA_NODE_UUID_SYSROOT}/proc/self/ns/user"
+    printf 'Name:\tbash\nCapEff:\t%s\n' "$2" > "${YUNETA_NODE_UUID_SYSROOT}/proc/self/status"
+}
+probe_as_root() {
+    env -u container unshare -Ur bash -c "$(declare -f probe_container); probe_container \"\$1\"" _ "$SCRIPT"
+}
+if unshare -Ur true >/dev/null 2>&1; then
+    hidden_board
+    rm -f "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
+    set_self_caps 4026532999 000001ffffffffff
+    check "PID 1's root and mountinfo hidden, a root in a user namespace: a container" \
+        "$(probe_as_root)" "docker"
+    set_self_caps 4026531837 00000000a80425fb
+    check "PID 1's root and mountinfo hidden, a root without CAP_SYS_PTRACE (Docker's): a container" \
+        "$(probe_as_root)" "docker"
+    set_self_caps 4026531837 000001ffffffffff
+    check "PID 1's root and mountinfo hidden, a root with CAP_SYS_PTRACE: as the system" \
+        "$(probe_as_root)" "none"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+            "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
+        set_self_caps 4026532999 000001ffffffffff
+        check "PID 1's root hidden, its mountinfo cannot be opened, a root in a user namespace: a container" \
+            "$(probe_as_root)" "docker"
+    else
+        echo "skip - no python3 to make a socket: no unopenable mountinfo"
+    fi
+else
+    echo "skip - unshare -Ur refused here: no root that cannot read PID 1's mountinfo"
 fi
 CHR="${WORK}/chroot"
 if [ -L /bin ] && [ -L /lib ] && unshare -Urm true >/dev/null 2>&1; then

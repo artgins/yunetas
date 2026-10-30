@@ -465,8 +465,14 @@ PID 1 on `/`: the script reads the hardware.
 
 The mount does not tell a chroot from a container. If the script cannot look
 at the root of PID 1 and `/` is another mount, the script treats it as a
-container, and the marker files give the name. If `/proc/1/mountinfo` cannot be read, the script cannot find
-a chroot or a `--pid=host` container, and it reads the hardware.
+container, and the marker files give the name.
+
+If `/proc/1/mountinfo` cannot be read either (for example, a security module
+refuses both files to a pod that runs with `hostPID`), the mount does not
+tell. Then the script uses the capabilities: a root in a user namespace, or a
+root without `CAP_SYS_PTRACE`, is a container, and the script does not read
+the hardware. Any other user (a root with `CAP_SYS_PTRACE`, or not root) is
+the system, and the script reads the hardware.
 
 ```bash
 # As root: the same question that the script asks
