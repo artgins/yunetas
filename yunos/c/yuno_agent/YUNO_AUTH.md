@@ -107,8 +107,8 @@ checklist that a new GUI must implement. This chapter is the prose behind it.
 
 Tokens live in **HttpOnly cookies**, scoped by domain (no port). JavaScript
 cannot read them, and XSS attacks cannot extract them. The SPA only knows
-"am I authenticated" by the response code of API calls. This is the
-SEC-04/-06/-07/-09 hardening Yuneta deployments require.
+"am I authenticated" by the response code of API calls. Yuneta deployments
+require it.
 
 ### 2.2 The endpoints
 
@@ -126,7 +126,7 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 
 #### `/auth/token` — multi-backend identity-card forwarding (opt-in)
 
-By default the SPA never sees a raw token (SEC-06): tokens live only in
+By default the SPA never sees a raw token: tokens live only in
 HttpOnly cookies scoped to the BFF host, so they cannot be forwarded to a
 backend on a **different** host. When a single SPA must open WebSockets to
 Yuneta backends on *other* hosts, for example the `gui_treedb` browser served
@@ -140,8 +140,8 @@ JWKS in its config (`Authz.jwks`) and a role for the target service.
 
 `POST /auth/token` (reads the `access_token` cookie, sent same-origin by the
 browser, and returns it in the body: `{success, access_token}`) is the only
-way the SPA obtains that token. It is a **deliberate, opt-in SEC-06
-relaxation** and is disabled by default. Two guards keep it safe:
+way the SPA obtains that token. It is a **deliberate, opt-in relaxation**
+and is disabled by default. Two guards keep it safe:
 
 - **`expose_access_token`** attr (default `false`) — when off, the endpoint
   is invisible (`404 unknown_endpoint`), so every other BFF keeps tokens
@@ -166,7 +166,7 @@ need it.
 2. IdP redirects back with `code`.
 3. SPA POSTs `{code, code_verifier, redirect_uri}` to `/auth/callback`.
 4. BFF validates `redirect_uri` against `allowed_redirect_uri`
-   ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c), SEC-06).
+   ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
 5. BFF calls IdP `/token` with `grant_type=authorization_code` +
    `code_verifier` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
 6. The tokens arrive. BFF writes them as HttpOnly cookies
@@ -276,7 +276,7 @@ everyone.
 illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:55-58`):
 
 ```json
-"issuer":        "https://auth.artgins.com/realms/yunetas.com/",
+"issuer":        "https://auth.artgins.com/realms/artgins/",
 "client_id":     "treedb.yunetas.com",
 "client_secret": "",
 "cookie_domain": ""
@@ -312,8 +312,7 @@ wrong password is not a diagnosis problem.
 
 ### 2.9 Pending bugs
 
-Two issues are tracked but not fixed (per
-`project_auth_bff_pending_bugs`):
+Two issues are known and not fixed:
 
 - **HTTP_CL chain leak** ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)). Under rapid
   browser-disconnect during a `/token` call, the outbound
@@ -819,7 +818,7 @@ Two paths, in priority order:
    - Inside `C_AUTHZ`'s own commands (you cannot list users without
      authority over the auth service itself).
    - Inside `auth_bff` for things like cookie-domain validation
-     ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c) Host-vs-Domain matching, SEC-06).
+     ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c) Host-vs-Domain matching).
    - The MQTT broker's per-group publish/subscribe ACL (a topic-pattern model
      in the broker's own treedb, not `gobj_user_has_authz` — see the
      `mqtt_broker` doc's *Authorization* section).
@@ -1256,7 +1255,7 @@ The convention from
 
 | Project           | Keycloak host                  | Realm name           | Notes                                              |
 |-------------------|--------------------------------|----------------------|----------------------------------------------------|
-| yunetas dev       | `auth.artgins.com`             | `yunetas.com`        | Localhost dev batch, see `batches/localhost/auth_bff.1801.json`. |
+| yunetas dev       | `auth.artgins.com`             | `artgins`            | Localhost dev batch, see `batches/localhost/auth_bff.1801.json`. |
 | each application  | (per project, private repo)    | (per project)        | See the project's batches/.                         |
 
 ### 7.2 Bootstrap checklist for a new project
@@ -1959,5 +1958,3 @@ Keycloak `id` of the account. If the answer carries an `error_code` or a
 | `reload-certs` handler in TCP server              | [`kernel/c/root-linux/src/c_tcp_s.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_tcp_s.c)                            |
 | Per-yuno cert paths (example)                     | `yunos/c/auth_bff/batches/localhost/auth_bff.1801.json:26-27`          |
 | Localhost dev OIDC batch                          | `batches/localhost/auth_bff.1801.json:55-58`                           |
-| auth_bff pending bugs (memory)                    | `~/.claude/.../memory/project_auth_bff_pending_bugs.md`                |
-| SMTP cleartext (memory)                           | `~/.claude/.../memory/project_emailsender_smtp_secret.md`              |
