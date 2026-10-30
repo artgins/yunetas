@@ -1148,7 +1148,7 @@ static int test_reg_f002_find_record_not_found(void)
  *
  *  The index used to be a bare number, which forced all-digit keys to be
  *  forbidden; it is '[N]' since the flat form was rewritten, so a key like
- *  "1630" is now just a key. The whole grammar is tested in
+ *  "4630" is now just a key. The whole grammar is tested in
  *  test_json_flat.c; this one only guards the two callers of the old
  *  names.
  ***************************************************************************/

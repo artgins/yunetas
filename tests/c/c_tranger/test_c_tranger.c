@@ -2819,7 +2819,7 @@ PRIVATE int do_test(void)
         expect_refusal(expected, "topic of a wrong shape, create refused");  // a treedb's topic
         expect_refusal(expected, "record of a wrong shape, refused");       // __t__ of 45 bits
         expect_refusal(expected, "record of a wrong shape, refused");       // a tkey of 45 bits
-        /*  c4 B: a tkey date past 44 bits, plain and sf_tm_ms; one it keeps, taken  */
+        /*  a tkey date past 44 bits, plain and sf_tm_ms; one it keeps, taken  */
         expect_refusal(expected, "record of a wrong shape, refused");
         expect_refusal(expected, "record of a wrong shape, refused");
         json_t *dated = expect_role_warnings(1);
@@ -2841,15 +2841,15 @@ PRIVATE int do_test(void)
         json_t *added = expect_role_warnings(1);    // the C caller's add-record, taken
         json_array_extend(expected, added);
         JSON_DECREF(added)
-        /*  #4: a new topic named as what a store keeps  */
+        /*  a new topic named as what a store keeps  */
         for(int i = 0; i < 4; i++) {
             expect_refusal(expected, "topic of a wrong shape, create refused");
         }
-        /*  #13: a jn_var of what the tranger keeps, or of a wrong type  */
+        /*  a jn_var of what the tranger keeps, or of a wrong type  */
         for(int i = 0; i < 4; i++) {
             expect_refusal(expected, "topic of a wrong shape, create refused");
         }
-        /*  #16: a version of a topic with no columns, with an empty jn_cols; and
+        /*  a version of a topic with no columns, with an empty jn_cols; and
          *  without jn_cols, refused  */
         json_t *changed = expect_role_warnings(1);
         json_array_extend(expected, changed);
@@ -3134,7 +3134,7 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  #4 (A, J): a NEW topic named as what a store keeps beside its topics:
+     *  A NEW topic named as what a store keeps beside its topics:
      *  hidden files, the system's namespace, its .json files, backups
      */
     {
@@ -3150,7 +3150,7 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  #13 (L): the jn_var of a peer: no field the tranger keeps (it made
+     *  The jn_var of a peer: no field the tranger keeps (it made
      *  the topic undeletable: system_topic), and the types the tranger
      *  reads (an ERROR with a stack at the next change of version)
      */
@@ -3173,7 +3173,7 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  #16 (c3#1d): a new topic_version of a topic with no columns BY DESIGN
+     *  A new topic_version of a topic with no columns BY DESIGN
      *  (timeranger2 columns are optional) takes an empty jn_cols: there is
      *  nothing to wipe. Without jn_cols it is refused, before the tranger's
      *  ERROR

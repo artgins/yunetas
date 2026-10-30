@@ -7,7 +7,7 @@
  *          MOST OF THIS FILE IS THE LIST OF THINGS THE FIRST
  *          IMPLEMENTATION GOT WRONG, measured before rewriting it:
  *
- *              {"1630": {...}}   came back as an ARRAY OF 1631 ELEMENTS
+ *              {"4630": {...}}   came back as an ARRAY OF 4631 ELEMENTS
  *              {"a": {}}         the key VANISHED
  *              {"a": []}         vanished
  *              {"a`b": 1}        split into {"a": {"b": 1}}
@@ -138,10 +138,10 @@ static int test_round_trips(void)
 
     /*  The one that broke: a dict keyed by a yuno id. */
     round_trip("numeric key (a yuno id)",
-        "{\"1630\":{\"role\":\"db_history\"}}",
-        "{\"1630`role\":\"db_history\"}");
+        "{\"4630\":{\"role\":\"db_history\"}}",
+        "{\"4630`role\":\"db_history\"}");
     round_trip("numeric keys, several",
-        "{\"1620\":1,\"1630\":2,\"0\":3}", "{\"1620\":1,\"1630\":2,\"0\":3}");
+        "{\"4620\":1,\"4630\":2,\"0\":3}", "{\"4620\":1,\"4630\":2,\"0\":3}");
 
     /*  Empty containers: no leaves of their own, so they ARE leaves. */
     round_trip("empty object", "{\"a\":{},\"b\":1}", "{\"a\":{},\"b\":1}");
@@ -284,11 +284,11 @@ static int test_diff_apply(void)
 
     /*  json2flat() does not own its argument: the sources are ours.  */
     json_t *src_a = json_pack("{s:{s:i, s:s}, s:[i,i]}",
-        "cfg", "port", 2020, "host", "old",
+        "cfg", "port", 4020, "host", "old",
         "list", 1, 2
     );
     json_t *src_b = json_pack("{s:{s:i, s:s}, s:[i,i,i]}",
-        "cfg", "port", 2020, "host", "new",
+        "cfg", "port", 4020, "host", "new",
         "list", 1, 2, 3
     );
     json_t *a = json2flat(src_a);

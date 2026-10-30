@@ -5708,19 +5708,18 @@ PRIVATE int close_and_delete_treedb(hgobj gobj, const char *treedb_name, const c
  *  the open, and the store a peer names must be that treedb's:
  *  - a topic with no columns, no `id` column, a bad `file` column: the
  *    open logged the CRITICAL "Cannot create topic of the schema", an exit
- *    with the peer's exit_on_error (D1); a C caller's is an ERROR;
+ *    with the peer's exit_on_error; a C caller's is an ERROR;
  *  - exit_on_error and import_root from a peer;
- *  - a column id too long for its id in __system__ (D5), a name with
- *    ".treedb_schema.json" in it (D6), a seed id that is not a string
- *    (D7 a);
+ *  - a column id too long for its id in __system__, a name with
+ *    ".treedb_schema.json" in it, a seed id that is not a string;
  *  - a topic named as a directory of the store that is not a topic,
- *    `.blobs` (D3), in create-topic and in a schema;
+ *    `.blobs`, in create-topic and in a schema;
  *  - a store that is not the treedb's, that a master holds, or that a
- *    tranger of this process has open (c2#1);
- *  - delete-treedb of a name that is a path (D2): `x/../<T>` removed the
+ *    tranger of this process has open;
+ *  - delete-treedb of a name that is a path: `x/../<T>` removed the
  *    files of the OPEN treedb T in saved_schemas/;
  *  - a saved schema whose topic the treedb would refuse at its next open,
- *    in apply-schema (c2#3);
+ *    in apply-schema;
  *  - and a dict of topics whose entry has no topic_name nor id is still a
  *    schema: the key names it.
  ***************************************************************************/
@@ -5882,7 +5881,7 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
     }
 
     /*
-     *  c2#1: a store there that is not that treedb's (no schema file of
+     *  A store there that is not that treedb's (no schema file of
      *  it), and one a master holds (the lock of its __timeranger2__.json)
      */
     char dir[PATH_MAX];
@@ -5982,7 +5981,7 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
     build_path(saved_dir, sizeof(saved_dir), priv->path_database, "__system__", "saved_schemas", NULL);
 
     /*
-     *  #18: a draft in __system__ whose topic the treedb would refuse at
+     *  A draft in __system__ whose topic the treedb would refuse at
      *  its next open (a pkey2 "id"): save-schema refuses it, with the
      *  check of apply-schema (it published it, and only the apply refused
      *  it). The saved schema the apply refuses below is written by hand: a
@@ -6051,7 +6050,7 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
     }
 
     /*
-     *  c2#3: that saved schema, newer than the file in use, whose topic the
+     *  That saved schema, newer than the file in use, whose topic the
      *  treedb would refuse at its next open: apply-schema refuses it, the
      *  file in use stays
      */
@@ -6178,7 +6177,7 @@ PRIVATE int check_done(hgobj gobj, const char *what, json_t *jn_resp)
 }
 
 /***************************************************************************
- *  Test 13d5, #1: an open-treedb of the C
+ *  Test 13d5: an open-treedb of the C
  *  code goes as it always went, whatever its data: what tr_treedb refuses
  *  of it is logged and left out, and the treedb OPENS -- the agent exits
  *  on an open-treedb that answers -1 (c_agent.c), and the yunos of the
@@ -6233,10 +6232,10 @@ PRIVATE int check_c_caller_open_as_before(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d5, #0 and #15: close-treedb `force` from OUTSIDE closes only a
+ *  Test 13d5: close-treedb `force` from OUTSIDE closes only a
  *  treedb THAT user opened -- on one the yuno's code opened, the code
  *  kept its pointers to what the close freed (refused whatever `force`
- *  says since c5 #7, check_peer_close_of_code_treedb()). A peer re-opens its store
+ *  says, check_peer_close_of_code_treedb()). A peer re-opens its store
  *  (mqtt_broker opens its own so at every start): an existing, valid,
  *  free store is the accepting branch of refuse_peer_store().
  ***************************************************************************/
@@ -6270,7 +6269,7 @@ PRIVATE int check_peer_force_close(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d5, #3: C_TRANGER writes nothing of a peer's into a topic of a
+ *  Test 13d5: C_TRANGER writes nothing of a peer's into a topic of a
  *  treedb open on its tranger -- they are written through C_NODE -- nor
  *  makes a new topic in its store: add-record (a raw record was the node at
  *  the next load), delete-key, delete-topic, create-topic.
@@ -6310,18 +6309,18 @@ PRIVATE int check_peer_writes_of_treedb_topics(hgobj gobj)
 
 /***************************************************************************
  *  Test 13d5, the shape of a peer's schema, refused BEFORE anything is
- *  made (#14: no store is left):
- *  - a topic named as what a store keeps (#4, A, J): `__timeranger2__.json`
+ *  made (no store is left):
+ *  - a topic named as what a store keeps: `__timeranger2__.json`
  *    and `<treedb>.treedb_schema.json` (its tranger and its open write them
  *    after the up-front checks of a NEW store), `.blobs`, a system topic,
  *    a backup; and from create-topic the temporary file of apply-schema;
- *  - impose_c_schema (#5, I);
- *  - one name per topic (#6, B): a topic_name that is not the id, a list
+ *  - impose_c_schema;
+ *  - one name per topic: a topic_name that is not the id, a list
  *    topic without its id, a dict entry whose id is not its key;
- *  - a hook column of type string (#8, D);
- *  - values of a wrong type (#9, E) and a version past an int (#12, K);
- *  - two elements with one id in __system__ (#10, F: a WARNING);
- *  - two `file` columns of one __assets__ hook (#7, C).
+ *  - a hook column of type string;
+ *  - values of a wrong type and a version past an int;
+ *  - two elements with one id in __system__ (a WARNING);
+ *  - two `file` columns of one __assets__ hook.
  ***************************************************************************/
 PRIVATE int check_peer_schema_shapes(hgobj gobj)
 {
@@ -6452,7 +6451,7 @@ PRIVATE int check_peer_schema_shapes(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d5, #7: a topic created into an open treedb is asked its `file`
+ *  Test 13d5: a topic created into an open treedb is asked its `file`
  *  columns against the __assets__ hooks the treedb has: `a_b` col `c` and
  *  the `a` col `b_c` there both derive `as_a_b_c`
  ***************************************************************************/
@@ -6486,7 +6485,7 @@ PRIVATE int check_create_topic_file_hooks(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d5, #12 (K): versions are json_int_t end to end. A C caller's
+ *  Test 13d5: versions are json_int_t end to end. A C caller's
  *  literal of schema_version and topic_version 2147483648 over a store of
  *  version 1: treedb_open_db() cut them to an int (-2147483648, older than
  *  the file), so the literal C_TREEDB had decided to install was not, and
@@ -6617,13 +6616,13 @@ PRIVATE int close_peer_treedb(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
- *  Test 13d6, c4 A: a PEER never makes the
+ *  Test 13d6: a PEER never makes the
  *  treedb adopt a topic another database of its store owns. The store of
  *  a treedb is the tranger of others too: the db_history yunos open their
  *  msg2db `alarms` on it. create-topic of the msg2db's topic with a higher
  *  topic_version rewrote its topic_cols.json and topic_var.json, its
  *  records were the treedb's nodes, and delete-topic took them all. The
- *  evidence is POSITIVE (c5 #1): the msg2db open on the store, or its
+ *  evidence is POSITIVE (Test 13d7): the msg2db open on the store, or its
  *  schema file there, the msg2db closed. So, from a peer:
  *  - create-topic of the msg2db's topic: refused, the msg2db open, and the
  *    msg2db closed (its schema file names it); the topic untouched;
@@ -6720,7 +6719,7 @@ PRIVATE int check_peer_cannot_adopt_foreign_topics(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d6, c4 #2: a C caller's open of an EXISTING store keeps a topic
+ *  Test 13d6: a C caller's open of an EXISTING store keeps a topic
  *  on disk whose literal now gives it pkey2s a NEW topic is refused for --
  *  `id` on `items` -- or whose list id is then past NAME_MAX -- `name` on
  *  a topic of 196 bytes less the yuno of the list ids (`<role>-` here):
@@ -6780,7 +6779,7 @@ PRIVATE int check_c_caller_topic_on_disk_as_before(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d6, c4 #3: a C caller's create-topic goes as it went: a hook
+ *  Test 13d6: a C caller's create-topic goes as it went: a hook
  *  column of type string is a check of a PEER's topic (link types), so the
  *  C caller's topic is created, as it was, and a peer's is refused.
  ***************************************************************************/
@@ -6809,7 +6808,7 @@ PRIVATE int check_c_caller_create_topic_as_before(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d6, c4 C: the `main_topic` marks of a peer's schema are refused
+ *  Test 13d6: the `main_topic` marks of a peer's schema are refused
  *  up front, a WARNING: two topics marked, a topic marked that is not
  *  hooked to itself. The open logged an ERROR of each at every open, a
  *  peer's mistake as a broken contract. One mark on a topic hooked to
@@ -6845,7 +6844,7 @@ PRIVATE int check_peer_main_topic(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d6, c4 D: a peer's save-schema does not raise a version past
+ *  Test 13d6: a peer's save-schema does not raise a version past
  *  2147483647. The save took the version in use + 1, so a treedb opened at
  *  2147483647 (the largest a peer may open) saved 2147483648, and the
  *  peer's apply-schema and every later save of it were refused: locked out
@@ -6901,7 +6900,7 @@ PRIVATE int check_peer_save_past_version_max(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d6, c4 Residual: a treedb the code of the yuno opens is the
+ *  Test 13d6: a treedb the code of the yuno opens is the
  *  code's, closed too. A peer that opened it while it was closed put its
  *  schema over the code's file in use, and the code's own next open
  *  answered "already open" (the yunos of today destroy their C_TREEDB when
@@ -7048,7 +7047,7 @@ PRIVATE int check_peer_open_of_code_treedb(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d7, c5 #7: a peer never closes a
+ *  Test 13d7: a peer never closes a
  *  treedb the code of the yuno opened, playing or PAUSED, with `force` or
  *  without. mqtt_broker opens treedb_mqtt_broker in mt_start and keeps it
  *  through a pause: the guards of close-treedb asked only a PLAYING yuno,
@@ -7158,7 +7157,7 @@ PRIVATE int check_peer_close_of_code_treedb(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d7, c5 #1: a topic is another database's on POSITIVE evidence
+ *  Test 13d7: a topic is another database's on POSITIVE evidence
  *  only. A topic the treedb had and DROPPED comes back: open {items, x},
  *  then {items}, then {items, x} again -- taken, with the records x had.
  *  Nothing keeps the name of a dropped topic, so "no schema of the treedb
@@ -7202,7 +7201,7 @@ PRIVATE int check_peer_dropped_topic_comes_back(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d7, c5 #4: the C_NODE route of a tkey date past the 44 bits of
+ *  Test 13d7: the C_NODE route of a tkey date past the 44 bits of
  *  an md2 row. A peer's topic can have a tkey that is a string column
  *  (create-topic, topic_tkey); a node with "@99999999999999 +0000" in it
  *  was appended with its __tm__ cut, without a word. Refused before the

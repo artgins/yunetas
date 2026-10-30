@@ -446,7 +446,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Cannot create topic of the schema",                    // a CRITICAL, exit_on_error 0
     "Creating topic",
     "Creating topic",
-    /*  a name of the system from C opens (#1), and a refusal of C_TREEDB
+    /*  a name of the system from C opens, and a refusal of C_TREEDB
      *  for a C caller is an ERROR (create-topic of a file of the database)  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -483,7 +483,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
-    /*  Test 13d5 #1: a C caller's open goes as it did: the store made...  */
+    /*  Test 13d5: a C caller's open goes as it did: the store made...  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -507,7 +507,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Cannot create topic of the schema",                    // a CRITICAL, exit_on_error 0
     AS_ERROR "initial_load: record without id",
     "initial_load: seed record created",
-    /*  #0: a peer forces the close of a treedb the C code opened; #15 its own  */
+    /*  a peer forces the close of a treedb the C code opened; then its own  */
     AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -517,7 +517,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     AS_WARNING "close-treedb force of a treedb this peer did not open, refused",   // another user
-    /*  #3: C_TRANGER writes of a peer into a treedb's topics, a new topic in its store  */
+    /*  C_TRANGER writes of a peer into a treedb's topics, a new topic in its store  */
     AS_WARNING "write of a topic of a treedb or a msg2db, refused",     // add-record
     AS_WARNING "write of a topic of a treedb or a msg2db, refused",     // delete-key
     AS_WARNING "write of a topic of a treedb or a msg2db, refused",     // delete-topic
@@ -547,7 +547,7 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "topic of a wrong shape, refused",           // create-topic .<treedb>.treedb_schema.json.tmp
     AS_WARNING "topic of a wrong shape, refused",           // create-topic x.json
     AS_WARNING "topic of a wrong shape, refused",           // create-topic topic_version 2147483648
-    /*  #7: create-topic of a file column of a hook the treedb has  */
+    /*  create-topic of a file column of a hook the treedb has  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -556,7 +556,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     AS_WARNING "Topic refused: its 'file' column has no __assets__ hook of its own",
-    /*  #12: versions past an int, from C: the literal is installed  */
+    /*  versions past an int, from C: the literal is installed  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -568,7 +568,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  Test 13d6 c4 A: a peer's treedb and a msg2db `alarms` on its tranger...  */
+    /*  Test 13d6: a peer's treedb and a msg2db `alarms` on its tranger...  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -587,7 +587,7 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "delete of a topic that a msg2db or another treedb holds too, refused",
     AS_WARNING "topic of the store that is not this treedb's, refused",
     AS_WARNING "topic of the store that is not this treedb's, refused",
-    /*  c4 #2: a C caller's store with `items` and a topic of 196 bytes...  */
+    /*  a C caller's store with `items` and a topic of 196 bytes...  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -608,12 +608,12 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_ERROR "Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  c4 #3: a hook column of type string, a peer's refused, the C caller's created  */
+    /*  a hook column of type string, a peer's refused, the C caller's created  */
     AS_WARNING "A hook column must be of type dict or list",
     AS_WARNING "Topic refused: a link column of a wrong type",
     "Creating topic",
     "Deleting topic",
-    /*  c4 C: two main_topic, a main_topic not hooked to itself; one, opened  */
+    /*  two main_topic, a main_topic not hooked to itself; one, opened  */
     AS_WARNING "schema with a wrong main_topic, refused",
     AS_WARNING "schema with a wrong main_topic, refused",
     "Creating __timeranger2__.json",
@@ -624,7 +624,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
-    /*  c4 D: a peer's save past the largest version, of the schema and of a topic  */
+    /*  a peer's save past the largest version, of the schema and of a topic  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -641,7 +641,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     AS_WARNING "save-schema would raise a version past 2147483647, refused",
-    /*  c4 Residual: a peer's open of a treedb the code opens, closed  */
+    /*  a peer's open of a treedb the code opens, closed  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -668,7 +668,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Creating topic",
     "Creating topic",
     AS_WARNING "open-treedb from outside with the service names of a treedb the code of the yuno opens, refused",
-    /*  Test 13d7 c5 #7: a peer's close of a treedb the code opened, playing and
+    /*  Test 13d7: a peer's close of a treedb the code opened, playing and
      *  paused (C_TREEDB kept, as mqtt_broker keeps it), with force and without,
      *  by its name and (c6r) in another case; a peer's treedb named in another
      *  case: another user's force refused, the opener's closes done; the
@@ -698,7 +698,7 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",  // another case
     AS_WARNING "close-treedb from outside of a treedb the code of the yuno opened, refused",  // another case, force
     "Playing yuno",
-    /*  c5 #1: a peer's treedb with {items, x}, then {items} (x withdrawn from
+    /*  a peer's treedb with {items, x}, then {items} (x withdrawn from
      *  __system__), then {items, x} again: taken, x at its new version  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
@@ -715,7 +715,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Re-Creating TreeDB schema file",
     "Re-Creating topic_var.json",
     "Re-Creating topic_cols.json",
-    /*  c5 #4: a peer's topic `events` with the string tkey `when`; a date past
+    /*  a peer's topic `events` with the string tkey `when`; a date past
      *  44 bits refused in create-node and update-node of a peer, and in a C
      *  caller's create; a C caller's append to the tranger kept, and said  */
     "Creating __timeranger2__.json",
