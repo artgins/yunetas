@@ -682,10 +682,15 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
       - Nor is a text that holds such numbers among other words. Its words
         are parted as approxidate_careful() parts them: by blanks, commas,
         '_', and a '.' that is not between two digits ("Oct. 1", "3 pm.";
-        "01.10.2026" is one word). "ago", "at", "on", "the", "of" and a
-        weekday are passed over, as approxidate_careful() passes over
-        them: they part no digits ("5 the 5" is "5 5") and no month from
-        its day ("march the 5 2026" is March 5).
+        "01.10.2026" is one word); where letters and digits touch ("Oct1"
+        is "Oct 1", "1 2thu" "1 2 thu", "5the5" "5 the 5"), but for an
+        ordinal ("5th") and the 'T' of ISO 8601 ("2026-10-01T10:00"); and
+        by the '-' or '/' of a date with a month name ("Oct-1-5" is "Oct 1
+        5", "01/Oct/2026" "01 Oct 2026"). A comment ("(CEST)") is passed
+        over whole. "ago", "at", "on", "the", "of" and a weekday are passed
+        over, as approxidate_careful() passes over them: they part no
+        digits ("5 the 5" is "5 5") and no month from its day ("march the
+        5 2026" is March 5).
         - A comma between two digits ("1,5 days ago", "2026,10,01",
           "1,5:29"), read as September 26, January 10, the 1st at 05:29.
           Three are a date's and kept: the decimal comma of the seconds of
@@ -705,7 +710,13 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           case, a day, or a day and a year of 4 or 2 digits ("Oct 1",
           "1 Oct 2026", "Oct 1 2026", "Oct 1, 2026", "Oct 1 26", "Sept. 1
           2026"; after another word it is refused: "yesterday 1 2026" is
-          read as September 30). A number alone is no hour: "Oct 29 10"
+          read as September 30). After a day and a month name, in either
+          order, only a year of 4 or 2 digits ("1 Oct 2026", "Oct 1st 26";
+          "1 Oct 5", "Oct 1st 2" and "Oct 1 10:00 5" are refused, read as
+          2005 and 2002). An ordinal is a day: after it, with no month
+          name, only a month and a year of 4 digits ("1st 10 2026"; "5th
+          2026", the 5th of a month the text does not say, and "5th 2",
+          February 5, are refused). A number alone is no hour: "Oct 29 10"
           is 2010-10-29.
         - A number that a unit, am/pm or a weekday follows is a count
           ("5 days", "3 pm", "3pm", "2 fridays"): it ends a run and is not
@@ -714,7 +725,11 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           (read as the 12th at 22:00), "5 5 pm", "2026 3 pm" and "1 5days
           ago" are refused. After a month, a day or a year, a number
           before a weekday is that date's ("Oct 1 2026 Thu", "Oct 5
-          friday"), as approxidate_careful() reads it.
+          friday"), and so is a year (4 digits, 1970-9999) before any
+          weekday ("2026 Thu" is a year; "Oct 1 2026 thursdays" is no
+          date), as approxidate_careful() reads them. The weekday is not
+          checked against the date: "Oct 5 2026 friday" is Monday,
+          October 5.
         A DOT between digits cannot be refused by its shape: "1.10 2026"
         and "01.10.2026" are dates (day.month), and only
         approxidate_careful() judges it.

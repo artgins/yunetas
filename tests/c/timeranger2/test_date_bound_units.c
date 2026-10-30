@@ -39,6 +39,14 @@
  *  26") are dates too; a day and a year after a word that is no month
  *  name ("yesterday 1 2026", read as September 30) are refused.
  *
+ *  The words are those of the reader: letters and digits that touch are
+ *  two ("1 2thu", "Oct1 5 friday", "5the5" are refused), and so are the
+ *  parts of a date with a month name between '-' or '/' ("Oct-1 5"); a
+ *  comment is passed over. An ordinal is a day ("Oct 1st 2026 3 pm" is a
+ *  date; "5th 2026", "5th 2" are not), after a day and a month name only
+ *  a year of 4 or 2 digits follows ("1 Oct 5" was 2005-10-01), any blank
+ *  parts a count from its am/pm, and a year before a weekday is a year.
+ *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -789,6 +797,57 @@ PRIVATE int do_test(void)
             {"Oct 5 2026 friday 00:00:00 +0000", FALSE, FALSE, 0, 1791158400},
             {"Oct 1,26 friday 00:00:00 +0000", FALSE, FALSE,  0, 1790812800},
             {"5 5 friday",                  FALSE,  FALSE,  -1, 0},
+            /*  An ordinal is a day: a year and an hour may follow it after a month  */
+            {"Oct 1st 2026 3 pm +0000",     FALSE,  FALSE,   0, 1790866800},
+            {"July 5th 2026 3 pm +0000",    FALSE,  FALSE,   0, 1783263600},
+            {"October 1st, 2026 at 3 pm +0000", FALSE, FALSE, 0, 1790866800},
+            {"Thursday, October 1st, 2026 3 pm +0000", FALSE, FALSE, 0, 1790866800},
+            {"Oct 1st, 26 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"1st Oct 2026 00:00:00 +0000", FALSE,  FALSE,   0, 1790812800},
+            {"1st 10 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"Oct 2026 5th 00:00:00 +0000", FALSE,  FALSE,   0, 1791158400},
+            {"5th 2026 3 pm",               FALSE,  FALSE,  -1, 0},
+            {"5th 2026",                    FALSE,  FALSE,  -1, 0},
+            {"5th 2",                       FALSE,  FALSE,  -1, 0},
+            {"1st 10",                      FALSE,  FALSE,  -1, 0},
+            {"Oct 1st 2",                   FALSE,  FALSE,  -1, 0},
+            {"1st Oct 5",                   FALSE,  FALSE,  -1, 0},
+            /*  After a day and a month name, only a year of 4 or 2 digits  */
+            {"1 Oct 5",                     FALSE,  FALSE,  -1, 0},
+            {"01-Oct 5",                    FALSE,  FALSE,  -1, 0},
+            {"Oct 1 10:00 5",               FALSE,  FALSE,  -1, 0},
+            {"1 Oct 10:00 5",               FALSE,  FALSE,  -1, 0},
+            {"Thu Oct 1 10:00:00 2026 +0000", FALSE, FALSE,  0, 1790848800},
+            {"Oct 10:00 1 2026 +0000",      FALSE,  FALSE,   0, 1790848800},
+            /*  Letters and digits that touch are two words, as for approxidate  */
+            {"1 2thu",                      FALSE,  FALSE,  -1, 0},
+            {"12 2026Thu",                  FALSE,  FALSE,  -1, 0},
+            {"5 5thu",                      FALSE,  FALSE,  -1, 0},
+            {"01 10thu",                    FALSE,  FALSE,  -1, 0},
+            {"Oct1 5 friday",               FALSE,  FALSE,  -1, 0},
+            {"1Oct 5 friday",               FALSE,  FALSE,  -1, 0},
+            {"October1 5 Thu",              FALSE,  FALSE,  -1, 0},
+            {"5the5",                       FALSE,  FALSE,  -1, 0},
+            {"5on5",                        FALSE,  FALSE,  -1, 0},
+            {"5ago5",                       FALSE,  FALSE,  -1, 0},
+            {"2026on10on01",                FALSE,  FALSE,  -1, 0},
+            {"Oct1 2026 00:00:00 +0000",    FALSE,  FALSE,   0, 1790812800},
+            {"1Oct2026 00:00:00 +0000",     FALSE,  FALSE,   0, 1790812800},
+            {"20261001T1000 +0000",         FALSE,  FALSE,   0, 1790848800},
+            /*  The '-' or '/' of a date with a month name parts its words  */
+            {"Oct-1 5 Thu",                 FALSE,  FALSE,  -1, 0},
+            {"Oct-1 5",                     FALSE,  FALSE,  -1, 0},
+            {"Oct-1-5",                     FALSE,  FALSE,  -1, 0},
+            {"Oct-01-2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"2026-Oct-01 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
+            {"01/Oct/2026:10:00:00 +0000",  FALSE,  FALSE,   0, 1790848800},
+            /*  A comment is passed over whole, as approxidate passes over it  */
+            {"Oct 1 2026 (x 5 5 y) 00:00:00 +0000", FALSE, FALSE, 0, 1790812800},
+            {"26 (CEST)",                   FALSE,  FALSE,  -1, 0},
+            /*  Any blank parts a count from its am/pm; a year is no count of weekdays  */
+            {"Oct 1 2026 10\vpm +0000",     FALSE,  FALSE,   0, 1790892000},
+            {"Oct 1 2026 10\rpm +0000",     FALSE,  FALSE,   0, 1790892000},
+            {"Oct 1 2026 thursdays",        FALSE,  FALSE,  -1, 0},
         };
         for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
             json_int_t value = -12345;
@@ -828,6 +887,11 @@ PRIVATE int do_test(void)
             "Oct 1 2026 5 days ago",
             "01 10 2026 5 days ago",
             "Oct 1, 50 days ago",
+            "1st 5 days ago",
+            "1st 3 pm",
+            "Oct 1 10\vpm",
+            "2\vdays ago",
+            "2026 Thu",
             NULL
         };
         for(int i = 0; dates_of_now[i]; i++) {

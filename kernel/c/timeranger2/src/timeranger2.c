@@ -17955,12 +17955,19 @@ PRIVATE BOOL word_is_am_pm(const char *word, size_t len)
 /***************************************************************************
  *  Does the word (its leading letters) make the number before it a
  *  count, as approxidate_careful() reads one: a unit ("2 days", "5 h",
- *  "3 M"), am/pm ("3 pm"), or a weekday ("2 friday", "2 fridays" -- the
- *  singular only when `weekday_counts`, see digits_are_no_date()). Any
- *  case. `*am_pm` says whether it is am/pm. The words are those of
- *  unit_of_word() and read_after_count() in helpers.c.
+ *  "3 M"), am/pm ("3 pm"), or a weekday ("2 friday", "2 fridays"). A
+ *  weekday in the singular only when `weekday_counts`, in the plural only
+ *  when `plural_counts` (see digits_are_no_date()). Any case. `*am_pm`
+ *  says whether it is am/pm. The words are those of unit_of_word() and
+ *  read_after_count() in helpers.c.
  ***************************************************************************/
-PRIVATE BOOL word_makes_a_count(const char *word, size_t len, BOOL weekday_counts, BOOL *am_pm)
+PRIVATE BOOL word_makes_a_count(
+    const char *word,
+    size_t len,
+    BOOL weekday_counts,
+    BOOL plural_counts,
+    BOOL *am_pm
+)
 {
     static const char *const units[] = {
         "s", "sec", "secs", "second", "seconds",
@@ -17989,7 +17996,7 @@ PRIVATE BOOL word_makes_a_count(const char *word, size_t len, BOOL weekday_count
         size_t name_len = strlen(weekday_names_of_dates[i]);
         if(len == name_len + 1 && tolower((unsigned char)word[name_len]) == 's' &&
                 strncasecmp(weekday_names_of_dates[i], word, name_len) == 0) {
-            return TRUE;    // in the plural: "2 fridays"
+            return plural_counts;   // in the plural: "2 fridays"
         }
     }
     return (weekday_counts && word_is_weekday_name(word, len))? TRUE : FALSE;
@@ -18031,14 +18038,107 @@ PRIVATE BOOL word_is_clock_time(const char *word, size_t len)
 }
 
 /*
+ *  Are the two letters at `p` those of an ordinal after its digits, with
+ *  no letter after them: "st", "nd", "rd", "th", in any case ("5th")?
+ */
+PRIVATE BOOL ordinal_suffix_at(const char *p)
+{
+    if(!isalpha((unsigned char)p[0]) || !isalpha((unsigned char)p[1]) ||
+            isalpha((unsigned char)p[2])) {
+        return FALSE;
+    }
+    char c0 = (char)tolower((unsigned char)p[0]);
+    char c1 = (char)tolower((unsigned char)p[1]);
+    return ((c0 == 's' && c1 == 't') || (c0 == 'n' && c1 == 'd') ||
+        (c0 == 'r' && c1 == 'd') || (c0 == 't' && c1 == 'h'))? TRUE : FALSE;
+}
+
+/*
+ *  Is the word an ordinal, digits and their two letters ("1st", "5th")?
+ */
+PRIVATE BOOL word_is_ordinal(const char *word, size_t len)
+{
+    size_t d = leading_digits(word, len);
+    return (d >= 1 && d + 2 == len && ordinal_suffix_at(word + d))? TRUE : FALSE;
+}
+
+/*
+ *  Is the word the text of a year, four digits from 1970 to 9999?
+ */
+PRIVATE BOOL digits_are_a_year(const char *word, size_t len)
+{
+    if(len != 4 || leading_digits(word, len) != 4) {
+        return FALSE;
+    }
+    int year = (word[0] - '0')*1000 + (word[1] - '0')*100 + (word[2] - '0')*10 + (word[3] - '0');
+    return (year >= 1970)? TRUE : FALSE;
+}
+
+/*
+ *  Is the run of letters that ends at `end`, or the one that starts at
+ *  `start`, the name of a month?
+ */
+PRIVATE BOOL month_name_ends_at(const char *s, const char *end)
+{
+    const char *b = end;
+    while(b > s && isalpha((unsigned char)b[-1])) {
+        b--;
+    }
+    return word_is_month_name(b, (size_t)(end - b));
+}
+
+PRIVATE BOOL month_name_starts_at(const char *start)
+{
+    size_t n = 0;
+    while(isalpha((unsigned char)start[n])) {
+        n++;
+    }
+    return word_is_month_name(start, n);
+}
+
+/***************************************************************************
+ *  Is the '-' or '/' at `p` one of a date written with a month name,
+ *  which approxidate_careful() reads as the words it parts: "Oct-01-2026"
+ *  as "Oct 01 2026", "01/Oct/2026" as "01 Oct 2026", "2026-Oct-01"? The
+ *  second one only when it is the same character as the first, as the
+ *  reader takes it. "GMT-0500" and "2026-10-01" are no such date.
+ ***************************************************************************/
+PRIVATE BOOL is_month_date_separator(const char *s, const char *p)
+{
+    if(p == s) {
+        return FALSE;
+    }
+    unsigned char before = (unsigned char)p[-1];
+    unsigned char after = (unsigned char)p[1];
+    if(isalpha(before) && isdigit(after)) {
+        return month_name_ends_at(s, p);
+    }
+    if(isdigit(before) && isalpha(after)) {
+        return month_name_starts_at(p + 1);
+    }
+    if(isdigit(before) && isdigit(after)) {
+        const char *q = p;
+        while(q > s && isdigit((unsigned char)q[-1])) {
+            q--;
+        }
+        return (q - s >= 2 && q[-1] == *p && isalpha((unsigned char)q[-2]) &&
+            month_name_ends_at(s, q - 1))? TRUE : FALSE;
+    }
+    return FALSE;
+}
+
+/*
  *  Does the character at `p` part two words? `word` is the start of the
  *  word it would end, NULL between words.
  */
 PRIVATE BOOL is_word_separator(const char *s, const char *word, const char *p)
 {
     unsigned char c = (unsigned char)*p;
-    if(isspace(c) || c == '_') {
+    if(isspace(c) || c == '_' || c == '(') {
         return TRUE;
+    }
+    if(c == '-' || c == '/') {
+        return is_month_date_separator(s, p);
     }
     BOOL between_digits = (p > s && isdigit((unsigned char)p[-1]) &&
         isdigit((unsigned char)p[1]))? TRUE : FALSE;
@@ -18058,6 +18158,36 @@ PRIVATE BOOL is_word_separator(const char *s, const char *word, const char *p)
     return FALSE;
 }
 
+/*
+ *  Do the letters and the digits that touch at `p` (inside a word that
+ *  starts at `word`) part two words, as approxidate_careful() parts them:
+ *  "1Oct" is "1 Oct", "2thu" "2 thu", "5the5" "5 the 5". The ordinal
+ *  ("5th") and the 'T' of ISO 8601 between a date and its clock time
+ *  ("2026-10-01T10:00", "20261001T1000") are one piece for the reader,
+ *  and stay one word.
+ */
+PRIVATE BOOL letters_and_digits_part(const char *word, const char *p)
+{
+    unsigned char before = (unsigned char)p[-1];
+    unsigned char c = (unsigned char)*p;
+    if(isdigit(before) && isalpha(c)) {
+        if(ordinal_suffix_at(p)) {
+            return FALSE;
+        }
+        if((c == 'T' || c == 't') && isdigit((unsigned char)p[1])) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+    if(isalpha(before) && isdigit(c)) {
+        if((before == 'T' || before == 't') && p - 2 >= word && isdigit((unsigned char)p[-2])) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+
 /***************************************************************************
  *  The next word of `s` from `p`, as approxidate_careful() parts a text:
  *  NULL at the end, else the word and its length in *len. Words are
@@ -18065,15 +18195,29 @@ PRIVATE BOOL is_word_separator(const char *s, const char *word, const char *p)
  *  two digits ("Oct. 1", "3 pm."; "01.10.2026" and "10:00:00.5" are one
  *  word). A comma between two digits parts them too ("Oct 1,2026" is "Oct
  *  1 2026"), but for the decimal comma of the seconds of a clock time,
- *  which stays in its word ("10:00:00,500").
+ *  which stays in its word ("10:00:00,500"). Letters and digits that touch
+ *  are two words ("Oct1", "2thu"), but for an ordinal ("5th") and the 'T'
+ *  of ISO 8601; the '-' or '/' of a date with a month name parts its
+ *  words ("Oct-1-5" is "Oct 1 5"); a comment ("(CEST)") is passed over
+ *  whole, as the reader passes over it.
  ***************************************************************************/
 PRIVATE const char *next_word_of_text(const char *s, const char *p, size_t *len)
 {
-    while(*p && is_word_separator(s, NULL, p)) {
-        p++;
+    for(;;) {
+        if(*p == '(') {
+            const char *close = strchr(p, ')');
+            p = close? close + 1 : p + strlen(p);
+            continue;
+        }
+        if(*p && is_word_separator(s, NULL, p)) {
+            p++;
+            continue;
+        }
+        break;
     }
     const char *word = p;
-    while(*p && !is_word_separator(s, word, p)) {
+    while(*p && !is_word_separator(s, word, p) &&
+            !(p > word && letters_and_digits_part(word, p))) {
         p++;
     }
     *len = (size_t)(p - word);
@@ -18081,31 +18225,54 @@ PRIVATE const char *next_word_of_text(const char *s, const char *p, size_t *len)
 }
 
 /***************************************************************************
+ *  Where a run of digit words stands, which says what it can be
+ ***************************************************************************/
+typedef enum {
+    RUN_AFTER_NOTHING = 0,  // no month name and no day before it
+    RUN_AFTER_MONTH,        // after a month name: its day, its year, or both ("Oct 1 2026")
+    RUN_AFTER_DAY_MONTH,    // after a day and a month name, in either order ("1 Oct",
+                            // "Oct 1st", "Oct 1 10:00"): only its year ("1 Oct 2026")
+    RUN_AFTER_DAY,          // after an ordinal and no month name: its month and its
+                            // year ("1st 10 2026")
+} run_place_t;
+
+/***************************************************************************
  *  A run of words that are all digits, as a date has them
  ***************************************************************************/
 typedef struct {
     int count;          // digit words in the run
     size_t lens[3];     // the lengths of the first three
-    BOOL after_month;   // the run follows the name of a month
+    run_place_t place;  // what comes before it
 } digit_run_t;
 
 /***************************************************************************
  *  Is the run a date as a person writes one? Day month year, the year of
- *  4 digits ("01 10 2026"; "1 2 34" would be February 1, 2034), or after
- *  the name of a month a day or a year ("Oct 1", "1 Oct 2026") or a day
- *  and a year of 4 or 2 digits ("Oct 1 2026", "Oct 1 26").
+ *  4 digits ("01 10 2026"; "1 2 34" would be February 1, 2034); after the
+ *  name of a month a day or a year ("Oct 1", "Oct 2026") or a day and a
+ *  year of 4 or 2 digits ("Oct 1 2026", "Oct 1 26"); after a day and a
+ *  month name its year of 4 or 2 digits ("1 Oct 2026", "Oct 1st 26"; not
+ *  "1 Oct 5", 2005); after an ordinal with no month name its month and
+ *  its year of 4 digits ("1st 10 2026"; not "5th 2026", the 5th of a month
+ *  the text does not say, nor "5th 2", February 5).
  ***************************************************************************/
 PRIVATE BOOL digit_run_is_date(const digit_run_t *run)
 {
     if(run->count == 3 && run->lens[0] <= 2 && run->lens[1] <= 2 && run->lens[2] == 4) {
         return TRUE;
     }
-    if(run->after_month && run->count == 1) {
-        return TRUE;
-    }
-    if(run->after_month && run->count == 2 && run->lens[0] <= 2 &&
-            (run->lens[1] == 4 || run->lens[1] == 2)) {
-        return TRUE;
+    switch(run->place) {
+        case RUN_AFTER_MONTH:
+            if(run->count == 1) {
+                return TRUE;
+            }
+            return (run->count == 2 && run->lens[0] <= 2 &&
+                (run->lens[1] == 4 || run->lens[1] == 2))? TRUE : FALSE;
+        case RUN_AFTER_DAY_MONTH:
+            return (run->count == 1 && (run->lens[0] == 4 || run->lens[0] == 2))? TRUE : FALSE;
+        case RUN_AFTER_DAY:
+            return (run->count == 2 && run->lens[0] <= 2 && run->lens[1] == 4)? TRUE : FALSE;
+        case RUN_AFTER_NOTHING:
+            break;
     }
     return FALSE;
 }
@@ -18146,7 +18313,10 @@ PRIVATE BOOL digits_close_a_date(const char *s, const char *end)
  *    others ("5 5 ago", "1 5 days ago", "2026 10 01 10:00"), that are not
  *    a date as digit_run_is_date() takes one. A word approxidate_careful()
  *    passes over is not between them ("5 the 5" is May 5), and does not
- *    part a month from its run ("march the 5 2026" is March 5).
+ *    part a month from its run ("march the 5 2026" is March 5). Letters
+ *    and digits that touch are two words for the reader, and for the
+ *    rule: "5the5" is "5 the 5", "1 2thu" "1 2 thu", "Oct1 5 friday"
+ *    "Oct 1 5 friday", "Oct-1 5" "Oct 1 5" (2005-10-01).
  *
  *    A number that a unit, am/pm or a weekday follows is a count ("5 days
  *    ago", "3 pm", "2 fridays"): it ends a run and is not in it, and the
@@ -18155,7 +18325,15 @@ PRIVATE BOOL digits_close_a_date(const char *s, const char *end)
  *    5days ago" September 26. "Oct 1 2026 3 pm" and "01 10 2026 5 days
  *    ago" are dates. After a month, a day or a year a number before a
  *    weekday is no count but that date's ("Oct 1 2026 Thu", "Oct 5
- *    friday"), as approxidate_careful() reads it.
+ *    friday"), as approxidate_careful() reads it, and so is a year (4
+ *    digits, 1970-9999) before a weekday, in the singular or the plural
+ *    ("2026 Thu").
+ *
+ *    An ordinal ("1st", "5th") is a day: it is in no run, and what may
+ *    follow it is said by digit_run_is_date(): "Oct 1st 2026 3 pm" is a
+ *    date, "Oct 1st 2", "5th 2" and "5th 2026" are not. A run after a day
+ *    and a month name is checked even alone ("1 Oct 5" was 2005-10-01),
+ *    and a clock time between them does not change that ("Oct 1 10:00 5").
  *
  *  "1700000000 +0000" (git's raw date, a sign inside) and "01.10.2026"
  *  are not of these shapes, and stay dates.
@@ -18166,7 +18344,7 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
     static const char *why_groups = "numbers separated by blanks or commas, not a date";
 
     digit_run_t run = {0};
-    BOOL prev_month = FALSE;    // the last word not passed over is a month name
+    run_place_t next_place = RUN_AFTER_NOTHING; // the place of a run that starts now
     BOOL prev_in_run = FALSE;   // the word before is the last of the run
     BOOL date_said = FALSE;     // a month, a day or a year came before
     const char *p = s;
@@ -18176,18 +18354,21 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
         const char *count_end = NULL;   // a count: where it ends, past its word
         BOOL count_am_pm = FALSE;
         BOOL digits = FALSE;
+        BOOL ordinal = FALSE;
         if(word) {
             size_t d = leading_digits(word, len);
             if(d == len) {
+                BOOL year = digits_are_a_year(word, len);
                 size_t next_len;
                 const char *next = next_word_of_text(s, word + len, &next_len);
-                if(next && word_makes_a_count(next, next_len, !date_said, &count_am_pm)) {
+                if(next && word_makes_a_count(next, next_len,
+                        !date_said && !year, !year, &count_am_pm)) {
                     count_end = next + next_len;
                 } else {
                     digits = TRUE;
                 }
-            } else if(d > 0 && word_makes_a_count(word + d, len - d, !date_said, &count_am_pm)) {
-                count_end = word + len;
+            } else if(word_is_ordinal(word, len)) {
+                ordinal = TRUE;
             }
         }
 
@@ -18204,7 +18385,7 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
                     return TRUE;
                 }
             } else if(!(digits && (len == 4 || len == 2) && prev_in_run &&
-                    run.count == 1 && run.after_month && run.lens[0] <= 2)) {
+                    run.count == 1 && run.place == RUN_AFTER_MONTH && run.lens[0] <= 2)) {
                 *why = why_comma;
                 return TRUE;
             }
@@ -18212,7 +18393,7 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
 
         if(digits) {
             if(run.count == 0) {
-                run.after_month = prev_month;
+                run.place = next_place;
             }
             if(run.count < 3) {
                 run.lens[run.count] = len;
@@ -18232,18 +18413,46 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
         /*
          *  The run ends here
          */
-        if(run.count > 0 && (count_end || run.count >= 2) && !digit_run_is_date(&run)) {
+        if(run.count > 0 && (count_end || run.count >= 2 ||
+                run.place == RUN_AFTER_DAY_MONTH || run.place == RUN_AFTER_DAY) &&
+                !digit_run_is_date(&run)) {
             *why = why_groups;
             return TRUE;
         }
+        digit_run_t ended = run;
         memset(&run, 0, sizeof(run));
         if(!word) {
             break;
         }
-        prev_month = (!count_end && word_is_month_name(word, len))? TRUE : FALSE;
-        if(prev_month || (!count_end && isdigit((unsigned char)word[0]) &&
-                !word_is_clock_time(word, len))) {
-            date_said = TRUE;   // a month name, "2026-10-01", "5th"
+
+        /*
+         *  Where a run that starts after this word stands
+         */
+        if(count_end) {
+            next_place = RUN_AFTER_NOTHING;
+        } else if(word_is_month_name(word, len)) {
+            if(ended.count == 0) {
+                next_place = (next_place == RUN_AFTER_DAY || next_place == RUN_AFTER_DAY_MONTH)?
+                    RUN_AFTER_DAY_MONTH : RUN_AFTER_MONTH;
+            } else {
+                next_place = (ended.count == 1 && ended.lens[0] <= 2 &&
+                    ended.place == RUN_AFTER_NOTHING)? RUN_AFTER_DAY_MONTH : RUN_AFTER_MONTH;
+            }
+            date_said = TRUE;
+        } else if(ordinal) {
+            next_place = (ended.count == 0 && next_place == RUN_AFTER_MONTH)?
+                RUN_AFTER_DAY_MONTH : RUN_AFTER_DAY;
+            date_said = TRUE;
+        } else if(word_is_clock_time(word, len)) {
+            if(ended.count > 0) {
+                next_place = (ended.count == 1 && ended.place == RUN_AFTER_MONTH)?
+                    RUN_AFTER_DAY_MONTH : RUN_AFTER_NOTHING;
+            }
+        } else {
+            next_place = RUN_AFTER_NOTHING;
+            if(isdigit((unsigned char)word[0])) {
+                date_said = TRUE;   // "2026-10-01"
+            }
         }
         p = count_end? count_end : word + len;
     }
