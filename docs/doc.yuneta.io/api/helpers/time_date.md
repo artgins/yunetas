@@ -529,7 +529,16 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Day boundaries are computed in the specified timezone so that the range aligns to local midnight.
+Day boundaries are computed in the specified timezone so that the range aligns to local midnight: `range` days later is local midnight too, so the day of a change of hour has 23 or 25 hours. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer).
+
+**Example**
+
+```C
+time_range_t r = get_days_range(1784455200, 1, "Europe/Madrid");
+/* 2026-07-19 10:00 UTC: r.start 1784412000 (2026-07-19 00:00 +0200), r.end 1784498400 */
+r = get_days_range(1784455200, 1, "");
+/* r.start 1784419200 (2026-07-19 00:00 UTC), r.end 1784505600 */
+```
 
 ---
 
@@ -560,7 +569,14 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Hour boundaries are computed in the specified timezone so that the range aligns to the start of each hour.
+Hour boundaries are computed in the specified timezone so that the range aligns to the start of each hour, and `end` is `range` hours after `start`. In an hour that a change of hour repeats, it is the hour of `t`: in Madrid 01:30 UTC of 2026-10-25 (the second 02:30) is in the hour from 01:00 to 02:00 UTC. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer).
+
+**Example**
+
+```C
+time_range_t r = get_hours_range(1784457000, 2, "Europe/Madrid");
+/* 2026-07-19 12:30 in Madrid: r.start 1784455200 (12:00 +0200), r.end 1784462400 (14:00) */
+```
 
 ---
 
@@ -591,7 +607,14 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Month boundaries are computed in the specified timezone so that the range aligns to the first day of each month at local midnight.
+Month boundaries are computed in the specified timezone so that the range aligns to the first day of each month at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer).
+
+**Example**
+
+```C
+time_range_t r = get_months_range(1784455200, 6, "Europe/Madrid");
+/* r.start 1782856800 (2026-07-01 00:00 +0200), r.end 1798758000 (2027-01-01 00:00 +0100) */
+```
 
 ---
 
@@ -622,7 +645,14 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Week boundaries are computed in the specified timezone with weeks starting on Monday at local midnight.
+Week boundaries are computed in the specified timezone with weeks starting on Monday at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer).
+
+**Example**
+
+```C
+time_range_t r = get_weeks_range(1784455200, 1, "Europe/Madrid");
+/* Sunday 2026-07-19: r.start 1783893600 (Monday 2026-07-13 00:00 +0200), r.end 1784498400 */
+```
 
 ---
 
@@ -653,7 +683,14 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Year boundaries are computed in the specified timezone so that the range aligns to January 1st at local midnight.
+Year boundaries are computed in the specified timezone so that the range aligns to January 1st at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer).
+
+**Example**
+
+```C
+time_range_t r = get_years_range(1784455200, 1, "Europe/Madrid");
+/* r.start 1767222000 (2026-01-01 00:00 +0100), r.end 1798758000 (2027-01-01 00:00 +0100) */
+```
 
 ---
 
@@ -676,17 +713,28 @@ time_t gmtime2timezone(
 | Key | Type | Description |
 |---|---|---|
 | `t` | `time_t` | The Unix timestamp to convert. |
-| `tz` | `const char *` | The target timezone name (for example `"Europe/Madrid"`). |
-| `ltm` | `struct tm *` | Optional pointer to a `struct tm` to receive the broken-down local time. Can be NULL. |
-| `offset` | `time_t *` | Optional pointer to receive the UTC offset in seconds for the given timezone. Can be NULL. |
+| `tz` | `const char *` | The target timezone, a `TZ` text (for example `"Europe/Madrid"` or `":America/Panama"`). |
+| `ltm` | `struct tm *` | Optional pointer to a `struct tm` to receive the broken-down local time of `t` in `tz`. Can be NULL. |
+| `offset` | `time_t *` | Optional pointer to receive the UTC offset of `tz` at the time `t`, in seconds. Can be NULL. |
 
 **Returns**
 
-The adjusted `time_t` value representing the local time in the specified timezone.
+`t` plus the UTC offset of `tz` at `t`: `gmtime_r()` of it is the local time.
 
 **Notes**
 
-The function temporarily sets the `TZ` environment variable to perform the conversion and restores it afterwards.
+The offset is the one in force at `t`, not now: a time of January in `Europe/Madrid` gets +3600 and one of July +7200 (up to 7.29.3 both got the offset of the moment of the call). The function sets the `TZ` of the process to `tz` for the conversion, and puts it back with a `tzset()` before returning. When the `TZ` of the process cannot be kept (no memory for a copy) or `tz` cannot be set, `TZ` is left as it was, the error is logged, and `t` is taken in UTC (offset 0); up to 7.29.3 a failed copy unset the `TZ` of the process, in silence.
+
+**Example**
+
+```C
+struct tm tm;
+time_t offset;
+time_t local = gmtime2timezone(1784455200, "Europe/Madrid", &tm, &offset);
+/* 2026-07-19 10:00:00 UTC: tm is 12:00:00 of that day, offset 7200, local 1784462400 */
+gmtime2timezone(1768816800, "Europe/Madrid", &tm, &offset);
+/* 2026-01-19 10:00:00 UTC: tm is 11:00:00, offset 3600 */
+```
 
 ---
 

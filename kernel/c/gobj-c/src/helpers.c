@@ -9925,65 +9925,134 @@ PUBLIC void list_open_files(void)
 }
 
 /*****************************************************************
- *  Convert GMT time `t` (seconds from Epoch) to Time Zone `tz`
- *  filling `ltm` and `offset`.
- *  Return t plus the offset of search time zone
- *  (use gmtime with the returned value)
- *  tz values in
- *      https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
- *  Example: time_t offset = gmtime2timezone(0, ":America/Panama", 0, 0);
- *  WARNING use ':' in TZ name
+ *  Set the TZ of the process to `tz`, with a tzset(), keeping a copy of
+ *  the TZ it had in `*saved_tz` (NULL when it was unset) for
+ *  leave_zone(). FALSE, with the error logged and TZ left as it was, when
+ *  `tz` is NULL, when there is no memory for the copy, or when TZ cannot
+ *  be set.
  *****************************************************************/
-PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)
+PRIVATE BOOL enter_zone(const char *tz, char **saved_tz)
 {
-    /*
-     *  Save current TZ of env
-     */
-    char *cur_tz = getenv("TZ");
-    if (cur_tz) {
-        cur_tz = strdup(cur_tz);
+    *saved_tz = NULL;
+    if(!tz) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "tz NULL",
+            NULL
+        );
+        return FALSE;
     }
-
-    /*
-     *  Set searched TZ in env
-     */
-    setenv("TZ", tz, 1);
+    const char *cur_tz = getenv("TZ");
+    if(cur_tz) {
+        *saved_tz = gbmem_strdup(cur_tz);
+        if(!*saved_tz) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "No memory to keep the TZ of the process: TZ not changed",
+                "tz",           "%s", tz,
+                NULL
+            );
+            return FALSE;
+        }
+    }
+    if(setenv("TZ", tz, 1) < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "setenv() FAILED: TZ not changed",
+            "tz",           "%s", tz,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        GBMEM_FREE(*saved_tz);
+        return FALSE;
+    }
     tzset();
+    return TRUE;
+}
 
-    /*
-     *  Get localtime of t with searched TZ
-     */
-    if(ltm) {
-        localtime_r(&t, ltm);
-    }
-
-    /*
-     *  Return offset of the searched TZ
-     */
-    time_t t_epoch = time(NULL);
-    struct tm mt_epoch = {0};
-
-    localtime_r(&t_epoch, &mt_epoch);
-    if(offset) {
-        *offset = mt_epoch.tm_gmtoff;
-    }
-
-    /*
-     *  Restore current TZ of env
-     */
-    if (cur_tz) {
-        setenv("TZ", cur_tz, 1);
-        free(cur_tz);
+/*****************************************************************
+ *  Put back the TZ that enter_zone() kept, with a tzset()
+ *****************************************************************/
+PRIVATE void leave_zone(const char *tz, char *saved_tz)
+{
+    if(saved_tz) {
+        if(setenv("TZ", saved_tz, 1) < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "setenv() FAILED: TZ of the process not put back",
+                "TZ",           "%s", saved_tz,
+                "tz",           "%s", tz,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+        GBMEM_FREE(saved_tz);
     } else {
         unsetenv("TZ");
     }
     tzset();
+}
 
-    /*
-     *  Return t plus the offset of searched TZ
-     */
-    t += mt_epoch.tm_gmtoff;
-    return t;
+/*****************************************************************
+ *  The time `t` (seconds from the Epoch) in the zone `tz`, a TZ text
+ *  ("Europe/Madrid", ":America/Panama"; the zones are those of
+ *  https://en.wikipedia.org/wiki/List_of_tz_database_time_zones):
+ *  `ltm` (when not NULL) gets its local time there, and `offset` (when
+ *  not NULL) the UTC offset of that zone AT `t`, in seconds. Return t
+ *  plus that offset (gmtime_r() of it is the local time).
+ *  Example: gmtime2timezone(t, "Asia/Tokyo", &tm, &offset);
+ *
+ *  TZ of the process is set to `tz` for the conversion, and put back
+ *  with a tzset() before returning. When it cannot be kept (no memory
+ *  for a copy) or `tz` cannot be set, TZ is left as it was: the error is
+ *  logged, and `t` is taken in UTC (offset 0).
+ *****************************************************************/
+PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)
+{
+    struct tm tm_tz;
+    memset(&tm_tz, 0, sizeof(tm_tz));
+    if(!gmtime_r(&t, &tm_tz)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "gmtime_r() FAILED: no calendar holds the time",
+            "t",            "%lld", (long long)t,
+            NULL
+        );
+    }
+
+    char *saved_tz;
+    if(enter_zone(tz, &saved_tz)) {
+        struct tm tm_local;
+        if(localtime_r(&t, &tm_local)) {
+            tm_tz = tm_local;
+        } else {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "localtime_r() FAILED: the time taken in UTC",
+                "tz",           "%s", tz,
+                "t",            "%lld", (long long)t,
+                NULL
+            );
+        }
+        leave_zone(tz, saved_tz);
+    }
+    // Else error already logged: the time in UTC
+
+    if(ltm) {
+        *ltm = tm_tz;
+    }
+    if(offset) {
+        *offset = (time_t)tm_tz.tm_gmtoff;
+    }
+    return t + (time_t)tm_tz.tm_gmtoff;
 }
 
 /***********************************************************************
@@ -12312,35 +12381,106 @@ PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int 
 }
 
 /***************************************************************************
+ *  The unit of get_time_range()
+ ***************************************************************************/
+typedef enum {
+    RANGE_OF_HOURS,
+    RANGE_OF_DAYS,
+    RANGE_OF_WEEKS,
+    RANGE_OF_MONTHS,
+    RANGE_OF_YEARS,
+} range_unit_t;
+
+/***************************************************************************
+ *  From the start of the hour (day, week from Monday, month, year) that
+ *  holds `t` in the zone `TZ` (UTC when empty), to `range` of them later.
+ *  A local start that a change of hour skips is the first moment after
+ *  the change, one it repeats the first one (see time_of_local_wall());
+ *  an hour is the one of `t`, the second one in a repeated hour too.
+ *  When TZ cannot be set (error logged) the range is taken in UTC.
+ ***************************************************************************/
+PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_unit_t unit)
+{
+    time_range_t time_range = {0, 0};
+
+    char *saved_tz = NULL;
+    BOOL in_zone = FALSE;
+    if(!empty_string(TZ)) {
+        in_zone = enter_zone(TZ, &saved_tz);    // Error already logged when FALSE: UTC
+    }
+
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    if(!(in_zone? localtime_r(&t, &tm) : gmtime_r(&t, &tm))) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "no calendar holds the time: range 0",
+            "t",            "%lld", (long long)t,
+            NULL
+        );
+        if(in_zone) {
+            leave_zone(TZ, saved_tz);
+        }
+        return time_range;
+    }
+
+    int64_t year = tm.tm_year + 1900;
+    int mon = tm.tm_mon + 1;
+    int64_t mday = tm.tm_mday;
+    int64_t start_wall = 0;
+    int64_t end_wall = 0;
+    switch(unit) {
+        case RANGE_OF_HOURS:
+            time_range.start = t - (tm.tm_min*60 + tm.tm_sec);
+            time_range.end = time_range.start + (time_t)range*3600;
+            break;
+        case RANGE_OF_DAYS:
+            start_wall = utc_seconds(year, mon, mday, 0, 0, 0);
+            end_wall = utc_seconds(year, mon, mday + range, 0, 0, 0);
+            break;
+        case RANGE_OF_WEEKS:
+            mday -= (tm.tm_wday + 6) % 7;   // back to Monday
+            start_wall = utc_seconds(year, mon, mday, 0, 0, 0);
+            end_wall = utc_seconds(year, mon, mday + (int64_t)range*7, 0, 0, 0);
+            break;
+        case RANGE_OF_MONTHS:
+            {
+                int64_t months = (int64_t)(mon - 1) + range;
+                int64_t month_of_year = ((months % 12) + 12) % 12;
+                start_wall = utc_seconds(year, mon, 1, 0, 0, 0);
+                end_wall = utc_seconds(year + (months - month_of_year)/12, (int)month_of_year + 1, 1, 0, 0, 0);
+            }
+            break;
+        case RANGE_OF_YEARS:
+            start_wall = utc_seconds(year, 1, 1, 0, 0, 0);
+            end_wall = utc_seconds(year + range, 1, 1, 0, 0, 0);
+            break;
+    }
+
+    if(unit != RANGE_OF_HOURS) {
+        if(in_zone) {
+            int64_t on_day_before;
+            time_range.start = (time_t)time_of_local_wall(start_wall, &on_day_before);
+            time_range.end = (time_t)time_of_local_wall(end_wall, &on_day_before);
+        } else {
+            time_range.start = (time_t)start_wall;
+            time_range.end = (time_t)end_wall;
+        }
+    }
+
+    if(in_zone) {
+        leave_zone(TZ, saved_tz);
+    }
+    return time_range;
+}
+
+/***************************************************************************
  *  Return in gmt time range in hours of time t, TZ optional
  ***************************************************************************/
 PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ)
 {
-    time_range_t time_range;
-
-    struct tm tm;
-    if(!empty_string(TZ)) {
-        gmtime2timezone(t, TZ, &tm, 0);
-    } else {
-#ifdef WIN32
-        struct tm *tm_ = gmtime(&t);
-        memmove(&tm, tm_, sizeof(struct tm));
-#else
-        gmtime_r(&t, &tm);
-#endif
-    }
-
-    struct tm tm_x = {0};
-    tm_x.tm_year = tm.tm_year;
-    tm_x.tm_mon = tm.tm_mon;
-    tm_x.tm_mday = tm.tm_mday;
-    tm_x.tm_hour = tm.tm_hour;
-
-    time_range.start = mktime(&tm_x);
-    tm_x.tm_hour += range;
-    time_range.end = mktime(&tm_x);
-
-    return time_range;
+    return get_time_range(t, range, TZ, RANGE_OF_HOURS);
 }
 
 /***************************************************************************
@@ -12348,30 +12488,7 @@ PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ)
  ***************************************************************************/
 PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ)
 {
-    time_range_t time_range;
-
-    struct tm tm;
-    if(!empty_string(TZ)) {
-        gmtime2timezone(t, TZ, &tm, 0);
-    } else {
-#ifdef WIN32
-        struct tm *tm_ = gmtime(&t);
-        memmove(&tm, tm_, sizeof(struct tm));
-#else
-        gmtime_r(&t, &tm);
-#endif
-    }
-
-    struct tm tm_x = {0};
-    tm_x.tm_year = tm.tm_year;
-    tm_x.tm_mon = tm.tm_mon;
-    tm_x.tm_mday = tm.tm_mday;
-
-    time_range.start = mktime(&tm_x);
-    tm_x.tm_mday += range;
-    time_range.end = mktime(&tm_x);
-
-    return time_range;
+    return get_time_range(t, range, TZ, RANGE_OF_DAYS);
 }
 
 /***************************************************************************
@@ -12379,44 +12496,7 @@ PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ)
  ***************************************************************************/
 PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ)
 {
-    time_range_t time_range;
-
-    struct tm tm;
-    if(!empty_string(TZ)) {
-        gmtime2timezone(t, TZ, &tm, 0);
-
-    } else {
-#ifdef WIN32
-        struct tm *tm_ = gmtime(&t);
-        memmove(&tm, tm_, sizeof(struct tm));
-#else
-        gmtime_r(&t, &tm);
-#endif
-    }
-
-    int day = tm.tm_mday;
-    int wday= tm.tm_wday;
-    if(wday == 1) {
-        // Estamos en lunes
-        day = tm.tm_mday;
-    } else if(wday == 0) {
-        // Domingo
-        day += -6;
-    } else { //if(wday > 1) {
-        // Dentro de la semana
-        day += (1 - wday);
-    }
-
-    struct tm tm_x = {0};
-    tm_x.tm_year = tm.tm_year;
-    tm_x.tm_mon = tm.tm_mon;
-    tm_x.tm_mday = day;
-
-    time_range.start = mktime(&tm_x);
-    tm_x.tm_mday += range*7;
-    time_range.end = mktime(&tm_x);
-
-    return time_range;
+    return get_time_range(t, range, TZ, RANGE_OF_WEEKS);
 }
 
 /***************************************************************************
@@ -12424,30 +12504,7 @@ PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ)
  ***************************************************************************/
 PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ)
 {
-    time_range_t time_range;
-
-    struct tm tm;
-    if(!empty_string(TZ)) {
-        gmtime2timezone(t, TZ, &tm, 0);
-    } else {
-#ifdef WIN32
-        struct tm *tm_ = gmtime(&t);
-        memmove(&tm, tm_, sizeof(struct tm));
-#else
-        gmtime_r(&t, &tm);
-#endif
-    }
-
-    struct tm tm_x = {0};
-    tm_x.tm_year = tm.tm_year;
-    tm_x.tm_mon = tm.tm_mon;
-    tm_x.tm_mday = 1;
-
-    time_range.start = mktime(&tm_x);
-    tm_x.tm_mon += range;
-    time_range.end = mktime(&tm_x);
-
-    return time_range;
+    return get_time_range(t, range, TZ, RANGE_OF_MONTHS);
 }
 
 /***************************************************************************
@@ -12455,29 +12512,7 @@ PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ)
  ***************************************************************************/
 PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ)
 {
-    time_range_t time_range;
-
-    struct tm tm;
-    if(!empty_string(TZ)) {
-        gmtime2timezone(t, TZ, &tm, 0);
-    } else {
-#ifdef WIN32
-        struct tm *tm_ = gmtime(&t);
-        memmove(&tm, tm_, sizeof(struct tm));
-#else
-        gmtime_r(&t, &tm);
-#endif
-    }
-
-    struct tm tm_x = {0};
-    tm_x.tm_year = tm.tm_year;
-    tm_x.tm_mday = 1;
-
-    time_range.start = mktime(&tm_x);
-    tm_x.tm_year += range;
-    time_range.end = mktime(&tm_x);
-
-    return time_range;
+    return get_time_range(t, range, TZ, RANGE_OF_YEARS);
 }
 
 

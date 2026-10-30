@@ -150,6 +150,12 @@
  *              unset with no tzset() is seen, and so is one put back with
  *              no tzset() after other code loaded another zone in libc (a
  *              line of log, a mktime()).
+ *          26. gmtime2timezone() gives the offset at the time it converts
+ *              (it gave the offset of now), and keeps the TZ of the process
+ *              when it cannot copy it (a failed copy unset TZ).
+ *          27. get_hours_range() and the rest give the bounds of the zone
+ *              asked, or of UTC (they were built in the zone of the
+ *              process, with tm_isdst 0).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -2181,6 +2187,135 @@ PRIVATE void test_tzset_only_when_tz_changes(void)
 }
 
 /***************************************************************************
+ *  An allocator that fails once, on demand
+ ***************************************************************************/
+PRIVATE sys_malloc_fn_t s_real_malloc = 0;
+PRIVATE BOOL s_fail_next_malloc = FALSE;
+
+PRIVATE void *malloc_that_fails_once(size_t size)
+{
+    if(s_fail_next_malloc) {
+        s_fail_next_malloc = FALSE;
+        return NULL;
+    }
+    return s_real_malloc(size);
+}
+
+/***************************************************************************
+ *  26. gmtime2timezone() gives the offset of the zone at the time it
+ *  converts, not now (in Madrid a time of January got +7200 in October),
+ *  and leaves the TZ of the process as it found it, also when it cannot
+ *  keep a copy of it (a failed copy unset TZ, in silence).
+ ***************************************************************************/
+PRIVATE void test_gmtime2timezone(void)
+{
+    struct tm tm;
+    time_t offset = -1;
+
+    setenv("TZ", "Asia/Tokyo", 1);
+    tzset();
+    time_t local = gmtime2timezone(1768816800, "Europe/Madrid", &tm, &offset);
+    check_number("gmtime2timezone() 2026-01-19 10:00 UTC in Madrid: offset at that time",
+        (unsigned long long)offset, 3600);
+    check_number("gmtime2timezone() 2026-01-19 10:00 UTC in Madrid: return",
+        (unsigned long long)local, 1768816800ULL + 3600);
+    check_number("gmtime2timezone() 2026-01-19 10:00 UTC in Madrid: hour", (unsigned long long)tm.tm_hour, 11);
+    local = gmtime2timezone(1784455200, "Europe/Madrid", &tm, &offset);
+    check_number("gmtime2timezone() 2026-07-19 10:00 UTC in Madrid: offset at that time",
+        (unsigned long long)offset, 7200);
+    check_number("gmtime2timezone() 2026-07-19 10:00 UTC in Madrid: return",
+        (unsigned long long)local, 1784455200ULL + 7200);
+    check_number("gmtime2timezone() 2026-07-19 10:00 UTC in Madrid: hour", (unsigned long long)tm.tm_hour, 12);
+    const char *tz = getenv("TZ");
+    check_number("gmtime2timezone(): the TZ of the process put back",
+        (unsigned long long)(tz && strcmp(tz, "Asia/Tokyo") == 0), 1);
+
+    unsetenv("TZ");
+    gmtime2timezone(1768816800, "Europe/Madrid", &tm, &offset);
+    check_number("gmtime2timezone(): TZ unset is left unset", (unsigned long long)(getenv("TZ") == NULL), 1);
+
+    /*
+     *  No memory to keep TZ: TZ is not touched, the time is taken in UTC
+     */
+    setenv("TZ", "Asia/Tokyo", 1);
+    tzset();
+    sys_realloc_fn_t real_realloc;
+    sys_calloc_fn_t real_calloc;
+    sys_free_fn_t real_free;
+    gbmem_get_allocators(&s_real_malloc, &real_realloc, &real_calloc, &real_free);
+    gbmem_set_allocators(malloc_that_fails_once, real_realloc, real_calloc, real_free);
+    s_fail_next_malloc = TRUE;
+    offset = -1;
+    local = gmtime2timezone(1768816800, "Europe/Madrid", &tm, &offset);
+    gbmem_set_allocators(s_real_malloc, real_realloc, real_calloc, real_free);
+    tz = getenv("TZ");
+    check_number("gmtime2timezone() with no memory: TZ of the process kept",
+        (unsigned long long)(tz && strcmp(tz, "Asia/Tokyo") == 0), 1);
+    check_number("gmtime2timezone() with no memory: offset 0", (unsigned long long)offset, 0);
+    check_number("gmtime2timezone() with no memory: the time in UTC", (unsigned long long)local, 1768816800ULL);
+    check_number("gmtime2timezone() with no memory: hour in UTC", (unsigned long long)tm.tm_hour, 10);
+
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
+}
+
+/***************************************************************************
+ *  A range, checked
+ ***************************************************************************/
+PRIVATE void check_range(const char *label, time_range_t range, time_t start, time_t end)
+{
+    if(range.start == start && range.end == end) {
+        printf("ok   %s -> %lld %lld\n", label, (long long)range.start, (long long)range.end);
+    } else {
+        printf("FAIL %s -> %lld %lld (expected %lld %lld)\n", label,
+            (long long)range.start, (long long)range.end, (long long)start, (long long)end);
+        global_result += -1;
+    }
+}
+
+/***************************************************************************
+ *  27. get_hours_range() and the rest: the bounds are those of the zone
+ *  asked (UTC with none), whatever the zone of the process. They were
+ *  built with mktime() in the zone of the process and tm_isdst 0: with
+ *  the process in Tokyo, the day of Madrid started at 00:00 of Tokyo, and
+ *  with no zone the day of UTC started at the midnight of the process.
+ ***************************************************************************/
+PRIVATE void test_time_ranges(void)
+{
+    setenv("TZ", "Asia/Tokyo", 1);
+    tzset();
+
+    /*
+     *  Sun 2026-07-19 10:00:00 UTC, 12:00 in Madrid
+     */
+    time_t t = 1784455200;
+    check_range("days of Madrid", get_days_range(t, 1, "Europe/Madrid"), 1784412000, 1784498400);
+    check_range("days of UTC", get_days_range(t, 1, ""), 1784419200, 1784505600);
+    check_range("hours of Madrid", get_hours_range(t + 1800, 2, "Europe/Madrid"), t, t + 7200);
+    check_range("weeks of Madrid, from Monday", get_weeks_range(t, 1, "Europe/Madrid"), 1783893600, 1784498400);
+    check_range("months of Madrid", get_months_range(t, 1, "Europe/Madrid"), 1782856800, 1785535200);
+    check_range("months of Madrid, into the next year", get_months_range(t, 6, "Europe/Madrid"),
+        1782856800, 1798758000);
+    check_range("years of Madrid", get_years_range(t, 1, "Europe/Madrid"), 1767222000, 1798758000);
+
+    /*
+     *  Sun 2026-10-25, the day of the change of hour in Madrid: 25 hours.
+     *  01:30 UTC is 02:30 CET, the second 02:30: its hour is the second.
+     */
+    check_range("a day of 25 hours in Madrid", get_days_range(1792929600, 1, "Europe/Madrid"),
+        1792879200, 1792969200);
+    check_range("the second of a repeated hour in Madrid", get_hours_range(1792891800, 1, "Europe/Madrid"),
+        1792890000, 1792893600);
+
+    const char *tz = getenv("TZ");
+    check_number("ranges: the TZ of the process put back",
+        (unsigned long long)(tz && strcmp(tz, "Asia/Tokyo") == 0), 1);
+
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -2230,6 +2365,8 @@ int main(int argc, char *argv[])
     test_glued_signs_far_offsets_and_counts_after_a_month();
     test_whole_day_skipped_tzset_and_close_changes();
     test_tzset_only_when_tz_changes();
+    test_gmtime2timezone();
+    test_time_ranges();
 
     gobj_end();
 
