@@ -502,7 +502,7 @@ cat > "${STAGE}/etc/logrotate.d/yuneta" <<'EOF'
     #   carries, and the previous day lives in the '.1' that delaycompress
     #   leaves uncompressed. With dateext there is no '.1', so that yuno reads
     #   today's file alone and reports the previous day as empty, with nothing
-    #   in any log to say why. Measured on yunovatios-central, 2026-08-09.
+    #   in any log to say why. Measured on a Rocky 9 test node, 2026-08-09.
     nodateext
 
     #   The master keeps writing to the renamed file until it gets the signal
@@ -544,7 +544,7 @@ cat > "${STAGE}/etc/logrotate.d/yuneta" <<'EOF'
                 #   `if kill -0 ... 2>/dev/null`, therefore skipped the
                 #   signal EVERY night without a word, and nginx went on
                 #   writing to the rotated file until its next restart.
-                #   Measured on yunovatios-central, 2026-09-12. The master
+                #   Measured on a Rocky 9 test node, 2026-09-12. The master
                 #   of both trees (nginx and openresty) is named `nginx`.
                 #
                 if [ "$(cat /proc/"$pid"/comm 2>/dev/null)" = "nginx" ]; then
@@ -604,7 +604,7 @@ cat > "${STAGE}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf" <<'EOF'
 # That reasoning holds for a static site and collapses on a SPA: with
 # `try_files $uri $uri/ /index.html` every unknown path answers 200 with
 # index.html, so /wp-login.php came back 200 and the filter never fired. Both
-# yunovatios consoles were running it blind. On a node that also serves static
+# web consoles of one application were running it blind. On a node that also serves static
 # sites the same restriction hid 606 more lines in one day -- probes answered
 # 301 by the http->https redirect, and probes answered 200 by a SPA.
 #
@@ -1037,7 +1037,7 @@ chmod 0755 "${STAGE}/etc/init.d/yuneta_agent"
 # stop or fail while the other keeps the node reachable. Up to 7.25.21
 # systemd did not see an agent started outside the generated unit (by hand,
 # by an xscript), and `systemctl status yuneta_agent` answered "inactive"
-# while it ran -- yunovatios central, Rocky 9.7, 2026-09-28. The units carry
+# while it ran -- a Rocky 9.7 test node, 2026-09-28. The units carry
 # their reasons (Type=forking + the watcher's --pid-file, KillMode=process,
 # Restart=no); the files are packages/templates/yuneta_agent{,22}.service.
 mkdir -p "${STAGE}/usr/lib/systemd/system"
@@ -1066,7 +1066,7 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
 # It used to be started by /etc/init.d/yuneta_agent, which ran nginx and let it
 # daemonize. Nothing owned it after that: a later `start` found nothing running
 # and tried again, and the new master died with "Address already in use" while
-# the old one kept serving. Measured on yunovatios-central, 2026-08-09.
+# the old one kept serving. Measured on a Rocky 9 test node, 2026-08-09.
 mkdir -p "${STAGE}/usr/lib/systemd/system"
 cat > "${STAGE}/usr/lib/systemd/system/yuneta-webserver.service" <<'EOF'
 [Unit]
@@ -2172,14 +2172,14 @@ fi
 # The SysV script could exec that, because initrc_t may; systemd cannot. The
 # unit died with 203/EXEC -- "Failed to locate executable
 # /yuneta/bin/yuneta-webserver: Permission denied" -- and the node served
-# nothing at all until the label was fixed. Measured on yunovatios-central
+# nothing at all until the label was fixed. Measured on a Rocky 9 test node
 # with 7.10.0-2, which had been up for two and a half hours with no web.
 #
 # Only the files systemd execs need it: the web server's wrapper, and the two
 # agents since they run in units of their own (7.25.22). What they exec in
 # turn -- nginx or openresty, the yunos -- is reached from their own domain
 # and was never the problem. 7.25.22-1 labelled only the wrapper: on
-# yunovatios-central the agent's unit died the same way (203/EXEC, "avc:
+# a Rocky 9 test node the agent's unit died the same way (203/EXEC, "avc:
 # denied { execute } ... scontext=init_t tcontext=default_t"), and %post left
 # the node with agent22 alone, outside its unit.
 if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then

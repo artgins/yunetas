@@ -462,7 +462,7 @@ chmod 0644 "${WORKDIR}/usr/lib/systemd/system/yuneta-core-pattern.service"
 # daemonize. Nothing owned it after that: systemd lost the process the moment
 # it forked, so a second `start` found nothing running and tried again, and the
 # new master died with "Address already in use" while the old one kept serving.
-# Measured on yunovatios-central, 2026-08-09.
+# Measured on a Rocky 9 test node, 2026-08-09.
 #
 # Type=exec with 'daemon off' (the wrapper adds it) makes systemd supervise the
 # real master, so $MAINPID is the master and stop/reload reach it.
@@ -506,7 +506,7 @@ chmod 0644 "${WORKDIR}/usr/lib/systemd/system/yuneta-webserver.service"
 # stop or fail while the other keeps the node reachable. Up to 7.25.21
 # systemd did not see an agent started outside the generated unit (by hand,
 # by an xscript), and `systemctl status yuneta_agent` answered "inactive"
-# while it ran -- yunovatios central, Rocky 9.7, 2026-09-28. The units carry
+# while it ran -- a Rocky 9.7 test node, 2026-09-28. The units carry
 # their reasons (Type=forking + the watcher's --pid-file, KillMode=process,
 # Restart=no); the files are packages/templates/yuneta_agent{,22}.service.
 mkdir -p "${WORKDIR}/usr/lib/systemd/system"
@@ -718,7 +718,7 @@ cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
     #   carries, and the previous day lives in the '.1' that delaycompress
     #   leaves uncompressed. With dateext there is no '.1', so that yuno reads
     #   today's file alone and reports the previous day as empty, with nothing
-    #   in any log to say why. Measured on yunovatios-central, 2026-08-09.
+    #   in any log to say why. Measured on a Rocky 9 test node, 2026-08-09.
     nodateext
 
     #   The master keeps writing to the renamed file until it gets the signal
@@ -760,7 +760,7 @@ cat > "${WORKDIR}/etc/logrotate.d/yuneta" <<'EOF'
                 #   `if kill -0 ... 2>/dev/null`, therefore skipped the
                 #   signal EVERY night without a word, and nginx went on
                 #   writing to the rotated file until its next restart.
-                #   Measured on yunovatios-central, 2026-09-12. The master
+                #   Measured on a Rocky 9 test node, 2026-09-12. The master
                 #   of both trees (nginx and openresty) is named `nginx`.
                 #
                 if [ "$(cat /proc/"$pid"/comm 2>/dev/null)" = "nginx" ]; then
@@ -820,7 +820,7 @@ cat > "${WORKDIR}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf" <<'EOF'
 # That reasoning holds for a static site and collapses on a SPA: with
 # `try_files $uri $uri/ /index.html` every unknown path answers 200 with
 # index.html, so /wp-login.php came back 200 and the filter never fired. Both
-# yunovatios consoles were running it blind. On a node that also serves static
+# web consoles of one application were running it blind. On a node that also serves static
 # sites the same restriction hid 606 more lines in one day -- probes answered
 # 301 by the http->https redirect, and probes answered 200 by a SPA.
 #
@@ -2411,7 +2411,7 @@ fi
 #   "active (exited)", and a start of an active unit does nothing -- the
 #   agent the prerm stopped would stay stopped. The main agent first, and
 #   agent22 only once it runs: at no moment are both down. Verified on
-#   wattyzer (Debian 13), 2026-10-02.
+#   a Debian 13 staging node, 2026-10-02.
 #   An agent running OUTSIDE its unit (the SysV script started it, or a
 #   hand-run --start; the unit has no main pid, though it may say "active
 #   (exited)") is stopped first with its own --stop: a unit started

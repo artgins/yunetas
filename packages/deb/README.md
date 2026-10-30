@@ -461,7 +461,7 @@ logrotate runs there in the SELinux domain `logrotate_t`, which may send the
 master `USR1` (`signal`) but not the null signal (`signull`), and the policy
 does not even audit that denial: no AVC appears unless the `dontaudit` rules
 are switched off (`semodule -DB`). The first version guarded the signal with
-`if kill -0 "$pid" 2>/dev/null`, so on `yunovatios-central` the signal was
+`if kill -0 "$pid" 2>/dev/null`, so on a Rocky 9 test node the signal was
 skipped every night, the service still ended "successfully", and nginx went
 on writing to the rotated `access.log.1` until the next restart of the web
 server. The symptom is a live file that does not grow while the `.1` does;
@@ -504,7 +504,7 @@ The first version matched only 404, 403 and 444, reasoning that a path some app
 really serves would stop matching once it answered 200. That holds for a static
 site and collapses on a SPA: with `try_files $uri $uri/ /index.html` every
 unknown path answers **200** with `index.html`, so `/wp-login.php` came back 200
-and the filter never fired — both yunovatios consoles ran it blind. On a node
+and the filter never fired — both web consoles of one application ran it blind. On a node
 serving static sites too, the same restriction hid 606 more lines in a single
 day: probes answered 301 by the http→https redirect, and probes answered 200 by
 a SPA. Dropping the status costs nothing, because these paths cannot be
