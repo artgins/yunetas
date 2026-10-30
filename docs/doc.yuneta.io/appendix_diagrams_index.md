@@ -153,10 +153,10 @@ structure of services and roles the end user reads.
 ::::{grid} 1 2 2 3
 
 :::{card}
-:link: ./guide/guide_oauth2_pkce_bff.md#complete-authentication-flow
+:link: ./guide/guide_oauth2_pkce_bff.md#pkce-authentication-flow
 ![auth flow](./_static/auth_flow.svg)
 
-**OIDC / PKCE auth flow** — login + per-request, with the disabled authz gate.
+**OIDC / PKCE auth flow** — the PKCE login + per-request, with the disabled authz gate.
 :::
 
 :::{card}
