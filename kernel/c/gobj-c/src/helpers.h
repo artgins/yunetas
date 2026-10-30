@@ -1118,10 +1118,15 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         Oct 5; in the plural it stays a count ("Oct 1 2 fridays"). The
         weekday is not checked: "Oct 5 2026 friday" is Monday, Oct 5. A
         year (4 digits, 1970-9999) before a weekday is a year, never a
-        count: "2026 Thu" is of 2026, "Oct 1 2026 thursdays" no date (up
-        to 7.29.3 both were 2026 Thursdays back, 38 years). A count and its
-        unit, weekday or am/pm touch ("2h") or are parted by blanks of any
-        kind ("Oct 1 10\vpm" is 22:00), dots, commas or underscores
+        count (up to 7.29.3 "2026 Thu" was 2026 Thursdays back, 38 years):
+        "Oct 1 2026 thursdays" and "2000 mondays ago" are no date (write
+        weeks). A weekday names a day, and the text must say it, as a date
+        or counted from today ("yesterday Tue", "2 days ago Mon"):
+        "monday 10:00", "2026 Thu" are no date (up to 7.29.3 today at
+        10:00, and today in 2026). A count and its unit, weekday or am/pm
+        touch ("2h") or are parted by blanks of any kind ("Oct 1 10\vpm"
+        is 22:00), dots, commas, underscores or comments ("Oct 1 5 (CEST)
+        pm" is 17:00 CEST; up to 7.29.3 it was 2005-10-01)
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
 
@@ -1167,7 +1172,10 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     Not read (error): "tomorrow", "next friday", "in 3 days",
     "2 days from now" (no time ahead of now), "1.5 hours", a date that is
     not in the calendar ("2026-02-30"), a lone sign or number that is no
-    day, month or year ("+5", "-5", "100"), a plus sign before a duration
+    day, month or year ("+5", "-5", "100"), a number alone after "at"
+    that is an hour with no half of the day ("Oct 1 at 10", "at 3": write
+    "at 10:00", "at 3 pm"; up to 7.29.3 they were 2010-10-01 and the 3rd
+    of the month), a plus sign before a duration
     ("+1d").
 
     parse_date_basic() reads only a whole date and time, or epoch seconds,

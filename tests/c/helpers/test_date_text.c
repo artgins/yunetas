@@ -70,6 +70,12 @@
  *              weekday or am/pm ("Oct 1 10\vpm" was 2010-10-01); a year
  *              before a weekday is a year, not a count ("2026 Thu" was
  *              1988-01-07, up to 7.29.3).
+ *          15. a comment parts a count from its unit, weekday or am/pm as
+ *              a blank does ("Oct 1 5 (CEST) pm" was 2005-10-01); a
+ *              weekday names a day the text must say ("monday 10:00" was
+ *              today at 10:00, "2026 Thu" today in 2026); a number alone
+ *              after "at" is an hour with no half of the day, no date
+ *              ("Oct 1 at 10" was 2010-10-01, "at 10" the 10th).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -877,8 +883,8 @@ PRIVATE void test_blanks_and_years_before_weekdays(void)
         {"-1\vd",                           "2026-10-20 11:00:00 +0200", 0},
         {"Oct 1 2026\nThu",                 "2026-10-01 11:00:00 +0200", 0},
 
-        {"2026 Thu",                        "2026-10-21 11:00:00 +0200", 0},
-        {"2026, thursday",                  "2026-10-21 11:00:00 +0200", 0},
+        {"2026 Thu",                        "2026-10-21 11:00:00 +0200", 1},     // no day (15)
+        {"2026, thursday",                  "2026-10-21 11:00:00 +0200", 1},
         {"Oct 1 2026 thursdays",            "2026-10-21 11:00:00 +0200", 1},
         {"2026 fridays ago",                "2026-10-21 11:00:00 +0200", 1},
 
@@ -887,6 +893,64 @@ PRIVATE void test_blanks_and_years_before_weekdays(void)
          */
         {"100 fridays ago",                 "2024-11-22 10:00:00 +0100", 0},
         {"2026 days ago",                   "2021-04-04 11:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+}
+
+/***************************************************************************
+ *  15. A comment ("(CEST)") parts a count from its unit, its weekday or
+ *  its am/pm as a blank does, as it parts any two pieces: up to 7.29.3
+ *  "Oct 1 5 (CEST) pm" was 2005-10-01 and "2 (x) days ago" no date. A
+ *  weekday names a day, and the text must say which, as a date or
+ *  counted from today ("yesterday Tue", "2 days ago Mon"): "monday
+ *  10:00" was today at 10:00, "2026 Thu" today in 2026. A number alone after "at"
+ *  is an hour that says no half of the day, so no date: "Oct 1 at 10" was
+ *  2010-10-01, "at 10" the 10th of this month.
+ ***************************************************************************/
+PRIVATE void test_comments_weekdays_and_at(void)
+{
+    static const approxidate_case_t cases[] = {
+        {"Oct 1 5 (CEST) pm",               "2026-10-01 17:00:00 +0200", 0},
+        {"Oct 29 3 (CEST) PM",              "2026-10-29 14:00:00 +0100", 0},
+        {"1 Oct 5 (CEST) pm",               "2026-10-01 17:00:00 +0200", 0},
+        {"Oct 1 2026 5 (UTC) pm",           "2026-10-01 19:00:00 +0200", 0},
+        {"Oct 1 5 (x)(y) pm",               "2026-10-01 17:00:00 +0200", 0},
+        {"2 (x) days ago",                  "2026-10-19 11:00:00 +0200", 0},
+        {"-1 (x) d",                        "2026-10-20 11:00:00 +0200", 0},
+        {"1 (x) wednesday",                 "2026-10-14 11:00:00 +0200", 0},
+        {"Oct 1 2026 (x) Thu",              "2026-10-01 11:00:00 +0200", 0},
+        {"Oct 1 5 (CEST pm",                "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  A weekday with no day
+         */
+        {"monday 10:00",                    "2026-10-21 11:00:00 +0200", 1},
+        {"10:00 monday",                    "2026-10-21 11:00:00 +0200", 1},
+        {"Thu noon",                        "2026-10-21 11:00:00 +0200", 1},
+        {"Oct Thu",                         "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 2026 Thu",                    "2026-10-21 11:00:00 +0200", 1},
+        {"now Wed",                         "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday Tue",                   "2026-10-20 11:00:00 +0200", 0},
+        {"today Wed",                       "2026-10-21 11:00:00 +0200", 0},
+        {"-1d Tue",                         "2026-10-20 11:00:00 +0200", 0},
+        {"2 days ago Mon",                  "2026-10-19 11:00:00 +0200", 0},
+        {"Thu, 01 Oct 2026",                "2026-10-01 11:00:00 +0200", 0},
+        {"2026-10-01 Thu 10:00",            "2026-10-01 10:00:00 +0200", 0},
+        {"last monday 10:00",               "2026-10-19 10:00:00 +0200", 0},
+
+        /*
+         *  A number alone after "at"
+         */
+        {"Oct 1 at 10",                     "2026-10-21 11:00:00 +0200", 1},
+        {"at 10",                           "2026-10-21 11:00:00 +0200", 1},
+        {"1 Oct at 3",                      "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at (CEST) 10",              "2026-10-21 11:00:00 +0200", 1},
+        {"Oct at 26",                       "2026-10-26 10:00:00 +0100", 0},
+        {"Oct 1 at 10 pm",                  "2026-10-01 22:00:00 +0200", 0},
+        {"Oct 1 at 10pm",                   "2026-10-01 22:00:00 +0200", 0},
+        {"Oct 1 at 10:00",                  "2026-10-01 10:00:00 +0200", 0},
+        {"at 2026-10-01 10:00",             "2026-10-01 10:00:00 +0200", 0},
+        {"Oct 1 2026 at 10:00",             "2026-10-01 10:00:00 +0200", 0},
     };
     check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
 }
@@ -930,6 +994,7 @@ int main(int argc, char *argv[])
     test_offset_in_a_comment();
     test_weekday_after_a_date();
     test_blanks_and_years_before_weekdays();
+    test_comments_weekdays_and_at();
 
     gobj_end();
 

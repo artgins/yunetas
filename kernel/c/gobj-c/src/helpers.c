@@ -7266,6 +7266,9 @@ typedef struct {
     int64_t back_months;    // and calendar months
     int weekday_target;     // "last friday", "2 friday": -1 none, 0..6
     int64_t weekday_count;
+    BOOL weekday_named;     // a weekday that is no count ("Thu, 1 Oct"): the text must say its day
+    BOOL today_said;        // "today": a day, as a date says one
+    const char *after_at;   // the end of the last "at": a number alone after it is no date
 
     BOOL vague;             // a piece that is not an absolute date (refused by parse_date_basic)
     int understood;         // pieces that say something
@@ -7622,15 +7625,36 @@ PRIVATE const char *skip_piece_separators(const char *p)
     return p;
 }
 
+PRIVATE const char *read_comment(date_reading_t *rd, const char *p);
+
+/***************************************************************************
+ *  Past what parts two pieces and the comments among them: a comment
+ *  goes wherever a blank goes, as RFC 2822 puts it ("Oct 1 5 (CEST) pm"
+ *  is 5 pm; up to 7.29.3 the look after a count stopped at the "(", and
+ *  it was 2005-10-01). With `rd` the comments passed are read (a zone in
+ *  them), without it only passed. A "(" with no ")" is not passed:
+ *  read_date_text() refuses it.
+ ***************************************************************************/
+PRIVATE const char *skip_to_next_piece(date_reading_t *rd, const char *p)
+{
+    for(;;) {
+        p = skip_piece_separators(p);
+        if(*p != '(' || !strchr(p, ')')) {
+            return p;
+        }
+        p = rd? read_comment(rd, p) : strchr(p, ')') + 1;
+    }
+}
+
 /***************************************************************************
  *  What follows a count: a unit, a weekday or am/pm, attached ("2h") or
- *  after blanks, dots, commas or underscores ("2 hours", "1.day").
- *  Return the end of what it took, or NULL when nothing follows that a
- *  count goes with.
+ *  after blanks, dots, commas, underscores or comments ("2 hours",
+ *  "1.day", "5 (CEST) pm"). Return the end of what it took, or NULL when
+ *  nothing follows that a count goes with.
  ***************************************************************************/
 PRIVATE const char *read_after_count(date_reading_t *rd, uintmax_t count, const char *p)
 {
-    const char *q = skip_piece_separators(p);
+    const char *q = skip_to_next_piece(NULL, p);
     if(!isalpha((unsigned char)*q)) {
         return NULL;
     }
@@ -7639,38 +7663,41 @@ PRIVATE const char *read_after_count(date_reading_t *rd, uintmax_t count, const 
     const char *end = take_word(q, raw, word, sizeof(word));
 
     date_unit_t unit = unit_of_word(raw, word);
-    if(unit != DATE_UNIT_NONE) {
-        note_duration(rd, count, unit);
-        return end;
-    }
     int weekday = weekday_of_word(word);
     if(weekday < 0) {
         weekday = weekday_of_plural(word);
+    }
+    BOOL am_pm = (strcmp(word, "am") == 0 || strcmp(word, "pm") == 0)? TRUE : FALSE;
+    if(unit == DATE_UNIT_NONE && weekday < 0 && !am_pm) {
+        return NULL;
+    }
+    skip_to_next_piece(rd, p);  // the comments between them are read
+
+    if(unit != DATE_UNIT_NONE) {
+        note_duration(rd, count, unit);
+        return end;
     }
     if(weekday >= 0) {
         note_weekday_back(rd, count, weekday);
         return end;
     }
-    if(strcmp(word, "am") == 0 || strcmp(word, "pm") == 0) {
-        if(count > 23) {
-            rd->unreadable = TRUE;
-            return end;
-        }
-        note_clock(rd, (int64_t)count, 0, 0);
-        note_ampm(rd, word[0]);
+    if(count > 23) {
+        rd->unreadable = TRUE;
         return end;
     }
-    return NULL;
+    note_clock(rd, (int64_t)count, 0, 0);
+    note_ampm(rd, word[0]);
+    return end;
 }
 
 /***************************************************************************
- *  Is a weekday what follows a number at `p` (after blanks, dots, commas
- *  or underscores)? In the singular ("2026 Thu", "5, friday"), and in the
- *  plural too when `plural_too` ("2026 thursdays").
+ *  Is a weekday what follows a number at `p` (after blanks, dots, commas,
+ *  underscores or comments)? In the singular ("2026 Thu", "5, friday"),
+ *  and in the plural too when `plural_too` ("2026 thursdays").
  ***************************************************************************/
 PRIVATE BOOL weekday_follows(const char *p, BOOL plural_too)
 {
-    p = skip_piece_separators(p);
+    p = skip_to_next_piece(NULL, p);
     if(!isalpha((unsigned char)*p)) {
         return FALSE;
     }
@@ -8004,6 +8031,23 @@ PRIVATE void note_number(date_reading_t *rd, uintmax_t value, int digits)
 }
 
 /***************************************************************************
+ *  A number alone, that `start` begins: after "at" (and only blanks or
+ *  comments between them), an hour (0 to 23), it is the hour a person
+ *  means, and it says no half of the day: no date ("Oct 1 at 10" was
+ *  2010-10-01, "at 10" the 10th of the month, "at 3" 03:00 or 15:00).
+ *  "at 10 pm", "at 10:00" and "at 2026-10-01" are read.
+ ***************************************************************************/
+PRIVATE void note_lone_number(date_reading_t *rd, const char *start, uintmax_t value, int digits)
+{
+    if(digits <= 2 && value <= 23 && rd->after_at &&
+            skip_to_next_piece(NULL, rd->after_at) == start) {
+        rd->unreadable = TRUE;
+        return;
+    }
+    note_number(rd, value, digits);
+}
+
+/***************************************************************************
  *  A piece that starts with a digit
  ***************************************************************************/
 PRIVATE const char *read_number(date_reading_t *rd, const char *p)
@@ -8092,14 +8136,14 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
          *  in the plural ("Oct 1 2026 thursdays") the weekday, with no
          *  count left, is no date.
          */
-        note_number(rd, value, digits);
+        note_lone_number(rd, start, value, digits);
         return p;
     }
     const char *end = read_after_count(rd, value, p);
     if(end) {
         return end;
     }
-    note_number(rd, value, digits);
+    note_lone_number(rd, start, value, digits);
     return p;
 }
 
@@ -8186,7 +8230,7 @@ PRIVATE BOOL unit_follows_count(const char *p)
     while(isdigit((unsigned char)*p)) {
         p++;
     }
-    p = skip_piece_separators(p);
+    p = skip_to_next_piece(NULL, p);
     if(!isalpha((unsigned char)*p)) {
         return FALSE;
     }
@@ -8214,7 +8258,7 @@ PRIVATE const char *read_signed_duration(date_reading_t *rd, const char *p)
         count = count*10 + (uintmax_t)(*p - '0');
         p++;
     }
-    const char *q = skip_piece_separators(p);
+    const char *q = skip_to_next_piece(NULL, p);
     if(!isalpha((unsigned char)*q)) {
         rd->unreadable = TRUE;
         return p;
@@ -8227,6 +8271,7 @@ PRIVATE const char *read_signed_duration(date_reading_t *rd, const char *p)
         rd->unreadable = TRUE;
         return end;
     }
+    skip_to_next_piece(rd, p);  // the comments between them are read
     note_duration(rd, count, unit);
     return end;
 }
@@ -8285,10 +8330,20 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
     }
 
     if(weekday_of_word(word) >= 0) {
-        return end;     // a weekday alone says nothing a date does not ("Thu, 1 Oct 2026")
+        /*
+         *  A weekday alone says nothing a date does not ("Thu, 1 Oct
+         *  2026"), and the text must say that day, as a date or counted
+         *  from today ("yesterday Tue"): "monday 10:00" was today at
+         *  10:00, "2026 Thu" today in 2026
+         */
+        rd->weekday_named = TRUE;
+        return end;
     }
 
     if(strcmp(word, "now") == 0 || strcmp(word, "today") == 0) {
+        if(word[0] == 't') {
+            rd->today_said = TRUE;
+        }
         rd->vague = TRUE;
         rd->understood++;
         return end;
@@ -8319,7 +8374,11 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
         rd->understood++;
         return end;
     }
-    if(strcmp(word, "ago") == 0 || strcmp(word, "at") == 0 || strcmp(word, "on") == 0 ||
+    if(strcmp(word, "at") == 0) {
+        rd->after_at = end;
+        return end;
+    }
+    if(strcmp(word, "ago") == 0 || strcmp(word, "on") == 0 ||
             strcmp(word, "the") == 0 || strcmp(word, "of") == 0) {
         return end;
     }
@@ -8346,6 +8405,53 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
 }
 
 /***************************************************************************
+ *  A comment, `p` at its "(", as RFC 2822 writes the name of a zone:
+ *  "(CEST)". When no zone is said outside, the first offset of the
+ *  comments is the zone ("(UTC+02:00)", "(GMT-0500)", "(+0200)"), else
+ *  their first zone name. A sign after a digit is no offset
+ *  ("(2026-10-01)"), nor one with a letter after it. Return past its ")",
+ *  or NULL, unreadable, when it has none.
+ ***************************************************************************/
+PRIVATE const char *read_comment(date_reading_t *rd, const char *p)
+{
+    const char *close = strchr(p, ')');
+    if(!close) {
+        rd->unreadable = TRUE;
+        return NULL;
+    }
+    for(const char *q = p + 1; q < close; ) {
+        if((*q == '+' || *q == '-') && !isdigit((unsigned char)q[-1])) {
+            long offset;
+            const char *end;
+            if(take_zone_offset(q, &offset, &end) && !isalpha((unsigned char)*end) &&
+                    !rd->comment_offset_said) {
+                rd->comment_offset_said = TRUE;
+                rd->comment_offset = offset;
+            }
+            q = end;
+            continue;
+        }
+        if(!isalpha((unsigned char)*q)) {
+            q++;
+            continue;
+        }
+        const char *word_start = q;
+        char raw[16];
+        char word[16];
+        q = take_word(q, raw, word, sizeof(word));
+        if((unsigned char)word_start[-1] >= 0x80 || (unsigned char)*q >= 0x80) {
+            continue;   // part of a word of another alphabet ("estándar" is no EST)
+        }
+        long offset;
+        if(!rd->comment_zone_said && word[0] && zone_of_word(word, &offset)) {
+            rd->comment_zone_said = TRUE;
+            rd->comment_zone_offset = offset;
+        }
+    }
+    return close + 1;
+}
+
+/***************************************************************************
  *  Note what each piece of `text` says
  ***************************************************************************/
 PRIVATE void read_date_text(date_reading_t *rd, const char *text)
@@ -8363,49 +8469,10 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
         if(isspace(c) || c == ',' || c == '_' || c == '.') {
             p++;
         } else if(c == '(') {
-            /*
-             *  A comment, as RFC 2822 writes the name of a zone: "(CEST)".
-             *  When no zone is said outside, the first offset of the
-             *  comments is the zone ("(UTC+02:00)", "(GMT-0500)",
-             *  "(+0200)"), else their first zone name. A sign after a
-             *  digit is no offset ("(2026-10-01)"), nor one with a letter
-             *  after it.
-             */
-            const char *close = strchr(p, ')');
-            if(!close) {
-                rd->unreadable = TRUE;
-                break;
+            p = read_comment(rd, p);
+            if(!p) {
+                break;  // a "(" with no ")": unreadable
             }
-            for(const char *q = p + 1; q < close; ) {
-                if((*q == '+' || *q == '-') && !isdigit((unsigned char)q[-1])) {
-                    long offset;
-                    const char *end;
-                    if(take_zone_offset(q, &offset, &end) && !isalpha((unsigned char)*end) &&
-                            !rd->comment_offset_said) {
-                        rd->comment_offset_said = TRUE;
-                        rd->comment_offset = offset;
-                    }
-                    q = end;
-                    continue;
-                }
-                if(!isalpha((unsigned char)*q)) {
-                    q++;
-                    continue;
-                }
-                const char *word_start = q;
-                char raw[16];
-                char word[16];
-                q = take_word(q, raw, word, sizeof(word));
-                if((unsigned char)word_start[-1] >= 0x80 || (unsigned char)*q >= 0x80) {
-                    continue;   // part of a word of another alphabet ("estándar" is no EST)
-                }
-                long offset;
-                if(!rd->comment_zone_said && word[0] && zone_of_word(word, &offset)) {
-                    rd->comment_zone_said = TRUE;
-                    rd->comment_zone_offset = offset;
-                }
-            }
-            p = close + 1;
         } else if(isdigit(c)) {
             p = read_number(rd, p);
         } else if(isalpha(c)) {
@@ -8465,6 +8532,10 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
 {
     if(rd->unreadable || !rd->understood) {
         return -1;
+    }
+    if(rd->weekday_named && !rd->mday && !rd->epoch_said && !rd->today_said &&
+            !rd->back_seconds && !rd->back_days && !rd->back_months && rd->weekday_target < 0) {
+        return -1;  // a weekday, and no day: neither a date's, nor one counted from today
     }
     if(rd->never) {
         *result = 0;
@@ -9869,6 +9940,30 @@ PUBLIC void comm_prot_free(void)
     by calling kill(child_pid, SIGTERM) to terminate it.
  */
 
+#ifdef __linux__
+/***************************************************************************
+ *  The daemon starts with no signal blocked and every signal at its
+ *  default, whatever its launcher has: a yuno keeps its signals blocked
+ *  for its signalfd, and a blocked or an ignored signal stays so across
+ *  exec. Up to 7.29.3 a daemon launched from a yuno had SIGTERM, SIGINT,
+ *  SIGQUIT and the rest of the yuno's set blocked. A signal that cannot be
+ *  set (SIGKILL, SIGSTOP, those the C library keeps for itself) is left.
+ ***************************************************************************/
+PRIVATE void daemon_reset_signals(void)
+{
+    for(int sig = 1; sig < NSIG; sig++) {
+        struct sigaction sa;
+        if(sigaction(sig, NULL, &sa) == 0 && sa.sa_handler == SIG_IGN) {
+            sa.sa_handler = SIG_DFL;
+            sigaction(sig, &sa, NULL);
+        }
+    }
+    sigset_t none;
+    sigemptyset(&none);
+    sigprocmask(SIG_SETMASK, &none, NULL);
+}
+#endif /* __linux__ */
+
 /***************************************************************************
  *  Function to launch a program as a daemonized process and return its PID
  ***************************************************************************/
@@ -9919,18 +10014,19 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
     pid_t second_pid = fork();
     if (second_pid < 0) {
         print_error(0, "launch_program() second fork failed '%s'", program);
-        exit(EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
     } else if (second_pid > 0) {
         // First child exits immediately to avoid zombie
-        exit(0);
+        _exit(0);
     }
 
     // Second child becomes the daemonized process
     if (setsid() == -1) {
         print_error(0, "launch_program() setsid failed '%s'", program);
-        exit(EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
     }
 
+    daemon_reset_signals();
     signal(SIGHUP, SIG_IGN);  // Ignore SIGHUP
 
     // Redirect standard file descriptors to /dev/null
@@ -9938,7 +10034,7 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
         int fd = open("/dev/null", O_RDWR|O_CLOEXEC);
         if (fd == -1) {
             print_error(0, "launch_program() Failed to open /dev/null '%s'", program);
-            exit(EXIT_FAILURE);
+            _exit(EXIT_FAILURE);
         }
         dup2(fd, STDIN_FILENO);
         dup2(fd, STDOUT_FILENO);
@@ -9973,7 +10069,7 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
         print_error(0, "launch_program() execvp failed '%s', errno %d '%s'", program, err, strerror(err));
         int ret = write(pipe_fd[1], &err, sizeof(err));  // Send error to parent
         if(ret < 0) {}
-        exit(EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
     }
 
     close(pipe_fd[1]);  // Close write end of pipe if execvp succeeds
