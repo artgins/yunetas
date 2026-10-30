@@ -7242,6 +7242,7 @@ typedef struct {
     int min;
     int sec;
     int ampm;               // 'a', 'p' or 0
+    BOOL hour_of_24;        // an hour with an 'h' after "at" ("at 15h"): of 24 hours, no am/pm
     int special_hour;       // -1, or the hour of noon (12), midnight (0), tea (17)
 
     BOOL zone_said;
@@ -7273,6 +7274,8 @@ typedef struct {
     BOOL today_said;        // "today" or "now": a day, as a date says one
     BOOL counted_back;      // a count back, of zero too ("0 days ago"), "yesterday", or a weekday
                             // back ("last friday"): a day counted from today
+    BOOL day_counted;       // a count back of days, weeks, months or years (of zero too),
+                            // "yesterday" or a weekday back: the text names its day
     const char *after_at_piece; // the first piece after the last "at" (or "at the"), found once:
                                 // a number alone there is no date
     const char *after_count_piece;  // the first piece after the last count back, found once:
@@ -7578,15 +7581,19 @@ PRIVATE void note_duration(date_reading_t *rd, uintmax_t count, date_unit_t unit
             break;
         case DATE_UNIT_DAY:
             rd->back_days += n;
+            rd->day_counted = TRUE;
             break;
         case DATE_UNIT_WEEK:
             rd->back_days += n*7;
+            rd->day_counted = TRUE;
             break;
         case DATE_UNIT_MONTH:
             rd->back_months += n;
+            rd->day_counted = TRUE;
             break;
         case DATE_UNIT_YEAR:
             rd->back_months += n*12;
+            rd->day_counted = TRUE;
             break;
         case DATE_UNIT_NONE:
         default:
@@ -7607,6 +7614,7 @@ PRIVATE void note_weekday_back(date_reading_t *rd, uintmax_t count, int weekday)
     rd->weekday_target = weekday;
     rd->weekday_count = (int64_t)count;
     rd->counted_back = TRUE;
+    rd->day_counted = TRUE;
     rd->vague = TRUE;
     rd->understood++;
 }
@@ -7756,7 +7764,8 @@ PRIVATE BOOL month_follows(const char *p)
 
 /***************************************************************************
  *  Is the piece that `start` begins the first one after "at" (or "at
- *  the"), with only blanks or comments between them? That piece is found
+ *  the"), with only blanks, dots, commas, underscores or comments between
+ *  them (what parts two pieces)? That piece is found
  *  once, when "at" is read: looking for it again from every piece walked
  *  the blanks and comments after "at" once per piece, and a long text
  *  ("at", many comments, "on", many "the") took seconds.
@@ -8049,10 +8058,10 @@ PRIVATE const char *read_day_and_month_name(date_reading_t *rd, uintmax_t mday, 
 /***************************************************************************
  *  An hour written with an 'h' right after "at", `p` at the 'h': "at 15h"
  *  is 15:00 and "at 10h30" 10:30, as they are written in Spanish or
- *  French (24 hours, no half of the day). Up to 7.29.3 "at 15h" was 15
- *  hours back, and "at 10h30" 10 hours back from the 30th. The minutes
- *  are two digits; an hour of more than two digits, or past 24:00, is no
- *  date. Anywhere else "15h" is still 15 hours back.
+ *  French: of 24 hours, so am/pm anywhere in the text makes it no date
+ *  ("at 15h am", "at 12h am"). The minutes are two digits; an hour of
+ *  more than two digits, or past 24:00, is no date. Anywhere else "15h"
+ *  is 15 hours back.
  ***************************************************************************/
 PRIVATE const char *read_hour_after_at(date_reading_t *rd, uintmax_t hour, int digits, const char *p)
 {
@@ -8071,6 +8080,7 @@ PRIVATE const char *read_hour_after_at(date_reading_t *rd, uintmax_t hour, int d
         return p;
     }
     note_clock(rd, (int64_t)hour, min, 0);
+    rd->hour_of_24 = TRUE;
     return p;
 }
 
@@ -8116,7 +8126,7 @@ PRIVATE void note_number(date_reading_t *rd, uintmax_t value, int digits)
 
 /***************************************************************************
  *  A number alone, that `start` begins and `end` ends. Right after "at"
- *  (or "at the", with only blanks or comments between them) a person
+ *  (or "at the", with only what parts two pieces between them) a person
  *  means a time, and a number alone does not say one: an hour (0 to 23)
  *  with no half of the day ("at 3" is 03:00 or 15:00), or no hour at all
  *  ("at 24", "at 2026"). It is no date, whatever its value: up to 7.29.3
@@ -8173,11 +8183,13 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
         }
         if(digits != 4 && year_digits != 4) {
             /*
-             *  "at 10.30" is 10:30 for a person, and was October 30; "at
-             *  10.30.00" 10:30:00, and was 2000-10-30: no date ("at 10:30"
-             *  is read). With its year of 4 digits it is a date of numbers
-             *  ("at 1.10.2026", "at 2026.10.01"); "at 1.10.26" may be
-             *  01:10:26, and is no date either.
+             *  "at 10.30" is 10:30 for a person, and "at 10.30.00"
+             *  10:30:00, not October 30 and 2000-10-30: no date ("at
+             *  10:30" is read). With its year of 4 digits it is a date of
+             *  numbers ("at 1.10.2026", "at 2026.10.01"), and so is a year
+             *  and its month ("at 2026.10", the day of today, as "2026.10"
+             *  and "2026-10" anywhere; "10.2026" is no date anywhere); "at
+             *  1.10.26" may be 01:10:26, and is no date either.
              */
             rd->unreadable = TRUE;
             return q;
@@ -8359,10 +8371,15 @@ PRIVATE BOOL unit_follows_count(const char *p)
  *  A duration with a minus sign: "-1d", "-2 hours", "-1w ago". The port of
  *  git's date.c skipped the sign, so a count back from now was typed that
  *  way for years. Only a count with its unit: "-5" or "-2 friday" is no
- *  duration.
+ *  duration. Right after "at" it is no date, as any count back there
+ *  ("at -1d", "Oct 1 at -2 days").
  ***************************************************************************/
 PRIVATE const char *read_signed_duration(date_reading_t *rd, const char *p)
 {
+    if(right_after_at(rd, p)) {
+        rd->unreadable = TRUE;
+        return p + 1;
+    }
     p++;
     uintmax_t count = 0;
     while(isdigit((unsigned char)*p)) {
@@ -8471,6 +8488,7 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
     if(strcmp(word, "yesterday") == 0) {
         rd->back_days++;
         rd->counted_back = TRUE;
+        rd->day_counted = TRUE;
         rd->after_count_piece = skip_to_next_piece(NULL, end);
         rd->vague = TRUE;
         rd->understood++;
@@ -8510,10 +8528,10 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
         if(rd->after_count_piece != p) {
             /*
              *  "ago" says how long back a count is, so it follows one, with
-             *  only blanks or comments between them: with none before it
-             *  the number left was a day ("5 (days) ago", "5 ago" were the
-             *  5th), and so was a number between them ("1 day 5 ago" was
-             *  October 4)
+             *  only blanks, dots, commas, underscores or comments between
+             *  them ("1.day.ago", "2 days (x) ago"): "5 (days) ago", "5
+             *  ago" and "1 day 5 ago" are no date (a number there would be
+             *  a day)
              */
             rd->unreadable = TRUE;
         }
@@ -8523,7 +8541,16 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
         return end;
     }
     if(strcmp(word, "last") == 0) {
-        const char *after = read_after_count(rd, 1, end, FALSE);
+        /*
+         *  "last" goes with a unit or a weekday ("last week", "last
+         *  friday"), never with am/pm ("last pm" is no 13:00), and it is a
+         *  count back, so no date right after "at" ("at last friday")
+         */
+        if(!unit_follows_count(end) && !weekday_follows(end, TRUE)) {
+            rd->unreadable = TRUE;
+            return end;
+        }
+        const char *after = read_after_count(rd, 1, end, right_after_at(rd, p));
         if(!after) {
             rd->unreadable = TRUE;
             return end;
@@ -8679,6 +8706,9 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         return -1;  // a weekday, and no day: neither a date's, nor one counted from today
     }
     if(rd->never) {
+        if(rd->understood != 1 || rd->weekday_named >= 0) {
+            return -1;  // "never" is a whole text: "now never Mon", "never 10:00" say no date
+        }
         *result = 0;
         *offset_minutes = 0;
         return 0;
@@ -8706,6 +8736,7 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
     gmtime_r(&shifted, &nf);
     int64_t now_clock = nf.tm_hour*3600 + nf.tm_min*60 + nf.tm_sec;
     BOOL date_said = (rd->year || rd->mon || rd->mday)? TRUE : FALSE;
+    BOOL day_named = (date_said || rd->today_said || rd->day_counted)? TRUE : FALSE;
 
     int64_t year = rd->year? rd->year : nf.tm_year + 1900;
     int mon = rd->mon? rd->mon : nf.tm_mon + 1;
@@ -8747,20 +8778,31 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         }
         day -= back + 7*(rd->weekday_count - 1);
     }
-    if(rd->special_hour >= 0 && !date_said && now_clock < rd->special_hour*3600) {
-        day--;      // the last noon (midnight, tea) that passed
+    if(rd->special_hour >= 0 && !day_named && now_clock < rd->special_hour*3600) {
+        day--;      // with no day named, the last noon (midnight, tea) that passed
     }
 
     int64_t t;
+    int64_t frame_clock;    // the time of day the text says, in its frame
     if(rd->hour >= 0 || rd->special_hour >= 0) {
         int64_t hour = (rd->hour >= 0)? rd->hour : rd->special_hour;
         int64_t min = (rd->hour >= 0)? rd->min : 0;
         int64_t sec = (rd->hour >= 0)? rd->sec : 0;
+        if(rd->ampm && (rd->hour_of_24 || rd->hour < 0 || hour > 12 ||
+                (rd->ampm == 'p' && hour == 0))) {
+            /*
+             *  am/pm is the half of the day of an hour of 12: not of one
+             *  of 24 ("at 15h am", "15:00 am", "0:30 pm"), nor of noon,
+             *  midnight or tea, which say theirs ("noon am", "tea pm")
+             */
+            return -1;
+        }
         if(rd->ampm == 'p' && hour < 12) {
             hour += 12;
         } else if(rd->ampm == 'a' && hour == 12) {
             hour = 0;
         }
+        frame_clock = hour*3600 + min*60 + sec;
         if(rd->zone_said) {
             t = day*86400 + hour*3600 + min*60 + sec - rd->zone_offset;
         } else {
@@ -8780,6 +8822,7 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         } else if(rd->ampm == 'a' && clock >= 12*3600) {
             clock -= 12*3600;
         }
+        frame_clock = clock;
         t = day*86400 + clock - frame_offset;
     }
     t -= rd->back_seconds;
@@ -8792,12 +8835,18 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         /*
          *  A day counted from today ("now", "today", a count back) is
          *  only that: the weekday beside it must be its own ("now Mon"
-         *  and "0 days ago Mon" were today on a Wednesday). Beside a
+         *  and "0 days ago Mon" are no date on a Wednesday). Beside a
          *  date it is not checked: the date says the day.
+         *
+         *  The day is the one the text counted, in its frame (the zone
+         *  said, else the UTC offset of now), not the local day of the
+         *  time reached: days are 24 hours, so on the night of a change
+         *  of hour "yesterday Sat", said on a Sunday at 23:30 CET, is
+         *  Saturday at 23:30 +0100, which is Sunday at 00:30 CEST.
          */
-        int64_t local = t + offset;
-        int64_t local_day = local/86400 - ((local%86400 < 0)? 1 : 0);
-        int weekday = (int)(((local_day + 4)%7 + 7)%7);   // 1970-01-01 was a Thursday
+        int64_t counted = day*86400 + frame_clock - rd->back_seconds;
+        int64_t counted_day = counted/86400 - ((counted%86400 < 0)? 1 : 0);
+        int weekday = (int)(((counted_day + 4)%7 + 7)%7);   // 1970-01-01 was a Thursday
         if(weekday != rd->weekday_named) {
             return -1;
         }

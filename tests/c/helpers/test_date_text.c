@@ -87,8 +87,9 @@
  *              with its square: "at", 20000 comments, "on" and 20000 "the"
  *              took seconds (the place after "at" was looked for again from
  *              every piece).
- *          18. "ago" follows its count with nothing between them but blanks
- *              or comments ("1 day 5 ago" was October 4); right after "at"
+ *          18. "ago" follows its count with nothing between them but blanks,
+ *              dots, commas, underscores or comments ("1 day 5 ago" was
+ *              October 4); right after "at"
  *              "15h" and "10h30" are clock times ("at 15h" was 15 hours
  *              back) and any other count with a unit is no date; "at 5 of
  *              October" is October 5; a weekday beside a day counted from
@@ -96,6 +97,20 @@
  *              a Wednesday, "Mon Thu now" were today); after "at" a date of
  *              numbers with dots needs a year of 4 digits ("at 10.30.00"
  *              was 2000-10-30).
+ *          19. a weekday beside a day counted from today is checked against
+ *              the day the text counted, not the local day of the time
+ *              reached ("yesterday Sat" on a Sunday at 23:30 CET, the night
+ *              of a change of hour, was refused, "yesterday Sun" read), in
+ *              Madrid and Los Angeles, in autumn and in spring.
+ *          20. noon, midnight and tea are of the day the text names
+ *              ("today noon" before noon was yesterday's, "yesterday noon"
+ *              the day before yesterday); "never" is a whole text ("now
+ *              never Mon" was the epoch); no count back right after "at",
+ *              with a minus sign or "last" either ("at -1d", "at last
+ *              friday" were read); "last" goes with no am/pm ("last pm" was
+ *              13:00); am/pm only with an hour of 12 ("at 15h am", "15:00
+ *              am" were 15:00); a year and its month after "at" is a date
+ *              ("at 2026.10", the day of today), "10.2026" none.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -262,13 +277,14 @@ PRIVATE void test_approxidate_durations_and_times(void)
         {"-1d2h",                   "2026-10-20 09:00:00 +0200", 0},
 
         /*
-         *  noon, midnight and tea are the last ones that passed
+         *  noon, midnight and tea are the last ones that passed, or the
+         *  ones of the day the text names
          */
         {"noon",                    "2026-10-20 12:00:00 +0200", 0},
         {"midnight",                "2026-10-21 00:00:00 +0200", 0},
         {"tea",                     "2026-10-20 17:00:00 +0200", 0},
-        {"noon yesterday",          "2026-10-19 12:00:00 +0200", 0},
-        {"yesterday noon",          "2026-10-19 12:00:00 +0200", 0},
+        {"noon yesterday",          "2026-10-20 12:00:00 +0200", 0},
+        {"yesterday noon",          "2026-10-20 12:00:00 +0200", 0},
         {"never",                   "1970-01-01 01:00:00 +0100", 0},
 
         /*
@@ -767,7 +783,7 @@ PRIVATE void test_more_forms_of_the_port(void)
         {"noon -0500",                      "2026-10-20 19:00:00 +0200", 0},
         {"midnight +0000",                  "2026-10-21 02:00:00 +0200", 0},
         {"tea +02:00",                      "2026-10-20 17:00:00 +0200", 0},
-        {"noon -1d",                        "2026-10-19 12:00:00 +0200", 0},
+        {"noon -1d",                        "2026-10-20 12:00:00 +0200", 0},
 
         /*
          *  The basic form of ISO 8601 with a clock time of too many digits
@@ -1085,8 +1101,8 @@ PRIVATE void test_long_hostile_text(void)
 }
 
 /***************************************************************************
- *  18. "ago" follows its count, with nothing but blanks or comments
- *  between them: "1 day 5 ago" and "yesterday 5 ago" were October 4 (the
+ *  18. "ago" follows its count, with nothing but blanks, dots, commas,
+ *  underscores or comments between them: "1 day 5 ago" and "yesterday 5 ago" were October 4 (the
  *  5 a day, the "ago" taken as the one of the count before). Right after
  *  "at" a number with a unit is no count back: "15h" and "10h30" are
  *  clock times there (15:00 and 10:30, as they are written in Spanish or
@@ -1132,7 +1148,7 @@ PRIVATE void test_ago_at_counts_and_weekdays(void)
         {"Oct 1 at 15h",                    "2026-10-01 15:00:00 +0200", 0},
         {"Oct 1 at the 10h30",              "2026-10-01 10:30:00 +0200", 0},
         {"yesterday at 10h30",              "2026-10-20 10:30:00 +0200", 0},
-        {"at 10h30 pm",                     "2026-10-21 22:30:00 +0200", 0},
+        {"at 10h30 pm",                     "2026-10-21 11:00:00 +0200", 1},
         {"at 25h",                          "2026-10-21 11:00:00 +0200", 1},
         {"at 10h60",                        "2026-10-21 11:00:00 +0200", 1},
         {"at 10h3",                         "2026-10-21 11:00:00 +0200", 1},
@@ -1208,6 +1224,233 @@ PRIVATE void test_ago_at_counts_and_weekdays(void)
 }
 
 /***************************************************************************
+ *  19. A weekday beside a day counted from today is checked against the
+ *  day the text counted, in the UTC offset of now, not against the local
+ *  day of the time reached: on the night of a change of hour that time is
+ *  on the next (or the day before) local day. Sunday 2026-10-25 23:30
+ *  CET in Madrid: "yesterday Sat" is Saturday at 23:30 +0100, which is
+ *  Sunday 00:30 CEST, and was refused, while "yesterday Sun" was read.
+ *  The same the night after the change of spring, and in Los Angeles.
+ ***************************************************************************/
+PRIVATE void test_weekdays_on_a_change_of_hour(void)
+{
+    /*
+     *  Sun 2026-10-25 22:30:00 UTC, 23:30 CET (the day of 25 hours)
+     */
+    s_fake_now = 1792967400;
+    static const approxidate_case_t autumn[] = {
+        {"yesterday Sat",                   "2026-10-25 00:30:00 +0200", 0},
+        {"yesterday Sun",                   "2026-10-25 23:30:00 +0100", 1},
+        {"last friday Fri",                 "2026-10-24 00:30:00 +0200", 0},
+        {"last friday Sat",                 "2026-10-25 23:30:00 +0100", 1},
+        {"2 days ago Fri",                  "2026-10-24 00:30:00 +0200", 0},
+        {"2 days ago Sat",                  "2026-10-25 23:30:00 +0100", 1},
+        {"24 hours ago Sat",                "2026-10-25 00:30:00 +0200", 0},
+        {"now Sun",                         "2026-10-25 23:30:00 +0100", 0},
+        {"yesterday 23:30 Sat",             "2026-10-24 23:30:00 +0200", 0},
+        {"yesterday 23:30 Sun",             "2026-10-25 23:30:00 +0100", 1},
+    };
+    check_approxidate(autumn, sizeof(autumn)/sizeof(autumn[0]));
+
+    /*
+     *  Sun 2026-03-29 22:30:00 UTC, Mon 2026-03-30 00:30 CEST (the night
+     *  after the day of 23 hours)
+     */
+    s_fake_now = 1774823400;
+    static const approxidate_case_t spring[] = {
+        {"yesterday Sun",                   "2026-03-28 23:30:00 +0100", 0},
+        {"yesterday Sat",                   "2026-03-30 00:30:00 +0200", 1},
+        {"2 days ago Sat",                  "2026-03-27 23:30:00 +0100", 0},
+        {"2 days ago Fri",                  "2026-03-30 00:30:00 +0200", 1},
+        {"last friday Fri",                 "2026-03-26 23:30:00 +0100", 0},
+        {"last friday Thu",                 "2026-03-30 00:30:00 +0200", 1},
+        {"now Mon",                         "2026-03-30 00:30:00 +0200", 0},
+    };
+    check_approxidate(spring, sizeof(spring)/sizeof(spring[0]));
+
+    setenv("TZ", "America/Los_Angeles", 1);
+    tzset();
+
+    /*
+     *  Mon 2026-11-02 07:30:00 UTC, Sun 2026-11-01 23:30 PST
+     */
+    s_fake_now = 1793604600;
+    static const approxidate_case_t la_autumn[] = {
+        {"yesterday Sat",                   "2026-11-01 00:30:00 -0700", 0},
+        {"yesterday Sun",                   "2026-11-01 23:30:00 -0800", 1},
+        {"last friday Fri",                 "2026-10-31 00:30:00 -0700", 0},
+        {"last friday Sat",                 "2026-11-01 23:30:00 -0800", 1},
+    };
+    check_approxidate(la_autumn, sizeof(la_autumn)/sizeof(la_autumn[0]));
+
+    /*
+     *  Mon 2026-03-09 07:30:00 UTC, 00:30 PDT
+     */
+    s_fake_now = 1773041400;
+    static const approxidate_case_t la_spring[] = {
+        {"yesterday Sun",                   "2026-03-07 23:30:00 -0800", 0},
+        {"yesterday Sat",                   "2026-03-09 00:30:00 -0700", 1},
+        {"2 days ago Sat",                  "2026-03-06 23:30:00 -0800", 0},
+        {"2 days ago Fri",                  "2026-03-09 00:30:00 -0700", 1},
+    };
+    check_approxidate(la_spring, sizeof(la_spring)/sizeof(la_spring[0]));
+
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
+    s_fake_now = NOW;
+}
+
+/***************************************************************************
+ *  20. noon, midnight and tea are of the day the text names ("today
+ *  noon" before noon was yesterday's, and "today noon Wed" was refused
+ *  on a Wednesday while "today noon Tue" was read; "yesterday noon" was
+ *  the day before yesterday); alone they are still the last ones that
+ *  passed. "never" is a whole text ("now never Mon" was the epoch). No
+ *  count back right after "at", with a minus sign or "last" either ("at
+ *  -5 days", "at last friday" were read, "at 5 days" refused); "last"
+ *  takes a unit or a weekday, not am/pm ("last pm" was 13:00). am/pm is
+ *  no half of the day of an hour with an 'h', of 24 hours ("at 15h am"
+ *  was 15:00), nor of an hour past 12 ("15:00 am" was 15:00). A year and
+ *  its month with dots is a date after "at" too ("at 2026.10", the day
+ *  of today, as "2026.10" and "2026-10"); "10.2026" is no date anywhere.
+ ***************************************************************************/
+PRIVATE void test_noon_never_at_and_am_pm(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  noon, midnight and tea of the day named: Wed 11:00
+         */
+        {"today noon",                      "2026-10-21 12:00:00 +0200", 0},
+        {"noon today",                      "2026-10-21 12:00:00 +0200", 0},
+        {"today noon Wed",                  "2026-10-21 12:00:00 +0200", 0},
+        {"today noon Tue",                  "2026-10-21 11:00:00 +0200", 1},
+        {"now noon",                        "2026-10-21 12:00:00 +0200", 0},
+        {"today tea",                       "2026-10-21 17:00:00 +0200", 0},
+        {"today midnight",                  "2026-10-21 00:00:00 +0200", 0},
+        {"0 days ago noon",                 "2026-10-21 12:00:00 +0200", 0},
+        {"yesterday noon Tue",              "2026-10-20 12:00:00 +0200", 0},
+        {"yesterday noon Mon",              "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday tea",                   "2026-10-20 17:00:00 +0200", 0},
+        {"2 days ago noon",                 "2026-10-19 12:00:00 +0200", 0},
+        {"last friday noon",                "2026-10-16 12:00:00 +0200", 0},
+        {"1 week ago noon",                 "2026-10-14 12:00:00 +0200", 0},
+        {"today noon -0500",                "2026-10-21 19:00:00 +0200", 0},
+        {"noon",                            "2026-10-20 12:00:00 +0200", 0},
+        {"noon 2 hours ago",                "2026-10-20 10:00:00 +0200", 0},
+        {"Oct 1 noon",                      "2026-10-01 12:00:00 +0200", 0},
+
+        /*
+         *  "never" alone
+         */
+        {"never",                           "1970-01-01 01:00:00 +0100", 0},
+        {"never (the epoch)",               "1970-01-01 01:00:00 +0100", 0},
+        {"now never Mon",                   "2026-10-21 11:00:00 +0200", 1},
+        {"now never",                       "2026-10-21 11:00:00 +0200", 1},
+        {"never Thu",                       "2026-10-21 11:00:00 +0200", 1},
+        {"never 10:00",                     "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday never",                 "2026-10-21 11:00:00 +0200", 1},
+        {"never UTC",                       "2026-10-21 11:00:00 +0200", 1},
+        {"never never",                     "2026-10-21 11:00:00 +0200", 1},
+        {"never pm",                        "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  No count back right after "at"
+         */
+        {"at -5 days",                      "2026-10-21 11:00:00 +0200", 1},
+        {"at -1d",                          "2026-10-21 11:00:00 +0200", 1},
+        {"at -1w ago",                      "2026-10-21 11:00:00 +0200", 1},
+        {"at last week",                    "2026-10-21 11:00:00 +0200", 1},
+        {"at last friday",                  "2026-10-21 11:00:00 +0200", 1},
+        {"at the last friday",              "2026-10-21 11:00:00 +0200", 1},
+        {"at (x) -1d",                      "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at -2 days",                "2026-10-21 11:00:00 +0200", 1},
+        {"-1d at 10:00",                    "2026-10-20 10:00:00 +0200", 0},
+        {"last friday at 10:00",            "2026-10-16 10:00:00 +0200", 0},
+        {"Oct 1 -2 days",                   "2026-09-29 11:00:00 +0200", 0},
+        {"last pm",                         "2026-10-21 11:00:00 +0200", 1},
+        {"last am",                         "2026-10-21 11:00:00 +0200", 1},
+        {"at last pm",                      "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  am/pm: no half of the day of an hour with an 'h', nor of an
+         *  hour past 12
+         */
+        {"at 15h am",                       "2026-10-21 11:00:00 +0200", 1},
+        {"at 15h pm",                       "2026-10-21 11:00:00 +0200", 1},
+        {"at 12h am",                       "2026-10-21 11:00:00 +0200", 1},
+        {"at 9h (CEST) pm",                 "2026-10-21 11:00:00 +0200", 1},
+        {"pm at 9h",                        "2026-10-21 11:00:00 +0200", 1},
+        {"at 15h",                          "2026-10-21 15:00:00 +0200", 0},
+        {"15:00 am",                        "2026-10-21 11:00:00 +0200", 1},
+        {"15:00 pm",                        "2026-10-21 11:00:00 +0200", 1},
+        {"13 pm",                           "2026-10-21 11:00:00 +0200", 1},
+        {"tea pm",                          "2026-10-21 11:00:00 +0200", 1},
+        {"24:00 am",                        "2026-10-21 11:00:00 +0200", 1},
+        {"12:30 am",                        "2026-10-21 00:30:00 +0200", 0},
+        {"12 pm",                           "2026-10-21 12:00:00 +0200", 0},
+        {"0:30 am",                         "2026-10-21 00:30:00 +0200", 0},
+        {"noon pm",                         "2026-10-21 11:00:00 +0200", 1},
+        {"noon am",                         "2026-10-21 11:00:00 +0200", 1},
+        {"midnight pm",                     "2026-10-21 11:00:00 +0200", 1},
+        {"0:30 pm",                         "2026-10-21 11:00:00 +0200", 1},
+        {"at 3 pm",                         "2026-10-21 15:00:00 +0200", 0},
+
+        /*
+         *  A year and its month: the day of today
+         */
+        {"at 2026.10",                      "2026-10-21 11:00:00 +0200", 0},
+        {"2026.10",                         "2026-10-21 11:00:00 +0200", 0},
+        {"at 2026-10",                      "2026-10-21 11:00:00 +0200", 0},
+        {"2026/10",                         "2026-10-21 11:00:00 +0200", 0},
+        {"at 1999.12",                      "1999-12-21 10:00:00 +0100", 0},
+        {"at 2026.10 10:00",                "2026-10-21 10:00:00 +0200", 0},
+        {"at 2026.13",                      "2026-10-21 11:00:00 +0200", 1},
+        {"at 10.2026",                      "2026-10-21 11:00:00 +0200", 1},
+        {"10.2026",                         "2026-10-21 11:00:00 +0200", 1},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+
+    /*
+     *  What follows "last" is looked at before it is read: a long text
+     *  of comments between them is still read in time
+     */
+    const int n = 20000;
+    size_t size = 4 + (size_t)n*3 + 5 + 1;
+    char *text = gbmem_malloc(size);
+    if(!text) {
+        printf("FAIL no memory for the long text\n");
+        global_result += -1;
+        return;
+    }
+    char *p = text;
+    memcpy(p, "last", 4);
+    p += 4;
+    for(int i = 0; i < n; i++) {
+        memcpy(p, "(x)", 3);
+        p += 3;
+    }
+    memcpy(p, " week", 5);
+    p += 5;
+    *p = 0;
+
+    int error = 0;
+    uint64_t timer = start_msectimer(500);
+    timestamp_t t = approxidate_careful(text, &error);
+    BOOL too_slow = test_msectimer(timer);
+    char got[64];
+    local_text(t, got, sizeof(got));
+    if(error != 0 || too_slow || strcmp(got, "2026-10-14 11:00:00 +0200") != 0) {
+        printf("FAIL approxidate of \"last\", %d comments, \"week\": %s error %d (expected "
+            "2026-10-14 11:00:00 +0200 error 0), %s\n",
+            n, got, error, too_slow? "500 ms passed" : "in time");
+        global_result += -1;
+    } else {
+        printf("ok   approxidate of \"last\", %d comments, \"week\" -> %s, in time\n", n, got);
+    }
+    gbmem_free(text);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1250,6 +1493,8 @@ int main(int argc, char *argv[])
     test_at_zero_counts_and_ago();
     test_long_hostile_text();
     test_ago_at_counts_and_weekdays();
+    test_weekdays_on_a_change_of_hour();
+    test_noon_never_at_and_am_pm();
 
     gobj_end();
 

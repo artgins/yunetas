@@ -1099,21 +1099,27 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     text that says nothing it knows makes the whole text unreadable.
 
     Durations back from now: a count and a unit, "ago" is optional, but
-    says how long back a count is, so it follows one, with only blanks or
-    comments between them ("5 ago", "5 (days) ago" and "1 day 5 ago" are
-    no date; up to 7.29.3 they were the 5th, and October 4):
+    says how long back a count is, so it follows one, with only blanks,
+    dots, commas, underscores or comments between them ("1.day.ago", "2
+    days (x) ago"; "5 ago", "5 (days) ago" and "1 day 5 ago" are no date):
         "2 hours ago"  "3 days"  "1.day"  "2 days 3 hours ago"  "one week ago"
         short units, attached or not: "1s" "5m" "2h" "1d" "1w" "1M" "1y"
         ("m" is a minute, "M" a month; "1min" "1mo" "2hrs" "3wks" "1yr")
         a minus sign before a count and its unit is read too: "-1d" "-2 hours"
         number words zero..ten; "last week", "last month", "last year"
+        ("last" goes with a unit or a weekday: "last pm" is no date)
         Months and years are of the calendar: "1 month ago" on Mar 31 is
         Feb 28 (29). Days are 24 hours from now.
 
     Days and times:
-        "now" "today" "yesterday" "never" (the epoch, 0)
-        "noon" "midnight" "tea" (17:00): the last one that passed; a zone
-        after it says where: "noon +0200", "noon CEST"
+        "now" "today" "yesterday"
+        "never" (the epoch, 0) is a whole text: "now never", "never 10:00",
+        "never Mon" are no date
+        "noon" "midnight" "tea" (17:00): of the day the text names ("today
+        noon" is today's, ahead of now or not, "yesterday tea", "2 days ago
+        noon", "last friday noon", "Oct 1 noon"); with no day named, the
+        last one that passed ("noon", "noon 2 hours ago"); a zone after it
+        says where: "noon +0200", "noon CEST"
         "last friday": the Friday before today; "2 friday" ("2 fridays ago"):
         the one before it. After a month, a day or a year a number before a
         weekday is that date's, the weekday only names it: "Oct 1 2026 Thu"
@@ -1131,17 +1137,25 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         today at 10:00, and today in 2026). Beside a day counted from
         today the weekday must be that day's: on a Wednesday "now Mon",
         "yesterday Wed" and "now 2026 Mon" are no date (up to 7.29.3 today,
-        yesterday, and 1988). A text says one weekday: "Mon Thu now",
+        yesterday, and 1988). That day is the one the text counted, in the
+        zone said or in the UTC offset of now (days are 24 hours), not the
+        local day of the time reached: on Sunday 2026-10-25 at 23:30 CET,
+        the night of a change of hour, "yesterday Sat" is Saturday at 23:30
+        +0100 (Sunday at 00:30 CEST), and "yesterday Sun" is no date. A
+        text says one weekday: "Mon Thu now",
         "Mon Thu, 01 Oct 2026" are no date. A count and its unit, weekday
         or am/pm touch ("2h") or are parted by blanks of any kind ("Oct 1
         10\vpm" is 22:00), dots, commas, underscores or comments ("Oct 1 5
         (CEST) pm" is 17:00 CEST; up to 7.29.3 it was 2005-10-01)
-        "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
+        "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today;
+        am/pm is the half of the day of an hour of 12: "15:00 am", "13 pm",
+        "0:30 pm", "noon am" and "tea pm" are no date
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
         right after "at", an hour with an 'h' (24 hours, as Spanish and
         French write it): "at 15h" is 15:00, "at 10h30" 10:30 (up to
-        7.29.3 15 hours back, and 10 hours back from the 30th); "15h"
-        anywhere else is 15 hours back
+        7.29.3 15 hours back, and 10 hours back from the 30th), and am/pm
+        with it is no date ("at 15h am", "at 12h am"); "15h" anywhere else
+        is 15 hours back
 
     Dates:
         "2026-10-01"  "2026/10/01"  "2026.10.01"  (Y-M-D)
@@ -1154,6 +1168,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         however far ahead: "1.12.2026 10:00" is Dec 1, "10/01/2027 10:00"
         is Oct 1 (without the clock time, "1.12.2026" more than 10 days
         ahead is Jan 12)
+        "2026-10"  "2026/10"  "2026.10": a year and its month (Y-M; the day
+                   is today's, as in "Sep 2024"); "10.2026" is no date
         "Oct 1 2026"  "1 Oct 2026"  "October 1, 2026"  "Sep 2024"  "2024"
         "July 5th"  "1st Oct"  "the 5th of July" (ordinals: st, nd, rd, th)
         "01-Oct-2026"  "Oct-01-2026"  "2026-Oct-01"  "2026/Oct/01"
@@ -1192,11 +1208,13 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     2026"); up to 7.29.3 they were 2010-10-01, the 3rd of the month,
     2024-10-01 and today in 2026. Before a month name it is a day: "at 5
     Oct 2026" and "at 5 of October" are read. Nor is a count back right
-    after "at" ("at 5 days", "at 2 fridays ago"; "at 3 pm" is read), nor
+    after "at" ("at 5 days", "at 2 fridays ago", "at -1d", "Oct 1 at -2
+    days", "at last friday", "at last week"; "at 3 pm" is read), nor
     "at 10.30" and "at 10.30.00" (10:30 and 10:30:00 for a person, October
     30 and 2000-10-30 up to 7.29.3): write "at 10:30". After "at" a date
     of numbers with dots needs its year of 4 digits ("at 1.10.2026"; "at
-    1.10.26" may be 01:10:26). And a plus sign before a duration ("+1d").
+    1.10.26" may be 01:10:26), or a year and its month ("at 2026.10", as
+    "2026.10"). And a plus sign before a duration ("+1d").
 
     parse_date_basic() reads only a whole date and time, or epoch seconds,
     and returns the offset it was written in (the local one at that time

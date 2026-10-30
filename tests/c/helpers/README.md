@@ -257,19 +257,41 @@ read (`"0 days ago Wed"`, `"now Wed"`, refused by a development version), and
 7.29.3: the 5th).
 §17: a long hostile text is read in linear time (`"at"`, 20000 comments,
 `"on"`, 20000 `"the"`: about 2 s before, now refused well under 500 ms).
-§18: `ago` follows its count with only blanks or comments between them
-(`"1 day 5 ago"`, `"yesterday 5 ago"`; 7.29.3: October 4). Right after `at`
-an hour with an `h` is a clock time of 24 hours (`"at 15h"` 15:00, `"at
-10h30"` 10:30; 7.29.3: 15 hours back, 10 hours back from the 30th), and any
-other count back is no date (`"at 5 days"`, `"at 2 fridays ago"`); `"15h"`
-elsewhere is still 15 hours back. `"at 5 of October"` is October 5 (refused
-by a development version). A weekday beside a day counted from today must be
-that day's (`"now Mon"`, `"0 days ago Mon"`, `"yesterday Wed"`, `"now 2026
-Mon"` on a Wednesday: 7.29.3 read today, yesterday, 1988), and a text says
-one weekday (`"Mon Thu now"`, `"Mon Thu, 01 Oct 2026"`); beside a date it is
-not checked. After `at` a date of numbers with dots needs a year of 4 digits
-(`"at 10.30.00"`, 7.29.3: 2000-10-30; `"at 1.10.26"`; `"at 1.10.2026"` is
-read).
+§18: `ago` follows its count with only blanks, dots, commas, underscores or
+comments between them (`"1.day.ago"` is read; `"1 day 5 ago"`, `"yesterday 5
+ago"`; 7.29.3: October 4). Right after `at` an hour with an `h` is a clock
+time of 24 hours (`"at 15h"` 15:00, `"at 10h30"` 10:30; 7.29.3: 15 hours back,
+10 hours back from the 30th), and any other count back is no date (`"at 5
+days"`, `"at 2 fridays ago"`); `"15h"` elsewhere is still 15 hours back. `"at
+5 of October"` is October 5 (refused by a development version). A weekday
+beside a day counted from today must be that day's (`"now Mon"`, `"0 days ago
+Mon"`, `"yesterday Wed"`, `"now 2026 Mon"` on a Wednesday: 7.29.3 read today,
+yesterday, 1988), and a text says one weekday (`"Mon Thu now"`, `"Mon Thu, 01
+Oct 2026"`); beside a date it is not checked. After `at` a date of numbers
+with dots needs a year of 4 digits (`"at 10.30.00"`, 7.29.3: 2000-10-30; `"at
+1.10.26"`; `"at 1.10.2026"` is read).
+§19: a weekday beside a day counted from today is checked against the day
+the text counted (in the UTC offset of now, days of 24 hours), not the local
+day of the time reached: on Sunday 2026-10-25 at 23:30 CET, the night of the
+change of hour, `"yesterday Sat"`, `"last friday Fri"`, `"2 days ago Fri"` and
+`"24 hours ago Sat"` are read and `"yesterday Sun"` is refused (7.29.3 read
+any weekday there; the development version that checked it took the local
+day, Sunday 00:30 CEST). The same the night after the change of spring
+(Monday 2026-03-30 00:30 CEST), and both in Los Angeles (`TZ` is set for
+them, then Madrid again).
+§20: noon, midnight and tea are of the day the text names (`"today noon"` is
+today's at 11:00, `"yesterday noon"` and `"noon -1d"` yesterday's, `"last
+friday noon"` that Friday's; 7.29.3, before noon: yesterday's, the day before
+yesterday's, and the Thursday before), and with no day named the last that
+passed (`"noon"`). `"never"` is a whole text (`"now never Mon"`, `"never
+10:00"`; 7.29.3: the epoch). No count back right after `at`, with a minus sign
+or `last` either (`"at -1d"`, `"Oct 1 at -2 days"`, `"at last friday"`;
+7.29.3: read), and `last` goes with a unit or a weekday (`"last pm"`; 7.29.3:
+13:00). am/pm is only of an hour of 12: `"at 15h am"` and `"at 10h30 pm"` are
+refused (15:00 and 22:30 in a development version), and so are `"15:00 am"`,
+`"13 pm"`, `"0:30 pm"` and `"noon am"` (7.29.3: 15:00, 13:00, 12:30, 00:00). A
+year and its month is a date after `at` as anywhere (`"at 2026.10"`,
+`"2026.10"`, `"2026-10"`, the day of today); `"10.2026"` is no date anywhere.
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,
