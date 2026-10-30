@@ -88,6 +88,14 @@
  *  was refused); an offset after a date or a day is its zone ("yesterday
  *  +0000" was refused, "yesterday UTC" read).
  *
+ *  A sign glued to the digits of a date is no zone ("2026-10-01-10:00"
+ *  was October 2 at the time of now in Madrid), only one right after a
+ *  clock time ("2026-10-01T10:00-05:00"); with no clock time an offset
+ *  outside -12:00..+14:00 is no date ("now-2026" was read); a count right
+ *  after a month name, with no day, is no date ("Jan 1 pm" was January
+ *  21 at 13:00). An offset or a zone name with a clock time is checked
+ *  against the time it says, in UTC.
+ *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -1015,6 +1023,23 @@ PRIVATE int do_test(void)
             {"Oct 1 2026 at the 12 noon +0000", FALSE, FALSE, 0, 1790856000},
             {"Oct 1 2026 12 noon +0000",    FALSE,  FALSE,  -1, 0},
             {"2026 12 noon",                FALSE,  FALSE,  -1, 0},
+            /*  A sign glued to the digits of a date is no zone, only after a clock time  */
+            {"2026-10-01-10:00",            FALSE,  FALSE,  -1, 0},
+            {"10/01/2026-10:00",            FALSE,  FALSE,  -1, 0},
+            {"1.10.2026-23",                FALSE,  FALSE,  -1, 0},
+            {"2026.10-2026.10",             FALSE,  FALSE,  -1, 0},
+            {"2026-10-01T10:00-05:00",      FALSE,  FALSE,   0, 1790866800},
+            {"2026-10-01 10:00:00-05:00",   FALSE,  FALSE,   0, 1790866800},
+            /*  With no clock time, an offset of a zone there is  */
+            {"now-2026",                    FALSE,  FALSE,  -1, 0},
+            {"yesterday -2300",             FALSE,  FALSE,  -1, 0},
+            {"2026-10-01 +1500",            FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 10:00 +2300",      FALSE,  FALSE,   0, 1790766000},
+            /*  A count right after a month name with no day  */
+            {"Jan 1 pm",                    FALSE,  FALSE,  -1, 0},
+            {"Oct 1 pm",                    FALSE,  FALSE,  -1, 0},
+            {"Oct 5 days ago",              FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 1 pm +0000",       FALSE,  FALSE,   0, 1790859600},
             /*  An integer past what a time holds, of any length  */
             {"9223372036854775808",         FALSE,  FALSE,  -2, 0},
         };
@@ -1209,7 +1234,8 @@ PRIVATE int do_test(void)
          *  A weekday beside "now", "today" or a count back of zero must be
          *  today's (on another day "now Mon" was today), and a text says
          *  one weekday ("Mon Thu now" was today). Read against the real
-         *  clock: a case whose day changed during the call is not judged.
+         *  clock: a case whose day changed during the call is not judged,
+         *  and says so.
          */
         static const char *weekday_names[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         static const char *with_weekday[] = {"now %s", "today %s", "0 days ago %s", "zero days ago %s"};
@@ -1224,6 +1250,7 @@ PRIVATE int do_test(void)
                 time_t t1 = time(NULL);
                 localtime_r(&t1, &after);
                 if(before.tm_wday != after.tm_wday) {
+                    printf("  skipped '%s': the day changed during the call\n", text);
                     continue;
                 }
                 if((shift == 0 && ret != 0) || (shift != 0 && ret != -1)) {
@@ -1245,7 +1272,7 @@ PRIVATE int do_test(void)
          *  noon is of the day the text names: "today noon" is today's
          *  noon, before noon too (it was yesterday's), and its weekday is
          *  today's. Against the real clock: a case whose day changed
-         *  during the call is not judged.
+         *  during the call is not judged, and says so.
          */
         for(int with_weekday = 0; with_weekday <= 1; with_weekday++) {
             struct tm before, after;
@@ -1258,6 +1285,7 @@ PRIVATE int do_test(void)
             time_t t1 = time(NULL);
             localtime_r(&t1, &after);
             if(before.tm_mday != after.tm_mday) {
+                printf("  skipped '%s': the day changed during the call\n", text);
                 continue;
             }
             struct tm noon = before;
@@ -1279,7 +1307,7 @@ PRIVATE int do_test(void)
          *  Two texts that say the same time: "12 noon" is noon, and an
          *  offset after a date or a day is read as a zone name is.
          *  Against the real clock: a case whose second changed during
-         *  the calls is not judged.
+         *  the calls is not judged, and says so.
          */
         static const char *same_time[][2] = {
             {"12 noon",                     "noon"},
@@ -1288,7 +1316,6 @@ PRIVATE int do_test(void)
             {"yesterday +0000",             "yesterday UTC"},
             {"2026-10-01 +0000",            "2026-10-01 UTC"},
             {"2026-10-01 -0500",            "2026-10-01 EST"},
-            {"now +0200",                   "now CEST"},
         };
         for(size_t i = 0; i < sizeof(same_time)/sizeof(same_time[0]); i++) {
             json_int_t value2 = 0;
@@ -1297,6 +1324,8 @@ PRIVATE int do_test(void)
             ret = tranger2_time_of_text(same_time[i][0], FALSE, FALSE, &value, &why);
             int ret2 = tranger2_time_of_text(same_time[i][1], FALSE, FALSE, &value2, &why2);
             if(time(NULL) != t0) {
+                printf("  skipped '%s' and '%s': the second changed during the calls\n",
+                    same_time[i][0], same_time[i][1]);
                 continue;
             }
             if(ret != 0 || ret2 != 0 || value != value2) {
@@ -1306,6 +1335,59 @@ PRIVATE int do_test(void)
                     same_time[i][1], ret2, value2, why2? why2 : "");
                 result += -1;
             }
+        }
+
+        /*
+         *  An offset, and the zone name of that offset, are the zone of the
+         *  clock time and of the day the text counts: checked against the
+         *  time each says, worked out here, in UTC so that a reader that
+         *  took the local zone instead would be wrong. "now" is now in any
+         *  zone. Against the real clock: a case whose second changed
+         *  during the call is not judged, and says so.
+         */
+        {
+            char *tz_utc_before = getenv("TZ")? gbmem_strdup(getenv("TZ")) : NULL;
+            setenv("TZ", "UTC", 1);
+            tzset();
+            static const struct {
+                const char *text;
+                long offset;        // seconds east of UTC
+                int days_back;      // -1: now
+            } zoned[] = {
+                {"today 10:00 +0200",           7200,   0},
+                {"today 10:00 CEST",            7200,   0},
+                {"yesterday 10:00 -0500",       -18000, 1},
+                {"yesterday 10:00 EST",         -18000, 1},
+                {"now +0200",                   7200,   -1},
+                {"now CEST",                    7200,   -1},
+            };
+            for(size_t i = 0; i < sizeof(zoned)/sizeof(zoned[0]); i++) {
+                time_t t0 = time(NULL);
+                ret = tranger2_time_of_text(zoned[i].text, FALSE, FALSE, &value, &why);
+                if(time(NULL) != t0) {
+                    printf("  skipped '%s': the second changed during the call\n", zoned[i].text);
+                    continue;
+                }
+                json_int_t expected = (json_int_t)t0;
+                if(zoned[i].days_back >= 0) {
+                    time_t in_zone = t0 + zoned[i].offset;
+                    json_int_t day = (json_int_t)(in_zone/DAY_SECS) - zoned[i].days_back;
+                    expected = day*DAY_SECS + 10*3600 - zoned[i].offset;
+                }
+                if(ret != 0 || value != expected) {
+                    printf("%sERROR%s --> tranger2_time_of_text('%s'): %d %" JSON_INTEGER_FORMAT
+                        " (%s), expected %" JSON_INTEGER_FORMAT "\n",
+                        On_Red BWhite, Color_Off, zoned[i].text, ret, value, why? why : "", expected);
+                    result += -1;
+                }
+            }
+            if(tz_utc_before) {
+                setenv("TZ", tz_utc_before, 1);
+                gbmem_free(tz_utc_before);
+            } else {
+                unsetenv("TZ");
+            }
+            tzset();
         }
 
         /*

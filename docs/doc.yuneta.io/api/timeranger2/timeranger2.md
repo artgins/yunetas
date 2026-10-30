@@ -700,8 +700,14 @@ to 7.29.3 the repeated hour was +0200 or +0100 according to the text read
 before it). am/pm with no hour (`"today pm"`), a day word right after `at`
 (`"at yesterday"`, `"at now"`) and `"never"` with a zone (`"never (+0200)"`)
 are no date, and an offset after a date or a day is its zone (`"yesterday
-+0000"`, as `"yesterday UTC"`); see
-[`approxidate_careful()`](#approxidate_careful).
++0000"`, as `"yesterday UTC"`): not one glued to the digits of a date
+(`"2026-10-01-10:00"` is no date; after a clock time it is a zone,
+`"2026-10-01T10:00-05:00"`), nor, with no clock time, one outside
+-12:00..+14:00 (`"now-2026"`, `"yesterday -2300"`). A count right after a
+month name, with no day in the text, is no date (`"Oct 1 pm"`, `"Jan 1 pm"`,
+`"Oct 5 days ago"`; up to 7.29.3 they took the day of today), and nor is a day
+counted back that the zone skipped whole (`"yesterday noon"` in Apia on
+2011-12-31); see [`approxidate_careful()`](#approxidate_careful).
 
 A text in C stops at its first NUL: a json string is read with
 [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>), which judges
