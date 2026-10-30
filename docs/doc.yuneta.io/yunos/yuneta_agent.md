@@ -392,7 +392,13 @@ links with a WARNING (*"has down links"*, *"has up links"*), and the
 WARNING is in the log. For example
 *"…: realm 'r2' NOT deleted: (see the log); before it, 0 realms deleted"*.
 Up to 7.29.3 that cause was empty, or the cause of an older, unrelated
-failure. `delete-yuno` gives the same cause.
+failure. `delete-yuno` gives the same cause, and so do the creates and
+updates that answer one: `create-realm`, `update-realm`,
+`update-public-service`, `install-binary`, `update-binary`,
+`create-config`, `update-config` and `create-yuno` (for example
+*"…: Cannot create realm: (see the log)"*). Up to 7.29.3 those named an
+empty cause, or the cause of an older failure, when the treedb refused
+with a WARNING.
 
 `delete-binary record_only=1` deletes the record and leaves its files, and
 says where they are, in the comment and in the `data` (`"removed": false`):
