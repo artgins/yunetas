@@ -487,11 +487,21 @@ An **orderly shutdown**, not a SIGKILL, performed by
    left alone.
    A yuno that cannot be killed does not stop the command: the yunos killed
    before it are waited for, the ones after it are killed, and the answer is
-   `-1` and names each one that failed with its cause, the error of
-   `kill()` included (*"Can't kill 1 yuno(s): 7601 (Cannot kill yuno pid
+   `-1` and names the ones that failed with their cause: the error of
+   `kill()` (*"Can't kill 1 yuno(s): 7601 (Cannot kill yuno pid
    4242: Operation not permitted (errno 1))"* when none was killed, or
    *"... 1 could not be killed: 7601 (Cannot kill yuno pid 4242: Operation
-   not permitted (errno 1))"* at the end of the wait).
+   not permitted (errno 1))"* at the end of the wait), or *"yuno PID NULL"*
+   for a record with no pid. The answer names the first 50 failures and
+   counts the rest: *"Can't kill 1200 yuno(s): 7601 (...), ..., 7650 (...)
+   ... and 1150 more (see the log)"*. Each failure has its ERROR in the log
+   (*"Cannot kill yuno"*, with its `yuno_id`, `pid` and error).
+   A yuno that is already gone (`kill()` answers `ESRCH`) is no failure: it
+   counts as killed, and its `EV_ON_CLOSE` is waited for like the others.
+   A process closes its sockets when it exits, before it can be reaped, so
+   the end of its channel is already queued at the agent and arrives on a
+   next turn of the loop. That close sets `yuno_running=false` (step 5), so
+   a `run-yuno` sent after the answer launches the yuno again.
 4. **No timer-based escalation in code**. The agent trusts the signal handler
    of the yuno to shut it down. If the handler does not shut it down, the
    record of the agent keeps the yuno as "running" forever (see §5).

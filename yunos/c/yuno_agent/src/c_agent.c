@@ -50,6 +50,7 @@
 #define SDATA_SET_JSON_NEW(hs, key, value) json_object_set_new((hs), (key), value)
 
 #define AUDIT_TTY_BURST_SECONDS 60  // console writes: one record per burst, see audit_tty_command()
+#define MAX_FAILED_YUNOS_NAMED  50  // the answer of kill-yuno names these, and counts the rest
 
 
 /***************************************************************************
@@ -61,6 +62,8 @@
  ***************************************************************************/
 PRIVATE const char *sequence_name(hgobj gobj);
 PRIVATE const char *last_failure_cause(void);
+PRIVATE void add_failed_yuno_to_list(gbuffer_t *gbuf, int n_failed, const char *id, const char *cause);
+PRIVATE void close_failed_yunos_list(gbuffer_t *gbuf, int n_failed);
 PRIVATE int is_yuneta_agent(pid_t pid);
 PRIVATE void remove_pid_file(void);
 PRIVATE uint64_t long_reference(void);
@@ -6181,10 +6184,11 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      add filter for future counter.
      *  A yuno that cannot be killed does not stop the walk: the ones
      *  before it are waited for, the ones after it are killed, and the
-     *  answer names each one that failed, with its cause.
+     *  answer names the ones that failed, with their cause.
      *------------------------------------------------*/
     json_t *filterlist = json_array();
-    json_t *jn_failed = json_array();
+    gbuffer_t *gbuf_failed = gbuffer_create(256, 64*1024);
+    int total_failed = 0;
     int total_killed = 0;
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
@@ -6208,7 +6212,8 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 json_array_append_new(filterlist, jn_EvChkItem);
                 total_killed++;
             } else {
-                json_array_append_new(jn_failed, json_sprintf("%s (%s)", id, last_failure_cause()));
+                add_failed_yuno_to_list(gbuf_failed, total_failed, id, last_failure_cause());
+                total_failed++;
             }
         }
     }
@@ -6217,14 +6222,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
     }
 
-    int total_failed = (int)json_array_size(jn_failed);
-    gbuffer_t *gbuf_failed = gbuffer_create(256, 64*1024);
-    json_t *jn_one;
-    json_array_foreach(jn_failed, idx, jn_one) {
-        gbuffer_printf(gbuf_failed, "%s%s", idx? ", " : "", json_string_value(jn_one));
-    }
-    JSON_DECREF(jn_failed)
-    gbuffer_append_char(gbuf_failed, 0);
+    close_failed_yunos_list(gbuf_failed, total_failed);
     const char *failed_list = gbuffer_cur_rd_pointer(gbuf_failed);
 
     if(!total_killed && total_failed > 0) {
@@ -8308,6 +8306,34 @@ PRIVATE const char *last_failure_cause(void)
 {
     const char *m = gobj_log_last_message();
     return empty_string(m)? "(see the log)" : m;
+}
+
+/*****************************************************************
+ *  Name a yuno that kill-yuno could not kill, with its cause, in the
+ *  list of its answer. Only the first MAX_FAILED_YUNOS_NAMED are
+ *  named, so the answer stays readable and inside its buffer: every
+ *  failure has its ERROR in the log, and close_failed_yunos_list()
+ *  counts the ones not named.
+ *****************************************************************/
+PRIVATE void add_failed_yuno_to_list(gbuffer_t *gbuf, int n_failed, const char *id, const char *cause)
+{
+    if(n_failed >= MAX_FAILED_YUNOS_NAMED) {
+        return;
+    }
+    gbuffer_printf(gbuf, "%s%s (%s)", n_failed? ", " : "", id, cause);
+}
+
+/*****************************************************************
+ *  End the list of add_failed_yuno_to_list(): the failures beyond
+ *  MAX_FAILED_YUNOS_NAMED are counted (" ... and N more (see the
+ *  log)"), and the list gets its NUL.
+ *****************************************************************/
+PRIVATE void close_failed_yunos_list(gbuffer_t *gbuf, int n_failed)
+{
+    if(n_failed > MAX_FAILED_YUNOS_NAMED) {
+        gbuffer_printf(gbuf, " ... and %d more (see the log)", n_failed - MAX_FAILED_YUNOS_NAMED);
+    }
+    gbuffer_append_char(gbuf, 0);
 }
 
 /*****************************************************************
@@ -10794,9 +10820,15 @@ PRIVATE int run_yuno(
 }
 
 /***************************************************************************
- *  Send the yuno its signal2kill. -1 when it cannot be signalled (logged),
- *  with its cause, errno included, in gobj_log_last_message() for the
- *  answer of kill-yuno.
+ *  Send the yuno its signal2kill. -1 when it cannot be signalled (logged
+ *  with an ERROR), with its cause in gobj_log_last_message() for the answer
+ *  of kill-yuno: the error of kill() (pid, strerror, errno) when kill()
+ *  refuses the signal, "yuno PID NULL" when the record has no pid.
+ *  A yuno already gone (ESRCH) is no failure, and kill-yuno waits for its
+ *  EV_ON_CLOSE like the others': a process closes its sockets when it
+ *  exits, before it can be reaped, so the end of its channel is already
+ *  queued at the agent and arrives on a next turn of the loop. That close
+ *  is what clears yuno_running, so the answer comes after it.
  ***************************************************************************/
 PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
 {
