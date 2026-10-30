@@ -1098,7 +1098,9 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     (approxidate() has no flag: NOW is all a caller sees). A piece of the
     text that says nothing it knows makes the whole text unreadable.
 
-    Durations back from now: a count and a unit, "ago" is optional:
+    Durations back from now: a count and a unit, "ago" is optional, but
+    says how long back a count is, so it needs one before it ("5 ago" and
+    "5 (days) ago" are no date; up to 7.29.3 they were the 5th):
         "2 hours ago"  "3 days"  "1.day"  "2 days 3 hours ago"  "one week ago"
         short units, attached or not: "1s" "5m" "2h" "1d" "1w" "1M" "1y"
         ("m" is a minute, "M" a month; "1min" "1mo" "2hrs" "3wks" "1yr")
@@ -1121,7 +1123,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         count (up to 7.29.3 "2026 Thu" was 2026 Thursdays back, 38 years):
         "Oct 1 2026 thursdays" and "2000 mondays ago" are no date (write
         weeks). A weekday names a day, and the text must say it, as a date
-        or counted from today ("yesterday Tue", "2 days ago Mon"):
+        or counted from today ("yesterday Tue", "2 days ago Mon"; a count
+        of zero and "now" are today: "0 days ago Mon", "now Wed"):
         "monday 10:00", "2026 Thu" are no date (up to 7.29.3 today at
         10:00, and today in 2026). A count and its unit, weekday or am/pm
         touch ("2h") or are parted by blanks of any kind ("Oct 1 10\vpm"
@@ -1173,10 +1176,14 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     "2 days from now" (no time ahead of now), "1.5 hours", a date that is
     not in the calendar ("2026-02-30"), a lone sign or number that is no
     day, month or year ("+5", "-5", "100"), a number alone after "at"
-    that is an hour with no half of the day ("Oct 1 at 10", "at 3": write
-    "at 10:00", "at 3 pm"; up to 7.29.3 they were 2010-10-01 and the 3rd
-    of the month), a plus sign before a duration
-    ("+1d").
+    (or "at the"), of any value: after "at" a person means a time, and a
+    number alone says an hour with no half of the day ("Oct 1 at 10", "at
+    3": write "at 10:00", "at 3 pm") or no hour ("Oct 1 at 24", "at
+    2026"); up to 7.29.3 they were 2010-10-01, the 3rd of the month,
+    2024-10-01 and today in 2026. Before a month name it is a day: "at 5
+    Oct 2026" is read. "at 10.30" (10:30 for a person, October 30 up to
+    7.29.3) is no date either: write "at 10:30". And a plus sign before a
+    duration ("+1d").
 
     parse_date_basic() reads only a whole date and time, or epoch seconds,
     and returns the offset it was written in (the local one at that time

@@ -7268,8 +7268,10 @@ typedef struct {
     int weekday_target;     // "last friday", "2 friday": -1 none, 0..6
     int64_t weekday_count;
     BOOL weekday_named;     // a weekday that is no count ("Thu, 1 Oct"): the text must say its day
-    BOOL today_said;        // "today": a day, as a date says one
-    const char *after_at;   // the end of the last "at": a number alone after it is no date
+    BOOL today_said;        // "today" or "now": a day, as a date says one
+    BOOL counted_back;      // a count back, of zero too ("0 days ago"), "yesterday", or a weekday
+                            // back ("last friday"): a day counted from today
+    const char *after_at;   // the end of the last "at" (or "at the"): a number alone after it is no date
 
     BOOL vague;             // a piece that is not an absolute date (refused by parse_date_basic)
     int understood;         // pieces that say something
@@ -7586,6 +7588,7 @@ PRIVATE void note_duration(date_reading_t *rd, uintmax_t count, date_unit_t unit
             rd->unreadable = TRUE;
             return;
     }
+    rd->counted_back = TRUE;
     rd->vague = TRUE;
     rd->understood++;
 }
@@ -7598,6 +7601,7 @@ PRIVATE void note_weekday_back(date_reading_t *rd, uintmax_t count, int weekday)
     }
     rd->weekday_target = weekday;
     rd->weekday_count = (int64_t)count;
+    rd->counted_back = TRUE;
     rd->vague = TRUE;
     rd->understood++;
 }
@@ -7709,6 +7713,31 @@ PRIVATE BOOL weekday_follows(const char *p, BOOL plural_too)
         return TRUE;
     }
     return (plural_too && weekday_of_plural(word) >= 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Is a month name what follows a number at `p` (after blanks, dots,
+ *  commas, underscores or comments): "5 Oct", "5, October"?
+ ***************************************************************************/
+PRIVATE BOOL month_follows(const char *p)
+{
+    p = skip_to_next_piece(NULL, p);
+    if(!isalpha((unsigned char)*p)) {
+        return FALSE;
+    }
+    char raw[16];
+    char word[16];
+    take_word(p, raw, word, sizeof(word));
+    return (month_of_word(word) != 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Is the piece that `start` begins the first one after "at" (or "at
+ *  the"), with only blanks or comments between them?
+ ***************************************************************************/
+PRIVATE BOOL right_after_at(date_reading_t *rd, const char *start)
+{
+    return (rd->after_at && skip_to_next_piece(NULL, rd->after_at) == start)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -8032,16 +8061,19 @@ PRIVATE void note_number(date_reading_t *rd, uintmax_t value, int digits)
 }
 
 /***************************************************************************
- *  A number alone, that `start` begins: after "at" (and only blanks or
- *  comments between them), an hour (0 to 23), it is the hour a person
- *  means, and it says no half of the day: no date ("Oct 1 at 10" was
- *  2010-10-01, "at 10" the 10th of the month, "at 3" 03:00 or 15:00).
- *  "at 10 pm", "at 10:00" and "at 2026-10-01" are read.
+ *  A number alone, that `start` begins and `end` ends. Right after "at"
+ *  (or "at the", with only blanks or comments between them) a person
+ *  means a time, and a number alone does not say one: an hour (0 to 23)
+ *  with no half of the day ("at 3" is 03:00 or 15:00), or no hour at all
+ *  ("at 24", "at 2026"). It is no date, whatever its value: up to 7.29.3
+ *  "Oct 1 at 10" was 2010-10-01, "Oct 1 at 24" 2024-10-01, "at 10" the
+ *  10th of the month and "Oct 1 at the 10" 2010-10-01. Before a month name
+ *  it is a day ("at 5 Oct 2026"). "at 10 pm", "at 10:00" and "at
+ *  2026-10-01" are read.
  ***************************************************************************/
-PRIVATE void note_lone_number(date_reading_t *rd, const char *start, uintmax_t value, int digits)
+PRIVATE void note_lone_number(date_reading_t *rd, const char *start, const char *end, uintmax_t value, int digits)
 {
-    if(digits <= 2 && value <= 23 && rd->after_at &&
-            skip_to_next_piece(NULL, rd->after_at) == start) {
+    if(right_after_at(rd, start) && !month_follows(end)) {
         rd->unreadable = TRUE;
         return;
     }
@@ -8071,6 +8103,21 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
 
     if(*p == ':' && isdigit((unsigned char)p[1])) {
         return read_clock(rd, value, p + 1);
+    }
+    if(*p == '.' && isdigit((unsigned char)p[1]) && right_after_at(rd, start)) {
+        const char *q = p + 1;
+        while(isdigit((unsigned char)*q)) {
+            q++;
+        }
+        if(!(*q == '.' && isdigit((unsigned char)q[1]))) {
+            /*
+             *  "at 10.30" is 10:30 for a person, and was October 30: no
+             *  date ("at 10:30" is read). With its year it is a date of
+             *  numbers ("at 1.10.2026").
+             */
+            rd->unreadable = TRUE;
+            return q;
+        }
     }
     if((*p == '-' || *p == '/' || *p == '.') && isdigit((unsigned char)p[1])) {
         return read_numeric_date(rd, start);
@@ -8137,14 +8184,14 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
          *  in the plural ("Oct 1 2026 thursdays") the weekday, with no
          *  count left, is no date.
          */
-        note_lone_number(rd, start, value, digits);
+        note_lone_number(rd, start, p, value, digits);
         return p;
     }
     const char *end = read_after_count(rd, value, p);
     if(end) {
         return end;
     }
-    note_lone_number(rd, start, value, digits);
+    note_lone_number(rd, start, p, value, digits);
     return p;
 }
 
@@ -8342,15 +8389,14 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
     }
 
     if(strcmp(word, "now") == 0 || strcmp(word, "today") == 0) {
-        if(word[0] == 't') {
-            rd->today_said = TRUE;
-        }
+        rd->today_said = TRUE;
         rd->vague = TRUE;
         rd->understood++;
         return end;
     }
     if(strcmp(word, "yesterday") == 0) {
         rd->back_days++;
+        rd->counted_back = TRUE;
         rd->vague = TRUE;
         rd->understood++;
         return end;
@@ -8379,8 +8425,24 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
         rd->after_at = end;
         return end;
     }
-    if(strcmp(word, "ago") == 0 || strcmp(word, "on") == 0 ||
-            strcmp(word, "the") == 0 || strcmp(word, "of") == 0) {
+    if(strcmp(word, "the") == 0) {
+        if(right_after_at(rd, p)) {
+            rd->after_at = end;     // "Oct 1 at the 10" was 2010-10-01
+        }
+        return end;
+    }
+    if(strcmp(word, "ago") == 0) {
+        if(!rd->counted_back) {
+            /*
+             *  "ago" says how long back a count is: with none before it
+             *  the number left was a day ("5 (days) ago", "5 ago" were the
+             *  5th)
+             */
+            rd->unreadable = TRUE;
+        }
+        return end;
+    }
+    if(strcmp(word, "on") == 0 || strcmp(word, "of") == 0) {
         return end;
     }
     if(strcmp(word, "last") == 0) {
@@ -8534,8 +8596,7 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
     if(rd->unreadable || !rd->understood) {
         return -1;
     }
-    if(rd->weekday_named && !rd->mday && !rd->epoch_said && !rd->today_said &&
-            !rd->back_seconds && !rd->back_days && !rd->back_months && rd->weekday_target < 0) {
+    if(rd->weekday_named && !rd->mday && !rd->epoch_said && !rd->today_said && !rd->counted_back) {
         return -1;  // a weekday, and no day: neither a date's, nor one counted from today
     }
     if(rd->never) {

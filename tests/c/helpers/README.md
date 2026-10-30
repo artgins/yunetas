@@ -247,6 +247,14 @@ as a date or counted from today (`"yesterday Tue"`): `"monday 10:00"` and
 `"2026 Thu"` are no date (7.29.3: today at 10:00, today in 2026). A number
 alone after `at` is an hour with no half of the day, no date (`"Oct 1 at
 10"`, `"at 10"`; 7.29.3: 2010-10-01, the 10th); `"Oct 1 at 10 pm"` is read.
+§16: after `at` (or `at the`) no number alone is a date, whatever its value
+(`"Oct 1 at 24"`, `"Oct at 26"`, `"Oct 1 at the 10"`; 7.29.3: 2024-10-01,
+October 26, 2010-10-01), nor `"at 10.30"` (7.29.3: October 30); a number
+before a month name is a day (`"at 5 Oct 2026"`, refused by a development
+version). A count of zero and `"now"` are today, so a weekday after them is
+read (`"0 days ago Mon"`, `"now Wed"`, refused by a development version), and
+`ago` with no count before it is no date (`"5 (days) ago"`, `"5 ago"`;
+7.29.3: the 5th).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

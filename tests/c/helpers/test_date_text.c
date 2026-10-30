@@ -76,6 +76,13 @@
  *              today at 10:00, "2026 Thu" today in 2026); a number alone
  *              after "at" is an hour with no half of the day, no date
  *              ("Oct 1 at 10" was 2010-10-01, "at 10" the 10th).
+ *          16. after "at" no number alone is a date, of any value ("Oct 1
+ *              at 24" was 2024-10-01), nor one after "at the" ("Oct 1 at
+ *              the 10" was 2010-10-01), nor "at 10.30" (October 30), but a
+ *              day before a month name is ("at 5 Oct 2026"); a count of
+ *              zero and "now" name today, so a weekday after them is read
+ *              ("0 days ago Mon"); "ago" with no count before it is no
+ *              date ("5 (days) ago" was the 5th).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -929,7 +936,6 @@ PRIVATE void test_comments_weekdays_and_at(void)
         {"Thu noon",                        "2026-10-21 11:00:00 +0200", 1},
         {"Oct Thu",                         "2026-10-21 11:00:00 +0200", 1},
         {"Oct 2026 Thu",                    "2026-10-21 11:00:00 +0200", 1},
-        {"now Wed",                         "2026-10-21 11:00:00 +0200", 1},
         {"yesterday Tue",                   "2026-10-20 11:00:00 +0200", 0},
         {"today Wed",                       "2026-10-21 11:00:00 +0200", 0},
         {"-1d Tue",                         "2026-10-20 11:00:00 +0200", 0},
@@ -945,12 +951,79 @@ PRIVATE void test_comments_weekdays_and_at(void)
         {"at 10",                           "2026-10-21 11:00:00 +0200", 1},
         {"1 Oct at 3",                      "2026-10-21 11:00:00 +0200", 1},
         {"Oct 1 at (CEST) 10",              "2026-10-21 11:00:00 +0200", 1},
-        {"Oct at 26",                       "2026-10-26 10:00:00 +0100", 0},
         {"Oct 1 at 10 pm",                  "2026-10-01 22:00:00 +0200", 0},
         {"Oct 1 at 10pm",                   "2026-10-01 22:00:00 +0200", 0},
         {"Oct 1 at 10:00",                  "2026-10-01 10:00:00 +0200", 0},
         {"at 2026-10-01 10:00",             "2026-10-01 10:00:00 +0200", 0},
         {"Oct 1 2026 at 10:00",             "2026-10-01 10:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+}
+
+/***************************************************************************
+ *  16. After "at" a person means a time, so no number alone there is a
+ *  date, whatever its value: "Oct 1 at 24" was 2024-10-01, "Oct 1 at 30"
+ *  2030-10-01, "Oct at 26" October 26, "Oct 1 at the 10" 2010-10-01. A
+ *  number before a month name is a day ("at 5 Oct 2026"; a development
+ *  version refused it). "at 10.30" means 10:30, and was October 30: no
+ *  date (write "at 10:30"). A count of zero and "now" name today, as
+ *  "today" does: "0 days ago Mon" and "now Wed" are today (a development
+ *  version refused them). "ago" says how long back a count is, and with
+ *  no count it is no date: "5 (days) ago" and "5 ago" were the 5th.
+ ***************************************************************************/
+PRIVATE void test_at_zero_counts_and_ago(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  No number alone after "at"
+         */
+        {"Oct 1 at 24",                     "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at 30",                     "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at 99",                     "2026-10-21 11:00:00 +0200", 1},
+        {"at 24",                           "2026-10-21 11:00:00 +0200", 1},
+        {"Oct at 26",                       "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at 2026",                   "2026-10-21 11:00:00 +0200", 1},
+        {"at 2026",                         "2026-10-21 11:00:00 +0200", 1},
+        {"at 1761000000",                   "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at the 10",                 "2026-10-21 11:00:00 +0200", 1},
+        {"at the 10",                       "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at (x) the 24",             "2026-10-21 11:00:00 +0200", 1},
+        {"at 10.30",                        "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at 10.30",                  "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  A day before a month name, a date of numbers, an ordinal
+         */
+        {"at 5 Oct 2026",                   "2026-10-05 11:00:00 +0200", 0},
+        {"at 26 Oct 2026",                  "2026-10-26 10:00:00 +0100", 0},
+        {"at 5 October",                    "2026-10-05 11:00:00 +0200", 0},
+        {"at 5, Oct 2026 10:00",            "2026-10-05 10:00:00 +0200", 0},
+        {"at 1.10.2026",                    "2026-10-01 11:00:00 +0200", 0},
+        {"at the 5th",                      "2026-10-05 11:00:00 +0200", 0},
+        {"Oct 1 at 10:30",                  "2026-10-01 10:30:00 +0200", 0},
+        {"Oct 1 at 10 pm",                  "2026-10-01 22:00:00 +0200", 0},
+
+        /*
+         *  A count of zero and "now" name today
+         */
+        {"0 days ago Mon",                  "2026-10-21 11:00:00 +0200", 0},
+        {"zero days ago Mon",               "2026-10-21 11:00:00 +0200", 0},
+        {"0 hours ago Wed",                 "2026-10-21 11:00:00 +0200", 0},
+        {"0 months ago Wed",                "2026-10-21 11:00:00 +0200", 0},
+        {"now Wed",                         "2026-10-21 11:00:00 +0200", 0},
+        {"now Mon",                         "2026-10-21 11:00:00 +0200", 0},
+        {"0 days ago",                      "2026-10-21 11:00:00 +0200", 0},
+
+        /*
+         *  "ago" needs a count
+         */
+        {"5 (days) ago",                    "2026-10-21 11:00:00 +0200", 1},
+        {"5 ago",                           "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 ago",                       "2026-10-21 11:00:00 +0200", 1},
+        {"ago",                             "2026-10-21 11:00:00 +0200", 1},
+        {"5 days (x) ago",                  "2026-10-16 11:00:00 +0200", 0},
+        {"last friday ago",                 "2026-10-16 11:00:00 +0200", 0},
+        {"yesterday ago",                   "2026-10-20 11:00:00 +0200", 0},
     };
     check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
 }
@@ -995,6 +1068,7 @@ int main(int argc, char *argv[])
     test_weekday_after_a_date();
     test_blanks_and_years_before_weekdays();
     test_comments_weekdays_and_at();
+    test_at_zero_counts_and_ago();
 
     gobj_end();
 
