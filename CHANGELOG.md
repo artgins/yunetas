@@ -166,7 +166,16 @@
   EOF. Now the command gets the terminal's EOF character (twice after a line
   not ended; nothing in raw mode), so `cat >/dev/null; echo DONE` ends; the
   master is closed (one fd leaked per call) and the command is always
-  reaped. The `C_PTY` child leaves with `_exit()`. In 7.29.3 and older.
+  reaped (with SIGCHLD at `SIG_IGN` the kernel reaps it and the answer is
+  0, not *"waitpid() FAILED"*). When stdin is a terminal each ctrl+d is
+  passed on and the input after it still reaches the command; any other
+  stdin ends once (documented). The end of the command is seen by a pidfd
+  in the main loop, so a process it left in the background no longer holds
+  the call (`(trap '' HUP; exec sleep 3) & sleep 0.2` took 3 s, now 0.2 s;
+  without a pidfd the exit is looked for every 100 ms with a WARNING), and
+  `poll()` replaces `select()`, whose `fd_set` overflowed above
+  `FD_SETSIZE`. The `C_PTY` child leaves with `_exit()`. In 7.29.3 and
+  older.
 - **The watcher sets its signals before its first fork, unblocks SIGQUIT and
   ignores SIGHUP.** A SIGQUIT right after the first fork found the default
   disposition, ended the watcher and left the yuno an orphan; a SIGHUP ended
@@ -234,6 +243,23 @@
   the last message before the operation whose cause they answer, as the
   deletes do. In 7.29.3 (those answers read `gobj_log_last_message()`
   directly).
+- **C_AUTH_BFF: a 502 or 429 goes out with its own HTTP status.**
+  `status_str()` had no text for them, so `auth_service_unavailable`,
+  `auth_unexpected_error`, `auth_empty_response` and `auth_rate_limited`
+  went out as *"500 Internal Server Error"*; an unknown status is an ERROR.
+  In 7.29.3. `c_auth_bff/test22`.
+- **C_AUTH_BFF: a timeout of the IdP is ONE ERROR, logged when its task
+  ends, with its `cause`** (`idp_connect_timeout_ms` or `idp_timeout_ms`,
+  plus `connected`, `tcp_state`, `queued`). The connect watchdog added
+  *"IdP unreachable, task watchdog fired"* (in 7.29.3) and a discovery with
+  requests queued *"OIDC discovery failed, draining queue"*, now an INFO.
+- **C_AUTH_BFF: a token of 8192 bytes or more is refused by its size**
+  before its claims are read (500 `token_too_large`, with the sizes); a
+  token of 8.1-8.6 KB was set in a cookie the BFF could not read back, and a
+  cookie `Domain` that does not fit fails the cookie instead of being
+  dropped. A request with no Host gets no `Domain`, with a WARNING. An error
+  answered without its code is an ERROR with a stack and `internal_error`
+  (`unknown_error` is gone). In 7.29.3. `c_auth_bff/test21`, `test23`.
 - **C_AUTH_BFF: an OIDC discovery that times out is logged and counted in
   `idp_timeouts`.** The discovery task ending by timeout moved no counter,
   and with no request queued it logged nothing. It logs an ERROR (*"OIDC
@@ -250,6 +276,16 @@
   and `internal_error` (both 500), and `missing_refresh_token` for
   `/auth/logout` too; 502, not 503, for the drain after a failed discovery.
   Comments only.
+- **`kill-yuno` with SIGKILL no longer fails for a yuno it did kill.** A
+  watcher that could not be signalled made the command answer *"Can't kill
+  yuno: (see the log)"* and stop there, without waiting for the yuno it had
+  killed or going on with the others; a watcher whose child ends by SIGKILL
+  leaves by itself, so that is a WARNING now and the kill goes on. The
+  watcher of a yuno that could not be signalled is no longer killed (it
+  would leave the yuno unsupervised). In 7.29.3 and older.
+- **`set_yuno_must_die()` logs "Exit to die" once**, also when a stop
+  reaches a daemon twice during the stop of its services. In 7.29.3 and
+  older.
 - **A delete the agent's treedb refuses says which record, its cause, and
   what was deleted before it.** This covers `delete-binary` (count,
   directories left, files kept), `delete-config`, `delete-realm` and
@@ -271,10 +307,20 @@
 - **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1
-  and 1.1.2. What each carries is in its own CHANGELOG: no private name,
+  and 1.1.2; then gobj-js 7.29.3, gobj-ui 7.29.5, gui_agent 1.2.7 and
+  gui_treedb 1.1.3. The `yunetas` CLI 1.0.5 on PyPI (no private name in the
+  package). What each carries is in its own CHANGELOG: no private name,
   citation or footprint in comments, docs and examples; the SPAs on the
   current libraries, a deadline on every call to the auth BFF, and a login
   denial said in the language of the app.
+- **Docs and examples: neutral ids.** The examples, tests and docs of every
+  public repo use `db_history^7301`/`7302`, `gate_b^7401`, `gate_probe^7701`,
+  `gate_a`/`gate_b` (role label `gate`), `events_a`/`events_b`,
+  `db_events`, the topic `raw_events`, ports 7601-7605/7501-7502, nodes
+  node A / node B, and the ramdisk `/mnt/ramdisk`. The earlier ones kept the
+  digits of another numbering and named the two kinds of node of one
+  application. `kw/test_json_flat` and gobj-js's json_flat tests use the
+  same ids.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -524,6 +570,36 @@
   `"at"`, many comments, `"on"` and many `"the"` took time that grew with the
   square of its length (about 2 s for 140 KB). `test_date_text` §15-17. In
   7.29.3 and older.
+- **`approxidate_careful()`: noon, midnight and tea are of the day the text
+  names; `never` is a whole text; no count back right after `at`, with a
+  minus sign or `last` either; am/pm only beside an hour of 12.**
+    - `"today noon"` before noon was yesterday's noon, `"yesterday noon"`
+      (and `"noon -1d"`) the day before yesterday's, and `"last friday
+      noon"` the Thursday before: the step back to the last noon that passed
+      was taken after the day was counted (git's `date.c` does the same).
+      Now noon, midnight and tea are of the day the text names (today or
+      now, a count back of days to years, `yesterday`, a weekday back, a
+      date); alone (`"noon"`) they are still the last one that passed.
+    - `never` with anything else was the epoch (`"now never Mon"`, `"never
+      10:00"`); it is now a whole text.
+    - `"at -1d"`, `"at -5 days"`, `"Oct 1 at -2 days"`, `"at last week"` and
+      `"at last friday"` were read while `"at 5 days"` was refused: every
+      count back right after `at` is no date. `last` takes only a unit or a
+      weekday (`"last pm"` was 13:00).
+    - am/pm said nothing beside an hour that is not of 12: `"15:00 am"` was
+      15:00, `"13 pm"` 13:00, `"0:30 pm"` 12:30 and `"noon am"` midnight;
+      they are no date. An hour written with an `h` is of 24 hours, so
+      `"at 15h am"` is no date too (it was 15:00, unreleased).
+    - `"at 2026.10"` (year and month, today's day, as `"2026.10"` and
+      `"2026-10"`) is tested and documented; `"10.2026"` is no date.
+    - The docs say what parts `ago` from its count: blanks, dots, commas,
+      underscores or comments (`"1.day.ago"`).
+
+  In 7.29.3. On the night of a change of hour, a weekday beside a counted
+  day was read with the local offset of the time reached instead of the day
+  counted (`"yesterday Sat"` refused at 23:30 CET on Sunday 2026-10-25 in
+  Madrid); it is read from the day the text counted (unreleased).
+  `test_date_text` §19.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
   bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text
@@ -716,8 +792,16 @@
   could land on the new read, which then failed (*"UDP: read FAILED, the
   client stops"*). Each start creates a new read, as `C_UDP_S` does.
   `test_c_udp_tx_refused`.
-- **A `C_TCP` clisrv destroyed before its stop ended closes its socket**: a
-  socket leaked and the peer never saw the end. In 7.29.3. `c_tcp/test9`.
+- **Destroying a `C_TCP`, `C_UDP` or `C_UDP_S` in `ST_WAIT_STOPPED` is
+  supported** (it is how every yuno ends: `stop_services()` then
+  `gobj_end()`, with no loop turn between them) and logs nothing; the docs
+  no longer call it a misuse. `test_c_udp_tx_refused` covers a start made at
+  `EV_STOPPED` while the cancel of the read is still to come.
+- **A `C_TCP` clisrv destroyed before its stop ended closes its socket**, as
+  the end of the stop does (`shutdown(SHUT_WR)` first, so the peer reads the
+  end and not a reset): a socket leaked and the peer never saw the end. In
+  7.29.3. `c_tcp/test9`, which also checks again that both C_TCPs
+  connected.
 - **`C_UDP` and `C_UDP_S` destroyed before their `EV_STOPPED` no longer log
   *"GObj NOT STOPPED. UV handler ACTIVE!"*,** a check from the libuv code:
   the destroy cancels what is in flight and the loop frees it with no

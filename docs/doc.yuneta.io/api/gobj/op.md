@@ -62,7 +62,7 @@ Returns `0` on success, or `-1` if an error occurs (for example if `gobj` or `go
 This function makes sure that the object hierarchy remains consistent when changing parents. It is useful for dynamically restructuring the object tree.
 
 :::{warning}
-In C it is only **declared** in `gobj.h`: there is no definition in `gobj.c`, so a C caller does not link. It is implemented in gobj-js ([`gobj_change_parent()`](https://github.com/artgins/gobj-js/blob/7.29.2/src/gobj.js#L4524)).
+In C it is only **declared** in `gobj.h`: there is no definition in `gobj.c`, so a C caller does not link. It is implemented in gobj-js ([`gobj_change_parent()`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L4524)).
 :::
 
 ---
