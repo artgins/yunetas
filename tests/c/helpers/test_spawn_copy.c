@@ -17,6 +17,8 @@
  *          caller has: a yuno keeps its signals blocked for its signalfd.
  *          run_command() takes stdout and stderr, and a command longer than
  *          its old 4 KB buffer.
+ *          launch_daemon(): the pid of the daemon (kill() reaches it), no
+ *          zombie left, -1 for a program that cannot be run.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -27,6 +29,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <dirent.h>
 #include <yunetas.h>
 
 #define APP "test_spawn_copy"
@@ -223,6 +226,83 @@ PRIVATE void test_clean_signals(void)
 }
 
 /***************************************************************************
+ *  How many children of this process are zombies
+ ***************************************************************************/
+PRIVATE int my_zombies(void)
+{
+    int zombies = 0;
+    DIR *d = opendir("/proc");
+    struct dirent *e;
+    while(d && (e = readdir(d))) {
+        char path[PATH_MAX];
+        char bf[512];
+        snprintf(path, sizeof(path), "/proc/%s/stat", e->d_name);
+        FILE *f = fopen(path, "r");
+        if(!f) {
+            continue;
+        }
+        size_t r = fread(bf, 1, sizeof(bf) - 1, f);
+        fclose(f);
+        bf[r] = 0;
+        char *p = strrchr(bf, ')');
+        char state;
+        int ppid;
+        if(p && sscanf(p + 1, " %c %d", &state, &ppid) == 2 && ppid == (int)getpid() && state == 'Z') {
+            zombies++;
+        }
+    }
+    if(d) {
+        closedir(d);
+    }
+    return zombies;
+}
+
+PRIVATE void test_launch_daemon(void)
+{
+    pid_t pid = launch_daemon(TRUE, "/bin/sleep", "30", NULL);
+    char path[PATH_MAX];
+    char cmdline[256] = "";
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pid);
+    FILE *f = (pid > 0)? fopen(path, "r"): NULL;
+    if(f) {
+        size_t r = fread(cmdline, 1, sizeof(cmdline) - 1, f);
+        cmdline[r] = 0;
+        fclose(f);
+    }
+    ok_or_fail(pid > 0 && strcmp(cmdline, "/bin/sleep") == 0,
+        "launch_daemon(): answers the pid of the daemon, after its exec");
+
+    BOOL gone = FALSE;
+    if(pid > 0 && kill(pid, SIGKILL) == 0) {
+        for(int i = 0; i < 200 && !gone; i++) {
+            char st[512] = "";
+            snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+            f = fopen(path, "r");
+            if(!f) {
+                gone = TRUE;
+                break;
+            }
+            size_t r = fread(st, 1, sizeof(st) - 1, f);
+            fclose(f);
+            st[r] = 0;
+            char *p = strrchr(st, ')');
+            if(p && p[1] == ' ' && p[2] == 'Z') {
+                gone = TRUE;
+                break;
+            }
+            usleep(10*1000);
+        }
+    }
+    ok_or_fail(gone, "launch_daemon(): a kill() of the pid answered ends the daemon");
+
+    printf("     (an ERROR \"not launched: execvp()\" follows, on purpose)\n");
+    ok_or_fail(launch_daemon(TRUE, "/nonexistent/program", NULL) == -1,
+        "launch_daemon(): a program that cannot be run answers -1");
+
+    ok_or_fail(my_zombies() == 0, "launch_daemon(): no zombie child left");
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -257,6 +337,7 @@ int main(int argc, char *argv[])
     test_run_process2();
     test_copyfile();
     test_clean_signals();
+    test_launch_daemon();
 
     gobj_end();
 

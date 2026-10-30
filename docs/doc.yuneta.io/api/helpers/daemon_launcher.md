@@ -10,7 +10,9 @@ Source code:
 (launch_daemon)=
 ### [`launch_daemon()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/gobj-c/src/helpers.c#L9772)
 
-`launch_daemon()` creates a detached daemon process by performing a double fork and returns the PID of the first child process.
+`launch_daemon()` runs a program as a detached daemon (a double fork, the
+daemon in a session of its own) and returns the PID of the daemon once its
+`exec` is done.
 
 ```C
 int launch_daemon(
@@ -25,28 +27,42 @@ int launch_daemon(
 | Key | Type | Description |
 |---|---|---|
 | `redirect_stdio_to_null` | `BOOL` | If `TRUE`, redirects standard input, output, and error to `/dev/null`. |
-| `program` | `const char *` | The name of the program to execute as a daemon. |
-| `...` | `variadic` | Additional arguments to pass to the program, terminated by `NULL`. |
+| `program` | `const char *` | The program to run as a daemon, found in `PATH` as `execvp()` does. |
+| `...` | `variadic` | Additional arguments to pass to the program, terminated by `NULL` (at most 255 in all). |
 
 **Returns**
 
-Returns the PID of the first child process if successful, or `-1` if an error occurs.
+The PID of the daemon, or `-1`, said on stderr, when it could not be
+launched: a `fork()`, `setsid()`, `/dev/null` or the `execvp()` failed, or
+too many arguments.
 
 **Notes**
 
-- Uses a double-fork technique to make sure that the daemon process is fully
-  detached from the terminal.
-- The parent process does not wait for the first child. This allows it to
-  continue execution immediately.
-- If `execvp()` fails, an error is written to a pipe and the function
-  returns `-1`.
-- The caller can use the returned PID to monitor or control the daemon
-  process.
+- It waits for the `exec` of the daemon, not for its end: the children tell
+  it the daemon's PID or their failure through a pipe that closes on the
+  daemon's `exec` (`O_CLOEXEC`), read to its end. The first child is reaped.
+- The PID answered is the daemon's: `kill(pid, SIGTERM)` ends it.
+- Up to 7.29.3 it answered the PID of the first child, which had already
+  exited (a `kill()` of it did nothing to the daemon) and was never reaped (a
+  zombie per call); it read the pipe once without waiting, so an `exec`
+  failure was seen only when it came first; and the daemon kept the write end
+  of the pipe open.
 - The daemon starts with no signal blocked and every signal at its default
   but SIGHUP, which it ignores. Up to 7.29.3 it inherited the caller's mask
   and ignores (a yuno's: SIGTERM, SIGINT, SIGQUIT and the rest of its
   `signalfd` set blocked), and the first child left with `exit()`, which
   wrote out a second time what the caller had in its stdio buffers.
+
+**Example**
+
+```C
+pid_t pid = launch_daemon(TRUE, "telnet", "localhost", "3303", NULL);
+if(pid < 0) {
+    return -1;  // not launched, already said
+}
+// ... the telnet connects to a listener of the test ...
+kill(pid, SIGKILL);     // the daemon itself
+```
 
 ---
 

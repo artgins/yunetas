@@ -34,6 +34,7 @@
 #elif __linux__
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/random.h> // For getrandom()
 #include <sys/un.h>
 #include <syslog.h>
@@ -9925,21 +9926,6 @@ PUBLIC void comm_prot_free(void)
 
 
 
-/*
-    Returning the First Child's PID: The first fork PID is returned directly.
-    This allows the main program to keep a reference to the process that will become the daemon.
-
-    Parent Process Doesn’t Wait: The parent doesn’t wait for the first child,
-    so it continues executing immediately after forking.
-
-    Returning pid: launch_program now returns the PID of the first child,
-    which will remain the same after the second fork.
-
-    Managing the Process: The main program can now use the returned PID to monitor
-    or control the daemonized process, for example,
-    by calling kill(child_pid, SIGTERM) to terminate it.
- */
-
 #ifdef __linux__
 /***************************************************************************
  *  The daemon starts with no signal blocked and every signal at its
@@ -9962,67 +9948,139 @@ PRIVATE void daemon_reset_signals(void)
     sigemptyset(&none);
     sigprocmask(SIG_SETMASK, &none, NULL);
 }
+
+/*
+ *  What the children tell the launcher, one record each (atomic: smaller
+ *  than PIPE_BUF), through a pipe that closes on the daemon's exec
+ */
+typedef enum {
+    LAUNCH_DAEMON_PID = 1,  // value: the pid of the daemon
+    LAUNCH_FORK_FAILED,     // value: errno of the second fork()
+    LAUNCH_SETSID_FAILED,   // value: errno of setsid()
+    LAUNCH_DEVNULL_FAILED,  // value: errno of open("/dev/null")
+    LAUNCH_TOO_MANY_ARGS,   // value: the most arguments taken
+    LAUNCH_EXEC_FAILED,     // value: errno of execvp()
+} launch_note_e;
+
+typedef struct {
+    int what;   // launch_note_e
+    int value;
+} launch_note_t;
+
+PRIVATE void tell_launcher(int fd, int what, int value)
+{
+    launch_note_t note = {what, value};
+    ssize_t x = write(fd, &note, sizeof(note));
+    if(x) {} // nobody to tell when it fails: the launcher sees no pid and says so
+}
 #endif /* __linux__ */
 
 /***************************************************************************
- *  Function to launch a program as a daemonized process and return its PID
+ *  Launch a program as a daemon: two forks, the second child in a session
+ *  of its own (setsid()), SIGHUP ignored, the rest of the signals at their
+ *  default and none blocked, stdio on /dev/null if asked; then execvp().
+ *
+ *  Return the pid of the daemon, once its exec is done: the caller can
+ *  kill() it. -1 (said) when it could not be launched: a fork, setsid(),
+ *  /dev/null or the exec failed, or more than MAX_ARGS arguments.
+ *
+ *  The first child is reaped here, and the children tell the launcher the
+ *  daemon's pid or their failure through a pipe that closes on the
+ *  daemon's exec (O_CLOEXEC), read to its end. Up to 7.29.3 the pid
+ *  returned was the first child's, which had exited (a kill() of it did
+ *  nothing to the daemon) and was never reaped (a zombie per call); the
+ *  pipe was read once without waiting, so an exec failure was seen only
+ *  when it came first, and the daemon kept its write end open.
  ***************************************************************************/
 pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
 {
     #define MAX_ARGS 256 // Maximum number of arguments
 #ifdef __linux__
     if (program == NULL) {
-        print_error(0, "launch_program(): Program name is NULL.");
+        print_error(0, "launch_daemon(): Program name is NULL.");
         return -1;
     }
 
     int pipe_fd[2];
-    if (pipe(pipe_fd) == -1) {
-        print_error(0, "launch_program() pipe failed '%s'", program);
+    if (pipe2(pipe_fd, O_CLOEXEC) == -1) {
+        print_error(0, "launch_daemon() pipe failed '%s', errno %d '%s'", program, errno, strerror(errno));
         return -1;
     }
 
     pid_t pid = fork();
 
     if (pid < 0) {
-        print_error(0, "launch_program() fork failed '%s'", program);
+        print_error(0, "launch_daemon() fork failed '%s', errno %d '%s'", program, errno, strerror(errno));
         close(pipe_fd[0]);
         close(pipe_fd[1]);
         return -1;
     } else if (pid > 0) {
         // Parent process
-        close(pipe_fd[1]);  // Close write end of the pipe
+        close(pipe_fd[1]);
 
-        // Set the read end of the pipe to non-blocking
-        int flags = fcntl(pipe_fd[0], F_GETFL, 0);
-        fcntl(pipe_fd[0], F_SETFL, flags | O_NONBLOCK);
-
-        int execvp_status;
-        ssize_t bytes = read(pipe_fd[0], &execvp_status, sizeof(execvp_status));
+        pid_t daemon_pid = -1;
+        int failed = 0;
+        int failed_value = 0;
+        launch_note_t note;
+        while(1) {
+            ssize_t n = read(pipe_fd[0], &note, sizeof(note));
+            if(n < 0 && errno == EINTR) {
+                continue;
+            }
+            if(n != (ssize_t)sizeof(note)) {
+                break;  // the end: every write end closed (an exec, or an exit)
+            }
+            if(note.what == LAUNCH_DAEMON_PID) {
+                daemon_pid = (pid_t)note.value;
+            } else if(!failed) {
+                failed = note.what;
+                failed_value = note.value;
+            }
+        }
         close(pipe_fd[0]);
 
-        if (bytes > 0) {
-            // If we received data, execvp failed
-            print_error(0, "launch_program() Failed to launch program: execvp error %d '%s'", execvp_status, program);
-            return -1;
+        while(waitpid(pid, NULL, 0) < 0) {   // the first child: reaped, not left a zombie
+            if(errno != EINTR) {
+                print_error(0, "launch_daemon() waitpid(%d) failed '%s', errno %d '%s'",
+                    (int)pid, program, errno, strerror(errno));
+                break;
+            }
         }
 
-        return pid;  // Return PID of the first child
+        if(failed) {
+            const char *step =
+                (failed == LAUNCH_FORK_FAILED)? "second fork()":
+                (failed == LAUNCH_SETSID_FAILED)? "setsid()":
+                (failed == LAUNCH_DEVNULL_FAILED)? "open(/dev/null)":
+                (failed == LAUNCH_TOO_MANY_ARGS)? "too many arguments, the most is":
+                "execvp()";
+            print_error(0, "launch_daemon() '%s' not launched: %s %d '%s'",
+                program, step, failed_value,
+                (failed == LAUNCH_TOO_MANY_ARGS)? "": strerror(failed_value)
+            );
+            return -1;
+        }
+        if(daemon_pid <= 0) {
+            print_error(0, "launch_daemon() '%s': no pid of the daemon came back", program);
+            return -1;
+        }
+        return daemon_pid;
     }
 
-    // First child process: create another child using double fork technique
+    // First child: forks the daemon, tells its pid, and exits
+    close(pipe_fd[0]);
     pid_t second_pid = fork();
     if (second_pid < 0) {
-        print_error(0, "launch_program() second fork failed '%s'", program);
+        tell_launcher(pipe_fd[1], LAUNCH_FORK_FAILED, errno);
         _exit(EXIT_FAILURE);
     } else if (second_pid > 0) {
-        // First child exits immediately to avoid zombie
+        tell_launcher(pipe_fd[1], LAUNCH_DAEMON_PID, (int)second_pid);
         _exit(0);
     }
 
     // Second child becomes the daemonized process
     if (setsid() == -1) {
-        print_error(0, "launch_program() setsid failed '%s'", program);
+        tell_launcher(pipe_fd[1], LAUNCH_SETSID_FAILED, errno);
         _exit(EXIT_FAILURE);
     }
 
@@ -10033,7 +10091,7 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
     if(redirect_stdio_to_null) {
         int fd = open("/dev/null", O_RDWR|O_CLOEXEC);
         if (fd == -1) {
-            print_error(0, "launch_program() Failed to open /dev/null '%s'", program);
+            tell_launcher(pipe_fd[1], LAUNCH_DEVNULL_FAILED, errno);
             _exit(EXIT_FAILURE);
         }
         dup2(fd, STDIN_FILENO);
@@ -10044,9 +10102,6 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
         }
     }
 
-    // Close the read end of the pipe in the daemon
-    close(pipe_fd[0]);
-
     // Prepare arguments for execvp
     va_list args;
     va_start(args, program);
@@ -10056,23 +10111,22 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
     int i = 0;
 
     argv[i++] = (char *)program;
-    while ((arg = va_arg(args, const char *)) != NULL && i < MAX_ARGS - 1) {
+    while ((arg = va_arg(args, const char *)) != NULL) {
+        if(i >= MAX_ARGS - 1) {
+            va_end(args);
+            tell_launcher(pipe_fd[1], LAUNCH_TOO_MANY_ARGS, MAX_ARGS - 1);
+            _exit(EXIT_FAILURE);
+        }
         argv[i++] = (char *)arg;
     }
     argv[i] = NULL;  // Null-terminate the argument list
 
     va_end(args);
 
-    // Execute the program
-    if (execvp(program, argv) == -1) {
-        int err = errno;  // Capture the execvp error code
-        print_error(0, "launch_program() execvp failed '%s', errno %d '%s'", program, err, strerror(err));
-        int ret = write(pipe_fd[1], &err, sizeof(err));  // Send error to parent
-        if(ret < 0) {}
-        _exit(EXIT_FAILURE);
-    }
-
-    close(pipe_fd[1]);  // Close write end of pipe if execvp succeeds
+    // Execute the program: on success the pipe closes with the exec
+    execvp(program, argv);
+    tell_launcher(pipe_fd[1], LAUNCH_EXEC_FAILED, errno);
+    _exit(EXIT_FAILURE);
 
 #endif /* __linux__ */
     return 0;  // This line is never reached
