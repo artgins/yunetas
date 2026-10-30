@@ -111,6 +111,16 @@
  *              13:00); am/pm only with an hour of 12 ("at 15h am", "15:00
  *              am" were 15:00); a year and its month after "at" is a date
  *              ("at 2026.10", the day of today), "10.2026" none.
+ *          21. a local time that a change of hour repeats is the first
+ *              one, and one that it skips is read with the offset before
+ *              the change, whatever text was read before it (in Madrid
+ *              "2026-10-25T02:30:00" was 02:30 +0100 after a text of the
+ *              26th, and 02:30 +0200 after one of 01:30 that day).
+ *          22. am/pm needs an hour ("pm" was 23:00 at 11:00); after "at" a
+ *              time of day or a date ("at yesterday" was read); "never"
+ *              with a zone is no date ("never (+0200)" was the epoch); "12
+ *              noon" is noon ("12 noon" was the 12th); an offset after a
+ *              date or a day is a zone ("yesterday +0000" was refused).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1451,6 +1461,281 @@ PRIVATE void test_noon_never_at_and_am_pm(void)
 }
 
 /***************************************************************************
+ *  21. A local time that a change of hour repeats is the first one, with
+ *  the offset in force before the change, and one that a change of hour
+ *  skips is read with that offset too (the time that many minutes after
+ *  the change), whatever text was read before it: mktime() resolved the
+ *  repeated hour with what its last call had cached, so in Madrid
+ *  "2026-10-25T02:30:00" was 02:30 +0200 after a text of 01:30 that day
+ *  and 02:30 +0100 after one of the 26th. A zone in the text says which.
+ *  In Madrid, Los Angeles and Lord Howe (a change of 30 minutes).
+ ***************************************************************************/
+PRIVATE void test_repeated_and_skipped_hours(void)
+{
+    static const approxidate_case_t madrid[] = {
+        /*
+         *  Autumn: 02:00 to 02:59:59 on 2026-10-25 come twice
+         */
+        {"2026-10-25 01:30",                "2026-10-25 01:30:00 +0200", 0},
+        {"2026-10-25T02:30:00",             "2026-10-25 02:30:00 +0200", 0},
+        {"2026-10-26 10:00",                "2026-10-26 10:00:00 +0100", 0},
+        {"2026-10-25T02:30:00",             "2026-10-25 02:30:00 +0200", 0},
+        {"2026-10-25 02:00",                "2026-10-25 02:00:00 +0200", 0},
+        {"2026-10-25 02:59:59",             "2026-10-25 02:59:59 +0200", 0},
+        {"2026-10-25 03:00",                "2026-10-25 03:00:00 +0100", 0},
+        {"2026-10-25 01:59:59",             "2026-10-25 01:59:59 +0200", 0},
+        {"2026-10-25 02:30 +0100",          "2026-10-25 02:30:00 +0100", 0},
+        {"2026-10-25 02:30 CET",            "2026-10-25 02:30:00 +0100", 0},
+        {"2026-10-25 02:30 +0200",          "2026-10-25 02:30:00 +0200", 0},
+
+        /*
+         *  Spring: 02:00 to 02:59:59 on 2026-03-29 never come
+         */
+        {"2026-03-28 10:00",                "2026-03-28 10:00:00 +0100", 0},
+        {"2026-03-29 02:30",                "2026-03-29 03:30:00 +0200", 0},
+        {"2026-03-30 10:00",                "2026-03-30 10:00:00 +0200", 0},
+        {"2026-03-29 02:30",                "2026-03-29 03:30:00 +0200", 0},
+        {"2026-03-29 02:00",                "2026-03-29 03:00:00 +0200", 0},
+        {"2026-03-29 01:59:59",             "2026-03-29 01:59:59 +0100", 0},
+        {"2026-03-29 03:00",                "2026-03-29 03:00:00 +0200", 0},
+        {"2026-03-29 02:30 +0200",          "2026-03-29 01:30:00 +0100", 0},
+    };
+    check_approxidate(madrid, sizeof(madrid)/sizeof(madrid[0]));
+
+    /*
+     *  A clock time of today, of yesterday: Sun 2026-10-25 13:34:56 CET
+     */
+    s_fake_now = 1792931696;
+    static const approxidate_case_t madrid_today[] = {
+        {"2026-10-26 10:00",                "2026-10-26 10:00:00 +0100", 0},
+        {"2am",                             "2026-10-25 02:00:00 +0200", 0},
+        {"2:30 am",                         "2026-10-25 02:30:00 +0200", 0},
+        {"2026-10-24 10:00",                "2026-10-24 10:00:00 +0200", 0},
+        {"2am",                             "2026-10-25 02:00:00 +0200", 0},
+        {"02:30 CET",                       "2026-10-25 02:30:00 +0100", 0},
+    };
+    check_approxidate(madrid_today, sizeof(madrid_today)/sizeof(madrid_today[0]));
+
+    /*
+     *  Mon 2026-10-26 10:00 CET
+     */
+    s_fake_now = 1793005200;
+    static const approxidate_case_t madrid_yesterday[] = {
+        {"yesterday 02:30",                 "2026-10-25 02:30:00 +0200", 0},
+        {"2026-10-25 01:30",                "2026-10-25 01:30:00 +0200", 0},
+        {"yesterday 02:30",                 "2026-10-25 02:30:00 +0200", 0},
+    };
+    check_approxidate(madrid_yesterday, sizeof(madrid_yesterday)/sizeof(madrid_yesterday[0]));
+    s_fake_now = NOW;
+
+    setenv("TZ", "America/Los_Angeles", 1);
+    tzset();
+    static const approxidate_case_t los_angeles[] = {
+        {"2026-11-02 10:00",                "2026-11-02 10:00:00 -0800", 0},
+        {"2026-11-01 01:30",                "2026-11-01 01:30:00 -0700", 0},
+        {"2026-10-31 10:00",                "2026-10-31 10:00:00 -0700", 0},
+        {"2026-11-01 01:30",                "2026-11-01 01:30:00 -0700", 0},
+        {"2026-11-01 01:30 PST",            "2026-11-01 01:30:00 -0800", 0},
+        {"2026-03-09 10:00",                "2026-03-09 10:00:00 -0700", 0},
+        {"2026-03-08 02:30",                "2026-03-08 03:30:00 -0700", 0},
+        {"2026-03-07 10:00",                "2026-03-07 10:00:00 -0800", 0},
+        {"2026-03-08 02:30",                "2026-03-08 03:30:00 -0700", 0},
+    };
+    check_approxidate(los_angeles, sizeof(los_angeles)/sizeof(los_angeles[0]));
+
+    setenv("TZ", "Australia/Lord_Howe", 1);
+    tzset();
+    static const approxidate_case_t lord_howe[] = {
+        /*
+         *  01:30 to 01:59:59 on 2026-04-05 come twice; 02:00 to
+         *  02:29:59 on 2026-10-04 never come
+         */
+        {"2026-04-06 10:00",                "2026-04-06 10:00:00 +1030", 0},
+        {"2026-04-05 01:45",                "2026-04-05 01:45:00 +1100", 0},
+        {"2026-04-04 10:00",                "2026-04-04 10:00:00 +1100", 0},
+        {"2026-04-05 01:45",                "2026-04-05 01:45:00 +1100", 0},
+        {"2026-04-05 02:00",                "2026-04-05 02:00:00 +1030", 0},
+        {"2026-10-05 10:00",                "2026-10-05 10:00:00 +1100", 0},
+        {"2026-10-04 02:15",                "2026-10-04 02:45:00 +1100", 0},
+        {"2026-10-03 10:00",                "2026-10-03 10:00:00 +1030", 0},
+        {"2026-10-04 02:15",                "2026-10-04 02:45:00 +1100", 0},
+    };
+    check_approxidate(lord_howe, sizeof(lord_howe)/sizeof(lord_howe[0]));
+
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
+}
+
+/***************************************************************************
+ *  A text of `prefix`, `n` times `piece` and `suffix`, read in time: the
+ *  local time expected and the error flag
+ ***************************************************************************/
+PRIVATE void check_long_text(const char *prefix, const char *piece, int n, const char *suffix,
+    const char *expected, int expected_error)
+{
+    size_t size = strlen(prefix) + (size_t)n*strlen(piece) + strlen(suffix) + 1;
+    char *text = gbmem_malloc(size);
+    if(!text) {
+        printf("FAIL no memory for the long text\n");
+        global_result += -1;
+        return;
+    }
+    char *p = text;
+    memcpy(p, prefix, strlen(prefix));
+    p += strlen(prefix);
+    for(int i = 0; i < n; i++) {
+        memcpy(p, piece, strlen(piece));
+        p += strlen(piece);
+    }
+    memcpy(p, suffix, strlen(suffix));
+    p += strlen(suffix);
+    *p = 0;
+
+    int error = 0;
+    uint64_t timer = start_msectimer(500);
+    timestamp_t t = approxidate_careful(text, &error);
+    BOOL too_slow = test_msectimer(timer);
+    char got[64];
+    local_text(t, got, sizeof(got));
+    if(error != expected_error || too_slow || strcmp(got, expected) != 0) {
+        printf("FAIL approxidate of \"%s\", %d \"%s\", \"%s\": %s error %d (expected %s error %d), %s\n",
+            prefix, n, piece, suffix, got, error, expected, expected_error,
+            too_slow? "500 ms passed" : "in time");
+        global_result += -1;
+    } else {
+        printf("ok   approxidate of \"%s\", %d \"%s\", \"%s\" -> %s%s, in time\n",
+            prefix, n, piece, suffix, got, error? " (error)" : "");
+    }
+    gbmem_free(text);
+}
+
+/***************************************************************************
+ *  22. am/pm needs an hour ("pm" and "today pm" at 11:00 were today at
+ *  23:00, "pm 3" the 3rd at 23:00). Right after "at" comes a time of day
+ *  or a date: "at yesterday", "at now", "at today", "at never" were read.
+ *  "never" says no zone either, in a comment neither ("never (+0200)" was
+ *  the epoch). "12 noon" and "12 midnight" are noon and midnight when no
+ *  date is said before the 12 ("12 noon" was the 12th at noon,
+ *  "yesterday 12 noon" the 11th). An offset is read after a date or a day
+ *  as a zone name is ("yesterday UTC" was read, "yesterday +0000"
+ *  refused): the date is of that zone.
+ ***************************************************************************/
+PRIVATE void test_am_pm_at_never_noon_and_zones(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  am/pm needs an hour: Wed 11:00
+         */
+        {"pm",                              "2026-10-21 11:00:00 +0200", 1},
+        {"am",                              "2026-10-21 11:00:00 +0200", 1},
+        {"PM",                              "2026-10-21 11:00:00 +0200", 1},
+        {"today pm",                        "2026-10-21 11:00:00 +0200", 1},
+        {"now am",                          "2026-10-21 11:00:00 +0200", 1},
+        {"pm 3",                            "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday am",                    "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1st pm",                      "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 am",                   "2026-10-21 11:00:00 +0200", 1},
+        {"2 hours ago pm",                  "2026-10-21 11:00:00 +0200", 1},
+        {"pm (CEST)",                       "2026-10-21 11:00:00 +0200", 1},
+        {"pm 3:00",                         "2026-10-21 15:00:00 +0200", 0},
+        {"3 pm",                            "2026-10-21 15:00:00 +0200", 0},
+        {"yesterday 3 pm",                  "2026-10-20 15:00:00 +0200", 0},
+
+        /*
+         *  A count of days moves the day, one of hours the time: Wed 11:00
+         */
+        {"1 day ago",                       "2026-10-20 11:00:00 +0200", 0},
+        {"24 hours ago",                    "2026-10-20 11:00:00 +0200", 0},
+        {"noon 1 day ago",                  "2026-10-20 12:00:00 +0200", 0},
+        {"noon 24 hours ago",               "2026-10-19 12:00:00 +0200", 0},
+        {"tea 1 day ago",                   "2026-10-20 17:00:00 +0200", 0},
+        {"tea 24 hours ago",                "2026-10-19 17:00:00 +0200", 0},
+
+        /*
+         *  After "at" a time of day or a date
+         */
+        {"at yesterday",                    "2026-10-21 11:00:00 +0200", 1},
+        {"at now",                          "2026-10-21 11:00:00 +0200", 1},
+        {"at today",                        "2026-10-21 11:00:00 +0200", 1},
+        {"at never",                        "2026-10-21 11:00:00 +0200", 1},
+        {"at the yesterday",                "2026-10-21 11:00:00 +0200", 1},
+        {"at (x) now",                      "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at yesterday",              "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday at 10:00",              "2026-10-20 10:00:00 +0200", 0},
+        {"now at 10:00",                    "2026-10-21 10:00:00 +0200", 0},
+        {"at noon",                         "2026-10-20 12:00:00 +0200", 0},
+        {"at 10:00 yesterday",              "2026-10-20 10:00:00 +0200", 0},
+
+        /*
+         *  "never" with no zone
+         */
+        {"never (+0200)",                   "2026-10-21 11:00:00 +0200", 1},
+        {"never (UTC+02:00)",               "2026-10-21 11:00:00 +0200", 1},
+        {"never (CEST)",                    "2026-10-21 11:00:00 +0200", 1},
+        {"(GMT) never",                     "2026-10-21 11:00:00 +0200", 1},
+        {"never +0000",                     "2026-10-21 11:00:00 +0200", 1},
+        {"never (the epoch)",               "1970-01-01 01:00:00 +0100", 0},
+
+        /*
+         *  "12 noon", "12 midnight"
+         */
+        {"12 noon",                         "2026-10-20 12:00:00 +0200", 0},
+        {"12 midnight",                     "2026-10-21 00:00:00 +0200", 0},
+        {"at 12 noon",                      "2026-10-20 12:00:00 +0200", 0},
+        {"today 12 noon",                   "2026-10-21 12:00:00 +0200", 0},
+        {"12 noon today",                   "2026-10-21 12:00:00 +0200", 0},
+        {"yesterday 12 noon",               "2026-10-20 12:00:00 +0200", 0},
+        {"12 (x) noon",                     "2026-10-20 12:00:00 +0200", 0},
+        {"12 noon Oct 1",                   "2026-10-01 12:00:00 +0200", 0},
+        {"Oct 12 noon",                     "2026-10-12 12:00:00 +0200", 0},
+        {"12 Oct noon",                     "2026-10-12 12:00:00 +0200", 0},
+        {"12 tea",                          "2026-10-12 17:00:00 +0200", 0},
+        {"5 noon",                          "2026-10-05 12:00:00 +0200", 0},
+        {"12 noon 12 noon",                 "2026-10-21 11:00:00 +0200", 1},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+
+    /*
+     *  An offset after a date or a day: Wed 2026-10-21 01:00 CEST, Tue
+     *  2026-10-20 23:00 UTC, so the date of now in UTC is the day before
+     */
+    s_fake_now = 1792537200;
+    static const approxidate_case_t zones[] = {
+        {"2026-10-01",                      "2026-10-01 01:00:00 +0200", 0},
+        {"2026-10-01 UTC",                  "2026-10-02 01:00:00 +0200", 0},
+        {"2026-10-01 +0000",                "2026-10-02 01:00:00 +0200", 0},
+        {"2026-10-01 +00:00",               "2026-10-02 01:00:00 +0200", 0},
+        {"2026-10-01 -05",                  "2026-10-02 01:00:00 +0200", 0},
+        {"Oct 1 +0000",                     "2026-10-02 01:00:00 +0200", 0},
+        {"yesterday +0000",                 "2026-10-20 01:00:00 +0200", 0},
+        {"yesterday UTC",                   "2026-10-20 01:00:00 +0200", 0},
+        {"yesterday -0500",                 "2026-10-20 01:00:00 +0200", 0},
+        {"now +0000",                       "2026-10-21 01:00:00 +0200", 0},
+        {"2 hours ago -0500",               "2026-10-20 23:00:00 +0200", 0},
+        {"now +0000 Tue",                   "2026-10-21 01:00:00 +0200", 0},
+        {"now UTC Tue",                     "2026-10-21 01:00:00 +0200", 0},
+        {"now Tue",                         "2026-10-21 01:00:00 +0200", 1},
+        {"Oct 1 -2 days",                   "2026-09-29 01:00:00 +0200", 0},
+        {"Oct 1 -5",                        "2026-10-21 01:00:00 +0200", 1},
+        {"+0200",                           "2026-10-21 01:00:00 +0200", 1},
+        {"-0500",                           "2026-10-21 01:00:00 +0200", 1},
+        {"+0200 yesterday",                 "2026-10-21 01:00:00 +0200", 1},
+        {"yesterday +0000 UTC",             "2026-10-21 01:00:00 +0200", 1},
+        {"yesterday +0000 +0000",           "2026-10-21 01:00:00 +0200", 1},
+    };
+    check_approxidate(zones, sizeof(zones)/sizeof(zones[0]));
+    s_fake_now = NOW;
+
+    /*
+     *  What is looked at after a 12 and a minus sign is passed in time
+     */
+    check_long_text("12", "(x)", 20000, " noon", "2026-10-20 12:00:00 +0200", 0);
+    check_long_text("yesterday -1", "(x)", 20000, " d", "2026-10-19 11:00:00 +0200", 0);
+    check_long_text("yesterday", " -1s", 20000, "", "2026-10-20 05:26:40 +0200", 0);
+    check_long_text("Oct 1", " -0500", 20000, "", "2026-10-21 11:00:00 +0200", 1);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1495,6 +1780,8 @@ int main(int argc, char *argv[])
     test_ago_at_counts_and_weekdays();
     test_weekdays_on_a_change_of_hour();
     test_noon_never_at_and_am_pm();
+    test_repeated_and_skipped_hours();
+    test_am_pm_at_never_noon_and_zones();
 
     gobj_end();
 

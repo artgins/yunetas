@@ -7355,6 +7355,35 @@ PRIVATE long local_offset_at(time_t t)
 }
 
 /***************************************************************************
+ *  The time of a local date and time, `wall` being the seconds from the
+ *  epoch that date and time are in UTC. It is read with the offset in
+ *  force before a change of hour near it:
+ *  - a local time that the change repeats is the first one: in Madrid
+ *    02:30 of 2026-10-25 is 02:30 +0200, not 02:30 +0100;
+ *  - a local time that the change skips is that many minutes after the
+ *    change: in Madrid 02:30 of 2026-03-29 is 02:30 +0100, 03:30 +0200.
+ *  The offsets before and after are taken a day away from `wall`, as no
+ *  zone changes its hour twice in two days. mktime() is not used: with
+ *  tm_isdst -1 glibc picks the hour that repeats with what its last call
+ *  cached, and one text would be one time or the other depending on the
+ *  text read before it.
+ ***************************************************************************/
+PRIVATE int64_t time_of_local_wall(int64_t wall)
+{
+    long offset_before = local_offset_at((time_t)(wall - 86400));
+    long offset_after = local_offset_at((time_t)(wall + 86400));
+    int64_t t_before = wall - offset_before;
+    int64_t t_after = wall - offset_after;
+    if(local_offset_at((time_t)t_before) == offset_before) {
+        return t_before;
+    }
+    if(local_offset_at((time_t)t_after) == offset_after) {
+        return t_after;
+    }
+    return t_before;    // a time the change skips
+}
+
+/***************************************************************************
  *  Words: a month, a weekday (3 letters or more of the name), a unit, a
  *  number word, a zone
  ***************************************************************************/
@@ -7763,6 +7792,22 @@ PRIVATE BOOL month_follows(const char *p)
 }
 
 /***************************************************************************
+ *  Is "noon" or "midnight" what follows a number at `p` (after blanks,
+ *  dots, commas, underscores or comments)?
+ ***************************************************************************/
+PRIVATE BOOL noon_or_midnight_follows(const char *p)
+{
+    p = skip_to_next_piece(NULL, p);
+    if(!isalpha((unsigned char)*p)) {
+        return FALSE;
+    }
+    char raw[16];
+    char word[16];
+    take_word(p, raw, word, sizeof(word));
+    return (strcmp(word, "noon") == 0 || strcmp(word, "midnight") == 0)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Is the piece that `start` begins the first one after "at" (or "at
  *  the"), with only blanks, dots, commas, underscores or comments between
  *  them (what parts two pieces)? That piece is found
@@ -8134,9 +8179,20 @@ PRIVATE void note_number(date_reading_t *rd, uintmax_t value, int digits)
  *  10th of the month and "Oct 1 at the 10" 2010-10-01. Before a month name
  *  it is a day ("at 5 Oct 2026"). "at 10 pm", "at 10:00" and "at
  *  2026-10-01" are read.
+ *
+ *  A 12 before noon or midnight, right after "at" or with no date said
+ *  before it, is their hour, as English writes them: "12 noon", "Oct 1
+ *  at 12 noon", "yesterday 12 midnight". After a date it is still the
+ *  date's: "Oct 12 noon" is October 12, "Oct 1 12 noon" 2012-10-01, as
+ *  "Oct 1 12" is.
  ***************************************************************************/
 PRIVATE void note_lone_number(date_reading_t *rd, const char *start, const char *end, uintmax_t value, int digits)
 {
+    if(value == 12 && digits == 2 &&
+            (right_after_at(rd, start) || (!rd->year && !rd->mon && !rd->mday)) &&
+            noon_or_midnight_follows(end)) {
+        return;     // "12 noon", "12 midnight": the hour of the noon (midnight) that follows
+    }
     if(right_after_at(rd, start) && !month_follows(end)) {
         rd->unreadable = TRUE;
         return;
@@ -8320,15 +8376,26 @@ PRIVATE BOOL take_zone_offset(const char *p, long *offset_seconds, const char **
 }
 
 /***************************************************************************
+ *  Has the text said a day so far: a date, "now", "today", or a count
+ *  back ("yesterday", "2 days", "2 hours ago")?
+ ***************************************************************************/
+PRIVATE BOOL day_said(date_reading_t *rd)
+{
+    return (rd->year || rd->mon || rd->mday || rd->today_said || rd->counted_back)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  A zone as +hh, +hhmm or +hh:mm (or with '-'). Only after a clock time
- *  (or noon, midnight, tea) or epoch seconds: anywhere else a sign is no
- *  date. After GMT, UTC or UT it is the zone ("GMT+0200", as
- *  Date.toString() of javascript writes).
+ *  (or noon, midnight, tea), epoch seconds, or a day (a date, "now",
+ *  "today", a count back), as a zone name goes there: "yesterday +0000"
+ *  as "yesterday UTC", "2026-10-01 -05". Before them a sign is no date
+ *  ("+0200", "+0200 10:00"). After GMT, UTC or UT it is the zone
+ *  ("GMT+0200", as Date.toString() of javascript writes).
  ***************************************************************************/
 PRIVATE const char *read_zone_offset(date_reading_t *rd, const char *p)
 {
     if((rd->zone_said && !rd->zone_utc_word) ||
-            (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said)) {
+            (rd->hour < 0 && rd->special_hour < 0 && !rd->epoch_said && !day_said(rd))) {
         rd->unreadable = TRUE;
         return p + 1;
     }
@@ -8479,6 +8546,16 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
         return end;
     }
 
+    if((strcmp(word, "now") == 0 || strcmp(word, "today") == 0 ||
+            strcmp(word, "yesterday") == 0 || strcmp(word, "never") == 0) &&
+            right_after_at(rd, p)) {
+        /*
+         *  After "at" comes a time of day or a date: "at yesterday", "at
+         *  now", "at never" are no date
+         */
+        rd->unreadable = TRUE;
+        return end;
+    }
     if(strcmp(word, "now") == 0 || strcmp(word, "today") == 0) {
         rd->today_said = TRUE;
         rd->vague = TRUE;
@@ -8647,7 +8724,13 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             p = read_word(rd, p);
         } else if(c == '-' && isdigit((unsigned char)p[1]) &&
                 rd->hour < 0 && !rd->epoch_said &&
-                (rd->special_hour < 0 || unit_follows_count(p + 1))) {
+                ((rd->special_hour < 0 && !day_said(rd)) || unit_follows_count(p + 1))) {
+            /*
+             *  Before a clock time a minus sign, a count and its unit is a
+             *  duration ("-1d", "noon -1d", "Oct 1 -2 days"); with no unit
+             *  it is a zone after noon or a day ("noon -0500", "yesterday
+             *  -0500"), and no date with nothing before it ("-5")
+             */
             p = read_signed_duration(rd, p);
         } else if(c == '+' || c == '-') {
             p = read_zone_offset(rd, p);
@@ -8692,9 +8775,13 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
  *  given, else the local one at that time), in minutes. Return -1 when
  *  the text says no time.
  *
- *  Without a clock time the date moves in the UTC offset of now: whole
- *  days are 24 hours, and a date keeps the time of day of now. A clock
- *  time (or noon, midnight, tea) is a local one, of the date reached.
+ *  Without a clock time the date moves in the offset of the zone said,
+ *  else in the UTC offset of now: whole days are 24 hours, and a date
+ *  keeps the time of day of now in that offset. A clock time (or noon,
+ *  midnight, tea) is of the zone said, else a local one, of the date
+ *  reached (see time_of_local_wall() for a local time that a change of
+ *  hour repeats or skips). A count of hours, minutes or seconds is taken
+ *  back from the time the rest of the text says.
  ***************************************************************************/
 PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset_minutes)
 {
@@ -8706,8 +8793,13 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         return -1;  // a weekday, and no day: neither a date's, nor one counted from today
     }
     if(rd->never) {
-        if(rd->understood != 1 || rd->weekday_named >= 0) {
-            return -1;  // "never" is a whole text: "now never Mon", "never 10:00" say no date
+        if(rd->understood != 1 || rd->weekday_named >= 0 || rd->zone_said) {
+            /*
+             *  "never" is a whole text: "now never Mon", "never 10:00" say
+             *  no date, nor does a zone beside it, in a comment too
+             *  ("never (+0200)", "(GMT) never")
+             */
+            return -1;
         }
         *result = 0;
         *offset_minutes = 0;
@@ -8806,24 +8898,14 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         if(rd->zone_said) {
             t = day*86400 + hour*3600 + min*60 + sec - rd->zone_offset;
         } else {
-            time_t midnight = (time_t)(day*86400);
-            struct tm lt;
-            gmtime_r(&midnight, &lt);
-            lt.tm_hour = (int)hour;
-            lt.tm_min = (int)min;
-            lt.tm_sec = (int)sec;
-            lt.tm_isdst = -1;
-            t = (int64_t)mktime(&lt);
+            t = time_of_local_wall(day*86400 + hour*3600 + min*60 + sec);
         }
     } else {
-        int64_t clock = now_clock;
-        if(rd->ampm == 'p' && clock < 12*3600) {
-            clock += 12*3600;
-        } else if(rd->ampm == 'a' && clock >= 12*3600) {
-            clock -= 12*3600;
+        if(rd->ampm) {
+            return -1;  // am/pm says the half of the day of an hour: "pm", "today pm" say none
         }
-        frame_clock = clock;
-        t = day*86400 + clock - frame_offset;
+        frame_clock = now_clock;
+        t = day*86400 + now_clock - frame_offset;
     }
     t -= rd->back_seconds;
     if(t < 0) {

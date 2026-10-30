@@ -1109,17 +1109,29 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         number words zero..ten; "last week", "last month", "last year"
         ("last" goes with a unit or a weekday: "last pm" is no date)
         Months and years are of the calendar: "1 month ago" on Mar 31 is
-        Feb 28 (29). Days are 24 hours from now.
+        Feb 28 (29). A count of days or weeks moves the DAY: with no clock
+        time it is 24 hours a day back from now (the time of day of now,
+        in the UTC offset of now, or of the zone said), and a clock time,
+        noon, midnight or tea is then that time of the day reached. A
+        count of hours, minutes or seconds is taken back from the time the
+        rest of the text says. So "1 day ago" and "24 hours ago" are the
+        same time, but beside noon they are not: "noon 1 day ago" is
+        yesterday's noon, and "noon 24 hours ago" 24 hours before the last
+        noon that passed (before noon, the day before yesterday's).
 
     Days and times:
         "now" "today" "yesterday"
         "never" (the epoch, 0) is a whole text: "now never", "never 10:00",
-        "never Mon" are no date
+        "never Mon", "never UTC", "never (+0200)" are no date
         "noon" "midnight" "tea" (17:00): of the day the text names ("today
         noon" is today's, ahead of now or not, "yesterday tea", "2 days ago
         noon", "last friday noon", "Oct 1 noon"); with no day named, the
         last one that passed ("noon", "noon 2 hours ago"); a zone after it
-        says where: "noon +0200", "noon CEST"
+        says where: "noon +0200", "noon CEST". A 12 before noon or
+        midnight is their hour, right after "at" or with no date before it:
+        "12 noon", "Oct 1 at 12 noon", "yesterday 12 midnight"; after a
+        date it is the date's ("Oct 12 noon" is October 12, "Oct 1 12
+        noon" 2012-10-01, as "Oct 1 12")
         "last friday": the Friday before today; "2 friday" ("2 fridays ago"):
         the one before it. After a month, a day or a year a number before a
         weekday is that date's, the weekday only names it: "Oct 1 2026 Thu"
@@ -1142,6 +1154,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         local day of the time reached: on Sunday 2026-10-25 at 23:30 CET,
         the night of a change of hour, "yesterday Sat" is Saturday at 23:30
         +0100 (Sunday at 00:30 CEST), and "yesterday Sun" is no date. A
+        count of hours is in that frame too: "24 hours ago Sat", said
+        then, is Sunday at 00:30 CEST. A
         text says one weekday: "Mon Thu now",
         "Mon Thu, 01 Oct 2026" are no date. A count and its unit, weekday
         or am/pm touch ("2h") or are parted by blanks of any kind ("Oct 1
@@ -1149,8 +1163,19 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         (CEST) pm" is 17:00 CEST; up to 7.29.3 it was 2005-10-01)
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today;
         am/pm is the half of the day of an hour of 12: "15:00 am", "13 pm",
-        "0:30 pm", "noon am" and "tea pm" are no date
+        "0:30 pm", "noon am" and "tea pm" are no date, and so is am/pm with
+        no hour ("pm", "today pm", "pm 3", "yesterday am")
+        A local time that a change of hour repeats is the first one, with
+        the offset in force before the change: in Madrid "2026-10-25
+        02:30" is 02:30 +0200, never 02:30 +0100 (write "02:30 CET" or
+        "02:30 +0100" for the second one). A local time that a change of
+        hour skips is read with that offset too, so it is that many
+        minutes after the change: in Madrid "2026-03-29 02:30" is 02:30
+        +0100, which is 03:30 +0200. The answer does not depend on what
+        was read before it
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
+        after "at" comes a time of day or a date: "at yesterday", "at
+        now", "at today", "at never" are no date
         right after "at", an hour with an 'h' (24 hours, as Spanish and
         French write it): "at 15h" is 15:00, "at 10h30" 10:30 (up to
         7.29.3 15 hours back, and 10 hours back from the 30th), and am/pm
@@ -1182,11 +1207,17 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         What a date does not say is taken from now: "May 11" is of this
         year, or of the year before when it is more than 10 days ahead.
         A date with no clock time keeps the time of day of now, in the UTC
-        offset of now.
+        offset of now, or of the zone said.
 
     Zones (a clock time is local when none is given):
         "+0200"  "+02:00"  "+02"  "-0500"  "Z"  "UTC"  "GMT"  "CET"  "CEST"
         "EST"  "PST" ... (an abbreviation names one offset in any season)
+        An offset follows a clock time, noon, midnight, tea, epoch seconds
+        or a day (a date, "now", "today", a count back): "yesterday
+        +0000" as "yesterday UTC", "2026-10-01 -05"; with nothing of them
+        before it a sign is no date ("+0200", "+0200 10:00"). With no clock
+        time the date is of that zone: "2026-10-01 UTC" is October 1 at
+        the time of day of now in UTC
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
         "(CEST)": a zone name in a comment is the zone when no other is
         given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC); an offset in a

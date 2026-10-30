@@ -292,6 +292,27 @@ refused (15:00 and 22:30 in a development version), and so are `"15:00 am"`,
 `"13 pm"`, `"0:30 pm"` and `"noon am"` (7.29.3: 15:00, 13:00, 12:30, 00:00). A
 year and its month is a date after `at` as anywhere (`"at 2026.10"`,
 `"2026.10"`, `"2026-10"`, the day of today); `"10.2026"` is no date anywhere.
+§21: a local time that a change of hour repeats is the first one, with the
+offset in force before the change, and one that a change of hour skips is
+read with that offset too, whatever text was read before it: in Madrid
+`"2026-10-25T02:30:00"` is 02:30 +0200 and `"2026-03-29 02:30"` 03:30 +0200
+(7.29.3: 02:30 +0200 after a text of 01:30 that day, 02:30 +0100 after one of
+the 26th, as `mktime()` cached it). The texts come in an order that flipped
+it, in Madrid, Los Angeles and Lord Howe (a change of 30 minutes; `TZ` is set
+for them, then Madrid again). A zone says which: `"02:30 CET"`.
+§22: am/pm needs an hour (`"pm"`, `"today pm"`, `"pm 3"`; 7.29.3, at 11:00:
+today at 23:00 and the 3rd at 23:00). After `at` a time of day or a date
+(`"at yesterday"`, `"at now"`, `"at never"`; 7.29.3: read). `"never"` with a
+zone, in a comment too, is no date (`"never (+0200)"`; 7.29.3: the epoch). A
+12 before noon or midnight is their hour right after `at` or with no date
+before it (`"12 noon"`, `"yesterday 12 noon"`; 7.29.3: the 12th and the 11th
+at noon), and the date's after a date (`"Oct 12 noon"`). An offset after a
+date or a day is read as a zone name is (`"yesterday +0000"`, `"2026-10-01
+-05"`; 7.29.3: refused), checked at 01:00 CEST, when the date of now in UTC is
+the day before. A count of days moves the day and one of hours the time
+(`"noon 1 day ago"` is yesterday's noon, `"noon 24 hours ago"` the day before
+yesterday's). What is looked at after a 12 and a minus sign is passed in time
+(20000 comments).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,
