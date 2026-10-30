@@ -76,7 +76,12 @@
   60 s of the start doubles the wait, up to 60 s, and a child that lived
   60 s or more sets it back to 2 s. The watcher says it in syslog each time
   the wait grows, and *"Daemon relaunched"* carries `relaunch_wait`. A
-  SIGQUIT still ends a wait at once. Every yuno links it: rebuild all.
+  SIGQUIT ends a wait at once, also one that arrives just before it: the
+  watcher looked at the stop and then called `sleep()`, so a SIGQUIT in
+  between let the whole wait run (2 s in 7.29.3; up to 60 s with the growing
+  wait, past systemd's `TimeoutStopSec` and the 10 s of `--stop`, into a
+  SIGKILL). SIGQUIT is now blocked before the look and the wait takes it with
+  `sigtimedwait()`. Every yuno links it: rebuild all.
 - **BREAKING: `delete-binary` and `delete-config` without `version=` (or with
   the primary's) delete every version of the id, and say so and guard it.**
   The delete of the primary always took the whole key in the treedb, but up
@@ -88,9 +93,38 @@
   of `delete-binary` is one `{"id","version","files","removed"}` per version
   (it was a list of directories); `record_only=1` gives there the files it
   leaves (`"removed": false`).
-- **Docs:** the public pages' examples use generic names (`stress.example.com`,
-  `load-20k`, `node-a`/`node-b`, `ops@example.com`), not the realms, nodes,
-  scenarios and people of private projects.
+- **`delete-binary` and `delete-config` of the primary refuse when any version
+  they take is in use, not only the primary's.** A yuno is linked to the
+  version it was created on (`create-yuno … role_version=<old>`), and each
+  version keeps its own `yunos` list; the guard read only the primary's, so a
+  yuno on an older version did not stop the delete that took that version
+  too, without `force=1`. The guard reads the list of every version taken and
+  counts each yuno once. In 7.29.3 (the guard read only the record given).
+- **`delete-binary` says when it could not remove a directory.** The return of
+  `rmrdir()` was not looked at: the answer said "N binaries deleted" and a
+  directory named by no record stayed in `/yuneta/repos`. Now that version's
+  item has `"removed": false` and the answer is -1, counting the records
+  deleted and naming the directories to remove by hand; the cause is in the
+  log. The unchecked removal is in 7.29.3.
+- **`delete-yuno yuno_release=<the primary's release>` no longer deletes every
+  release.** The delete of the primary's own pkey2 takes the whole key, so
+  this form passed the "`yuno_release=` or `whole=1`" gate as one release and
+  removed the yuno with all of them. When the yuno has other releases it is
+  refused now, asking for `whole=1`; a yuno with one release still loses it
+  when it is named. In 7.29.3.
+- **Docs:** the public examples name no private project, client, node or
+  person, and nothing cites a private review. The scope examples of the
+  control center (`c_authz.c`, `c_controlcenter.c`, its README and page), the
+  treedb API examples, the OAuth2 BFF guide, `YUNO_AUTH.md`, `NODE_SEALING.md`,
+  the webstats record, the audit examples and `test_audit_record.c` use
+  generic names (`stress.example.com`, `load-20k`, `stress-demo`,
+  `node-a`/`node-b`, `myapp`, `app.example.com`, `ops@example.com`). The
+  retention design and the 7.27.10 performance report give their figures
+  without the corpus, the node or the tender. Comments, tests and docs keep
+  what was fixed without the review citation, and "before the fix" names the
+  release. The same in gobj-js, gobj-ui and yunos-js; the gui_agent QA reads
+  the ids of the installation it checks from the environment or
+  `~/.yuneta/.qa-creds`.
 - **The agent refuses a `role^name` that does not fit.**
   `build_role_plus_name()` cut a `role^name` longer than `NAME_MAX` without a
   log, and the run script and configuration files were written under the cut
@@ -166,24 +200,52 @@
   the same topic and key: a keyed `tranger2_open_list()` hands its history
   iterator and then its feed the same `match_cond`). In 7.29.3 and older.
 - **BREAKING: a time text with a word more no longer keeps a misreading**
-  (`tranger2_time_of_text()`): `",5"` and `"5,"` are refused like `".5"`; a
-  comma between two digits anywhere (`"1,5 days ago"` was September 26,
-  `"2026,10,01"` January 10, `"10:00,5"` the 5th) and digit words in a run
-  (`"5 5 ago"` was May 5, `"2026 10 01 10:00"` January 10) are refused, and
-  so is a day and a year after a word that is no month name
-  (`"yesterday 1 2026"` was September 30, `"Mon 1 2026"` October 1). A date
-  as a person writes it stays a date: day month year with blanks and a
-  4-digit year (`"01 10 2026"`; with numbers alone a 2-digit year is
-  refused, `"01 10 26"` too, read right in 7.29.3, because `"1 2 34"` would
-  be February 1, 2034), a day and a year of 4 or 2 digits after a month name
-  of 3 letters or more in any case (`"Oct 1, 2026"`, `"Oct 1 26"`,
-  `"Sept. 1 2026"`), an hour with am/pm after a date (`"Oct 1 2026 3 pm"`),
-  the decimal comma of the seconds of ISO 8601
-  (`"2026-10-01T10:00:00,500Z"`) and a comma before a clock time
-  (`"2026-10-01,10:00"`). A dot between digits is left to
-  `approxidate_careful()` (`"1.10 2026"` is October 1). tr2migrate reads a
-  text time by the rule too (it read it with an unchecked
-  `parse_date_basic()`). In 7.29.3 too.
+  (`tranger2_time_of_text()`): `",5"` and `"5,"` are refused like `".5"`. A
+  text is split into words as `approxidate_careful()` splits it (blanks,
+  commas, `_`, a `.` not between digits), and the words it skips (`ago`,
+  `at`, `on`, `the`, `of`, a weekday) are skipped by the rule too. These are
+  refused:
+    - a comma between two digits (`"1,5 days ago"` was September 26,
+      `"2026,10,01"` January 10, `"10:00,5"` the 5th, `"1,5:29"` the 1st at
+      05:29);
+    - digit words in a run (`"5 5 ago"` was May 5, `"2026 10 01 10:00"`
+      January 10, `"5 the 5"`, `"5_5"`, `"2026_10_01"`, `"2026. 10. 01"`);
+    - a day and a year after a word that is not a month name
+      (`"yesterday 1 2026"` was September 30, `"Mon 1 2026"` October 1);
+    - a comma before an hour that does not close a date (`"1 2,10:00"` was
+      February 1, `"12 2026,10:00"` October 12, `"2026,10:00"`);
+    - a lone number before a count, a number followed by a unit, am/pm or a
+      weekday (`"12 10 pm"` was the 12th at 22:00 where 12:10 pm was meant,
+      `"5 5 pm"`, `"5 at 3 pm"`, `"2026 3 pm"`, `"1 5days ago"` September
+      26);
+    - a count after the comma of a day and a year (`"Oct 1,50 days ago"`).
+
+  A date written the way a person writes one stays a date:
+    - day month year with blanks and a 4-digit year (`"01 10 2026"`). With
+      numbers alone a 2-digit year is refused; `"01 10 26"` too, though
+      7.29.3 read it right, because `"1 2 34"` would be February 1, 2034;
+    - after a month name of 3 letters or more in any case, a day, or a day
+      and a year of 4 or 2 digits (`"Oct 1, 2026"`, `"Oct 1 26"`,
+      `"Sept. 1 2026"`, `"march the 5 2026"`, `"Oct.. 1 2026"`);
+    - a date followed by a count (`"Oct 1 2026 3 pm"`,
+      `"Oct 1 2026 3 pm."`, `"01 10 2026 5 days ago"`);
+    - the decimal comma of the seconds of ISO 8601
+      (`"2026-10-01T10:00:00,500Z"`) and a comma that closes a date before
+      its hour (`"2026-10-01,10:00"`, `"1 Oct 2026,10:00"`, `"Oct 1,3 pm"`).
+
+  A number alone is never an hour: `"Oct 29 10"` is 2010-10-29, as in
+  7.29.3. A dot between digits is left to `approxidate_careful()`
+  (`"1.10 2026"` is October 1). tr2migrate reads a text time by the rule too
+  (it read it with an unchecked `parse_date_basic()`). In 7.29.3 too.
+- **A weekday after a date names it** (`approxidate_careful()`, the port of
+  git's `date.c`): after a month, a day or a year, a number before a weekday
+  is the date's day or year. `"Oct 1 2026 Thu"` and `"1 Oct 2026 Thu"` were
+  2026 Thursdays back (1987-12-03), so a tkey written that way was stored as
+  1987; `"Oct 1 26 Thu"` was 26 Thursdays back, and `"Oct 5 friday"` 5
+  Fridays back with the month lost. With no date before it, or in the
+  plural, it stays a count (`"2 wednesday"`, `"Oct 1 2 fridays"`).
+  `"2026-10-01 5 friday"` is now refused (it was August 28).
+  `test_date_text` §13. In 7.29.3 and older.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -278,6 +340,60 @@
   `EV_STOPPED` last. Its `traffic` and `connections` trace levels work (they
   read the global mask), and a read no longer logs two "GClass Attribute NOT
   FOUND". In 7.29.3 and older. `c_prot_modbus_m/test4`, over a pty.
+- **`C_UART`: a stop no longer waits for a write the line does not take, and
+  a destroy after it no longer uses freed memory.** The write in flight is
+  kept and, on a stop, a drop or a disconnection, canceled; what it left in
+  the tty is discarded and the writes queued behind it are dropped, so a stop
+  waits only for the cancel of its read. Up to 7.29.3 a `C_UART` destroyed
+  with a write in flight ran the write's completion on the freed gobj.
+- **`C_UART`: the writes go one at a time, and a short write sends its rest.**
+  When the line takes part of a write, the rest goes before the next one, and
+  `EV_TX_READY` is published when the last queued write is done (not once per
+  `EV_TX_DATA`). Up to 7.29.3 the rest was lost with no log: of a 64 KB
+  write, 11,776 bytes went, then `EV_TX_READY`. A read or write interrupted
+  with `EINTR` goes again; up to 7.29.3 it dropped the line.
+- **`C_UART` takes `EV_DROP`** (in `ST_CONNECTED`): it closes the tty,
+  publishes `EV_DISCONNECTED` and opens the device again after
+  `timeout_between_connections`. The Modbus master sends it down when it
+  cannot frame what it reads; up to 7.29.3 `C_UART` refused it with an error.
+- **`C_UART`: a destroy in `ST_WAIT_STOPPED` closes the tty, and a start there
+  is refused** (`gobj_start()` answers -1, as with `C_TCP`), and the stop goes
+  on to `ST_STOPPED` and `EV_STOPPED`. Up to 7.29.3 the fd stayed open after
+  such a destroy, and such a start armed its timer and lost the stop. A host
+  that destroys the `C_UART` in the `EV_DISCONNECTED` of a stop is not
+  followed by an `EV_STOPPED` from the freed gobj.
+- **`C_UART`'s attributes say what the line runs at.** A `baudrate` the tty
+  does not know runs the line at 9600 and the attribute says 9600 (*"Bad
+  baudrate: the line runs at 9600"*); the same for `parity`, `bytesize` and
+  `stopbits`. The Modbus master counts a broadcast frame's time with the
+  `C_UART`'s `baudrate`, so it counts at the real speed.
+- **`C_UART`: a read of the tty that cannot be created drops the line with an
+  error**, and the line opens again after `timeout_between_connections`. Up
+  to 7.29.3 the NULL event was used.
+- **`C_UART` has `max_tx_queue`, as `C_TCP` does**: it bounds the writes
+  waiting behind the one in flight (default 0, no limit). When it is full the
+  oldest waiting write is dropped with an error (*"uart tx queue full, the
+  oldest write dropped"*), the first drop and then one every `max_tx_queue`.
+- **M-Bus master: the time that bounds an answer is counted at the speed the
+  line runs at**, read from the `C_UART` below at each request (behind a
+  `tcp://` gateway, the master's own `baudrate`, `bytesize`, `parity` and
+  `stopbits`). Up to 7.29.3 it was counted once, at create, from the master's
+  attributes, so a speed the tty does not know (run at 9600) was counted at
+  the speed configured. A `baudrate` of 0 or less is still an error, and
+  2400 now goes to the `C_UART` too; up to 7.29.3 it got the bad value.
+- **A host of `C_UART` declares `EV_STOPPED` (new against 7.29.3) and
+  `EV_DISCONNECTED` in the state it is in when it stops it.** `C_UART` is a
+  CHILD: its parent, or its `subscriber`, hears `EV_CONNECTED`,
+  `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY` and `EV_STOPPED`. A stop
+  always ends in `EV_STOPPED`, and with nothing in flight `EV_DISCONNECTED`
+  and `EV_STOPPED` come inside `gobj_stop()`. A host written against 7.29.3
+  that does not declare `EV_STOPPED` gets *"Event NOT DEFINED in state"* at
+  every stop. `C_PROT_MODBUS_M` and `C_PROT_MBUS_M` declare it.
+- **Docs:** `modbus.md` says that `modbus_protocol` chooses the master's
+  transport, not `url`: an `"RTU"` master creates a `C_UART` whatever its url
+  says, so RTU through a `tcp://` gateway needs a `C_TCP` bottom given by the
+  host (example added). New test `c_prot_modbus_m/test5`: a `C_UART` hosted
+  by the test on a pty (held stop, held destroy, drop, short write).
 - **A `max_run` stop tried again in a minute keeps its minute across a save,
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
@@ -315,7 +431,10 @@
       distrobox) is a container again, told by its `/`: not PID 1's root
       or, where that root cannot be looked at (a user namespace, no
       `CAP_SYS_PTRACE`, a security module, the runtime), not PID 1's mount on
-      `/` (device and root, from `/proc/1/mountinfo`); a root without
+      `/` (device and root, from `/proc/1/mountinfo`), and where that
+      mountinfo cannot be read either, a root in a user namespace or without
+      `CAP_SYS_PTRACE` (an unreadable mountinfo had made a container's root
+      the system, reading the host's DMI); a root without
       `CAP_SYS_PTRACE` on the box itself (a SysV start, a hand-run `ensure`)
       has PID 1's mount and reads the hardware. `/proc/self/mountinfo` is
       read with no here-string (bash before 5.1 needs a writable `/tmp` for one);
@@ -1486,7 +1605,7 @@ links. The suite ran on the dev machine. The performance study is against
   step 1 (...): the yuno refused"*). An agent that disconnects fails only
   its own steps. `start` and `resume` stay in order. Up to 7.28.3 a stop
   was serial too and ended at the first yuno that did not answer: the
-  max_run stop of `renfe-20k-hidraulia` failed every minute at its first
+  max_run stop of a load scenario failed every minute at its first
   simulator, already stopped, and the others went on. `scenarios` also
   answers the run in flight of a scenario, `run_in_flight` (`id`, `action`,
   `username`, `started_at`). `tests/c/c_controlcenter_scenarios` (case 17).
@@ -1739,7 +1858,7 @@ activated anywhere. Never activated either: 7.27.19 replaced it.
   `write-scenarios`, so nobody without it learns that it runs). Incomplete:
   see 7.27.19.
 - **The stop of a max_run says who started what it stops**: *"max_run of
-  2100 s reached (started by esg@hidraulia.eu); ..."*.
+  2100 s reached (started by ops@example.com); ..."*.
 - `test_c_controlcenter_scenarios` case 16 checks both.
 
 ## v7.27.17 (2026-10-24)
@@ -1832,7 +1951,7 @@ the change is in the check of a permission, which no benchmark runs.
   its scope in the kw; a scoped `deny` applies unless the kw carries a key
   of its scope with a value out of it. A role with no `parameters` grants
   as before. `{"permission":
-  "read-scenarios", "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}}`
+  "read-scenarios", "parameters": {"scenario_id": ["load-20k"]}}`
   reads that scenario and nothing else. A `parameters` that is not a dict
   grants nothing and logs an ERROR. New test `authz_scoped_permissions`.
 - **`deny` of an entry of a role's `permissions` is optional** (false, as it
@@ -1983,7 +2102,7 @@ functions let it skip both:
   record nobody can read back.
 
 With them, yunovatios' `db_tracks_ce` stores 2.2 times more frames per second
-on the same machine (24,700 -> 53,300). On hidraulia (Xeon E-2386G) it holds
+on the same machine (24,700 -> 53,300). On a production node (Xeon E-2386G) it holds
 20,000 records/s at 55% of one core: 36,375,974 records in 30 minutes,
 0 duplicates and 0 gaps (`tr2check`). The release also fixes a queue that sent
 its own metadata with every message, and a pinned yuno that logged an error at
@@ -2041,11 +2160,11 @@ external libraries were checked, and all are at their latest versions.
   TEXT, without building the object. It gives the verdict of `json_loadb()`
   (one valid object or not) and, for each key asked, its count, its type,
   the text of its value and the bytes to cut to remove it. It allocates
-  nothing. On hidraulia (Xeon E-2386G), for a record of 955 bytes, the scan
+  nothing. On a production node (Xeon E-2386G), for a record of 955 bytes, the scan
   of three members takes 0.75 µs. The parse, delete, dump and free of the
   whole record that it can replace take 19.85 µs. It is the base of a fast
   append path for a store that receives records as text (the test of
-  20,000 records/s of a public tender).
+  20,000 records/s).
   New test `helpers/test_json_scan`: jansson's own test corpus, the edges
   (integer and real ranges, the real overflow threshold digit by digit,
   surrogates, `\u0000`, nesting depth), the members, and a fuzz of 200,000
