@@ -565,7 +565,7 @@ be weighed again, not as settled.
 
 - **gbmem's own memory manager, the pools of yuneta V6.** **FUTURE.**
   glibc's `malloc()` and `free()` were 13% to 22% of the instructions of
-  the network benchmarks in the cloud audit (`perf_tcp_test4`,
+  the network benchmarks in an audit (`perf_tcp_test4`,
   `perf_ievent`, `perf_mqtt`, `perf_auth_bff`). V6 had pools of blocks by
   size (from MAWK's `zmalloc`); the switch is still there
   (`USE_OWN_SYSTEM_MEMORY` in `gbmem_setup()`, `FALSE` in every yuno) and
@@ -638,7 +638,7 @@ be weighed again, not as settled.
 `test_c_udp_s_tx` (and probably others: check `scripts/check_test_ports.py`)
 binds fixed ports such as 34281/34282, inside Linux's ephemeral range
 (32768-60999). Any socket of the machine can be given one of them by the
-kernel: on 2026-10-27 a local `gate_energy` held 34282 and the test failed in
+kernel: on 2026-10-27 a local yuno held 34282 and the test failed in
 the release suite of 7.28.8. Move the fixed ports of the tests below 32768
 and have `check_test_ports.py` refuse one inside the range.
 

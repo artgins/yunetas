@@ -536,7 +536,7 @@ Corollaries:
   id addresses one value. **The two grammars must stay identical**: a flat json
   is written by one side and read by the other. The old `json_flatten_dict()` /
   `json_unflatten_dict()` are deprecated aliases — their first implementation
-  turned a dict keyed by a yuno id into an array of 1631 elements.
+  turned a dict keyed by a yuno id into an array of 4631 elements.
 
 - **`kw_get_dict()` / `kw_get_list()` TAKE OWNERSHIP of `default_value`.** They
   `JSON_DECREF(default_value)` on the path where they **find** the key — the
