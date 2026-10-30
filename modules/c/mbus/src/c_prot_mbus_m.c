@@ -1054,15 +1054,17 @@ PRIVATE int send_frame(hgobj gobj, const uint8_t *bf, size_t len)
 /***************************************************************************
  *  The longest an answer can be on the wire: two frames, each byte with its
  *  start, data, parity and stop bits, at the speed the line runs at. A
- *  C_UART bottom says it (a speed its tty does not know runs at 9600, and
- *  its attrs say so); behind a tcp:// gateway this gobj's attrs say the
- *  speed of its bus. Read when a request goes: up to 7.29.3 it was counted
- *  once, at create, from this gobj's attrs.
+ *  C_UART under this gobj says it (a speed its tty does not know runs at
+ *  9600, and its attrs say so), directly below or under other layers: the
+ *  attrs are read down the bottom chain, from the first gobj that has them.
+ *  Behind a tcp:// gateway this gobj's attrs say the speed of its bus. Read
+ *  when a request goes: up to 7.29.3 it was counted once, at create, from
+ *  this gobj's attrs.
  ***************************************************************************/
 PRIVATE json_int_t answer_wire_ms(hgobj gobj)
 {
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-    hgobj line = (bottom_gobj && gobj_has_attr(bottom_gobj, "baudrate"))? bottom_gobj : gobj;
+    hgobj line = (bottom_gobj && gobj_has_bottom_attr(bottom_gobj, "baudrate"))? bottom_gobj : gobj;
 
     json_int_t baudrate = gobj_read_integer_attr(line, "baudrate");
     if(baudrate <= 0) {

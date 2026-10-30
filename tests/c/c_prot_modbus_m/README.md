@@ -156,8 +156,12 @@ path. On the message of the first cycle, published inside the read of the
 `C_UART`, it stops the master there: the `C_UART` must close its tty at once
 and end in `ST_STOPPED`. Started again, the master connects with one fd, not
 two, and polls. Then it is stopped from a timeout, with the read in flight:
-the `C_UART` goes to `ST_WAIT_STOPPED`, and ends in `ST_STOPPED` with the tty
-closed; started again, it polls. The `traffic` trace of `C_UART` is on: it
+the `C_UART` ends in `ST_STOPPED` at once, with the tty closed; started
+again, it polls. Then it is stopped and started in the same turn, with the
+read in flight, as a host does to change the `url` of the line: it must poll
+a fourth time. In the fixes after 7.29.3 the `C_UART` refused that start in
+`ST_WAIT_STOPPED` (*"Initial wrong task state"*) and the master never polled
+again (*"The master did not poll"*). The `traffic` trace of `C_UART` is on: it
 dumps what it reads. Against SDK 7.29.3 the first stop left the tty open
 (*"The fds open on the tty are not the expected"*), and the read callback of
 the stopped `C_UART` answered -1 to the event loop, which ended the loop: the
@@ -168,13 +172,21 @@ a pty, and plays the other side of the line on the master side: it reads it,
 or stops reading it to fill the line. It counts the fds open on the tty, and
 the events the `C_UART` publishes to it.
 
+- An empty write first: ignored, with a warning (*"uart tx data empty,
+  ignored"*). Against 7.29.3 it was an error; in the fixes after it, it
+  dropped the line.
 - A write of 64 KB, more than the line takes at once: all of it arrives, in
   order, and `EV_TX_READY` comes once. Against SDK 7.29.3 the write was short
   and its rest lost: 11,776 bytes arrived, then `EV_TX_READY` (*"A phase did
   not end"*, `rx_count` 11776).
 - `EV_DROP`: `EV_DISCONNECTED` inside the send, the tty closed, and opened
   again after `timeout_between_connections` (500 ms here). 7.29.3 had no
-  `EV_DROP` in `C_UART`.
+  `EV_DROP` in `C_UART`. A write sent while disconnected is dropped, with an
+  error (*"uart tx data while disconnected, dropped"*); against 7.29.3,
+  *"Event NOT DEFINED in state"*.
+- The same gbuffer sent twice, the one in flight and one queued: each second
+  send is refused (-1, *"uart tx data already queued or in flight,
+  refused"*).
 - The line not read, 64 KB and 8 bytes sent (no `EV_TX_READY`: the write is
   held), and a stop: 300 ms later the `C_UART` is in `ST_STOPPED` with its
   tty closed, and `EV_DISCONNECTED` and `EV_STOPPED` came. Then started
@@ -182,12 +194,13 @@ the events the `C_UART` publishes to it.
   the oldest queued is dropped, *"uart tx queue full, the oldest write
   dropped"*), a stop and a destroy right after it; and the line is read
   again, so the canceled write would complete if it were still there.
-- A stop with the read in flight (`ST_WAIT_STOPPED`) and a destroy there: the
-  tty is closed. Against 7.29.3 the fd stayed open (*"The fds open on the tty
-  are not the expected"*).
-- A stop with the read in flight and a `gobj_start()` there: refused with -1
-  and *"Initial wrong task state"*, and the stop ends in `ST_STOPPED` with
-  `EV_STOPPED`.
+- A stop with the read in flight and a destroy right after it: the stop ends
+  at once (`ST_STOPPED`, the tty closed, `EV_STOPPED`). Against 7.29.3 it
+  waited in `ST_WAIT_STOPPED`, and the destroy there left the fd open (*"The
+  fds open on the tty are not the expected"*).
+- A stop with the read in flight and a `gobj_start()` in the same turn: the
+  start is taken, the tty opens again, a byte written to the line arrives as
+  `EV_RX_DATA`, and a write goes out whole with its `EV_TX_READY`.
 - A host that stops the `C_UART` in its `EV_RX_DATA` and destroys it in the
   `EV_DISCONNECTED` of that stop (wrong, and the kernel says so: *"Destroying
   a gobj while its tree is publishing"*): no `EV_STOPPED` comes from the freed

@@ -10,7 +10,10 @@
  *          - A write the line does not take, and a stop: the stop ends;
  *            again, a write more than max_tx_queue, and a destroy right
  *            after the stop
- *          - A destroy, and a start, in ST_WAIT_STOPPED
+ *          - A stop with the read in flight: ends at once, then a destroy;
+ *            and a stop and a start in one turn: the line opens again
+ *          - An empty write, the same gbuffer twice, a write while
+ *            disconnected
  *          - A host that destroys it in the EV_DISCONNECTED of a stop
  *
  *          Copyright (c) 2026, ArtGins.
@@ -115,27 +118,32 @@ static int register_yuno_and_more(void)
      *  Start test
      *------------------------------*/
     /*
-     *  The opens of the C_UARTs, the start refused in ST_WAIT_STOPPED, and
-     *  the destroy of a host inside the EV_DISCONNECTED of a stop, which the
+     *  The opens of the C_UARTs, the writes a host must not send, and the
+     *  destroy of a host inside the EV_DISCONNECTED of a stop, which the
      *  kernel says is wrong: nothing more
      */
     json_t *errors_list = json_array();
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
-    // uart1: open, open again after the drop, the stop, started again
+    // uart1: open, an empty write, open again after the drop, the stop, started again
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data empty, ignored"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data while disconnected, dropped"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data already queued or in flight, refused"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx data already queued or in flight, refused"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx queue full, the oldest write dropped"));
-    // uart2: destroyed in ST_WAIT_STOPPED
+    // uart2: destroyed after a stop with the read in flight
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
-    // uart3: started in ST_WAIT_STOPPED
+    // uart3: stopped and started in one turn, with the read in flight
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
-    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Initial wrong task state"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
     // uart4: destroyed by its host in the EV_DISCONNECTED of a stop
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));

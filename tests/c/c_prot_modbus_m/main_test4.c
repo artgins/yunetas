@@ -11,6 +11,7 @@
  *            closed at once; start it again: it connects and polls
  *          - Stop it with the read in flight: the stop ends, the tty is
  *            closed; start it again: it polls
+ *          - Stop it and start it in the same turn: it polls
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -128,7 +129,7 @@ static int register_yuno_and_more(void)
     json_t *errors_list = json_array();
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Starting yuno"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Playing yuno"));
-    for(int i=0; i<3; i++) {
+    for(int i=0; i<4; i++) {
         json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Allocating Modbus Array of 10 B (10) bytes, 1 slaves"));
         json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Data filled"));
         json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));

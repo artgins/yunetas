@@ -25,12 +25,18 @@
  *            EV_CONNECTED came to a master still in ST_CONNECTED, "Event
  *            NOT DEFINED in state") and poll again.
  *          - Then the master is stopped from a timeout, with the read of
- *            C_UART in flight: the stop waits for its cancel
- *            (ST_WAIT_STOPPED) and ends in ST_STOPPED with the tty closed.
- *            Up to the fix it stayed in ST_WAIT_STOPPED for ever, the next
- *            start logged "Initial wrong task state" and never connected;
- *            and the cancel's callback answered -1, ending the yuno.
- *          - Started again, it polls a third time, and the test ends.
+ *            C_UART in flight: the stop ends at once, in ST_STOPPED with the
+ *            tty closed. Up to 7.29.3 it waited in ST_WAIT_STOPPED, stayed
+ *            there for ever, the next start logged "Initial wrong task
+ *            state" and never connected; and the cancel's callback answered
+ *            -1, ending the yuno.
+ *          - Started again, it polls a third time.
+ *          - Then it is stopped and started in the same turn, with the read
+ *            in flight, as a host does to change the url of the line: it
+ *            must poll a fourth time, and the test ends. In the fixes after
+ *            7.29.3 the C_UART refused that start (it was waiting in
+ *            ST_WAIT_STOPPED), stayed stopped, marked as running, and the
+ *            master never connected again.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -65,7 +71,9 @@ typedef enum {
     PHASE_SECOND_POLL,          // waiting a cycle of the restarted master
     PHASE_STOP_OUTSIDE,         // the stop at the timeout, with the read in flight
     PHASE_RESTART2,             // stopped: checked and started again at the timeout
-    PHASE_THIRD_POLL,           // waiting a cycle: the end
+    PHASE_THIRD_POLL,           // waiting a cycle of the restarted master
+    PHASE_STOP_START,           // stopped and started in one turn, with the read in flight
+    PHASE_FOURTH_POLL,          // waiting a cycle: the end
     PHASE_END,
 } phase_t;
 
@@ -587,8 +595,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case PHASE_STOP_OUTSIDE:
-            gobj_stop(priv->gobj_master);   // the read of the C_UART in flight
-            check_uart(gobj, 2, ST_WAIT_STOPPED, "stopped with the read in flight");
+            gobj_stop(priv->gobj_master);   // the read of the C_UART in flight: the stop ends at once
+            check_uart(gobj, 1, ST_STOPPED, "stopped with the read in flight");
             priv->phase = PHASE_RESTART2;
             set_timeout(priv->timer, RESTART_MS);
             break;
@@ -600,6 +608,15 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, POLL_MAX_MS);
             break;
 
+        case PHASE_STOP_START:
+            gobj_stop(priv->gobj_master);   // the read of the C_UART in flight
+            check_uart(gobj, 1, ST_STOPPED, "stopped with the read in flight, to start it again");
+            gobj_start(priv->gobj_master);  // in the same turn
+            check_uart(gobj, 1, ST_DISCONNECTED, "started in the turn of its stop");
+            priv->phase = PHASE_FOURTH_POLL;
+            set_timeout(priv->timer, POLL_MAX_MS);
+            break;
+
         case PHASE_END:
             set_yuno_must_die();
             break;
@@ -607,6 +624,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         case PHASE_FIRST_POLL:
         case PHASE_SECOND_POLL:
         case PHASE_THIRD_POLL:
+        case PHASE_FOURTH_POLL:
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -662,6 +680,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case PHASE_THIRD_POLL:
+            priv->phase = PHASE_STOP_START;
+            set_timeout(priv->timer, STOP_AFTER_MS);
+            break;
+
+        case PHASE_FOURTH_POLL:
             priv->phase = PHASE_END;
             set_timeout(priv->timer, END_AFTER_MS);
             break;

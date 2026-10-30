@@ -24,12 +24,21 @@
  *            oldest queued is dropped, with an error. And a destroy right
  *            after the stop; then the test reads the line again. Up to 7.29.3 the held write completed on
  *            the destroyed gobj: a use after free.
- *          - A stop with the read in flight (ST_WAIT_STOPPED) and a destroy
- *            there: the tty must be closed. Up to 7.29.3 its fd was lost.
- *          - A stop with the read in flight and a start in ST_WAIT_STOPPED:
- *            the start is refused (-1, "Initial wrong task state"), and the
- *            stop ends as it would. Up to 7.29.3 the start armed its timer
- *            and the stop was lost.
+ *          - A stop with the read in flight, and a destroy right after it:
+ *            the stop ends at once, inside gobj_stop() (the tty closed,
+ *            EV_STOPPED). Up to 7.29.3 it waited in ST_WAIT_STOPPED, and a
+ *            destroy there lost the fd of the tty.
+ *          - A stop with the read in flight and a start in the same turn (a
+ *            host that changes the url of its line does that): the start is
+ *            taken, the line opens again, and data flows both ways. In the
+ *            fixes after 7.29.3 the start was refused in ST_WAIT_STOPPED, and
+ *            the C_UART stayed stopped, marked as running, for ever.
+ *          - The writes a host must not send: an empty one is ignored, with
+ *            a warning (in the fixes after 7.29.3 it dropped the line, with
+ *            three errors); the same gbuffer queued or in flight is refused,
+ *            with an error (there it lost a reference and named no line);
+ *            one in ST_DISCONNECTED is dropped, with an error (7.29.3:
+ *            "Event NOT DEFINED").
  *          - A host that destroys the C_UART in the EV_DISCONNECTED of a
  *            stop (wrong: the kernel says so, "Destroying a gobj while its
  *            tree is publishing"): the C_UART touches nothing of itself
@@ -69,11 +78,12 @@ typedef enum {
     PHASE_CONNECT3,             // the third open
     PHASE_HELD_DESTROY,         // a write held: stop and destroy at the timeout
     PHASE_AFTER_DESTROY,        // the line read again: nothing may happen
-    PHASE_CONNECT_WAIT_DESTROY, // a new C_UART: destroyed in ST_WAIT_STOPPED
+    PHASE_CONNECT_WAIT_DESTROY, // a new C_UART: destroyed after a stop with the read in flight
     PHASE_WAIT_DESTROY,
-    PHASE_CONNECT_WAIT_START,   // a new C_UART: started in ST_WAIT_STOPPED
+    PHASE_CONNECT_WAIT_START,   // a new C_UART: stopped and started in one turn
     PHASE_WAIT_START,
-    PHASE_WAIT_START_STOPPED,   // its stop must have ended
+    PHASE_RESTART_CONNECT,      // it must open again
+    PHASE_RESTART_FLOW,         // and data must flow both ways
     PHASE_CONNECT_ALIVE,        // a new C_UART: destroyed in its EV_DISCONNECTED
     PHASE_ALIVE,
     PHASE_END,
@@ -146,6 +156,7 @@ typedef struct _PRIVATE_DATA {
     int disconnections;
     int tx_ready;
     int stopped;
+    int rx_data;                // EV_RX_DATA heard in PHASE_RESTART_FLOW
 } PRIVATE_DATA;
 
 
@@ -459,19 +470,54 @@ PRIVATE void new_uart(hgobj gobj)
 /***************************************************************************
  *  Send a gbuffer of len bytes of the pattern from offset
  ***************************************************************************/
-PRIVATE void send_pattern(hgobj gobj, size_t offset, size_t len)
+PRIVATE gbuffer_t *pattern_gbuffer(size_t offset, size_t len)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuffer_t *gbuf = gbuffer_create(len, len);
+    gbuffer_t *gbuf = gbuffer_create(len? len : 1, len? len : 1);
     for(size_t i=0; i<len; i++) {
         uint8_t c = (uint8_t)((offset + i) % 251);
         gbuffer_append(gbuf, &c, 1);
     }
+    return gbuf;
+}
+
+/***************************************************************************
+ *  Send a gbuffer to the C_UART: the kw takes one reference
+ ***************************************************************************/
+PRIVATE int send_gbuffer(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *kw = json_pack("{s:I}",
         "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
-    gobj_send_event(priv->gobj_uart, EV_TX_DATA, kw, gobj);
+    return gobj_send_event(priv->gobj_uart, EV_TX_DATA, kw, gobj);
+}
+
+/***************************************************************************
+ *  Send a gbuffer of len bytes of the pattern from offset
+ ***************************************************************************/
+PRIVATE void send_pattern(hgobj gobj, size_t offset, size_t len)
+{
+    send_gbuffer(gobj, pattern_gbuffer(offset, len));
+}
+
+/***************************************************************************
+ *  Send the same gbuffer twice: the second must be refused (-1)
+ ***************************************************************************/
+PRIVATE void send_twice(hgobj gobj, size_t len, const char *when)
+{
+    gbuffer_t *gbuf = pattern_gbuffer(0, len);
+    gbuffer_incref(gbuf);   // the second send
+    send_gbuffer(gobj, gbuf);
+    if(send_gbuffer(gobj, gbuf) != -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The same gbuffer sent twice was not refused",
+            "when",         "%s", when,
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -504,6 +550,7 @@ PRIVATE void check_short_write_done(hgobj gobj)
     gobj_send_event(priv->gobj_uart, EV_DROP, 0, gobj);
     check_count(gobj, "EV_DISCONNECTED", priv->disconnections, 1, "dropped");
     check_uart(gobj, 1, ST_DISCONNECTED, "dropped");
+    send_pattern(gobj, 0, HELD_TAIL);   // disconnected: dropped, with an error
     set_timeout(priv->timer, PHASE_MAX_MS);
 }
 
@@ -646,34 +693,44 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case PHASE_WAIT_DESTROY:
-            gobj_stop(priv->gobj_uart);     // its read in flight
-            check_uart(gobj, 2, ST_WAIT_STOPPED, "stopped with the read in flight");
+            gobj_stop(priv->gobj_uart);     // its read in flight: the stop ends at once
+            check_uart(gobj, 1, ST_STOPPED, "stopped with the read in flight");
+            check_count(gobj, "EV_STOPPED", priv->stopped, 3, "stopped with the read in flight");
             destroy_uart(gobj);
-            check_uart(gobj, 1, 0, "destroyed in ST_WAIT_STOPPED");
+            check_uart(gobj, 1, 0, "destroyed after a stop with the read in flight");
             priv->phase = PHASE_CONNECT_WAIT_START;
             new_uart(gobj);
             set_timeout(priv->timer, PHASE_MAX_MS);
             break;
 
         case PHASE_WAIT_START:
-            gobj_stop(priv->gobj_uart);     // its read in flight
-            check_uart(gobj, 2, ST_WAIT_STOPPED, "stopped with the read in flight");
-            if(gobj_start(priv->gobj_uart) != -1) {
+            /*
+             *  Stopped and started in one turn, with the read in flight, as
+             *  a host that changes the url of its line does: the start is
+             *  taken, and the line must open again
+             */
+            gobj_stop(priv->gobj_uart);
+            check_uart(gobj, 1, ST_STOPPED, "stopped with the read in flight");
+            check_count(gobj, "EV_STOPPED", priv->stopped, 4, "stopped with the read in flight");
+            if(gobj_start(priv->gobj_uart) != 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "A start in ST_WAIT_STOPPED was not refused",
+                    "msg",          "%s", "A start right after a stop was refused",
                     NULL
                 );
             }
-            priv->phase = PHASE_WAIT_START_STOPPED;
-            set_timeout(priv->timer, SETTLE_MS);
+            check_uart(gobj, 1, ST_DISCONNECTED, "started right after a stop");
+            priv->phase = PHASE_RESTART_CONNECT;
+            set_timeout(priv->timer, PHASE_MAX_MS);
             break;
 
-        case PHASE_WAIT_START_STOPPED:
-            check_uart(gobj, 1, ST_STOPPED, "a start refused in ST_WAIT_STOPPED");
-            check_count(gobj, "EV_STOPPED", priv->stopped, 2, "a start refused in ST_WAIT_STOPPED");
-            gobj_stop(priv->gobj_uart);     // the refused start left it running
+        case PHASE_RESTART_FLOW:
+            check_count(gobj, "EV_RX_DATA", priv->rx_data, 1, "started right after a stop");
+            check_count(gobj, "bytes", (int)priv->rx_count, HELD_TAIL, "started right after a stop");
+            check_count(gobj, "EV_TX_READY", priv->tx_ready, 1, "started right after a stop");
+            gobj_stop(priv->gobj_uart);
+            check_count(gobj, "EV_STOPPED", priv->stopped, 5, "started right after a stop");
             destroy_uart(gobj);
             priv->phase = PHASE_CONNECT_ALIVE;
             new_uart(gobj);
@@ -682,7 +739,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case PHASE_ALIVE:
             check_uart(gobj, 1, 0, "destroyed in the EV_DISCONNECTED of a stop");
-            check_count(gobj, "EV_STOPPED", priv->stopped, 2, "destroyed in the EV_DISCONNECTED of a stop");
+            check_count(gobj, "EV_STOPPED", priv->stopped, 5, "destroyed in the EV_DISCONNECTED of a stop");
             priv->phase = PHASE_END;
             set_timeout(priv->timer, SETTLE_MS);
             break;
@@ -728,6 +785,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              */
             priv->phase = PHASE_SHORT_WRITE;
             slave_read(gobj, SLAVE_COUNT);
+            send_pattern(gobj, 0, 0);       // empty: ignored, with a warning
             send_pattern(gobj, 0, TX_SIZE);
             set_timeout(priv->timer, PHASE_MAX_MS);
             break;
@@ -740,9 +798,12 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              */
             priv->phase = (priv->phase == PHASE_RECONNECT)? PHASE_HELD_STOP : PHASE_HELD_DESTROY;
             slave_read(gobj, SLAVE_HOLD);
-            send_pattern(gobj, 0, TX_SIZE);
-            send_pattern(gobj, 0, HELD_TAIL);
-            if(priv->phase == PHASE_HELD_DESTROY) {
+            if(priv->phase == PHASE_HELD_STOP) {
+                send_twice(gobj, TX_SIZE, "the write in flight");   // the second refused
+                send_twice(gobj, HELD_TAIL, "a write queued");      // the second refused
+            } else {
+                send_pattern(gobj, 0, TX_SIZE);
+                send_pattern(gobj, 0, HELD_TAIL);
                 send_pattern(gobj, 0, HELD_TAIL);   // max_tx_queue 1: the one queued is dropped
             }
             set_timeout(priv->timer, SETTLE_MS);
@@ -756,6 +817,32 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         case PHASE_CONNECT_WAIT_START:
             priv->phase = PHASE_WAIT_START;
             set_timeout(priv->timer, SETTLE_MS);
+            break;
+
+        case PHASE_RESTART_CONNECT:
+            {
+                /*
+                 *  Opened again after a stop and a start in one turn: a byte
+                 *  to it, and a write from it
+                 */
+                priv->phase = PHASE_RESTART_FLOW;
+                priv->rx_count = 0;
+                priv->tx_ready = 0;
+                slave_read(gobj, SLAVE_COUNT);
+                send_pattern(gobj, 0, HELD_TAIL);
+                uint8_t c = 0x55;
+                if(write(priv->pty_master_fd, &c, 1) != 1) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM,
+                        "msg",          "%s", "Cannot write to the line",
+                        "errno",        "%d", errno,
+                        "strerror",     "%s", strerror(errno),
+                        NULL
+                    );
+                }
+                set_timeout(priv->timer, SETTLE_MS);
+            }
             break;
 
         case PHASE_CONNECT_ALIVE:
@@ -820,6 +907,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(priv->phase == PHASE_ALIVE && src == priv->gobj_uart) {
         gobj_stop(src);     // nothing in flight: EV_DISCONNECTED comes inside
+    } else if(priv->phase == PHASE_RESTART_FLOW && src == priv->gobj_uart) {
+        priv->rx_data++;
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

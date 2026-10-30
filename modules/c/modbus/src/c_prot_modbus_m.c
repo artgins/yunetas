@@ -2636,13 +2636,14 @@ PRIVATE BOOL broadcast_in_flight(hgobj gobj)
 /***************************************************************************
  *  The milliseconds a frame of len bytes takes on the serial line, rounded
  *  up: 11 bits a character in RTU (start, 8 data, parity or a second stop,
- *  stop). The speed is the C_UART's when it is the bottom, else (a tcp://
- *  gateway) this gobj's baudrate.
+ *  stop). The speed is the C_UART's when there is one under this gobj
+ *  (directly, or under other layers: read down the bottom chain), else (a
+ *  tcp:// gateway) this gobj's baudrate.
  ***************************************************************************/
 PRIVATE int frame_line_ms(hgobj gobj, size_t len)
 {
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-    json_int_t baudrate = gobj_has_attr(bottom_gobj, "baudrate")?
+    json_int_t baudrate = (bottom_gobj && gobj_has_bottom_attr(bottom_gobj, "baudrate"))?
         gobj_read_integer_attr(bottom_gobj, "baudrate") :
         gobj_read_integer_attr(gobj, "baudrate");
     if(baudrate <= 0) {
