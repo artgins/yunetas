@@ -2,15 +2,15 @@
  *          C_TEST19_LOGOUT_NO_COOKIE.C
  *
  *          Driver for test19_logout_no_cookie: sends POST /auth/logout with
- *          NO refresh_token cookie.  Regression for f002: the /auth/logout
- *          handler used to ignore extract_cookie()'s return and read the
- *          uninitialized local buffer rt[4096] via snprintf("%s", rt),
- *          disclosing stack contents.  The fix mirrors /auth/refresh and
- *          rejects up front, so the BFF must answer:
- *            - HTTP 401 response
- *            - body.error_code == "missing_refresh_token"
- *            - stats: requests_total == 0, kc_calls == 0, bff_errors == 1
- *          (i.e. rejected on validation, before enqueue / any Keycloak call).
+ *          NO cookie at all, as a browser whose session was opened with no
+ *          refresh_token (or has none left). The logout still ends the
+ *          session in the browser, so the BFF must answer:
+ *            - HTTP 200 response
+ *            - body.success == true
+ *            - stats: requests_total == 0, idp_calls == 0, bff_errors == 0
+ *          (i.e. answered at once: with no refresh_token there is nothing
+ *          to end at the IdP, and nothing is queued). The two Set-Cookie
+ *          that clear the cookies are checked byte by byte in test24.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -147,13 +147,12 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "test19: connected to BFF, posting /auth/logout with no cookie (expect 401)");
+        gobj_trace_msg(gobj, "test19: connected to BFF, posting /auth/logout with no cookie (expect 200)");
     }
 
     /*
-     *  POST /auth/logout with NO Cookie header at all => the refresh_token
-     *  cookie is absent.  The BFF must reject with 401 missing_refresh_token
-     *  before touching the rt[] buffer (f002 regression).
+     *  POST /auth/logout with NO Cookie header at all: the BFF must clear
+     *  the cookies and answer success, with no call to the IdP.
      */
     json_t *jn_headers = json_pack("{s:s}",
         "Origin", "http://localhost"
@@ -187,12 +186,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    if(status != 401) {
+    if(status != 200) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_APP,
-            "msg",      "%s", "test19_logout_no_cookie: expected BFF 401, got different status",
-            "expected", "%d", 401,
+            "msg",      "%s", "test19_logout_no_cookie: expected BFF 200, got different status",
+            "expected", "%d", 200,
             "status",   "%d", status,
             NULL
         );
@@ -203,52 +202,30 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_APP,
-            "msg",      "%s", "test19_logout_no_cookie: BFF error body missing or not an object",
+            "msg",      "%s", "test19_logout_no_cookie: BFF body missing or not an object",
             NULL
         );
         goto end;
     }
-    if(json_is_true(json_object_get(jn_body, "success"))) {
+    if(!json_is_true(json_object_get(jn_body, "success"))) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_APP,
-            "msg",      "%s", "test19_logout_no_cookie: body.success must be false",
-            NULL
-        );
-        goto end;
-    }
-    const char *got_code = kw_get_str(gobj, jn_body, "error_code", "", 0);
-    if(strcmp(got_code, "missing_refresh_token") != 0) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP,
-            "msg",      "%s", "test19_logout_no_cookie: body.error_code mismatch",
-            "expected", "%s", "missing_refresh_token",
-            "got",      "%s", got_code,
-            NULL
-        );
-        goto end;
-    }
-    const char *got_error = kw_get_str(gobj, jn_body, "error", "", 0);
-    if(empty_string(got_error)) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP,
-            "msg",      "%s", "test19_logout_no_cookie: body.error fallback empty",
+            "msg",      "%s", "test19_logout_no_cookie: body.success must be true",
             NULL
         );
         goto end;
     }
 
     /*
-     *  Validation rejects before enqueue(), so requests_total=0, kc_calls=0.
+     *  Answered before enqueue(), so requests_total=0, idp_calls=0.
      */
     const test_stat_expect_t expected[] = {
         {"requests_total", 0},
         {"idp_calls",       0},
         {"idp_ok",          0},
         {"idp_errors",      0},
-        {"bff_errors",     1},
+        {"bff_errors",     0},
         {"q_full_drops",   0},
         {NULL, 0}
     };

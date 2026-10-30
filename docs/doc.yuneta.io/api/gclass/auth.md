@@ -76,34 +76,48 @@ whose **v1** SPA edits `treedb_authzs` turns it off in its config:
 (gclass-c-auth-bff)=
 ## C_AUTH_BFF
 
-Backend-For-Frontend OAuth 2 server — mediates between browser SPAs and
-Keycloak, storing tokens in httpOnly cookies.
+Backend-For-Frontend OAuth 2 server — mediates between browser SPAs and the
+IdP (OIDC; Keycloak in production), storing the tokens in httpOnly cookies.
+The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_IDLE`, `ST_WAIT_RESPONSE` |
+| **States** | `ST_IDLE` (one state: each request goes through a `C_TASK` to the IdP) |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `keycloak_url` | `string` | Keycloak server URL. |
-| `realm` | `string` | Keycloak realm name. |
+| `issuer` | `string` | OIDC issuer URL; the endpoints come from its `/.well-known/openid-configuration`. |
+| `token_endpoint` | `string` | Explicit token endpoint; with `end_session_endpoint`, skips discovery. |
+| `end_session_endpoint` | `string` | Explicit end-session (logout) endpoint. |
 | `client_id` | `string` | OAuth 2 client ID. |
-| `client_secret` | `string` | OAuth 2 client secret. |
-| `cookie_domain` | `string` | Domain for httpOnly cookies. |
+| `client_secret` | `string` | OAuth 2 client secret (empty for a public client). |
+| `cookie_domain` | `string` | `Domain` of the cookies, written only when the request `Host` is that domain or a subdomain. |
 | `allowed_origin` | `string` | CORS allowed origin. |
-| `allowed_redirect_uri` | `string` | Allowed redirect URI after login. |
-| `crypto` | `json` | TLS configuration. |
+| `allowed_redirect_uri` | `string` | Prefix that a `/auth/callback` `redirect_uri` must have. |
+| `expose_access_token` | `boolean` | Opt-in `POST /auth/token` (default `false`). |
+| `crypto` | `dict` | TLS configuration of the IdP calls (verifying by default). |
+| `pending_queue_size` | `integer` | Requests queued per channel (default 16). |
+| `idp_timeout_ms` | `integer` | Round-trip limit of an IdP call (default 30000). |
+| `idp_connect_timeout_ms` | `integer` | Connect limit of an IdP call (default 30000). |
 
 ### Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /auth/login` | Start login flow. |
-| `POST /auth/callback` | Handle OAuth callback. |
-| `POST /auth/refresh` | Refresh access token. |
-| `POST /auth/logout` | Logout and clear cookies. |
+| `POST /auth/login` | Password grant; writes the cookies. |
+| `POST /auth/callback` | PKCE code exchange; writes the cookies. |
+| `POST /auth/refresh` | Refresh with the `refresh_token` cookie; answers the identity too. |
+| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them. |
+| `POST /auth/token` | Opt-in (`expose_access_token`): the access token for another backend host. |
+
+A token lifetime of 0 from the IdP is a token with no expiry (Keycloak's
+offline token, `"refresh_expires_in": 0`); its cookie has no `Max-Age`:
+
+```
+Set-Cookie: refresh_token=<jwt>; Path=/; HttpOnly; Secure; SameSite=Strict
+```
 
 ---
 

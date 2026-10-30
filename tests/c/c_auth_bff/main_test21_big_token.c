@@ -11,9 +11,9 @@
  *          byte over, with their names) are refused by their size, 500
  *          token_too_large, each with ONE log, the ERROR of the 500; a
  *          refresh_token of 4083 bytes fits; and a success with no
- *          access_token is refused, 502 auth_unexpected_error. The
- *          warnings are captured too: no WARNING that a payload could not
- *          be read.
+ *          access_token is refused, 502 auth_unexpected_error, with ONE
+ *          log, a WARNING (a fault of the peer). The warnings are captured
+ *          too: no WARNING that a payload could not be read.
  *
  *          Topology (all on 127.0.0.1):
  *            c_test21_big_token   (driver, default service, autoplay)
@@ -293,7 +293,7 @@ static int register_yuno_and_more(void)
 
     /*------------------------------*
      *  Captured: errors and warnings (see main()). The one log of each
-     *  refusal: the ERROR of its answer.
+     *  refusal: the ERROR of its 500, the WARNING of its 502.
      *------------------------------*/
     set_expected_results(
         APP_NAME,
@@ -302,7 +302,7 @@ static int register_yuno_and_more(void)
             "error_code",   "token_too_large",
             "msg",          "👤BFF server error",
             "error_code",   "token_too_large",
-            "msg",          "👤BFF server error",
+            "msg",          "👤BFF IdP answer refused",
             "error_code",   "auth_unexpected_error"
         ),
         NULL,           // no JSON comparison

@@ -292,35 +292,62 @@ save_session_info()
 server MAY issue one; when it does not, the client keeps the one it has). The
 BFF then sends no `Set-Cookie` for `refresh_token`: the browser keeps its
 cookie, and the next refresh uses it. Only the access_token cookie is
-replaced:
+replaced, and the answer carries no `refresh_expires_in` (no cookie was
+written for it to describe):
 
 ```
 HTTP/1.1 200 OK
 Set-Cookie: access_token=<new JWT>; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Strict
                                          ← no Set-Cookie: refresh_token=...
+
+{"success": true, "username": "john", "email": "john@example.com", "expires_in": 300}
 ```
 
 **A login (or a callback) answered with no refresh_token opens a session that
 cannot be refreshed.** There is no refresh_token to keep, so the BFF clears the
 cookie (`Set-Cookie: refresh_token=; Max-Age=0; ...`: no refresh_token of an
-earlier session stays in the browser), answers `"refresh_expires_in": 0`, and
-logs a WARNING once per process (*"👤BFF IdP answered a login with no
+earlier session stays in the browser), answers with no `refresh_expires_in`,
+and logs a WARNING once per process (*"👤BFF IdP answered a login with no
 refresh_token: its session cannot be refreshed, it ends with its access_token
 (said once)"*). The session ends when its access_token expires; the next
-refresh answers `401 missing_refresh_token`. To get refreshable sessions,
+refresh answers `401 missing_refresh_token`. The logout of such a session
+works: see [Logout Flow](#bff-logout-flow). To get refreshable sessions,
 configure the IdP client to issue refresh tokens.
+
+**A lifetime of 0 is a token with no expiry.** Keycloak answers
+`"refresh_expires_in": 0` for an offline token (scope `offline_access`). A
+`Max-Age=0` would tell the browser to delete the cookie on arrival, so the BFF
+writes that cookie with no `Max-Age`: a cookie of the browser session, which
+the browser drops when the session ends. The same holds for
+`"expires_in": 0`. The answer says the 0 as it came:
+
+```
+IdP:      {"access_token": "...", "expires_in": 300,
+           "refresh_token": "...", "refresh_expires_in": 0}
+
+BFF:      Set-Cookie: access_token=<JWT>; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Strict
+          Set-Cookie: refresh_token=<JWT>; Path=/; HttpOnly; Secure; SameSite=Strict
+          {"success": true, ..., "expires_in": 300, "refresh_expires_in": 0}
+```
+
+The SPAs read `"expires_in": 0` as their default of 300 s for the next
+refresh (`expires_in || 300`).
 
 **The answer of the IdP is data of a peer, and the BFF reads it that way.** A
 token that is not a string (`"access_token": 123`, `"refresh_token": {}`) is
 refused: `502 auth_unexpected_error`, *"Authentication service answered an
-access_token that is not a string"*, and a WARNING with no stack names the
-token and its type (*"👤BFF IdP answered a token that is not a string"*,
-`"type": "integer"`). A lifetime (`expires_in`, `refresh_expires_in`) is a JSON
-integer or the text of one: `"expires_in": "300"` is read as 300, as some IdPs
-send it. Anything else (`"expires_in": "soon"`, a negative number) gets its
-default (300 for `expires_in`, 1800 for `refresh_expires_in`) and a WARNING
-(*"👤BFF IdP answered a lifetime that is not a number of seconds, its default
-is used"*).
+access_token that is not a string"*. Two WARNINGs with no stack say it: one
+names the token and its type (*"👤BFF IdP answered a token that is not a
+string"*, `"type": "integer"`), and one is the answer of the 502 (*"👤BFF IdP
+answer refused"*, `"error_code": "auth_unexpected_error"`). A success with no
+access_token is refused the same way, with that second WARNING only. Every
+other 5xx of the BFF is an ERROR (*"👤BFF server error"*). A lifetime
+(`expires_in`, `refresh_expires_in`) is a JSON integer or the text of one:
+`"expires_in": "300"` is read as 300, as some IdPs send it. Anything else
+(`"expires_in": "soon"`, `300.5`, `false`, a negative number) gets its default
+(300 for `expires_in`, 1800 for `refresh_expires_in`) and a WARNING that names
+the key and the value (*"👤BFF IdP answered a lifetime that is not a number of
+seconds, its default is used"*, `"key": "expires_in"`, `"value": "300.5"`).
 
 **A refresh that cannot be made is not a logout.** A network failure, a
 timeout (`gui_treedb` gives each BFF call 15 s) or a 5xx answer such as
@@ -331,6 +358,7 @@ answer (`session_expired`, `missing_refresh_token`) ends the session.
 
 ---
 
+(bff-logout-flow)=
 ## Logout Flow
 
 ```
@@ -349,6 +377,13 @@ credentials: "include"
 │
 └── Browser: closes the WebSocket, shows the login screen
 ```
+
+**A logout with no refresh_token cookie still ends the session in the
+browser.** A session opened by a login answered with no refresh_token has no
+such cookie. The BFF then does not call the IdP (it has no refresh_token to
+end the IdP session with; that session ends on the IdP by its own timeout),
+clears both cookies with `Max-Age=0` at once, and answers
+`200 {"success": true}`. The same holds for a request with no cookie at all.
 
 ---
 
@@ -407,7 +442,7 @@ Each cookie set by the BFF carries these attributes:
 
 ```
 Set-Cookie: access_token=<JWT>;
-  Max-Age=<expires_in>; ← refresh_token: refresh_expires_in
+  Max-Age=<expires_in>; ← refresh_token: refresh_expires_in; none for a 0
   Path=/;               ← Sent with all requests to this host
   HttpOnly;             ← JavaScript cannot access (no document.cookie)
   Secure;               ← Only sent over HTTPS

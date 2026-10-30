@@ -14,9 +14,9 @@
  *            4. one of 4083 bytes (4096) fits;
  *            5. a success with no access_token is refused, 502
  *               auth_unexpected_error.
- *          Each refusal has ONE log (the ERROR of the answer), and no
- *          WARNING that a payload could not be read (main_test21 captures
- *          the warnings too).
+ *          Each refusal has ONE log (the ERROR of a 500, the WARNING of
+ *          the 502: a fault of the peer), and no WARNING that a payload
+ *          could not be read (main_test21 captures the warnings too).
  *
  *          Sequence
  *          ========

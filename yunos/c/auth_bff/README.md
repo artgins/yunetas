@@ -54,7 +54,7 @@ their own host: `gui_agent` on 1806 (agents plane) and 1807 (agent22 plane),
 | `POST /auth/login`    | `{username, password}` → password grant at the IdP; sets the cookies |
 | `POST /auth/callback` | `{code, code_verifier, redirect_uri}` → PKCE code exchange; sets the cookies |
 | `POST /auth/refresh`  | Reads the `refresh_token` cookie, gets new tokens, answers `username` and `email` too |
-| `POST /auth/logout`   | Ends the session at the IdP, clears the cookies (`Max-Age=0`) |
+| `POST /auth/logout`   | Ends the session at the IdP, clears the cookies (`Max-Age=0`); with no `refresh_token` cookie it only clears them |
 | `POST /auth/token`    | **Opt-in** (`expose_access_token`): returns the access token to the origin `allowed_origin`, else `403 origin_not_allowed`; `404 unknown_endpoint` when off |
 | `OPTIONS *`           | CORS preflight, only for `allowed_origin` |
 
@@ -63,6 +63,39 @@ A successful login, callback or refresh answers
 "refresh_expires_in": N}`, with no token in the body. Every error carries a
 stable `error_code` (the catalog is in `c_auth_bff.h`), which the SPA uses as
 its i18n key.
+
+**When the IdP answers with no `refresh_token`.** A login or callback opens
+a session that cannot be refreshed: the BFF clears the `refresh_token`
+cookie, answers with no `refresh_expires_in`, and logs one WARNING per
+process. The session ends with its access token. A refresh answered with no
+new `refresh_token` keeps the browser's cookie (no `Set-Cookie` for it) and
+also answers with no `refresh_expires_in`:
+
+```
+HTTP/1.1 200 OK
+Set-Cookie: access_token=<jwt>; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Strict
+Set-Cookie: refresh_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict   (login only)
+
+{"success": true, "username": "john", "email": "john@example.com", "expires_in": 300}
+```
+
+**A lifetime of 0** (`"refresh_expires_in": 0`, the offline token of
+Keycloak) is a token with no expiry: its cookie has no `Max-Age`, a cookie of
+the browser session, and the answer says 0.
+
+**Logout.** `POST /auth/logout` ends the session at the IdP with the
+`refresh_token` cookie, then clears both cookies with `Max-Age=0` and
+answers `200 {"success": true}`. With no `refresh_token` cookie (a session
+opened without one), it does not call the IdP and only clears the cookies,
+with the same answer:
+
+```
+HTTP/1.1 200 OK
+Set-Cookie: access_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict
+Set-Cookie: refresh_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict
+
+{"success": true}
+```
 
 ## Configuration
 

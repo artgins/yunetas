@@ -10,7 +10,8 @@
  *    POST /auth/login     — password grant (Direct Access Grant) with the IdP
  *    POST /auth/callback  — exchange PKCE authorization code for tokens
  *    POST /auth/refresh   — refresh access_token using the httpOnly cookie
- *    POST /auth/logout    — revoke refresh_token and clear cookies
+ *    POST /auth/logout    — revoke refresh_token and clear cookies (with
+ *                           no refresh_token cookie, only clear them)
  *    POST /auth/token     — return the access_token to JS (opt-in; off by
  *                           default; see `expose_access_token` in c_auth_bff.c)
  *
@@ -83,7 +84,9 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  auth_config_error         500  BFF misconfigured (bad client_id, ...)
  *  auth_unexpected_error     502  IdP returned something unexpected
  *                                 (also a success with no access_token,
- *                                 or with a token that is not a string)
+ *                                 or with a token that is not a string:
+ *                                 logged as a WARNING, "IdP answer
+ *                                 refused", data of a peer)
  *  auth_empty_response       502  IdP reply had no JSON body
  *  auth_timeout              504  Watchdog fired, no reply in time
  *  token_too_large           500  IdP token does not fit in a browser
@@ -102,8 +105,9 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  origin_not_allowed        403  /auth/token Origin does not match
  *                                 allowed_origin, or allowed_origin unset
  *                                 (origin-pinned, fail-closed)
- *  missing_refresh_token     401  /auth/refresh or /auth/logout called
- *                                 without RT cookie
+ *  missing_refresh_token     401  /auth/refresh called without RT cookie
+ *                                 (/auth/logout without it clears the
+ *                                 cookies and answers success)
  *  missing_access_token      401  /auth/token called without AT cookie
  *                                 (only reachable when expose_access_token=true)
  *  unknown_endpoint          404  URL not one of /auth/{callback,login,refresh,

@@ -3,18 +3,19 @@
  *
  *          Driver for test24_no_refresh_token. The mock IdP answers every
  *          token request with its envelope, changed by its `body_patch`
- *          before each step. Eight requests on one plain socket, one at a
- *          time (each answer is read whole before the next request):
+ *          before each step. Fourteen requests on one plain socket, one at
+ *          a time (each answer is read whole before the next request):
  *
  *            1. login, the answer with no refresh_token: 200, the
  *               access_token cookie, the refresh_token cookie CLEARED
- *               ("refresh_token=; Max-Age=0"), refresh_expires_in 0; a
- *               WARNING that the session cannot be refreshed;
+ *               ("refresh_token=; Max-Age=0"), no refresh_expires_in in
+ *               the answer; a WARNING that the session cannot be
+ *               refreshed;
  *            2. the same again: the same answer, and no second WARNING;
  *            3. refresh with "Cookie: refresh_token=OLDRT123", the answer
- *               with no refresh_token: 200, the access_token cookie, and
- *               NO Set-Cookie for the refresh_token (the browser keeps
- *               its own);
+ *               with no refresh_token: 200, the access_token cookie, NO
+ *               Set-Cookie for the refresh_token (the browser keeps its
+ *               own) and no refresh_expires_in in the answer;
  *            4. refresh, a full answer: 200, both cookies;
  *            5. login, an access_token that is an integer: 502
  *               auth_unexpected_error, its error saying the type;
@@ -22,7 +23,19 @@
  *            7. login, expires_in "450" (a number as text): 200, the
  *               access_token cookie with Max-Age=450;
  *            8. login, expires_in "soon": 200, Max-Age=300 (the default),
- *               a WARNING.
+ *               a WARNING;
+ *            9. login, refresh_expires_in 0 (a token with no expiry): 200,
+ *               the refresh_token cookie with no Max-Age (a cookie of the
+ *               browser session), refresh_expires_in 0 in the answer;
+ *           10. login, expires_in 0: the same for the access_token cookie;
+ *           11. login, expires_in 300.5: Max-Age=300, a WARNING whose
+ *               value is "300.5";
+ *           12. login, refresh_expires_in false: Max-Age=1800, a WARNING
+ *               whose value is "false";
+ *           13. logout with only "Cookie: access_token=AT1" (a session
+ *               opened with no refresh_token): 200 success, both cookies
+ *               cleared, no call to the IdP;
+ *           14. logout with no cookie at all: the same.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test24.
@@ -50,43 +63,65 @@
  *              Structures
  ***************************************************************************/
 typedef struct {
-    const char *url;            /* /auth/login or /auth/refresh */
+    const char *url;            /* /auth/login, /auth/refresh or /auth/logout */
+    const char *cookie;         /* Cookie header of the request, NULL for none */
     const char *body_patch;     /* json of the mock's body_patch for this step */
     int         status;         /* status expected */
-    const char *must_have[4];   /* texts the answer must carry (NULL ends) */
-    const char *must_not[2];    /* texts it must not carry (NULL ends) */
+    int         max_ages;       /* count of "Max-Age=" expected, -1 not counted */
+    const char *must_have[5];   /* texts the answer must carry (NULL ends) */
+    const char *must_not[3];    /* texts it must not carry (NULL ends) */
 } step_t;
 
 /***************************************************************************
  *              Data
  ***************************************************************************/
 PRIVATE const step_t steps[] = {
-    {"/auth/login", "{\"refresh_token\": null}", 200,
-        {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=; Max-Age=0;",
-            "\"refresh_expires_in\":0", NULL},
-        {"Set-Cookie: refresh_token=ey", NULL}},
-    {"/auth/login", "{\"refresh_token\": null}", 200,
-        {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=; Max-Age=0;",
-            "\"refresh_expires_in\":0", NULL},
-        {"Set-Cookie: refresh_token=ey", NULL}},
-    {"/auth/refresh", "{\"refresh_token\": null}", 200,
+    {"/auth/login", NULL, "{\"refresh_token\": null}", 200, -1,
+        {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
+        {"Set-Cookie: refresh_token=ey", "refresh_expires_in", NULL}},
+    {"/auth/login", NULL, "{\"refresh_token\": null}", 200, -1,
+        {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
+        {"Set-Cookie: refresh_token=ey", "refresh_expires_in", NULL}},
+    {"/auth/refresh", "refresh_token=OLDRT123", "{\"refresh_token\": null}", 200, -1,
         {"Set-Cookie: access_token=ey", NULL},
-        {"Set-Cookie: refresh_token", NULL}},
-    {"/auth/refresh", "{}", 200,
+        {"Set-Cookie: refresh_token", "refresh_expires_in", NULL}},
+    {"/auth/refresh", "refresh_token=OLDRT123", "{}", 200, -1,
         {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=ey",
             "\"refresh_expires_in\":1800", NULL},
         {NULL}},
-    {"/auth/login", "{\"access_token\": 123}", 502,
+    {"/auth/login", NULL, "{\"access_token\": 123}", 502, -1,
         {"auth_unexpected_error", "access_token that is not a string", NULL},
         {"Set-Cookie", NULL}},
-    {"/auth/login", "{\"refresh_token\": {}}", 502,
+    {"/auth/login", NULL, "{\"refresh_token\": {}}", 502, -1,
         {"auth_unexpected_error", "refresh_token that is not a string", NULL},
         {"Set-Cookie", NULL}},
-    {"/auth/login", "{\"expires_in\": \"450\"}", 200,
+    {"/auth/login", NULL, "{\"expires_in\": \"450\"}", 200, -1,
         {"Set-Cookie: access_token=ey", "; Max-Age=450;", NULL},
         {NULL}},
-    {"/auth/login", "{\"expires_in\": \"soon\"}", 200,
+    {"/auth/login", NULL, "{\"expires_in\": \"soon\"}", 200, -1,
         {"Set-Cookie: access_token=ey", "; Max-Age=300;", NULL},
+        {NULL}},
+    {"/auth/login", NULL, "{\"refresh_expires_in\": 0}", 200, 1,
+        {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=ey", "; Max-Age=300;",
+            "\"refresh_expires_in\":0", NULL},
+        {"Max-Age=0", NULL}},
+    {"/auth/login", NULL, "{\"expires_in\": 0}", 200, 1,
+        {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=ey", "; Max-Age=1800;",
+            "\"expires_in\":0", NULL},
+        {"Max-Age=0", NULL}},
+    {"/auth/login", NULL, "{\"expires_in\": 300.5}", 200, -1,
+        {"Set-Cookie: access_token=ey", "; Max-Age=300;", NULL},
+        {NULL}},
+    {"/auth/login", NULL, "{\"refresh_expires_in\": false}", 200, -1,
+        {"Set-Cookie: refresh_token=ey", "; Max-Age=1800;", NULL},
+        {NULL}},
+    {"/auth/logout", "access_token=AT1", "{}", 200, 2,
+        {"Set-Cookie: access_token=; Max-Age=0;", "Set-Cookie: refresh_token=; Max-Age=0;",
+            "\"success\":true", NULL},
+        {NULL}},
+    {"/auth/logout", NULL, "{}", 200, 2,
+        {"Set-Cookie: access_token=; Max-Age=0;", "Set-Cookie: refresh_token=; Max-Age=0;",
+            "\"success\":true", NULL},
         {NULL}},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
@@ -303,9 +338,13 @@ PRIVATE int post_step(hgobj gobj)
         return -1;  // Error already logged
     }
 
-    BOOL refresh = strcmp(st->url, "/auth/refresh") == 0;
-    const char *body = refresh?
-        "{}" : "{\"username\": \"testuser\", \"password\": \"testpass\"}";
+    BOOL login = strcmp(st->url, "/auth/login") == 0;
+    const char *body = login?
+        "{\"username\": \"testuser\", \"password\": \"testpass\"}" : "{}";
+    char cookie_line[256] = "";
+    if(st->cookie) {
+        snprintf(cookie_line, sizeof(cookie_line), "Cookie: %s\r\n", st->cookie);
+    }
     char request[1024];
     int len = snprintf(request, sizeof(request),
         "POST %s HTTP/1.1\r\n"
@@ -317,7 +356,7 @@ PRIVATE int post_step(hgobj gobj)
         "\r\n"
         "%s",
         st->url,
-        refresh? "Cookie: refresh_token=OLDRT123\r\n" : "",
+        cookie_line,
         (int)strlen(body), body
     );
 
@@ -394,6 +433,24 @@ PRIVATE void check_step(hgobj gobj)
                 "msg",          "%s", TEST_NAME ": an answer lacks a text expected",
                 "step",         "%d", priv->step + 1,
                 "expected",     "%s", st->must_have[i],
+                "answer",       "%s", answer,
+                NULL
+            );
+        }
+    }
+    if(st->max_ages >= 0) {
+        int max_ages = 0;
+        for(const char *p = strstr(answer, "Max-Age="); p; p = strstr(p + 1, "Max-Age=")) {
+            max_ages++;
+        }
+        if(max_ages != st->max_ages) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", TEST_NAME ": an answer has not the count of Max-Age expected",
+                "step",         "%d", priv->step + 1,
+                "expected",     "%d", st->max_ages,
+                "max_ages",     "%d", max_ages,
                 "answer",       "%s", answer,
                 NULL
             );
