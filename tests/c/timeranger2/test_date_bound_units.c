@@ -88,13 +88,19 @@
  *  was refused); an offset after a date or a day is its zone ("yesterday
  *  +0000" was refused, "yesterday UTC" read).
  *
- *  A sign glued to the digits of a date is no zone ("2026-10-01-10:00"
- *  was October 2 at the time of now in Madrid), only one right after a
- *  clock time ("2026-10-01T10:00-05:00"); with no clock time an offset
- *  outside -12:00..+14:00 is no date ("now-2026" was read); a count right
- *  after a month name, with no day, is no date ("Jan 1 pm" was January
- *  21 at 13:00). An offset or a zone name with a clock time is checked
- *  against the time it says, in UTC.
+ *  A sign glued to the digits of a date with only a day before it is no
+ *  zone ("2026-10-01-10:00" was October 2 at the time of now in Madrid);
+ *  it is one right after the digits of a clock time
+ *  ("2026-10-01T10:00-05:00"), and after a clock time, noon or epoch
+ *  seconds said before it, where no clock time can follow ("10:00
+ *  2026-10-01-0500", "noon 2026-10-01-0500", "@1790000000-0500",
+ *  "1790000000-0500", refused while "1790000000+0200" was read); a minus
+ *  sign, a count and its unit is a duration there too ("10:00
+ *  2026-10-01-1d" was refused, the -1 read as a zone); with no clock time
+ *  an offset outside -12:00..+14:00 is no date ("now-2026" was read); a
+ *  count right after a month name, with no day, is no date ("Jan 1 pm"
+ *  was January 21 at 13:00). An offset or a zone name with a clock time
+ *  is checked against the time it says, in UTC.
  *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
@@ -1023,13 +1029,25 @@ PRIVATE int do_test(void)
             {"Oct 1 2026 at the 12 noon +0000", FALSE, FALSE, 0, 1790856000},
             {"Oct 1 2026 12 noon +0000",    FALSE,  FALSE,  -1, 0},
             {"2026 12 noon",                FALSE,  FALSE,  -1, 0},
-            /*  A sign glued to the digits of a date is no zone, only after a clock time  */
+            /*  A sign glued to the digits of a date with only a day before it is no zone  */
             {"2026-10-01-10:00",            FALSE,  FALSE,  -1, 0},
             {"10/01/2026-10:00",            FALSE,  FALSE,  -1, 0},
             {"1.10.2026-23",                FALSE,  FALSE,  -1, 0},
             {"2026.10-2026.10",             FALSE,  FALSE,  -1, 0},
+            /*  Right after the digits of a clock time it is a zone  */
             {"2026-10-01T10:00-05:00",      FALSE,  FALSE,   0, 1790866800},
             {"2026-10-01 10:00:00-05:00",   FALSE,  FALSE,   0, 1790866800},
+            /*  And after a clock time, noon or epoch seconds said before it  */
+            {"10:00 2026-10-01-0500",       FALSE,  FALSE,   0, 1790866800},
+            {"noon 2026-10-01-0500",        FALSE,  FALSE,   0, 1790874000},
+            {"3pm 10/01/2026-10:00",        FALSE,  FALSE,   0, 1790902800},
+            {"@1790000000-0500",            FALSE,  FALSE,   0, 1790000000},
+            {"1790000000-0500",             FALSE,  FALSE,   0, 1790000000},
+            {"1790000000+0200",             FALSE,  FALSE,   0, 1790000000},
+            /*  A minus sign, a count and its unit is a duration, there too  */
+            {"10:00 2026-10-01-1d +0000",   FALSE,  FALSE,   0, 1790762400},
+            {"2026-10-01 10:00 -1d +0000",  FALSE,  FALSE,   0, 1790762400},
+            {"2026-10-01T10:00Z -1d",       FALSE,  FALSE,   0, 1790762400},
             /*  With no clock time, an offset of a zone there is  */
             {"now-2026",                    FALSE,  FALSE,  -1, 0},
             {"yesterday -2300",             FALSE,  FALSE,  -1, 0},

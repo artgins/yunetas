@@ -700,10 +700,15 @@ to 7.29.3 the repeated hour was +0200 or +0100 according to the text read
 before it). am/pm with no hour (`"today pm"`), a day word right after `at`
 (`"at yesterday"`, `"at now"`) and `"never"` with a zone (`"never (+0200)"`)
 are no date, and an offset after a date or a day is its zone (`"yesterday
-+0000"`, as `"yesterday UTC"`): not one glued to the digits of a date
-(`"2026-10-01-10:00"` is no date; after a clock time it is a zone,
-`"2026-10-01T10:00-05:00"`), nor, with no clock time, one outside
--12:00..+14:00 (`"now-2026"`, `"yesterday -2300"`). A count right after a
++0000"`, as `"yesterday UTC"`): not one glued to the digits of a date with
+only a day before it (`"2026-10-01-10:00"` is no date), but one right after
+the digits of a clock time (`"2026-10-01T10:00-05:00"`) or after a clock time,
+noon or epoch seconds said before it, where no clock time can follow
+(`"10:00 2026-10-01-0500"`, `"noon 2026-10-01-0500"`, `"@1790000000-0500"`,
+`"1790000000-0500"`); a minus sign, a count and its unit is a duration there,
+as anywhere (`"10:00 2026-10-01-1d"` is September 30 at 10:00). With no clock
+time an offset outside -12:00..+14:00 is no date (`"now-2026"`, `"yesterday
+-2300"`). A count right after a
 month name, with no day in the text, is no date (`"Oct 1 pm"`, `"Jan 1 pm"`,
 `"Oct 5 days ago"`; up to 7.29.3 they took the day of today), and nor is a day
 counted back that the zone skipped whole (`"yesterday noon"` in Apia on

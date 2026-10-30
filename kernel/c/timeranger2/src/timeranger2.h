@@ -773,12 +773,17 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         hour ("today pm"), a day word right after "at" ("at yesterday")
         and "never" with a zone ("never (+0200)") are no date, and an
         offset after a date or a day is its zone ("yesterday +0000"): not
-        one glued to the digits of a date ("2026-10-01-10:00"; after a
-        clock time it is, "2026-10-01T10:00-05:00"), nor, with no clock
-        time, one outside -12:00..+14:00 ("now-2026"). A count right after
-        a month name, with no day in the text, is no date ("Oct 1 pm",
-        "Jan 1 pm", "Oct 5 days ago"), and nor is a day counted back that
-        the zone skipped whole ("yesterday noon" in Apia on 2011-12-31).
+        one glued to the digits of a date with only a day before it
+        ("2026-10-01-10:00"), but one right after the digits of a clock
+        time ("2026-10-01T10:00-05:00") or after a clock time, noon or
+        epoch seconds said before it ("10:00 2026-10-01-0500",
+        "1790000000-0500"), where a minus sign, a count and its unit is a
+        duration ("10:00 2026-10-01-1d" is September 30 at 10:00); nor,
+        with no clock time, one outside -12:00..+14:00 ("now-2026"). A
+        count right after a month name, with no day in the text, is no
+        date ("Oct 1 pm", "Jan 1 pm", "Oct 5 days ago"), and nor is a day
+        counted back that the zone skipped whole ("yesterday noon" in Apia
+        on 2011-12-31).
     Return 0 and the time in *value; -1 for a text that is no time, -2 for
     a time past what a json_int_t holds (an integer of 300 digits too);
     *why (when not NULL) says it.

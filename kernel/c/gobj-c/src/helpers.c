@@ -8277,8 +8277,9 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
     if((*p == 'h' || *p == 'H') && !isalpha((unsigned char)p[1]) && right_after_at(rd, start)) {
         return read_hour_after_at(rd, value, digits, p);
     }
-    if((*p == '-' || *p == '/' || *p == '.') && isdigit((unsigned char)p[1])) {
-        return read_numeric_date(rd, start);
+    if((*p == '-' || *p == '/' || *p == '.') && isdigit((unsigned char)p[1]) &&
+            !(*p == '-' && value >= DATE_EPOCH_MIN)) {
+        return read_numeric_date(rd, start);   // epoch seconds start no date: their '-' is a sign
     }
     if((*p == '-' || *p == '/') && isalpha((unsigned char)p[1])) {
         return read_day_and_month_name(rd, value, digits, p);
@@ -8737,37 +8738,66 @@ PRIVATE const char *read_comment(date_reading_t *rd, const char *p)
 }
 
 /***************************************************************************
- *  tzset() when TZ is not the text it had at the last call (set or not):
- *  localtime_r() does not look at TZ again, so a TZ changed with setenv()
- *  alone is seen here. An unchanged TZ costs no tzset(), which with TZ
- *  unset looks at /etc/localtime on every call. So a change of
- *  /etc/localtime while the process runs is not seen per text (only at the
- *  next change of TZ, or at a tzset() of the process), and neither is a TZ
- *  set back with setenv() alone to the text of the last call after a
- *  tzset() of the process with another TZ. A TZ of PATH_MAX bytes or more
- *  is not kept: tzset() is called at every text.
+ *  The zone libc held when the reader ended its last text read with TZ
+ *  unset (see see_tz_change())
+ ***************************************************************************/
+typedef struct {
+    BOOL kept;          // the last text was read with TZ unset, and the fields below say how libc ended it
+    char *std_name;     // tzname[0]
+    char *dst_name;     // tzname[1]
+    long std_offset;    // timezone
+    int has_dst;        // daylight
+} libc_zone_t;
+
+PRIVATE libc_zone_t libc_zone_of_last_text = {0};
+
+/***************************************************************************
+ *  Before a text: tzset() unless TZ is unset, the last text was read with
+ *  TZ unset, and libc holds the zone it held at the end of that text.
+ *
+ *  localtime_r() does not look at TZ again, and libc changes its zone only
+ *  at a tzset(), explicit or implicit (localtime(), mktime() and ctime()
+ *  call it): the zone it holds is the TZ of its last tzset(), which is not
+ *  always the TZ of now. With TZ set, a tzset() costs glibc a compare of
+ *  TZ with the text of its last load, so the reader calls it at every text,
+ *  and reads in the TZ of now whatever other code did before. With TZ unset
+ *  a tzset() looks at /etc/localtime (a stat or an open per call), so it
+ *  is called only when the zone libc holds may not be the local one: the
+ *  last text was read with TZ set, or the names and offsets of the zone
+ *  libc holds (tzname[], timezone, daylight) are not the ones it held at
+ *  the end of the last text, because other code loaded another zone (TZ
+ *  set, then a tzset(), then TZ unset with no tzset() after it). A zone
+ *  loaded that way with the same names and offsets as the local one
+ *  (Europe/Paris in a process of Europe/Madrid) is not seen, and the text
+ *  is read with its rules; and a change of /etc/localtime while the
+ *  process runs is seen at the next tzset() of the process, not per text.
  ***************************************************************************/
 PRIVATE void see_tz_change(void)
 {
-    static BOOL kept = FALSE;       // last_tz (and was_set) say the TZ of the last tzset() here
-    static BOOL was_set = FALSE;
-    static char last_tz[PATH_MAX];
-
-    const char *tz = getenv("TZ");
-    if(kept) {
-        if(!tz && !was_set) {
-            return;
-        }
-        if(tz && was_set && strcmp(tz, last_tz) == 0) {
-            return;
-        }
+    BOOL tz_unset = getenv("TZ")? FALSE : TRUE;
+    BOOL kept = libc_zone_of_last_text.kept;
+    libc_zone_of_last_text.kept = tz_unset;
+    if(tz_unset && kept &&
+            tzname[0] == libc_zone_of_last_text.std_name &&
+            tzname[1] == libc_zone_of_last_text.dst_name &&
+            timezone == libc_zone_of_last_text.std_offset &&
+            daylight == libc_zone_of_last_text.has_dst) {
+        return;
     }
     tzset();
-    was_set = tz? TRUE : FALSE;
-    kept = (!tz || strlen(tz) < sizeof(last_tz))? TRUE : FALSE;
-    if(kept && tz) {
-        snprintf(last_tz, sizeof(last_tz), "%s", tz);
-    }
+}
+
+/***************************************************************************
+ *  After a text: the zone libc holds now, for see_tz_change() at the next
+ *  one. localtime_r() rewrites tzname[] with the names of the time it
+ *  converts, so it is kept at the end of the text, not after the tzset().
+ ***************************************************************************/
+PRIVATE void keep_tz_of_text(void)
+{
+    libc_zone_of_last_text.std_name = tzname[0];
+    libc_zone_of_last_text.dst_name = tzname[1];
+    libc_zone_of_last_text.std_offset = timezone;
+    libc_zone_of_last_text.has_dst = daylight;
 }
 
 /***************************************************************************
@@ -8800,13 +8830,14 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             p = read_number(rd, p);
         } else if(isalpha(c)) {
             p = read_word(rd, p);
-        } else if(c == '-' && isdigit((unsigned char)p[1]) &&
-                rd->hour < 0 && !rd->epoch_said &&
-                ((rd->special_hour < 0 && !day_said(rd)) || unit_follows_count(p + 1))) {
+        } else if(c == '-' && isdigit((unsigned char)p[1]) && !rd->epoch_said &&
+                ((rd->hour < 0 && rd->special_hour < 0 && !day_said(rd)) ||
+                    unit_follows_count(p + 1))) {
             /*
-             *  Before a clock time a minus sign, a count and its unit is a
-             *  duration ("-1d", "noon -1d", "Oct 1 -2 days"); with no unit
-             *  it is a zone after noon or a day ("noon -0500", "yesterday
+             *  A minus sign, a count and its unit is a duration, as without
+             *  the sign ("-1d", "noon -1d", "Oct 1 -2 days", "10:00 -1d",
+             *  "10:00 2026-10-01-1d"); with no unit it is a zone after a
+             *  clock time, noon or a day ("10:00 -0500", "yesterday
              *  -0500"), and no date with nothing before it ("-5")
              */
             p = read_signed_duration(rd, p);
@@ -9107,11 +9138,9 @@ PUBLIC void show_date_relative(timestamp_t t, char *timebuf, int timebufsize)
 }
 
 /***************************************************************************
- *  Only a whole date and time, or epoch seconds: the time and the
- *  offset it was written in (the local one at that time when none), in
- *  minutes. Return -1 for anything else.
+ *  The reading of parse_date_basic()
  ***************************************************************************/
-PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
+PRIVATE int read_whole_date(const char *date, timestamp_t *timestamp, int *offset)
 {
     date_reading_t rd;
     read_date_text(&rd, date);
@@ -9132,6 +9161,18 @@ PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offse
 }
 
 /***************************************************************************
+ *  Only a whole date and time, or epoch seconds: the time and the
+ *  offset it was written in (the local one at that time when none), in
+ *  minutes. Return -1 for anything else.
+ ***************************************************************************/
+PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
+{
+    int ret = read_whole_date(date, timestamp, offset);
+    keep_tz_of_text();
+    return ret;
+}
+
+/***************************************************************************
  *  A date as a person types it; NOW, with *error_ret set, when the text
  *  says no date
  ***************************************************************************/
@@ -9141,7 +9182,9 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret)
     timestamp_t t;
     int offset;
     read_date_text(&rd, date);
-    if(resolve_reading(&rd, &t, &offset) < 0) {
+    int ret = resolve_reading(&rd, &t, &offset);
+    keep_tz_of_text();
+    if(ret < 0) {
         if(error_ret) {
             *error_ret = 1;
         }

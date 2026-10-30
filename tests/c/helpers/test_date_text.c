@@ -125,7 +125,10 @@
  *              before it, is no zone ("2026-10-01-10:00" was Oct 2 at the
  *              time of now); right after a clock time ("T10:00-05:00"), or
  *              after a clock time or epoch seconds said before it
- *              ("10:00 2026-10-01-0500", "@1790000000-0500"), it is; with
+ *              ("10:00 2026-10-01-0500", "@1790000000-0500",
+ *              "1790000000-0500", which was refused), it is, and a minus
+ *              sign, a count and its unit is a duration there ("10:00
+ *              2026-10-01-1d", "10:00 -1d" were refused); with
  *              no clock time an offset outside -12:00..+14:00 is no date
  *              ("now-2026" was read in a zone of -20:26), in a comment too
  *              ("now (+1500)"), while after epoch seconds any offset is
@@ -141,10 +144,12 @@
  *              10:00); a TZ changed with no tzset() is seen; and the limit
  *              of a zone that changes its offset twice in less than 48
  *              hours.
- *          25. the reader calls tzset() only when TZ changed since its last
- *              call (1000 texts with TZ unset called it 1000 times, and
- *              each looked at /etc/localtime); a TZ set or unset with no
- *              tzset() is seen.
+ *          25. with TZ unset the reader calls tzset() only when the zone
+ *              libc holds may not be the local one (1000 texts called it
+ *              1000 times, and each looked at /etc/localtime); a TZ set or
+ *              unset with no tzset() is seen, and so is one put back with
+ *              no tzset() after other code loaded another zone in libc (a
+ *              line of log, a mktime()).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -584,7 +589,7 @@ PRIVATE void test_approxidate_refused(void)
         {"+1d",                         "2026-10-21 11:00:00 +0200", 1},
         {"-2 friday",                   "2026-10-21 11:00:00 +0200", 1},
         {"-d",                          "2026-10-21 11:00:00 +0200", 1},
-        {"10:00 -1d",                   "2026-10-21 11:00:00 +0200", 1},
+        {"10:00 -1",                    "2026-10-21 11:00:00 +0200", 1},
         {"-86400",                      "2026-10-21 11:00:00 +0200", 1},
         {"0",                           "2026-10-21 11:00:00 +0200", 1},
         {"100",                         "2026-10-21 11:00:00 +0200", 1},
@@ -599,6 +604,7 @@ PRIVATE void test_approxidate_refused(void)
         {"2 wks",                       "2026-10-07 11:00:00 +0200", 0},
         {"2 yrs",                       "2024-10-21 11:00:00 +0200", 0},
         {"10:30 yesterday",             "2026-10-20 10:30:00 +0200", 0},
+        {"10:00 -1d",                   "2026-10-20 10:00:00 +0200", 0},
         {"@0",                          "1970-01-01 01:00:00 +0100", 0},
         {"2100-01-01",                  "2100-01-01 10:00:00 +0100", 0},
     };
@@ -1779,7 +1785,10 @@ PRIVATE void test_am_pm_at_never_noon_and_zones(void)
  *  date of October 1 at -10:00. An offset may touch digits right after a
  *  clock time, as ISO 8601 writes it ("2026-10-01T10:00-05:00"), and after
  *  a clock time (noon) or epoch seconds said before it, where no clock
- *  time can follow ("10:00 2026-10-01-0500", "@1790000000-0500"). With no
+ *  time can follow ("10:00 2026-10-01-0500", "@1790000000-0500",
+ *  "1790000000-0500", refused while "1790000000+0200" was read). A minus
+ *  sign, a count and its unit is a duration there too, as without the
+ *  sign ("10:00 2026-10-01-1d" and "10:00 -1d" were refused). With no
  *  clock time an offset moves the date, and one outside -12:00..+14:00,
  *  the zones there are, is no date ("now-2026" was now, in a zone of
  *  -20:26), in a comment too ("now (+1500)"); after epoch seconds it moves
@@ -1801,7 +1810,6 @@ PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
         {"2026-10-01-05",                   "2026-10-21 11:00:00 +0200", 1},
         {"2026-10-01+0200",                 "2026-10-21 11:00:00 +0200", 1},
         {"Oct 1 2026+0000",                 "2026-10-21 11:00:00 +0200", 1},
-        {"1790000000-0500",                 "2026-10-21 11:00:00 +0200", 1},
         {"@1790000000 -0500",               "2026-09-21 16:13:20 +0200", 0},
         {"2026-10-01 -10:00",               "2026-10-02 11:00:00 +0200", 0},
         {"2026-10-01-1d",                   "2026-09-30 11:00:00 +0200", 0},
@@ -1825,6 +1833,31 @@ PRIVATE void test_glued_signs_far_offsets_and_counts_after_a_month(void)
         {"@1790000000-0500",                "2026-09-21 16:13:20 +0200", 0},
         {"@1790000000+1500",                "2026-09-21 16:13:20 +0200", 0},
         {"1790000000+0200",                 "2026-09-21 16:13:20 +0200", 0},
+
+        /*
+         *  Epoch seconds start no date of numbers: their '-' is a sign, as
+         *  their '+' (it was refused, read as the '-' of a date)
+         */
+        {"1790000000-0500",                 "2026-09-21 16:13:20 +0200", 0},
+        {"1790000000-05",                   "2026-09-21 16:13:20 +0200", 0},
+        {"1790000000-05:00",                "2026-09-21 16:13:20 +0200", 0},
+        {"1790000000/05",                   "2026-10-21 11:00:00 +0200", 1},
+        {"1790000000-1d",                   "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  A minus sign, a count and its unit is a duration after a clock
+         *  time too, as without the sign (it was refused, the -1 read as a
+         *  zone); with no unit it is a zone there
+         */
+        {"10:00 2026-10-01-1d",             "2026-09-30 10:00:00 +0200", 0},
+        {"10:00 2026-10-01 1d",             "2026-09-30 10:00:00 +0200", 0},
+        {"2026-10-01 10:00 -1d",            "2026-09-30 10:00:00 +0200", 0},
+        {"10:00 -1d",                       "2026-10-20 10:00:00 +0200", 0},
+        {"10:00-1d",                        "2026-10-20 10:00:00 +0200", 0},
+        {"10:00 -1 day",                    "2026-10-20 10:00:00 +0200", 0},
+        {"10:00 -05 hours",                 "2026-10-21 05:00:00 +0200", 0},
+        {"10:00 -05",                       "2026-10-21 17:00:00 +0200", 0},
+        {"10:00 -5",                        "2026-10-21 11:00:00 +0200", 1},
 
         /*
          *  With no clock time, an offset of a zone there is
@@ -2029,37 +2062,54 @@ PRIVATE void test_whole_day_skipped_tzset_and_close_changes(void)
 }
 
 /***************************************************************************
- *  25. The reader calls tzset() only when TZ is not the text it had at the
- *  reader's last call: with TZ unset glibc looks at /etc/localtime at
- *  every tzset(), and a text tkey is read at every append. A TZ changed,
- *  set or unset with setenv() or unsetenv() alone is seen.
+ *  A text read now, as a number to compare
+ ***************************************************************************/
+PRIVATE unsigned long long read_now(const char *text)
+{
+    int error = 0;
+    timestamp_t t = approxidate_careful(text, &error);
+    return error? 0 : (unsigned long long)t;
+}
+
+/***************************************************************************
+ *  25. The zone of a text is the TZ of now, whatever other code did before
+ *  it. With TZ set the reader calls tzset() at every text: glibc compares
+ *  TZ with the text of its last load, so a TZ set back with setenv() alone
+ *  is seen after a localtime() of other code with another TZ (a line of
+ *  log: current_timestamp()), or a mktime(), which call tzset() inside
+ *  libc. With TZ unset tzset() looks at /etc/localtime, and a text tkey is
+ *  read at every append: the reader calls it only when the last text was
+ *  read with TZ set, or the zone libc holds is not the one it held at the
+ *  end of the last text.
  ***************************************************************************/
 PRIVATE void test_tzset_only_when_tz_changes(void)
 {
-    int error = 0;
+    char bf[90];
+    struct tm tm;
 
     setenv("TZ", "America/Los_Angeles", 1);
     tzset();
-    timestamp_t t_los_angeles = approxidate_careful("2026-07-01 10:00", &error);
+    unsigned long long t_los_angeles = read_now("2026-07-01 10:00");
     s_tzset_calls = 0;
     for(int i = 0; i < 1000; i++) {
-        approxidate_careful("2026-07-01 10:00", &error);
+        read_now("2026-07-01 10:00");
     }
-    check_number("tzset() calls for 1000 texts, TZ set and not changed", (unsigned long long)s_tzset_calls, 0);
+    check_number("tzset() calls for 1000 texts, TZ set: one per text", (unsigned long long)s_tzset_calls, 1000);
 
+    /*
+     *  TZ unset: one tzset(), at the first text after TZ set
+     */
     unsetenv("TZ");
     s_tzset_calls = 0;
-    timestamp_t t_unset = approxidate_careful("2026-07-01 10:00", &error);
+    unsigned long long t_unset = read_now("2026-07-01 10:00");
     for(int i = 0; i < 999; i++) {
-        approxidate_careful("2026-07-01 10:00", &error);
+        read_now("2026-07-01 10:00");
     }
     check_number("tzset() calls for 1000 texts, TZ unset", (unsigned long long)s_tzset_calls, 1);
     tzset();
-    timestamp_t t_after_tzset = approxidate_careful("2026-07-01 10:00", &error);
-    check_number("TZ unset with no tzset(): the time of /etc/localtime",
-        (unsigned long long)t_unset, (unsigned long long)t_after_tzset);
-    printf("     (Los Angeles %llu, /etc/localtime %llu)\n",
-        (unsigned long long)t_los_angeles, (unsigned long long)t_after_tzset);
+    unsigned long long t_after_tzset = read_now("2026-07-01 10:00");
+    check_number("TZ unset with no tzset(): the time of /etc/localtime", t_unset, t_after_tzset);
+    printf("     (Los Angeles %llu, /etc/localtime %llu)\n", t_los_angeles, t_after_tzset);
 
     setenv("TZ", "Europe/Madrid", 1);
     s_tzset_calls = 0;
@@ -2068,7 +2118,66 @@ PRIVATE void test_tzset_only_when_tz_changes(void)
         {"2026-10-01 10:00",                "2026-10-01 10:00:00 +0200", 0},
     };
     check_approxidate(madrid_again, sizeof(madrid_again)/sizeof(madrid_again[0]));
-    check_number("tzset() calls for 2 texts after a setenv()", (unsigned long long)s_tzset_calls, 1);
+    check_number("tzset() calls for 2 texts after a setenv(), TZ set", (unsigned long long)s_tzset_calls, 2);
+
+    /*
+     *  Set, unset and set again, with no tzset() between them
+     */
+    setenv("TZ", "Asia/Tokyo", 1);
+    unsigned long long t_tokyo = read_now("2026-07-01 10:00");
+    check_number("TZ set with no tzset(): Tokyo", t_tokyo, 1782867600ULL);
+    unsetenv("TZ");
+    check_number("then TZ unset with no tzset(): /etc/localtime", read_now("2026-07-01 10:00"), t_after_tzset);
+    setenv("TZ", "Asia/Tokyo", 1);
+    check_number("then TZ set again with no tzset(): Tokyo", read_now("2026-07-01 10:00"), t_tokyo);
+    unsetenv("TZ");
+    check_number("then TZ unset again with no tzset(): /etc/localtime", read_now("2026-07-01 10:00"), t_after_tzset);
+
+    /*
+     *  Other code loads another zone in libc (a line of log calls
+     *  localtime(), mktime() calls tzset()) and puts TZ back with no
+     *  tzset(): the text is read in the TZ of now
+     */
+    setenv("TZ", "Europe/Madrid", 1);
+    unsigned long long t_madrid = read_now("2026-07-01 10:00");
+    check_number("Madrid", t_madrid, 1782892800ULL);
+    setenv("TZ", "Asia/Tokyo", 1);
+    current_timestamp(bf, sizeof(bf));
+    setenv("TZ", "Europe/Madrid", 1);
+    check_number("Madrid after a log line in Tokyo, TZ put back with no tzset()",
+        read_now("2026-07-01 10:00"), t_madrid);
+
+    setenv("TZ", "Asia/Tokyo", 1);
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = 126;
+    tm.tm_mday = 1;
+    tm.tm_isdst = -1;
+    mktime(&tm);
+    setenv("TZ", "Europe/Madrid", 1);
+    check_number("Madrid after a mktime() in Tokyo, TZ put back with no tzset()",
+        read_now("2026-07-01 10:00"), t_madrid);
+
+    unsetenv("TZ");
+    tzset();
+    check_number("/etc/localtime", read_now("2026-07-01 10:00"), t_after_tzset);
+    setenv("TZ", "Asia/Tokyo", 1);
+    current_timestamp(bf, sizeof(bf));
+    unsetenv("TZ");
+    check_number("/etc/localtime after a log line in Tokyo, TZ unset again with no tzset()",
+        read_now("2026-07-01 10:00"), t_after_tzset);
+
+    setenv("TZ", "Asia/Tokyo", 1);
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = 126;
+    tm.tm_mday = 1;
+    tm.tm_isdst = -1;
+    mktime(&tm);
+    unsetenv("TZ");
+    check_number("/etc/localtime after a mktime() in Tokyo, TZ unset again with no tzset()",
+        read_now("2026-07-01 10:00"), t_after_tzset);
+
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
 }
 
 /***************************************************************************

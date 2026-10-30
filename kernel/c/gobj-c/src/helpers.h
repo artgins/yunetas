@@ -1105,7 +1105,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "2 hours ago"  "3 days"  "1.day"  "2 days 3 hours ago"  "one week ago"
         short units, attached or not: "1s" "5m" "2h" "1d" "1w" "1M" "1y"
         ("m" is a minute, "M" a month; "1min" "1mo" "2hrs" "3wks" "1yr")
-        a minus sign before a count and its unit is read too: "-1d" "-2 hours"
+        a minus sign before a count and its unit is read too, after a
+        clock time as well: "-1d" "-2 hours" "10:00 -1d" (yesterday 10:00)
         number words zero..ten; "last week", "last month", "last year"
         ("last" goes with a unit or a weekday: "last pm" is no date)
         Months and years are of the calendar: "1 month ago" on Mar 31 is
@@ -1183,11 +1184,20 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         its offset twice in less than 48 hours (tzdata has none since
         1970; a POSIX TZ can, "AAA0BBB-1,J60/0,J61/0", and a time of its
         one day of summer time is read an hour late). The zone is the TZ
-        of the process when the text is read: tzset() is called when TZ is
-        not the text it had at the last text read (set or unset), so a TZ
-        changed with setenv() alone is seen; a change of /etc/localtime
-        while the process runs is seen at the next tzset() of the process
-        or the next change of TZ, not per text
+        of the process when the text is read, whatever other code did
+        before it: a TZ set, changed or unset with setenv() or unsetenv()
+        alone is seen, also after other code made libc load another zone
+        (localtime(), mktime() and ctime() call tzset(): a line of log
+        does). With TZ set tzset() is called at every text (glibc compares
+        TZ with the text of its last load); with TZ unset, only when the
+        last text was read with TZ set or the zone libc holds (tzname[],
+        timezone, daylight) is not the one it held at the end of the last
+        text, because tzset() then looks at /etc/localtime. So a zone that
+        other code loaded with TZ set and then unset with no tzset() is
+        not seen when its names and offsets are those of the local zone
+        (Europe/Paris in a process of Europe/Madrid): the text is read
+        with its rules. A change of /etc/localtime while the process runs
+        is seen at the next tzset() of the process, not per text
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
         after "at" comes a time of day or a date: "at yesterday", "at
         now", "at today", "at never" are no date
@@ -1247,10 +1257,12 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         as ISO 8601 writes it ("2026-10-01T10:00-05:00", "10:00-0500"),
         and after a clock time (noon, midnight, tea) or epoch seconds said
         before it, where no clock time can follow ("10:00 2026-10-01-0500",
-        "@1700000000-0500"). Glued to the digits of a date with only a day
-        before it, it is no date ("2026-10-01-10:00", "1.10.2026-23": the
-        -10:00 may be a clock time): write "2026-10-01 -10:00". A count and
-        its unit there is a duration ("2026-10-01-1d")
+        "@1700000000-0500", "1700000000-0500"). Glued to the digits of a
+        date with only a day before it, it is no date ("2026-10-01-10:00",
+        "1.10.2026-23": the -10:00 may be a clock time): write "2026-10-01
+        -10:00". A minus sign, a count and its unit is a duration, glued
+        or not, after a date or a clock time ("2026-10-01-1d" is Sep 30,
+        "10:00 2026-10-01-1d" Sep 30 at 10:00)
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
         "(CEST)": a zone name in a comment is the zone when no other is
         given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC); an offset in a
