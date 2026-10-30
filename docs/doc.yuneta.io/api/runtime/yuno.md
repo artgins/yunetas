@@ -75,9 +75,21 @@ This function does not return a value.
 (set_yuno_must_die)=
 ## [`set_yuno_must_die()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_yuno.c#L6717)
 
-Orders the yuno to exit gracefully. Logs an exit message, sets the exit
-code to `0`, flushes logs, and calls
+Orders the yuno to exit gracefully. Logs an exit message (`"Exit to die"`),
+sets the exit code to `0`, flushes logs, and calls
 [`yuno_shutdown()`](runtime_entry_point.md#yuno_shutdown).
+
+The exit message is logged once per process. A stop that comes again while
+the yuno stops asks the same stop: a daemon gets its `SIGQUIT` from its
+watcher, which passes it on, and from whoever stops it, and the second one
+can arrive during the stop of the services. Up to 7.29.3 each call logged
+it again.
+
+```C
+/* in an action: the work is done, end the yuno */
+set_yuno_must_die();
+set_yuno_must_die();    /* the same stop again: "Exit to die" is not logged twice */
+```
 
 ```C
 void set_yuno_must_die(void);

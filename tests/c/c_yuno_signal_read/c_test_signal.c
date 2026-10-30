@@ -14,7 +14,8 @@
  *
  *          Steps, on the timeouts of a C_TIMER (it ticks by the second): the
  *          first one swaps the fd and sends the SIGPIPE, the next one sends
- *          the SIGQUIT.
+ *          the SIGQUIT. Its mt_stop() asks the stop again, as a stop that
+ *          reaches a daemon twice does: "Exit to die" must be said once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -110,6 +111,13 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
+
+    /*
+     *  A stop that comes again while the yuno stops, as a daemon gets it
+     *  (from its watcher, which passes its SIGQUIT on, and from whoever
+     *  stops it): "Exit to die" is said once
+     */
+    set_yuno_must_die();
     return 0;
 }
 

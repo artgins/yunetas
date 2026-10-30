@@ -6717,18 +6717,25 @@ PUBLIC void yuno_event_destroy(void)
 }
 
 /***************************************************************************
- *
+ *  Stop the yuno, with exit code 0. "Exit to die" is said once: a stop
+ *  that comes again while the yuno stops (a daemon gets its SIGQUIT from
+ *  its watcher, which passes it on, and from whoever stops it) asks the
+ *  same stop.
  ***************************************************************************/
 PUBLIC void set_yuno_must_die(void)
 {
+    static BOOL said = FALSE;
     hgobj gobj = gobj_yuno();
 
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_STARTUP,
-        "msg",          "%s", "Exit to die",
-        "msg2",         "%s", "❌❌❌❌ Exit to die ❌❌❌❌",
-        NULL
-    );
+    if(!said) {
+        said = TRUE;
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_STARTUP,
+            "msg",          "%s", "Exit to die",
+            "msg2",         "%s", "❌❌❌❌ Exit to die ❌❌❌❌",
+            NULL
+        );
+    }
     gobj_set_exit_code(0);
     rotatory_flush(0);
     yuno_shutdown();

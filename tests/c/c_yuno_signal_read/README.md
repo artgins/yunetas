@@ -14,6 +14,10 @@ ends with no stop asked (`read_signals_again()` in `c_yuno.c`).
   own auto-kill is a SIGALRM, read the same way (SIGQUIT and SIGALRM stay
   pending for ever). Seen in production as an agent whose unit's stop
   timed out into a SIGKILL.
+  The driver's `mt_stop()` then asks the stop again, as a stop that reaches
+  a daemon twice does (its watcher passes its SIGQUIT on, and whoever stops
+  it sends one too): *"Exit to die"* must be logged once. Up to 7.29.3 it was
+  logged a second time, after *"Pausing yuno"*.
 
 ## Run
 
