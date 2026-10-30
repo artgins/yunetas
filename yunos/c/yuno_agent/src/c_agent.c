@@ -6179,8 +6179,12 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  Walk over yunos iter:
      *      kill
      *      add filter for future counter.
+     *  A yuno that cannot be killed does not stop the walk: the ones
+     *  before it are waited for, the ones after it are killed, and the
+     *  answer names each one that failed, with its cause.
      *------------------------------------------------*/
     json_t *filterlist = json_array();
+    json_t *jn_failed = json_array();
     int total_killed = 0;
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
@@ -6204,22 +6208,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 json_array_append_new(filterlist, jn_EvChkItem);
                 total_killed++;
             } else {
-                if(force) {
-                    gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
-                }
-                JSON_DECREF(iter)
-                JSON_DECREF(filterlist);
-                JSON_DECREF(jn_unconnected)
-                return msg_iev_build_response(gobj,
-                    -1,
-                    json_sprintf(
-                        "%s: Can't kill yuno: %s",
-                        gobj_yuno_role_plus_name(), last_failure_cause()
-                    ),
-                    0,
-                    0,
-                    kw  // owned
-                );
+                json_array_append_new(jn_failed, json_sprintf("%s (%s)", id, last_failure_cause()));
             }
         }
     }
@@ -6228,7 +6217,40 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj_write_integer_attr(gobj, "signal2kill", prev_signal2kill);
     }
 
+    /*
+     *  The yunos that could not be killed, in one text: "id (cause), ..."
+     */
+    int total_failed = (int)json_array_size(jn_failed);
+    gbuffer_t *gbuf_failed = gbuffer_create(256, 64*1024);
+    json_t *jn_one;
+    json_array_foreach(jn_failed, idx, jn_one) {
+        gbuffer_printf(gbuf_failed, "%s%s", idx? ", " : "", json_string_value(jn_one));
+    }
+    JSON_DECREF(jn_failed)
+    gbuffer_append_char(gbuf_failed, 0);
+    const char *failed_list = gbuffer_cur_rd_pointer(gbuf_failed);
+
+    if(!total_killed && total_failed > 0) {
+        JSON_DECREF(iter)
+        JSON_DECREF(filterlist);
+        json_t *jn_comment = json_sprintf(
+            "%s: Can't kill %d yuno(s): %s%s",
+            gobj_yuno_role_plus_name(), total_failed, failed_list,
+            json_array_size(jn_unconnected) > 0?
+                "; alive but not connected to the agent: signalled, not waited for" : ""
+        );
+        GBUFFER_DECREF(gbuf_failed)
+        return msg_iev_build_response(gobj,
+            -1,
+            jn_comment,
+            0,
+            jn_unconnected, // owned
+            kw  // owned
+        );
+    }
+
     if(!total_killed) {
+        GBUFFER_DECREF(gbuf_failed)
         JSON_DECREF(iter)
         JSON_DECREF(filterlist);
         if(json_array_size(jn_unconnected) > 0) {
@@ -6260,24 +6282,30 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *--------------------------------------*/
     json_t *kw_answer = kw_incref(kw);
 
-    char info[NAME_MAX];
+    gbuffer_t *gbuf_info = gbuffer_create(256, 64*1024);
+    gbuffer_printf(gbuf_info, "%d yunos found to kill", total_killed);
     if(json_array_size(jn_unconnected) > 0) {
-        snprintf(info, sizeof(info), "%d yunos found to kill, %d alive but not connected signalled (not waited for)",
-            total_killed, (int)json_array_size(jn_unconnected)
+        gbuffer_printf(gbuf_info, ", %d alive but not connected signalled (not waited for)",
+            (int)json_array_size(jn_unconnected)
         );
-    } else {
-        snprintf(info, sizeof(info), "%d yunos found to kill", total_killed);
     }
+    if(total_failed > 0) {
+        gbuffer_printf(gbuf_info, "; %d could not be killed: %s", total_failed, failed_list);
+    }
+    gbuffer_append_char(gbuf_info, 0);
+    GBUFFER_DECREF(gbuf_failed)
     JSON_DECREF(jn_unconnected)
-    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
-        "info", info,
+    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o, s:b}}",
+        "info", gbuffer_cur_rd_pointer(gbuf_info),
         "max_count", total_killed,
         "expiration_timeout", priv->timeout_expiration,
         "input_schema", filterlist, // owned
         "__user_data__",
             "iter", iter,                   // HACK free en diferido, en ac_final_count()
-            "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
+            "kw_answer", kw_answer,         // HACK free en diferido, en ac_final_count()
+            "some_failed", total_failed > 0     // the answer is -1 even when every kill is reached
     );
+    GBUFFER_DECREF(gbuf_info)
 
     hgobj gobj_counter = gobj_create_volatil( // kill-yuno
         sequence_name(gobj),
@@ -10814,10 +10842,13 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
     );
 
     int ret = 0;
+    BOOL yuno_was_gone = FALSE;
 
     if(kill(pid, signal2kill)<0) {
         int last_errno = errno;
-        if(last_errno != ESRCH) { // No such process
+        if(last_errno == ESRCH) { // No such process
+            yuno_was_gone = TRUE;
+        } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
@@ -10841,11 +10872,13 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
             if(kill(watcher_pid, signal2kill)<0) {
                 int last_errno = errno;
                 if(last_errno != ESRCH) { // No such process
-                    // Not a failure of the kill: a watcher whose child ends by SIGKILL leaves by itself
+                    // Not a failure of the kill: a watcher whose child ends leaves by itself
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "Cannot kill the watcher of the yuno: the yuno got its SIGKILL",
+                        "msg",          "%s", yuno_was_gone?
+                            "Cannot kill the watcher of the yuno: the yuno was already gone" :
+                            "Cannot kill the watcher of the yuno: the yuno got its SIGKILL",
                         "yuno_id",      "%s", yuno_id,
                         "watcher_pid",  "%d", (int)watcher_pid,
                         "yuno_role",    "%s", yuno_role,
@@ -14362,7 +14395,8 @@ PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
         return 0;
     }
 
-    BOOL ok = (max_count>0 && max_count==cur_count);
+    json_t *jn_some_failed = gobj_kw_get_user_data(src, "some_failed", 0, 0);
+    BOOL ok = (max_count>0 && max_count==cur_count && !json_is_true(jn_some_failed));
 
     json_t *jn_comment = json_sprintf("%s: %s%s (%d raised, %d reached)\n",
         gobj_yuno_role_plus_name(),

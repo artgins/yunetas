@@ -478,12 +478,18 @@ An **orderly shutdown**, not a SIGKILL, performed by
 
 1. Read the `signal2kill` attribute (default `SIGQUIT`).
 2. `kill(yuno_pid, signal2kill)`.
-3. If the chosen signal is `SIGKILL` and the yuno got it, the watcher is
-   killed too. A watcher that cannot be signalled is a WARNING and not a
-   failure of the kill: a watcher whose child ends by `SIGKILL` leaves by
-   itself. A yuno that cannot be signalled is an ERROR, its watcher is left
-   alone, and the answer names that ERROR (*"Can't kill yuno: Cannot kill
-   yuno"*).
+3. If the chosen signal is `SIGKILL` and the yuno got it (or was already
+   gone), the watcher is killed too. A watcher that cannot be signalled is a
+   WARNING and not a failure of the kill: a watcher whose child ends leaves
+   by itself. The WARNING says which case it is (*"Cannot kill the watcher
+   of the yuno: the yuno got its SIGKILL"*, or *"... the yuno was already
+   gone"*). A yuno that cannot be signalled is an ERROR, and its watcher is
+   left alone.
+   A yuno that cannot be killed does not stop the command: the yunos killed
+   before it are waited for, the ones after it are killed, and the answer is
+   `-1` and names each one that failed with its cause (*"Can't kill 1
+   yuno(s): 7601 (Cannot kill yuno)"* when none was killed, or *"... 1 could
+   not be killed: 7601 (Cannot kill yuno)"* at the end of the wait).
 4. **No timer-based escalation in code**. The agent trusts the signal handler
    of the yuno to shut it down. If the handler does not shut it down, the
    record of the agent keeps the yuno as "running" forever (see §5).
