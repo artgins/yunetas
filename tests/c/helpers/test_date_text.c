@@ -66,6 +66,10 @@
  *              not whole ("(UTC-05:0)" was -05).
  *          13. a weekday after a date names it: "Oct 1 2026 Thu" is that
  *              day, not 2026 Thursdays back (1987-12-03, up to 7.29.3).
+ *          14. any blank ("\v", "\r", "\n") parts a count from its unit,
+ *              weekday or am/pm ("Oct 1 10\vpm" was 2010-10-01); a year
+ *              before a weekday is a year, not a count ("2026 Thu" was
+ *              1988-01-07, up to 7.29.3).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -854,6 +858,40 @@ PRIVATE void test_weekday_after_a_date(void)
 }
 
 /***************************************************************************
+ *  14. Any blank parts a count from its unit, its weekday or its am/pm,
+ *  as it parts any two pieces: up to 7.29.3 only a space or a tab did,
+ *  so "Oct 1 10\vpm" was 2010-10-01 and "2\ndays ago" no date. And a
+ *  year (four digits, 1970-9999) before a weekday is a year, never a
+ *  count of weekdays back: "2026 Thu" was 2026 Thursdays back
+ *  (1988-01-07), "Oct 1 2026 thursdays" 1987-12-03.
+ ***************************************************************************/
+PRIVATE void test_blanks_and_years_before_weekdays(void)
+{
+    static const approxidate_case_t cases[] = {
+        {"Oct 1 10\vpm",                    "2026-10-01 22:00:00 +0200", 0},
+        {"Oct 1 10\rpm",                    "2026-10-01 22:00:00 +0200", 0},
+        {"Oct 1 10\npm",                    "2026-10-01 22:00:00 +0200", 0},
+        {"Oct 1 10\fpm",                    "2026-10-01 22:00:00 +0200", 0},
+        {"2\ndays ago",                     "2026-10-19 11:00:00 +0200", 0},
+        {"1\r\nwednesday",                  "2026-10-14 11:00:00 +0200", 0},
+        {"-1\vd",                           "2026-10-20 11:00:00 +0200", 0},
+        {"Oct 1 2026\nThu",                 "2026-10-01 11:00:00 +0200", 0},
+
+        {"2026 Thu",                        "2026-10-21 11:00:00 +0200", 0},
+        {"2026, thursday",                  "2026-10-21 11:00:00 +0200", 0},
+        {"Oct 1 2026 thursdays",            "2026-10-21 11:00:00 +0200", 1},
+        {"2026 fridays ago",                "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  Not a year: still a count
+         */
+        {"100 fridays ago",                 "2024-11-22 10:00:00 +0100", 0},
+        {"2026 days ago",                   "2021-04-04 11:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -891,6 +929,7 @@ int main(int argc, char *argv[])
     test_more_forms_of_the_port();
     test_offset_in_a_comment();
     test_weekday_after_a_date();
+    test_blanks_and_years_before_weekdays();
 
     gobj_end();
 

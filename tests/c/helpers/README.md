@@ -235,7 +235,12 @@ overflowing an integer. And a weekday after a date names it: the number before
 it is that date's day or year (`"Oct 1 2026 Thu"` is October 1, `"Oct 5
 friday"` October 5), where the port and 7.29.3 read a count of weekdays back
 (1987-12-03 for the first); with no date before it, or in the plural, it stays
-a count (`"2 wednesday"`, `"Oct 1 2 fridays"`).
+a count (`"2 wednesday"`, `"Oct 1 2 fridays"`). A year (four digits, 1970-9999)
+before a weekday is a year, never a count (`"2026 Thu"` is of 2026, `"Oct 1
+2026 thursdays"` no date; 7.29.3 read both as 2026 Thursdays back), and a
+count and its unit, weekday or am/pm are parted by any blank (`"Oct 1
+10\vpm"` is 22:00, `"2\ndays ago"` two days back; 7.29.3 saw only a space or a
+tab there, and read the first as 2010-10-01 and the second as no date).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

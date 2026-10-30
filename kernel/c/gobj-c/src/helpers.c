@@ -7609,17 +7609,28 @@ PRIVATE void note_ampm(date_reading_t *rd, int ampm)
 }
 
 /***************************************************************************
+ *  Past what parts two pieces of a text, as read_date_text() parts them:
+ *  any blank (a space, a tab, "\v", "\r", "\n", "\f"), a dot, a comma
+ *  or an underscore. Up to 7.29.3 the look after a count saw only a
+ *  space or a tab, so "Oct 1 10\vpm" was 2010-10-01.
+ ***************************************************************************/
+PRIVATE const char *skip_piece_separators(const char *p)
+{
+    while(isspace((unsigned char)*p) || *p == '.' || *p == ',' || *p == '_') {
+        p++;
+    }
+    return p;
+}
+
+/***************************************************************************
  *  What follows a count: a unit, a weekday or am/pm, attached ("2h") or
- *  after spaces, dots, commas or underscores ("2 hours", "1.day").
+ *  after blanks, dots, commas or underscores ("2 hours", "1.day").
  *  Return the end of what it took, or NULL when nothing follows that a
  *  count goes with.
  ***************************************************************************/
 PRIVATE const char *read_after_count(date_reading_t *rd, uintmax_t count, const char *p)
 {
-    const char *q = p;
-    while(*q == ' ' || *q == '\t' || *q == '.' || *q == ',' || *q == '_') {
-        q++;
-    }
+    const char *q = skip_piece_separators(p);
     if(!isalpha((unsigned char)*q)) {
         return NULL;
     }
@@ -7653,21 +7664,23 @@ PRIVATE const char *read_after_count(date_reading_t *rd, uintmax_t count, const 
 }
 
 /***************************************************************************
- *  Is a weekday, in the singular, what follows a number at `p` (after
- *  spaces, dots, commas or underscores)? "2026 Thu", "5, friday".
+ *  Is a weekday what follows a number at `p` (after blanks, dots, commas
+ *  or underscores)? In the singular ("2026 Thu", "5, friday"), and in the
+ *  plural too when `plural_too` ("2026 thursdays").
  ***************************************************************************/
-PRIVATE BOOL weekday_follows(const char *p)
+PRIVATE BOOL weekday_follows(const char *p, BOOL plural_too)
 {
-    while(*p == ' ' || *p == '\t' || *p == '.' || *p == ',' || *p == '_') {
-        p++;
-    }
+    p = skip_piece_separators(p);
     if(!isalpha((unsigned char)*p)) {
         return FALSE;
     }
     char raw[16];
     char word[16];
     take_word(p, raw, word, sizeof(word));
-    return (weekday_of_word(word) >= 0)? TRUE : FALSE;
+    if(weekday_of_word(word) >= 0) {
+        return TRUE;
+    }
+    return (plural_too && weekday_of_plural(word) >= 0)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -8069,10 +8082,15 @@ PRIVATE const char *read_number(date_reading_t *rd, const char *p)
         return p;
     }
 
-    if((rd->mon || rd->mday || rd->year) && weekday_follows(p)) {
+    BOOL year_shaped = (digits == 4 && value >= 1970 && value <= 9999)? TRUE : FALSE;
+    if(((rd->mon || rd->mday || rd->year) && weekday_follows(p, FALSE)) ||
+            (year_shaped && weekday_follows(p, TRUE))) {
         /*
          *  After a month, a day or a year the number is that date's, and
-         *  the weekday names it: "Oct 1 2026 Thu" was 2026 Thursdays back
+         *  the weekday names it: "Oct 1 2026 Thu" was 2026 Thursdays back.
+         *  A year is never a count of weekdays: "2026 Thu" was 1988, and
+         *  in the plural ("Oct 1 2026 thursdays") the weekday, with no
+         *  count left, is no date.
          */
         note_number(rd, value, digits);
         return p;
@@ -8168,9 +8186,7 @@ PRIVATE BOOL unit_follows_count(const char *p)
     while(isdigit((unsigned char)*p)) {
         p++;
     }
-    while(*p == ' ' || *p == '\t' || *p == '.' || *p == ',' || *p == '_') {
-        p++;
-    }
+    p = skip_piece_separators(p);
     if(!isalpha((unsigned char)*p)) {
         return FALSE;
     }
@@ -8198,10 +8214,7 @@ PRIVATE const char *read_signed_duration(date_reading_t *rd, const char *p)
         count = count*10 + (uintmax_t)(*p - '0');
         p++;
     }
-    const char *q = p;
-    while(*q == ' ' || *q == '\t' || *q == '.' || *q == ',' || *q == '_') {
-        q++;
-    }
+    const char *q = skip_piece_separators(p);
     if(!isalpha((unsigned char)*q)) {
         rd->unreadable = TRUE;
         return p;

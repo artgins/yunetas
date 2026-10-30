@@ -1115,7 +1115,13 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         the one before it. After a month, a day or a year a number before a
         weekday is that date's, the weekday only names it: "Oct 1 2026 Thu"
         is Oct 1 (up to 7.29.3 it was 2026 Thursdays back), "Oct 5 friday"
-        Oct 5; in the plural it stays a count ("Oct 1 2 fridays")
+        Oct 5; in the plural it stays a count ("Oct 1 2 fridays"). The
+        weekday is not checked: "Oct 5 2026 friday" is Monday, Oct 5. A
+        year (4 digits, 1970-9999) before a weekday is a year, never a
+        count: "2026 Thu" is of 2026, "Oct 1 2026 thursdays" no date (up
+        to 7.29.3 both were 2026 Thursdays back, 38 years). A count and its
+        unit, weekday or am/pm touch ("2h") or are parted by blanks of any
+        kind ("Oct 1 10\vpm" is 22:00), dots, commas or underscores
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
 
