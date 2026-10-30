@@ -5,12 +5,14 @@
  *
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include "c_watchfs.h"
 
@@ -25,8 +27,9 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE char *shell_escape(const char *str, char *dest, size_t dest_size);
+PRIVATE char *shell_escape(hgobj gobj, const char *str, char *dest, size_t dest_size);
 PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename);
+PRIVATE void remember_matched_file(hgobj gobj, const char *path, const char *filename);
 
 
 /***************************************************************************
@@ -94,6 +97,9 @@ typedef struct _PRIVATE_DATA {
     BOOL ignore_renamed_event;
     uint64_t time2exec; // TODO this would be witch each changed file!
                         // (for app using the filename parameter)
+    char last_path[PATH_MAX];       // the last file matched before time2exec: the parameter
+    char last_filename[PATH_MAX];
+    BOOL last_file_too_long;        // not kept whole: the command is not run with it
     BOOL info;
 } PRIVATE_DATA;
 
@@ -273,46 +279,72 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 /***************************************************************************
  *      Escape shell argument to prevent command injection
- *      Wraps the string in single quotes and escapes any single quotes
+ *      Wraps the string in single quotes and escapes any single quotes.
+ *      NULL (logged) when it does not fit in `dest`: up to 7.29.3 it was
+ *      cut with nothing said, and the command ran with another name.
  ***************************************************************************/
-PRIVATE char *shell_escape(const char *str, char *dest, size_t dest_size)
+PRIVATE char *shell_escape(hgobj gobj, const char *str, char *dest, size_t dest_size)
 {
-    if(!str || !dest || dest_size < 3) {
-        if(dest && dest_size > 0) {
-            dest[0] = '\0';
-        }
-        return dest;
-    }
-
     size_t pos = 0;
-    dest[pos++] = '\''; // Opening single quote
-
-    for(const char *p = str; *p && pos < dest_size - 3; p++) {
+    if(dest_size > 0) {
+        dest[pos++] = '\''; // Opening single quote
+    }
+    for(const char *p = str; *p && pos < dest_size; p++) {
         if(*p == '\'') {
             // Replace ' with '\'' (close quote, escaped quote, open quote)
-            if(pos + 4 < dest_size) {
-                dest[pos++] = '\'';
-                dest[pos++] = '\\';
-                dest[pos++] = '\'';
-                dest[pos++] = '\'';
-            } else {
-                break; // Not enough space
+            if(pos + 4 > dest_size) {
+                pos = dest_size;
+                break;
             }
+            dest[pos++] = '\'';
+            dest[pos++] = '\\';
+            dest[pos++] = '\'';
+            dest[pos++] = '\'';
         } else {
             dest[pos++] = *p;
         }
     }
-
-    if(pos < dest_size - 1) {
-        dest[pos++] = '\''; // Closing single quote
-        dest[pos] = '\0';
-    } else {
-        // Truncate if necessary
-        dest[dest_size - 2] = '\'';
-        dest[dest_size - 1] = '\0';
+    if(pos + 2 > dest_size) {   // the closing quote and the NUL
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Argument too long to quote: command not run",
+            "argument",     "%s", str,
+            "size",         "%d", (int)dest_size,
+            NULL
+        );
+        return NULL;
     }
-
+    dest[pos++] = '\''; // Closing single quote
+    dest[pos] = '\0';
     return dest;
+}
+
+/***************************************************************************
+ *  The file the command is given with use_parameter: the last one matched
+ *  before it runs (the changes of a burst run the command once). Up to
+ *  7.29.3 it was given none, and use_parameter appended '/'.
+ ***************************************************************************/
+PRIVATE void remember_matched_file(hgobj gobj, const char *path, const char *filename)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int lp = snprintf(priv->last_path, sizeof(priv->last_path), "%s", path);
+    int lf = snprintf(priv->last_filename, sizeof(priv->last_filename), "%s", filename);
+    if(lp < 0 || lp >= (int)sizeof(priv->last_path) ||
+            lf < 0 || lf >= (int)sizeof(priv->last_filename)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Path of the file too long: the command will not run with it",
+            "path",         "%s", path,
+            "filename",     "%s", filename,
+            NULL
+        );
+        priv->last_file_too_long = TRUE;
+        return;
+    }
+    priv->last_file_too_long = FALSE;
 }
 
 /***************************************************************************
@@ -333,22 +365,52 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
         return -1;
     }
 
-    char temp[4*1024];
+    /*
+     *  With the file as its parameter: path/filename, quoted. Nothing is
+     *  run when it does not fit (said): up to 7.29.3 each step was cut with
+     *  nothing said, and the command ran with the name cut, or with no
+     *  closing quote.
+     */
+    char temp[4*PATH_MAX];
     if(priv->use_parameter) {
-        char escaped_path[1024];
-        char escaped_filename[1024];
-        char escaped_fullpath[2048];
-
-        // Escape path and filename to prevent command injection
-        shell_escape(path, escaped_path, sizeof(escaped_path));
-        shell_escape(filename, escaped_filename, sizeof(escaped_filename));
-
-        // Construct full path: path/filename, then escape it
-        char fullpath[2048];
-        snprintf(fullpath, sizeof(fullpath), "%s/%s", path, filename);
-        shell_escape(fullpath, escaped_fullpath, sizeof(escaped_fullpath));
-
-        snprintf(temp, sizeof(temp), "%s %s", command, escaped_fullpath);
+        if(priv->last_file_too_long) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Path of the file too long: command not run",
+                NULL
+            );
+            return -1;
+        }
+        char fullpath[PATH_MAX];
+        char escaped_fullpath[2*PATH_MAX];
+        int len = snprintf(fullpath, sizeof(fullpath), "%s/%s", path, filename);
+        if(len < 0 || len >= (int)sizeof(fullpath)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Path of the file too long: command not run",
+                "path",         "%s", path,
+                "filename",     "%s", filename,
+                NULL
+            );
+            return -1;
+        }
+        if(!shell_escape(gobj, fullpath, escaped_fullpath, sizeof(escaped_fullpath))) {
+            return -1;  // Error already logged
+        }
+        len = snprintf(temp, sizeof(temp), "%s %s", command, escaped_fullpath);
+        if(len < 0 || len >= (int)sizeof(temp)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Command with the file too long: not run",
+                "command",      "%s", command,
+                "file",         "%s", fullpath,
+                NULL
+            );
+            return -1;
+        }
         command = temp;
     }
 
@@ -414,6 +476,7 @@ PRIVATE int ac_renamed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         //exec_command(gobj, path, filename);
+        remember_matched_file(gobj, path, filename);
         if(priv->time2exec == 0) {
             priv->time2exec = start_msectimer(500);
         } else {
@@ -473,6 +536,7 @@ PRIVATE int ac_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         //exec_command(gobj, path, filename);
+        remember_matched_file(gobj, path, filename);
         if(priv->time2exec == 0) {
             priv->time2exec = start_msectimer(500);
         } else {
@@ -491,7 +555,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(test_msectimer(priv->time2exec)) {
-        exec_command(gobj, "", ""); //TODO filename parameter not used.
+        exec_command(gobj, priv->last_path, priv->last_filename);   // the last file of the burst
         priv->time2exec = 0;
     }
     KW_DECREF(kw);

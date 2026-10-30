@@ -12,7 +12,7 @@ Set in the yuno's `kw` section:
 | `recursive` | `true` to watch sub-directories |
 | `patterns` | Semicolon-separated list of regexes (e.g. `.*\.js;.*\.css`) |
 | `command` | Shell command to run on match |
-| `use_parameter` | Pass the modified filename as an argument (shell-escaped) |
+| `use_parameter` | Pass the path of the last modified file of a burst as an argument (shell-escaped). A command and quoted path that do not fit in 16 KB are not run (logged) |
 | `ignore_changed_event` / `ignore_renamed_event` | Filter the corresponding `C_FS` events |
 
 ## Example
