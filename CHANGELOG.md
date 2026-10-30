@@ -306,20 +306,18 @@
   primary's every release). In 7.29.3.
 - **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
-  superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1
-  and 1.1.2; then gobj-js 7.29.3, gobj-ui 7.29.5, gui_agent 1.2.7 and
-  gui_treedb 1.1.3. The `yunetas` CLI 1.0.5 on PyPI (no private name in the
-  package). What each carries is in its own CHANGELOG: no private name,
-  citation or footprint in comments, docs and examples; the SPAs on the
-  current libraries, a deadline on every call to the auth BFF, and a login
+  superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
+  1.1.2; then gobj-js 7.29.3, gobj-ui 7.29.5, gui_agent 1.2.7 and gui_treedb
+  1.1.3. The `yunetas` CLI 1.0.5 on PyPI. What each carries is in its own
+  CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
+  the current libraries, a deadline on every call to the auth BFF, and a login
   denial said in the language of the app.
-- **Docs and examples: neutral ids.** The examples, tests and docs of every
-  public repo use `db_history^7301`/`7302`, `gate_b^7401`, `gate_probe^7701`,
-  `gate_a`/`gate_b` (role label `gate`), `events_a`/`events_b`,
-  `db_events`, the topic `raw_events`, ports 7601-7605/7501-7502, nodes
-  node A / node B, and the ramdisk `/mnt/ramdisk`. The earlier ones kept the
-  digits of another numbering and named the two kinds of node of one
-  application. `kw/test_json_flat` and gobj-js's json_flat tests use the
+- **Docs and examples: one set of example ids.** The examples, tests and
+  docs of every public repo use `db_history^7301`/`7302`, `gate_b^7401`,
+  `gate_probe^7701`, `gate_a`/`gate_b` (role label `gate`),
+  `events_a`/`events_b`, `db_events`, the topic `raw_events`, ports
+  7601-7605/7501-7502, nodes node A / node B, and the ramdisk
+  `/mnt/ramdisk`. `kw/test_json_flat` and gobj-js's json_flat tests use the
   same ids.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
@@ -329,41 +327,36 @@
   used by gui_agent and gui_treedb) and `/auth/callback` (PKCE, served but
   unused in-repo), the BFF port per SPA (1806/1807, 1808), session restore,
   refresh with backoff and the opt-in `/auth/token`. The `auth_bff` README
-  and page say the same, and no comment cites a security check-list id.
-- **Docs: no notes store cited, no secret's whereabouts, and the auth docs
-  match `c_auth_bff.c`.** The yuno_agent chapters and two READMEs named
-  entries of a private notes store; each now says its rule, and YUNO_AUTH §8
-  no longer says where a real secret lives. Rejections are WARNINGs, not
-  INFO; `idp_timeouts` covers both watchdogs; `Domain` is written only when
-  `cookie_domain` matches the Host, and a cookie is not scoped by port;
-  `allowed_redirect_uri` and `cookie_domain` are optional; `http_cookie`
-  comes from C_WEBSOCKET/C_IEVENT_SRV; `/auth/login` needs Direct Access
-  Grants (client table, checklist, recipe); the local gui_treedb dev server
-  proxies `/auth` to 1808. The scenario examples use a neutral load
+  and page say the same.
+- **Docs: each rule stated in place, and the auth docs match `c_auth_bff.c`.**
+  The yuno_agent chapters and two READMEs state each rule where they apply it,
+  and YUNO_AUTH §8 names no place where a secret is kept. Rejections are
+  WARNINGs, not INFO; `idp_timeouts` covers both watchdogs; `Domain` is
+  written only when `cookie_domain` matches the Host, and a cookie is not
+  scoped by port; `allowed_redirect_uri` and `cookie_domain` are optional;
+  `http_cookie` comes from C_WEBSOCKET/C_IEVENT_SRV; `/auth/login` needs
+  Direct Access Grants (client table, checklist, recipe); the local gui_treedb
+  dev server proxies `/auth` to 1808. The scenario examples use a neutral load
   generator (`set-clients`, `pause-load`, `load-test`, `gen2`..`gen5`,
   `gate_device`/`set-output`). `deploy.sh` rewrites the site domain embedded
   in every built page, as it does for `sitemap.xml`.
-- **Docs:** the public examples name no private project, client, node or
-  person, and nothing cites a private review. The scope examples of the
+- **Docs: generic names in the examples.** The scope examples of the
   control center (`c_authz.c`, `c_controlcenter.c`, its README and page), the
   treedb API examples, the OAuth2 BFF guide, `YUNO_AUTH.md`, `NODE_SEALING.md`,
   the webstats record, the audit examples and `test_audit_record.c` use
   generic names (`stress.example.com`, `load-test`, `stress-demo`,
   `node-a`/`node-b`, `myapp`, `app.example.com`, `ops@example.com`). The
   retention design, the design of the `file` columns and the 7.27.10
-  performance report give their figures without saying whose data or which
-  node they come from. The old entries of this CHANGELOG cite no review,
-  neither by its id nor in words: the numbered reviews of 7.27.0 are its
-  "groups" of fixes, a dated review is the release it went into. Comments,
-  tests and docs keep what was fixed without the review citation, and "before
-  the fix" names the release. The examples carry nothing of an application:
-  no figures of its data, no words of its data model (a `sites` / `buildings`
-  / `devices` inventory instead), no yuno ids or ports of its nodes
-  (`db_history^7301`, `gate_b^7401`, a `sim_load` fleet `gen1`..`gen5`,
-  yunos `7601`/`7501`), no meter models, and no address of a company server (the
-  documentation ranges, `198.51.100.0/24`, `203.0.113.0/24`). The same in
-  gobj-js, gobj-ui and yunos-js; the gui_agent QA reads the ids of the
-  installation it checks from the environment or `~/.yuneta/.qa-creds`.
+  performance report give their figures as examples and test measurements.
+  The entries of this CHANGELOG say what each release fixed: the fixes of
+  7.27.0 are in numbered "groups", and each fix is under the release it went
+  into. Comments, tests and docs say what is fixed, and "before the fix"
+  names the release. The examples use a `sites` / `buildings` / `devices`
+  inventory, generic yuno ids and ports (`db_history^7301`, `gate_b^7401`, a
+  `sim_load` fleet `gen1`..`gen5`, yunos `7601`/`7501`), and the
+  documentation address ranges (`198.51.100.0/24`, `203.0.113.0/24`). The
+  same in gobj-js, gobj-ui and yunos-js; the gui_agent QA reads the ids of
+  the installation it checks from the environment or `~/.yuneta/.qa-creds`.
   `deploy.sh` of doc.yuneta.io writes `https://doc.yuneta.io` in the
   `sitemap.xml` that myst builds: every address in it was
   `http://localhost:3000`.
@@ -945,7 +938,7 @@
   an upper-case tag, a tag written in pieces and a const shadowed in a block
   (names are resolved by block, not by function).
 - **gui_agent 1.2.3** (`yunos/js`): the placeholder of a role's scope and the
-  examples name no private project, and `scripts/qa.mjs` takes the ids of the
+  examples use generic names, and `scripts/qa.mjs` takes the ids of the
   installation it checks from the environment or `~/.yuneta/.qa-creds`.
 - **gui_agent 1.2.4** (`yunos/js`): a check of `scripts/qa.mjs` fails before
   it opens anything when a setting it needs is not set, and names it; the
@@ -958,11 +951,11 @@
 ## v7.29.3 (2026-10-29)
 
 A full release: the fixes of the review round over 7.29.2, and a Modbus master
-that answers every request, for the meter setup commands of a field gate. The
-kernel changes (`gobj-c`: `build_path()` and the date reader; `timeranger2`,
-the modules `modbus` and `mbus`), so every yuno is rebuilt. The external
-libraries do not change (linux-ext-libs 1.28; OpenSSL 3.6.5, PCRE2 10.49, nginx
-1.31.8, liburing 2.15 and mbedTLS 4.2.0 are the latest of their lines).
+that answers every request it is sent. The kernel changes (`gobj-c`:
+`build_path()` and the date reader; `timeranger2`, the modules `modbus` and
+`mbus`), so every yuno is rebuilt. The external libraries do not change
+(linux-ext-libs 1.28; OpenSSL 3.6.5, PCRE2 10.49, nginx 1.31.8, liburing 2.15
+and mbedTLS 4.2.0 are the latest of their lines).
 **`build_path()` returns NULL when the path does not fit** (it returned the cut
 path): the guards that already checked it work now, and a caller that ignores
 its return only gains the log.
@@ -997,7 +990,7 @@ machine code. The yunos are 0 to 4 KB larger (stripped).
   several coils, and over RTU too (refused until now). A request that
   arrives while the connection waits between cycles goes out at once and
   the wait resumes after it; the others go between two blocks, one at a
-  time, in order -- a meter password and the setup it unlocks travel in the
+  time, in order -- a device password and the setup it unlocks travel in the
   same connection. A request is valid for the connection it was queued in:
   when the connection drops, the queued ones are answered as failed instead
   of being sent on the next. `c_prot_modbus_m.h` defines
@@ -1006,10 +999,8 @@ machine code. The yunos are 0 to 4 KB larger (stripped).
   them back, an exception, a coil and a request before the connection.
   **A log never shows the values of a write** (`"value": "(not logged)"`),
   the ones that were there before included (*"modbus exception"*,
-  *"Modbus Timeout"*, *"NOT confirmed"*, *"NOT sent"*): a meter password
+  *"Modbus Timeout"*, *"NOT confirmed"*, *"NOT sent"*): a device password
   goes as a write, and the log goes to the logcenter.
-  Written for the meter setup commands of a field gate (a Modbus energy
-  meter).
   **The requests' numbers are numbers.** `id`, `address`, `size` and each
   `value` are read as the command parser reads an integer: `"abc"`, `null`,
   `"010"`, `20.9`, `"12ab"` and an id `"x"` are refused (they were 0, 8,
@@ -2805,7 +2796,7 @@ no hot path uses.
 
 - **`C_PROT_MODBUS_M` publishes only what the cycle read, and a TCP exception
   no longer stalls the connection** (`modules/c/modbus`). Two defects, found
-  with a field gate polling energy meters over Modbus TCP:
+  with a gate polling slaves over Modbus TCP:
     - It published, at the end of each cycle, every variable of every slave,
       also those whose read timed out or was answered with an exception: the
       cells keep the last value received, or zero if none ever came, so a
@@ -2819,20 +2810,17 @@ no hot path uses.
       are cleared after the whole slave is decoded (two variables can share a
       cell) and on a disconnection. **A subscriber can now receive a message
       with fewer variables than the map declares**, and must not read a
-      missing one as zero. The consumers checked (the gates of one
-      application, through their data contract, which marks a partial reading
-      as suspect, and a client application's ESP32 gate, which merges each
-      message into the last one) handle it, and so does that client's
-      Raspberry gateway (a flow meter over RTU): it copies only the keys that
-      arrive, and a derived total whose integer part or multiplier is missing
-      is not computed. The other two applications have no Modbus. A consumer
-      that depends on it can refuse to build without it: `c_prot_modbus_m.h`
+      missing one as zero. The consumers checked handle it: one marks a
+      partial reading as suspect, one merges each message into the last one,
+      and one copies only the keys that arrive and does not compute a derived
+      total whose integer part or multiplier is missing. A consumer that
+      depends on it can refuse to build without it: `c_prot_modbus_m.h`
       defines `C_PROT_MODBUS_M_PUBLISHES_WHAT_IT_READ`.
     - Over TCP, `framehead_consume()` waited after every exception response
       for a 2-byte CRC that TCP does not carry: each exception cost
       `timeout_response` and held the poll of every slave of the connection
-      (an energy meter with one submeter answering exceptions went from one
-      reading a second to one every ~8 s). The CRC is now added to an
+      (a slave with one unit answering exceptions went from one reading a
+      second to one every ~8 s). The CRC is now added to an
       exception only for RTU/ASCII.
   The span of a variable in cells, computed twice, is now one function
   (`variable_cells()`). The doc page of the module now says what a message
@@ -3334,21 +3322,19 @@ node. There is no performance report, because no hot path changed.
   elsewhere: before, the log it writes could overwrite `errno`. And it logs
   `EADDRINUSE` as a WARNING with no stack: whether a taken address is an
   error is the caller's to say. `tests/c/c_tcp_s_addr_in_use`.
-- **The table tools measure a cell in characters, not bytes**
-  (`ycommand`, `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`).
-  They padded and cut with `"%-*.*s"`, which counts BYTES: each non-ASCII
-  character of a cell pulled every column after it one place to the left.
-  `"North · South · East"` has two 2-byte dots, so in the `list-controllers`
-  of node B the four columns after it were two places off. The
-  cut could also split a character. Headers were widened to their
-  `strlen()`, the same mistake. Commands had been writing their headers
-  without accents ("Ubicacion", "Al dia") to dodge it. Two helpers in
-  `gobj-c`, next to `utf8_prefix_len()`: `utf8_columns()` and
-  `utf8_prefix_columns()`. They count one column per character, which is
-  right for the Latin text these tables carry. Wide (CJK) and combining
-  characters are not measured. Tested in `test_kw1`, and checked against the
-  central's live `list-controllers`: the cell fills its 34 columns, and the
-  next column sits under its header.
+- **The table tools measure a cell in characters, not bytes** (`ycommand`,
+  `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`). They padded and
+  cut with `"%-*.*s"`, which counts BYTES: each non-ASCII character of a cell
+  pulled every column after it one place to the left. `"North · South · East"`
+  has two 2-byte dots, so in a table of a list command the four columns after
+  it were two places off. The cut could also split a character. Headers were
+  widened to their `strlen()`, the same mistake. Commands had been writing
+  their headers without accents to dodge it. Two helpers in `gobj-c`, next to
+  `utf8_prefix_len()`: `utf8_columns()` and `utf8_prefix_columns()`. They
+  count one column per character, which is right for the Latin text these
+  tables carry. Wide (CJK) and combining characters are not measured. Tested
+  in `test_kw1`, and checked against the live table of a command: the cell
+  fills its 34 columns, and the next column sits under its header.
 - **SDK 7.27.3 deployed on every node** (local, the staging node first, the
   company server, nodes A and B by package, a client
   production node), and **gobj-ui 7.27.28: the trace notes say what the yuno
@@ -3481,7 +3467,7 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   `sourcemap: "hidden"`: the maps stay in `dist/` to decode a stack from the
   remote log, the bundle carries no `sourceMappingURL`, and the deploy rsync
   hides `*.map` (its `--delete` removed the maps already served). A deployed map
-  exposed the whole source of the private repos. Page load is unchanged (a
+  exposed the whole source of each app. Page load is unchanged (a
   browser fetches a map only with devtools open). All deployed, the client
   production application after staging; QA clean.
 
@@ -5260,18 +5246,16 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
 
 ## v7.26.8 (2026-10-10)
 
-- **treedb: a replica opens a store whose master has not created
-  `__icons__` yet.** 7.26.7 made every open create the topic, and a replica
-  cannot create one: a follower whose master still ran an older binary (a
-  node upgraded follower first, or a follower starting before its master)
-  failed its open with *"Cannot create __icons__ topic"* (critical) and the
-  yuno never started -- seen on a local node B, a gate of node B and
-  `db_events` against `db_history` 2.9.3. The replica now opens without
-  the topic, logs *"__icons__ not created by the master yet, the replica opens
-  without it"* (warning), and finds it on its next open. Test 20b of
-  `tr_treedb_files`; it runs the replica with `on_critical_error` set, because
-  the default exits with 0 and ctest read the dead test as a pass.
-  **Do not deploy 7.26.7.**
+- **treedb: a replica opens a store whose master has not created `__icons__`
+  yet.** 7.26.7 made every open create the topic, and a replica cannot create
+  one: a follower whose master still ran an older binary (a node upgraded
+  follower first, or a follower starting before its master) failed its open
+  with *"Cannot create __icons__ topic"* (critical) and the yuno never started
+  (seen on three followers). The replica now opens without the topic, logs
+  *"__icons__ not created by the master yet, the replica opens without it"*
+  (warning), and finds it on its next open. Test 20b of `tr_treedb_files`; it runs the replica with
+  `on_critical_error` set, because the default exits with 0 and ctest read the
+  dead test as a pass. **Do not deploy 7.26.7.**
 
 ## v7.26.7 (2026-10-10)
 

@@ -361,18 +361,19 @@ blocks the yuno for as long as it takes.
   not cheap together, on a yuno with one thread. So the owner purges **a slice
   of keys per tick** (§7).
 
-Measured on 2026-10-21: a purge of about 3,000 keys (an application's store), one
-`.purged` and three unlinks per key (small files):
+Measured on 2026-10-21 on two test VMs and the dev machine: a purge of a store
+of a few thousand keys, one `.purged` and three unlinks per key (small files).
+Time per key:
 
-| Node | No barrier | `fsync` per key | Batch of 100 (`syncfs`) |
+| Machine | No barrier | `fsync` per key | Batch of 100 (`syncfs`) |
 |---|---|---|---|
-| node A (Rocky 9, slow VM) | 1.0 s | **2.8 s** (0.9 ms/key) | 1.1 s |
-| node B (Debian 13, VM) | 0.5 s | **5.6 s** (1.8 ms/key) | 0.7 s |
-| dev machine (NVMe) | 0.2 s | 3.9 s | 0.4 s |
+| test VM 1 (slow) | 0.3 ms | **0.9 ms** | 0.35 ms |
+| test VM 2 | 0.16 ms | **1.8 ms** | 0.23 ms |
+| dev machine (NVMe) | 0.07 ms | 1.3 ms | 0.13 ms |
 
 **The barrier is per key.** A slice of 100 keys blocks the yuno for at most
-about 180 ms on the slowest node, and the whole store is purged in about 30
-ticks, once a day. A batch is 3 to 8 times faster, but `syncfs()` flushes
+about 180 ms on the slowest machine, and a store of a few thousand keys is
+purged in a few tens of ticks, once a day. A batch is 3 to 8 times faster, but `syncfs()` flushes
 every dirty page of the filesystem, not only the purge's. On a node that
 appends hundreds of records per second, its time depends on what other
 processes write, so it has no bound. If a batch is ever necessary, it needs
@@ -632,8 +633,8 @@ a key is archived, its directory in the topic level. Measured on 2026-10-27
 on the dev machine (NVMe), 3,000 keys, one file purged per key, three rounds:
 **delete 11.8-12.3 ms per key, archive 35.5-37.2 ms per key: three times
 more**. The absolute figures of that machine were about nine times worse that
-day than on 2026-10-21 (§6: 3.9 s for about 3,000 keys), so the ratio is the figure
-to keep; on the slowest node of §6 (1.8 ms per key for a delete) an archive
+day than on 2026-10-21 (§6: 1.3 ms per key), so the ratio is the figure to
+keep; on the slowest machine of §6 (1.8 ms per key for a delete) an archive
 would cost about 5.4 ms per key. An owner that archives does a slice about a
 third of the one it deletes in (§7): 30 to 40 keys per tick instead of 100.
 

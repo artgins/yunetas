@@ -299,15 +299,15 @@ here is a candidate for promotion to Tier 1:
   missing `write-file`; a `move-file`, or a command of the yuno itself that
   re-seeds its copy, is the Tier-1 answer.
 - **Publishing a SPA bundle** into a vhost (`rsync dist/ → /yuneta/gui/<fqdn>/`).
-  Same gap as above and today's most frequent one: every front-end release of
-  two applications and the treedb GUI goes this way. It is also the one that
-  bites first when a node is reimaged — on 2026-08-27 node A's
-  SSH host key had changed and the deploy hung at the verification prompt, while
+  Same gap as above and today's most frequent one: every front-end release
+  goes this way. It is also the one that bites first when a node is
+  reimaged — on 2026-08-27 a reimaged node's SSH host key had changed and the
+  deploy hung at the verification prompt, while
   every backend task of the same session (binaries, configs, snapshots, commands)
   went through the agent untouched. On 2026-09-13 it failed a second way: an
   Internet-wide password botnet (2,000-3,000 attempts per hour per node) filled
-  sshd's `MaxStartups` slots, and sshd dropped the rsync deploys to a staging
-  node and node A at random, up to 1,464 drops per hour, while the agent's
+  sshd's `MaxStartups` slots, and sshd dropped the rsync deploys to two nodes
+  at random, up to 1,464 drops per hour, while the agent's
   `wss://` channel was not affected. Relaxing `LoginGraceTime` and `MaxStartups`
   brought the drops to zero, but only the seal removes the exposure. A
   `write-file`, or a vhost-aware command, would promote it to Tier 1.
@@ -420,36 +420,35 @@ measurement method and the client-side trust asymmetry in
 `~/.yuneta/nodes.json` now carries, per node, `url` (`wss://<host>:1993`),
 `issuer`, `client_id`, `user_id` and the TLS pinning pair
 (`ssl_trusted_certificate`, `ssl_server_name`); `ssh` is an optional fallback
-used only by `--tunnel`, and `url` wins when both are present. The two
-nodes of one application are registered with a `url` and **no** `ssh` field at all, so a
-sealed node is already registrable. Note the client_id is the **node's own**
+used only by `--tunnel`, and `url` wins when both are present. A node can be
+registered with a `url` and **no** `ssh` field at all, so a sealed node is
+already registrable. Note the client_id is the **node's own**
 (`node.example.com`), not the SPA's (`yunetacontrol`, auth-code-only
 and therefore useless headless) — picking the wrong one is what makes a
 headless login hang rather than refuse.
 
 ### 5.5 An internal yuno needs its own `C_AUTHZ`, or the seal locks it out
 
-**Found 2026-08-25 on node A and node B of an application.**
+**Found 2026-08-25 on three internal yunos of an application.**
 `authz_checker()` ([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c))
 opens with `gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies
-**everyone** — fail-closed by design. Three yunos had no such service:
-`db_events_a` (node A), `db_events_b` (node B) and `gate_meter`
-(node A). Every authz-guarded command answered `-403 No permission` to
-every principal, `yuneta_admin@artgins.com` with the `root` role included. Not
-a permissions problem: there was nobody to read the permissions. Their own logs
-said it plainly — `{"function": "authz_checker", "msg": "No gclass authz
-found"}`.
+**everyone** — fail-closed by design. Three yunos had no such service: two
+database yunos and a gate. Every authz-guarded command answered `-403 No
+permission` to every principal, `yuneta_admin@artgins.com` with the `root`
+role included. Not a permissions problem: there was nobody to read the
+permissions. Their own logs said it plainly — `{"function": "authz_checker",
+"msg": "No gclass authz found"}`.
 
-None of the three listens outside its node (loopback ports only, plus a
-serial line for the meter gate), so **SSH was the only way to touch them**. Under a seal there would have been none at
+None of the three listens outside its node (loopback ports only), so **SSH
+was the only way to touch them**. Under a seal there would have been none at
 all — a Tier-3 entry created by omission rather than by a missing command, and
 invisible until someone tries.
 
 The fix is per-yuno configuration, not framework: declare the `authz` service
 (`C_AUTHZ`, priority 0) and point it at the node's authzs store as a
 **follower** (`Authz.master: false`, `Authz.authz_service: <store>`). The
-store's master stays the yuno that carries `Authz.initial_load`
-(`db_history.7302` / `db_history.7301`). `master` governs who may WRITE
+store's master stays the yuno that carries `Authz.initial_load` (the node's
+`db_history`). `master` governs who may WRITE
 the authz store — it is not a privilege level, and a follower authorizes just
 as well as a master.
 

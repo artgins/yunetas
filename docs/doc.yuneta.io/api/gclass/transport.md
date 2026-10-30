@@ -258,10 +258,10 @@ was still being written. With two in flight, a short one sent its rest AFTER
 the other and the peer failed the record MAC: *"SSL_read() FAILED"*,
 `error:0A000119` *"decryption failed or bad record mac"*, and the connection
 dropped. It shows under a burst on a full socket -- a client resending its
-window when a gate comes back -- and how often depends on the kernel: in
-an application's stress test on a Rocky 9 node B (kernel 5.14) it dropped links
-13606 times in 25 minutes. Now the encrypted output waits while a write is in
-flight, and the next clear message is taken only when nothing is waiting.
+window when a gate comes back -- and how often depends on the kernel: in a
+stress test on a test VM (kernel 5.14) it dropped links 13606 times in 25
+minutes. Now the encrypted output waits while a write is in flight, and the
+next clear message is taken only when nothing is waiting.
 
 The stat `max_tx_in_progress` says whether the rule held on a connection:
 

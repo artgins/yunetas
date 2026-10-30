@@ -641,8 +641,8 @@ Corollaries:
 ## ⚠️ Documentation language: English only
 
 **Every text artifact committed to this repo must be in English**, regardless of the
-chat language (often Spanish). Applies equally to claudia console (Claude Code CLI)
-and claudia gui (claude.ai web).
+chat language (often Spanish). Applies equally to an assistant in the console
+(Claude Code CLI) and in the browser (claude.ai web).
 
 In English (always): `.md` files (READMEs, design docs, this `CLAUDE.md`,
 in-tree guides, skill outputs), section headings inside those files, code comments,

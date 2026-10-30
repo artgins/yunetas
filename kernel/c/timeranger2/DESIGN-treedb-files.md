@@ -565,9 +565,9 @@ it reaches a remote agent over `wss` exactly as it reaches the local one.
 shell instead of `crypto.subtle`.
 
 What that precedent settles is the transport. What it does not settle is the
-case where a RECORD moves rather than a person uploading: node A
-forwards a device to node B and the record carries an fkey to an asset node B
-does not have. Nobody is holding the file at that moment.
+case where a RECORD moves rather than a person uploading: a node sends a record
+to another treedb, and the record carries an fkey to an asset the receiver does
+not have. Nobody is holding the file at that moment.
 
 **The answer is not for the receiver to pull.** A pull reads well — the receiver
 knows the sha256, so it can ask for it and verify what arrives — and it costs
