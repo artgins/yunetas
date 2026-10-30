@@ -37,7 +37,7 @@ of the link before asking, and turn the answer into an element afterwards.
 ## Reading the link
 
 A column that holds a link comes back in one of three shapes, and **which one
-is the reader's choice, not the schema's**: the stored `"__assets__^<id>^as_devices_foto"`,
+is the reader's choice, not the schema's**: the stored `"__assets__^<id>^as_items_image"`,
 the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded
 `{id}`. Each can come alone or in a list — and an **unset** single-valued fkey
 is still an empty list. All of them are read.
@@ -109,13 +109,13 @@ import {yui_asset_id, yui_asset_element} from "@yuneta/gobj-ui/src/yui_asset.js"
 import "@yuneta/gobj-ui/src/yui_asset.css";
 
 //  in the view's state machine, not in a DOM callback:
-const id = yui_asset_id(device.foto);
+const id = yui_asset_id(item.image);
 if(id) {
-    gobj_send_event(gobj, "EV_ASK_ASSET", {asset_id: id, slot: "foto"}, gobj);
+    gobj_send_event(gobj, "EV_ASK_ASSET", {asset_id: id, slot: "image"}, gobj);
 }
 
 //  ...and when the answer arrives, in the action:
-$box.appendChild(yui_asset_element(answer, {detail: device.foto_name}));
+$box.appendChild(yui_asset_element(answer, {detail: item.image_name}));
 ```
 
 ---

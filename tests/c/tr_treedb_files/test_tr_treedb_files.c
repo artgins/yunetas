@@ -73,13 +73,13 @@
 #define PNG_C   "\x89PNG\r\n\x1a\n" "IHDR fixture C, held only by a snapshot"
 #define PNG_D   "\x89PNG\r\n\x1a\n" "IHDR fixture D, shared by two treedbs of one tranger"
 #define PNG_E   "\x89PNG\r\n\x1a\n" "IHDR fixture E, named by an instance no activation would load"
-#define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a qr code"
+#define JPG_A   "\xff\xd8\xff\xe0" "JFIF fixture, a label code"
 #define PDF_A   "%PDF-1.4\n%fixture plan\n"
 #define PDF_B   "%PDF-1.4\n%fixture plan of a run-time topic\n"
 #define PNG_F   "\x89PNG\r\n\x1a\n" "IHDR fixture F, the same bytes arriving twice"
 #define PNG_G   "\x89PNG\r\n\x1a\n" "IHDR fixture G, handed to a create that is refused"
 #define PNG_H   "\x89PNG\r\n\x1a\n" "IHDR fixture H, an asset that gets renamed"
-#define PNG_I   "\x89PNG\r\n\x1a\n" "IHDR fixture I, the foto of the replica case"
+#define PNG_I   "\x89PNG\r\n\x1a\n" "IHDR fixture I, the image of the replica case"
 #define PNG_J   "\x89PNG\r\n\x1a\n" "IHDR fixture J, handed to a replica"
 #define PNG_K   "\x89PNG\r\n\x1a\n" "IHDR fixture K, renamed by an autolink that fails"
 #define SVG_A   "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
@@ -147,10 +147,10 @@ PRIVATE BOOL blob_exists(json_t *tranger, const char *id, const char *content_ty
 }
 
 /***************************************************************************
- *  Create a device whose 'foto' arrives as content64, and link it.
+ *  Create an item whose 'image' arrives as content64, and link it.
  *  This is the json door: the browser's shape.
  ***************************************************************************/
-PRIVATE json_t *create_device_with_foto(
+PRIVATE json_t *create_item_with_image(
     json_t *tranger,
     const char *id,
     const char *data,
@@ -162,16 +162,16 @@ PRIVATE json_t *create_device_with_foto(
     json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
         "id", id,
         "name", id,
-        "foto", claimed_id? claimed_id: "",
-        "qr", "",
+        "image", claimed_id? claimed_id: "",
+        "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(data, len),
-                "original_name", "foto.png",
+                "original_name", "image.png",
                 "content_type", content_type
     );
     /*  No autolink: the write path links a `file` column ITSELF  */
-    return treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    return treedb_create_node(tranger, TREEDB_NAME, "items", kw);
 }
 
 /***************************************************************************
@@ -183,7 +183,7 @@ PRIVATE int test_bytes_not_in_record(json_t *tranger)
     const char *test = "1. the bytes are not in the record";
     set_expected_results(test, NULL, NULL, NULL, 1);
 
-    json_t *node = create_device_with_foto(tranger, "dev-1", PNG_A, sizeof(PNG_A)-1, "image/png", 0);
+    json_t *node = create_item_with_image(tranger, "item-1", PNG_A, sizeof(PNG_A)-1, "image/png", 0);
     if(!node) {
         printf("%s  FAIL: create with a file refused%s\n", On_Red BWhite, Color_Off);
         return -1;
@@ -194,9 +194,9 @@ PRIVATE int test_bytes_not_in_record(json_t *tranger)
         printf("%s  FAIL: the record carries the transport keys%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(strcmp(fkey_id(node, "foto"), id)!=0) {
-        printf("%s  FAIL: foto is not an fkey to the asset: %s%s\n",
-            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
+    if(strcmp(fkey_id(node, "image"), id)!=0) {
+        printf("%s  FAIL: image is not an fkey to the asset: %s%s\n",
+            On_Red BWhite, kw_get_str(0, node, "image", "", 0), Color_Off);
         result += -1;
     }
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id);
@@ -212,9 +212,9 @@ PRIVATE int test_bytes_not_in_record(json_t *tranger)
             printf("%s  FAIL: asset content_type wrong%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
-        json_t *hook = json_object_get(asset, "as_devices_foto");
-        if(!json_is_object(hook) || !json_object_get(hook, "dev-1")) {
-            printf("%s  FAIL: the derived hook does not hold the device%s\n", On_Red BWhite, Color_Off);
+        json_t *hook = json_object_get(asset, "as_items_image");
+        if(!json_is_object(hook) || !json_object_get(hook, "item-1")) {
+            printf("%s  FAIL: the derived hook does not hold the item%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
     }
@@ -226,9 +226,9 @@ PRIVATE int test_bytes_not_in_record(json_t *tranger)
     /*
      *  A bare id and no bytes links an asset that exists
      */
-    json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "dev-1b", "foto", id, "qr", "");
-    json_t *node2 = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
-    if(!node2 || strcmp(fkey_id(node2, "foto"), id)!=0) {
+    json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "item-1b", "image", id, "label_code", "");
+    json_t *node2 = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
+    if(!node2 || strcmp(fkey_id(node2, "image"), id)!=0) {
         printf("%s  FAIL: a bare id of an existing asset did not link%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -254,15 +254,15 @@ PRIVATE int test_id_is_the_hash(json_t *tranger)
     );
 
     /*  good bytes, wrong id  */
-    json_t *node = create_device_with_foto(
-        tranger, "dev-liar", PNG_B, sizeof(PNG_B)-1, "image/png",
+    json_t *node = create_item_with_image(
+        tranger, "item-liar", PNG_B, sizeof(PNG_B)-1, "image/png",
         sha(PNG_A, sizeof(PNG_A)-1)
     );
     if(node) {
         printf("%s  FAIL: a wrong id with good bytes was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-liar")) {
+    if(treedb_get_node(tranger, TREEDB_NAME, "items", "item-liar")) {
         printf("%s  FAIL: the lying record was created%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -272,8 +272,8 @@ PRIVATE int test_id_is_the_hash(json_t *tranger)
     }
 
     /*  a bare id nobody stored, and no bytes  */
-    json_t *kw = json_pack("{s:s, s:s}", "id", "dev-ghost", "foto", sha(PNG_B, sizeof(PNG_B)-1));
-    node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *kw = json_pack("{s:s, s:s}", "id", "item-ghost", "image", sha(PNG_B, sizeof(PNG_B)-1));
+    node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(node) {
         printf("%s  FAIL: a bare id of a missing asset was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -301,24 +301,24 @@ PRIVATE int test_ceiling_before_decode(json_t *tranger)
 
     /*  the treedb ceiling  */
     treedb_set_files_limits(tranger, TREEDB_NAME, 40, NULL);
-    json_t *node = create_device_with_foto(tranger, "dev-big", PNG_B, sizeof(PNG_B)-1, "image/png", 0);
+    json_t *node = create_item_with_image(tranger, "item-big", PNG_B, sizeof(PNG_B)-1, "image/png", 0);
     if(node) {
         printf("%s  FAIL: a file over the treedb ceiling was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     treedb_set_files_limits(tranger, TREEDB_NAME, 128*1024*1024, NULL);
 
-    /*  the column's own limit (places.plano: 4096) under a generous ceiling  */
+    /*  the column's own limit (sites.map: 4096) under a generous ceiling  */
     char big_pdf[6000];
     memset(big_pdf, 'x', sizeof(big_pdf));
     memcpy(big_pdf, "%PDF-1.4\n", 9);
     json_t *kw = json_pack("{s:s, s:{s:{s:o, s:s}}}",
-        "id", "place-big",
-        "__files__", "plano",
+        "id", "site-big",
+        "__files__", "map",
             "content64", b64(big_pdf, sizeof(big_pdf)),
             "original_name", "big.pdf"
     );
-    node = treedb_create_node(tranger, TREEDB_NAME, "places", kw);
+    node = treedb_create_node(tranger, TREEDB_NAME, "sites", kw);
     if(node) {
         printf("%s  FAIL: a file over the column limit was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -346,37 +346,37 @@ PRIVATE int test_type_from_bytes(json_t *tranger)
     );
 
     /*  a png called jpeg  */
-    json_t *node = create_device_with_foto(tranger, "dev-lie-type", PNG_B, sizeof(PNG_B)-1, "image/jpeg", 0);
+    json_t *node = create_item_with_image(tranger, "item-lie-type", PNG_B, sizeof(PNG_B)-1, "image/jpeg", 0);
     if(node) {
         printf("%s  FAIL: a png called image/jpeg was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     /*  an svg called png: the case the allowlist exists for  */
-    node = create_device_with_foto(tranger, "dev-svg", SVG_A, sizeof(SVG_A)-1, "image/png", 0);
+    node = create_item_with_image(tranger, "item-svg", SVG_A, sizeof(SVG_A)-1, "image/png", 0);
     if(node) {
         printf("%s  FAIL: an svg called image/png was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     /*  a real png where the column takes only pdf  */
     json_t *kw = json_pack("{s:s, s:{s:{s:o, s:s}}}",
-        "id", "place-png",
-        "__files__", "plano",
+        "id", "site-png",
+        "__files__", "map",
             "content64", b64(PNG_B, sizeof(PNG_B)-1),
             "original_name", "plan.png"
     );
-    node = treedb_create_node(tranger, TREEDB_NAME, "places", kw);
+    node = treedb_create_node(tranger, TREEDB_NAME, "sites", kw);
     if(node) {
         printf("%s  FAIL: a png was accepted by a pdf-only column%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     /*  and a real pdf, declared by nothing but its bytes, is taken  */
     kw = json_pack("{s:s, s:{s:{s:o}}}",
-        "id", "place-1",
-        "__files__", "plano",
+        "id", "site-1",
+        "__files__", "map",
             "content64", b64(PDF_A, sizeof(PDF_A)-1)
     );
-    node = treedb_create_node(tranger, TREEDB_NAME, "places", kw);
-    if(!node || strcmp(fkey_id(node, "plano"), sha(PDF_A, sizeof(PDF_A)-1))!=0) {
+    node = treedb_create_node(tranger, TREEDB_NAME, "sites", kw);
+    if(!node || strcmp(fkey_id(node, "map"), sha(PDF_A, sizeof(PDF_A)-1))!=0) {
         printf("%s  FAIL: a pdf typed by its bytes alone was refused%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -396,7 +396,7 @@ PRIVATE int test_type_from_bytes(json_t *tranger)
 PRIVATE int check_derived_hooks(json_t *tranger, const char *when)
 {
     int result = 0;
-    static const char *hooks[] = {"as_devices_foto", "as_devices_qr", "as_places_plano", 0};
+    static const char *hooks[] = {"as_items_image", "as_items_label_code", "as_sites_map", 0};
 
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
     for(int i = 0; hooks[i]; i++) {
@@ -446,14 +446,14 @@ PRIVATE int test_derived_hooks_persist_nothing(json_t *tranger)
     result += check_derived_hooks(tranger, "after reopen");
 
     /*  and the links came back from the fkeys  */
-    json_t *dev = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-1");
+    json_t *dev = treedb_get_node(tranger, TREEDB_NAME, "items", "item-1");
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, sha(PNG_A, sizeof(PNG_A)-1));
     if(!dev || !asset) {
         printf("%s  FAIL: nodes lost on reopen%s\n", On_Red BWhite, Color_Off);
         result += -1;
     } else {
-        json_t *hook = json_object_get(asset, "as_devices_foto");
-        if(!json_is_object(hook) || !json_object_get(hook, "dev-1")) {
+        json_t *hook = json_object_get(asset, "as_items_image");
+        if(!json_is_object(hook) || !json_object_get(hook, "item-1")) {
             printf("%s  FAIL: the link was not rebuilt on reopen%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
@@ -486,13 +486,13 @@ PRIVATE int test_one_asset_one_blob(json_t *tranger)
     size_t len = sizeof(MP4_A)-1;
     const char *id = sha(MP4_A, len);
 
-    json_t *first = create_device_with_foto(tranger, "dev-mp4a", MP4_A, len, "video/mp4", 0);
+    json_t *first = create_item_with_image(tranger, "item-mp4a", MP4_A, len, "video/mp4", 0);
     if(!first) {
         printf("%s  FAIL: the mp4 was refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
     /*  the same bytes, the other name of the same container  */
-    json_t *second = create_device_with_foto(tranger, "dev-mp4b", MP4_A, len, "audio/mp4", 0);
+    json_t *second = create_item_with_image(tranger, "item-mp4b", MP4_A, len, "audio/mp4", 0);
     if(!second) {
         printf("%s  FAIL: the second arrival was refused%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -513,10 +513,10 @@ PRIVATE int test_one_asset_one_blob(json_t *tranger)
             On_Red BWhite, Color_Off);
         result += -1;
     }
-    /*  and both devices name the one asset  */
-    if(strcmp(fkey_id(first, "foto"), id)!=0 ||
-            (second && strcmp(fkey_id(second, "foto"), id)!=0)) {
-        printf("%s  FAIL: the two devices do not share the asset%s\n", On_Red BWhite, Color_Off);
+    /*  and both items name the one asset  */
+    if(strcmp(fkey_id(first, "image"), id)!=0 ||
+            (second && strcmp(fkey_id(second, "image"), id)!=0)) {
+        printf("%s  FAIL: the two items do not share the asset%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
@@ -558,8 +558,8 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
         "id",
             "id", "id", "header", "Id", "fillspace", 20, "type", "string",
             "flag", "persistent", "required",
-        "plan",
-            "id", "plan", "header", "Plan", "fillspace", 20, "type", "string",
+        "drawing",
+            "id", "drawing", "header", "Drawing", "fillspace", 20, "type", "string",
             "flag", "fkey", "file"
     );
     if(!treedb_create_topic(
@@ -570,7 +570,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
     }
 
     json_t *assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
-    BOOL derived = json_object_get(assets_cols, "as_works_plan")? TRUE: FALSE;
+    BOOL derived = json_object_get(assets_cols, "as_works_drawing")? TRUE: FALSE;
     JSON_DECREF(assets_cols)
     if(!derived) {
         printf("%s  FAIL: the hook of a topic created at run time was not derived%s\n",
@@ -581,14 +581,14 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
     /*  and it LINKS: the whole point of the hook existing  */
     json_t *kw = json_pack("{s:s, s:{s:{s:o, s:s}}}",
         "id", "work-1",
-        "__files__", "plan",
+        "__files__", "drawing",
             "content64", b64(PDF_B, sizeof(PDF_B)-1),
             "original_name", "work-1.pdf"
     );
     json_t *node = treedb_create_node(tranger, TREEDB_NAME, "works", kw);
     const char *pdf_id = sha(PDF_B, sizeof(PDF_B)-1);
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, pdf_id);
-    json_t *hook = asset? json_object_get(asset, "as_works_plan"): 0;
+    json_t *hook = asset? json_object_get(asset, "as_works_drawing"): 0;
     if(!node || !json_is_object(hook) || !json_object_get(hook, "work-1")) {
         printf("%s  FAIL: a file column of a run-time topic did not link%s\n",
             On_Red BWhite, Color_Off);
@@ -645,7 +645,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
         result += -1;
     }
     assets_cols = tranger2_dict_topic_desc_cols(tranger, TREEDB_ASSETS_TOPIC);
-    BOOL left_behind = json_object_get(assets_cols, "as_works_plan")? TRUE: FALSE;
+    BOOL left_behind = json_object_get(assets_cols, "as_works_drawing")? TRUE: FALSE;
     JSON_DECREF(assets_cols)
     if(left_behind) {
         printf("%s  FAIL: the hook of a deleted topic was left behind%s\n",
@@ -653,7 +653,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
         result += -1;
     }
     asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, pdf_id);
-    if(asset && json_object_get(asset, "as_works_plan")) {
+    if(asset && json_object_get(asset, "as_works_drawing")) {
         printf("%s  FAIL: the asset still answers a hook nothing declares%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
@@ -677,7 +677,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
  *  treedb_update_node() skips every fkey in its field loop, which is right
  *  for a link a person edits by linking. Left there, an update WITHOUT
  *  autolink stored the bytes and the index node, answered success, and
- *  left the column as it was: an orphan asset and a device with no photo.
+ *  left the column as it was: an orphan asset and an item with no image.
  *  And treedb_create_node() linked nothing at all, so a plain create-node
  *  did the same. Both link now; "" unlinks; a column the kw does not carry
  *  is left alone.
@@ -691,89 +691,89 @@ PRIVATE int test_write_path_links(json_t *tranger)
     /*  sha() answers in ONE static buffer: copy what is kept  */
     char id_a[SHA256_HEX_LEN + 1];
     char id_b[SHA256_HEX_LEN + 1];
-    char id_qr[SHA256_HEX_LEN + 1];
+    char id_label[SHA256_HEX_LEN + 1];
     snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
     snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));
-    snprintf(id_qr, sizeof(id_qr), "%s", sha(JPG_A, sizeof(JPG_A)-1));
+    snprintf(id_label, sizeof(id_label), "%s", sha(JPG_A, sizeof(JPG_A)-1));
 
-    /*  a plain create, foto AND qr, no autolink anywhere  */
+    /*  a plain create, image AND label_code, no autolink anywhere  */
     json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s}}}",
-        "id", "dev-11",
-        "foto", id_a,
-        "qr", "",
-        "__files__", "qr",
+        "id", "item-11",
+        "image", id_a,
+        "label_code", "",
+        "__files__", "label_code",
             "content64", b64(JPG_A, sizeof(JPG_A)-1),
-            "original_name", "dev-11.jpg"
+            "original_name", "item-11.jpg"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(!node) {
         printf("%s  FAIL: plain create refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
     json_t *asset_a = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_a);
-    json_t *hook = asset_a? json_object_get(asset_a, "as_devices_foto"): 0;
-    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
-        printf("%s  FAIL: create did not link foto (the asset's hook does not hold dev-11)%s\n",
+    json_t *hook = asset_a? json_object_get(asset_a, "as_items_image"): 0;
+    if(!json_is_object(hook) || !json_object_get(hook, "item-11")) {
+        printf("%s  FAIL: create did not link image (the asset's hook does not hold item-11)%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
-    json_t *asset_qr = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_qr);
-    hook = asset_qr? json_object_get(asset_qr, "as_devices_qr"): 0;
-    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
-        printf("%s  FAIL: create did not link qr%s\n", On_Red BWhite, Color_Off);
+    json_t *asset_label = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_label);
+    hook = asset_label? json_object_get(asset_label, "as_items_label_code"): 0;
+    if(!json_is_object(hook) || !json_object_get(hook, "item-11")) {
+        printf("%s  FAIL: create did not link label_code%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
-    /*  a plain update moves foto to B: A lets go, B takes it, qr untouched  */
+    /*  a plain update moves image to B: A lets go, B takes it, label_code untouched  */
     kw = json_pack("{s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-11",
-        "foto", "",
-        "__files__", "foto",
+        "id", "item-11",
+        "image", "",
+        "__files__", "image",
             "content64", b64(PNG_B, sizeof(PNG_B)-1),
-            "original_name", "dev-11.png",
+            "original_name", "item-11.png",
             "content_type", "image/png"
     );
     if(!treedb_update_node(tranger, node, kw, TRUE)) {
         printf("%s  FAIL: plain update with a file refused%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(strcmp(fkey_id(node, "foto"), id_b)!=0) {
-        printf("%s  FAIL: update did not move foto to B: %s%s\n",
-            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
+    if(strcmp(fkey_id(node, "image"), id_b)!=0) {
+        printf("%s  FAIL: update did not move image to B: %s%s\n",
+            On_Red BWhite, kw_get_str(0, node, "image", "", 0), Color_Off);
         result += -1;
     }
-    hook = json_object_get(asset_a, "as_devices_foto");
-    if(json_is_object(hook) && json_object_get(hook, "dev-11")) {
-        printf("%s  FAIL: A still holds dev-11 after the move%s\n", On_Red BWhite, Color_Off);
+    hook = json_object_get(asset_a, "as_items_image");
+    if(json_is_object(hook) && json_object_get(hook, "item-11")) {
+        printf("%s  FAIL: A still holds item-11 after the move%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     json_t *asset_b = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b);
-    hook = asset_b? json_object_get(asset_b, "as_devices_foto"): 0;
-    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
-        printf("%s  FAIL: B does not hold dev-11 after the move%s\n", On_Red BWhite, Color_Off);
+    hook = asset_b? json_object_get(asset_b, "as_items_image"): 0;
+    if(!json_is_object(hook) || !json_object_get(hook, "item-11")) {
+        printf("%s  FAIL: B does not hold item-11 after the move%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    hook = json_object_get(asset_qr, "as_devices_qr");
-    if(!json_is_object(hook) || !json_object_get(hook, "dev-11")) {
-        printf("%s  FAIL: a column the kw did not carry was touched (qr unlinked)%s\n",
+    hook = json_object_get(asset_label, "as_items_label_code");
+    if(!json_is_object(hook) || !json_object_get(hook, "item-11")) {
+        printf("%s  FAIL: a column the kw did not carry was touched (label_code unlinked)%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
 
     /*  "" unlinks, and the record says so  */
-    kw = json_pack("{s:s, s:s}", "id", "dev-11", "foto", "");
+    kw = json_pack("{s:s, s:s}", "id", "item-11", "image", "");
     if(!treedb_update_node(tranger, node, kw, TRUE)) {
         printf("%s  FAIL: clearing update refused%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(!empty_string(kw_get_str(0, node, "foto", "", 0))) {
-        printf("%s  FAIL: foto not cleared: %s%s\n",
-            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
+    if(!empty_string(kw_get_str(0, node, "image", "", 0))) {
+        printf("%s  FAIL: image not cleared: %s%s\n",
+            On_Red BWhite, kw_get_str(0, node, "image", "", 0), Color_Off);
         result += -1;
     }
-    hook = json_object_get(asset_b, "as_devices_foto");
-    if(json_is_object(hook) && json_object_get(hook, "dev-11")) {
-        printf("%s  FAIL: B still holds dev-11 after the clear%s\n", On_Red BWhite, Color_Off);
+    hook = json_object_get(asset_b, "as_items_image");
+    if(json_is_object(hook) && json_object_get(hook, "item-11")) {
+        printf("%s  FAIL: B still holds item-11 after the clear%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
@@ -785,11 +785,11 @@ PRIVATE int test_write_path_links(json_t *tranger)
         printf("%s  FAIL: cannot reopen%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-11");
-    asset_qr = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_qr);
-    hook = asset_qr? json_object_get(asset_qr, "as_devices_qr"): 0;
-    if(!node || !empty_string(kw_get_str(0, node, "foto", "", 0)) ||
-            !json_is_object(hook) || !json_object_get(hook, "dev-11")) {
+    node = treedb_get_node(tranger, TREEDB_NAME, "items", "item-11");
+    asset_label = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_label);
+    hook = asset_label? json_object_get(asset_label, "as_items_label_code"): 0;
+    if(!node || !empty_string(kw_get_str(0, node, "image", "", 0)) ||
+            !json_is_object(hook) || !json_object_get(hook, "item-11")) {
         printf("%s  FAIL: the links of the plain writes did not survive a reopen%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
@@ -815,29 +815,29 @@ PRIVATE int test_one_kw_two_files(json_t *tranger)
     gbuffer_append(gbuf, JPG_A, len_jpg);
 
     json_t *kw = json_pack("{s:s, s:I, s:{s:{s:I, s:I, s:s}, s:{s:I, s:I, s:s}}}",
-        "id", "dev-2",
+        "id", "item-2",
         "gbuffer", (json_int_t)(uintptr_t)gbuf,
         "__files__",
-            "foto",
+            "image",
                 "offset", (json_int_t)0,
                 "size", (json_int_t)len_png,
-                "original_name", "dev-2.png",
-            "qr",
+                "original_name", "item-2.png",
+            "label_code",
                 "offset", (json_int_t)len_png,
                 "size", (json_int_t)len_jpg,
-                "original_name", "dev-2.jpg"
+                "original_name", "item-2.jpg"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(!node) {
         printf("%s  FAIL: create with two slices refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    if(strcmp(fkey_id(node, "foto"), sha(PNG_B, len_png))!=0) {
-        printf("%s  FAIL: foto slice not stored%s\n", On_Red BWhite, Color_Off);
+    if(strcmp(fkey_id(node, "image"), sha(PNG_B, len_png))!=0) {
+        printf("%s  FAIL: image slice not stored%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(strcmp(fkey_id(node, "qr"), sha(JPG_A, len_jpg))!=0) {
-        printf("%s  FAIL: qr slice not stored%s\n", On_Red BWhite, Color_Off);
+    if(strcmp(fkey_id(node, "label_code"), sha(JPG_A, len_jpg))!=0) {
+        printf("%s  FAIL: label_code slice not stored%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     if(!blob_exists(tranger, sha(PNG_B, len_png), "image/png") ||
@@ -845,8 +845,8 @@ PRIVATE int test_one_kw_two_files(json_t *tranger)
         printf("%s  FAIL: a slice is not on disk%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    json_t *qr = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, sha(JPG_A, len_jpg));
-    if(!qr || strcmp(kw_get_str(0, qr, "content_type", "", 0), "image/jpeg")!=0) {
+    json_t *label_code = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, sha(JPG_A, len_jpg));
+    if(!label_code || strcmp(kw_get_str(0, label_code, "content_type", "", 0), "image/jpeg")!=0) {
         printf("%s  FAIL: the jpeg slice was not typed from its bytes%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -873,29 +873,29 @@ PRIVATE int test_gc_three_ways(json_t *tranger)
     );
 
     /*
-     *  C: linked by dev-3, then TWO snapshots, then dev-3 moves to A.
-     *  The second snap clones dev-3 under its own tag (the first tag
+     *  C: linked by item-3, then TWO snapshots, then item-3 moves to A.
+     *  The second snap clones item-3 under its own tag (the first tag
      *  stays on the original), and the move appends an instance under no
      *  tag. So what an activation of either snap would load still names
      *  C, while nothing LIVE does: only the snapshots remember it.
      */
-    json_t *node = create_device_with_foto(tranger, "dev-3", PNG_C, sizeof(PNG_C)-1, "image/png", 0);
+    json_t *node = create_item_with_image(tranger, "item-3", PNG_C, sizeof(PNG_C)-1, "image/png", 0);
     if(!node) {
-        printf("%s  FAIL: cannot create dev-3%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot create item-3%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c", "dev-3 holds C")<0 ||
-            treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c2", "dev-3 still holds C")<0) {
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c", "item-3 holds C")<0 ||
+            treedb_shoot_snap(tranger, TREEDB_NAME, "snap_c2", "item-3 still holds C")<0) {
         printf("%s  FAIL: cannot shoot the snaps%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    json_t *kw = json_pack("{s:s, s:s}", "id", "dev-3", "foto", sha(PNG_A, sizeof(PNG_A)-1));
+    json_t *kw = json_pack("{s:s, s:s}", "id", "item-3", "image", sha(PNG_A, sizeof(PNG_A)-1));
     if(!treedb_update_node(tranger, node, kw, TRUE)) {
-        printf("%s  FAIL: plain update of dev-3 refused%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: plain update of item-3 refused%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(strcmp(fkey_id(node, "foto"), sha(PNG_A, sizeof(PNG_A)-1))!=0) {
-        printf("%s  FAIL: dev-3 did not move to A%s\n", On_Red BWhite, Color_Off);
+    if(strcmp(fkey_id(node, "image"), sha(PNG_A, sizeof(PNG_A)-1))!=0) {
+        printf("%s  FAIL: item-3 did not move to A%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
@@ -1041,10 +1041,10 @@ PRIVATE int test_two_treedbs_one_tranger(json_t *tranger)
     char id_d[SHA256_HEX_LEN + 1];
     snprintf(id_d, sizeof(id_d), "%s", sha(PNG_D, sizeof(PNG_D)-1));
 
-    /*  D arrives through the FIRST treedb, linked by dev-12  */
-    json_t *dev = create_device_with_foto(tranger, "dev-12", PNG_D, sizeof(PNG_D)-1, "image/png", 0);
+    /*  D arrives through the FIRST treedb, linked by item-12  */
+    json_t *dev = create_item_with_image(tranger, "item-12", PNG_D, sizeof(PNG_D)-1, "image/png", 0);
     if(!dev) {
-        printf("%s  FAIL: cannot create dev-12%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot create item-12%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
 
@@ -1071,10 +1071,10 @@ PRIVATE int test_two_treedbs_one_tranger(json_t *tranger)
         result += -1;
     }
 
-    /*  dev-12 lets go: in the FIRST treedb nothing links D any more  */
-    kw = json_pack("{s:s, s:s}", "id", "dev-12", "foto", "");
+    /*  item-12 lets go: in the FIRST treedb nothing links D any more  */
+    kw = json_pack("{s:s, s:s}", "id", "item-12", "image", "");
     if(!treedb_update_node(tranger, dev, kw, TRUE)) {
-        printf("%s  FAIL: cannot unlink dev-12%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot unlink item-12%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
@@ -1152,25 +1152,25 @@ PRIVATE int test_gc_holds_what_a_snap_would_load(json_t *tranger)
     snprintf(id_c, sizeof(id_c), "%s", sha(PNG_C, sizeof(PNG_C)-1));
     snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
 
-    /*  dev-13 holds E, a snap, then dev-13 moves to A: the record snap_e
+    /*  item-13 holds E, a snap, then item-13 moves to A: the record snap_e
      *  froze names E, so snap_e holds E although nothing live does  */
-    json_t *dev = create_device_with_foto(tranger, "dev-13", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
+    json_t *dev = create_item_with_image(tranger, "item-13", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
     if(!dev) {
-        printf("%s  FAIL: cannot create dev-13%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot create item-13%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "dev-13 holds E")<0) {
+    if(treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "item-13 holds E")<0) {
         printf("%s  FAIL: cannot shoot snap_e%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    json_t *kw = json_pack("{s:s, s:s}", "id", "dev-13", "foto", id_a);
+    json_t *kw = json_pack("{s:s, s:s}", "id", "item-13", "image", id_a);
     if(!treedb_update_node(tranger, dev, kw, TRUE)) {
-        printf("%s  FAIL: cannot move dev-13 to A%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot move item-13 to A%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
     if(json_str_in_list(0, would, id_e, 0)) {
-        printf("%s  FAIL: E let go while snap_e, which froze dev-13 holding it, exists%s\n",
+        printf("%s  FAIL: E let go while snap_e, which froze item-13 holding it, exists%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -1267,47 +1267,47 @@ PRIVATE int test_file_col_names_its_own_hook(json_t *tranger)
         NULL, NULL, 1
     );
 
-    json_t *node = create_device_with_foto(
-        tranger, "dev-own", PNG_F, sizeof(PNG_F)-1, "image/png", 0
+    json_t *node = create_item_with_image(
+        tranger, "item-own", PNG_F, sizeof(PNG_F)-1, "image/png", 0
     );
     if(!node) {
-        printf("%s  FAIL: cannot create dev-own%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot create item-own%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
     const char *id_f = sha(PNG_F, sizeof(PNG_F)-1);
 
     /*  the hook of the OTHER `file` column of the same topic  */
     char other[NAME_MAX*3];
-    snprintf(other, sizeof(other), "%s^%s^as_devices_qr", TREEDB_ASSETS_TOPIC, id_f);
-    json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "dev-thief", "name", "dev-thief", "foto", other);
-    if(treedb_create_node(tranger, TREEDB_NAME, "devices", kw)) {
+    snprintf(other, sizeof(other), "%s^%s^as_items_label_code", TREEDB_ASSETS_TOPIC, id_f);
+    json_t *kw = json_pack("{s:s, s:s, s:s}", "id", "item-thief", "name", "item-thief", "image", other);
+    if(treedb_create_node(tranger, TREEDB_NAME, "items", kw)) {
         printf("%s  FAIL: a 'file' column naming another column's hook was accepted%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-thief")) {
+    if(treedb_get_node(tranger, TREEDB_NAME, "items", "item-thief")) {
         printf("%s  FAIL: the refused record was created%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
-    if(json_object_size(json_object_get(asset, "as_devices_qr")) != 0) {
+    if(json_object_size(json_object_get(asset, "as_items_label_code")) != 0) {
         printf("%s  FAIL: the link landed on the other column's hook%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
     /*  a reference to another TOPIC, and a malformed one  */
-    kw = json_pack("{s:s, s:s}", "id", "dev-own", "foto", "places^nowhere^plano");
+    kw = json_pack("{s:s, s:s}", "id", "item-own", "image", "sites^nowhere^map");
     if(treedb_update_node(tranger, node, kw, TRUE)) {
         printf("%s  FAIL: a 'file' column naming another topic was accepted%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
-    kw = json_pack("{s:s, s:s}", "id", "dev-own", "foto", "not^a^reference^at^all");
+    kw = json_pack("{s:s, s:s}", "id", "item-own", "image", "not^a^reference^at^all");
     if(treedb_update_node(tranger, node, kw, TRUE)) {
         printf("%s  FAIL: a malformed reference was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+    if(strcmp(fkey_id(node, "image"), id_f)!=0) {
         printf("%s  FAIL: a refused update moved the column%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -1341,15 +1341,15 @@ PRIVATE int test_nul_in_a_file_ref(json_t *tranger)
     snprintf(id_f, sizeof(id_f), "%s", sha(PNG_F, sizeof(PNG_F)-1));
     snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
 
-    json_t *node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-own");
-    if(!node || strcmp(fkey_id(node, "foto"), id_f)!=0) {
-        printf("%s  FAIL: dev-own with the foto F is missing%s\n", On_Red BWhite, Color_Off);
+    json_t *node = treedb_get_node(tranger, TREEDB_NAME, "items", "item-own");
+    if(!node || strcmp(fkey_id(node, "image"), id_f)!=0) {
+        printf("%s  FAIL: item-own with the image F is missing%s\n", On_Red BWhite, Color_Off);
         result += -1;
         result += test_json(NULL);
         return result;
     }
 
-    json_t *kw = json_pack("{s:s, s:s%}", "id", "dev-own", "foto", "\0junk", (size_t)5);
+    json_t *kw = json_pack("{s:s, s:s%}", "id", "item-own", "image", "\0junk", (size_t)5);
     if(treedb_update_node(tranger, node, kw, TRUE)) {
         printf("%s  FAIL: an update with a file ref that begins with a NUL was taken%s\n",
             On_Red BWhite, Color_Off);
@@ -1360,16 +1360,16 @@ PRIVATE int test_nul_in_a_file_ref(json_t *tranger)
     snprintf(ref, sizeof(ref), "%s", id_a);
     size_t ref_len = strlen(ref);
     memcpy(ref + ref_len, "\0evil", 5);
-    kw = json_pack("{s:s, s:s%}", "id", "dev-own", "foto", ref, ref_len + 5);
+    kw = json_pack("{s:s, s:s%}", "id", "item-own", "image", ref, ref_len + 5);
     if(treedb_update_node(tranger, node, kw, TRUE)) {
         printf("%s  FAIL: an update with a file ref with a NUL after the id was taken%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
 
-    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+    if(strcmp(fkey_id(node, "image"), id_f)!=0) {
         printf("%s  FAIL: a refused update moved the file column: '%s'%s\n",
-            On_Red BWhite, kw_get_str(0, node, "foto", "", 0), Color_Off);
+            On_Red BWhite, kw_get_str(0, node, "image", "", 0), Color_Off);
         result += -1;
     }
 
@@ -1394,30 +1394,30 @@ PRIVATE int test_second_arrival_keeps_the_name(json_t *tranger)
 
     const char *id_f = sha(PNG_F, sizeof(PNG_F)-1);
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
-    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "foto.png")!=0) {
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "image.png")!=0) {
         printf("%s  FAIL: the asset did not arrive named%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
 
     /*  the same bytes, a manifest with no name  */
     json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s}}}",
-        "id", "dev-noname", "name", "dev-noname", "qr", "",
+        "id", "item-noname", "name", "item-noname", "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_F, sizeof(PNG_F)-1),
                 "content_type", "image/png"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(!node) {
         printf("%s  FAIL: the second arrival was refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+    if(strcmp(fkey_id(node, "image"), id_f)!=0) {
         printf("%s  FAIL: the second arrival did not link the asset%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_f);
-    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "foto.png")!=0) {
+    if(strcmp(kw_get_str(0, asset, "original_name", "", 0), "image.png")!=0) {
         printf("%s  FAIL: a nameless arrival wiped the stored name ('%s')%s\n",
             On_Red BWhite, kw_get_str(0, asset, "original_name", "", 0), Color_Off);
         result += -1;
@@ -1425,9 +1425,9 @@ PRIVATE int test_second_arrival_keeps_the_name(json_t *tranger)
 
     /*  and a named one is still recorded  */
     kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-noname", "name", "dev-noname", "qr", "",
+        "id", "item-noname", "name", "item-noname", "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_F, sizeof(PNG_F)-1),
                 "original_name", "again.png",
                 "content_type", "image/png"
@@ -1475,19 +1475,19 @@ PRIVATE int test_same_name_appends_nothing(json_t *tranger)
 
     /*  the same bytes, under the name already stored  */
     json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-samename", "name", "dev-samename", "qr", "",
+        "id", "item-samename", "name", "item-samename", "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_F, sizeof(PNG_F)-1),
                 "original_name", stored_name,
                 "content_type", "image/png"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(!node) {
         printf("%s  FAIL: the arrival was refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
-    if(strcmp(fkey_id(node, "foto"), id_f)!=0) {
+    if(strcmp(fkey_id(node, "image"), id_f)!=0) {
         printf("%s  FAIL: the arrival did not link the asset%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -1501,9 +1501,9 @@ PRIVATE int test_same_name_appends_nothing(json_t *tranger)
 
     /*  and a NEW name is still history  */
     kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-samename", "name", "dev-samename", "qr", "",
+        "id", "item-samename", "name", "item-samename", "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_F, sizeof(PNG_F)-1),
                 "original_name", "renamed.png",
                 "content_type", "image/png"
@@ -1554,14 +1554,14 @@ PRIVATE int test_refused_create_stores_nothing(json_t *tranger)
 
     /*  an id that exists (test 17 made it), with bytes nobody has  */
     json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-samename", "name", "dev-samename", "foto", "", "qr", "",
+        "id", "item-samename", "name", "item-samename", "image", "", "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_G, sizeof(PNG_G)-1),
                 "original_name", "refused.png",
                 "content_type", "image/png"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(node) {
         printf("%s  FAIL: a create of an existing id was accepted%s\n", On_Red BWhite, Color_Off);
         result += -1;
@@ -1706,22 +1706,22 @@ PRIVATE int test_failed_autolink_tells_the_asset_write(json_t *tranger)
         "msg", "Wrong fkey reference: must be \"topic_name^id^hook_name\""
     ), NULL, NULL, 1);
 
-    json_t *node = create_device_with_foto(tranger, "dev-29", PNG_K, sizeof(PNG_K)-1, "image/png", 0);
+    json_t *node = create_item_with_image(tranger, "item-29", PNG_K, sizeof(PNG_K)-1, "image/png", 0);
     if(!node) {
-        printf("%s  FAIL: the device was not created%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: the item was not created%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
 
     treedb_set_callback(tranger, TREEDB_NAME, count_asset_updates, NULL, TREEDB_CALLBACK_LINK_EVENTS);
     asset_updates = 0;
 
-    /*  the same bytes under a new name, and a qr that is not a ref  */
+    /*  the same bytes under a new name, and a label_code that is not a ref  */
     json_t *kw = json_pack("{s:s, s:s, s:[s], s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-29",
-        "foto", "",
-        "qr", "not a ref",
+        "id", "item-29",
+        "image", "",
+        "label_code", "not a ref",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_K, sizeof(PNG_K)-1),
                 "original_name", "renamed.png",
                 "content_type", "image/png"
@@ -1775,11 +1775,11 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
      *-------------------------------------------*/
     json_t *graph = treedb_create_node(tranger, TREEDB_NAME, "__graphs__",
         json_pack("{s:s, s:s, s:b, s:{s:{s:i, s:i}}}",
-            "id", "devices",
-            "topic", "devices",
+            "id", "items",
+            "topic", "items",
             "active", 1,
             "properties",
-                "dev-a",
+                "item-a",
                     "x", 10,
                     "y", 20
         )
@@ -1793,7 +1793,7 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
     graph = treedb_update_node(tranger, graph,
         json_pack("{s:{s:{s:i, s:i}}}",
             "properties",
-                "dev-a",
+                "item-a",
                     "x", 30,
                     "y", 40
         ),
@@ -1813,16 +1813,16 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
      *  __assets__.t is not writable: it stays
      *-------------------------------------------*/
     json_t *kw = json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-        "id", "dev-stamp", "name", "dev-stamp", "qr", "",
+        "id", "item-stamp", "name", "item-stamp", "label_code", "",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_H, sizeof(PNG_H)-1),
                 "original_name", "stamp.png",
                 "content_type", "image/png"
     );
-    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "devices", kw);
+    json_t *node = treedb_create_node(tranger, TREEDB_NAME, "items", kw);
     if(!node) {
-        printf("%s  FAIL: the device was refused%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: the item was refused%s\n", On_Red BWhite, Color_Off);
         return -1;
     }
     json_object_set_new(node, "updated", json_integer(1));
@@ -1838,7 +1838,7 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
 
     kw = json_pack("{s:{s:{s:o, s:s, s:s}}}",
         "__files__",
-            "foto",
+            "image",
                 "content64", b64(PNG_H, sizeof(PNG_H)-1),
                 "original_name", "renamed.png",
                 "content_type", "image/png"
@@ -1859,10 +1859,10 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
     }
 
     /*-------------------------------------------*
-     *  devices.updated / .seen, no `writable`:
-     *  the device was written, they move
+     *  items.updated / .seen, no `writable`:
+     *  the item was written, they move
      *-------------------------------------------*/
-    node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-stamp");
+    node = treedb_get_node(tranger, TREEDB_NAME, "items", "item-stamp");
     if(kw_get_int(0, node, "updated", 0, 0) <= 1) {
         printf("%s  FAIL: a write left a non-writable `now` where the create put it%s\n",
             On_Red BWhite, Color_Off);
@@ -1885,7 +1885,7 @@ PRIVATE int test_now_is_stamped_on_update(json_t *tranger)
  *  treedb_update_node() checked `master` after the bytes of a `file`
  *  column were in the master's store and the links of the column had
  *  moved in memory, so a refused update left a blob nothing names and a
- *  node whose photo was gone until the next reload. A create did the same
+ *  node whose image was gone until the next reload. A create did the same
  *  through the append that refused it.
  ***************************************************************************/
 PRIVATE int test_replica_writes_nothing(const char *path_root)
@@ -1906,17 +1906,17 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
     );
 
     /*-------------------------------------------*
-     *  The master leaves one device with a foto
+     *  The master leaves one item with an image
      *-------------------------------------------*/
     json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b}",
         "path", path_root, "database", DATABASE, "master", 1), 0);
     helper_quote2doublequote(schema_sample);
     treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
-    json_t *node = create_device_with_foto(
-        tranger, "dev-replica", PNG_I, sizeof(PNG_I)-1, "image/png", NULL
+    json_t *node = create_item_with_image(
+        tranger, "item-replica", PNG_I, sizeof(PNG_I)-1, "image/png", NULL
     );
     if(!node) {
-        printf("%s  FAIL: the master could not create the device%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: the master could not create the item%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     treedb_close_db(tranger, TREEDB_NAME);
@@ -1929,25 +1929,25 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
         "path", path_root, "database", DATABASE, "master", 0), 0);
     treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
 
-    node = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-replica");
+    node = treedb_get_node(tranger, TREEDB_NAME, "items", "item-replica");
     const char *id_i = sha(PNG_I, sizeof(PNG_I)-1);
     json_t *asset = treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_i);
     if(!node || !asset) {
-        printf("%s  FAIL: the replica does not see the device and its asset%s\n",
+        printf("%s  FAIL: the replica does not see the item and its asset%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     } else {
         /*  a refused update that empties the file column  */
-        if(treedb_update_node(tranger, node, json_pack("{s:s}", "foto", ""), TRUE)) {
+        if(treedb_update_node(tranger, node, json_pack("{s:s}", "image", ""), TRUE)) {
             printf("%s  FAIL: a replica updated a node%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
-        if(strcmp(fkey_id(node, "foto"), id_i)!=0) {
+        if(strcmp(fkey_id(node, "image"), id_i)!=0) {
             printf("%s  FAIL: a refused update emptied the column in memory%s\n",
                 On_Red BWhite, Color_Off);
             result += -1;
         }
-        if(!json_object_get(json_object_get(asset, "as_devices_foto"), "dev-replica")) {
+        if(!json_object_get(json_object_get(asset, "as_items_image"), "item-replica")) {
             printf("%s  FAIL: a refused update unlinked the asset in memory%s\n",
                 On_Red BWhite, Color_Off);
             result += -1;
@@ -1957,11 +1957,11 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
         const char *id_j = sha(PNG_J, sizeof(PNG_J)-1);
         for(int save=1; save>=0; save--) {
             json_t *kw = json_pack("{s:s, s:{s:{s:o, s:s, s:s}}}",
-                "qr", "",
+                "label_code", "",
                 "__files__",
-                    "qr",
+                    "label_code",
                         "content64", b64(PNG_J, sizeof(PNG_J)-1),
-                        "original_name", "qr.png",
+                        "original_name", "label_code.png",
                         "content_type", "image/png"
             );
             if(treedb_update_node(tranger, node, kw, save?TRUE:FALSE)) {
@@ -1978,14 +1978,14 @@ PRIVATE int test_replica_writes_nothing(const char *path_root)
 
         /*  a refused create that hands bytes  */
         json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-            "id", "dev-replica-2", "name", "dev-replica-2", "foto", "", "qr", "",
+            "id", "item-replica-2", "name", "item-replica-2", "image", "", "label_code", "",
             "__files__",
-                "foto",
+                "image",
                     "content64", b64(PNG_J, sizeof(PNG_J)-1),
-                    "original_name", "foto.png",
+                    "original_name", "image.png",
                     "content_type", "image/png"
         );
-        if(treedb_create_node(tranger, TREEDB_NAME, "devices", kw)) {
+        if(treedb_create_node(tranger, TREEDB_NAME, "items", kw)) {
             printf("%s  FAIL: a replica created a node%s\n", On_Red BWhite, Color_Off);
             result += -1;
         }
@@ -2055,7 +2055,7 @@ PRIVATE int test_replica_before_its_master_has_icons(const char *path_root)
         printf("%s  FAIL: the replica did not open the treedb%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    if(!treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-replica")) {
+    if(!treedb_get_node(tranger, TREEDB_NAME, "items", "item-replica")) {
         printf("%s  FAIL: the replica does not see the records of the store%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
@@ -2110,7 +2110,7 @@ PRIVATE int test_replica_before_its_master_has_icons(const char *path_root)
  *  bytes are gone for good (7.25.4). The node and instance guards were made to fail closed for the
  *  same case in b5625fdeb; this one was not.
  *
- *  Self-contained (own database): the content of the device is cut
+ *  Self-contained (own database): the content of the item is cut
  *  behind treedb's back.
  ***************************************************************************/
 PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
@@ -2136,16 +2136,16 @@ PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
     snprintf(id_e, sizeof(id_e), "%s", sha(PNG_E, sizeof(PNG_E)-1));
     snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
 
-    /*  dev-21 holds E, a snap, then dev-21 moves to A: only snap_e holds E  */
-    json_t *dev = create_device_with_foto(tranger, "dev-21", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
-    if(!dev || treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "dev-21 holds E")<0) {
-        printf("%s  FAIL: cannot set up dev-21 and snap_e%s\n", On_Red BWhite, Color_Off);
+    /*  item-21 holds E, a snap, then item-21 moves to A: only snap_e holds E  */
+    json_t *dev = create_item_with_image(tranger, "item-21", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
+    if(!dev || treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "item-21 holds E")<0) {
+        printf("%s  FAIL: cannot set up item-21 and snap_e%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    json_t *kw = create_device_with_foto(tranger, "dev-21b", PNG_A, sizeof(PNG_A)-1, "image/png", 0)?
-        json_pack("{s:s, s:s}", "id", "dev-21", "foto", id_a) : NULL;
+    json_t *kw = create_item_with_image(tranger, "item-21b", PNG_A, sizeof(PNG_A)-1, "image/png", 0)?
+        json_pack("{s:s, s:s}", "id", "item-21", "image", id_a) : NULL;
     if(!dev || !kw || !treedb_update_node(tranger, dev, kw, TRUE)) {
-        printf("%s  FAIL: cannot move dev-21 to A%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot move item-21 to A%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     json_t *would = treedb_gc_files(tranger, TREEDB_NAME, TRUE);
@@ -2157,8 +2157,8 @@ PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
     result += test_json(NULL);
 
     /*
-     *  The records of dev-21 cannot be read any more: the walk of the
-     *  instances of `devices` fails at the first (a content that cannot be
+     *  The records of item-21 cannot be read any more: the walk of the
+     *  instances of `items` fails at the first (a content that cannot be
      *  read ends a load, it is not handed to the callback as NULL)
      */
     set_expected_results_unordered(test,
@@ -2173,7 +2173,7 @@ PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
         NULL, NULL, 1
     );
     char key_dir[PATH_MAX];
-    build_path(key_dir, sizeof(key_dir), path_db, "devices", "keys", "dev-21", NULL);
+    build_path(key_dir, sizeof(key_dir), path_db, "items", "keys", "item-21", NULL);
     dir_array_t da;
     get_ordered_filename_array(0, key_dir, ".*\\.json", WD_MATCH_REGULAR_FILE, &da);
     for(int i = 0; i < da.count; i++) {
@@ -2232,7 +2232,7 @@ PRIVATE int test_gc_guard_that_cannot_read_refuses(const char *path_root)
  *  (`load_failed`): a tagged instance in the key that did not load may be
  *  the one a snapshot needs.
  *
- *  Self-contained (own database): the md2 of the device a snap froze is
+ *  Self-contained (own database): the md2 of the item a snap froze is
  *  cut behind treedb's back.
  ***************************************************************************/
 PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
@@ -2258,23 +2258,23 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
     snprintf(id_e, sizeof(id_e), "%s", sha(PNG_E, sizeof(PNG_E)-1));
     snprintf(id_a, sizeof(id_a), "%s", sha(PNG_A, sizeof(PNG_A)-1));
 
-    /*  dev-22 holds E, a snap, then dev-22 moves to A: only snap_e holds E  */
-    json_t *dev = create_device_with_foto(tranger, "dev-22", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
-    if(!dev || treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "dev-22 holds E")<0) {
-        printf("%s  FAIL: cannot set up dev-22 and snap_e%s\n", On_Red BWhite, Color_Off);
+    /*  item-22 holds E, a snap, then item-22 moves to A: only snap_e holds E  */
+    json_t *dev = create_item_with_image(tranger, "item-22", PNG_E, sizeof(PNG_E)-1, "image/png", 0);
+    if(!dev || treedb_shoot_snap(tranger, TREEDB_NAME, "snap_e", "item-22 holds E")<0) {
+        printf("%s  FAIL: cannot set up item-22 and snap_e%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
-    json_t *kw = create_device_with_foto(tranger, "dev-22b", PNG_A, sizeof(PNG_A)-1, "image/png", 0)?
-        json_pack("{s:s, s:s}", "id", "dev-22", "foto", id_a) : NULL;
+    json_t *kw = create_item_with_image(tranger, "item-22b", PNG_A, sizeof(PNG_A)-1, "image/png", 0)?
+        json_pack("{s:s, s:s}", "id", "item-22", "image", id_a) : NULL;
     if(!dev || !kw || !treedb_update_node(tranger, dev, kw, TRUE)) {
-        printf("%s  FAIL: cannot move dev-22 to A%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: cannot move item-22 to A%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     result += test_json(NULL);
 
     /*
-     *  The md2 of dev-22 cannot be read any more. Every call walks the two
-     *  `file` columns of devices (foto, qr), each walk says it did not load
+     *  The md2 of item-22 cannot be read any more. Every call walks the two
+     *  `file` columns of items (image, label_code), each walk says it did not load
      *  (a whitelist: each message may repeat).
      */
     set_expected_results_unordered(test,
@@ -2291,7 +2291,7 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
         NULL, NULL, 1
     );
     char key_dir[PATH_MAX];
-    build_path(key_dir, sizeof(key_dir), path_db, "devices", "keys", "dev-22", NULL);
+    build_path(key_dir, sizeof(key_dir), path_db, "items", "keys", "item-22", NULL);
     dir_array_t da;
     get_ordered_filename_array(0, key_dir, ".*\\.md2", WD_MATCH_REGULAR_FILE, &da);
     for(int i = 0; i < da.count; i++) {
@@ -2402,7 +2402,7 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
 }
 
 /***************************************************************************
- *  A self-contained treedb of this file's schema, with dev-<n> linking
+ *  A self-contained treedb of this file's schema, with item-<n> linking
  *  the bytes `png`, closed, a key cut behind its back, and opened again.
  *  With `restart`, the tranger is shut down before the damage and started
  *  again after it: the cache of the topic is built from the damaged store.
@@ -2416,7 +2416,7 @@ PRIVATE int test_gc_guard_reads_a_partial_walk(const char *path_root)
 PRIVATE json_t *reopen_with_a_key_cut2(
     const char *path_root,
     const char *db,
-    const char *device,
+    const char *item,
     const char *png,
     size_t png_len,
     const char *cut_topic,
@@ -2433,8 +2433,8 @@ PRIVATE json_t *reopen_with_a_key_cut2(
         "on_critical_error", LOG_OPT_TRACE_STACK), 0);
     helper_quote2doublequote(schema_sample);
     treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
-    if(!create_device_with_foto(tranger, device, png, png_len, "image/png", 0)) {
-        printf("%s  FAIL: cannot create %s%s\n", On_Red BWhite, device, Color_Off);
+    if(!create_item_with_image(tranger, item, png, png_len, "image/png", 0)) {
+        printf("%s  FAIL: cannot create %s%s\n", On_Red BWhite, item, Color_Off);
     }
     treedb_close_db(tranger, TREEDB_NAME);
     if(restart) {
@@ -2471,14 +2471,14 @@ PRIVATE json_t *reopen_with_a_key_cut2(
 PRIVATE json_t *reopen_with_a_key_cut(
     const char *path_root,
     const char *db,
-    const char *device,
+    const char *item,
     const char *png,
     size_t png_len,
     const char *cut_topic,
     const char *cut_key
 )
 {
-    return reopen_with_a_key_cut2(path_root, db, device, png, png_len, cut_topic, cut_key, FALSE);
+    return reopen_with_a_key_cut2(path_root, db, item, png, png_len, cut_topic, cut_key, FALSE);
 }
 
 /***************************************************************************
@@ -2495,9 +2495,9 @@ PRIVATE int test_gc_with_a_node_that_did_not_load(const char *path_root)
 
     set_expected_results(test, NULL, NULL, NULL, 0);
     json_t *tranger = reopen_with_a_key_cut(
-        path_root, "tr_files_gc_node_not_loaded", "dev-23", PNG_B, sizeof(PNG_B)-1, "devices", "dev-23"
+        path_root, "tr_files_gc_node_not_loaded", "item-23", PNG_B, sizeof(PNG_B)-1, "items", "item-23"
     );
-    test_json(NULL);    // the setup logs, and the load of dev-23, are case 1 of tr_treedb_load_failed
+    test_json(NULL);    // the setup logs, and the load of item-23, are case 1 of tr_treedb_load_failed
 
     char id_b[SHA256_HEX_LEN + 1];
     snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));
@@ -2525,7 +2525,7 @@ PRIVATE int test_gc_with_a_node_that_did_not_load(const char *path_root)
     JSON_DECREF(taken)
     if(!treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b) ||
             !blob_exists(tranger, id_b, "image/png")) {
-        printf("%s  FAIL: the asset B of dev-23 is gone%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: the asset B of item-23 is gone%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     result += test_json(NULL);
@@ -2553,7 +2553,7 @@ PRIVATE int test_sweep_with_a_row_that_did_not_load(const char *path_root)
 
     set_expected_results(test, NULL, NULL, NULL, 0);
     json_t *tranger = reopen_with_a_key_cut(
-        path_root, "tr_files_sweep_row_not_loaded", "dev-24", PNG_C, sizeof(PNG_C)-1,
+        path_root, "tr_files_sweep_row_not_loaded", "item-24", PNG_C, sizeof(PNG_C)-1,
         TREEDB_ASSETS_TOPIC, id_c
     );
     test_json(NULL);    // the setup logs, and the load of the row, are case 1 of tr_treedb_load_failed
@@ -2614,10 +2614,10 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
 
     set_expected_results(test, NULL, NULL, NULL, 0);
     json_t *tranger = reopen_with_a_key_cut2(
-        path_root, "tr_files_gc_restart_node", "dev-25", PNG_B, sizeof(PNG_B)-1,
-        "devices", "dev-25", TRUE
+        path_root, "tr_files_gc_restart_node", "item-25", PNG_B, sizeof(PNG_B)-1,
+        "items", "item-25", TRUE
     );
-    test_json(NULL);    // the load of dev-25 is case 5 of tr_treedb_load_failed
+    test_json(NULL);    // the load of item-25 is case 5 of tr_treedb_load_failed
 
     set_expected_results_unordered(test,
         json_pack("[{s:s},{s:s}]",
@@ -2642,7 +2642,7 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
     JSON_DECREF(taken)
     if(!treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b) ||
             !blob_exists(tranger, id_b, "image/png")) {
-        printf("%s  FAIL: the asset B of dev-25 is gone%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: the asset B of item-25 is gone%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     result += test_json(NULL);
@@ -2658,7 +2658,7 @@ PRIVATE int test_gc_after_a_restart(const char *path_root)
 
     set_expected_results(test, NULL, NULL, NULL, 0);
     tranger = reopen_with_a_key_cut2(
-        path_root, "tr_files_gc_restart_row", "dev-26", PNG_C, sizeof(PNG_C)-1,
+        path_root, "tr_files_gc_restart_row", "item-26", PNG_C, sizeof(PNG_C)-1,
         TREEDB_ASSETS_TOPIC, id_c, TRUE
     );
     test_json(NULL);
@@ -2725,10 +2725,10 @@ PRIVATE int test_gc_refuses_with_a_snap_active(const char *path_root)
     char id_b[SHA256_HEX_LEN + 1];
     snprintf(id_b, sizeof(id_b), "%s", sha(PNG_B, sizeof(PNG_B)-1));
 
-    /*  dev-27a links A, snap s1, dev-27b links B AFTER it; s1 activated  */
-    int ret = create_device_with_foto(tranger, "dev-27a", PNG_A, sizeof(PNG_A)-1, "image/png", 0)? 0: -1;
+    /*  item-27a links A, snap s1, item-27b links B AFTER it; s1 activated  */
+    int ret = create_item_with_image(tranger, "item-27a", PNG_A, sizeof(PNG_A)-1, "image/png", 0)? 0: -1;
     ret += treedb_shoot_snap(tranger, TREEDB_NAME, "s1", "A only");
-    ret += create_device_with_foto(tranger, "dev-27b", PNG_B, sizeof(PNG_B)-1, "image/png", 0)? 0: -1;
+    ret += create_item_with_image(tranger, "item-27b", PNG_B, sizeof(PNG_B)-1, "image/png", 0)? 0: -1;
     ret += treedb_activate_snap(tranger, TREEDB_NAME, "s1") > 0? 0: -1;
     treedb_close_db(tranger, TREEDB_NAME);
     treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
@@ -2770,22 +2770,22 @@ PRIVATE int test_gc_refuses_with_a_snap_active(const char *path_root)
     JSON_DECREF(report)
     if(!treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b) ||
             !blob_exists(tranger, id_b, "image/png")) {
-        printf("%s  FAIL: the asset B of the live dev-27b is gone%s\n", On_Red BWhite, Color_Off);
+        printf("%s  FAIL: the asset B of the live item-27b is gone%s\n", On_Red BWhite, Color_Off);
         result += -1;
     }
     result += test_json(NULL);
 
-    /*  Deactivated: dev-27b is back, and its asset with it  */
+    /*  Deactivated: item-27b is back, and its asset with it  */
     set_expected_results(test, NULL, NULL, NULL, 0);
     treedb_activate_snap(tranger, TREEDB_NAME, "__clear__");
     treedb_close_db(tranger, TREEDB_NAME);
     treedb_open_db(tranger, TREEDB_NAME, legalstring2json(schema_sample, TRUE), 0);
     test_json(NULL);
     set_expected_results(test, NULL, NULL, NULL, 1);
-    json_t *dev_b = treedb_get_node(tranger, TREEDB_NAME, "devices", "dev-27b");
-    if(!dev_b || strcmp(fkey_id(dev_b, "foto"), id_b) != 0 ||
+    json_t *dev_b = treedb_get_node(tranger, TREEDB_NAME, "items", "item-27b");
+    if(!dev_b || strcmp(fkey_id(dev_b, "image"), id_b) != 0 ||
             !treedb_get_node(tranger, TREEDB_NAME, TREEDB_ASSETS_TOPIC, id_b)) {
-        printf("%s  FAIL: after the deactivation dev-27b does not link its asset B%s\n",
+        printf("%s  FAIL: after the deactivation item-27b does not link its asset B%s\n",
             On_Red BWhite, Color_Off);
         result += -1;
     }
@@ -2830,10 +2830,10 @@ PRIVATE int do_test(void)
 
     {
         const char *test = "open treedb";
-        /*  __snaps__ + __graphs__ + devices + places + __assets__ + __icons__ = 6 topics */
-        /*  `places.plano` is left WITHOUT `writable` on purpose: a `file`
+        /*  __snaps__ + __graphs__ + items + sites + __assets__ + __icons__ = 6 topics */
+        /*  `sites.map` is left WITHOUT `writable` on purpose: a `file`
          *  column nobody can fill is drawn like a full one and cannot be
-         *  used, so the open says so. The two of `devices` do carry it,
+         *  used, so the open says so. The two of `items` do carry it,
          *  which is the ordinary case.  */
         set_expected_results(
             test,

@@ -50,9 +50,8 @@ count the delete dialog prints ("N children will be UNLINKED").
 It is a different thing from the two neighbours it will sit next to in the list:
 
 - `image` — the field **holds** the file: a url or a data uri, drawn with
-  `<img>`. That is the model an application's device records used before
-  `C_ASSETS`, where `devices.photo` was a path under a directory that nothing
-  owned.
+  `<img>`. In that model the field is a path under a directory that nothing
+  owns.
 - `icon` — the **name** of an icon of the app's set (`yi-bolt`).
 
 ⚠️ A new field type goes in **three** places, and the third is the only one that
@@ -122,7 +121,7 @@ needed: see §16.
 **And it is shown the way `__snaps__` and `__graphs__` are: in system mode
 only.** The name decides it — a GUI skips the `__`-prefixed topics unless it was
 asked for the system ones (`c_yui_treedb_topics.js`) — and that is the intended
-place. What a person wants to look at is the photo OF A DEVICE, not the row of
+place. What a person wants to look at is the image OF AN ITEM, not the row of
 an index; whoever wants the index is the one who goes to system mode. Once a
 `file` column draws its asset properly, the topic itself stops being the way to
 look at one.
@@ -140,7 +139,7 @@ one: every other column describes the bytes, and editing it would lie about
 them.
 
 **There is no `source_path` and no subpath.** Dropped on purpose: the same bytes
-are ONE asset and each copy came from its own place (148 points of Can Tunis
+are ONE asset and each copy came from its own place (many records of one site
 share one photograph), so a single path is a lie and a list is a field nobody
 reads. The blobs live in one default directory of the treedb; where a file came
 from, if it matters, is a column of the node that links it.
@@ -151,7 +150,7 @@ from, if it matters, is a column of the node that links it.
 <store>/<realm>/treedb_<name>/
     __assets__/              the index: the topic's timeranger2 files
     .blobs/ab/cd/<id>.<ext>  the content, addressed by sha256
-    devices/  places/  ...
+    items/  sites/  ...
 ```
 
 Two levels of fanout, not one: a flat directory of ten thousand files is a
@@ -185,8 +184,8 @@ this cheaper than `put-asset`:
 Step 3 is where the optimisation is paid for, and it costs one thing: the
 history of names below is written only when bytes travel. A bulk reload that
 takes the optimisation records nothing new; one that does not appends an
-instance per asset — about 12,000 appends with nothing changed. Both are
-correct, and the cheap one is the default.
+instance per asset — ten thousand appends for ten thousand assets, with
+nothing changed. Both are correct, and the cheap one is the default.
 
 ### The client's hash is an OPTIMISATION, never a requirement
 
@@ -202,15 +201,15 @@ client's id — and fills the fkey itself. The same code minus one comparison.
 
 What that costs is exactly what step 3 was buying: with no id up front the bytes
 must ALWAYS travel, because nothing can be known to be a duplicate until it has
-arrived. A bulk reload is about 12,000 assets already stored: with the hash
-first it sends ~0, without it sends **about 350 MB** to discover that nothing
+arrived. A bulk reload of ten thousand assets already stored: with the hash
+first it sends ~0, without it sends **about 300 MB** to discover that nothing
 was new. The optimisation trades microseconds of sha256 for minutes of wire,
 which is why it is the default and not the rule.
 
 **What must NOT be done is to send the file NAME as the id.** If a name ever
 became the identity, the three things content addressing gives would go with it:
-two different `foto.jpg` would collide, the same bytes under two names would
-become two assets (the 148 photographs of Can Tunis, again), and the
+two different `image.jpg` would collide, the same bytes under two names would
+become two assets (the shared photograph of §3, again), and the
 cache-for-ever url of §6 would start meaning different bytes over time.
 
 ### What travels on the wire
@@ -223,11 +222,11 @@ declaring nothing but the column. A client that sends the full reference
 already is taken as it is:
 
 ```json
-{"id": "dev-0041",
- "foto": "<sha256>",
- "__files__": {"foto": {"content64": "...",
-                        "original_name": "dev-0041.jpg",
-                        "content_type": "image/jpeg"}}}
+{"id": "item-0041",
+ "image": "<sha256>",
+ "__files__": {"image": {"content64": "...",
+                         "original_name": "item-0041.jpg",
+                         "content_type": "image/jpeg"}}}
 ```
 
 A client that sends the full reference is **checked, not believed**: it must
@@ -245,11 +244,11 @@ sends json, so it carries `content64`. A C caller over an ievent channel puts a
 real `gbuffer` in the kw and the manifest says where each file is inside it:
 
 ```json
-{"id": "dev-0041",
- "foto": "<sha256>",
- "qr":   "<sha256>",
- "__files__": {"foto": {"offset": 0,     "size": 40123, "original_name": "..."},
-               "qr":   {"offset": 40123, "size": 3319,  "original_name": "..."}}}
+{"id": "item-0041",
+ "image":      "<sha256>",
+ "label_code": "<sha256>",
+ "__files__": {"image":      {"offset": 0,     "size": 40123, "original_name": "..."},
+               "label_code": {"offset": 40123, "size": 3319,  "original_name": "..."}}}
 ```
 
 **It buys no bandwidth, and that is not what it is for.** A gbuffer is binary
@@ -272,8 +271,8 @@ Two things about that slot, and both are load-bearing:
   `gobj.c:592`) and `kw_serialize()` looks it up with a plain
   `json_object_get(kw, "gbuffer")`. It will not find one nested inside
   `__files__`. Hence the manifest with offsets: one buffer holds every file of
-  the record, and `__files__` says which slice is whose. A record setting a
-  photo AND a qr at once is not exotic — commissioning does it.
+  the record, and `__files__` says which slice is whose. A record that sets
+  an image AND a label code at once is not exotic.
 - **`kw["gbuffer"]` is auto-decref'd by the serializer table.** The write path
   takes it with `extract=TRUE` exactly once and owns it from there; reading it
   with `extract=FALSE` and then decref'ing is the *"BAD gbuf_decref()"* double
@@ -310,8 +309,8 @@ runs inside `treedb_create_node()` and `treedb_update_node()`, links what the
 kw's `file` columns name, unlinks what they stop naming (`""`), and leaves a
 column the kw does not carry alone. Before that (§16.8) a `create-node`, or an
 `update-node` without `autolink`, stored the bytes and the index node, answered
-success, and left the column as it was — an orphan asset and a device with no
-photo, the one message split in two after all.
+success, and left the column as it was — an orphan asset and an item with no
+image, the one message split in two after all.
 
 Two rules the write path cannot bend:
 
@@ -393,7 +392,7 @@ Two things it carries over from `C_ASSETS`, and one it must add:
   `source_path`; §3 removed that column on purpose, because the same bytes are
   one asset and a single path is a lie. So the bridge has to come back in the
   ANSWER instead of being stored: the loader already knows that
-  `dev-0041.jpg` belongs to device `dev-0041` — it only needs the id that
+  `item-0041.jpg` belongs to item `item-0041` — it only needs the id that
   file got. Told once, at import time, and then thrown away. The path stays a
   fact of the load, which is where §3 said it belonged.
 
@@ -453,9 +452,9 @@ Three consequences, and one of them deletes a rule:
   deletes.
 
 **And it reads the SNAPSHOTS, not only the live state.** Otherwise: shoot a
-snap with a device holding photo C, shoot another, move the device to photo A
+snap with an item holding image C, shoot another, move the item to image A
 — nothing live links C, the gc takes it — and then somebody activates the
-first snap, which loads the device as it was, holding C, and the link
+first snap, which loads the item as it was, holding C, and the link
 dangles. So "nothing links it" means *no live node, of any treedb of the
 tranger, no instance of one in memory, and no instance an activation would
 load*, which turns the sweep from a walk over the in-memory hooks into a walk
@@ -541,7 +540,7 @@ want different homes:
 | | Where | What it is |
 |---|---|---|
 | the ceiling | the **treedb** | what ONE write may cost this process, and the families the store will ever hold. A safety rule: a column author must not be able to opt into `image/svg+xml` |
-| the policy | the **column** | what THIS field is for. A device photo has no business being 100 MB; a signed plan is a pdf and not a video |
+| the policy | the **column** | what THIS field is for. An item image has no business being 100 MB; a signed plan is a pdf and not a video |
 
 The column's cannot raise the treedb's — the ceiling wins, and the column
 narrows. A column that declares nothing takes the treedb's whole list.
@@ -657,13 +656,12 @@ built again from scratch.**
 Renaming `assets` to `__assets__` changes the fkey literal in every record that
 links one, so a store that survived would carry links to a topic that no longer
 exists. Migrating it in place is work to produce a state that a reload produces
-anyway — the stores of that application have been wiped for less (schema 17,
-the same day this note was written).
+anyway.
 
 What that does NOT remove is the way back in. Rebuilding from scratch is exactly
-re-ingesting about 12,000 blobs and 350 MB, so the bulk load is not a
-convenience, it is the only path — which is why it is treedb's too, and why it
-has to answer the `path -> id` map (§5).
+re-ingesting every blob (ten thousand of them are 300 MB), so the bulk load is
+not a convenience, it is the only path — which is why it is treedb's too, and
+why it has to answer the `path -> id` map (§5).
 
 ## 13. The tests: `tests/c/tr_treedb_files`
 
@@ -744,7 +742,7 @@ What is actually open is in §16.
 
 Every section above was checked against `tr_treedb.c`, `timeranger2.c`,
 `treedb_system_schema.c`, `c_treedb.c`, `c_node.c`, `c_assets.c`,
-`msg_ievent.c`, `kwid.c`, the JS side and the application's schema. The model
+`msg_ievent.c`, `kwid.c` and the JS side. The model
 holds. Seven statements do not, and each one changes what §11 has to build.
 None of them is open in §14, so §14 is wrong to say "none".
 
@@ -769,9 +767,8 @@ None of them is open in §14, so §14 is wrong to say "none".
    writes `['fkey', 'file']` and `file` qualifies the fkey, as `enum` does;
    (b) the derivation pass injects `fkey` into the in-memory flag of every
    `file` column. **(a) is recommended**: one word in the schema, no code in
-   30 places — and `devices.photo` is `['fkey']` in that application today
-   (in the schema of its `db_history`), so the host ADDS a word rather than
-   replacing one.
+   30 places — and an fkey column that already exists becomes a `file`
+   column by ADDING a word rather than by replacing one.
 
 3. **The gc's only protection is the snapshot walk.** `treedb_shoot_snap()`
    skips every `__` topic (*"Ignore meta-tables"*, after `tr_treedb.c:9717`),
@@ -819,7 +816,7 @@ None of them is open in §14, so §14 is wrong to say "none".
   history of names. If the client skips the bytes, no `__files__` arrives and
   the index node is not touched: the history is recorded ONLY when bytes
   travel. Choose, and name the cost — a bulk reload that does send bytes
-  appends one instance per asset, about 12,000 appends with nothing changed.
+  appends one instance per asset, with nothing changed.
 
 - **`C_ASSETS` loses more than §11 lists.** `list-assets` and `delete-asset`
   (`c_assets.c:203-204`) become `nodes` / `delete-node` on `__assets__` and
@@ -831,8 +828,8 @@ None of them is open in §14, so §14 is wrong to say "none".
   what it defends"*. Before treedb sees anything, the transport has received
   the whole packet and jansson has parsed it into a string. `c_prot_tcp4h`
   takes `max_pkt_size` from `gbmem_get_maximum_block()` by default — that is
-  `MEM_MAX_BLOCK`, 200 MB in the agent and 1 GB in an application's `db_history`. The real
-  defence is the transport's; treedb's `max_size` has to sit BELOW it or it
+  `MEM_MAX_BLOCK`, 200 MB in the agent and more in a yuno that raises it. The
+  real defence is the transport's; treedb's `max_size` has to sit BELOW it or it
   is unreachable. The `c_websocket` frame limit was not checked.
 
 - **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
@@ -961,9 +958,9 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
 
 ### 16.7 Still open
 
-- **The hosts' remote stores** (§11, §12): that application's nodes still run the
-  `<realm>/assets/` model, and rebuilding them is the migration §12 says there
-  is not.
+- **Stores on the old model** (§11, §12): a store that still runs the
+  `<realm>/assets/` model has to be rebuilt, and that rebuild is the migration
+  §12 says there is not.
 - **A non-master replica gets the index and not the bytes**, and so does an
   `export-db` / `import-db` round trip. The watcher replicates the topic's
   files and `export-db` writes the topics' records; `.blobs` travels by
@@ -976,15 +973,15 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
 ### 16.8 Found after the merge (2026-09-05)
 
 Two defects, one in each layer, and the same symptom for both: a save that
-says yes and leaves the photo behind.
+says yes and leaves the image behind.
 
 - **The write path stored the asset and did not link it.** `treedb_update_node()`
   skips every fkey in its field loop — right for a link a person edits by
   linking — and `treedb_create_node()` links nothing at all, so the link of a
   `file` column existed only where an `autolink` followed. A `create-node`, or
   an `update-node` without `autolink`, wrote the blob and the index node,
-  answered success and left the column as it was: an orphan asset, and a
-  device with no photo. The GUI always sends `autolink`, so it never saw it;
+  answered success and left the column as it was: an orphan asset, and an
+  item with no image. The GUI always sends `autolink`, so it never saw it;
   `ycommand` and the `EV_TREEDB_UPDATE_NODE` event do not. `link_file_columns()`
   now runs inside both writes (§5); test 11 of `tr_treedb_files` covers create,
   move, clear and a reopen.
@@ -1079,10 +1076,10 @@ yes and puts the file somewhere else.
 - **A `file` column that arrived holding the FULL reference was taken as it
   came.** `treedb_store_files()` expanded a bare id and validated nothing
   else, and `link_file_columns()` links by the hook the VALUE names — so a
-  record whose `foto` said `__assets__^<sha>^as_devices_qr` linked the file
-  into `qr`, left `foto` empty and answered *"Node created!"*. Since §16.8
-  that is reachable through a plain `update-node`, with no `autolink`
-  anywhere. A full reference must now be exactly
+  record whose `image` said `__assets__^<sha>^as_items_label_code` linked the
+  file into `label_code`, left `image` empty and answered *"Node created!"*.
+  Since §16.8 that is reachable through a plain `update-node`, with no
+  `autolink` anywhere. A full reference must now be exactly
   `__assets__^<the id>^as_<T>_<C>` of its own column, and a malformed one is
   refused at the door, naming the column, instead of much later by
   `filtra_fkeys()` naming only the string. Test 14.

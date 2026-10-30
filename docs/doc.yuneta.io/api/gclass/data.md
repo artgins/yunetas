@@ -1118,7 +1118,7 @@ on disk. Design note:
 [`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/timeranger2/DESIGN-treedb-files.md).
 
 ```
-'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey', 'file']}
+'image': {'header': 'Image', 'type': 'string', 'flag': ['fkey', 'file']}
 ```
 
 - **The column is an fkey into `__assets__`**, a system topic every treedb
@@ -1142,11 +1142,11 @@ on disk. Design note:
   buffer carries every file of the record:
 
 ```json
-{"topic_name": "devices",
- "record": {"id": "dev-0041",
-            "foto": "",
-            "__files__": {"foto": {"content64": "...", "original_name": "dev-0041.jpg",
-                                   "content_type": "image/jpeg"}}},
+{"topic_name": "items",
+ "record": {"id": "item-0041",
+            "image": "",
+            "__files__": {"image": {"content64": "...", "original_name": "item-0041.jpg",
+                                    "content_type": "image/jpeg"}}},
  "options": {"create": 1, "autolink": 1}}
 ```
 
@@ -1179,7 +1179,7 @@ on disk. Design note:
   column is edited by handing over a file, and the link is part of it:
   `create-node` and `update-node` link what the column names, `""` unlinks,
   and a column the record does not carry is left alone. The `autolink` in
-  the example above is for the OTHER fkeys of the record, not for `foto`.
+  the example above is for the OTHER fkeys of the record, not for `image`.
 - **A second arrival of the same bytes is an update of the asset node**, so
   the history of `__assets__` says every name a file arrived under (a manifest
   that carries no `original_name`, or the name already stored, says nothing

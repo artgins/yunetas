@@ -7,7 +7,7 @@
  *          MOST OF THIS FILE IS THE LIST OF THINGS THE FIRST
  *          IMPLEMENTATION GOT WRONG, measured before rewriting it:
  *
- *              {"7302": {...}}   came back as an ARRAY OF 7303 ELEMENTS
+ *              {"<N>": {...}}    came back as an ARRAY OF N+1 ELEMENTS
  *              {"a": {}}         the key VANISHED
  *              {"a": []}         vanished
  *              {"a`b": 1}        split into {"a": {"b": 1}}

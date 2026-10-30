@@ -531,9 +531,9 @@ static int test_utf8_cap(void)
 }
 
 /***************************************************************************
- *  The table tools padded and cut a cell by BYTES ("%-*.*s"), so every
- *  non-ASCII character pulled the columns after it one place to the left:
- *  "Espana · A Coruna" took two places more than it showed (2026-10-20).
+ *  A table cell is padded and cut by COLUMNS: padded by bytes ("%-*.*s"),
+ *  every non-ASCII character pulls the columns after it one place to the
+ *  left, and "North · South · East" takes two places more than it shows.
  *  utf8_columns() and utf8_prefix_columns() measure characters.
  ***************************************************************************/
 static int test_utf8_columns(void)

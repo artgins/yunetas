@@ -819,10 +819,10 @@ cat > "${WORKDIR}/etc/fail2ban/filter.d/yuneta-nginx-probe.conf" <<'EOF'
 # path some app really serves would stop matching the moment it answered 200.
 # That reasoning holds for a static site and collapses on a SPA: with
 # `try_files $uri $uri/ /index.html` every unknown path answers 200 with
-# index.html, so /wp-login.php came back 200 and the filter never fired. Both
-# web consoles of one application were running it blind. On a node that also serves static
-# sites the same restriction hid 606 more lines in one day -- probes answered
-# 301 by the http->https redirect, and probes answered 200 by a SPA.
+# index.html, so /wp-login.php came back 200 and the filter never fired. On a
+# node that also serves static sites the same restriction hid 606 more lines
+# in one day -- probes answered 301 by the http->https redirect, and probes
+# answered 200 by a SPA.
 #
 # Dropping the status costs nothing here because the paths cannot be
 # legitimate: no Yuneta node runs PHP or WordPress, and nothing serves .env or

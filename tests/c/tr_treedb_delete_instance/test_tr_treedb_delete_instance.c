@@ -2681,7 +2681,7 @@ static char schema_docs[]= "\
             'cols': {                                               \n\
                 'id': {'header': 'Id', 'type': 'string', 'flag': ['persistent','required']}, \n\
                 'version': {'header': 'Version', 'type': 'string', 'flag': ['persistent','required']}, \n\
-                'foto': {'header': 'Photo', 'type': 'string', 'flag': ['fkey','file','writable']} \n\
+                'image': {'header': 'Image', 'type': 'string', 'flag': ['fkey','file','writable']} \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -2708,8 +2708,8 @@ PRIVATE json_t *create_doc(json_t *tranger, const char *version, const char *dat
     GBUFFER_DECREF(gbuf)
     return treedb_create_node(tranger, "treedb_docs", "docs",
         json_pack("{s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}",
-            "id", "d", "version", version, "foto", "",
-            "__files__", "foto",
+            "id", "d", "version", version, "image", "",
+            "__files__", "image",
                 "content64", content64,
                 "original_name", "photo.png",
                 "content_type", "image/png"
@@ -2722,7 +2722,7 @@ PRIVATE json_t *create_doc(json_t *tranger, const char *version, const char *dat
  */
 PRIVATE BOOL doc_asset_exists(json_t *tranger, json_t *instance)
 {
-    const char *ref = json_string_value(json_object_get(instance, "foto"));
+    const char *ref = json_string_value(json_object_get(instance, "image"));
     char topic[NAME_MAX];
     char id[NAME_MAX];
     char hook[NAME_MAX];

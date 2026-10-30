@@ -1018,9 +1018,8 @@ Points found so far (verified this session unless noted):
    opens with `gobj_find_service_by_gclass(C_AUTHZ)` and denies when it finds
    nothing, so a yuno that never declared the service refuses every
    `gobj_user_has_authz()` command to every principal, `root` included. Found
-   2026-08-25 on three internal yunos of an application (two database yunos
-   and a gate, with loopback listeners only), so SSH was the only remaining
-   way in. Fixed there by
+   2026-08-25 on internal yunos of an application, with loopback listeners
+   only, so SSH was the only remaining way in. Fixed there by
    declaring the service as a FOLLOWER of the node's authzs store. **For the
    matrix this means the inventory is per YUNO, not per node**: a role is
    worth nothing in a yuno that has nobody to read it. Detail and the sealing consequence in

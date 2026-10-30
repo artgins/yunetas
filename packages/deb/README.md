@@ -504,11 +504,10 @@ The first version matched only 404, 403 and 444, reasoning that a path some app
 really serves would stop matching once it answered 200. That holds for a static
 site and collapses on a SPA: with `try_files $uri $uri/ /index.html` every
 unknown path answers **200** with `index.html`, so `/wp-login.php` came back 200
-and the filter never fired — both web consoles of one application ran it blind. On a node
-serving static sites too, the same restriction hid 606 more lines in a single
-day: probes answered 301 by the http→https redirect, and probes answered 200 by
-a SPA. Dropping the status costs nothing, because these paths cannot be
-legitimate on a Yuneta node.
+and the filter never fired. On a node serving static sites too, the same
+restriction hid 606 more lines in a single day: probes answered 301 by the
+http→https redirect, and probes answered 200 by a SPA. Dropping the status costs
+nothing, because these paths cannot be legitimate on a Yuneta node.
 
 Several hundred of those lines carry the user agent of Googlebot, GPTBot or
 ClaudeBot. Every one is an impostor — the addresses reverse to

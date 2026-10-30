@@ -536,7 +536,7 @@ Corollaries:
   id addresses one value. **The two grammars must stay identical**: a flat json
   is written by one side and read by the other. The old `json_flatten_dict()` /
   `json_unflatten_dict()` are deprecated aliases — their first implementation
-  turned a dict keyed by a yuno id into an array of 7303 elements.
+  turned a dict keyed by a yuno id N into an array of N+1 elements.
 
 - **`kw_get_dict()` / `kw_get_list()` TAKE OWNERSHIP of `default_value`.** They
   `JSON_DECREF(default_value)` on the path where they **find** the key — the
@@ -1187,8 +1187,7 @@ delivery must carry); its yunos are then made with `yuno_citizen` in its
 `yunos/`.
 
 The **JS GUI yuno** scaffold (Vite + declarative shell on gobj-ui v2) is the
-`gui/` of both, kept once in `skeletons/project_base/gui/` (it lived in a
-private repo from 2026-05-21 to 2026-10-26).
+`gui/` of both, kept once in `skeletons/project_base/gui/`.
 gobj-ui's deploy round raises its ranges and runs
 `utils/c/yuno-skeleton/check_project_gui.sh`, which generates a project and
 installs and builds its gui.

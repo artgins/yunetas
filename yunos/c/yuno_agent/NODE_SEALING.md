@@ -429,17 +429,16 @@ headless login hang rather than refuse.
 
 ### 5.5 An internal yuno needs its own `C_AUTHZ`, or the seal locks it out
 
-**Found 2026-08-25 on three internal yunos of an application.**
-`authz_checker()` ([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c))
-opens with `gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies
-**everyone** — fail-closed by design. Three yunos had no such service: two
-database yunos and a gate. Every authz-guarded command answered `-403 No
-permission` to every principal, `yuneta_admin@artgins.com` with the `root`
-role included. Not a permissions problem: there was nobody to read the
-permissions. Their own logs said it plainly — `{"function": "authz_checker",
-"msg": "No gclass authz found"}`.
+**Found 2026-08-25 on internal yunos of an application.** `authz_checker()`
+([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c)) opens with
+`gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies **everyone**
+— fail-closed by design. Those yunos had no such service, and every
+authz-guarded command answered `-403 No permission` to every principal,
+`yuneta_admin@artgins.com` with the `root` role included. Not a permissions
+problem: there was nobody to read the permissions. Their own logs said it
+plainly — `{"function": "authz_checker", "msg": "No gclass authz found"}`.
 
-None of the three listens outside its node (loopback ports only), so **SSH
+None of them listens outside its node (loopback ports only), so **SSH
 was the only way to touch them**. Under a seal there would have been none at
 all — a Tier-3 entry created by omission rather than by a missing command, and
 invisible until someone tries.

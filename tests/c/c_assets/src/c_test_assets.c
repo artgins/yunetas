@@ -55,7 +55,7 @@
 #define PNG_FIXTURE_LEN (sizeof(PNG_FIXTURE)-1)
 #define PNG_SHA256      "afbcdae99c628ddb7b12813d4ffced63cb6a1c6f52dcdbcef4e641dbe96debb6"
 
-#define JPG_FIXTURE     "\xff\xd8\xff\xe0" "yuneta-assets-test qr\n"
+#define JPG_FIXTURE     "\xff\xd8\xff\xe0" "yuneta-assets-test label_code\n"
 #define JPG_FIXTURE_LEN (sizeof(JPG_FIXTURE)-1)
 
 #define PUBLIC_URL      "/media/"
@@ -131,14 +131,14 @@ typedef struct _PRIVATE_DATA {
 } PRIVATE_DATA;
 
 /***************************************************************************
- *  Schema: one consumer topic whose 'foto' and 'qr' are files. Nothing
+ *  Schema: one consumer topic whose 'image' and 'label_code' are files. Nothing
  *  else: __assets__ and its hooks are treedb's, derived at open.
  ***************************************************************************/
 PRIVATE char schema_assets_test[] = "\
 {                                                                   \n\
     'topics': [                                                     \n\
         {                                                           \n\
-            'topic_name': 'devices',                                \n\
+            'topic_name': 'items',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
             'cols': {                                               \n\
@@ -154,14 +154,14 @@ PRIVATE char schema_assets_test[] = "\
                     'type': 'string',                               \n\
                     'flag': ['persistent','writable']               \n\
                 },                                                  \n\
-                'foto': {                                           \n\
-                    'header': 'Photo',                              \n\
+                'image': {                                          \n\
+                    'header': 'Image',                              \n\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': ['fkey','file','writable']              \n\
                 },                                                  \n\
-                'qr': {                                             \n\
-                    'header': 'QR',                                 \n\
+                'label_code': {                                     \n\
+                    'header': 'Label code',                         \n\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': ['fkey','file','writable']              \n\
@@ -537,16 +537,16 @@ PRIVATE int run_tests(hgobj gobj)
      *-----------------------------------------------*/
     resp = ask_node(gobj, "update-node",
         json_pack("{s:s, s:{s:s, s:s, s:s, s:s, s:{s:{s:o, s:s, s:s}}}, s:{s:b, s:b}}",
-            "topic_name", "devices",
+            "topic_name", "items",
             "record",
-                "id", "dev-1",
-                "name", "first device",
-                "foto", "",
-                "qr", "",
+                "id", "item-1",
+                "name", "first item",
+                "image", "",
+                "label_code", "",
                 "__files__",
-                    "foto",
+                    "image",
                         "content64", b64(PNG_FIXTURE, PNG_FIXTURE_LEN),
-                        "original_name", "dev-1.png",
+                        "original_name", "item-1.png",
                         "content_type", "image/png",
             "options",
                 "create", 1,
@@ -557,8 +557,8 @@ PRIVATE int run_tests(hgobj gobj)
         result += fail(gobj, "update-node with a file failed");
     } else {
         json_t *node = resp_data(resp);
-        if(strcmp(fkey_id(node, "foto"), PNG_SHA256) != 0) {
-            gobj_trace_json(gobj, node, "foto is not the sha256 of the bytes");
+        if(strcmp(fkey_id(node, "image"), PNG_SHA256) != 0) {
+            gobj_trace_json(gobj, node, "image is not the sha256 of the bytes");
             result += fail(gobj, "the file column did not become an fkey to the sha256");
         }
         if(json_object_get(node, "__files__")) {
@@ -577,7 +577,7 @@ PRIVATE int run_tests(hgobj gobj)
         if(kw_get_int(gobj, asset, "size", 0, 0) != (json_int_t)PNG_FIXTURE_LEN) {
             result += fail(gobj, "asset size is not the size of the bytes");
         }
-        if(strcmp(kw_get_str(gobj, asset, "original_name", "", 0), "dev-1.png") != 0) {
+        if(strcmp(kw_get_str(gobj, asset, "original_name", "", 0), "item-1.png") != 0) {
             result += fail(gobj, "asset did not keep its original_name");
         }
     }
@@ -672,21 +672,21 @@ PRIVATE int run_tests(hgobj gobj)
         sha256_hex(JPG_FIXTURE, JPG_FIXTURE_LEN, jpg_sha, sizeof(jpg_sha));
 
         json_t *kw_sent = json_pack("{s:s, s:I, s:{s:s, s:s, s:s, s:{s:{s:I, s:I, s:s}, s:{s:I, s:I, s:s}}}, s:{s:b, s:b}}",
-                "topic_name", "devices",
+                "topic_name", "items",
                 "gbuffer", (json_int_t)(uintptr_t)gbuf,
                 "record",
-                    "id", "dev-2",
-                    "foto", "",
-                    "qr", "",
+                    "id", "item-2",
+                    "image", "",
+                    "label_code", "",
                     "__files__",
-                        "foto",
+                        "image",
                             "offset", (json_int_t)0,
                             "size", (json_int_t)PNG_FIXTURE_LEN,
-                            "original_name", "dev-2.png",
-                        "qr",
+                            "original_name", "item-2.png",
+                        "label_code",
                             "offset", (json_int_t)PNG_FIXTURE_LEN,
                             "size", (json_int_t)JPG_FIXTURE_LEN,
-                            "original_name", "dev-2.jpg",
+                            "original_name", "item-2.jpg",
                 "options",
                     "create", 1,
                     "autolink", 1
@@ -706,24 +706,24 @@ PRIVATE int run_tests(hgobj gobj)
             result += fail(gobj, "update-node with a gbuffer of two slices failed");
         } else {
             json_t *node = resp_data(resp);
-            if(strcmp(fkey_id(node, "foto"), PNG_SHA256) != 0) {
+            if(strcmp(fkey_id(node, "image"), PNG_SHA256) != 0) {
                 result += fail(gobj, "the first slice did not become the png asset");
             }
-            if(strcmp(fkey_id(node, "qr"), jpg_sha) != 0) {
+            if(strcmp(fkey_id(node, "label_code"), jpg_sha) != 0) {
                 result += fail(gobj, "the second slice did not become the jpeg asset");
             }
         }
         JSON_DECREF(resp)
 
-        /*  the same png from two devices is ONE asset with TWO parents  */
+        /*  the same png from two items is ONE asset with TWO parents  */
         resp = ask_node(gobj, "node",
             json_pack("{s:s, s:s}", "topic_name", TREEDB_ASSETS_TOPIC, "node_id", PNG_SHA256)
         );
-        json_t *hook = json_object_get(resp_data(resp), "as_devices_foto");
+        json_t *hook = json_object_get(resp_data(resp), "as_items_image");
         size_t parents = json_is_array(hook)? json_array_size(hook): json_object_size(hook);
         if(parents != 2) {
             gobj_trace_json(gobj, resp_data(resp), "the shared asset");
-            result += fail(gobj, "the same bytes from two devices did not make one asset with two parents");
+            result += fail(gobj, "the same bytes from two items did not make one asset with two parents");
         }
         JSON_DECREF(resp)
     }
@@ -747,9 +747,9 @@ PRIVATE int run_tests(hgobj gobj)
                     "topic_name", refused[i],
                     "gbuffer", (json_int_t)(uintptr_t)gbuf,
                     "record",
-                        "id", "dev-refused",
+                        "id", "item-refused",
                         "__files__",
-                            "foto",
+                            "image",
                                 "offset", (json_int_t)0,
                                 "size", (json_int_t)PNG_FIXTURE_LEN,
                                 "original_name", "refused.png",
@@ -781,27 +781,27 @@ PRIVATE int run_tests(hgobj gobj)
 
         gobj_send_event(priv->gobj_node, EV_TREEDB_UPDATE_NODE,
             json_pack("{s:s, s:I, s:{s:s, s:s, s:{s:{s:I, s:I, s:s}}}, s:{s:b}}",
-                "topic_name", "devices",
+                "topic_name", "items",
                 "gbuffer", (json_int_t)(uintptr_t)gbuf,
                 "record",
-                    "id", "dev-ev",
-                    "qr", "",
+                    "id", "item-ev",
+                    "label_code", "",
                     "__files__",
-                        "qr",
+                        "label_code",
                             "offset", (json_int_t)0,
                             "size", (json_int_t)(JPG_FIXTURE_LEN + 6),
-                            "original_name", "dev-ev.jpg",
+                            "original_name", "item-ev.jpg",
                 "options",
                     "create", 1
             ),
             gobj
         );
         resp = ask_node(gobj, "node",
-            json_pack("{s:s, s:s}", "topic_name", "devices", "node_id", "dev-ev")
+            json_pack("{s:s, s:s}", "topic_name", "items", "node_id", "item-ev")
         );
         if(resp_result(resp) != 0) {
             result += fail(gobj, "the event door did not create dev-ev");
-        } else if(strcmp(fkey_id(resp_data(resp), "qr"), id_ev) != 0) {
+        } else if(strcmp(fkey_id(resp_data(resp), "label_code"), id_ev) != 0) {
             result += fail(gobj, "the event door did not store and link the gbuffer's bytes");
         }
         JSON_DECREF(resp)
@@ -934,7 +934,7 @@ PRIVATE int run_tests(hgobj gobj)
     JSON_DECREF(resp)
 
     resp = ask_node(gobj, "nodes", json_pack("{s:s}", "topic_name", TREEDB_ASSETS_TOPIC));
-    if(json_array_size(resp_data(resp)) != 4) {   // three linked (foto, qr, the event door's) + the orphan
+    if(json_array_size(resp_data(resp)) != 4) {   // three linked (image, label_code, the event door's) + the orphan
         result += fail(gobj, "gc-assets dry_run deleted something");
     }
     JSON_DECREF(resp)

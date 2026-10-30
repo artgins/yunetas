@@ -338,6 +338,15 @@
   7601-7605/7501-7502, nodes node A / node B, and the ramdisk
   `/mnt/ramdisk`. `kw/test_json_flat` and gobj-js's json_flat tests use the
   same ids.
+- **Docs and tests: the `file` column examples are generic** (in 7.29.3).
+  The `tr_treedb_files`, `c_assets` and `tr_treedb_delete_instance` tests,
+  the treedb and `C_NODE` API pages, the asset helpers page, the
+  `treedb-files` page and `DESIGN-treedb-files.md` use the topics `items` and
+  `sites`, with the `file` columns `items.image`, `items.label_code` and
+  `sites.map`. The sections of earlier releases describe their examples
+  without example ids or node labels, and the `json_flatten_dict()` history
+  (here, in `CLAUDE.md`, `kwid.c`/`kwid.h` and the kwid guide) says that a
+  dict keyed by a yuno id N came back as an array of N+1 elements.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -1399,7 +1408,7 @@ every node that installs it.
 - **The node uuid comes from the hardware** (packages). `node_uuid()` read
   `/yuneta/store/agent/uuid/uuid.json` and, when it was missing, wrote a
   random uuid: a reinstall of the operating system gave the node a new
-  identity, so a label printed with it and a node B that had declared it
+  identity, so a label printed with it and a peer that had declared it
   lost the box, and a disk image taken after the agent ran gave every box
   written from it the SAME uuid. The new `/usr/libexec/yuneta/yuneta-node-uuid`
   (root's, outside `/yuneta`, which yuneta owns), started as root by the
@@ -1569,13 +1578,12 @@ commands, and the handshake and Close of a websocket, once per session.
   the opposite; the code pauses and SIGKILLs it).
 - **yuno_agent: `activate-snap` / `deactivate-snap` restart only the yunos
   whose launch changed** (`restart_nodes()`). They SIGKILLed every yuno of the
-  node and launched the enabled ones again, so a `yunetas upgrade-yunos` of
-  one binary restarted the whole node (7 yunos of node B for one
-  `db_history`). Each running yuno's launch signature -- the saved
-  columns of its row, of the binary it runs, of its configuration, its realm
-  and its public services (`restart_plan.c`) -- is taken before the reload of
-  the agent's treedb and after it: the same one gets back its runtime (the
-  reload loses it, which is why everything was killed) and keeps running; a
+  node and launched the enabled ones again, so a `yunetas upgrade-yunos` of one
+  binary restarted the whole node. Each running yuno's launch signature -- the
+  saved columns of its row, of the binary it runs, of its configuration, its
+  realm and its public services (`restart_plan.c`) -- is taken before the
+  reload of the agent's treedb and after it: the same one gets back its runtime
+  (the reload loses it, which is why everything was killed) and keeps running; a
   changed one is SIGKILLed and launched again; one that is gone or disabled is
   killed and not launched. An INFO
   *"Node restart: only the yunos whose launch changed"* lists `kept`,
@@ -1669,7 +1677,7 @@ Close frame of a websocket, read once per session.
   carries none) and `reason`, next to the `Disconnected` of the transport. A
   server used to log only its own drop (`cause: "Local dropping"`), so every
   session a browser closed looked the same whatever the browser meant -- found
-  chasing a GUI tab of node B that reconnected every minute. A malformed Close
+  chasing a GUI tab that reconnected every minute. A malformed Close
   (a length of 1 or over 125, a code out of the RFC's ranges, a reason that is
   not UTF-8) is a WARNING of `MSGSET_PROTOCOL` with a capped dump, as the
   decoders report a bad peer packet. Case in `tests/c/c_websocket/test3`.
@@ -1856,16 +1864,16 @@ those two gclasses.
   `yuno_skeleton/templates` builds both projects with a citizen yuno in
   them, and runs the JS service in node. Both carry the web frontend in
   `gui/`: the JS GUI scaffold (Vite, gobj-js, gobj-ui's declarative shell)
-  moved here from a private application repository, and is kept once in
-  `skeletons/project_base/`, which both entries `extends` (new catalog key:
-  copied first, a file in both is an error). New key `keep` leaves i18next's
-  `{{name}}` and `{{n}}` as they are. `check_project_gui.sh` generates a project
-  and installs and builds its gui; gobj-ui's deploy round runs it. The scaffold
-  titled its README and its yuno "Foo GUI GUI". yuno-skeleton ends with an error
-  on an input that runs out (a required prompt was asked again for ever),
-  refuses a project name outside `[a-z0-9_]`, and refuses to overwrite a
-  non-template file too. `SCAFFOLDING.md` and `GOBJ.md` recipes still passed the
-  name as an argument, and one used a role of 17 characters (the tool takes 15).
+  is kept once in `skeletons/project_base/`, which both entries `extends`
+  (new catalog key: copied first, a file in both is an error). New key `keep`
+  leaves i18next's `{{name}}` and `{{n}}` as they are. `check_project_gui.sh`
+  generates a project and installs and builds its gui; gobj-ui's deploy round
+  runs it. The scaffold titled its README and its yuno "Foo GUI GUI".
+  yuno-skeleton ends with an error on an input that runs out (a required prompt
+  was asked again for ever), refuses a project name outside `[a-z0-9_]`, and
+  refuses to overwrite a non-template file too. `SCAFFOLDING.md` and `GOBJ.md`
+  recipes still passed the name as an argument, and one used a role of 17
+  characters (the tool takes 15).
 
 - **gobj-ui 7.28.1: a chart's Y axis is as wide as its labels**
   (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
@@ -2103,7 +2111,7 @@ links. The suite ran on the dev machine. The performance study is against
   `disk_min_free_size_gigas`: the fullest of `/yuneta` and the filesystem of
   the store of each of its `C_TRANGER`s, looked for once a minute and
   measured at every reading. `disk_free_percent` told only of `/yuneta`: the
-  queues of the simulators of an application filled a ramdisk of 26 GB unseen,
+  queues of the simulators of an application filled a ramdisk unseen,
   and each simulator died on a message it could not save (`c_qiogate`'s CRITICAL
   *"Message NOT SAVED in the queue"*), in a loop, for a day.
   `tests/c/c_yuno_stats`.
@@ -2326,7 +2334,7 @@ study: the change builds a command line.
   main service reports none. `save-scenario` checks it like `service`
   (*"yunos[N]: queue_service: letters, digits and _ . ^ -"*), and
   `watch-scenario` watches the yuno on it too
-  (`watch-yuno-stats ids=7601,7601:__output_side__ ...`). The web console
+  (`watch-yuno-stats ids=<id>,<id>:__output_side__ ...`). The web console
   (gui_agent 1.0.4) shows that queue on the card and in a chart of its own:
   those are the queues to watch in a load test. `test_c_controlcenter_scenarios`
   case 14.
@@ -2557,21 +2565,20 @@ and 7.27.10's code relinked with the new code placement measured the same as
   A replica names a directory of the store after the id of each of its
   lists, `<topic>/disks/<id>/`, and that id was unique inside one process
   only: `treedb-<gclass>-<gobj>-<treedb>-<topic>-<key>`. So every yuno of a
-  realm that reads the realm's authz store as a replica had the SAME
-  directory, `treedb-C_TRANGER-tranger_authz-treedb_authzs-users-` (seen in
-  every realm of every node). Each one consumed the notifications of the
-  others, the open of one wiped what the others had pending, and the close of
-  one took the directory away from the rest. Three yunos started together
-  logged *"mkdir() FAILED"* (`EEXIST`). The id now starts with the yuno,
-  `treedb-<role>^<name>-...` (`treedb-db_history^7301-C_TRANGER-...`), in
+  realm that reads the realm's authz store as a replica had the SAME directory,
+  `treedb-C_TRANGER-tranger_authz-treedb_authzs-users-` (seen in every realm of
+  every node). Each one consumed the notifications of the others, the open of
+  one wiped what the others had pending, and the close of one took the directory
+  away from the rest. Three yunos started together logged *"mkdir() FAILED"*
+  (`EEXIST`). The id now starts with the yuno, `treedb-<role>^<name>-...`, in
   the lists of the indexes of every topic and in those of `__snaps__` and
-  `__graphs__`. The yuno is the same at each start, so a restart takes its
-  own directory back, as it did. Out of a yuno (`treedb_list --follow`) the
-  id is what it was.
+  `__graphs__`. The yuno is the same at each start, so a restart takes its own
+  directory back, as it did. Out of a yuno (`treedb_list --follow`) the id is
+  what it was.
     - **The name of a treedb opened by a command is shorter now**: the id of
       the list of `__assets__` holds the yuno, so the limit is 38 bytes + the
-      yuno and its `-` + 2 times the name, inside `NAME_MAX` (100 bytes in
-      `db_history^7301`; it was 108).
+      yuno and its `-` + 2 times the name, inside `NAME_MAX` (100 bytes for
+      a yuno of 15 characters; it was 108).
     - **`tools/treedb/check_store_schemas.py --list-ids-yuno <role>^<name>`**:
       its `LIST` estimate counts the yuno too, taken as 32 bytes when it is
       not given.
@@ -2589,7 +2596,7 @@ and 7.27.10's code relinked with the new code placement measured the same as
   SDK release installs it in a new slot and keeps the old one. The agent
   compares a version number by number, split at `.` and `-` (`version_cmp()`),
   so `1.9.1-7.27.11` is newer than `1.9.1.0` and older than `1.9.1-7.28.0`
-  and `1.9.1-8.0.0`. The 30 yunos of four consumer applications use it, and so
+  and `1.9.1-8.0.0`. The yunos of the consumer applications use it, and so
   do the `yuno-skeleton` templates. **The first build with it is a version bump
   of every project yuno**: `yunetas sync`, then `yunetas upgrade-yunos`. Each
   slot is about 35 MB per yuno and release, as for the yunos of the SDK (50-64
@@ -2618,12 +2625,12 @@ functions let it skip both:
   already json text, and checks the text itself, so a topic never holds a
   record nobody can read back.
 
-With them, an application's `db_events` stores 2.2 times more frames per second
-on the same machine (24,700 -> 53,300). On a production node (Xeon E-2386G) it
-holds 20,000 records/s at 55% of one core: 36,375,974 records in 30 minutes, 0
-duplicates and 0 gaps (`tr2check`). The release also fixes a queue that sent its
-own metadata with every message, and a pinned yuno that logged an error at each
-start.
+With them, an application's store of events keeps 2.2 times more frames per
+second on the same machine (24,700 -> 53,300). On a production node (Xeon
+E-2386G) it holds 20,000 records/s at 55% of one core: 36,375,974 records in 30
+minutes, 0 duplicates and 0 gaps (`tr2check`). The release also fixes a queue
+that sent its own metadata with every message, and a pinned yuno that logged an
+error at each start.
 
 The suite passed 324 of 324 on the dev machine only, with four jobs. The
 performance study is against 7.27.7, the last release with a study (7.27.8
@@ -2655,7 +2662,7 @@ external libraries were checked, and all are at their latest versions.
   `__md_tranger__` of the queue's own store, and the append to a queue topic
   (keyed by rowid) adds `"__rowid__": "__rowid__"`; `trq_msg_json()` returned
   both. So a `C_QIOGATE` sent them with every message, and a consumer that
-  stores frames as they arrive (the `db_events` of two applications)
+  stores frames as they arrive
   stored the `"__rowid__"`. Both are removed now. The message's metadata is in
   `trq_msg_md()`. The API page said the json was not the caller's; it is.
   Test `tr_queue/test_tr_queue1` (red against 7.27.9).
@@ -2833,7 +2840,7 @@ no hot path uses.
   its reason and the next one is tried, before the state changes. The builder
   no longer returns an empty message over RTU/ASCII after logging: it refuses
   the write (*"Modbus write NOT IMPLEMENTED for this protocol"*). No consumer
-  sends writes today (the four consumer applications were checked), which is how
+  sends writes today (the consumer applications were checked), which is how
   it survived. Checked with a probe yuno against a simulated meter: two writes
   reach it once each and the readings go on; an unbuildable write and a write
   answered with an exception do not stop them. Still open, and said on the doc
@@ -3351,7 +3358,7 @@ node. There is no performance report, because no hot path changed.
   tick of the yuno's periodic timeout. A yuno killed and launched at once
   finds its port held by the dead one for a while: the io_uring ring of a
   process is torn down after the process is gone, and the accept pending on
-  it holds the listening socket until then. Measured on node A
+  it holds the listening socket until then. Measured on a node
   with a liburing program (SIGKILL, `waitpid()`, then `bind()`):
   the port was held after the reap in 30 rounds of 30, 4-10 ms on an idle
   VM, and none without io_uring. The agent's restart of a node
@@ -3372,25 +3379,24 @@ node. There is no performance report, because no hot path changed.
 - **The table tools measure a cell in characters, not bytes** (`ycommand`,
   `ycli`, `ybatch`, `mqtt_tui`, `msg2db_list`, `treedb_list`). They padded and
   cut with `"%-*.*s"`, which counts BYTES: each non-ASCII character of a cell
-  pulled every column after it one place to the left. `"North · South · East"`
-  has two 2-byte dots, so in a table of a list command the four columns after
-  it were two places off. The cut could also split a character. Headers were
-  widened to their `strlen()`, the same mistake. Commands had been writing
-  their headers without accents to dodge it. Two helpers in `gobj-c`, next to
-  `utf8_prefix_len()`: `utf8_columns()` and `utf8_prefix_columns()`. They
-  count one column per character, which is right for the Latin text these
-  tables carry. Wide (CJK) and combining characters are not measured. Tested
-  in `test_kw1`, and checked against the live table of a command: the cell
-  fills its 34 columns, and the next column sits under its header.
+  pulled every column after it one place to the left, so a cell with two middle
+  dots (2 bytes each) put every column after it two places off. The cut could
+  also split a character. Headers were widened to their `strlen()`, the same
+  mistake. Commands had been writing their headers without accents to dodge it.
+  Two helpers in `gobj-c`, next to `utf8_prefix_len()`: `utf8_columns()` and
+  `utf8_prefix_columns()`. They count one column per character, which is right
+  for the Latin text these tables carry. Wide (CJK) and combining characters are
+  not measured. Tested in `test_kw1`, and checked against the live table of a
+  command: the cell fills its width, and the next column sits under its header.
 - **SDK 7.27.3 deployed on every node** (local, the staging node first, the
-  company server, nodes A and B by package, a client
-  production node), and **gobj-ui 7.27.28: the trace notes say what the yuno
-  keeps.** A gobj card says that a service's traces survive a restart, or that
-  any other gobj's end with the yuno; the gclass viewer that the gclass'
-  survive. Every SPA took it in the round (gui_agent 0.29.102, gui_treedb
-  0.17.164, every consumer application, the js_gui template and the demo), the
-  client production application after its staging. Checked live: each note on a
-  service and on a timer of db_history^7302; console clean on every host.
+  company server, two nodes by package, a client production node), and **gobj-ui
+  7.27.28: the trace notes say what the yuno keeps.** A gobj card says that a
+  service's traces survive a restart, or that any other gobj's end with the
+  yuno; the gclass viewer that the gclass' survive. Every SPA took it in the
+  round (gui_agent 0.29.102, gui_treedb 0.17.164, every consumer application,
+  the js_gui template and the demo), the client production application after its
+  staging. Checked live: each note on a service and on a timer of a yuno;
+  console clean on every host.
 
 ## v7.27.3 (2026-10-19)
 
@@ -3558,9 +3564,9 @@ upstream's latest of each). Suite 309/309 on the dev machine (clean build,
   the child already hangs in its body, and the table gives its scroll back on
   its next sight. gui_agent 0.29.92, gui_treedb 0.17.157; every SPA on
   `^7.27.20` and deployed; an application's QA `--check tabreturn` green on
-  its deployed node B.
+  its deployed node.
 - **JS layer: gobj-ui 7.27.19, the treedb topic table.** Three faults found
-  on an application's node B. Tabulator's `autoResize` took a hidden tab
+  on an application's node. Tabulator's `autoResize` took a hidden tab
   (`display:none`, 0x0) for a resize and redrew a table with no layout, so
   every visit to another tab moved the reader a dozen rows up; the table now
   watches its own size (`EV_TABLE_RESIZED`) and redraws when seen again or
@@ -4312,8 +4318,8 @@ Group 8 of the fixes:
   (`yuneta_entry_point()`): a negative answer of
   `register_yuno_and_more()` is an ERROR and `exit(-1)`, as a refused gclass of
   the core. The yuno ran, and its services failed later with *"gclass NOT
-  FOUND"*. Every `register_yuno_and_more()` of the trees (204: the SDK, its
-  tests, four consumer applications) answers `0` or the sum of what its
+  FOUND"*. Every `register_yuno_and_more()` of the trees (the SDK, its
+  tests, the consumer applications) answers `0` or the sum of what its
   `register_c_*()` answer (each `create_gclass()`: `0` or `-1`), so none stops
   on a success; the 19 mains of the SDK that dropped those answers (the agents,
   `controlcenter`, `mqtt_broker`, `logcenter`, `emailsender`, the utils...) and
@@ -6639,8 +6645,8 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
 - **The agents are native systemd units, and systemd sees them.** The agent
   was a SysV script that `systemd-sysv-generator` wrapped: an agent started
   outside it (by hand, by an xscript) left `systemctl status yuneta_agent`
-  saying *inactive* while it ran -- an acceptance test on node B
-  (Rocky 9.7) failed on it -- and `yuneta_agent22` had no unit at all.
+  saying *inactive* while it ran -- an acceptance test on a Rocky 9.7
+  node failed on it -- and `yuneta_agent22` had no unit at all.
   `yuneta_agent.service` (named like the script, so systemd takes it instead
   of the generated one) and `yuneta_agent22.service` (independent: either can
   stop or fail while the other keeps the node reachable) are `Type=forking`
@@ -7949,8 +7955,8 @@ stress scenario of an application end to end from the console.
   by at the control center (`input_channel`): two tabs of one browser were one
   requester, the second replacing the first watch at each renewal, and a hidden
   tab stopping the other's.
-- One yuno can be watched through several services (`ids=7501,7501:db`); the
-  last one named used to replace the others.
+- One yuno can be watched through several services (`ids=<id>,<id>:<service>`);
+  the last one named used to replace the others.
 - An id that is not a yuno of the agent no longer refuses the whole watch: it
   is watched, its `state` says `missing`, and the answer names it
   (`data.missing`).
@@ -8100,7 +8106,7 @@ center's binary changes, and only it is deployed.
   the yunos, the links the messages follow) with cpu %, msg/s in and out,
   queue and state per yuno, and two uPlot charts over a 5-60 minute window.
   First written for an application's stress tests (simulators -> a gate
-  of node B -> `db_events`), and it matches what `ycommand` measures on them.
+  -> a store of events), and it matches what `ycommand` measures on them.
 - **It is the first transport of the console that does not go through the
   control center**: it talks to the agent's `wss://<node>:1993` with the
   access_token it gets from the BFF's `/auth/token`, so that plane's BFF needs
@@ -8164,7 +8170,7 @@ center's binary changes, and only it is deployed.
 - The INFO that closes a pass after an inotify overflow adds `slices`,
   `ms_owner`, `ms_watcher`, `ms_loop` and `max_loop_ms`: the owner's
   callbacks, the walk, and the loop's own work between slices. On
-  an application's node B some passes took 251 and 680 s while the yuno
+  an application's node some passes took 251 and 680 s while the yuno
   digested a queue; measured with it, such passes are 65-78 % owner (handing
   over the backlog of records), 22-35 % loop and 1.1-1.7 s walk: not the
   watcher.
@@ -8221,7 +8227,7 @@ center's binary changes, and only it is deployed.
 
 ## v7.25.11 (2026-09-27)
 
-Found by the third gate-outage test of an application's node B: three
+Found by the third gate-outage test of an application's node: three
 *"Event NOT DEFINED in state"* that a connection going down produced, all in the
 window between a transport deciding to close and the layers above learning it;
 and a pass after an inotify overflow whose own cost grew with the tree. Rebuild
@@ -8272,7 +8278,7 @@ every yuno (TCP and websocket clients, rt_disk followers) and the agent.
 
 The recovery from an inotify overflow (7.25.9) now keeps the yuno answering:
 the pass over the watched tree runs in slices of 20 ms per loop turn. Found by
-the second gate-outage test of an application's node B, where one
+the second gate-outage test of an application's node, where one
 pass held a `db_history` deaf for four minutes. Every yuno that reads a
 timeranger2 topic of another yuno must be rebuilt against this SDK.
 
@@ -8280,7 +8286,7 @@ timeranger2 topic of another yuno must be rebuilt against this SDK.
 
 - **7.25.9 recovered from an inotify overflow in one piece**: the owner
   rescanned the whole tree inside the single `FS_OVERFLOW_TYPE` call. A
-  timeranger2 follower of 50000 keys on the busy disk of node B
+  timeranger2 follower of 50000 keys on the busy disk of a node
   took 56 s, then 243 s, and the yuno answered nothing meanwhile -- its agent,
   its commands, its timers.
 - Now the watcher runs the pass itself, a slice of 20 ms per loop turn: every
@@ -8303,8 +8309,8 @@ timeranger2 topic of another yuno must be rebuilt against this SDK.
 
 An inotify queue overflow no longer aborts the yuno: the watcher recovers in
 place and its owner rebuilds its view from the filesystem, where what the lost
-events said still is. Found by an application's stress test of its node B,
-where a `db_history` following a busy `db_events` lived in a crash loop under a
+events said still is. Found by an application's stress test of a node, where a
+`db_history` following a busy store of events lived in a crash loop under a
 burst. Every yuno that reads a timeranger2 topic of another yuno (an rt_disk
 feed) must be rebuilt against this SDK.
 
@@ -8312,9 +8318,9 @@ feed) must be rebuilt against this SDK.
 
 - **An `IN_Q_OVERFLOW` of a watcher aborted the yuno** to be relaunched and
   reload clean. Under a sustained burst the reload met the next overflow: in
-  an application's stress test of its node B, a `db_history` following
-  a `db_events` at ~3000 records/s over ~60000 keys aborted five times in two
-  hours, and each relaunch spent 2-3 minutes catching up before falling again.
+  an application's stress test of a node, a `db_history` following a store of
+  events at ~3000 records/s over ~60000 keys aborted five times in two hours,
+  and each relaunch spent 2-3 minutes catching up before falling again.
 - Now the watcher recovers in place: a WARNING, a watch set on every directory
   of a recursive tree that was not watched, and the owner called once with the
   new **`FS_OVERFLOW_TYPE`** to rebuild its view from the filesystem, where
@@ -8341,7 +8347,7 @@ feed) must be rebuilt against this SDK.
 A TLS fix in `C_TCP`: under a burst, a connection could have two writes in
 flight, and a short one then sent its rest out of order -- the peer answered
 "bad record mac" and dropped the link. Found by an application's stress test
-of its node B, where the drain after a gate outage barely converged
+of a node, where the drain after a gate outage barely converged
 because of it. Every yuno that speaks TLS must be rebuilt against this SDK (the
 gclass is linked into each binary).
 
@@ -8356,7 +8362,7 @@ gclass is linked into each binary).
   write for each at once; and the completion of any write took the next
   message while another was still in flight. It shows under a burst on a full
   socket -- clients resending their windows when a gate comes back -- and how
-  often depends on the kernel: an application's stress test of its node B
+  often depends on the kernel: an application's stress test of a node
   (Rocky 9, kernel 5.14) dropped links 13606 times in 25 minutes, and the drain
   after a 4-minute outage barely converged.
 - Now a connection has ONE write in flight, TLS included: encrypted output
@@ -8378,7 +8384,7 @@ gclass is linked into each binary).
 
 A leak fix and nothing else in C: every `return` from inside a `SWITCHS` case
 lost a compiled regex, and every gate with an output queue returned from one per
-message. Found by an application's stress test of its node B. The JS
+message. Found by an application's stress test of a node. The JS
 submodules move to maplibre-gl 6.11.2 and vite 8.3.1. Every yuno must be rebuilt
 against this SDK to lose the leak.
 
@@ -12275,7 +12281,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
   paid for a dict they never read (the queues then kept it in memory per
   queued message until `msg_iev_clean_metadata()` stripped it on send).
   Callers hand over their only reference and read the out-param. Pays off
-  for a `db_events` ingesting `raw_events` with no realtime list open:
+  for a yuno that ingests a topic with no realtime list open:
   +13.5% appends/s in `test_topic_pkey_integer` (+21% together with the
   change below).
 - **A `__md_tranger__` the record carries in is dropped before the content
@@ -14156,8 +14162,8 @@ Both packages install `/etc/ssh/sshd_config.d/10-yuneta-ssh-flood.conf` with
 `LoginGraceTime 20` and `MaxStartups 50:30:200` (stock: 120 s and 10:30:100).
 On 2026-09-13 an Internet-wide password botnet, 2,000-3,000 attempts an hour
 per node, filled sshd's slots for unauthenticated connections, and past 10 of
-them sshd dropped new connections at random: up to 1,464 drops an hour on the
-node A, the operator's logins and the deploy tools' rsync
+them sshd dropped new connections at random: up to 1,464 drops an hour on one
+node, the operator's logins and the deploy tools' rsync
 among them. Password login was already off, so the botnet could not get in;
 it only took the slots. With these two lines, applied by hand on three nodes
 that day, the drops went to zero.
@@ -14639,7 +14645,7 @@ and switch language.**
 The last windows nobody had dumped: the **frontend view**, the **site map**,
 **about**, **preferences**, the five **login screens**, the **overlay layer**
 (a toast and each of the three confirm shapes), and **the GUI of an
-application's node A**, the one SPA that had never been read at all.
+application**, the one SPA that had never been read at all.
 
 **One defect, and it is a shape the sweep had not met: an `<option>`.** The
 frontend view's eight layout labels were written into its `LAYOUTS` table and
@@ -15364,11 +15370,11 @@ page into the artifact version of itself.
 `treedb_store_files()` expanded a bare id into the full reference treedb's
 links speak and took a reference that arrived FULL as it came — and
 `link_file_columns()` links by the hook the VALUE names. So a record whose
-`foto` said `__assets__^<sha>^as_devices_qr` linked the file into `qr`, left
-`foto` empty and answered *"Node created!"*: the client asked for one column
-and the treedb wrote another. Since the write path started linking `file`
-columns itself, that is reachable through a plain `update-node`, with no
-`autolink` anywhere.
+`file` column held the reference of ANOTHER `file` column's hook linked the
+file into that other column, left its own empty and answered *"Node
+created!"*: the client asked for one column and the treedb wrote another.
+Since the write path started linking `file` columns itself, that is reachable
+through a plain `update-node`, with no `autolink` anywhere.
 
 A full reference must now be exactly `__assets__^<the id>^as_<T>_<C>` of its
 own column, and a malformed one is refused at the door naming the column,
@@ -15652,9 +15658,9 @@ cascade-deleted like any other node. Design and its review:
 - **Migration: none.** The `assets` topic of a host and its `as_<col>` hooks
   are replaced by the derived `__assets__`; the fkey literal in every record
   changes, so a store built on `C_ASSETS` is wiped and rebuilt through
-  `import-assets`. The host applications change `['fkey']` to
-  `['fkey','file']` on `foto`/`qr`/`plano`, drop their `assets` topic and
-  rebuild.
+  `import-assets`. A host application changes `['fkey']` to
+  `['fkey','file']` on each of its file columns, drops its `assets` topic and
+  rebuilds.
 - New suite `tests/c/tr_treedb_files` (the eight claims of the design that
   would break quietly); `tests/c/c_assets` rewritten for the round trip.
   Every treedb open now logs one more *"Creating topic"* (`__assets__`).
@@ -16160,7 +16166,7 @@ deployment that genuinely has no authz db, produce the identical line. The
 format is `%s` now, and the line also carries `master`, which is what tells
 the two apart.
 
-Found on a from-scratch install of an application: its two `db_events`
+Found on a from-scratch install of an application: two of its yunos
 checked 24 ms and 22 ms before their store existed, came up with authz
 disabled for the life of the process, and answered `list-users` with nothing
 while the master listed three accounts.
@@ -16410,7 +16416,7 @@ touching anything:
 
 | input | what it returned |
 |---|---|
-| `{"7302": {...}}` -- **a yuno id** | an **array of 7303 elements** |
+| `{"<N>": {...}}` -- **a yuno id N** | an **array of N+1 elements** |
 | `{"a": {}}` / `{"a": []}` | the key **disappeared** |
 | `` {"a`b": 1} `` | it was split into `{"a": {"b": 1}}` |
 | `{"a": {"": 1}}` | it came back `{"a": 1}`, one level short |
@@ -17370,7 +17376,7 @@ CHANGELOG.
     `email_from` names it, and the config composes it: `json_config` resolves
     `(^^__hostname__^^)` inside a string, so
     `"C_WEBSTATS.email_from": "(^^__hostname__^^)@artgins.com"` reaches the
-    yuno already resolved to `node-a@artgins.com`. The yuno stays out of it
+    yuno already resolved to `<hostname>@artgins.com`. The yuno stays out of it
     — no domain and no address shape built in — and any other variable works
     the same way. Empty leaves the sender to the email service, as before.
 
@@ -17868,7 +17874,7 @@ four backends, and a collapsed node hiding the yunos it has open.
         one point every route passes through and written again only by the tab
         branch, so a route that forgets to clear it cannot exist.
 
-    Also: a **yuno tab names its node** (`yuneta_agent · node-a`). Every node
+    Also: a **yuno tab names its node** (`yuneta_agent · <node>`). Every node
     runs a `yuneta_agent`, so two tabs of two nodes read the same and there was
     no way to know which one you were typing into.
 
@@ -18440,7 +18446,7 @@ leaked a whole `kw` per call.
     exists"*, its topic node was never created, its hooks then failed with
     *"link topic not found"*, its rebuilt schema failed `parse_schema`, and
     `get_client_treedb_schema` fell back to the C literal — in silence. The
-    local node A's store holds five treedbs and its projection held one.
+    store of a local node holds five treedbs and its projection held one.
 
     `topics` is keyed by rowid now, with the name in the pkey2 `value`, exactly
     as `cols` has been since V6 — the same flaw, solved for columns and never
@@ -18495,7 +18501,7 @@ leaked a whole `kw` per call.
     `__system__` and never reached the topic. A topic's version cannot go
     backwards now, for the same reason `schema_version` cannot.
 
-    Verified end to end on a real schema: a local node A,
+    Verified end to end on a real schema: a local node,
     degraded by the lossy projector, recovered `language`'s `["es","en"]` and
     its `"es"` default, and `cluster`'s `false` — a scalar boolean default that
     a blob used to replace with `{}`. System schema 9 → 12.
@@ -23988,8 +23994,8 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       but without restarting the daemon. Added as `YUNO_LIFECYCLE.md`
       §6.5 + §6.6 (rollback via `shoot-snap` / `activate-snap`) and
       refreshed `CLAUDE.md` §3 with the same-version vs version-bump
-      split. Verified live with `gate_meter 1.3.1.0 → 1.3.1.1`
-      on the local agent.
+      split. Verified live with a version bump of a yuno on the local
+      agent.
 
 ## v7.4.0 -- 26/May/2026
     - **chore(lib-yui)!: declarative shell stack removed —
@@ -23997,15 +24003,15 @@ yuno records its own UI changes in `yunos/js/gui_agent/README.md`._
       shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
       `C_YUI_WIZARD`, `shell_modals` and every `shell_*_helpers`
       module + the full Playwright e2e suite and the `test-app/`
-      vite project) was already being maintained from a copy vendored in a
-      private application repository. The kernel copy was just dead weight in
+      vite project) was already being maintained from a copy vendored in
+      another repository. The kernel copy was just dead weight in
       the bundle consumed by a client application (legacy apps that only use
       `C_YUI_MAIN` + `WINDOW` + `TABS` + routing) and the two copies had drifted
       enough to make every fold-back a conflict. Verified by grep that neither
       legacy consumer imports any shell symbol before deleting.
       `dist/lib-yui.es.js` is now 3.4 MB / gzip 706 KB (~25% lighter).
       Migration: if you need the declarative shell, the canonical copy is the
-      one in that private repository as of 2026-05-15. The yuno-skeleton
+      one in that repository as of 2026-05-15. The yuno-skeleton
       `js_gui` scaffold that referenced `register_c_yui_shell` was dropped here
       too; the replacement scaffold lives in the same repository.
     - **chore(ext-libs): three security bumps (v1.12 → v1.13 →

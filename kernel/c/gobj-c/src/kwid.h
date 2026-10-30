@@ -784,8 +784,8 @@ PUBLIC BOOL kwid_match_nid(
  *      - a literal '`' inside a key is DOUBLED. With that, every key is
  *        representable and the form forbids nothing -- the previous
  *        implementation had to reserve all-digit keys for array indices,
- *        and this system's own yuno ids ("7302") broke that rule: a dict
- *        keyed by one came back as an ARRAY OF 7303 ELEMENTS.
+ *        and a yuno id such as "7302" is all digits: a dict keyed by a
+ *        yuno id N came back as an ARRAY OF N+1 ELEMENTS.
  *      - an array index is '[N]', canonical (no leading zeros). One byte
  *        more than a bare number, and it buys the forbidden-key rule back.
  *      - a dict key that begins with '[' doubles it ('[[0]'), so it can

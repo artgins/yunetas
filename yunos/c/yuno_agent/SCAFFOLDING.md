@@ -462,13 +462,11 @@ The `yuno-skeleton` tool is the right pick for greenfield.
 
 ### 9.7 The JS GUI scaffold is the `gui/` of the project templates
 
-The **JS GUI yuno** scaffold (Vite, gobj-js, the declarative shell of
-gobj-ui v2) is the `gui/` that `project` and `project_commercial` make. It
-lived in the `templates/js_gui/` of a private application, from 2026-05-21
-to 2026-10-26, with a `generate.sh` of its own; it is kept once, in
-`skeletons/project_base/gui/`, and rendered by `yuno-skeleton` like any
-other template. Its locales carry i18next's own `{{name}}` and `{{n}}`,
-which the catalog lists in `keep`, so they are left as they are.
+The **JS GUI yuno** scaffold (Vite, gobj-js, the declarative shell of gobj-ui
+v2) is the `gui/` that `project` and `project_commercial` make. It is kept once,
+in `skeletons/project_base/gui/`, and rendered by `yuno-skeleton` like any other
+template. Its locales carry i18next's own `{{name}}` and `{{n}}`, which the
+catalog lists in `keep`, so they are left as they are.
 
 gobj-ui's deploy round raises its ranges (`package.json_tmpl`) and runs
 `utils/c/yuno-skeleton/check_project_gui.sh`, which generates a project and

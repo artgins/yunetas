@@ -392,7 +392,7 @@
     <p>
       A treedb is held in memory in full, and timeranger2 rewrites the
       <em>whole record</em> on every update. Put a photo in a column and every
-      change of that device &mdash; a state flag, a timestamp &mdash; rewrites the photo
+      change of that item &mdash; a state flag, a timestamp &mdash; rewrites the photo
       with it, in base64, in the log and in RAM. Ten thousand photos of 30&nbsp;KB
       are <b>300&nbsp;MB on disk</b>; carried inside the records they would be some
       <b>400&nbsp;MB of RAM, permanently</b> (base64 adds a third), rewritten on every touch.
@@ -416,7 +416,7 @@
           <img class="fixture" alt="The 16 by 16 PNG fixture used throughout this page"
                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAOUlEQVR42mPgzouHI/vDK+EIlzgDSaqBXAaSVEM1EK8apIEk1SgaiPQ9A0mqoRpIClmG0XgYFPEAAAzkQZDXKSxrAAAAAElFTkSuQmCC">
           <div class="fixture-meta">
-            <span><b>foto.png</b> &mdash; 16&times;16, <b>114 bytes</b></span>
+            <span><b>image.png</b> &mdash; 16&times;16, <b>114 bytes</b></span>
             <span>declared <b>image/png</b>, and the bytes agree</span>
             <span>uploaded by <b>operator@example.com</b></span>
           </div>
@@ -459,9 +459,9 @@
     </p>
   </div>
 
-<pre class="code"><span class="c">/*  topic "devices", in the treedb schema  */</span>
-<span class="s">"foto"</span>: {
-    <span class="s">"header"</span>: <span class="s">"Photo"</span>,
+<pre class="code"><span class="c">/*  topic "items", in the treedb schema  */</span>
+<span class="s">"image"</span>: {
+    <span class="s">"header"</span>: <span class="s">"Image"</span>,
     <span class="s">"fillspace"</span>: 20,
     <span class="s">"type"</span>: <span class="s">"string"</span>,          <span class="c">// one file per column, always a string</span>
     <span class="s">"flag"</span>: [<span class="k">"fkey"</span>, <span class="k">"file"</span>, <span class="s">"writable"</span>, <span class="s">"persistent"</span>]
@@ -485,9 +485,9 @@
     </p>
   </div>
 
-<pre class="code">column   devices.foto          <span class="c">flag ["fkey","file",…]</span>
-hook     __assets__.<span class="k">as_devices_foto</span>  <span class="c">-&gt; {"devices": "foto"}</span>
-value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></pre>
+<pre class="code">column   items.image           <span class="c">flag ["fkey","file",…]</span>
+hook     __assets__.<span class="k">as_items_image</span>  <span class="c">-&gt; {"items": "image"}</span>
+value    <span class="s">"__assets__^fc1c1152…feefd0^as_items_image"</span></pre>
 
   <div class="prose">
     <p>
@@ -505,7 +505,7 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
 
   <div class="prose">
     <p>
-      Below is a single <code>create-node</code> on <code>devices</code>, carrying
+      Below is a single <code>create-node</code> on <code>items</code>, carrying
       the fixture above. The left pane is the <code>kw</code> &mdash; the record as it
       arrived, <em>rewritten in place</em> as it goes. The right pane is what is on
       disk and in memory after each step. Pick a door, or make the write fail, and
@@ -639,9 +639,9 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
   <div class="prose">
     <p>
       Plus one hook per <code>file</code> column of the treedb, derived and never
-      persisted. That is where the device hangs: the asset is the parent, the
-      device is the child, and the fkey that records the link lives on the
-      <em>child</em> &mdash; which is why linking saves the device and not the asset.
+      persisted. That is where the item hangs: the asset is the parent, the
+      item is the child, and the fkey that records the link lives on the
+      <em>child</em> &mdash; which is why linking saves the item and not the asset.
     </p>
   </div>
 
@@ -696,8 +696,8 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
     <li>
       <b>A full reference must name its own hook.</b>
       <span>The value is what decides which hook the link goes through, so
-      <code>foto</code> holding <code>…^as_devices_qr</code> filed the file under
-      <code>qr</code>, left <code>foto</code> empty and answered <em>&ldquo;Node
+      <code>image</code> holding <code>…^as_items_label_code</code> filed the file under
+      <code>label_code</code>, left <code>image</code> empty and answered <em>&ldquo;Node
       created!&rdquo;</em>. It has to be
       <code>__assets__^&lt;id&gt;^as_&lt;topic&gt;_&lt;column&gt;</code> of that column,
       or the write is refused naming the column.</span>
@@ -768,15 +768,15 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
   var ID = "fc1c1152d120bf253e9efbd39b3d75c854a3d7a7e409671264f828e2b7feefd0";
   var SHORT = "fc1c1152…feefd0";
   var B64 = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQ…QZDXKSxrAAAAAElFTkSuQmCC";
-  var HOOK = "as_devices_foto";
+  var HOOK = "as_items_image";
   var REF = '__assets__^' + SHORT + '^' + HOOK;
 
   /*  Where each refusal stops. The step numbers are the code's order:
       the size is read off the base64 before the decode, the type is read
       off the bytes, the id is the hash of them.  */
   var FAILS = {
-    size:  {at: 1, why: 'file of 139 460 792 bytes in ‘foto’ is over max_size (134 217 728)'},
-    b64:   {at: 2, why: 'bad base64 in ‘foto’'},
+    size:  {at: 1, why: 'file of 139 460 792 bytes in ‘image’ is over max_size (134 217 728)'},
+    b64:   {at: 2, why: 'bad base64 in ‘image’'},
     sniff: {at: 2, why: 'content_type ‘image/png’ does not match the bytes (application/pdf)'},
     allow: {at: 2, why: 'content_type ‘image/svg+xml’ not allowed'},
     claim: {at: 3, why: 'the id does not match the bytes'}
@@ -827,8 +827,8 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
     {
       t: "link",
       title: "The link, by the write path itself",
-      say: "The device is hung in the asset's derived hook. The fkey lives on the CHILD, " +
-           "so the device is saved once and the asset is not saved at all."
+      say: "The item is hung in the asset's derived hook. The fkey lives on the CHILD, " +
+           "so the item is saved once and the asset is not saved at all."
     }
   ];
 
@@ -859,30 +859,30 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
     var plain = function (txt) { return {tx: txt, cls: ""}; };
 
     L.push(plain("{"));
-    L.push(plain('    "id": "dev-0417",'));
-    L.push(plain('    "name": "dev-0417",'));
+    L.push(plain('    "id": "item-0417",'));
+    L.push(plain('    "name": "item-0417",'));
 
     if (s >= 6) {
-      L.push(s === 6 ? hitAll('    "foto": "' + REF + '"') : plain('    "foto": "' + REF + '"'));
+      L.push(s === 6 ? hitAll('    "image": "' + REF + '"') : plain('    "image": "' + REF + '"'));
     } else if (state.fail === "claim") {
       /*  a claim only exists when the column carries an id: a bare one, or
           the full reference. Without it there is nothing to disagree with.  */
-      L.push(plain('    "foto": "9f2c66d0…12beef",   // the claim'));
+      L.push(plain('    "image": "9f2c66d0…12beef",   // the claim'));
     } else {
-      L.push(plain('    "foto": "",'));
+      L.push(plain('    "image": "",'));
     }
 
     if (s < 6) {
       var g = (s >= 6);
       L.push(plain('    "__files__": {'));
-      L.push(plain('        "foto": {'));
+      L.push(plain('        "image": {'));
       if (state.door === "content64") {
         L.push((s === 1 ? hitAll : plain)('            "content64": "' + B64 + '",'));
       } else {
         L.push((s === 1 ? hitAll : plain)('            "offset": 0, "size": 114,'));
       }
       L.push((s === 2 ? hitAll : plain)('            "content_type": "image/png",'));
-      L.push(plain('            "original_name": "foto.png"'));
+      L.push(plain('            "original_name": "image.png"'));
       L.push(plain("        }"));
       L.push(plain("    },"));
       if (state.door === "gbuffer") {
@@ -949,25 +949,25 @@ value    <span class="s">"__assets__^fc1c1152…feefd0^as_devices_foto"</span></
         kv("id", ID.slice(0, 12) + "…feefd0", s === 5) +
         kv("content_type", "image/png", s === 5) +
         kv("size", "114", s === 5) +
-        kv("original_name", "foto.png", s === 5) +
+        kv("original_name", "image.png", s === 5) +
         kv("uploaded_by", "operator@example.com", s === 5) +
-        kv(HOOK, s >= 7 ? "[ devices^dev-0417 ]" : "[ ]", s === 7);
+        kv(HOOK, s >= 7 ? "[ items^item-0417 ]" : "[ ]", s === 7);
     } else {
       assetsBody = '<span class="empty">no row</span>';
     }
     out.push(box("mem", "<b>__assets__</b> &mdash; one row per content", "in memory", assetsBody));
 
-    /*  devices */
+    /*  items */
     var devBody;
     if (s >= 7 && !dead) {
-      devBody = kv("id", "dev-0417") + kv("name", "dev-0417") +
-        kv("foto", REF, true);
+      devBody = kv("id", "item-0417") + kv("name", "item-0417") +
+        kv("image", REF, true);
     } else if (s >= 6 && !dead) {
       devBody = '<span class="empty">not written yet &mdash; the record is still a kw</span>';
     } else {
       devBody = '<span class="empty">not written yet &mdash; the record is still a kw</span>';
     }
-    out.push(box("mem", "<b>devices</b> &mdash; the node", "in memory", devBody));
+    out.push(box("mem", "<b>items</b> &mdash; the node", "in memory", devBody));
 
     storeEl.innerHTML = out.join("");
   }

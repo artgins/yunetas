@@ -822,8 +822,8 @@ treedb_update_node_and_links(tranger, node_u1,
     json_pack("{s:s, s:s%}", "id", "u1", "departments", "departments^direction^users\0x", (size_t)29),
     TRUE, NULL
 );                                                                                  // NULL
-treedb_update_node(tranger, node_dev1,
-    json_pack("{s:s, s:s%}", "id", "dev1", "foto", "\0junk", (size_t)5),           // a `file` column
+treedb_update_node(tranger, node_item1,
+    json_pack("{s:s, s:s%}", "id", "item1", "image", "\0junk", (size_t)5),         // a `file` column
     TRUE
 );                                                                                  // NULL
 treedb_autolink(tranger, node_u1,
@@ -3749,8 +3749,8 @@ int treedb_store_files(
 The manifest has two doors, one per transport. The second one slices the kw's single `gbuffer`, which carries the bytes of every column:
 
 ```json
-"__files__": {"plano": {"content64": "...", "original_name": "plano.pdf", "content_type": "application/pdf"}}
-"__files__": {"plano": {"offset": 0, "size": 51234, "original_name": "plano.pdf", "content_type": "application/pdf"}}
+"__files__": {"map": {"content64": "...", "original_name": "map.pdf", "content_type": "application/pdf"}}
+"__files__": {"map": {"offset": 0, "size": 51234, "original_name": "map.pdf", "content_type": "application/pdf"}}
 ```
 
 **Returns**
@@ -3763,10 +3763,10 @@ The manifest has two doors, one per transport. The second one slices the kw's si
 json_t *kw = json_pack("{s:s, s:{s:{s:s, s:s, s:s}}}",
     "id", "site-1",
     "__files__",
-        "foto", "content64", b64, "original_name", "site-1.jpg", "content_type", "image/jpeg"
+        "image", "content64", b64, "original_name", "site-1.jpg", "content_type", "image/jpeg"
 );
-if(treedb_store_files(tranger, "treedb_myapp", "places", kw) == 0) {
-    /* kw.foto == "__assets__^<sha256>^as_places_foto" */
+if(treedb_store_files(tranger, "treedb_myapp", "sites", kw) == 0) {
+    /* kw.image == "__assets__^<sha256>^as_sites_image" */
 }
 ```
 
@@ -4086,9 +4086,9 @@ unlinked the file and `"<id>\u0000evil"` linked the asset `<id>`, both
 answered as a success:
 
 ```C
-json_t *n = treedb_update_node(tranger, dev1,     // 'foto' is a `file` column
-    json_pack("{s:s, s:s%}", "id", "dev1", "foto", "\0junk", (size_t)5), TRUE);
-/*  n == NULL, "Invalid fkey reference: it holds a NUL", the foto still linked  */
+json_t *n = treedb_update_node(tranger, item1,    // 'image' is a `file` column
+    json_pack("{s:s, s:s%}", "id", "item1", "image", "\0junk", (size_t)5), TRUE);
+/*  n == NULL, "Invalid fkey reference: it holds a NUL", the image still linked  */
 ```
 
 A saved update whose tkey time does not fit the md2 row (negative, or past
