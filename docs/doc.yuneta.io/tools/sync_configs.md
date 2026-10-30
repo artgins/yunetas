@@ -25,8 +25,8 @@ A config in the agent is keyed by `(id, version)`:
 
 - **`id`** is supplied as a command parameter. By convention it equals the config
   **filename without the `.json` extension** (`auth_bff.1801.json` → id
-  `auth_bff.1801`, mirroring the live agent ids `scheduler_wz.5004`,
-  `gate_auraair.4502`, …).
+  `auth_bff.1801`, mirroring the live agent ids `scheduler_app.5004`,
+  `gate_sensor.4502`, …).
 - **`version`** is *not* a parameter: the agent reads it from the `__version__`
   field **inside the file content**. `__description__` is read the same way.
   (See [`cmd_create_config`](https://github.com/artgins/yunetas/blob/7.29.3/yunos/c/yuno_agent/src/c_agent.c#L3854) / [`cmd_update_config`](https://github.com/artgins/yunetas/blob/7.29.3/yunos/c/yuno_agent/src/c_agent.c#L4027) in

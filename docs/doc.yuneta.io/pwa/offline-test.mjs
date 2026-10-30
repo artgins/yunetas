@@ -3,11 +3,11 @@
  *
  *  Run it against the DEPLOYED site after a deploy.sh that touched sw.js:
  *
- *      cd /yuneta/development/projects/wattyzer/gui
+ *      cd <any directory whose node_modules holds playwright>
  *      node /yuneta/development/yunetas/docs/doc.yuneta.io/pwa/offline-test.mjs
  *
  *  (that directory only for its node_modules -- playwright lives there,
- *  with firefox).
+ *  with firefox; PLAYWRIGHT_DIR names another one).
  *
  *  How "offline" is done here, and why not the obvious way:
  *  context.setOffline() is a NO-OP in Playwright's Firefox. With it on,
@@ -16,10 +16,14 @@
  *  second launch of the SAME profile pointed at a dead proxy: nothing
  *  the browser asks for, service-worker fetches included, can leave.
  */
-import { firefox } from "/yuneta/development/projects/wattyzer/gui/node_modules/playwright/index.mjs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const PLAYWRIGHT_DIR = process.env.PLAYWRIGHT_DIR || process.cwd();
+const { firefox } = await import(
+    join(PLAYWRIGHT_DIR, "node_modules", "playwright", "index.mjs")
+);
 
 const SITE = "https://doc.yuneta.io";
 const PROFILE = mkdtempSync(join(tmpdir(), "swtest-"));

@@ -1717,7 +1717,7 @@ PRIVATE int kind_of(const char *s)
 
 **Leaving the switch from inside a case is safe**: `return`, `break` or `goto`. `SWITCHS` allocates nothing, and `CASES_RE` frees its regex before the body of the case runs.
 
-Up to 7.25.6 it was not: `SWITCHS` compiled a regex on entry and only `SWITCHS_END` freed it, so every `return` from a case lost glibc's compiled automaton, a few KB, outside gbmem -- invisible to its audit and to `cur_system_memory`. `C_MQIOGATE`'s send path returned from a case, so every gate with a queue lost ~1 KB per message: in yunovatios' stress test a `gate_central` grew to 1 GB in 25 minutes. Any yuno built before the fix keeps the leak until it is rebuilt: the macros are expanded where they are used.
+Up to 7.25.6 it was not: `SWITCHS` compiled a regex on entry and only `SWITCHS_END` freed it, so every `return` from a case lost glibc's compiled automaton, a few KB, outside gbmem -- invisible to its audit and to `cur_system_memory`. `C_MQIOGATE`'s send path returned from a case, so every gate with a queue lost ~1 KB per message: in an application's stress test a `gate_hub` grew to 1 GB in 25 minutes. Any yuno built before the fix keeps the leak until it is rebuilt: the macros are expanded where they are used.
 
 ---
 

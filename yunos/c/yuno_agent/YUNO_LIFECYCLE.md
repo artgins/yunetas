@@ -311,7 +311,7 @@ the command takes (`id`, `realm_id`, `yuno_role`, `yuno_name`,
 
 ```bash
 ycommand -c 'kill-yuno id=2120'                    # one yuno
-ycommand -c 'kill-yuno yuno_role=gate_central'     # every yuno of a role
+ycommand -c 'kill-yuno yuno_role=gate_hub'         # every yuno of a role
 ycommand -c 'kill-yuno'                            # EVERY yuno of the node
 ycommand -c 'command-yuno id=2120 service=__yuno__ command=view-config'
 ```
@@ -498,7 +498,7 @@ the connected ones adds how many were signalled.
 ```bash
 ycommand -c 'kill-yuno id=5020 force=1'
 # yuneta_agent^node: 1 yuno(s) alive but not connected to the agent: signalled (9), not waited for: a run-yuno before they are gone does not launch them again
-# data: [{"id": "5020", "yuno_role": "db_tracks_ce", "pids": [6933, 6934]}]
+# data: [{"id": "5020", "yuno_role": "db_tracks", "pids": [6933, 6934]}]
 ```
 
 Up to 7.25.21 `kill-yuno` selected only the yunos the agent saw running, and
@@ -572,7 +572,7 @@ What the agent contributes on top:
 
    ```
    "msg": "yuno alive but not connected to the agent: not launched again",
-   "yuno_id": "5020", "yuno_role": "db_tracks_ce", "pids": [6933, 6934]
+   "yuno_id": "5020", "yuno_role": "db_tracks", "pids": [6933, 6934]
    ```
 
    It comes back on its own when it reaches the agent. A `run-yuno` that

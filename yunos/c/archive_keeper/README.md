@@ -111,7 +111,7 @@ A frame whose header is not a json object drops the channel.
 {
     "global": {
         "archive_keeper.backup_directory": "/backups/yuneta",
-        "archive_keeper.allowed_nodes": ["central", "controlador"],
+        "archive_keeper.allowed_nodes": ["central", "edge"],
         "__input_side__.__json_config_variables__": {
             "__input_url__": "tcps://0.0.0.0:1999",
             "__ssl_certificate__": "/yuneta/store/certs/backup.example.com.crt",

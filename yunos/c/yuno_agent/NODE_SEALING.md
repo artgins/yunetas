@@ -300,14 +300,14 @@ here is a candidate for promotion to Tier 1:
   re-seeds its copy, is the Tier-1 answer.
 - **Publishing a SPA bundle** into a vhost (`rsync dist/ → /yuneta/gui/<fqdn>/`).
   Same gap as above and today's most frequent one: every front-end release of
-  yunovatios, wattyzer and the treedb GUI goes this way. It is also the one that
-  bites first when a node is reimaged — on 2026-08-27 the yunovatios controller's
+  two applications and the treedb GUI goes this way. It is also the one that
+  bites first when a node is reimaged — on 2026-08-27 a controller node's
   SSH host key had changed and the deploy hung at the verification prompt, while
   every backend task of the same session (binaries, configs, snapshots, commands)
   went through the agent untouched. On 2026-09-13 it failed a second way: an
   Internet-wide password botnet (2,000-3,000 attempts per hour per node) filled
-  sshd's `MaxStartups` slots, and sshd dropped the rsync deploys to `wattyzer`
-  and the controller at random, up to 1,464 drops per hour, while the agent's
+  sshd's `MaxStartups` slots, and sshd dropped the rsync deploys to a staging
+  node and the controller at random, up to 1,464 drops per hour, while the agent's
   `wss://` channel was not affected. Relaxing `LoginGraceTime` and `MaxStartups`
   brought the drops to zero, but only the seal removes the exposure. A
   `write-file`, or a vhost-aware command, would promote it to Tier 1.
@@ -339,14 +339,14 @@ here is a candidate for promotion to Tier 1:
   whether any C client ever received an event for an unknown `dst_service`,
   the five nodes were asked for *"service NOT FOUND"* with a `grep` over
   `/yuneta/realms/*/*/logs/*` (the logcenter's collected `[1-7].log`
-  included: one file per weekday, 40 MB each on wattyzer). Tier 1 can read
+  included: one file per weekday, 40 MB each on a staging node). Tier 1 can read
   one file (`dir-logs`, `read-file`), but a search means carrying every log
   of the node over the channel to grep it elsewhere. A `search-logs` agent
   command (a pattern, an optional realm/yuno, a cap on the lines answered)
   is the Tier-1 answer.
 - **Putting a yuno's `data/` (and its queues) in a tmpfs** (2026-10-25). The
-  generator fleets of the performance test (`sim_controllers` pp12-pp17 on
-  artgins, as pp1-pp5 on wattyzer) cannot run their queues on a node's HDDs
+  generator fleets of the performance test (`sim_fleet` pp12-pp17 on one
+  node, as pp1-pp5 on a staging node) cannot run their queues on a node's HDDs
   (every save of their counters fsyncs), so the node got a tmpfs
   (`mount -t tmpfs ... /mnt/simram`, with sudo) and each yuno's realm dir a
   `data -> /mnt/simram/data/<name>` symlink made BEFORE its first run. The
@@ -364,7 +364,7 @@ here is a candidate for promotion to Tier 1:
   (CLI 0.23.0) does the ordered restart (main, verify, then the spare), but it
   runs ON the node, so through a shell: it stays here, in Tier 2.
 
-**Tier 2 is reachable — and it is root.** Resolved on `e.com` 2026-07-22:
+**Tier 2 is reachable — and it is root.** Resolved on a staging node 2026-07-22:
 
 - [`c_pty.c`](../../../kernel/c/root-linux/src/c_pty.c) spawns the shell with
   `forkpty()` + `execv()` and **no `setuid`/`setgid`** — the PTY child inherits
@@ -383,7 +383,7 @@ seal it is the only door, and that door is total. Two consequences:
   `write-file`, a package-upgrade command — because each promotion is one
   fewer reason to hand out root.
 
-Verified on `e.com` only. Confirm it per node before you seal, especially the uid
+Verified on one staging node only. Confirm it per node before you seal, especially the uid
 the agent runs as (the local dev node, for one, runs the primary agent as the
 developer's own user).
 
@@ -394,7 +394,7 @@ the `Authz.initial_load` user list whatever else is configured. The generic
 per-command gate is different: `SDF_AUTHZ_X` runs only when the yuno sets
 `enable_command_authz` (see
 [`command_parser.c`](../../../kernel/c/gobj-c/src/command_parser.c)), and that
-attr is **absent on `e.com`** — so the rest of the surface (`install-binary`,
+attr is **absent on that node** — so the rest of the surface (`install-binary`,
 `kill-yuno`, `read-file`, …) is **authenticated but not authorized**: any
 principal holding a valid realm token can drive it. Before sealing, decide
 whether that is acceptable, because the only remaining defense of a sealed node is
@@ -421,7 +421,7 @@ measurement method and the client-side trust asymmetry in
 `issuer`, `client_id`, `user_id` and the TLS pinning pair
 (`ssl_trusted_certificate`, `ssl_server_name`); `ssh` is an optional fallback
 used only by `--tunnel`, and `url` wins when both are present. The two
-yunovatios nodes are registered with a `url` and **no** `ssh` field at all, so a
+nodes of one application are registered with a `url` and **no** `ssh` field at all, so a
 sealed node is already registrable. Note the client_id is the **node's own**
 (`node.example.com`), not the SPA's (`yunetacontrol`, auth-code-only
 and therefore useless headless) — picking the wrong one is what makes a
@@ -429,12 +429,13 @@ headless login hang rather than refuse.
 
 ### 5.5 An internal yuno needs its own `C_AUTHZ`, or the seal locks it out
 
-**Found 2026-08-25 on `yunovatios-controlador` and `yunovatios-central`.**
+**Found 2026-08-25 on the controller node and the central node of an
+application.**
 `authz_checker()` ([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c))
 opens with `gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies
 **everyone** — fail-closed by design. Three yunos had no such service:
-`db_tracks_co` (controlador), `db_tracks_ce` (central) and `gate_caudal`
-(controlador). Every authz-guarded command answered `-403 No permission` to
+`db_tracks_edge` (controller), `db_tracks` (central) and `gate_meter`
+(controller). Every authz-guarded command answered `-403 No permission` to
 every principal, `yuneta_admin@artgins.com` with the `root` role included. Not
 a permissions problem: there was nobody to read the permissions. Their own logs
 said it plainly — `{"function": "authz_checker", "msg": "No gclass authz
@@ -450,7 +451,7 @@ The fix is per-yuno configuration, not framework: declare the `authz` service
 (`C_AUTHZ`, priority 0) and point it at the node's authzs store as a
 **follower** (`Authz.master: false`, `Authz.authz_service: <store>`). The
 store's master stays the yuno that carries `Authz.initial_load`
-(`db_history_co.1630` / `db_history_ce.1620`). `master` governs who may WRITE
+(`db_history_edge.1630` / `db_history.1620`). `master` governs who may WRITE
 the authz store — it is not a privilege level, and a follower authorizes just
 as well as a master.
 
@@ -477,8 +478,8 @@ architecture. A narrower role is possible without touching any code.
 **PENDING — how an SPA user acts on an internal yuno.** Two doors exist today
 and the choice is not yet made:
 
-- **(a) A public service on the yuno.** `gate_enchufe` (estadodelaire,
-  hidraulia) and `gate_energia` (yunovatios) declare
+- **(a) A public service on the yuno.** `gate_plug` (two
+  applications) and `gate_energy` (a third one) declare
   `public_services: ['__top_side__']` with a `service_descriptor`, so the SPA
   opens a session **straight to the yuno** and calls `set-power` — the agent is
   not in the path. It works, it is in production, and it is the one that gets

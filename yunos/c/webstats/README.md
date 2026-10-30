@@ -261,7 +261,7 @@ table is the suite talking to itself.
   (2xx), and whose user agent carries no mark of `bot_agents`. That is the
   honest signal: a browser fetches the page and its sub-resources, while a
   scanner wearing a browser user agent asks for one URL and leaves. Measured
-  on 2026-08-06 on e.com: **1346 addresses claimed to be a browser and 71 ever
+  on 2026-08-06 on a staging node: **1346 addresses claimed to be a browser and 71 ever
   fetched a script.** A declared crawler is excluded even though Googlebot
   does run JavaScript.
   `full_page` counts the visitors that fetched five pieces or more, which is
@@ -284,8 +284,8 @@ table is the suite talking to itself.
   Byte counts print in KB/MB/GB. `145695002` is a number the reader has to
   count digits on.
   The mail shows the busiest `top_n` and says how many more answered. The name
-  is the Host header, so anybody can invent one: the first mail from e.com
-  listed 52 rows, half of them forged names with one request each.
+  is the Host header, so anybody can invent one: the first mail from a staging
+  node listed 52 rows, half of them forged names with one request each.
   Distinct clients are counted **once, globally**, and not per vhost: a set of
   addresses per name multiplies the worst case by the number of vhosts, and
   the number that gets read is the total.
@@ -611,7 +611,7 @@ styles are inline because a mail client throws a `<style>` block away.
 ⚠️ **The body must be broken into lines.** SMTP allows at most 1000 octets per
 line (RFC 5321), and this report is one single line of 40 KB. A relay is
 entitled to fold it, and OVH does: it inserts CRLF+space every ~1000 bytes, in
-the middle of whatever is there. The first mail from e.com arrived with
+the middle of whatever is there. The first mail from a staging node arrived with
 `&Delta;` split into `& Delta;`, a row label reading `cl ients`, a path
 reading `ac cess.log`, and a `<td` cut in half — which stops being a tag and
 prints as text in the middle of a table. A newline goes between every pair of
@@ -677,7 +677,7 @@ reads both files.
 
 **And it does not heal.** Once `<path>` is empty, `notifempty` skips it, so the
 rotation is never attempted again: one lost signal costs the rest of the life
-of the node. It cost **eight days** on `yunovatios-central` (23–31 August
+of the node. It cost **eight days** on a Rocky 9 test node (23–31 August
 2026), and it was found by somebody listing the directory.
 
 The signature needs no history: after a healthy rotation the live file is the
@@ -738,8 +738,8 @@ log_format vhost '$remote_addr - $remote_user [$time_local] "$request" '
 **Rollout.** The configs are not in this repo. Each one is owned by an
 operations repo and is uploaded by its own `deploy-conf.sh`
 (see `reference_nginx_config_ownership`): `artgins` and the `yuneta.io` root in
-the artgins ops repo on branch `master`, `app.wattyzer.com` in wattyzer,
-`demo.estadodelaire.com` in estadodelaire, and one per yunovatios node. Patch
+the artgins ops repo on branch `master`, and each application's domains in
+the repo of that application, one per node. Patch
 the repo and the node in the same session, `diff` them, `nginx -t` **before**
 reload, and on `artgins` take a `curl` picture of the other domains before and
 after — a reload there also touches Keycloak, code, doc and www.

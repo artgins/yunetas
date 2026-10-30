@@ -61,7 +61,7 @@ again and again. It is what the agent's `watch-yuno-stats` asks of its yunos.
 # the yuno's own stats (the `cpu` reading of a watch), every 2 s, for 60 s
 publish-stats stats_service=__yuno__ period=2000 ttl=60000
 # a service's stats; no ttl: the attribute publish_stats_ttl (60000 ms)
-publish-stats stats_service=db_tracks_ce period=5000
+publish-stats stats_service=db_tracks period=5000
 # never ending on its own: until stop=1 or the requester goes
 publish-stats stats_service=__yuno__ period=2000 ttl=-1
 publish-stats stats_service=__yuno__ stop=1

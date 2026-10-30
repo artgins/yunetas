@@ -823,7 +823,7 @@ measured with the same commands:
 | `run-yuno` through the controlcenter | 891 bytes | 489 bytes |
 | `list-yunos` through the controlcenter | 840 bytes | 97 bytes |
 
-On wattyzer, a deploy day wrote 0.6–1.2 GB of audit (5 to 9 binaries) and a
+On a staging node, a deploy day wrote 0.6–1.2 GB of audit (5 to 9 binaries) and a
 normal day 2 KB to 2.6 MB. With this format a deploy day writes a few KB.
 
 (agent-audit-console-writes)=
@@ -877,7 +877,7 @@ day crosses `max_megas_audit_file`, it is renamed to the first free
 is removed at a rotation**: the audit rotatory uses
 [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files). Up to 7.25.4
 each rotation removed the previous `.OLD`, so a day that crossed the limit
-twice lost its first part (on wattyzer, the mornings of 22 and 23 September
+twice lost its first part (on a staging node, the mornings of 22 and 23 September
 2026).
 
 If the directory refuses the rename (`chattr +a` on it, a read-only bind, a MAC
@@ -1500,7 +1500,7 @@ loading a database. Aim the window at what the previous run's report showed,
 and add the sizes of step 1. The header line of the report prints the window
 it used, so a malformed value shows up as `window_max: 0`.
 
-Worked example (`db_history_ce`, 2026-09-20): sixteen blocks read as six json
+Worked example (an application's `db_history`, 2026-09-20): sixteen blocks read as six json
 arrays plus two strings of 91 and 93 characters; `YUNETA_TRACK_MEM_DUMP=1`
 printed the text of the strings, which named the field (`observaciones` of six
 `places` nodes); the window gave the stacks, which put the allocation in the

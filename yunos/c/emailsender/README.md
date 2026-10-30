@@ -365,5 +365,5 @@ directory) followed by the agent's `install-binary` + `create-yuno` +
 `run-yuno` cycle. See
 [`YUNO_LIFECYCLE.md`](../yuno_agent/YUNO_LIFECYCLE.md) §6.
 
-Production deployments live in the private `estadodelaire` repo
+Production deployments live in the private repo of each application,
 under its `batches/<host>/` tree.

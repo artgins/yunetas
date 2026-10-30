@@ -256,14 +256,14 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_controllers -> gate_central -> db_tracks_ce",
+    "description": "sim_fleet -> gate_hub -> db_tracks",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
-        {"key": "gate",   "id": "2120",   "label": "gate_central",
+        {"key": "sim",    "id": "stress", "service": "sim_fleet", "rate": "tx"},
+        {"key": "gate",   "id": "2120",   "label": "gate_hub",
          "queue_service": "__output_side__"},
-        {"key": "tracks", "id": "5120",   "label": "db_tracks_ce"}
+        {"key": "tracks", "id": "5120",   "label": "db_tracks"}
     ],
     "links": [["sim", "gate"], ["gate", "tracks"]],
     "actions": {
@@ -425,7 +425,7 @@ line the client wrote:
 
 ```bash
 ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b period=2000'
-# -> the agent of node-b gets: watch-yuno-stats ids=pp9:sim_controllers,pp10:sim_controllers,pp11:sim_controllers,2120,2120:__output_side__,2130,2130:__output_side__,2140,2140:__output_side__,5120 period=2000
+# -> the agent of node-b gets: watch-yuno-stats ids=pp9:sim_fleet,pp10:sim_fleet,pp11:sim_fleet,2120,2120:__output_side__,2130,2130:__output_side__,2140,2140:__output_side__,5120 period=2000
 ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b keys=tracks'
 # -> watch-yuno-stats ids=5120 period=2000
 ycommand ... -c 'watch-scenario scenario_id=load-20k node=node-b stop=1'
@@ -516,7 +516,7 @@ of steps, `on` and `off`, as those of an action, where a step that names no
 `yuno` goes to the switch's own:
 
 ```json
-{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "node-a",
+{"key": "pp12", "id": "pp12", "service": "sim_fleet", "rate": "tx", "node": "node-a",
  "switch": {
      "on":  [{"command": "set-devices devices=20"}, {"command": "set-period period=1000"},
              {"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],

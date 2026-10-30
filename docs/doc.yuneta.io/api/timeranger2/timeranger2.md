@@ -1535,7 +1535,7 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   followers of a topic upgrade together: an older follower ignores the
   signal.
 - **Cost.** One small file and two `fsync()` per key purged, and two or three
-  unlinks per file: 0.9 to 1.8 ms per key on the two yunovatios VMs. The hard
+  unlinks per file: 0.9 to 1.8 ms per key on two Rocky/Debian test VMs. The hard
   links `disks/<rt_id>/<key>/<id>.md2` that a dead feed left are removed too,
   BEFORE the files of `keys/`: while one of them cannot be removed (*"Cannot
   remove a feed's link of a purged period, unlink() FAILED: the files of the

@@ -1162,13 +1162,12 @@ h1.hero-title {
             </a>
 
             <!--
-                This card and the yunomúsica and yunovídeo ones below are
-                the only absolute hrefs on this page besides GitHub, and
-                they break the root-relative rule in the header comment on
-                purpose: all three are separate apps on their own hosts, not
-                pages of this tree, so there is nothing to keep on the
-                reader's hostname. None carries a MyST theme either, so the
-                localStorage argument does not apply to them.
+                This card is the only absolute href on this page besides
+                GitHub, and it breaks the root-relative rule in the header
+                comment on purpose: it is a separate app on its own host,
+                not a page of this tree, so there is nothing to keep on the
+                reader's hostname. It carries no MyST theme either, so the
+                localStorage argument does not apply to it.
             -->
             <a class="run-card" href="https://demo.yuneta.io">
                 <span class="run-kick">&#9654;&ensp;Live</span>
@@ -1178,30 +1177,6 @@ h1.hero-title {
                 model, declared in one JSON file and materialized by the shell. No backend and
                 no login. Open it on a phone too: the layouts change per breakpoint, which is
                 the part a screenshot cannot show.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <a class="run-card" href="https://yunomusica.com">
-                <span class="run-kick">&#9654;&ensp;Live</span>
-                <span class="run-t">A shipped app, not a demo</span>
-                <span class="run-d">Yunomúsica plays the music already on your phone: you
-                authorise a folder, it is read on the device, and nothing is copied or
-                uploaded. It is Yuneta in the browser doing ordinary work — the same
-                <code>C_YUI_SHELL</code> and <code>C_YUI_NAV</code> as the demo above, five
-                app gclasses, and every tap arriving at a state machine as an event. Installable,
-                offline, ten languages, no backend to call.</span>
-                <span class="run-go">open &rarr;</span>
-            </a>
-
-            <a class="run-card" href="https://yunovideo.com">
-                <span class="run-kick">&#9654;&ensp;Live</span>
-                <span class="run-t">The same app, for video</span>
-                <span class="run-d">Yunovídeo is yunomúsica's sibling for the films, series
-                and recordings already on your phone or computer: read on the device, nothing
-                copied or uploaded. What a video needs that a song did not is where it shows:
-                every video remembers the second it was left at, subtitles found beside the
-                file, episodes grouped by show and season. Same shell, five app gclasses of its
-                own, installable, offline, ten languages.</span>
                 <span class="run-go">open &rarr;</span>
             </a>
 

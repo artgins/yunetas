@@ -26,7 +26,7 @@ treedb takes; red: 3 x 357 bytes not freed).
 
 The leak checks of these tests (*"system memory not free"* at the end) work
 only in a build with `CONFIG_DEBUG_TRACK_MEMORY`; where it is off (the nodes'
-builds, wattyzer's release run) they pass whatever leaks.
+builds, a staging node's release run) they pass whatever leaks.
 
 `test_mqtt_queued_in` (`main_queued_in.c` + `c_queued_in.c`) uses a RAW client
 (a `C_TCP` that writes MQTT 3.1.1 packets by hand). Session 1 (clean session 0)

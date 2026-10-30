@@ -478,7 +478,7 @@ What each line keeps from this chapter:
   install the packages, so it keeps the unit of the last package it had: a
   unit older than 7.26.0 asks only the agent to stop (`pkill`), not its
   watcher, and its `ExecStopPost` reads a hand-written cgroup path and says
-  nothing (artgins and hidraulia had one in 2026-10). Compare with
+  nothing (two production nodes had one in 2026-10). Compare with
   `systemctl cat yuneta_agent` and copy `packages/templates/*.service` by
   hand when it differs.
 - **`KillMode=process`.** The yunos the agent launches are in the unit's

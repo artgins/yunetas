@@ -26,7 +26,7 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
-- **`test_c_fs` stalled once in a full `-j8` suite on wattyzer** (7.27.7
+- **`test_c_fs` stalled once in a full `-j8` suite on a staging node** (7.27.7
   release suite, 2026-10-22; once already in the first 7.27.6 run, whose log
   was lost). Phase 0 passed; right after the test replaces the two inotify
   fds that have an io_uring read pending (`break_inotify_fds()`, a `dup2()`
@@ -39,7 +39,7 @@ Severity in parentheses where one was assigned.
   seen on the dev machine (7.0). The scenario is the test's own sabotage of an
   fd under a pending io_uring op, not a production path; next: arm the
   `liburing` trace from phase 1 on so a recurrence says which completion did
-  not come. Log: `LastTest.wattyzer-7.27.7.log`, `test_c_fs` section, kept in
+  not come. Log: `LastTest.<node>-7.27.7.log`, `test_c_fs` section, kept in
   the release notes of 7.27.7.
 
 - **`test_fs_watcher_overflow` failed once under `ctest -j8`** (7.29.2 release
@@ -72,8 +72,8 @@ Severity in parentheses where one was assigned.
 ### Projects (code outside this repo)
 
 Moved to the TODO of each project on 2026-10-02: `msg2db_id_incomplete()` in
-the db_history alarms (wattyzer, yunovatios, estadodelaire, hidraulia), and the
-url in `C_GATE_PVPC`'s logs (wattyzer).
+the db_history alarms (four applications), and the url in `C_GATE_PVPC`'s logs
+(one application).
 
 ---
 
@@ -320,12 +320,12 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   with the same `id`); if it ever filters anything, it is by **metadata**
   (`__tm__`), never by data. (A filter by key and payload field was written
   and reverted, `02bf70ea5` / `cac246730`.) The application work is in
-  yunovatios' TODO.
+  the TODO of the application.
 
 ### Protocols
 
 - **`C_PROT_MQTT` is not migrated to `peername` attribution**: deprecated,
-  still in hidraulia production, goes away with it. `C_PROT_MQTT2` is the
+  still in one client production node, goes away with it. `C_PROT_MQTT2` is the
   target for protocol work.
 
 ### Events
@@ -370,7 +370,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   candidate needs a test that removes the signal, and an A/B on the read
   phase of `perf_timeranger2`.
 - **A follower re-reads the first row of the md2 on every notification.**
-  Profiled 2026-09-27 on yunovatios' `db_history_ce`: 10.9 % of its work was
+  Profiled 2026-09-27 on an application's `db_history`: 10.9 % of its work was
   `load_cache_cell_from_disk()` → `load_first_and_last_record_md()`.
   `b2f972382` removed the per-append open/close in the common case (a
   kept-open md2 descriptor, `fstat` instead of `open`+`lseek`), but
@@ -459,7 +459,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   negative ack that names the event and the cause, in C and gobj-js alike;
   the client logs it and publishes it, so a view can say which data will not
   update. It changes the wire protocol: an older client must ignore it.
-- **Measure what many subscriptions cost.** hidraulia raises
+- **Measure what many subscriptions cost.** A client application raises
   `max_subscriptions` to 20000 per channel. Memory (a json per subscription
   per channel) and speed (`peer_has_subscription_room()` runs
   `gobj_find_subscribings()` on every `__subscribing__`: O(N²) at connect and
@@ -511,7 +511,7 @@ url in `C_GATE_PVPC`'s logs (wattyzer).
   `jtree`, whose ready-made tree with `__path__` is ignored in favour of a
   flat `nodes` list).
 
-### gobj-ui and gobj-js (found from yunovideo and yunomusica, 2026-10-18)
+### gobj-ui and gobj-js (found from two media-player apps, 2026-10-18)
 
 Seen while reviewing two app SPAs; the apps were fixed on their side, the
 kernel was not touched.
@@ -519,7 +519,7 @@ kernel was not touched.
 - **The developer panel has no chips for an app's own trace levels.**
   `yui_dev.js` offers fixed chips for the framework's levels (automata,
   creation, traffic…) and nothing for a gclass's `s_user_trace_level`. An app
-  that traces what happens outside its automata (yunovideo and yunomusica
+  that traces what happens outside its automata (both media-player apps
   trace their stores under the root gclass's `stores` / `stores-time`) has to
   draw its own chips in its own sheet, calling `set-gclass-trace` itself. A
   generic section listing the user levels of the app's gclasses, set through
@@ -534,8 +534,8 @@ kernel was not touched.
   it.
 - **`yui_shell_register_overlay()` buys Back but not Escape.** Escape is a
   separate stack (`yui_shell_push_escape` / `yui_shell_pop_escape`), and
-  forgetting it is silent: yunomusica's four dialogs (welcome, install, the
-  replace question, a track's card) never closed with Escape. Either let the
+  forgetting it is silent: the music player's four dialogs (welcome, install,
+  the replace question, a track's card) never closed with Escape. Either let the
   overlay registration take the Escape handler too, or make the pairing
   impossible to miss in the README's dialog section.
 - **No `EV_VIEW_HIDDEN`, and no "is this view shown?" query.** A
@@ -638,7 +638,7 @@ be weighed again, not as settled.
 `test_c_udp_s_tx` (and probably others: check `scripts/check_test_ports.py`)
 binds fixed ports such as 34281/34282, inside Linux's ephemeral range
 (32768-60999). Any socket of the machine can be given one of them by the
-kernel: on 2026-10-27 a local `gate_energia` held 34282 and the test failed in
+kernel: on 2026-10-27 a local `gate_energy` held 34282 and the test failed in
 the release suite of 7.28.8. Move the fixed ports of the tests below 32768
 and have `check_test_ports.py` refuse one inside the range.
 

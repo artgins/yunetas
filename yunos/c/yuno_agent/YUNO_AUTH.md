@@ -995,17 +995,17 @@ Points found so far (verified this session unless noted):
    opens with `gobj_find_service_by_gclass(C_AUTHZ)` and denies when it finds
    nothing, so a yuno that never declared the service refuses every
    `gobj_user_has_authz()` command to every principal, `root` included. Found
-   2026-08-25 on three yunovatios yunos (`db_tracks_co`, `db_tracks_ce`,
-   `gate_caudal`), all of them internal (loopback / serial listeners only), so
-   SSH was the only remaining way in. Fixed there by declaring the service as a
-   FOLLOWER of the node's authzs store. **For the matrix this means the
-   inventory is per YUNO, not per node**: a role is worth nothing in a yuno
-   that has nobody to read it. Detail and the sealing consequence in
+   2026-08-25 on three yunos of an application (`db_tracks_edge`,
+   `db_tracks`, `gate_meter`), all of them internal (loopback / serial
+   listeners only), so SSH was the only remaining way in. Fixed there by
+   declaring the service as a FOLLOWER of the node's authzs store. **For the
+   matrix this means the inventory is per YUNO, not per node**: a role is
+   worth nothing in a yuno that has nobody to read it. Detail and the sealing consequence in
    [`NODE_SEALING.md`](NODE_SEALING.md) §5.5.
 
 10. **How an SPA user acts on an INTERNAL yuno is undecided**, and the default
     answer bypasses the matrix entirely. Today the working pattern
-    (`gate_enchufe` in estadodelaire / hidraulia, `gate_energia` in yunovatios)
+    (`gate_plug` in two applications, `gate_energy` in a third one)
     is `public_services: ['__top_side__']`: the SPA opens a session straight to
     the yuno and calls e.g. `set-power`, which carries no
     `gobj_user_has_authz()` guard — so the authenticated session IS the
@@ -1022,8 +1022,8 @@ Points found so far (verified this session unless noted):
     subscribes to a treedb needs `read` on that treedb's service for its user:
     the gobj-ui treedb views (`C_YUI_TREEDB_TOPICS`,
     `C_YUI_TREEDB_TOPIC_WITH_FORM`, `C_YUI_TREEDB_GRAPH`), gui_treedb, the
-    treedb views of gui_agent, and the app GUIs built on them (wattyzer,
-    yunovatios). The realtime feed of a `C_TRANGER` (`EV_TRANGER_RECORD_ADDED`)
+    treedb views of gui_agent, and the app GUIs built on them (two
+    applications). The realtime feed of a `C_TRANGER` (`EV_TRANGER_RECORD_ADDED`)
     follows the same gate since 7.25.5, and a GUI that streams a topic with
     `open-rt` needs `read` on the tranger's service. A gclass of a project
     that re-publishes the feed under its own service (the `db_history` yunos)
@@ -1257,8 +1257,7 @@ The convention from
 | Project           | Keycloak host                  | Realm name           | Notes                                              |
 |-------------------|--------------------------------|----------------------|----------------------------------------------------|
 | yunetas dev       | `auth.artgins.com`             | `yunetas.com`        | Localhost dev batch, see `batches/localhost/auth_bff.1801.json`. |
-| wattyzer          | (per project, private repo)    | (per project)        | See wattyzer batches/.                              |
-| estadodelaire     | (per project, private repo)    | (per project)        | See estadodelaire batches/.                         |
+| each application  | (per project, private repo)    | (per project)        | See the project's batches/.                         |
 
 ### 7.2 Bootstrap checklist for a new project
 

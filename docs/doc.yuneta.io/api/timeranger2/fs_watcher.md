@@ -411,7 +411,7 @@ Here the owner took most of it (a test's owner that sleeps 100 us per
 directory); a large `ms_loop` would say the slices were waiting for a busy
 loop instead.
 
-What it said on yunovatios' central, a timeranger2 follower of 50501 keys
+What it said on an application's central node, a timeranger2 follower of 50501 keys
 while its master wrote a backlog of ~9 GB (2026-09-27): passes of 142-335 s,
 **65-78 % in the owner**, 22-35 % in the loop, and **1.1-1.7 s in the
 watcher** -- whatever the length of the pass. The owner's time is the records
@@ -684,8 +684,8 @@ says the path is not watched any more (its `size_dl_watch` reads 0).
 `utils/c/fs_watcher` prints *"Watcher gone"*.
 
 Up to 7.25.8 an overflow aborted the yuno, to be relaunched and reload clean.
-Under a sustained burst the reload met the next overflow: in yunovatios' stress
-test of its central, a `db_history_ce` following a `db_tracks_ce` at ~3000
+Under a sustained burst the reload met the next overflow: in an application's
+stress test of its central, a `db_history` following a `db_tracks` at ~3000
 records/s over ~60000 keys aborted five times in two hours, each relaunch
 spending 2-3 minutes catching up before falling again.
 

@@ -218,7 +218,7 @@ of each yuno.
 ```bash
 yunetas set-start-priorities -n                         # show the plan, write nothing
 yunetas set-start-priorities -a                         # apply without asking
-yunetas set-start-priorities --rule 'scheduler_wz=8'    # add a rule for an app role
+yunetas set-start-priorities --rule 'scheduler_app=8'    # add a rule for an app role
 yunetas set-start-priorities -n --node prod             # a registered node
 ```
 

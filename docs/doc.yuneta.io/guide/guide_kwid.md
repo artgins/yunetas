@@ -260,7 +260,7 @@ json_array_append_new(talleres, json_pack(
 ));
 ```
 
-A real bug of this exact shape (2026-09-20, `db_history_ce`): a locally built
+A real bug of this exact shape (2026-09-20, an application's `db_history`): a locally built
 array was packed with `s:O` instead of `s:o`, so it had two owners and only one
 of them freed it. Freeing the configuration left the whole branch behind — 1207
 blocks, 63 KB, on every configuration sent to a box. One character.

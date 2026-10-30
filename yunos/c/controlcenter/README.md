@@ -124,7 +124,7 @@ one generator is turned on or off while the others go on -- to climb the load
 one fleet at a time:
 
 ```json
-{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "node-a",
+{"key": "pp12", "id": "pp12", "service": "sim_fleet", "rate": "tx", "node": "node-a",
  "switch": {"on":  [{"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
             "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]}}
 ```
@@ -218,14 +218,14 @@ A scenario is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_controllers -> gate_central -> db_tracks_ce",
+    "description": "sim_fleet -> gate_hub -> db_tracks",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
-        {"key": "gate",   "id": "2120",   "label": "gate_central",
+        {"key": "sim",    "id": "stress", "service": "sim_fleet", "rate": "tx"},
+        {"key": "gate",   "id": "2120",   "label": "gate_hub",
          "queue_service": "__output_side__"},
-        {"key": "tracks", "id": "5120",   "label": "db_tracks_ce"}
+        {"key": "tracks", "id": "5120",   "label": "db_tracks"}
     ],
     "links": [["sim", "gate"], ["gate", "tracks"]],
     "actions": {

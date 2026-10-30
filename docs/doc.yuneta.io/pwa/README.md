@@ -82,7 +82,7 @@ A page that was never read falls back to `offline.html`.
 whole set. Run it after any deploy that touches `sw.js`:
 
 ```bash
-cd /yuneta/development/projects/wattyzer/gui   # for its node_modules
+cd <a directory with playwright in node_modules>   # or set PLAYWRIGHT_DIR
 node /yuneta/development/yunetas/docs/doc.yuneta.io/pwa/offline-test.mjs
 ```
 

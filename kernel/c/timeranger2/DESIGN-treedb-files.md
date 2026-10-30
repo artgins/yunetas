@@ -26,7 +26,7 @@ A treedb is a **memory database**, and timeranger2 rewrites the **whole record**
 on every update. So a photo cannot be a field of a node: it would sit in RAM for
 the life of the yuno and be rewritten every time the node changed state.
 
-Measured on the yunovatios central (2026-09-04):
+Measured on the central node of an application (2026-09-04):
 
 | | |
 |---|---|
@@ -50,8 +50,8 @@ count the delete dialog prints ("N children will be UNLINKED").
 It is a different thing from the two neighbours it will sit next to in the list:
 
 - `image` — the field **holds** the file: a url or a data uri, drawn with
-  `<img>`. That is the model the yunovatios census used before `C_ASSETS`, where
-  `devices.foto` was a path under `censo_memorias/` that nothing owned.
+  `<img>`. That is the model an application's census used before `C_ASSETS`,
+  where `devices.photo` was a path under a directory that nothing owned.
 - `icon` — the **name** of an icon of the app's set (`yi-bolt`).
 
 ⚠️ A new field type goes in **three** places, and the third is the only one that
@@ -656,8 +656,8 @@ built again from scratch.**
 Renaming `assets` to `__assets__` changes the fkey literal in every record that
 links one, so a store that survived would carry links to a topic that no longer
 exists. Migrating it in place is work to produce a state that a reload produces
-anyway — the yunovatios stores have been wiped for less (schema 17, the same
-day this note was written).
+anyway — the stores of that application have been wiped for less (schema 17,
+the same day this note was written).
 
 What that does NOT remove is the way back in. Rebuilding from scratch is exactly
 re-ingesting 12 134 blobs and 346 MB, so the bulk load is not a convenience, it
@@ -743,7 +743,7 @@ What is actually open is in §16.
 
 Every section above was checked against `tr_treedb.c`, `timeranger2.c`,
 `treedb_system_schema.c`, `c_treedb.c`, `c_node.c`, `c_assets.c`,
-`msg_ievent.c`, `kwid.c`, the JS side and the yunovatios schema. The model
+`msg_ievent.c`, `kwid.c`, the JS side and the application's schema. The model
 holds. Seven statements do not, and each one changes what §11 has to build.
 None of them is open in §14, so §14 is wrong to say "none".
 
@@ -768,8 +768,8 @@ None of them is open in §14, so §14 is wrong to say "none".
    writes `['fkey', 'file']` and `file` qualifies the fkey, as `enum` does;
    (b) the derivation pass injects `fkey` into the in-memory flag of every
    `file` column. **(a) is recommended**: one word in the schema, no code in
-   30 places — and `devices.foto` is `['fkey']` in yunovatios today
-   (`db_history_schema.c:1048`), so the host ADDS a word rather than
+   30 places — and `devices.photo` is `['fkey']` in that application today
+   (in the schema of its `db_history`), so the host ADDS a word rather than
    replacing one.
 
 3. **The gc's only protection is the snapshot walk.** `treedb_shoot_snap()`
@@ -830,7 +830,7 @@ None of them is open in §14, so §14 is wrong to say "none".
   what it defends"*. Before treedb sees anything, the transport has received
   the whole packet and jansson has parsed it into a string. `c_prot_tcp4h`
   takes `max_pkt_size` from `gbmem_get_maximum_block()` by default — that is
-  `MEM_MAX_BLOCK`, 200 MB in the agent and 1 GB in `db_history_ce`. The real
+  `MEM_MAX_BLOCK`, 200 MB in the agent and 1 GB in an application's `db_history`. The real
   defence is the transport's; treedb's `max_size` has to sit BELOW it or it
   is unreachable. The `c_websocket` frame limit was not checked.
 
@@ -960,7 +960,7 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
 
 ### 16.7 Still open
 
-- **The hosts' remote stores** (§11, §12): the yunovatios nodes still run the
+- **The hosts' remote stores** (§11, §12): that application's nodes still run the
   `<realm>/assets/` model, and rebuilding them is the migration §12 says there
   is not.
 - **A non-master replica gets the index and not the bytes**, and so does an

@@ -375,7 +375,7 @@ center running a scenario, its step's whole deadline). Since 7.25.16 the
 command is answered at once when it reached none of them,
 
 ```text
-yuneta_agent^controlador: set-period: yuno stress runs but is not connected to the agent (starting or stopping): nothing sent
+yuneta_agent^node-a: set-period: yuno stress runs but is not connected to the agent (starting or stopping): nothing sent
 ```
 
 and when it reached only some, the others are named in a warning of the
@@ -392,7 +392,7 @@ Monitor workspace of gui_agent uses when it talks to an agent directly.
 # every 2 s: the state, the cpu and the stats of each yuno's service
 watch-yuno-stats ids=stress,2120,5120 period=2000
 # `id:service` reads another service than the one named as the role
-watch-yuno-stats ids=5120:db_tracks_ce,2 period=5000
+watch-yuno-stats ids=5120:db_tracks,2 period=5000
 # end it (closing the connection ends it too)
 watch-yuno-stats stop=1
 ```
@@ -406,7 +406,7 @@ that is the point: ask `stats-yuno` there.
 The answer says what is watched:
 
 ```text
-yuneta_agent^controlador: watching 3 yunos every 2000 ms
+yuneta_agent^node-a: watching 3 yunos every 2000 ms
 ```
 
 and from then on the agent sends `EV_YUNO_STATS` along the route the
@@ -434,7 +434,7 @@ one browser were one requester and shared a watch) and its connection
 (`cc_connection`). Hops deeper in the stack are written by the client as it
 likes and are never read: up to 7.25.20 the agent took the LAST one, so a
 client could add a hop naming another user's watch, and stop or replace it. One yuno may be named with several services
-(`ids=5120,5120:db_tracks_ce`), and an id that is not a yuno of this agent no
+(`ids=5120,5120:db_tracks`), and an id that is not a yuno of this agent no
 longer refuses the whole watch: it is watched, its `state` says `missing`, and
 the answer names it (`data.missing`,
 *"watching 3 yunos every 2000 ms, 1 of them not found here"*). A watch lives `watch_ttl` (60000 ms) unless it

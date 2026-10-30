@@ -36,12 +36,12 @@ entries are matched **before** the built-ins. Lower priority starts earlier.
 | `7` | `db_*` |
 | `5` | everything else — **left untouched** unless a rule matches |
 
-A `PATTERN` is an exact role name or an `fnmatch` glob (`gate_*`, `*_wz`). App
+A `PATTERN` is an exact role name or an `fnmatch` glob (`gate_*`, `*_app`). App
 roles (which are deployment-specific) are **not** built in — assign them with
 `--rule`:
 
 ```bash
-yunetas set-start-priorities --rule 'agregador_wz=8' --rule 'scheduler_wz=8'
+yunetas set-start-priorities --rule 'aggregator_app=8' --rule 'scheduler_app=8'
 ```
 
 ## How it writes

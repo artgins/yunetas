@@ -500,7 +500,7 @@ the modbus and mbus modules, which no measured binary links, so they were not
 built: their measured code is the code of 7.27.7.
 
 What the new append is for: a writer of raw history that receives frames as
-text (an application's `db_tracks_ce`) parsed each frame whole to read three of its
+text (an application's `db_tracks`) parsed each frame whole to read three of its
 members, and dumped it again to store it. With the text path, on the same
 machine and with the same SDK, it stores **2.2 times more frames per second**
 (24,736 -> 53,308, 100 000 frames, 4 alternated rounds). On a Xeon E-2386G

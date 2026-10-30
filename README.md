@@ -40,17 +40,12 @@ The JavaScript version in the browser, live, with no backend and no login:
 - [demo.yuneta.io](https://demo.yuneta.io) — the UI library itself: every
   `C_YUI_NAV` layout and the per-zone responsive model, declared in one JSON
   file and built by the shell.
-- [yunomusica.com](https://yunomusica.com) — a shipped app, not a demo: it
-  plays the music already on your phone. You authorise a folder, it is read on
-  the device, and nothing is copied or uploaded. Installable, offline, ten
-  languages.
-- [yunovideo.com](https://yunovideo.com) — the same app for video: the films,
-  series and recordings on your phone or computer. Every video remembers where
-  you left it, subtitles are found beside the file, and episodes are grouped
-  by show and season.
 
-All three run on the same shell (`C_YUI_SHELL` + `C_YUI_NAV`), and every tap
-reaches a state machine as an event.
+Two shipped apps run on the same shell (`C_YUI_SHELL` + `C_YUI_NAV`): a
+music player and a video player for the files already on the phone or the
+computer. You authorise a folder, it is read on the device, and nothing is
+copied or uploaded. Installable, offline, ten languages. In all of them every
+tap reaches a state machine as an event.
 
 ## Install
 
@@ -132,8 +127,8 @@ reason.
   7.27.9 changed no measured code): a store that writes json text as it
   arrives. `tranger2_append_record_text()` and `json_scan_object_members()`
   let a writer of raw history skip the parse and the dump of every frame:
-  db_tracks_ce stores 2.2 times more frames per second (24,700 -> 53,300),
-  and holds 20,000 records/s on a Xeon E-2386G at 55% of one core. Every one
+  an application's db_tracks yuno stores 2.2 times more frames per second
+  (24,700 -> 53,300), and holds 20,000 records/s on a Xeon E-2386G at 55% of one core. Every one
   of the 41 figures inside its noise or faster; the one loss the study found
   (-1.6% of the json append) is fixed in the release.
   [Report](performance/reports/7.27.10.html) (the file) ·

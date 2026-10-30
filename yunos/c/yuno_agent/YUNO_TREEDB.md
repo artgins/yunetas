@@ -328,8 +328,8 @@ its `treedb_system_schema` and a replica of a data treedb that it shares with
 another yuno.
 
 ```
-db_history_ce (1620):  "Authz.master": true    → master of the authzs store
-gate_central  (2020):  "Authz.master": false   → replica of the same store
+db_history    (1620):  "Authz.master": true    → master of the authzs store
+gate_hub      (2020):  "Authz.master": false   → replica of the same store
 ```
 
 **Asking a running yuno: `treedb-info`.** Until 7.13.0 the flag was not
@@ -357,7 +357,7 @@ persisted `topic_cols.json` masks the new in-memory schema (§3.4).
 non-master `C_NODE` now answer
 
 ```
-ERROR -1: gate_central^2020: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
+ERROR -1: gate_hub^2020: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
 ```
 
 Before 7.13.0 they answered **success**: the node was built in the in-memory
@@ -2999,9 +2999,8 @@ json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gob
 Every treedb of the SDK is forced this way: the agent (`c_agent.c`),
 `controlcenter` and `mqtt_broker`. `C_AUTHZ` opens `treedb_authzs` without
 `open-treedb`, so it gives the same value to its `C_NODE` (attribute
-`impose_c_schema`). Of the projects' `db_history*` yunos, `db_history_co`
-forces it; `db_history_wz` and `db_history_ce` name their treedb in
-`dynamic_schema_treedbs` in their `main.c`.
+`impose_c_schema`). Of the projects' `db_history*` yunos, one forces it; the
+other two name their treedb in `dynamic_schema_treedbs` in their `main.c`.
 
 The order, from the strongest: the yuno's code, then
 `dynamic_schema_treedbs`, then `impose_c_schema` (both as configured in
@@ -3386,8 +3385,8 @@ the reopen has to be driven by the yuno that opened it. `close-treedb`
 destroys the treedb's `C_NODE` and its `C_TRANGER`, and an owner typically
 keeps raw handles that no framework cleanup can reach — the service pointer,
 the `tranger` json_t read from it, copies of both on a hot path, and whatever
-else it opened on that same tranger (`db_history_co` opens its `msg2db_alarms`
-there). Called from outside on a playing yuno, the next record processed
+else it opened on that same tranger (an application's `db_history` opens its
+`msg2db_alarms` there). Called from outside on a playing yuno, the next record processed
 writes into released memory. The in-tree consumers therefore close only from
 their own lifecycle, which re-acquires every handle: most close in `mt_pause`
 and reopen in `mt_play` -- from outside, that pair is `pause-yuno` +

@@ -13,9 +13,8 @@ enumeration it no longer has and every value passes. `enum`, `template`,
 
 Covered: `authzs`, `mqtt_broker`, `controlcenter`, `yuneta_agent` — between
 them they use `enum`, `template`, scalar defaults, hooks, fkeys and `pkey2s`.
-The schemas of the project repos (wattyzer, estadodelaire, hidraulia,
-yunovatios) cannot be reached from here, and must not be: the SDK does not
-depend on projects.
+The schemas of the application repos cannot be reached from here, and must
+not be: the SDK does not depend on projects.
 
 **Each schema gets its own store, on purpose.** `__system__` keys its `topics`
 topic by the bare topic name, so two treedbs sharing one (`users` is in three
