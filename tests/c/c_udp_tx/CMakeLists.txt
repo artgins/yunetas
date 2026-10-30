@@ -81,9 +81,37 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 ##############################################
+#   Second binary: a peer that refuses
+##############################################
+set(REFUSED_NAME "${PROJECT_NAME}_refused")
+add_yuno_executable(${REFUSED_NAME}
+    src/main_refused.c
+    src/c_test_udp_refused.c
+    src/c_test_udp_refused.h
+)
+
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${REFUSED_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+
+target_link_libraries(${REFUSED_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${JWT_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+
+##############################################
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+add_test(NAME ${REFUSED_NAME} COMMAND ${REFUSED_NAME})
 
 ##############################################
 #   Installation

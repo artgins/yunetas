@@ -28,9 +28,14 @@
  *                 later one waited for ever.
  *
  *          After 500 ms the socket must have "one" and "two", in order,
- *          and C_UDP_S must still be in ST_IDLE. Then C_UDP_S is stopped
- *          (it publishes EV_STOPPED) and the yuno dies: the memory check at
- *          the end catches a leaked event or gbuffer.
+ *          and C_UDP_S must still be in ST_IDLE. Then, in ONE turn, it is
+ *          sent "gone", stopped and DESTROYED, before EV_STOPPED, with that
+ *          send in flight (an ERROR, "GObj NOT STOPPED"). The destroy
+ *          cancels the send, and the loop frees it
+ *          with no callback: up to 7.29.3 the send events were not kept,
+ *          and the completion ran on the freed gobj (a use after free). The
+ *          yuno dies 300 ms later: the memory check at the end catches a
+ *          leaked event or gbuffer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -85,6 +90,8 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_udp;
     int rx_fd;
+    struct sockaddr_in rx_addr;
+    int phase;
 } PRIVATE_DATA;
 
 
@@ -152,7 +159,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
-    if(gobj_is_running(priv->gobj_udp)) {
+    if(priv->gobj_udp && gobj_is_running(priv->gobj_udp)) {
         gobj_stop(priv->gobj_udp);
     }
 
@@ -189,6 +196,7 @@ PRIVATE int mt_play(hgobj gobj)
         return -1;
     }
 
+    priv->rx_addr = rx_addr;
     struct sockaddr_in port0_addr = rx_addr;
     port0_addr.sin_port = 0;
 
@@ -276,6 +284,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->phase == 1) {
+        set_yuno_must_die();    // the destroyed C_UDP_S was not used after
+        KW_DECREF(kw)
+        return 0;
+    }
+
     char received[256] = "";
     char bf[128];
     ssize_t n;
@@ -314,8 +328,23 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    /*
+     *  Destroyed with a send in flight, before its EV_STOPPED
+     */
+    gbuffer_t *gbuf = gbuffer_create(64, 64);
+    gbuffer_append_string(gbuf, "gone");
+    gbuffer_setaddr(gbuf, (struct sockaddr *)&priv->rx_addr, sizeof(priv->rx_addr));
+    gobj_send_event(
+        priv->gobj_udp,
+        EV_TX_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),  // the kw owns the gbuffer
+        gobj
+    );
     gobj_stop(priv->gobj_udp);
-    set_yuno_must_die();
+    gobj_destroy(priv->gobj_udp);
+    priv->gobj_udp = 0;
+    priv->phase = 1;
+    set_timeout(priv->timer, 300);
 
     KW_DECREF(kw)
     return 0;

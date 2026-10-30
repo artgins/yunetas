@@ -8,9 +8,10 @@
  *
  *          States: ST_STOPPED, ST_IDLE (started: it reads, and sends),
  *          ST_WAIT_STOPPED (a stop waiting for its read to be canceled and
- *          its send in flight to complete). EV_TX_DATA in ST_IDLE; output
- *          events EV_RX_DATA, EV_TX_READY and EV_STOPPED, to its parent (or
- *          its subscriber).
+ *          its send in flight to complete). EV_TX_DATA in ST_IDLE, and in
+ *          ST_WAIT_STOPPED (dropped, said once when the stop ends, as
+ *          C_TCP does); output events EV_RX_DATA, EV_TX_READY and
+ *          EV_STOPPED, to its parent (or its subscriber).
  *
  *          One datagram is sent at a time, the others wait in a queue, and
  *          EV_TX_READY is published when the queue is done. A datagram that
@@ -18,14 +19,29 @@
  *          The stop contract is C_TCP's: every stop of a running C_UDP ends
  *          in ST_STOPPED and publishes EV_STOPPED once, the last thing it
  *          does with itself; the datagrams waiting in the queue go with the
- *          stop.
+ *          stop. The socket is closed when the stop ends, so the datagram
+ *          in flight goes. A stop the C_UDP makes by itself (its read or
+ *          its connect failed) is a gobj_stop(): it ends not running, and
+ *          its host starts it again when it wants. A start while a stop
+ *          waits is taken when the stop ends: that stop publishes no
+ *          EV_STOPPED, the C_UDP opens a new socket instead (as a C_TCP
+ *          client connects again at the end of its stop).
+ *
+ *          The send in flight is kept (yev_tx): a C_UDP destroyed before
+ *          its stop ended cancels it, and the loop frees it with no
+ *          callback.
  *
  *          Up to 7.29.3 it was a port never finished: register_c_udp()
  *          failed (EV_STOPPED declared as an input that no state takes),
  *          c_udp.h declared another name, the completion of its connect was
  *          "event type NOT IMPLEMENTED", only the first datagram was sent,
  *          a stop published nothing and did not wait for the send in flight,
- *          and its read event leaked.
+ *          and its read event leaked. In the fixes after it, a read that
+ *          failed with a send in flight left it in ST_WAIT_STOPPED for ever
+ *          (only a stopped gobj ended its stop at the completion of a send),
+ *          a stop made by itself left it running (every later gobj_start()
+ *          said "GObj ALREADY RUNNING"), and a destroy with a send in flight
+ *          was a use after free when the send completed.
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
@@ -56,6 +72,10 @@
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
+PRIVATE int open_the_socket(hgobj gobj);
+PRIVATE void stop_by_itself(hgobj gobj);
+PRIVATE void release_the_send(hgobj gobj, yev_event_h yev_write_event);
+PRIVATE void log_closing_drops(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -69,6 +89,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",          SDF_RD,     "",     "Url to connect"),
 SDATA (DTP_INTEGER,     "connxs",       SDF_STATS,  0,      "Current connections"),
 SDATA (DTP_INTEGER,     "rx_buffer_size", SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
+SDATA (DTP_BOOLEAN,     "no_tx_ready_event", SDF_RD,  0,      "Set TRUE if you don't want EV_TX_READY event"),
 
 SDATA (DTP_INTEGER,     "txBytes",      SDF_RSTATS,     "0", "Bytes transmitted"),
 SDATA (DTP_INTEGER,     "rxBytes",      SDF_RSTATS,     "0", "Bytes received"),
@@ -128,10 +149,14 @@ typedef struct _PRIVATE_DATA {
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
+    yev_event_h yev_tx;             // the send in flight: one at a time
 
     BOOL no_tx_ready_event;
     BOOL tx_ready_posted;           // an EV_TX_READY posted to itself (post_tx_ready())
     int tx_in_progress;
+
+    json_int_t closing_dropped_msgs;    // EV_TX_DATA while the stop waits, said when it ends
+    json_int_t closing_dropped_bytes;
 
     alive_t *alive;                 // the markers of the publishes in progress (see alive_t)
 } PRIVATE_DATA;
@@ -158,7 +183,10 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
+     *  In the fixes after 7.29.3 no_tx_ready_event was read from priv
+     *  and was no attribute: nobody could set it.
      */
+    priv->no_tx_ready_event = gobj_read_bool_attr(gobj, "no_tx_ready_event");
 
     /*
      *  CHILD subscription model
@@ -224,16 +252,109 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+        /*
+         *  A start while a stop waits for its read or its send: taken when
+         *  the stop ends (try_to_stop_yevents()). Up to the fixes after
+         *  7.29.3 it was refused, and gobj_start() left the gobj running:
+         *  the stop ended in ST_STOPPED and every later gobj_start() said
+         *  "GObj ALREADY RUNNING".
+         */
+        return 0;
+    }
+
     if(!gobj_in_this_state(gobj, ST_STOPPED) || priv->yev_connect) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Initial wrong udp state: a start before the stop ended",
+            "msg",          "%s", "Initial wrong udp state",
             "state",        "%s", gobj_current_state(gobj),
             NULL
         );
         return -1;
     }
+
+    if(open_the_socket(gobj) < 0) {
+        gobj_stop(gobj);    // Error already logged: not running, a start can be tried again
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method stop
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+    gobj_reset_volatil_attrs(gobj);
+
+    try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    for(alive_t *marker = priv->alive; marker; marker = marker->prev) {
+        marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
+    }
+
+    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
+            NULL
+        );
+    }
+
+    log_closing_drops(gobj);    // destroyed in ST_WAIT_STOPPED: its stop never ended
+
+    /*
+     *  The send in flight of a C_UDP destroyed before its stop ended (a
+     *  host that did not wait for EV_STOPPED): canceled, and freed by the
+     *  loop when its completion comes, with no callback. In the fixes
+     *  after 7.29.3 the send events were not kept, and that completion ran
+     *  on the freed gobj. Before the socket: its close takes back what the
+     *  kernel has not taken yet.
+     */
+    if(priv->yev_tx) {
+        if(!yev_event_is_stopped(priv->yev_tx)) {
+            yev_stop_event(priv->yev_tx);
+        }
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_tx)
+    }
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
+
+    GBUFFER_DECREF(priv->gbuf_txing);
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+}
+
+
+
+
+            /***************************
+             *      Local Methods
+             ***************************/
+
+
+
+
+/***************************************************************************
+ *  Open the socket of the url and start its read: ST_IDLE. -1: logged, and
+ *  nothing is left in flight (ST_STOPPED). The read event is kept between
+ *  starts; the connect event holds the socket.
+ ***************************************************************************/
+PRIVATE int open_the_socket(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *url = gobj_read_str_attr(gobj, "url");
     priv->yev_connect = yev_create_connect_event(
@@ -298,7 +419,6 @@ PRIVATE int mt_start(hgobj gobj)
             gbuffer_clear(yev_get_gbuf(priv->yev_reading));
         }
     }
-    gobj_change_state(gobj, ST_IDLE);
 
     if(!priv->yev_reading || yev_start_event(priv->yev_reading) < 0) {
         gobj_log_error(gobj, 0,
@@ -308,61 +428,73 @@ PRIVATE int mt_start(hgobj gobj)
             "url",          "%s", url,
             NULL
         );
-        try_to_stop_yevents(gobj);
+        /*
+         *  The connect in flight is canceled and freed by the loop when its
+         *  completion comes, with no callback; its free closes the socket
+         */
+        if(!yev_event_is_stopped(priv->yev_connect)) {
+            yev_stop_event(priv->yev_connect);
+        }
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
         return -1;
     }
 
+    gobj_change_state(gobj, ST_IDLE);
     return 0;
 }
 
 /***************************************************************************
- *      Framework Method stop
+ *  A stop the C_UDP makes by itself (its read or its connect failed, or its
+ *  read cannot start again): a gobj_stop(), so it ends not running and its
+ *  host can start it again. In the fixes after 7.29.3 it only stopped the
+ *  events: the gobj stayed running, and every later gobj_start() said "GObj
+ *  ALREADY RUNNING". EV_STOPPED may come inside: the last thing.
  ***************************************************************************/
-PRIVATE int mt_stop(hgobj gobj)
+PRIVATE void stop_by_itself(hgobj gobj)
 {
-    gobj_reset_volatil_attrs(gobj);
-
-    try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
-
-    return 0;
+    if(gobj_is_running(gobj)) {
+        gobj_stop(gobj);
+    } else {
+        try_to_stop_yevents(gobj);
+    }
 }
 
 /***************************************************************************
- *      Framework Method destroy
+ *  Free a send event of this C_UDP: the one in flight is no longer kept
  ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
+PRIVATE void release_the_send(hgobj gobj, yev_event_h yev_write_event)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    for(alive_t *marker = priv->alive; marker; marker = marker->prev) {
-        marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
+    if(priv->yev_tx == yev_write_event) {
+        priv->yev_tx = 0;
     }
-
-    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
-            NULL
-        );
-    }
-
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-
-    GBUFFER_DECREF(priv->gbuf_txing);
-    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+    yev_destroy_event(yev_write_event);
 }
 
+/***************************************************************************
+ *  The stop ended: what was sent to the C_UDP while it waited
+ *  (ac_tx_data_closing()) is said in ONE warning, as C_TCP says it
+ ***************************************************************************/
+PRIVATE void log_closing_drops(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-
-
-            /***************************
-             *      Local Methods
-             ***************************/
-
-
-
+    if(priv->closing_dropped_msgs == 0) {
+        return;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",              "%s", "udp data sent while the client stops, dropped",
+        "url",              "%s", gobj_read_str_attr(gobj, "url"),
+        "dropped_msgs",     "%ld", (long)priv->closing_dropped_msgs,
+        "dropped_bytes",    "%ld", (long)priv->closing_dropped_bytes,
+        NULL
+    );
+    priv->closing_dropped_msgs = 0;
+    priv->closing_dropped_bytes = 0;
+}
 
 /***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
@@ -389,13 +521,17 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
-    if(priv->yev_connect) {
-        yev_stop_event(priv->yev_connect);
-        if(yev_event_is_stopped(priv->yev_connect)) {
-            yev_destroy_event(priv->yev_connect);
-            priv->yev_connect = 0;
-        } else {
-            to_wait_stopped = TRUE;
+    /*
+     *  A connect in flight is canceled (its stop closes the socket). A
+     *  connect done keeps the socket open until the stop ends: the stop
+     *  of the event would close it now, under the send in flight.
+     */
+    if(priv->yev_connect && !yev_event_is_idle(priv->yev_connect)) {
+        if(!yev_event_is_stopped(priv->yev_connect)) {
+            yev_stop_event(priv->yev_connect);
+            if(!yev_event_is_stopped(priv->yev_connect)) {
+                to_wait_stopped = TRUE;
+            }
         }
     }
 
@@ -432,10 +568,34 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
-    } else {
-        gobj_change_state(gobj, ST_STOPPED);
-        gobj_publish_event(gobj, EV_STOPPED, 0);    // the last thing: the host may destroy it
+        return;
     }
+
+    /*
+     *  Nothing in flight: the socket is closed now (the free of the connect
+     *  event closes it). In the fixes after 7.29.3 it was closed at the
+     *  first pass, and a datagram whose send the kernel had not taken yet
+     *  was taken back, with a warning, and lost.
+     */
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
+    gobj_change_state(gobj, ST_STOPPED);
+    log_closing_drops(gobj);
+
+    if(gobj_is_running(gobj)) {
+        /*
+         *  Started again while the stop waited (mt_start): the start is
+         *  done now, and this stop publishes no EV_STOPPED, as a C_TCP
+         *  client connects again at the end of its stop. A start that fails
+         *  ends the stop after all.
+         */
+        if(open_the_socket(gobj) < 0) {
+            gobj_stop(gobj);    // Error already logged: not running, nothing in flight
+            gobj_publish_event(gobj, EV_STOPPED, 0);    // the last thing: the host may destroy it
+        }
+        return;
+    }
+
+    gobj_publish_event(gobj, EV_STOPPED, 0);    // the last thing: the host may destroy it
 }
 
 /***************************************************************************
@@ -583,6 +743,15 @@ PRIVATE int write_data(hgobj gobj)
             yev_destroy_event(yev_write_event);
             return -1;
         }
+        if(priv->yev_tx) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A second udp send in flight: one at a time is the rule",
+                NULL
+            );
+        }
+        priv->yev_tx = yev_write_event;
         priv->tx_in_progress++;
     }
     return 0;
@@ -1007,7 +1176,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                                 NULL
                             );
-                            try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
+                            stop_by_itself(gobj);   // EV_STOPPED may come inside: the last thing
                         }
                     }
 
@@ -1019,11 +1188,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *  read of an empty datagram is taken as the end
                      *  (EPIPE): either one stops the client, with an
                      *  error, and EV_STOPPED tells its host. Up to 7.29.3
-                     *  only a trace said so.
+                     *  only a trace said so. Only the read of a C_UDP in
+                     *  ST_IDLE fails: in a stop it is the read canceled
+                     *  (also when a start came while the stop waited).
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_is_running(gobj) && yev_get_result(yev_event) != -ECANCELED) {
+                    if(gobj_in_this_state(gobj, ST_IDLE)) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1035,7 +1206,10 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             NULL
                         );
-                    } else if(trace) {
+                        stop_by_itself(gobj);   // EV_STOPPED may come inside: the last thing
+                        break;
+                    }
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1079,7 +1253,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     break;
                 }
 
-                if(gobj_is_running(gobj) && yev_get_result(yev_event) != -ECANCELED) {
+                if(gobj_in_this_state(gobj, ST_IDLE)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1089,8 +1263,10 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                         NULL
                     );
+                    stop_by_itself(gobj);   // EV_STOPPED may come inside: the last thing
+                    break;
                 }
-                try_to_stop_yevents(gobj);
+                try_to_stop_yevents(gobj);  // the connect canceled by a stop
             }
             break;
 
@@ -1105,11 +1281,16 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 BOOL is_txing = priv->gbuf_txing &&
                     yev_get_gbuf(yev_event) == priv->gbuf_txing;
 
-                if(!gobj_is_running(gobj)) {
+                if(!gobj_is_running(gobj) || gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
                     /*
-                     *  A stop waits for its sends: destroy the write event
+                     *  A stop waits for its sends: destroy the write event.
+                     *  Also a stop that a start came to while it waited
+                     *  (the gobj runs again). In the fixes after 7.29.3 only
+                     *  a gobj not running took this path, and a read that
+                     *  failed with a send in flight left it in
+                     *  ST_WAIT_STOPPED for ever.
                      */
-                    yev_destroy_event(yev_event);
+                    release_the_send(gobj, yev_event);
                     try_to_stop_yevents(gobj);  // EV_STOPPED may come inside: the last thing
                     break;
                 }
@@ -1131,7 +1312,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                         if(yev_start_event(yev_event) == 0) {
                             priv->tx_in_progress++;
-                            break;
+                            break;      // the same send, still in flight (yev_tx)
                         }
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
@@ -1170,7 +1351,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                  *  for ever, and EV_TX_READY never came (C_UDP_S had the
                  *  same up to 7.25.4)
                  */
-                yev_destroy_event(yev_event);
+                release_the_send(gobj, yev_event);
                 if(is_txing && gobj_in_this_state(gobj, ST_IDLE)) {
                     try_more_writes(gobj);
                 }
@@ -1242,6 +1423,26 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         enqueue_write(gobj, gbuffer_incref(gbuf));
     }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Tx data while a stop waits for its read or its send (ST_WAIT_STOPPED):
+ *  a host learns of a stop the C_UDP made by itself only with EV_STOPPED,
+ *  so until then it sends. The datagram goes the way of the queue of a
+ *  stop: away. What went is counted, and said ONCE when the stop ends
+ *  (log_closing_drops()), as C_TCP does. In the fixes after 7.29.3 it was
+ *  "Event NOT DEFINED in state", an ERROR per datagram.
+ ***************************************************************************/
+PRIVATE int ac_tx_data_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    priv->closing_dropped_msgs++;
+    priv->closing_dropped_bytes += (json_int_t)(gbuf?gbuffer_leftbytes(gbuf):0);
 
     KW_DECREF(kw)
     return 0;
@@ -1333,6 +1534,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0, 0}
     };
     ev_action_t st_wait_stopped[] = {
+        {EV_TX_DATA,            ac_tx_data_closing, 0},
         {EV_TX_READY,           ac_tx_ready_posted, 0},
         {0, 0, 0}
     };

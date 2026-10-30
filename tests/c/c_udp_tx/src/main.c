@@ -2,7 +2,9 @@
  *          MAIN.C
  *
  *          Main of test_c_udp_tx: C_UDP sends every datagram of its queue,
- *          and an EV_TX_READY comes for an empty one
+ *          an EV_TX_READY comes for an empty one, a start while a stop
+ *          waits is taken when it ends, and a destroy with a send in flight
+ *          frees nothing in use
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -104,10 +106,12 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "Playing yuno",
             "msg", "udp tx data empty, ignored",
+            "msg", "GObj NOT STOPPED. UV handler ACTIVE!",          // destroyed with its send in flight
+            "msg", "udp data sent while the client stops, dropped", // "late", said when the stop ends
             "msg", "TEST: done",
             "msg", "Exit to die",
             "msg", "Pausing yuno",

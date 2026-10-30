@@ -108,6 +108,12 @@
     at once. Up to 7.25.21 a volatile clisrv dropped in its EV_RX_DATA read
     its url after the publish, and over TLS took -2222 for a TLS error and
     wrote the cause and stopped the destroyed gobj again.
+
+    The write in flight is kept (yev_tx, one at a time). A host that
+    destroys its C_TCP before EV_STOPPED (in the turn of its stop, with a
+    write in flight) gets it canceled at the destroy, and the loop frees it
+    with no callback. Up to 7.29.3 the write events were not kept, and their
+    completion ran on the freed gobj.
  */
 
 /***************************************************************
@@ -133,6 +139,9 @@ PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_inactivity_timeout(hgobj gobj);
 PRIVATE int start_pending_writes(hgobj gobj);
 PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event);
+PRIVATE void release_the_write(hgobj gobj, yev_event_h yev_write_event);
+PRIVATE BOOL takes_writes(hgobj gobj);
+PRIVATE BOOL tx_ready_is_coming(hgobj gobj);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error);
 PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf);
@@ -259,6 +268,7 @@ typedef struct _PRIVATE_DATA {
     BOOL tx_ready_posted;           // an EV_TX_READY posted to itself (post_tx_ready())
     int tx_in_progress;
     json_int_t max_tx_in_progress;
+    yev_event_h yev_tx;             // the write in flight: one at a time (see the header)
 
     json_int_t closing_dropped_msgs;    // EV_TX_DATA while closing, said when the close ends
     json_int_t closing_dropped_bytes;
@@ -580,6 +590,19 @@ PRIVATE void mt_destroy(hgobj gobj)
         gobj_post_event(tcp_s, EV_STOPPED, json_object(), tcp_s);
     }
 
+    /*
+     *  The write in flight of a C_TCP destroyed before its stop ended (a
+     *  host that did not wait for EV_STOPPED): canceled, and freed by the
+     *  loop when its completion comes, with no callback. Up to 7.29.3 the
+     *  write events were not kept, and that completion ran on the freed
+     *  gobj (a use after free).
+     */
+    if(priv->yev_tx) {
+        if(!yev_event_is_stopped(priv->yev_tx)) {
+            yev_stop_event(priv->yev_tx);
+        }
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_tx)
+    }
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
@@ -1208,16 +1231,40 @@ PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event)
             "len",          "%d", gbuf? (int)gbuffer_leftbytes(gbuf): 0,
             NULL
         );
-        yev_destroy_event(yev_write_event);
+        release_the_write(gobj, yev_write_event);
         set_disconnect_cause(gobj, "Cannot start a write");
         try_to_stop_yevents(gobj);
         return -1;
     }
+    if(priv->yev_tx && priv->yev_tx != yev_write_event) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A second tcp write in flight: one at a time is the rule",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+    }
+    priv->yev_tx = yev_write_event;
     priv->tx_in_progress++;
     if(priv->tx_in_progress > priv->max_tx_in_progress) {
         priv->max_tx_in_progress = priv->tx_in_progress;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Free a write event of this connection: the one in flight is no longer
+ *  kept
+ ***************************************************************************/
+PRIVATE void release_the_write(hgobj gobj, yev_event_h yev_write_event)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->yev_tx == yev_write_event) {
+        priv->yev_tx = 0;
+    }
+    yev_destroy_event(yev_write_event);
 }
 
 /***************************************************************************
@@ -1421,12 +1468,57 @@ PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
+ *  Whether a write sent now is taken: connected, or, for a client that
+ *  connects on demand (timeout_inactivity), also while disconnected or
+ *  connecting (it is queued, and goes once connected). Elsewhere a write
+ *  is dropped, and the host was told (EV_DISCONNECTED).
+ ***************************************************************************/
+PRIVATE BOOL takes_writes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+        return TRUE;
+    }
+    if(priv->timeout_inactivity > 0 && (
+            gobj_in_this_state(gobj, ST_DISCONNECTED) ||
+            gobj_in_this_state(gobj, ST_WAIT_CONNECTED) ||
+            gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE))) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Whether an EV_TX_READY is coming anyway: a write of the host is queued
+ *  or being written, or, connected, any write is in flight (its end
+ *  publishes it, try_more_writes()). A write of the TLS handshake ends
+ *  with none: before ST_CONNECTED only the host's writes count.
+ ***************************************************************************/
+PRIVATE BOOL tx_ready_is_coming(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gbuf_txing || dl_size(&priv->dl_tx) > 0) {
+        return TRUE;
+    }
+    if(gobj_in_this_state(gobj, ST_CONNECTED) &&
+            (priv->tx_in_progress > 0 || dl_size(&priv->dl_tx_encrypted) > 0)) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  The EV_TX_READY of an empty write, which sends nothing: a host that
  *  advances only on EV_TX_READY waited for ever (the fixes after 7.29.3).
- *  With a write in flight or queued, the EV_TX_READY of that one stands
- *  for it. It is posted to itself (ac_tx_ready_posted()), never published
- *  here: this runs inside the sender's gobj_send_event(), and a host that
- *  sends its next write in its EV_TX_READY would recurse.
+ *  Wherever a write is taken (takes_writes()): in the fixes after 7.29.3
+ *  only in ST_CONNECTED, and a client that connects on demand, sent an
+ *  empty write while disconnected, waited for ever too. With a write in
+ *  flight or queued, the EV_TX_READY of that one stands for it. It is
+ *  posted to itself (ac_tx_ready_posted()), never published here: this
+ *  runs inside the sender's gobj_send_event(), and a host that sends its
+ *  next write in its EV_TX_READY would recurse.
  ***************************************************************************/
 PRIVATE void post_tx_ready(hgobj gobj)
 {
@@ -1435,8 +1527,7 @@ PRIVATE void post_tx_ready(hgobj gobj)
     if(priv->no_tx_ready_event || priv->tx_ready_posted) {
         return;
     }
-    if(priv->gbuf_txing || priv->tx_in_progress > 0 ||
-            dl_size(&priv->dl_tx) > 0 || dl_size(&priv->dl_tx_encrypted) > 0) {
+    if(tx_ready_is_coming(gobj)) {
         return;     // the EV_TX_READY of what is in flight comes when it ends
     }
     if(gobj_post_event(gobj, EV_TX_READY, json_object(), gobj) < 0) {
@@ -2035,7 +2126,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             break;
                         }
 
-                        yev_destroy_event(yev_event);
+                        release_the_write(gobj, yev_event);
 
                         gbuffer_t *gbuf_encrypted = dl_first(&priv->dl_tx_encrypted);
                         if(gbuf_encrypted && (gobj_in_this_state(gobj, ST_CONNECTED) ||
@@ -2053,7 +2144,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             try_to_stop_yevents(gobj);
                         }
                     } else {
-                        yev_destroy_event(yev_event);
+                        release_the_write(gobj, yev_event);
                         try_to_stop_yevents(gobj);
                     }
 
@@ -2080,7 +2171,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         );
                     }
 
-                    yev_destroy_event(yev_event);
+                    release_the_write(gobj, yev_event);
                     try_to_stop_yevents(gobj);
                 }
 
@@ -2402,11 +2493,12 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
 
 /***************************************************************************
  *  The EV_TX_READY posted to itself by post_tx_ready(), a turn later:
- *  published if the connection is still up with nothing in flight nor
- *  queued. Otherwise a write sent since publishes it when it ends, or the
- *  connection is gone and the host was told (EV_DISCONNECTED). Declared in
- *  every state, because the state may change before it comes. Only C_TCP
- *  posts it: EV_TX_READY is an output event, no host sends it.
+ *  published if a write is still taken (takes_writes()) with nothing in
+ *  flight nor queued. Otherwise a write sent since publishes it when it
+ *  ends, or the connection is gone and the host was told
+ *  (EV_DISCONNECTED). Declared in every state, because the state may
+ *  change before it comes. Only C_TCP posts it: EV_TX_READY is an output
+ *  event, no host sends it.
  ***************************************************************************/
 PRIVATE int ac_tx_ready_posted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -2425,9 +2517,7 @@ PRIVATE int ac_tx_ready_posted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     }
 
     priv->tx_ready_posted = FALSE;
-    if(gobj_in_this_state(gobj, ST_CONNECTED) && !priv->no_tx_ready_event &&
-            !priv->gbuf_txing && priv->tx_in_progress == 0 &&
-            dl_size(&priv->dl_tx) == 0 && dl_size(&priv->dl_tx_encrypted) == 0) {
+    if(takes_writes(gobj) && !priv->no_tx_ready_event && !tx_ready_is_coming(gobj)) {
         return gobj_publish_event(gobj, EV_TX_READY, kw);
     }
 
@@ -2491,6 +2581,9 @@ PRIVATE int ac_tx_data_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, 
     }
     int checked = check_tx_data(gobj, gbuf);
     if(checked != 0) {
+        if(checked > 0 && takes_writes(gobj)) {
+            post_tx_ready(gobj);    // an empty write: its EV_TX_READY, and no connect
+        }
         KW_DECREF(kw)
         return checked < 0? -1 : 0;     // Error already logged
     }
@@ -2561,6 +2654,9 @@ PRIVATE int ac_tx_data_queued(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     }
     int checked = check_tx_data(gobj, gbuf);
     if(checked != 0) {
+        if(checked > 0 && takes_writes(gobj)) {
+            post_tx_ready(gobj);    // an empty write: its EV_TX_READY
+        }
         KW_DECREF(kw)
         return checked < 0? -1 : 0;     // Error already logged
     }

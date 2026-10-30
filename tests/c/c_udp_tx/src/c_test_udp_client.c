@@ -19,7 +19,23 @@
  *                 asked for ST_CONNECTED before sending the next, a state
  *                 C_UDP does not have: "one" went, the others waited in the
  *                 queue for ever, and no EV_TX_READY came.
- *              3. a stop: C_UDP must end in ST_STOPPED and publish
+ *              3. "four", then, in the same turn, a stop (it waits for
+ *                 the send of "four" and the cancel of the read), "late"
+ *                 (sent while the stop waits: dropped, with ONE warning
+ *                 when the stop ends) and a start (taken when the stop
+ *                 ends). A second C_UDP is sent "gone", stopped and
+ *                 DESTROYED in that turn, with its send in flight (an
+ *                 ERROR, "GObj NOT STOPPED"). 300 ms later the first must
+ *                 be running in ST_IDLE with no EV_STOPPED (the start came
+ *                 before the stop ended), and the peer must have "four":
+ *                 the socket is closed when the stop ends. In the fixes
+ *                 after 7.29.3 "late" was "Event NOT DEFINED", the start
+ *                 was refused and left the gobj running (every later
+ *                 gobj_start() said "GObj ALREADY RUNNING"), the socket
+ *                 was closed at the stop, under "four", and the completion
+ *                 of the send of the destroyed C_UDP ran on the freed gobj.
+ *              4. "five": the C_UDP started again sends it.
+ *              5. a stop: C_UDP must end in ST_STOPPED and publish
  *                 EV_STOPPED, and the yuno dies: the memory check at the end
  *                 catches a leaked event or gbuffer.
  *
@@ -74,6 +90,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_udp;
+    hgobj gobj_udp_destroyed;
     int rx_fd;
     int phase;
     int tx_ready;
@@ -133,6 +150,14 @@ PRIVATE void mt_create(hgobj gobj)
         ),
         gobj
     );
+    priv->gobj_udp_destroyed = gobj_create(
+        "udp_destroyed",
+        C_UDP,
+        json_pack("{s:s}",
+            "url", url
+        ),
+        gobj
+    );
 }
 
 /***************************************************************************
@@ -184,6 +209,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->gobj_udp);
+    gobj_start(priv->gobj_udp_destroyed);
     set_timeout(priv->timer, SETTLE_MS);
 
     return 0;
@@ -234,22 +260,70 @@ PRIVATE void test_fail(hgobj gobj, const char *what, int count, int expected)
 }
 
 /***************************************************************************
- *  Send a datagram to the C_UDP: the kw owns the gbuffer
+ *  Send a datagram to a C_UDP: the kw owns the gbuffer
  ***************************************************************************/
-PRIVATE void send_datagram(hgobj gobj, const char *data)
+PRIVATE void send_datagram_to(hgobj gobj, hgobj gobj_udp, const char *data)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     gbuffer_t *gbuf = gbuffer_create(64, 64);
     if(!empty_string(data)) {
         gbuffer_append_string(gbuf, data);
     }
     gobj_send_event(
-        priv->gobj_udp,
+        gobj_udp,
         EV_TX_DATA,
         json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
         gobj
     );
+}
+
+/***************************************************************************
+ *  Send a datagram to the C_UDP under test
+ ***************************************************************************/
+PRIVATE void send_datagram(hgobj gobj, const char *data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    send_datagram_to(gobj, priv->gobj_udp, data);
+}
+
+/***************************************************************************
+ *  What the peer got, the datagrams joined by a blank. "gone", of the
+ *  C_UDP destroyed with its send in flight, may have gone or not: left out
+ ***************************************************************************/
+PRIVATE void read_the_peer(hgobj gobj, char *received, size_t size)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char bf[128];
+    ssize_t n;
+    received[0] = 0;
+    while((n = recv(priv->rx_fd, bf, sizeof(bf) - 1, 0)) > 0) {
+        bf[n] = 0;
+        if(strcmp(bf, "gone") == 0) {
+            continue;
+        }
+        size_t ln = strlen(received);
+        snprintf(received + ln, size - ln, "%s%s", ln? " ": "", bf);
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void check_received(hgobj gobj, const char *expected)
+{
+    char received[256];
+    read_the_peer(gobj, received, sizeof(received));
+    if(strcmp(received, expected) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: the peer did not get the datagrams",
+            "received",     "%s", received,
+            "expected",     "%s", expected,
+            NULL
+        );
+    }
 }
 
 
@@ -298,24 +372,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 2:
             {
-                char received[256] = "";
-                char bf[128];
-                ssize_t n;
-                while((n = recv(priv->rx_fd, bf, sizeof(bf) - 1, 0)) > 0) {
-                    bf[n] = 0;
-                    size_t ln = strlen(received);
-                    snprintf(received + ln, sizeof(received) - ln, "%s%s", ln? " ": "", bf);
-                }
-                if(strcmp(received, "one two three") != 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL,
-                        "msg",          "%s", "TEST: the peer did not get the datagrams",
-                        "received",     "%s", received,
-                        "expected",     "%s", "one two three",
-                        NULL
-                    );
-                }
+                check_received(gobj, "one two three");
                 if(priv->tx_ready != 1) {
                     test_fail(gobj, "TEST: three sends did not get one EV_TX_READY",
                         priv->tx_ready, 1);
@@ -341,10 +398,56 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                         NULL
                     );
                 }
+
+                /*
+                 *  A send, a stop, a send while the stop waits, a start
+                 */
+                send_datagram(gobj, "four");
                 gobj_stop(priv->gobj_udp);
+                send_datagram(gobj, "late");
+                if(gobj_start(priv->gobj_udp) < 0) {
+                    test_fail(gobj, "TEST: a start while the stop waits was refused", -1, 0);
+                }
+
+                /*
+                 *  Destroyed with its send in flight
+                 */
+                send_datagram_to(gobj, priv->gobj_udp_destroyed, "gone");
+                gobj_stop(priv->gobj_udp_destroyed);
+                gobj_destroy(priv->gobj_udp_destroyed);
+                priv->gobj_udp_destroyed = 0;
+
                 priv->phase = 3;
                 set_timeout(priv->timer, SETTLE_MS);
             }
+            break;
+
+        case 3:
+            if(!gobj_in_this_state(priv->gobj_udp, ST_IDLE) || !gobj_is_running(priv->gobj_udp)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: the C_UDP started while its stop waited is not running",
+                    "state",        "%s", gobj_current_state(priv->gobj_udp),
+                    "running",      "%d", gobj_is_running(priv->gobj_udp),
+                    NULL
+                );
+            }
+            if(priv->stopped != 0) {
+                test_fail(gobj, "TEST: a stop taken over by a start published EV_STOPPED",
+                    priv->stopped, 0);
+            }
+            check_received(gobj, "four");
+            send_datagram(gobj, "five");
+            priv->phase = 4;
+            set_timeout(priv->timer, SETTLE_MS);
+            break;
+
+        case 4:
+            check_received(gobj, "five");
+            gobj_stop(priv->gobj_udp);
+            priv->phase = 5;
+            set_timeout(priv->timer, SETTLE_MS);
             break;
 
         default:

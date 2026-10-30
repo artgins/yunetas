@@ -21,8 +21,13 @@ datagrams with `EV_TX_DATA`:
    to 7.29.3 it was queued again, which failed and lost a reference.
 
 After 500 ms the socket must hold `one two`, in order, and `C_UDP_S` must
-still be listening (`ST_IDLE`). Then `C_UDP_S` is stopped and the yuno dies;
-the memory check at the end catches a leaked send event or gbuffer.
+still be listening (`ST_IDLE`). Then, in ONE turn, `C_UDP_S` is sent `gone`,
+stopped and DESTROYED, before its `EV_STOPPED`, with that send in flight: an
+ERROR (*"GObj NOT STOPPED. UV handler ACTIVE!"*), and the destroy cancels the
+send, which the loop frees with no callback. Up to 7.29.3 the send events were
+not kept, and the completion ran on the freed gobj (red: a SegFault). The yuno
+dies 300 ms later; the memory check at the end catches a leaked send event or
+gbuffer.
 
 Up to 7.25.4 all three failed:
 

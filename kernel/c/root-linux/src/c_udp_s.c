@@ -49,6 +49,7 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int udp_set_broadcast(int fd, int on);
 // PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
+PRIVATE void release_the_send(hgobj gobj, yev_event_h yev_write_event);
 PRIVATE int reload_ytls_from_attrs(hgobj gobj);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -141,6 +142,15 @@ typedef struct alive_s {
     struct alive_s *prev;
 } alive_t;
 
+/*
+ *  A send in flight. Several can be: a stop does not wait for the sends of
+ *  a start that follows it in the same turn, nor those for them.
+ */
+typedef struct send_in_flight_s {
+    DL_ITEM_FIELDS
+    yev_event_h yev_event;
+} send_in_flight_t;
+
 typedef struct _PRIVATE_DATA {
     // Conf
     const char *url;
@@ -164,6 +174,7 @@ typedef struct _PRIVATE_DATA {
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
+    dl_list_t dl_sends;             // the sends in flight (send_in_flight_t)
 
     int tx_in_progress;
 
@@ -200,6 +211,8 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(exitOnError,       gobj_read_bool_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
+
+    dl_init(&priv->dl_sends, gobj);
 
     /*
      *  CHILD subscription model
@@ -269,6 +282,21 @@ PRIVATE void mt_destroy(hgobj gobj)
             "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
             NULL
         );
+    }
+
+    /*
+     *  The sends in flight of a C_UDP_S destroyed before its stop ended (a
+     *  host that did not wait for EV_STOPPED): canceled, and freed by the
+     *  loop when their completions come, with no callback. Up to 7.29.3
+     *  the send events were not kept, and their completion ran on the
+     *  freed gobj (a use after free).
+     */
+    send_in_flight_t *send;
+    while((send = dl_first(&priv->dl_sends)) != NULL) {
+        if(!yev_event_is_stopped(send->yev_event)) {
+            yev_stop_event(send->yev_event);
+        }
+        release_the_send(gobj, send->yev_event);
     }
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
@@ -662,6 +690,19 @@ PRIVATE int write_data(hgobj gobj)
             GBUFFER_DECREF(gbuf)    // Error already logged: the reference given to the event
             return -1;
         }
+        send_in_flight_t *send = gbmem_malloc(sizeof(send_in_flight_t));
+        if(!send) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "No memory to keep a send: datagram dropped",
+                "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+            yev_destroy_event(yev_write_event);
+            return -1;
+        }
+        send->yev_event = yev_write_event;
 
         /*
          *  A send that does not start (a gbuffer with no peer address, or
@@ -679,12 +720,33 @@ PRIVATE int write_data(hgobj gobj)
                 "len",          "%d", (int)gbuffer_leftbytes(gbuf),
                 NULL
             );
+            gbmem_free(send);
             yev_destroy_event(yev_write_event);
             return -1;
         }
+        dl_add(&priv->dl_sends, send);
         priv->tx_in_progress++;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Free a send event of this C_UDP_S, and forget it
+ ***************************************************************************/
+PRIVATE void release_the_send(hgobj gobj, yev_event_h yev_write_event)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    send_in_flight_t *send = dl_first(&priv->dl_sends);
+    while(send) {
+        send_in_flight_t *next = dl_next(send);
+        if(send->yev_event == yev_write_event) {
+            dl_delete(&priv->dl_sends, send, gbmem_free);
+            break;
+        }
+        send = next;
+    }
+    yev_destroy_event(yev_write_event);
 }
 
 /***************************************************************************
@@ -1284,7 +1346,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  A stop waits for its sends: destroy the write event
                      */
-                    yev_destroy_event(yev_event);
+                    release_the_send(gobj, yev_event);
                     try_to_stop_yevents(gobj);
                     break;
                 }
@@ -1309,9 +1371,22 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             );
                         }
 
-                        priv->tx_in_progress++;
-                        yev_start_event(yev_event);
-                        break;
+                        /*
+                         *  Up to 7.29.3 a rest that did not start was
+                         *  counted in flight for ever: a stop waited in
+                         *  ST_WAIT_STOPPED for ever
+                         */
+                        if(yev_start_event(yev_event) == 0) {
+                            priv->tx_in_progress++;
+                            break;      // the same send, still in flight
+                        }
+                        gobj_log_error(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM,
+                            "msg",          "%s", "Cannot send the rest of a datagram: dropped",
+                            "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+                            NULL
+                        );
                     }
 
                 } else {
@@ -1346,7 +1421,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 if(is_txing && gobj_in_this_state(gobj, ST_IDLE)) {
                     try_more_writes(gobj);
                 }
-                yev_destroy_event(yev_event);
+                release_the_send(gobj, yev_event);
 
                 /*
                  *  A stop the server made by itself (its read failed or

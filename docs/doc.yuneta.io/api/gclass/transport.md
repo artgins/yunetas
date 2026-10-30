@@ -103,6 +103,18 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 ```
 
+A host that destroys the `C_TCP` BEFORE its `EV_STOPPED` -- in the turn of the
+stop, with a write in flight -- does not wait as it should, but corrupts
+nothing: the destroy cancels the write in flight, and the loop frees it when
+its completion comes, with no callback. Up to 7.29.3 the write events were not
+kept, and that completion ran on the freed gobj (a use after free; a crash in a
+plain build). `tests/c/c_tcp` (`test_tcp_test9`).
+
+```C
+gobj_stop(gobj_tcp);        // a write in flight: ST_WAIT_STOPPED
+gobj_destroy(gobj_tcp);     // not waiting for EV_STOPPED: the write is canceled
+```
+
 A stopped client starts again with `gobj_start()`: a new connect event, a new
 socket. Up to 7.25.4 the stop of a client already disconnected published
 nothing and kept its connect event: the host waited for an `EV_STOPPED` that
@@ -176,9 +188,14 @@ comes ONE turn later (the transport posts it to itself), never inside the
 `gobj_send_event()` of the sender; with a write in flight or queued, the
 `EV_TX_READY` of that one stands for it. So a host that advances only on
 `EV_TX_READY` goes on after an empty write, and does not recurse into its own
-send. Only in `ST_CONNECTED`: a write sent while disconnected gets none. In the
-fixes after 7.29.3 an empty write got no `EV_TX_READY` at all, and such a host
-waited for ever. `tests/c/c_tcp` (`test5`).
+send. Only where a write is taken: in `ST_CONNECTED`, and, for a client that
+connects on demand (`timeout_inactivity`), also while it is disconnected or
+connecting -- an empty write there connects nothing. Where a write is dropped
+(disconnected without `timeout_inactivity`, or closing) an empty one gets no
+`EV_TX_READY` either: the host was told with `EV_DISCONNECTED`. In the fixes
+after 7.29.3 an empty write got no `EV_TX_READY` at all, and such a host
+waited for ever; and then only in `ST_CONNECTED`, so a client that connects on
+demand waited for ever in `ST_DISCONNECTED`. `tests/c/c_tcp` (`test5`).
 
 ```C
 gbuffer_t *gbuf = gbuffer_create(16, 16);      // EMPTY
@@ -191,8 +208,9 @@ gobj_send_event(gobj_tcp, EV_TX_DATA,
 ```
 
 The same holds in [`C_UDP`](#gclass-c-udp), `C_UDP_S` (*"udp tx data ..."*,
-but `C_UDP_S` publishes no `EV_TX_READY` at all) and
-[`C_UART`](#gclass-c-uart) (*"uart tx data ..."*).
+but `C_UDP_S` publishes no `EV_TX_READY` at all: a gbuffer sent to it is its
+own for good, see its *Transmit*) and [`C_UART`](#gclass-c-uart) (*"uart tx
+data ..."*).
 
 ### A write that does not start
 
@@ -530,7 +548,7 @@ gobj_start(priv->gobj_udp);
 | Property | Value |
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_IDLE` (started: it reads and sends), `ST_WAIT_STOPPED` (a stop waiting for its read to be canceled and its send in flight to complete) |
-| **Input events** | `EV_TX_DATA` (in `ST_IDLE`) |
+| **Input events** | `EV_TX_DATA` (in `ST_IDLE`; in `ST_WAIT_STOPPED` it is dropped, see *Receive and stop*) |
 | **Output events** | `EV_RX_DATA`, `EV_TX_READY` (every datagram queued is sent), `EV_STOPPED` (the stop is done) |
 
 A host of `C_UDP` (it is a CHILD: its parent hears it unless a `subscriber`
@@ -542,6 +560,7 @@ is given) declares the three output events in its FSM.
 |-----------|------|-------------|
 | `url` | `string` | The peer, for example `udp://127.0.0.1:9000`. |
 | `rx_buffer_size` | `integer` | Receive buffer size (default `4096`). |
+| `no_tx_ready_event` | `bool` | `true`: no `EV_TX_READY` is published (default `false`), as in `C_TCP`: `json_pack("{s:s, s:b}", "url", url, "no_tx_ready_event", 1)`. In the fixes after 7.29.3 it was read from a field no attribute set. |
 | `peername` / `sockname` | `string` | The peer and the local address, once connected. |
 | `txBytes` / `rxBytes` | `integer` | Byte counters (stats). |
 | `txMsgs` / `rxMsgs` | `integer` | Datagram counters (stats). |
@@ -581,15 +600,44 @@ Every datagram from the peer is published as `EV_RX_DATA`. A read that fails
 stops the client, with an ERROR (*"UDP: read FAILED, the client stops"*) and
 `EV_STOPPED`: a connected UDP socket fails its read with `ECONNREFUSED` when
 nothing listens at the url, and an EMPTY datagram is read as the end of the
-socket. The host starts it again when it wants.
+socket. That stop, and the one of a connect that fails, is a `gobj_stop()`
+the `C_UDP` makes of itself: it ends NOT running, so the host starts it again
+when it wants, with a plain `gobj_start()`:
+
+```C
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    // the C_UDP stopped (by itself, or by us): not running, it can be started
+    gobj_post_event(gobj, EV_RESTART_UDP, json_object(), gobj);  // an event of this host: start it there
+    KW_DECREF(kw)
+    return 0;
+}
+```
 
 The stop contract is the one of [`C_TCP`](#gclass-c-tcp): every stop of a
 running `C_UDP` ends in `ST_STOPPED` and publishes `EV_STOPPED` once, when
 its read is canceled and its send in flight completes: a turn after the stop
-at least, since the read is always in flight. The datagrams still waiting in the queue are
-dropped (a WARNING says how many). `EV_STOPPED` is the last thing it does
-with itself: the host may destroy it there. A start before the stop has
-ended is refused, with an ERROR (*"Initial wrong udp state"*).
+at least, since the read is always in flight. The socket is closed when the
+stop ends, so the datagram in flight goes. The datagrams still waiting in the
+queue are dropped (a WARNING says how many). `EV_STOPPED` is the last thing it
+does with itself: the host may destroy it there.
+
+While the stop waits, the host may not know yet (a stop the `C_UDP` made by
+itself is told only by `EV_STOPPED`) and send: that `EV_TX_DATA` is dropped,
+counted, and said ONCE when the stop ends, *"udp data sent while the client
+stops, dropped"*, a WARNING with `dropped_msgs` and `dropped_bytes`, as
+`C_TCP` says it. A `gobj_start()` while the stop waits is TAKEN: the `C_UDP`
+opens a new socket when the stop ends, and that stop publishes no `EV_STOPPED`
+(as a `C_TCP` client connects again at the end of its stop):
+
+```C
+gobj_stop(gobj_udp);        // a send in flight: ST_WAIT_STOPPED
+gobj_start(gobj_udp);       // 0: taken, the socket opens again when the stop ends
+```
+
+A host that destroys the `C_UDP` before its `EV_STOPPED` gets an ERROR (*"GObj
+NOT STOPPED. UV handler ACTIVE!"*), and nothing worse: the send in flight is
+canceled, and the loop frees it with no callback.
 
 Up to 7.29.3 `C_UDP` was a port never finished: `register_c_udp()` failed
 (*"SMachine: input_list's event NOT in state"*: `EV_STOPPED` declared as an
@@ -599,7 +647,13 @@ datagram was sent (the completion asked for `ST_CONNECTED`, a state it does
 not have: the others waited in the queue for ever and `EV_TX_READY` never
 came), a refused datagram stopped it with only a trace, a stop published
 nothing and did not wait for its send, its read event leaked, and `txBytes` /
-`rxBytes` read 0 for ever. `tests/c/c_udp_tx`.
+`rxBytes` read 0 for ever. In the fixes after it: a read that failed with a
+send in flight left it in `ST_WAIT_STOPPED` for ever, a stop made by itself
+left it running (*"GObj ALREADY RUNNING"* at every later start), a start while
+a stop waited was refused and left it the same, an `EV_TX_DATA` there was
+*"Event NOT DEFINED in state"*, its socket was closed at the stop, under the
+send in flight, and a destroy with a send in flight was a use after free.
+`tests/c/c_udp_tx` (`test_c_udp_tx`, `test_c_udp_tx_refused`).
 
 ---
 
@@ -613,7 +667,7 @@ to the peer each gbuffer names.
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_WAIT_STOPPED` (a stop waiting for its read to be canceled and its sends to complete), `ST_IDLE` |
 | **Input events** | `EV_TX_DATA` (in `ST_IDLE`) |
-| **Output events** | `EV_RX_DATA` (the gbuffer carries the peer address, and the peer as its label), `EV_STOPPED` (the stop is done). `EV_TX_READY` is declared and never published. |
+| **Output events** | `EV_RX_DATA` (the gbuffer carries the peer address, and the peer as its label), `EV_STOPPED` (the stop is done). `EV_TX_READY` is declared and never published: see *Transmit* for what that means for a gbuffer sent. |
 
 A host of `C_UDP_S` (it is a CHILD: its parent hears it unless a `subscriber`
 is given) declares `EV_RX_DATA` and `EV_STOPPED` in its FSM. Up to 7.25.4 the
@@ -756,6 +810,13 @@ gobj_send_event(gobj_udp_s, EV_TX_DATA,
 );
 ```
 
+A gbuffer sent is `C_UDP_S`'s from then on, for good: it publishes no
+`EV_TX_READY`, so nothing tells the host when the send is done. The host does
+not write into it again, nor send it again: each datagram is a gbuffer of its
+own, and the same bytes to two peers are two gbuffers, copied before the first
+send (as in [`C_TCP`](#gclass-c-tcp), *What a host must not send*). An answer
+written in the rx gbuffer is the same rule: that gbuffer goes with the send.
+
 An EMPTY gbuffer is not a datagram to send: it is ignored, with a WARNING
 (*"udp tx data empty, ignored"*); up to 7.29.3 it was dropped with two
 ERRORs. A gbuffer already queued, or the one in flight, is REFUSED: the send
@@ -786,7 +847,12 @@ one. `tests/c/c_udp_s_tx`.
 A stop cancels the read and closes the socket; the datagrams still WAITING in
 the queue are dropped (a WARNING says how many), and the one in flight
 completes on its own. When the read is canceled and the sends are done, the
-server is in `ST_STOPPED` and publishes `EV_STOPPED`.
+server is in `ST_STOPPED` and publishes `EV_STOPPED`. A host that destroys
+the `C_UDP_S` before its `EV_STOPPED` gets an ERROR (*"GObj NOT STOPPED. UV
+handler ACTIVE!"*), and nothing worse: its sends in flight are canceled, and
+the loop frees them with no callback. Up to 7.29.3 the send events were not
+kept, and their completion ran on the freed gobj (a use after free).
+`tests/c/c_udp_s_tx`.
 
 A start after a stop opens a NEW socket and starts a NEW read on it -- also
 when the read of the stop is still canceling (a stop and a start in the same

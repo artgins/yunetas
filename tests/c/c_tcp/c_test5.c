@@ -24,6 +24,14 @@
  *            same -1 a write gets when there is no memory to keep its
  *            submission.
  *
+ *          A second C_TCP connects on demand (timeout_inactivity, and
+ *          connect_on_start false): it stays in ST_DISCONNECTED, and is
+ *          sent an EMPTY write there. Nothing to send, so no connect, and
+ *          its EV_TX_READY comes a turn later, as when connected: in the
+ *          fixes after 7.29.3 it came only in ST_CONNECTED, and a host
+ *          that connects on demand and advances only on EV_TX_READY waited
+ *          for ever.
+ *
  *          A write that does not start never completes. C_TCP must drop
  *          the connection (a stream cannot go on with a hole in it), free
  *          the event and its gbuffer, and a stop must end (ST_STOPPED).
@@ -32,8 +40,10 @@
  *          connection stayed up, and the stop waited in ST_WAIT_STOPPED
  *          for ever.
  *
- *              1. EV_CONNECTED -> the empty write
- *              2. 500 ms later: its EV_TX_READY must have come, once ->
+ *              1. EV_CONNECTED -> the empty write, and an empty write to
+ *                 the C_TCP that connects on demand
+ *              2. 500 ms later: their EV_TX_READY must have come, once
+ *                 each, and the second must still be disconnected ->
  *                 the other writes above
  *              3. 1 s later: the connection must have been dropped
  *                 (EV_DISCONNECTED) once, by the last; the C_TCP is stopped
@@ -88,12 +98,14 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_tcp;
+    hgobj gobj_tcp_on_demand;
     int fd_listen;
     int phase;
     int connected;
     int disconnected;
     int stopped;
     int tx_ready;
+    int tx_ready_on_demand;
 } PRIVATE_DATA;
 
 
@@ -145,6 +157,16 @@ PRIVATE void mt_create(hgobj gobj)
         json_pack("{s:s}", "url", url),
         gobj
     );
+    priv->gobj_tcp_on_demand = gobj_create(
+        "tcp_on_demand",
+        C_TCP,
+        json_pack("{s:s, s:i, s:b}",
+            "url", url,
+            "timeout_inactivity", 20000,
+            "connect_on_start", 0
+        ),
+        gobj
+    );
 }
 
 /***************************************************************************
@@ -184,6 +206,9 @@ PRIVATE int mt_stop(hgobj gobj)
     if(gobj_is_running(priv->gobj_tcp)) {
         gobj_stop(priv->gobj_tcp);
     }
+    if(gobj_is_running(priv->gobj_tcp_on_demand)) {
+        gobj_stop(priv->gobj_tcp_on_demand);
+    }
 
     return 0;
 }
@@ -196,6 +221,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->gobj_tcp);
+    gobj_start(priv->gobj_tcp_on_demand);
     set_timeout(priv->timer, 2000);     // the connect must not take this long
 
     return 0;
@@ -302,6 +328,17 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(priv->tx_ready != 0) {
             test_fail(gobj, "TEST: the EV_TX_READY of an empty write came inside the send");
         }
+
+        gbuf = gbuffer_create(16, 16);
+        gobj_send_event(
+            priv->gobj_tcp_on_demand,
+            EV_TX_DATA,
+            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+            gobj
+        );
+        if(priv->tx_ready_on_demand != 0) {
+            test_fail(gobj, "TEST: the EV_TX_READY of an empty write while disconnected came inside the send");
+        }
         priv->phase = 1;
         set_timeout(priv->timer, 500);
     }
@@ -343,7 +380,11 @@ PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->tx_ready++;
+    if(src == priv->gobj_tcp_on_demand) {
+        priv->tx_ready_on_demand++;
+    } else {
+        priv->tx_ready++;
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -378,6 +419,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "TEST: an empty write with nothing in flight did not get one EV_TX_READY",
                     "tx_ready",     "%d", priv->tx_ready,
+                    NULL
+                );
+            }
+            if(priv->tx_ready_on_demand != 1 ||
+                    !gobj_in_this_state(priv->gobj_tcp_on_demand, ST_DISCONNECTED)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: an empty write to a client that connects on demand did not get one EV_TX_READY, or connected",
+                    "tx_ready",     "%d", priv->tx_ready_on_demand,
+                    "state",        "%s", gobj_current_state(priv->gobj_tcp_on_demand),
                     NULL
                 );
             }
