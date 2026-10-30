@@ -728,11 +728,12 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           is 2010-10-29; after "at" (or "at the") a person means a time,
           and approxidate_careful() refuses a number alone there, of any
           value ("Oct 1 at 10", "at 3", "Oct 1 at 24", "Oct 1 at the 10"),
-          a count back ("at 5 days", "at 2 fridays ago"), and a number with
-          dots and no year of 4 digits ("at 10.30", "at 10.30.00"); "Oct 1
-          at 10:00", "Oct 1 at 10 pm", "at 15h" and "at 10h30" (15:00 and
-          10:30, as Spanish and French write them), "at 5 Oct 2026" and
-          "at 5 of October" (a day before a month name) are dates.
+          a count back ("at 5 days", "at 2 fridays ago", "at -1d", "at last
+          friday"), and a number with dots and no year of 4 digits ("at
+          10.30", "at 10.30.00"); "Oct 1 at 10:00", "Oct 1 at 10 pm", "at
+          15h" and "at 10h30" (15:00 and 10:30, as Spanish and French
+          write them), "at 5 Oct 2026" and "at 5 of October" (a day before
+          a month name) are dates.
         - A number that a unit, am/pm or a weekday follows is a count
           ("5 days", "3 pm", "3pm", "2 fridays"): it ends a run and is not
           in it, and the run before it must be a date, even of one number:
@@ -746,8 +747,9 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           refused by approxidate_careful()). The weekday is not checked
           against a date: "Oct 5 2026 friday" is Monday, October 5; beside
           a day counted from today approxidate_careful() refuses a weekday
-          that is not that day's ("now Mon" on a Wednesday), and a second
-          weekday ("Mon Thu now").
+          that is not that day's ("now Mon" on a Wednesday; the day the
+          text counted, in the UTC offset of now), and a second weekday
+          ("Mon Thu now").
         - Not refused: epoch seconds (9 digits or more, no leading zero)
           alone with a comment, "1761000000 (UTC)", "(EST) 1761000000",
           as "1761000000 UTC" (refused for a while). Without a comment a

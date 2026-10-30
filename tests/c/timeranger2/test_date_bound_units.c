@@ -73,6 +73,12 @@
  *  after "at" a date of numbers with dots needs a year of 4 digits ("at
  *  10.30.00" was 2000-10-30).
  *
+ *  No count back right after "at", with a minus sign or "last" either
+ *  ("at -1d", "at last friday" were read); "last" goes with no am/pm
+ *  ("last pm" was 13:00); am/pm only with an hour of 12 ("at 15h am",
+ *  "15:00 am" were 15:00); "never" is a whole text ("now never" was the
+ *  epoch); "today noon" is today's noon (before noon it was yesterday's).
+ *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -960,6 +966,27 @@ PRIVATE int do_test(void)
             {"at 10.30.00",                 FALSE,  FALSE,  -1, 0},
             {"Oct 1 2026 at 10.30.00",      FALSE,  FALSE,  -1, 0},
             {"at 1.10.2026 00:00:00 +0000", FALSE,  FALSE,   0, 1790812800},
+            /*  No count back right after "at", with a minus sign or "last" either  */
+            {"at -1d",                      FALSE,  FALSE,  -1, 0},
+            {"at -5 days",                  FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at -2 days",       FALSE,  FALSE,  -1, 0},
+            {"at last friday",              FALSE,  FALSE,  -1, 0},
+            {"at last week",                FALSE,  FALSE,  -1, 0},
+            {"last pm",                     FALSE,  FALSE,  -1, 0},
+            /*  am/pm only with an hour of 12  */
+            {"Oct 1 2026 at 15h am +0000",  FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at 12h am +0000",  FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 15:00 am +0000",   FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 noon am +0000",    FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 3:00 pm +0000",    FALSE,  FALSE,   0, 1790866800},
+            {"Oct 1 2026 noon +0000",       FALSE,  FALSE,   0, 1790856000},
+            /*  "never" is a whole text  */
+            {"never",                       FALSE,  FALSE,   0, 0},
+            {"now never",                   FALSE,  FALSE,  -1, 0},
+            {"never 10:00",                 FALSE,  FALSE,  -1, 0},
+            /*  "10.2026" is no date, after "at" or not  */
+            {"at 10.2026",                  FALSE,  FALSE,  -1, 0},
+            {"10.2026",                     FALSE,  FALSE,  -1, 0},
             /*  An integer past what a time holds, of any length  */
             {"9223372036854775808",         FALSE,  FALSE,  -2, 0},
         };
@@ -1184,6 +1211,40 @@ PRIVATE int do_test(void)
             printf("%sERROR%s --> tranger2_time_of_text('Mon Thu now'): %d (%s), expected no date\n",
                 On_Red BWhite, Color_Off, ret, why? why : "");
             result += -1;
+        }
+
+        /*
+         *  noon is of the day the text names: "today noon" is today's
+         *  noon, before noon too (it was yesterday's), and its weekday is
+         *  today's. Against the real clock: a case whose day changed
+         *  during the call is not judged.
+         */
+        for(int with_weekday = 0; with_weekday <= 1; with_weekday++) {
+            struct tm before, after;
+            time_t t0 = time(NULL);
+            localtime_r(&t0, &before);
+            char text[64];
+            snprintf(text, sizeof(text), "today noon%s%s",
+                with_weekday? " " : "", with_weekday? weekday_names[before.tm_wday] : "");
+            ret = tranger2_time_of_text(text, FALSE, FALSE, &value, &why);
+            time_t t1 = time(NULL);
+            localtime_r(&t1, &after);
+            if(before.tm_mday != after.tm_mday) {
+                continue;
+            }
+            struct tm noon = before;
+            noon.tm_hour = 12;
+            noon.tm_min = 0;
+            noon.tm_sec = 0;
+            noon.tm_isdst = -1;
+            time_t today_noon = mktime(&noon);
+            if(ret != 0 || value != (json_int_t)today_noon) {
+                printf("%sERROR%s --> tranger2_time_of_text('%s'): %d %" JSON_INTEGER_FORMAT
+                    " (%s), expected %" JSON_INTEGER_FORMAT " (today at noon)\n",
+                    On_Red BWhite, Color_Off, text, ret, value, why? why : "",
+                    (json_int_t)today_noon);
+                result += -1;
+            }
         }
 
         for(int i = 0; hours_of_this_year[i]; i++) {
