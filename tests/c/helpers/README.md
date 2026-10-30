@@ -252,11 +252,24 @@ alone after `at` is an hour with no half of the day, no date (`"Oct 1 at
 October 26, 2010-10-01), nor `"at 10.30"` (7.29.3: October 30); a number
 before a month name is a day (`"at 5 Oct 2026"`, refused by a development
 version). A count of zero and `"now"` are today, so a weekday after them is
-read (`"0 days ago Mon"`, `"now Wed"`, refused by a development version), and
+read (`"0 days ago Wed"`, `"now Wed"`, refused by a development version), and
 `ago` with no count before it is no date (`"5 (days) ago"`, `"5 ago"`;
 7.29.3: the 5th).
 §17: a long hostile text is read in linear time (`"at"`, 20000 comments,
 `"on"`, 20000 `"the"`: about 2 s before, now refused well under 500 ms).
+§18: `ago` follows its count with only blanks or comments between them
+(`"1 day 5 ago"`, `"yesterday 5 ago"`; 7.29.3: October 4). Right after `at`
+an hour with an `h` is a clock time of 24 hours (`"at 15h"` 15:00, `"at
+10h30"` 10:30; 7.29.3: 15 hours back, 10 hours back from the 30th), and any
+other count back is no date (`"at 5 days"`, `"at 2 fridays ago"`); `"15h"`
+elsewhere is still 15 hours back. `"at 5 of October"` is October 5 (refused
+by a development version). A weekday beside a day counted from today must be
+that day's (`"now Mon"`, `"0 days ago Mon"`, `"yesterday Wed"`, `"now 2026
+Mon"` on a Wednesday: 7.29.3 read today, yesterday, 1988), and a text says
+one weekday (`"Mon Thu now"`, `"Mon Thu, 01 Oct 2026"`); beside a date it is
+not checked. After `at` a date of numbers with dots needs a year of 4 digits
+(`"at 10.30.00"`, 7.29.3: 2000-10-30; `"at 1.10.26"`; `"at 1.10.2026"` is
+read).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

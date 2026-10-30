@@ -1099,8 +1099,9 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     text that says nothing it knows makes the whole text unreadable.
 
     Durations back from now: a count and a unit, "ago" is optional, but
-    says how long back a count is, so it needs one before it ("5 ago" and
-    "5 (days) ago" are no date; up to 7.29.3 they were the 5th):
+    says how long back a count is, so it follows one, with only blanks or
+    comments between them ("5 ago", "5 (days) ago" and "1 day 5 ago" are
+    no date; up to 7.29.3 they were the 5th, and October 4):
         "2 hours ago"  "3 days"  "1.day"  "2 days 3 hours ago"  "one week ago"
         short units, attached or not: "1s" "5m" "2h" "1d" "1w" "1M" "1y"
         ("m" is a minute, "M" a month; "1min" "1mo" "2hrs" "3wks" "1yr")
@@ -1117,21 +1118,30 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         the one before it. After a month, a day or a year a number before a
         weekday is that date's, the weekday only names it: "Oct 1 2026 Thu"
         is Oct 1 (up to 7.29.3 it was 2026 Thursdays back), "Oct 5 friday"
-        Oct 5; in the plural it stays a count ("Oct 1 2 fridays"). The
-        weekday is not checked: "Oct 5 2026 friday" is Monday, Oct 5. A
-        year (4 digits, 1970-9999) before a weekday is a year, never a
-        count (up to 7.29.3 "2026 Thu" was 2026 Thursdays back, 38 years):
+        Oct 5; in the plural it stays a count ("Oct 1 2 fridays"). Beside
+        a date the weekday is not checked: "Oct 5 2026 friday" is Monday,
+        Oct 5. A year (4 digits, 1970-9999) before a weekday is a year,
+        never a count (up to 7.29.3 "2026 Thu" was 2026 Thursdays back, 38
+        years):
         "Oct 1 2026 thursdays" and "2000 mondays ago" are no date (write
         weeks). A weekday names a day, and the text must say it, as a date
         or counted from today ("yesterday Tue", "2 days ago Mon"; a count
-        of zero and "now" are today: "0 days ago Mon", "now Wed"):
-        "monday 10:00", "2026 Thu" are no date (up to 7.29.3 today at
-        10:00, and today in 2026). A count and its unit, weekday or am/pm
-        touch ("2h") or are parted by blanks of any kind ("Oct 1 10\vpm"
-        is 22:00), dots, commas, underscores or comments ("Oct 1 5 (CEST)
-        pm" is 17:00 CEST; up to 7.29.3 it was 2005-10-01)
+        of zero and "now" are today: "0 days ago Wed", "now Wed" on a
+        Wednesday): "monday 10:00", "2026 Thu" are no date (up to 7.29.3
+        today at 10:00, and today in 2026). Beside a day counted from
+        today the weekday must be that day's: on a Wednesday "now Mon",
+        "yesterday Wed" and "now 2026 Mon" are no date (up to 7.29.3 today,
+        yesterday, and 1988). A text says one weekday: "Mon Thu now",
+        "Mon Thu, 01 Oct 2026" are no date. A count and its unit, weekday
+        or am/pm touch ("2h") or are parted by blanks of any kind ("Oct 1
+        10\vpm" is 22:00), dots, commas, underscores or comments ("Oct 1 5
+        (CEST) pm" is 17:00 CEST; up to 7.29.3 it was 2005-10-01)
         "10:30"  "10:30:15"  "3pm"  "3:45 PM"  "12am": a clock time of today
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
+        right after "at", an hour with an 'h' (24 hours, as Spanish and
+        French write it): "at 15h" is 15:00, "at 10h30" 10:30 (up to
+        7.29.3 15 hours back, and 10 hours back from the 30th); "15h"
+        anywhere else is 15 hours back
 
     Dates:
         "2026-10-01"  "2026/10/01"  "2026.10.01"  (Y-M-D)
@@ -1181,9 +1191,12 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
     3": write "at 10:00", "at 3 pm") or no hour ("Oct 1 at 24", "at
     2026"); up to 7.29.3 they were 2010-10-01, the 3rd of the month,
     2024-10-01 and today in 2026. Before a month name it is a day: "at 5
-    Oct 2026" is read. "at 10.30" (10:30 for a person, October 30 up to
-    7.29.3) is no date either: write "at 10:30". And a plus sign before a
-    duration ("+1d").
+    Oct 2026" and "at 5 of October" are read. Nor is a count back right
+    after "at" ("at 5 days", "at 2 fridays ago"; "at 3 pm" is read), nor
+    "at 10.30" and "at 10.30.00" (10:30 and 10:30:00 for a person, October
+    30 and 2000-10-30 up to 7.29.3): write "at 10:30". After "at" a date
+    of numbers with dots needs its year of 4 digits ("at 1.10.2026"; "at
+    1.10.26" may be 01:10:26). And a plus sign before a duration ("+1d").
 
     parse_date_basic() reads only a whole date and time, or epoch seconds,
     and returns the offset it was written in (the local one at that time
@@ -1280,6 +1293,14 @@ PUBLIC int launch_daemon( // Return pid of daemon
  *  but `keep_fd` (-1: none)
  */
 PUBLIC void clean_child_before_exec(int keep_fd);
+
+/*
+ *  Close every fd of [first, last] (~0U: to the last one) that is open:
+ *  close_range(), or on a kernel without it (before 5.9) each one that
+ *  /proc/self/fd lists. Nothing is said: a child about to exec, or a
+ *  daemon at its start, has nobody to tell.
+ */
+PUBLIC void close_fd_range(unsigned int first, unsigned int last);
 
 /*------------------------------------*
  *  ### Parse url

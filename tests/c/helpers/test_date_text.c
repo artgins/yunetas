@@ -81,12 +81,21 @@
  *              the 10" was 2010-10-01), nor "at 10.30" (October 30), but a
  *              day before a month name is ("at 5 Oct 2026"); a count of
  *              zero and "now" name today, so a weekday after them is read
- *              ("0 days ago Mon"); "ago" with no count before it is no
+ *              ("0 days ago Wed"); "ago" with no count before it is no
  *              date ("5 (days) ago" was the 5th).
  *          17. a long text is read in time that grows with its length, not
  *              with its square: "at", 20000 comments, "on" and 20000 "the"
  *              took seconds (the place after "at" was looked for again from
  *              every piece).
+ *          18. "ago" follows its count with nothing between them but blanks
+ *              or comments ("1 day 5 ago" was October 4); right after "at"
+ *              "15h" and "10h30" are clock times ("at 15h" was 15 hours
+ *              back) and any other count with a unit is no date; "at 5 of
+ *              October" is October 5; a weekday beside a day counted from
+ *              today must be that day's, and a text says one ("now Mon" on
+ *              a Wednesday, "Mon Thu now" were today); after "at" a date of
+ *              numbers with dots needs a year of 4 digits ("at 10.30.00"
+ *              was 2000-10-30).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -971,8 +980,9 @@ PRIVATE void test_comments_weekdays_and_at(void)
  *  number before a month name is a day ("at 5 Oct 2026"; a development
  *  version refused it). "at 10.30" means 10:30, and was October 30: no
  *  date (write "at 10:30"). A count of zero and "now" name today, as
- *  "today" does: "0 days ago Mon" and "now Wed" are today (a development
- *  version refused them). "ago" says how long back a count is, and with
+ *  "today" does: "0 days ago Wed" and "now Wed" are today (a development
+ *  version refused them; a weekday that is not today's is refused, see
+ *  18). "ago" says how long back a count is, and with
  *  no count it is no date: "5 (days) ago" and "5 ago" were the 5th.
  ***************************************************************************/
 PRIVATE void test_at_zero_counts_and_ago(void)
@@ -1010,12 +1020,10 @@ PRIVATE void test_at_zero_counts_and_ago(void)
         /*
          *  A count of zero and "now" name today
          */
-        {"0 days ago Mon",                  "2026-10-21 11:00:00 +0200", 0},
-        {"zero days ago Mon",               "2026-10-21 11:00:00 +0200", 0},
         {"0 hours ago Wed",                 "2026-10-21 11:00:00 +0200", 0},
         {"0 months ago Wed",                "2026-10-21 11:00:00 +0200", 0},
+        {"zero days ago Wed",               "2026-10-21 11:00:00 +0200", 0},
         {"now Wed",                         "2026-10-21 11:00:00 +0200", 0},
-        {"now Mon",                         "2026-10-21 11:00:00 +0200", 0},
         {"0 days ago",                      "2026-10-21 11:00:00 +0200", 0},
 
         /*
@@ -1077,6 +1085,129 @@ PRIVATE void test_long_hostile_text(void)
 }
 
 /***************************************************************************
+ *  18. "ago" follows its count, with nothing but blanks or comments
+ *  between them: "1 day 5 ago" and "yesterday 5 ago" were October 4 (the
+ *  5 a day, the "ago" taken as the one of the count before). Right after
+ *  "at" a number with a unit is no count back: "15h" and "10h30" are
+ *  clock times there (15:00 and 10:30, as they are written in Spanish or
+ *  French), "at 15h" was 15 hours back and "at 10h30" 10 hours back from
+ *  the 30th; any other unit or a weekday there is no date ("at 5 days").
+ *  "of" between a day and its month name after "at" is passed over, as
+ *  anywhere else: "at 5 of October" is October 5 (a development version
+ *  refused it). A weekday beside a day counted from today ("now",
+ *  "today", a count back) must be that day's: "now Mon", "0 days ago
+ *  Mon" were today on a Wednesday, "now 2026 Mon" too, and a text says
+ *  one weekday ("Mon Thu now"). Beside a date of the calendar it is still
+ *  not checked. After "at" a date of numbers with dots needs a year of
+ *  4 digits: "at 10.30.00" is 10:30:00 for a person, and was 2000-10-30.
+ ***************************************************************************/
+PRIVATE void test_ago_at_counts_and_weekdays(void)
+{
+    static const approxidate_case_t cases[] = {
+        /*
+         *  "ago" right after its count
+         */
+        {"1 day 5 ago",                     "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday 5 ago",                 "2026-10-21 11:00:00 +0200", 1},
+        {"2 days Oct ago",                  "2026-10-21 11:00:00 +0200", 1},
+        {"1 day 10:00 ago",                 "2026-10-21 11:00:00 +0200", 1},
+        {"2 days ago ago",                  "2026-10-21 11:00:00 +0200", 1},
+        {"now ago",                         "2026-10-21 11:00:00 +0200", 1},
+        {"5 days ago",                      "2026-10-16 11:00:00 +0200", 0},
+        {"1.day.ago",                       "2026-10-20 11:00:00 +0200", 0},
+        {"2 days 3 hours ago",              "2026-10-19 08:00:00 +0200", 0},
+        {"2 days (x) (y) ago",              "2026-10-19 11:00:00 +0200", 0},
+        {"-1w ago",                         "2026-10-14 11:00:00 +0200", 0},
+        {"2 fridays ago",                   "2026-10-09 11:00:00 +0200", 0},
+        {"last week ago",                   "2026-10-14 11:00:00 +0200", 0},
+        {"3 days ago at 10:00",             "2026-10-18 10:00:00 +0200", 0},
+
+        /*
+         *  A count with a unit right after "at"
+         */
+        {"at 15h",                          "2026-10-21 15:00:00 +0200", 0},
+        {"at 15H",                          "2026-10-21 15:00:00 +0200", 0},
+        {"at 9h",                           "2026-10-21 09:00:00 +0200", 0},
+        {"at 10h30",                        "2026-10-21 10:30:00 +0200", 0},
+        {"Oct 1 at 15h",                    "2026-10-01 15:00:00 +0200", 0},
+        {"Oct 1 at the 10h30",              "2026-10-01 10:30:00 +0200", 0},
+        {"yesterday at 10h30",              "2026-10-20 10:30:00 +0200", 0},
+        {"at 10h30 pm",                     "2026-10-21 22:30:00 +0200", 0},
+        {"at 25h",                          "2026-10-21 11:00:00 +0200", 1},
+        {"at 10h60",                        "2026-10-21 11:00:00 +0200", 1},
+        {"at 10h3",                         "2026-10-21 11:00:00 +0200", 1},
+        {"at 10h300",                       "2026-10-21 11:00:00 +0200", 1},
+        {"at 100h",                         "2026-10-21 11:00:00 +0200", 1},
+        {"at 15h ago",                      "2026-10-21 11:00:00 +0200", 1},
+        {"at 15 h",                         "2026-10-21 11:00:00 +0200", 1},
+        {"at 15hours",                      "2026-10-21 11:00:00 +0200", 1},
+        {"at 5 days",                       "2026-10-21 11:00:00 +0200", 1},
+        {"at 2 hours ago",                  "2026-10-21 11:00:00 +0200", 1},
+        {"at 2 fridays ago",                "2026-10-21 11:00:00 +0200", 1},
+        {"at 2 friday",                     "2026-10-21 11:00:00 +0200", 1},
+        {"at five days ago",                "2026-10-21 11:00:00 +0200", 1},
+        {"at five pm",                      "2026-10-21 17:00:00 +0200", 0},
+        {"at 3pm",                          "2026-10-21 15:00:00 +0200", 0},
+        {"15h",                             "2026-10-20 20:00:00 +0200", 0},
+        {"15h ago",                         "2026-10-20 20:00:00 +0200", 0},
+
+        /*
+         *  "of" between a day and its month name after "at"
+         */
+        {"at 5 of October",                 "2026-10-05 11:00:00 +0200", 0},
+        {"at 5 of Oct 2026",                "2026-10-05 11:00:00 +0200", 0},
+        {"at 5 (x) of (y) October",         "2026-10-05 11:00:00 +0200", 0},
+        {"at 5 of of October",              "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at 5 of",                   "2026-10-21 11:00:00 +0200", 1},
+        {"at 5 of 2026",                    "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  A weekday beside a day counted from today is that day's
+         */
+        {"now Mon",                         "2026-10-21 11:00:00 +0200", 1},
+        {"today Mon",                       "2026-10-21 11:00:00 +0200", 1},
+        {"0 days ago Mon",                  "2026-10-21 11:00:00 +0200", 1},
+        {"zero days ago Mon",               "2026-10-21 11:00:00 +0200", 1},
+        {"now 2026 Mon",                    "2026-10-21 11:00:00 +0200", 1},
+        {"now 2026 Wed",                    "2026-10-21 11:00:00 +0200", 0},
+        {"yesterday Wed",                   "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday Tue",                   "2026-10-20 11:00:00 +0200", 0},
+        {"2 days ago Tue",                  "2026-10-21 11:00:00 +0200", 1},
+        {"2 days ago Mon",                  "2026-10-19 11:00:00 +0200", 0},
+        {"12 hours ago Tue",                "2026-10-20 23:00:00 +0200", 0},
+        {"12 hours ago Wed",                "2026-10-21 11:00:00 +0200", 1},
+        {"last friday Fri",                 "2026-10-16 11:00:00 +0200", 0},
+        {"last friday Thu",                 "2026-10-21 11:00:00 +0200", 1},
+        {"Wed noon",                        "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday 23:30 Tue",             "2026-10-20 23:30:00 +0200", 0},
+        {"Tue 23:30 UTC yesterday",         "2026-10-21 01:30:00 +0200", 0},
+
+        /*
+         *  One weekday in a text
+         */
+        {"Mon Thu now",                     "2026-10-21 11:00:00 +0200", 1},
+        {"Wed Wed now",                     "2026-10-21 11:00:00 +0200", 1},
+        {"Wed, Wed now",                    "2026-10-21 11:00:00 +0200", 1},
+        {"Mon Thu, 01 Oct 2026",            "2026-10-21 11:00:00 +0200", 1},
+        {"Thu, 01 Oct 2026",                "2026-10-01 11:00:00 +0200", 0},
+        {"Oct 5 2026 friday",               "2026-10-05 11:00:00 +0200", 0},
+
+        /*
+         *  After "at" a date of numbers with dots needs its year of 4 digits
+         */
+        {"at 10.30.00",                     "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 at 10.30.00",               "2026-10-21 11:00:00 +0200", 1},
+        {"at 1.10.26",                      "2026-10-21 11:00:00 +0200", 1},
+        {"at 10.30.00.000",                 "2026-10-21 11:00:00 +0200", 1},
+        {"at 1.10.2026",                    "2026-10-01 11:00:00 +0200", 0},
+        {"at 01.10.2026 10:00",             "2026-10-01 10:00:00 +0200", 0},
+        {"at 2026.10.01",                   "2026-10-01 11:00:00 +0200", 0},
+        {"1.10.26",                         "2026-10-01 11:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1118,6 +1249,7 @@ int main(int argc, char *argv[])
     test_comments_weekdays_and_at();
     test_at_zero_counts_and_ago();
     test_long_hostile_text();
+    test_ago_at_counts_and_weekdays();
 
     gobj_end();
 
