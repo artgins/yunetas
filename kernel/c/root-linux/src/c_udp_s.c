@@ -276,22 +276,19 @@ PRIVATE void mt_destroy(hgobj gobj)
     }
 
     /*
-     *  A C_UDP_S destroyed before its stop ended (in ST_WAIT_STOPPED: a
-     *  host that did not wait for EV_STOPPED) is no error, as for C_TCP:
-     *  its read and its sends in flight are canceled here, and the loop frees
-     *  them when their completions come, with no callback. Up to 7.29.3
-     *  it was an ERROR, "GObj NOT STOPPED. UV handler ACTIVE!", left from
-     *  the libuv port, where a handle still active at the free was a use
-     *  after free. A destroy of a running gobj is said by gobj_destroy(),
-     *  which stops it first.
+     *  A C_UDP_S destroyed before its stop ended (in ST_WAIT_STOPPED) is no
+     *  misuse and says nothing: it is how every yuno ends (stop_services()
+     *  and then gobj_end(), with no turn of the loop between them), and a
+     *  host may take the same shortcut. What is in flight is canceled here,
+     *  and the loop frees it when its completion comes, with no callback.
+     *  A destroy of a running gobj is said by gobj_destroy(), which stops
+     *  it first.
      */
 
     /*
-     *  The sends in flight of a C_UDP_S destroyed before its stop ended (a
-     *  host that did not wait for EV_STOPPED): canceled, and freed by the
-     *  loop when their completions come, with no callback. Up to 7.29.3
-     *  the send events were not kept, and their completion ran on the
-     *  freed gobj (a use after free).
+     *  The sends in flight: canceled, and freed by the loop when their
+     *  completions come, with no callback, so they never reach the freed
+     *  gobj.
      */
     send_in_flight_t *send;
     while((send = dl_first(&priv->dl_sends)) != NULL) {

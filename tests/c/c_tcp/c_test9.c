@@ -7,25 +7,30 @@
  *          of the test (a plain socket: the kernel completes the handshake,
  *          nobody accepts). A C_TCP clisrv (legacy method: its fd_clisrv
  *          given) holds a connection the test accepted from a socket of its
- *          own, the peer. Once connected, in ONE turn, to each: a write,
- *          the stop (it waits for the write and for the cancel of the read,
- *          in ST_WAIT_STOPPED) and the destroy, before EV_STOPPED. The host
- *          should have waited for EV_STOPPED, but the misuse must not
- *          corrupt memory: the destroy cancels the write, and the loop
- *          frees it with no callback. Up to 7.29.3 the write events were
- *          not kept, and the completion of the write ran on the freed gobj
- *          (a use after free: AddressSanitizer names it, a plain build may
- *          go on reading the freed memory, or crash). And the destroy
- *          closes the socket of the clisrv, which the stop closes when it
- *          ends: up to 7.29.3 it was left open, and its peer never saw
- *          the end of the connection (a socket leaked per clisrv destroyed
- *          so).
+ *          own, the peer. Once BOTH are connected, in ONE turn, to each:
+ *          a write, the stop (it waits for the write and for the cancel of
+ *          the read, in ST_WAIT_STOPPED) and the destroy, before
+ *          EV_STOPPED -- the way every yuno ends. The destroy cancels the
+ *          write, and the loop frees it with no callback. Up to 7.29.3 the
+ *          write events were not kept, and the completion of the write ran
+ *          on the freed gobj (a use after free: AddressSanitizer names it,
+ *          a plain build may go on reading the freed memory, or crash).
+ *          And the destroy closes the socket of the clisrv, which the stop
+ *          closes when it ends, as the stop does: between the stop and the
+ *          destroy the peer sends data nobody reads, and still it must read
+ *          the end of the connection (a FIN), not a reset. Up to 7.29.3
+ *          the socket was left open, and its peer never saw the end of the
+ *          connection (a socket leaked per clisrv destroyed so); in the
+ *          fixes after 7.29.3 it was closed with no shutdown(SHUT_WR), and
+ *          the unread data made it a RST.
  *
- *              1. EV_CONNECTED -> 100 ms later the write, the stop and the
- *                 destroy, of both
+ *              1. EV_CONNECTED of both (the clisrv's comes inside its
+ *                 start, the client's when its connect completes) -> 100
+ *                 ms later the write, the stop and the destroy, of both;
+ *                 not connected in 2 s: the test fails
  *              2. 500 ms later: the peer of the clisrv must read the end of
- *                 the connection; the yuno dies; the memory check at the
- *                 end catches a leaked event or gbuffer
+ *                 the connection, a FIN; the yuno dies; the memory check at
+ *                 the end catches a leaked event or gbuffer
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -81,6 +86,8 @@ typedef struct _PRIVATE_DATA {
     int fd_listen;
     int fd_peer;        // the other end of the clisrv's connection
     int phase;
+    BOOL tcp_connected;
+    BOOL clisrv_connected;
 } PRIVATE_DATA;
 
 
@@ -219,9 +226,9 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, 2000);     // the connect must not take this long
+    set_timeout(priv->timer, 2000);     // the connects must not take this long
     gobj_start(priv->gobj_tcp);
-    gobj_start(priv->gobj_clisrv);      // connected at its start: EV_CONNECTED re-arms the timer
+    gobj_start(priv->gobj_clisrv);      // connected at its start: its EV_CONNECTED comes inside
 
     return 0;
 }
@@ -262,9 +269,11 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 }
 
 /***************************************************************************
- *  A write, the stop and the destroy, in one turn
+ *  A write, the stop and the destroy, in one turn. fd_peer >= 0: between
+ *  the stop and the destroy, the peer sends data that nobody reads (the
+ *  stop canceled the read)
  ***************************************************************************/
-PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp)
+PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp, int fd_peer)
 {
     gbuffer_t *gbuf = gbuffer_create(64, 64);
     gbuffer_append_string(gbuf, "written while it is destroyed");
@@ -285,14 +294,27 @@ PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp)
             NULL
         );
     }
+    if(fd_peer >= 0) {
+        const char unread[] = "sent by the peer, never read";
+        if(send(fd_peer, unread, sizeof(unread), 0) != (ssize_t)sizeof(unread)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "TEST: the peer cannot send",
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
     gobj_destroy(gobj_tcp);
 }
 
 /***************************************************************************
  *  The peer of the clisrv reads what came and then the end of the
- *  connection: TRUE when it came
+ *  connection: "fin" (an orderly end), "reset", or "open"
  ***************************************************************************/
-PRIVATE BOOL peer_got_the_end(hgobj gobj)
+PRIVATE const char *how_the_peer_saw_the_end(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -302,10 +324,13 @@ PRIVATE BOOL peer_got_the_end(hgobj gobj)
         if(n > 0) {
             continue;   // the write, if the kernel took it before the destroy
         }
-        if(n == 0 || errno == ECONNRESET) {
-            return TRUE;
+        if(n == 0) {
+            return "fin";
         }
-        return FALSE;   // EAGAIN: the connection is still open
+        if(errno == ECONNRESET) {
+            return "reset";
+        }
+        return "open";  // EAGAIN: the connection is still open
     }
 }
 
@@ -328,7 +353,12 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->phase == 0) {
+    if(src == priv->gobj_tcp) {
+        priv->tcp_connected = TRUE;
+    } else if(src == priv->gobj_clisrv) {
+        priv->clisrv_connected = TRUE;
+    }
+    if(priv->phase == 0 && priv->tcp_connected && priv->clisrv_connected) {
         priv->phase = 1;
         set_timeout(priv->timer, 100);
     }
@@ -355,22 +385,34 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     switch(priv->phase) {
         case 0:
-            test_fail(gobj, "TEST: the C_TCP did not connect");
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: the C_TCPs did not connect",
+                "tcp_connected", "%d", (int)priv->tcp_connected,
+                "clisrv_connected", "%d", (int)priv->clisrv_connected,
+                NULL
+            );
             set_yuno_must_die();
             break;
 
         case 1:
-            write_stop_and_destroy(gobj, priv->gobj_tcp);
+            write_stop_and_destroy(gobj, priv->gobj_tcp, -1);
             priv->gobj_tcp = 0;
-            write_stop_and_destroy(gobj, priv->gobj_clisrv);
+            write_stop_and_destroy(gobj, priv->gobj_clisrv, priv->fd_peer);
             priv->gobj_clisrv = 0;
             priv->phase = 2;
             set_timeout(priv->timer, 500);
             break;
 
         default:
-            if(!peer_got_the_end(gobj)) {
-                test_fail(gobj, "TEST: the socket of a clisrv destroyed before its stop ended was not closed");
+            {
+                const char *end = how_the_peer_saw_the_end(gobj);
+                if(strcmp(end, "open")==0) {
+                    test_fail(gobj, "TEST: the socket of a clisrv destroyed before its stop ended was not closed");
+                } else if(strcmp(end, "reset")==0) {
+                    test_fail(gobj, "TEST: the peer of a clisrv destroyed before its stop ended got a reset, not the end");
+                }
             }
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,

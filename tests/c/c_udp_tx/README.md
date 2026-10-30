@@ -18,8 +18,9 @@ plain UDP socket of the test, bound to a port of the kernel's choice, and:
    (dropped: ONE WARNING when the stop ends, *"udp data sent while the client
    stops, dropped"*) and starts it again (`gobj_start()` must answer 0). A
    second `C_UDP` is sent `gone`, stopped and DESTROYED in that turn, with its
-   send in flight: no error (up to 7.29.3 an ERROR, *"GObj NOT STOPPED. UV
-   handler ACTIVE!"*, left from the libuv port). After
+   send in flight: no log, a destroy in `ST_WAIT_STOPPED` is how every yuno
+   ends (up to 7.29.3 an ERROR, *"GObj NOT STOPPED. UV handler ACTIVE!"*, left
+   from the libuv port). After
    300 ms the first must be running in `ST_IDLE`, with no `EV_STOPPED` (the
    start came before the stop ended), and the socket must hold `four`: the
    socket closes when the stop ends;
@@ -42,13 +43,19 @@ itself (*"UDP: read FAILED, the client stops"*, the only ERROR it may log; the
 WARNINGs of datagrams the kernel refuses are the kernel's to count). 500 ms
 later it must be in `ST_STOPPED`, NOT running, with ONE `EV_STOPPED`, and a
 `gobj_start()` must work; a stop then publishes a second `EV_STOPPED`. Then it
-is started again and, 25 times, sent a datagram, stopped and started in ONE
-turn: 100 ms later it must run in `ST_IDLE`, with no new `EV_STOPPED`. A last
-stop publishes the third. In the fixes after 7.29.3 (red) it stayed in
-`ST_WAIT_STOPPED` for ever, and the start said *"GObj ALREADY RUNNING"*; and
-the start armed the read again while the completion of its cancel was still to
-come: that completion failed the new read, and the `C_UDP` stopped by itself
-(*"UDP: read FAILED, the client stops"*) at every restart.
+is started again and, 25 times, sent a datagram, stopped (it must wait in
+`ST_WAIT_STOPPED`) and started in ONE turn: 100 ms later it must run in
+`ST_IDLE`, with no new `EV_STOPPED`. Then, 25 times, it is stopped (in
+`ST_WAIT_STOPPED`, for the cancel of its read) and the driver starts it again
+INSIDE its `EV_STOPPED`: the stop ended at the completion of the read
+canceled, and the completion of the cancel is still to come. 100 ms later it
+must run in `ST_IDLE`, with one `EV_STOPPED` per stop. A last stop publishes
+the last one. In the fixes after 7.29.3 (red) it stayed in `ST_WAIT_STOPPED`
+for ever, and the start said *"GObj ALREADY RUNNING"*; and the start, in the
+stop or at its `EV_STOPPED`, armed the read again while the completion of its
+cancel was still to come: that completion failed the new read, and the
+`C_UDP` stopped by itself (*"UDP: read FAILED, the client stops"*) at every
+restart.
 
 Against SDK 7.29.3 the test does not build (`c_udp.h` declared
 `C_PROT_UDP`, not `C_UDP`), and with that fixed `register_c_udp()` fails

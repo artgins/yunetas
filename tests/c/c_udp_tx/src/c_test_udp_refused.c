@@ -20,16 +20,25 @@
  *              2. a start must be taken (ST_IDLE): in the fixes after
  *                 7.29.3 it said "GObj ALREADY RUNNING". Then a stop: a
  *                 second EV_STOPPED.
- *              3. started again, RESTARTS times: a datagram, a stop and a
- *                 start in one turn. The stop waits for the send and the
- *                 cancel of the read, and the start is taken when it ends:
- *                 RESTART_MS later the C_UDP must run in ST_IDLE, with no
- *                 new EV_STOPPED. In the fixes after 7.29.3 the start
- *                 armed the read event again while the completion of its
- *                 cancel was still to come; that completion landed on the
- *                 new read, which failed, and the C_UDP stopped by itself
- *                 ("UDP: read FAILED, the client stops") at every restart.
- *              4. a stop: a third EV_STOPPED, and the yuno dies; the
+ *              3. started again, RESTARTS times: a datagram, a stop (it
+ *                 must wait in ST_WAIT_STOPPED, for the send and the
+ *                 cancel of the read) and a start in one turn. The start
+ *                 is taken when the stop ends: RESTART_MS later the C_UDP
+ *                 must run in ST_IDLE, with no new EV_STOPPED. In the
+ *                 fixes after 7.29.3 the start armed the read event again
+ *                 while the completion of its cancel was still to come;
+ *                 that completion landed on the new read, which failed,
+ *                 and the C_UDP stopped by itself ("UDP: read FAILED, the
+ *                 client stops") at every restart.
+ *              4. RESTARTS times: a stop (in ST_WAIT_STOPPED, for the
+ *                 cancel of the read), and a start made at its EV_STOPPED,
+ *                 inside the action: the stop ended at the completion of
+ *                 the read canceled, and the completion of the cancel is
+ *                 still to come. RESTART_MS later the C_UDP must run in
+ *                 ST_IDLE, with one EV_STOPPED per stop. In the fixes
+ *                 after 7.29.3 that completion failed the read armed
+ *                 again, and the C_UDP stopped by itself at every restart.
+ *              5. a stop: the last EV_STOPPED, and the yuno dies; the
  *                 memory check at the end catches a leaked event or
  *                 gbuffer.
  *
@@ -90,6 +99,7 @@ typedef struct _PRIVATE_DATA {
     int phase;
     int stopped;
     int restarts;
+    int restarts_at_stopped;
 } PRIVATE_DATA;
 
 
@@ -221,6 +231,27 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
+ *  A stop of a C_UDP with its read in flight must wait in ST_WAIT_STOPPED
+ ***************************************************************************/
+PRIVATE void stop_and_check_it_waits(hgobj gobj, const char *what)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->gobj_udp);
+    if(!gobj_in_this_state(priv->gobj_udp, ST_WAIT_STOPPED)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", what,
+            "state",        "%s", gobj_current_state(priv->gobj_udp),
+            "restart",      "%d", priv->restarts,
+            "restart_at_stopped", "%d", priv->restarts_at_stopped,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void check_udp(hgobj gobj, const char *what, gobj_state_t state, BOOL running, int stopped)
@@ -322,7 +353,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
                     gobj
                 );
-                gobj_stop(priv->gobj_udp);
+                stop_and_check_it_waits(gobj,
+                    "TEST: the stop with a send and the read in flight did not wait"
+                );
                 if(gobj_start(priv->gobj_udp) < 0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -336,14 +369,28 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 set_timeout(priv->timer, RESTART_MS);
                 break;
             }
-            gobj_stop(priv->gobj_udp);
             priv->phase = 4;
+            set_timeout(priv->timer, RESTART_MS);
+            break;
+
+        case 4:
+            check_udp(gobj, "TEST: a C_UDP started at its EV_STOPPED did not stay running",
+                ST_IDLE, TRUE, 2 + priv->restarts_at_stopped);
+            if(priv->restarts_at_stopped < RESTARTS) {
+                stop_and_check_it_waits(gobj,
+                    "TEST: the stop with the read in flight did not wait"
+                );
+                set_timeout(priv->timer, RESTART_MS);  // ac_stopped() starts it
+                break;
+            }
+            gobj_stop(priv->gobj_udp);
+            priv->phase = 5;
             set_timeout(priv->timer, SETTLE_MS);
             break;
 
         default:
             check_udp(gobj, "TEST: the last stop of the C_UDP did not end",
-                ST_STOPPED, FALSE, 3);
+                ST_STOPPED, FALSE, 3 + RESTARTS);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
@@ -375,6 +422,20 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->stopped++;
+
+    if(priv->phase == 4) {
+        priv->restarts_at_stopped++;
+        if(gobj_start(src) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a start at EV_STOPPED was refused",
+                "state",        "%s", gobj_current_state(src),
+                "restart_at_stopped", "%d", priv->restarts_at_stopped,
+                NULL
+            );
+        }
+    }
 
     KW_DECREF(kw)
     return 0;

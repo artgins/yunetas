@@ -309,24 +309,21 @@ PRIVATE void mt_destroy(hgobj gobj)
     }
 
     /*
-     *  A C_UDP destroyed before its stop ended (in ST_WAIT_STOPPED: a
-     *  host that did not wait for EV_STOPPED) is no error, as for C_TCP:
-     *  its read and its send in flight are canceled here, and the loop frees
-     *  them when their completions come, with no callback. Up to 7.29.3
-     *  it was an ERROR, "GObj NOT STOPPED. UV handler ACTIVE!", left from
-     *  the libuv port, where a handle still active at the free was a use
-     *  after free. A destroy of a running gobj is said by gobj_destroy(),
-     *  which stops it first.
+     *  A C_UDP destroyed before its stop ended (in ST_WAIT_STOPPED) is no
+     *  misuse and says nothing: it is how every yuno ends (stop_services()
+     *  and then gobj_end(), with no turn of the loop between them), and a
+     *  host may take the same shortcut. What is in flight is canceled here,
+     *  and the loop frees it when its completion comes, with no callback.
+     *  A destroy of a running gobj is said by gobj_destroy(), which stops
+     *  it first.
      */
 
     log_closing_drops(gobj);    // destroyed in ST_WAIT_STOPPED: its stop never ended
 
     /*
-     *  The send in flight of a C_UDP destroyed before its stop ended (a
-     *  host that did not wait for EV_STOPPED): canceled, and freed by the
-     *  loop when its completion comes, with no callback. In the fixes
-     *  after 7.29.3 the send events were not kept, and that completion ran
-     *  on the freed gobj. Before the socket: its close takes back what the
+     *  The send in flight: canceled, and freed by the loop when its
+     *  completion comes, with no callback, so that completion never reaches
+     *  the freed gobj. Before the socket: its close takes back what the
      *  kernel has not taken yet.
      */
     if(priv->yev_tx) {
@@ -407,11 +404,11 @@ PRIVATE int open_the_socket(hgobj gobj)
      *  A new read on each start, as C_UDP_S does. The read of the previous
      *  start can still have a completion to come: its stop ends at the
      *  first completion of the read (its own failure, or the cancel), and
-     *  the completion of the cancel may come later. Destroyed here, the
-     *  loop frees it when that completion comes, with no callback. In the
-     *  fixes after 7.29.3 it was started again: that completion landed on
-     *  the new read, which failed, and a C_UDP started while its stop
-     *  waited stopped by itself ("UDP: read FAILED, the client stops").
+     *  the completion of the cancel may come later -- after EV_STOPPED,
+     *  and after a start made while the stop waited or at its EV_STOPPED.
+     *  Destroyed here, the loop frees it when that completion comes, with
+     *  no callback; started again, that completion would land on the new
+     *  read and fail it, and the C_UDP would stop by itself.
      */
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
 

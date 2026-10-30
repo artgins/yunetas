@@ -578,6 +578,16 @@ PRIVATE void mt_destroy(hgobj gobj)
     // This would be in mt_stop, but by now not full control of stopping uring events
     // Other gclass's managing io_uring events with the same problem
 
+    /*
+     *  A C_TCP destroyed before its stop ended (in ST_WAIT_STOPPED) is no
+     *  misuse and says nothing: it is how every yuno ends (stop_services()
+     *  and then gobj_end(), with no turn of the loop between them), and a
+     *  host may take the same shortcut. What is in flight is canceled here,
+     *  and the loop frees it when its completion comes, with no callback.
+     *  A destroy of a running gobj is said by gobj_destroy(), which stops
+     *  it first.
+     */
+
     log_closing_drops(gobj);    // destroyed in ST_WAIT_STOPPED: its close never ended
 
     /*
@@ -591,11 +601,10 @@ PRIVATE void mt_destroy(hgobj gobj)
     }
 
     /*
-     *  The write in flight of a C_TCP destroyed before its stop ended (a
-     *  host that did not wait for EV_STOPPED): canceled, and freed by the
-     *  loop when its completion comes, with no callback. Up to 7.29.3 the
-     *  write events were not kept, and that completion ran on the freed
-     *  gobj (a use after free).
+     *  The write in flight of a C_TCP destroyed before its stop ended (the
+     *  end of a yuno, or a host that did not wait for EV_STOPPED): canceled,
+     *  and freed by the loop when its completion comes, with no callback,
+     *  so that completion never reaches the freed gobj.
      */
     if(priv->yev_tx) {
         if(!yev_event_is_stopped(priv->yev_tx)) {
@@ -611,11 +620,12 @@ PRIVATE void mt_destroy(hgobj gobj)
      *  The socket of a clisrv is its own (a client's is its connect
      *  event's, closed by the free of that event): the stop closes it when
      *  it ends, so a clisrv destroyed before its stop ended closes it here,
-     *  after its events are stopped. Up to 7.29.3 it was left open: a
-     *  socket leaked per clisrv destroyed so, and its peer never saw the
-     *  end of the connection.
+     *  after its events are stopped, the way the stop does: shutdown(SHUT_WR)
+     *  first, so its peer reads the end of the connection (a FIN) even when
+     *  data it sent is still unread, which makes a bare close() send a RST.
      */
     if(priv->fd_clisrv > 0) {
+        shutdown(priv->fd_clisrv, SHUT_WR);
         close(priv->fd_clisrv);
         priv->fd_clisrv = -1;
     }

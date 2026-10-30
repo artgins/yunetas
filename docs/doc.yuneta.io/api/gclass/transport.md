@@ -103,18 +103,23 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 ```
 
-A host that destroys the `C_TCP` BEFORE its `EV_STOPPED` -- in the turn of the
-stop, with a write in flight -- does not wait as it should, but corrupts
-nothing: the destroy cancels the write in flight, and the loop frees it when
-its completion comes, with no callback. A clisrv's socket, which its stop closes
-when it ends, is closed by the destroy. Up to 7.29.3 the write events were not
-kept, and that completion ran on the freed gobj (a use after free; a crash in a
-plain build); and a clisrv's socket was left open (a socket leaked, and the
-peer never saw the end of the connection). `tests/c/c_tcp` (`test_tcp_test9`).
+A `C_TCP` destroyed BEFORE its `EV_STOPPED` -- in the turn of the stop, in
+`ST_WAIT_STOPPED` -- is supported, and logs nothing: it is how every yuno ends
+(`stop_services()` and then `gobj_end()`, with no turn of the loop between
+them), and a host may take the same shortcut. The destroy cancels the read and
+the write in flight, and the loop frees them when their completions come, with
+no callback. A clisrv's socket, which its stop closes when it ends, is closed
+by the destroy the way the stop closes it: `shutdown(SHUT_WR)` first, so the
+peer reads the end of the connection (a FIN) even when data it sent is still
+unread, which makes a bare `close()` send a RST. Up to 7.29.3 the write events
+were not kept, and that completion ran on the freed gobj (a use after free; a
+crash in a plain build); and a clisrv's socket was left open (a socket leaked,
+and the peer never saw the end of the connection). `tests/c/c_tcp`
+(`test_tcp_test9`).
 
 ```C
 gobj_stop(gobj_tcp);        // a write in flight: ST_WAIT_STOPPED
-gobj_destroy(gobj_tcp);     // not waiting for EV_STOPPED: the write is canceled
+gobj_destroy(gobj_tcp);     // before EV_STOPPED: the write and the read are canceled
 ```
 
 A stopped client starts again with `gobj_start()`: a new connect event, a new
@@ -637,14 +642,27 @@ gobj_stop(gobj_udp);        // a send in flight: ST_WAIT_STOPPED
 gobj_start(gobj_udp);       // 0: taken, the socket opens again when the stop ends
 ```
 
-A host that destroys the `C_UDP` before its `EV_STOPPED` does not wait as it
-should, but corrupts nothing, as with `C_TCP`: the send in flight is canceled,
-and the loop frees it with no callback. Up to 7.29.3 it was an ERROR (*"GObj
-NOT STOPPED. UV handler ACTIVE!"*), left from the libuv port.
+A `C_UDP` destroyed before its `EV_STOPPED` (in `ST_WAIT_STOPPED`) is
+supported and logs nothing, as with `C_TCP` (it is how every yuno ends): the
+read and the send in flight are canceled, and the loop frees them with no
+callback. Up to 7.29.3 it was an ERROR (*"GObj NOT STOPPED. UV handler
+ACTIVE!"*), left from the libuv port.
 
-Each start has a NEW read, also when the read of the stop is still canceling
-(a stop and a start in the same turn): the loop frees that read at the end of
-its cancel, without calling back, as in [`C_UDP_S`](#gclass-c-udp-s).
+Each start has a NEW read, also when the read of the stop is still canceling:
+the stop ends at the FIRST completion of its read (its own failure, or the
+cancel), and the completion of the cancel can come after it -- after a start
+in the same turn as the stop, and after a start made by the host at its
+`EV_STOPPED`. The loop frees that read at the end of its cancel, without
+calling back, as in [`C_UDP_S`](#gclass-c-udp-s):
+
+```C
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_start(src);        // the old read is still canceling: a new read
+    KW_DECREF(kw)
+    return 0;
+}
+```
 
 Up to 7.29.3 `C_UDP` was a port never finished: `register_c_udp()` failed
 (*"SMachine: input_list's event NOT in state"*: `EV_STOPPED` declared as an
@@ -660,9 +678,10 @@ left it running (*"GObj ALREADY RUNNING"* at every later start), a start while
 a stop waited was refused and left it the same, an `EV_TX_DATA` there was
 *"Event NOT DEFINED in state"*, its socket was closed at the stop, under the
 send in flight, a destroy with a send in flight was a use after free, and a
-start while a stop waited armed the read again with the completion of its
-cancel still to come, which failed it: the `C_UDP` stopped by itself (*"UDP:
-read FAILED, the client stops"*) at every such restart.
+start while a stop waited, or at its `EV_STOPPED`, armed the read again with
+the completion of its cancel still to come, which failed it: the `C_UDP`
+stopped by itself (*"UDP: read FAILED, the client stops"*) at every such
+restart.
 `tests/c/c_udp_tx` (`test_c_udp_tx`, `test_c_udp_tx_refused`).
 
 ---
@@ -857,10 +876,10 @@ one. `tests/c/c_udp_s_tx`.
 A stop cancels the read and closes the socket; the datagrams still WAITING in
 the queue are dropped (a WARNING says how many), and the one in flight
 completes on its own. When the read is canceled and the sends are done, the
-server is in `ST_STOPPED` and publishes `EV_STOPPED`. A host that destroys
-the `C_UDP_S` before its `EV_STOPPED` does not wait as it should, but corrupts
-nothing: its sends in flight are canceled, and the loop frees them with no
-callback. Up to 7.29.3 the send events were not kept, and their completion ran
+server is in `ST_STOPPED` and publishes `EV_STOPPED`. A `C_UDP_S` destroyed
+before its `EV_STOPPED` (in `ST_WAIT_STOPPED`) is supported and logs nothing,
+as with `C_TCP` (it is how every yuno ends): its read and its sends in flight
+are canceled, and the loop frees them with no callback. Up to 7.29.3 the send events were not kept, and their completion ran
 on the freed gobj (a use after free); and the destroy was an ERROR (*"GObj NOT
 STOPPED. UV handler ACTIVE!"*), left from the libuv port.
 `tests/c/c_udp_s_tx`.
