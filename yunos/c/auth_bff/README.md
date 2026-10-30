@@ -98,7 +98,13 @@ the browser session, and the answer says 0.
 `refresh_token` cookie, then clears both cookies with `Max-Age=0` and
 answers `200 {"success": true}`. With no `refresh_token` cookie (a session
 opened without one), it does not call the IdP and only clears the cookies,
-with the same answer:
+with the same answer -- if the request carries the `access_token` cookie
+(`SameSite=Strict`: a same-site request) and, when `allowed_origin` is set,
+its `Origin` is exactly that (else `403 origin_not_allowed`). A request with
+no cookie (no session, or a cross-site form) gets `200 {"success": true}`
+with no `Set-Cookie`: there is nothing to end. A `refresh_token` cookie of
+4096 bytes or more is none the BFF wrote: `400 token_too_large`. A logout
+that clears the cookies answers:
 
 ```
 HTTP/1.1 200 OK

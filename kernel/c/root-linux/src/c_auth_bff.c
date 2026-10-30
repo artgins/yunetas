@@ -53,8 +53,14 @@
  *      Reads the "refresh_token" httpOnly cookie from the request.
  *      Action: call IdP logout endpoint, clear cookies (Max-Age=0).
  *              With no refresh_token cookie (a session opened without
- *              one) there is nothing to end at the IdP: no IdP call, the
- *              cookies are cleared at once.
+ *              one) there is nothing to end at the IdP: no IdP call. The
+ *              cookies are cleared only when the request carries the
+ *              access_token cookie (SameSite=Strict: a same-site request)
+ *              and, with allowed_origin set, its Origin is exactly that
+ *              (else 403 origin_not_allowed); with no cookie at all the
+ *              answer has no Set-Cookie. A refresh_token cookie of
+ *              BFF_TOKEN_MAX bytes or more is not one the BFF wrote: 400
+ *              token_too_large.
  *      Returns { "success": true }.
  *
  *    POST /auth/token
@@ -246,10 +252,22 @@ PRIVATE void answer_error_to_browser(hgobj gobj, hgobj browser,
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
     char *out, size_t out_size
 );
+PRIVATE const char *find_cookie(const char *cookie_header, const char *name,
+    size_t *value_len
+);
 PRIVATE void send_logout_success_to_browser(
     hgobj gobj,
     hgobj browser,
     const char *cors_hdrs,
+    const char *request_host,
+    size_t host_name_len
+);
+PRIVATE void answer_logout_without_refresh_token(
+    hgobj gobj,
+    hgobj browser,
+    const char *cors_hdrs,
+    const char *cookie_hdr,
+    const char *origin,
     const char *request_host,
     size_t host_name_len
 );
@@ -1007,16 +1025,14 @@ PRIVATE char *make_clear_cookie(hgobj gobj, const char *name, const char *domain
 }
 
 /***************************************************************************
- *  Extract a named cookie value from a Cookie: header string.
- *  Returns a pointer to `out`, or NULL if not found OR the value does not
- *  fit `out` (fail-closed: a clipped token is a corrupted token; treating
- *  it as missing yields a clean 401 instead of a signature failure on a
- *  remote backend with no evidence here).
+ *  The value of a named cookie in a Cookie: header string: a pointer to
+ *  its first byte and its length in `value_len`, or NULL when the header
+ *  has no such cookie.
  ***************************************************************************/
-PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
-    char *out, size_t out_size)
+PRIVATE const char *find_cookie(const char *cookie_header, const char *name,
+    size_t *value_len)
 {
-    if(empty_string(cookie_header) || empty_string(name) || !out || !out_size) {
+    if(empty_string(cookie_header) || empty_string(name)) {
         return NULL;
     }
     size_t name_len = strlen(name);
@@ -1031,13 +1047,8 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
         if(strncmp(p, name, name_len) == 0 && p[name_len] == '=') {
             const char *val_start = p + name_len + 1;
             const char *val_end   = strchr(val_start, ';');
-            size_t val_len = val_end ? (size_t)(val_end - val_start) : strlen(val_start);
-            if(val_len >= out_size) {
-                return NULL;
-            }
-            memcpy(out, val_start, val_len);
-            out[val_len] = '\0';
-            return out;
+            *value_len = val_end ? (size_t)(val_end - val_start) : strlen(val_start);
+            return val_start;
         }
         p = strchr(p, ';');
         if(p) {
@@ -1045,6 +1056,29 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
         }
     }
     return NULL;
+}
+
+/***************************************************************************
+ *  Extract a named cookie value from a Cookie: header string.
+ *  Returns a pointer to `out`, or NULL if not found OR the value does not
+ *  fit `out` (fail-closed: a clipped token is a corrupted token; treating
+ *  it as missing yields a clean 401 instead of a signature failure on a
+ *  remote backend with no evidence here).
+ ***************************************************************************/
+PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
+    char *out, size_t out_size)
+{
+    if(!out || !out_size) {
+        return NULL;
+    }
+    size_t val_len = 0;
+    const char *val_start = find_cookie(cookie_header, name, &val_len);
+    if(!val_start || val_len >= out_size) {
+        return NULL;
+    }
+    memcpy(out, val_start, val_len);
+    out[val_len] = '\0';
+    return out;
 }
 
 /***************************************************************************
@@ -2271,6 +2305,50 @@ PRIVATE void send_logout_success_to_browser(
 }
 
 /***************************************************************************
+ *  A logout with no refresh_token cookie: nothing to end at the IdP.
+ *  The cookies are SameSite=Strict, so a cross-site request carries none
+ *  of them, and its answer must not be able to end the session:
+ *    - no access_token cookie either: 200 success with NO Set-Cookie, there
+ *      is nothing to end;
+ *    - the access_token cookie (it proves a same-site request): when
+ *      allowed_origin is configured, the Origin must be exactly it, else
+ *      403 origin_not_allowed; then both cookies are cleared, 200 success.
+ ***************************************************************************/
+PRIVATE void answer_logout_without_refresh_token(
+    hgobj gobj,
+    hgobj browser,
+    const char *cors_hdrs,
+    const char *cookie_hdr,
+    const char *origin,
+    const char *request_host,
+    size_t host_name_len)
+{
+    size_t at_len = 0;
+    if(!find_cookie(cookie_hdr, COOKIE_NAME_AT, &at_len) || at_len == 0) {
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj, "👤BFF /auth/logout: no cookie, nothing to end");
+        }
+        json_t *jn_resp = json_pack("{s:b}", "success", 1);
+        send_json_response(browser, 200, status_str(200), jn_resp, cors_hdrs);
+        JSON_DECREF(jn_resp)
+        return;
+    }
+
+    const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
+    if(!empty_string(allowed_origin) && strcmp(origin, allowed_origin) != 0) {
+        send_error_response(gobj, browser, 403, status_str(403),
+            "origin_not_allowed",
+            "Origin not allowed for /auth/logout", cors_hdrs);
+        return;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "👤BFF /auth/logout: no refresh_token cookie, no IdP call");
+    }
+    send_logout_success_to_browser(gobj, browser, cors_hdrs, request_host, host_name_len);
+}
+
+/***************************************************************************
  *  Result of IdP logout.
  ***************************************************************************/
 PRIVATE json_t *send_logout_to_browser(
@@ -2937,16 +3015,24 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
     } else if(strcmp(url, "/auth/logout") == 0) {
-        /* POST /auth/logout  (reads httpOnly cookie; with none, nothing to end at the IdP) */
+        /* POST /auth/logout  (reads httpOnly cookie; with none, answer_logout_without_refresh_token) */
+        size_t rt_len = 0;
+        const char *rt_found = find_cookie(cookie_hdr, COOKIE_NAME_RT, &rt_len);
+        if(rt_found && rt_len >= BFF_TOKEN_MAX) {
+            char error_msg[128];
+            snprintf(error_msg, sizeof(error_msg),
+                "refresh_token cookie of %zu bytes: the BFF writes none longer than %d",
+                rt_len, (int)(BFF_COOKIE_MAX - strlen(COOKIE_NAME_RT)));
+            send_error_response(gobj, src, 400, status_str(400),
+                "token_too_large", error_msg, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
         char rt[BFF_TOKEN_MAX];
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
                 empty_string(rt)) {
-            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-                gobj_trace_msg(gobj, "👤BFF /auth/logout: no refresh_token cookie, "
-                    "no IdP call");
-            }
-            send_logout_success_to_browser(gobj, src, cors_hdrs,
-                host_hdr, (size_t)pa.client_host_name_len);
+            answer_logout_without_refresh_token(gobj, src, cors_hdrs,
+                cookie_hdr, origin, host_hdr, (size_t)pa.client_host_name_len);
             KW_DECREF(kw)
             return 0;
         }

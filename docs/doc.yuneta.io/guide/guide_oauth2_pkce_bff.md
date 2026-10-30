@@ -389,7 +389,18 @@ browser.** A session opened by a login answered with no refresh_token has no
 such cookie. The BFF then does not call the IdP (it has no refresh_token to
 end the IdP session with; that session ends on the IdP by its own timeout),
 clears both cookies with `Max-Age=0` at once, and answers
-`200 {"success": true}`. The same holds for a request with no cookie at all.
+`200 {"success": true}`. It clears them only for a request that carries the
+`access_token` cookie: the cookies are `SameSite=Strict`, so that cookie
+proves a same-site request, and a cross-site form cannot log the user out.
+With `allowed_origin` set, the `Origin` must also be exactly that origin.
+
+| Request to `/auth/logout` | Answer |
+|---|---|
+| `refresh_token` cookie | IdP end-session call, both cookies cleared, `200` |
+| `access_token` cookie only, `Origin` = `allowed_origin` (or none configured) | No IdP call, both cookies cleared, `200` |
+| `access_token` cookie only, another `Origin` | `403 origin_not_allowed`, no `Set-Cookie` |
+| No cookie (no session, or a cross-site request) | `200 {"success": true}`, no `Set-Cookie`: nothing to end |
+| `refresh_token` cookie of 4096 bytes or more (the BFF writes none) | `400 token_too_large`, no `Set-Cookie` |
 
 ---
 

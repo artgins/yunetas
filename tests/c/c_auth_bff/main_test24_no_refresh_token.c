@@ -4,8 +4,10 @@
  *          Self-contained auth_bff test: an IdP that answers a success
  *          with no refresh_token, with a lifetime of 0, with a token or a
  *          lifetime of another type, or with a body that is not a JSON
- *          object; and a logout with no refresh_token cookie. Eighteen
- *          requests on one connection, one at a time; the driver
+ *          object; and a logout with no refresh_token cookie (with the
+ *          access_token cookie, with none, from another Origin) or with an
+ *          oversized one. Twenty requests on one connection, one at a
+ *          time; the driver
  *          (c_test24_no_refresh_token.c) says what each must get.
  *          The logs, in order: one WARNING for the two logins with no
  *          refresh_token (said once per process); for an access_token that
@@ -15,7 +17,9 @@
  *          number of seconds ("soon", 300.5, false), with its value; for a
  *          body that is empty, a JSON array, or not JSON, the WARNING of
  *          its 502 (auth_empty_response), after the WARNING of the HTTP
- *          parser for a body labelled JSON that is not. No ERROR.
+ *          parser for a body labelled JSON that is not; the WARNING of
+ *          the 403 of a logout from another Origin and of the 400 of an
+ *          oversized refresh_token cookie. No ERROR.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -127,7 +131,7 @@ PRIVATE char variable_config[]= "\
                                 'client_id':    'test-client',      \n\
                                 'client_secret': '',                \n\
                                 'cookie_domain': '',                \n\
-                                'allowed_origin': '',               \n\
+                                'allowed_origin': 'http://localhost', \n\
                                 'allowed_redirect_uri': '',         \n\
                                 'crypto': {},                       \n\
                                 'pending_queue_size': 16            \n\
@@ -284,7 +288,8 @@ static int register_yuno_and_more(void)
         APP_NAME,
         json_pack("[{s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s}, "
                 "{s:s, s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}]",
+                "{s:s, s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, "
+                "{s:s, s:s}, {s:s, s:s}]",
             "msg",          "👤BFF IdP answered a login with no refresh_token: "
                             "its session cannot be refreshed, it ends with its "
                             "access_token (said once)",
@@ -325,7 +330,12 @@ static int register_yuno_and_more(void)
             "msg",          "👤BFF IdP answer refused",
             "error_code",   "auth_empty_response",
             "msg",          "👤BFF IdP answer refused",
-            "error_code",   "auth_empty_response"
+            "error_code",   "auth_empty_response",
+
+            "msg",          "👤BFF request rejected",
+            "error_code",   "origin_not_allowed",
+            "msg",          "👤BFF request rejected",
+            "error_code",   "token_too_large"
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

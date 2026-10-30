@@ -109,7 +109,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `POST /auth/login` | Password grant; writes the cookies. |
 | `POST /auth/callback` | PKCE code exchange; writes the cookies. |
 | `POST /auth/refresh` | Refresh with the `refresh_token` cookie; answers the identity too. |
-| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them. |
+| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie (and the `allowed_origin` Origin, when set); with no cookie, `200` and no `Set-Cookie`. |
 | `POST /auth/token` | Opt-in (`expose_access_token`): the access token for another backend host. |
 
 A token lifetime of 0 from the IdP is a token with no expiry (Keycloak's

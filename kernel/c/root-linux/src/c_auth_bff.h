@@ -11,7 +11,8 @@
  *    POST /auth/callback  — exchange PKCE authorization code for tokens
  *    POST /auth/refresh   — refresh access_token using the httpOnly cookie
  *    POST /auth/logout    — revoke refresh_token and clear cookies (with
- *                           no refresh_token cookie, only clear them)
+ *                           no refresh_token cookie, only clear them, and
+ *                           only for a same-site request)
  *    POST /auth/token     — return the access_token to JS (opt-in; off by
  *                           default; see `expose_access_token` in c_auth_bff.c)
  *
@@ -106,10 +107,16 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  redirect_uri_not_allowed  400  redirect_uri fails allowlist check
  *  origin_not_allowed        403  /auth/token Origin does not match
  *                                 allowed_origin, or allowed_origin unset
- *                                 (origin-pinned, fail-closed)
+ *                                 (origin-pinned, fail-closed); also
+ *                                 /auth/logout with no refresh_token
+ *                                 cookie whose Origin is not
+ *                                 allowed_origin (when it is set)
  *  missing_refresh_token     401  /auth/refresh called without RT cookie
- *                                 (/auth/logout without it clears the
- *                                 cookies and answers success)
+ *                                 (/auth/logout without it answers
+ *                                 success)
+ *  token_too_large           400  /auth/logout with a refresh_token
+ *                                 cookie of BFF_TOKEN_MAX bytes or more
+ *                                 (not one the BFF wrote)
  *  missing_access_token      401  /auth/token called without AT cookie
  *                                 (only reachable when expose_access_token=true)
  *  unknown_endpoint          404  URL not one of /auth/{callback,login,refresh,

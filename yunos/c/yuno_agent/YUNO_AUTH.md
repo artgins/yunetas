@@ -120,7 +120,7 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 | `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant). An IdP answer with no refresh_token clears the refresh_token cookie and answers no `refresh_expires_in`: the session cannot be refreshed (a WARNING says it, once per process) | yes              |
 | `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant); no refresh_token in the answer: as `/auth/login` | yes                 |
 | `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is. An IdP answer with no new refresh_token sends no `Set-Cookie` for it: the browser keeps its own (RFC 6749 §6), and the answer has no `refresh_expires_in` | yes |
-| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies; the answer is `200 {"success": true}` in both cases | yes (Max-Age=0)     |
+| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie (`SameSite=Strict`: same-site) and, with `allowed_origin` set, that exact `Origin` (else `403 origin_not_allowed`); with no cookie at all it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A refresh_token cookie of 4096 bytes or more: `400 token_too_large` | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding) | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
 
@@ -210,7 +210,7 @@ Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
   (`"refresh_expires_in": 0`):
   `Set-Cookie: refresh_token=<jwt>; Path=/; HttpOnly; Secure; SameSite=Strict`.
 
-Logout clears both with `Max-Age=0`, with or without a refresh_token cookie ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
+Logout clears both with `Max-Age=0`, with a refresh_token cookie or, without one, with the access_token cookie of a same-site request ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
 
 ### 2.5 The OIDC config: `issuer` + (optional) explicit endpoints
 

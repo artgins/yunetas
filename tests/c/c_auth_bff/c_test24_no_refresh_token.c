@@ -3,8 +3,9 @@
  *
  *          Driver for test24_no_refresh_token. The mock IdP answers every
  *          token request with its envelope, changed by its `body_patch`
- *          before each step, or with the raw answer of the step. Eighteen requests on one plain socket, one at
- *          a time (each answer is read whole before the next request):
+ *          before each step, or with the raw answer of the step. Twenty
+ *          requests on one plain socket, one at a time (each answer is
+ *          read whole before the next request):
  *
  *            1. login, the answer with no refresh_token: 200, the
  *               access_token cookie, the refresh_token cookie CLEARED
@@ -35,14 +36,22 @@
  *           13. logout with only "Cookie: access_token=AT1" (a session
  *               opened with no refresh_token): 200 success, both cookies
  *               cleared, no call to the IdP;
- *           14. logout with no cookie at all: the same;
+ *           14. logout with no cookie at all (what a cross-site request
+ *               carries, the cookies being SameSite=Strict): 200 success
+ *               and NO Set-Cookie, nothing to end;
  *           15. login, the IdP answers 200 with an empty body
  *               (application/json, Content-Length 0): 502
  *               auth_empty_response, its error saying "an empty body";
  *           16. the same with "[1, 2]": its error saying a JSON array;
  *           17. the same with text that is not JSON, as application/json:
  *               its error saying "not JSON";
- *           18. the same as text/html: the same.
+ *           18. the same as text/html: the same;
+ *           19. logout with only the access_token cookie and an Origin
+ *               that is not the allowed_origin: 403 origin_not_allowed,
+ *               no Set-Cookie;
+ *           20. logout with a refresh_token cookie of 5000 bytes (the BFF
+ *               never writes one over 4096): 400 token_too_large, no
+ *               Set-Cookie.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test24.
@@ -65,6 +74,9 @@
  *              Constants
  ***************************************************************************/
 #define TEST_NAME   "test24_no_refresh_token"
+#define ALLOWED_ORIGIN      "http://localhost"  /* the allowed_origin of the BFF (main_test24) */
+#define BIG_REFRESH_COOKIE  "@big"  /* a refresh_token cookie of BIG_COOKIE_LEN bytes */
+#define BIG_COOKIE_LEN      5000
 
 /***************************************************************************
  *              Structures
@@ -79,6 +91,7 @@ typedef struct {
     const char *must_not[3];    /* texts it must not carry (NULL ends) */
     const char *raw_content_type;   /* a raw answer of the mock: its Content-Type, NULL for none */
     const char *raw_body;           /* and its body */
+    const char *origin;         /* Origin of the request, NULL for ALLOWED_ORIGIN */
 } step_t;
 
 /***************************************************************************
@@ -88,80 +101,87 @@ PRIVATE const step_t steps[] = {
     {"/auth/login", NULL, "{\"refresh_token\": null}", 200, -1,
         {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
         {"Set-Cookie: refresh_token=ey", "refresh_expires_in", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"refresh_token\": null}", 200, -1,
         {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
         {"Set-Cookie: refresh_token=ey", "refresh_expires_in", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/refresh", "refresh_token=OLDRT123", "{\"refresh_token\": null}", 200, -1,
         {"Set-Cookie: access_token=ey", NULL},
         {"Set-Cookie: refresh_token", "refresh_expires_in", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/refresh", "refresh_token=OLDRT123", "{}", 200, -1,
         {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=ey",
             "\"refresh_expires_in\":1800", NULL},
         {NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"access_token\": 123}", 502, -1,
         {"auth_unexpected_error", "access_token that is not a string", NULL},
         {"Set-Cookie", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"refresh_token\": {}}", 502, -1,
         {"auth_unexpected_error", "refresh_token that is not a string", NULL},
         {"Set-Cookie", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"expires_in\": \"450\"}", 200, -1,
         {"Set-Cookie: access_token=ey", "; Max-Age=450;", NULL},
         {NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"expires_in\": \"soon\"}", 200, -1,
         {"Set-Cookie: access_token=ey", "; Max-Age=300;", NULL},
         {NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"refresh_expires_in\": 0}", 200, 1,
         {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=ey", "; Max-Age=300;",
             "\"refresh_expires_in\":0", NULL},
         {"Max-Age=0", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"expires_in\": 0}", 200, 1,
         {"Set-Cookie: access_token=ey", "Set-Cookie: refresh_token=ey", "; Max-Age=1800;",
             "\"expires_in\":0", NULL},
         {"Max-Age=0", NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"expires_in\": 300.5}", 200, -1,
         {"Set-Cookie: access_token=ey", "; Max-Age=300;", NULL},
         {NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{\"refresh_expires_in\": false}", 200, -1,
         {"Set-Cookie: refresh_token=ey", "; Max-Age=1800;", NULL},
         {NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
     {"/auth/logout", "access_token=AT1", "{}", 200, 2,
         {"Set-Cookie: access_token=; Max-Age=0;", "Set-Cookie: refresh_token=; Max-Age=0;",
             "\"success\":true", NULL},
         {NULL},
-        NULL, NULL},
-    {"/auth/logout", NULL, "{}", 200, 2,
-        {"Set-Cookie: access_token=; Max-Age=0;", "Set-Cookie: refresh_token=; Max-Age=0;",
-            "\"success\":true", NULL},
-        {NULL},
-        NULL, NULL},
+        NULL, NULL, NULL},
+    {"/auth/logout", NULL, "{}", 200, 0,
+        {"\"success\":true", NULL},
+        {"Set-Cookie", NULL},
+        NULL, NULL, NULL},
     {"/auth/login", NULL, "{}", 502, -1,
         {"auth_empty_response", "success with an empty body", NULL},
         {"Set-Cookie", NULL},
-        "application/json", ""},
+        "application/json", "", NULL},
     {"/auth/login", NULL, "{}", 502, -1,
         {"auth_empty_response", "success with a body that is a JSON array, not an object", NULL},
         {"Set-Cookie", NULL},
-        "application/json", "[1, 2]"},
+        "application/json", "[1, 2]", NULL},
     {"/auth/login", NULL, "{}", 502, -1,
         {"auth_empty_response", "success with a body that is not JSON", NULL},
         {"Set-Cookie", NULL},
-        "application/json", "<html>proxy login</html>"},
+        "application/json", "<html>proxy login</html>", NULL},
     {"/auth/login", NULL, "{}", 502, -1,
         {"auth_empty_response", "success with a body that is not JSON", NULL},
         {"Set-Cookie", NULL},
-        "text/html", "<html>proxy login</html>"},
+        "text/html", "<html>proxy login</html>", NULL},
+    {"/auth/logout", "access_token=AT1", "{}", 403, -1,
+        {"origin_not_allowed", NULL},
+        {"Set-Cookie", NULL},
+        NULL, NULL, "http://other.example"},
+    {"/auth/logout", BIG_REFRESH_COOKIE, "{}", 400, -1,
+        {"token_too_large", NULL},
+        {"Set-Cookie", NULL},
+        NULL, NULL, NULL},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -384,21 +404,26 @@ PRIVATE int post_step(hgobj gobj)
     BOOL login = strcmp(st->url, "/auth/login") == 0;
     const char *body = login?
         "{\"username\": \"testuser\", \"password\": \"testpass\"}" : "{}";
-    char cookie_line[256] = "";
-    if(st->cookie) {
+    char cookie_line[BIG_COOKIE_LEN + 64] = "";
+    if(st->cookie && strcmp(st->cookie, BIG_REFRESH_COOKIE) == 0) {
+        int n = snprintf(cookie_line, sizeof(cookie_line), "Cookie: refresh_token=");
+        memset(cookie_line + n, 'a', BIG_COOKIE_LEN);
+        snprintf(cookie_line + n + BIG_COOKIE_LEN, sizeof(cookie_line) - n - BIG_COOKIE_LEN, "\r\n");
+    } else if(st->cookie) {
         snprintf(cookie_line, sizeof(cookie_line), "Cookie: %s\r\n", st->cookie);
     }
-    char request[1024];
+    char request[BIG_COOKIE_LEN + 1024];
     int len = snprintf(request, sizeof(request),
         "POST %s HTTP/1.1\r\n"
         "Host: localhost\r\n"
-        "Origin: http://localhost\r\n"
+        "Origin: %s\r\n"
         "%s"
         "Content-Type: application/json\r\n"
         "Content-Length: %d\r\n"
         "\r\n"
         "%s",
         st->url,
+        st->origin? st->origin : ALLOWED_ORIGIN,
         cookie_line,
         (int)strlen(body), body
     );

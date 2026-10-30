@@ -2,15 +2,14 @@
  *          C_TEST19_LOGOUT_NO_COOKIE.C
  *
  *          Driver for test19_logout_no_cookie: sends POST /auth/logout with
- *          NO cookie at all, as a browser whose session was opened with no
- *          refresh_token (or has none left). The logout still ends the
- *          session in the browser, so the BFF must answer:
+ *          NO cookie at all: a browser with no session left, or a
+ *          cross-site request (the cookies are SameSite=Strict). There is
+ *          nothing to end, so the BFF must answer:
  *            - HTTP 200 response
  *            - body.success == true
  *            - stats: requests_total == 0, idp_calls == 0, bff_errors == 0
- *          (i.e. answered at once: with no refresh_token there is nothing
- *          to end at the IdP, and nothing is queued). The two Set-Cookie
- *          that clear the cookies are checked byte by byte in test24.
+ *          (i.e. answered at once, nothing queued, no IdP call). That it
+ *          sends no Set-Cookie is checked byte by byte in test24.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -151,8 +150,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  POST /auth/logout with NO Cookie header at all: the BFF must clear
-     *  the cookies and answer success, with no call to the IdP.
+     *  POST /auth/logout with NO Cookie header at all: the BFF must answer
+     *  success, with no call to the IdP.
      */
     json_t *jn_headers = json_pack("{s:s}",
         "Origin", "http://localhost"
