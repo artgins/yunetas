@@ -32,7 +32,8 @@
  *  was logged.
  *
  *  And a path that is too long, met on EVERY append, is logged ONCE (warn
- *  on the transition, not per record). Up to the R46 round (unreleased):
+ *  on the transition, not per record). Before (10 up to 7.29.3, 11 only in an
+ *  unreleased development version):
  *
  *     10. mark_file_unordered(), the marker <file_id>.unordered of a md2
  *         file too long for PATH_MAX while its .json and .md2 fit: an ERROR

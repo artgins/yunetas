@@ -1,8 +1,8 @@
 /****************************************************************************
  *          C_TEST4.C
  *
- *          A C_PROT_MODBUS_M master over its own C_UART, on a pty
- *          (REV-CLOUD V50.2): the stop contract of C_UART.
+ *          A C_PROT_MODBUS_M master over its own C_UART, on a pty:
+ *          the stop contract of C_UART.
  *
  *          The test opens a pty: the master is given the path of its slave
  *          side as its url, so it creates a C_UART on it ("RTU"), and the

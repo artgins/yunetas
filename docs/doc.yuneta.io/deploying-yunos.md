@@ -124,7 +124,7 @@ every built yuno in `$YUNETAS_BASE/outputs/yunos/`. The agent's `$$(<role>)`
 upload macro reads that same directory. Configs: each project keeps one config
 set per node under `yunos/batches/<host>/*.json`. The `<host>` part is the
 **realm_id** of the target node, which is its deploy FQDN, for example
-`batches/app.wattyzer.com/`.
+`batches/app.example.com/`.
 
 **CAUTION: build where the SDK was built, not on the target node.** Yunos are
 linked fully static, and the prebuilt archives in the `.deb` and the `.rpm`
@@ -524,15 +524,15 @@ and in the services of its `main.c`:
 }
 ```
 
-(estadodelaire's `db_history` does exactly this.)
+(An application's `db_history` typically does exactly this.)
 
 A gobj that subscribes to EVERY event of a treedb service now gets the two
 events too: declare them in its FSM, or subscribe only the ones it handles. A
 GUI that shows the hooks of a parent needs gobj-ui 7.25.26 or later.
 
 **3. A negative `from_t` selects rows again.** Since v7 a negative bound
-matched nothing. A yuno that opens its history with `from_t=-86400` (the
-`db_history` yunos of hidraulia, estadodelaire and wattyzer) now LOADS the last
+matched nothing. A yuno that opens its history with `from_t=-86400` (as
+an application's `db_history` does) now LOADS the last
 day of each key at its start: expect that memory and that start time on the
 first boot.
 

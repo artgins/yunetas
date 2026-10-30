@@ -564,7 +564,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
      *  The time bounds are TEXT: the tranger reads them at the open, in the
      *  unit of their axis in THIS topic, and writes them back into the
      *  match_cond it was given. A recursive search hands each topic its own
-     *  copy: up to R48 every topic got the same match_cond, and read the
+     *  copy: up to 7.29.3 every topic got the same match_cond, and read the
      *  bound as the FIRST topic had written it, in that topic's unit.
      */
     json_t *topic_cond = json_deep_copy(match_cond);

@@ -2,7 +2,7 @@
  *          C_TEST3.C
  *
  *          A C_PROT_MODBUS_M master with RTU framing and no block to poll,
- *          against a raw slave (REV-CLOUD V48.2).
+ *          against a raw slave.
  *
  *          The master is given its own C_TCP (as a gate does), and the raw
  *          server (C_PROT_RAW) answers RTU frames by hand, CRC included. Its
@@ -28,7 +28,7 @@
  *            polling after the answer, on a stopped gobj: "cur_slave_ NULL",
  *            once there and once more at the next tick.
  *
- *          Slave 0, the broadcast (REV-CLOUD V49.2), between the reads:
+ *          Slave 0, the broadcast, between the reads:
  *          - A read from slave 0 is refused at once: no slave answers a
  *            broadcast. Up to the fix it was sent, and failed at
  *            timeout_response.
@@ -42,10 +42,10 @@
  *            Up to the fix the 0 of the echo was dropped, the bytes after
  *            it taken as the head of a frame of 82 bytes: the write failed
  *            at timeout_response. Its bytes are warned as bytes during a
- *            broadcast (REV-CLOUD V50.2), not as the noise of the line.
+ *            broadcast, not as the noise of the line.
  *          - A write of 123 registers to slave 0 (255 bytes) with the
  *            master's baudrate at 1200, as behind a tcp:// gateway to a slow
- *            bus (REV-CLOUD V50.2): its frame takes 2338 ms on the line, so
+ *            bus: its frame takes 2338 ms on the line, so
  *            it is answered as done after that and the turnaround delay, not
  *            before. Up to the fix the turnaround delay was counted from
  *            before the frame was sent, and the write was answered at the

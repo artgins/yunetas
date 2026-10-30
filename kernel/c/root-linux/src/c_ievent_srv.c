@@ -1449,12 +1449,11 @@ PRIVATE size_t peer_json_dump(json_t *jn, char *bf, size_t bfsize)
  *  string (the line of a command): a frame carries the parameters of a
  *  command, and no command table is asked here which one is SDF_SECRET.
  *  Up to 7.25.20 the whole kw before the session was written, credentials
- *  with it; up to 7.26.9 the kw of a frame refused IN session too
- *  (REV-CLOUD V22.3.2).
+ *  with it; up to 7.26.9 the kw of a frame refused IN session too.
  *
  *  Return the size of the KW, as compact json: the `kw_size` of the logs.
- *  It was the size of the masked, capped copy (a kw of 900 KB said 101,
- *  REV-CLOUD V24.4). One more walk of the kw, linear, as its parse was.
+ *  It was the size of the masked, capped copy (a kw of 900 KB said
+ *  101). One more walk of the kw, linear, as its parse was.
  ***************************************************************************/
 PRIVATE size_t peer_kw_dump(json_t *kw, char *bf, size_t bfsize)
 {
@@ -2113,8 +2112,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  An event no gclass has as public: iev_create_from_gbuffer() said
          *  it, a WARNING with the name and the kw masked, capped -- the only
          *  one that knows the name the frame gave. The whole kw was traced
-         *  here raw, a jwt and a password before the session among it
-         *  (REV-CLOUD V23.4.1). The channel goes, so it is one per connection.
+         *  here raw, a jwt and a password before the session among it.
+         *  The channel goes, so it is one per connection.
          */
         drop(gobj);
         KW_DECREF(iev_kw)

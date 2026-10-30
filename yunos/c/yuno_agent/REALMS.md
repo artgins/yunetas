@@ -39,8 +39,8 @@ Three things live inside a realm: yunos, their working directories, and a
 `bind_ip`. Three things look per-realm but **are not**: the port pool, the
 cert sync directory, and most authzs. Section 7 has the full list.
 
-The classic deployment pattern: one realm per project/customer (`wattyzer`,
-`estadodelaire`…), all sharing the same agent on a
+The classic deployment pattern: one realm per project/customer (`app1`,
+`app2`…), all sharing the same agent on a
 host.
 
 ---

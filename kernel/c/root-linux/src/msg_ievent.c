@@ -218,16 +218,16 @@ PRIVATE void log_kw_without_routing(
  *  dict) says so, its json masked and capped; with 0 the caller says both.
  *  C_IEVENT_SRV and C_IEVENT_CLI pass 1: they said "Bad json" for both, a
  *  frame of json among them, and dumped its bytes raw, where a JWT cut by
- *  the window showed its header (REV-CLOUD V24.4). An event no gclass has
+ *  the window showed its header. An event no gclass has
  *  as public is said HERE, whatever `verbose`: only here is the name the
- *  frame gave known -- masked and then capped, as the kw (V24.4.1: a
+ *  frame gave known -- masked and then capped, as the kw (a
  *  password or a JWT sent as the NAME was written in clear; capped first, a
  *  token that the cap cut showed its first bytes). `frame_size` is the bytes
  *  received; the kw_size up to 7.26.9 was the size of the masked, capped
  *  copy (a kw of 900 KB said 101). Up to 7.26.9 that lookup was silent and
  *  both callers traced the whole kw raw, credentials before the session
  *  among it; and a frame without "event" logged two ERRORs here and the
- *  caller's WARNING (REV-CLOUD V23.4.1).
+ *  caller's WARNING.
  ***************************************************************************/
 PUBLIC json_t *iev_create_from_gbuffer(
     hgobj gobj,
@@ -459,7 +459,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
      *  it is REPLACED, said once, so the entry is pushed and the next push
      *  of the same message finds a good one (no warning per push). What is
      *  logged is its type and size, and a prefix of a string: a dump of the
-     *  whole value cost a peer's megabytes per message (REV-CLOUD V14.1).
+     *  whole value cost a peer's megabytes per message.
      */
     json_t *md_iev = json_object_get(kw, "__md_iev__");
     if(md_iev && !json_is_object(md_iev) && !json_is_null(md_iev)) {

@@ -16,8 +16,8 @@
  *         __md_tranger__, a pkey with a NUL, a pkey that is a path, a text
  *         without its pkey, a topic keyed by rowid; and with a WARNING, a
  *         tkey that is a text that is no date (it was NOW up to 7.29.3),
- *         or written as a number that is not a JSON integer ("10.5": R46
- *         read it as May 10).
+ *         or written as a number that is not a JSON integer ("10.5": an
+ *         unreleased development version read it as May 10).
  *      5. After a reopen, the cache build takes every record the text
  *         append wrote: they are read back.
  *      6. A text appended that a realtime list cannot parse (here a json

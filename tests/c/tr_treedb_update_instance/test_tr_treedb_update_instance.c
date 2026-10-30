@@ -22,8 +22,7 @@
  *          And a NUL in the id or in a pkey2 value (a json decoded with
  *          JSON_ALLOW_NUL) is refused by a create and by an update, from C
  *          too, with an ERROR: C reads it up to the NUL, so the node was
- *          indexed under one name and saved with another (REV-CLOUD
- *          V23.4.2).
+ *          indexed under one name and saved with another.
  *          And a NUL in a reference of an fkey column: refused by every
  *          write that reads one, a create, an update (its 'file' columns),
  *          an update with its links, an autolink and a replace of links
@@ -334,8 +333,7 @@ PRIVATE int test_update_cannot_change_pkey2(
  *  A NUL in the id or in a pkey2 value, from C: refused by a create and by
  *  an update, with an ERROR, and nothing written. A create of "nul\0evil"
  *  took the key "nul"; an update of item-nul with the id "item-nul\0x"
- *  saved that id under "item-nul", kept after a reload (REV-CLOUD
- *  V23.4.2).
+ *  saved that id under "item-nul", kept after a reload.
  ***************************************************************************/
 PRIVATE int test_nul_in_a_name_of_the_node(
     json_t *tranger,
@@ -425,8 +423,7 @@ PRIVATE int test_nul_in_a_name_of_the_node(
  *  with an ERROR, and nothing written. C
  *  reads a ref up to the NUL: "\0items^item-1^parts" was the empty ref,
  *  left out, and the create saved the part with no parent and no log; a
- *  ref with the NUL after its three parts linked the part to item-1
- *  (REV-CLOUD V24.4).
+ *  ref with the NUL after its three parts linked the part to item-1.
  ***************************************************************************/
 PRIVATE int test_nul_in_an_fkey_ref(
     json_t *tranger,

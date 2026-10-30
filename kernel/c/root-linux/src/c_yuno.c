@@ -1440,10 +1440,10 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                  *  The text read AS the attribute's type, as the command
                  *  parser reads a parameter of that type: atoi() and
                  *  strtoll() wrote "yes" as FALSE, "abc" as 0 and "12abc"
-                 *  as 12 (REV-CLOUD V21.3.6); a json took no bare word, and
-                 *  a dict or a list could not be written (V22.4.6). The
+                 *  as 12; a json took no bare word, and
+                 *  a dict or a list could not be written. The
                  *  refusal never repeats the value: it may be a secret's,
-                 *  and a json one was echoed whole (V22.3.3).
+                 *  and a json one was echoed whole.
                  */
                 const char *why = NULL;
                 json_t *jn_value = command_parameter_from_text((data_type_t)type, svalue, &why);
@@ -2518,7 +2518,7 @@ PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name)
  *  TRUE / set / yes / on, FALSE / reset / no / off, or a whole integer.
  *  0 and *value; -1 when it is absent or none of them. It was read as text
  *  only, by atoi(): `set=yes` and `set=maybe` were 0 -- a reset -- and a
- *  GUI's `set: 1` was refused for not being a text (REV-CLOUD V21.3.6).
+ *  GUI's `set: 1` was refused for not being a text.
  ***************************************************************************/
 PRIVATE int trace_set_value(json_t *kw, int *value)
 {

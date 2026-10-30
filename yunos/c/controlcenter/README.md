@@ -124,13 +124,13 @@ one generator is turned on or off while the others go on -- to climb the load
 one fleet at a time:
 
 ```json
-{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "artgins",
+{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "node-a",
  "switch": {"on":  [{"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
             "off": [{"command": "pause-generation"}, {"command": "set-controllers controllers=0"}]}}
 ```
 
 ```bash
-ycommand ... -c 'run-scenario scenario_id=renfe-20k-hidraulia action=on scenario_yuno=pp12'
+ycommand ... -c 'run-scenario scenario_id=load-20k action=on scenario_yuno=pp12'
 ```
 
 `on` runs in order, and only while the scenario RUNS (its last run that changed
@@ -148,7 +148,7 @@ A scenario's `max_run` (seconds, 0 = none, at most a week) is a safeguard: a
 start ended; a `stop` that did any step cancels it; pause and resume leave the
 clock as it is. When it is due the control center runs `stop` itself -- one
 more run, written with its own name as the user and the reason in the comment
-(*"max_run of 2100 s reached (started by esg@hidraulia.eu); run ...: stop done,
+(*"max_run of 2100 s reached (started by ops@example.com); run ...: stop done,
 16 steps"*) -- a few seconds
 later if another run is in flight. A stop that could do nothing is written
 once, with a warning, and tried again. When a node of it is connected (its
@@ -179,7 +179,7 @@ by a user who may run it, the answer says *"it was running: its yunos are
 left as they are"*, and a WARNING names the user.
 
 ```json
-{"id": "renfe-20k-hidraulia", "max_run": 2100, "node": "hidrauliaconnect", ...}
+{"id": "load-20k", "max_run": 2100, "node": "node-b", ...}
 ```
 
 ## Permissions scoped to scenarios
@@ -187,7 +187,7 @@ left as they are"*, and a WARNING names the user.
 Every scenario command checks its permission (`read-scenarios`,
 `write-scenarios`, `run-scenarios`) with the `scenario_id` it acts on, so a
 role of the `authz` store whose `parameters` scope a permission
-(`{"scenario_id": ["renfe-20k-hidraulia"]}`, C_AUTHZ 7.27.15+) grants it for
+(`{"scenario_id": ["load-20k"]}`, C_AUTHZ 7.27.15+) grants it for
 those scenarios only: `scenarios` lists only them, the others are refused by
 id, and `save-scenario` checks the id it saves. Such a user watches a scenario
 live with `watch-scenario` -- the control center builds the agent's watch from
@@ -217,10 +217,10 @@ A scenario is a document saved whole:
 
 ```json
 {
-    "id": "yunovatios-stress",
+    "id": "stress-demo",
     "description": "sim_controllers -> gate_central -> db_tracks_ce",
-    "group": "yunovatios",
-    "node": "yunovatios-controlador",
+    "group": "demo",
+    "node": "node-a",
     "yunos": [
         {"key": "sim",    "id": "stress", "service": "sim_controllers", "rate": "tx"},
         {"key": "gate",   "id": "2120",   "label": "gate_central",
@@ -282,7 +282,7 @@ Permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
 checked by the commands themselves, always.
 
 ```bash
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=run-scenario scenario_id=yunovatios-stress action=start'
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=run-scenario scenario_id=stress-demo action=start'
 ```
 
 Standard graph model — see [`YUNO_TREEDB.md`](../yuno_agent/YUNO_TREEDB.md).

@@ -19,8 +19,8 @@
  *              7. a command before any card
  *              8. a card bigger than max_pre_session_frame
  *              9. an event no gclass has as public, before any card,
- *                 carrying credentials (REV-CLOUD V23.4.1), its NAME too
- *                 (V24.4.1), and a kw of 64 KB: the WARNING says the size
+ *                 carrying credentials, its NAME too
+ *                 and a kw of 64 KB: the WARNING says the size
  *                 received (`frame_size`), not that of the masked copy
  *             10. a frame of json that is not an inter-event, a JWT under a
  *                 plain key: said as what it is, masked (it was "Bad json"
@@ -352,7 +352,7 @@ PRIVATE int send_card(hgobj gobj, int card)
             /*
              *  An event no gclass has as public, its kw with credentials:
              *  the lookup was silent, and C_IEVENT_SRV traced the whole kw
-             *  raw (REV-CLOUD V23.4.1). One WARNING now, masked.
+             *  raw. One WARNING now, masked.
              */
             json_object_set_new(kw, "password", json_string("tester-secret-unknown-event"));
             json_object_set_new(kw, "auth", json_pack("{s:s}",

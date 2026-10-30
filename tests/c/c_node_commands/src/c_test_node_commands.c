@@ -549,7 +549,7 @@ PRIVATE int export_and_import(hgobj gobj)
 }
 
 /***************************************************************************
- *  REV-CLOUD V20.3: what an rt list of `departments` sees of the peer's
+ *  What an rt list of `departments` sees of the peer's
  *  window. It is fed inside the treedb's append, and its callback is a
  *  subscriber like those of the publication.
  ***************************************************************************/
@@ -580,11 +580,11 @@ PRIVATE int run_tests(hgobj gobj)
     /*
      *  What a command names is the PEER's data: a name that is unknown or
      *  breaks the name rule is a WARNING and a refusal, the same for every
-     *  command (REV-CLOUD V15.3). main.c lists the warnings, in order.
+     *  command. main.c lists the warnings, in order.
      */
     CHECK(expect_refused, "refused: node of an unknown topic", "node",
         json_pack("{s:s, s:s}", "topic_name", "nosuch", "node_id", "x"), "Topic not found")
-    CHECK(expect_refused, "refused: a node_id that is not a string (V20.4.1)", "node",
+    CHECK(expect_refused, "refused: a node_id that is not a string", "node",
         json_pack("{s:s, s:i, s:s}", "topic_name", "departments", "node_id", 5,
             "__username__", "peer@example.com"),    // a peer's command: a WARNING
         "parameter 'node_id' must be a string, not an integer")
@@ -613,7 +613,7 @@ PRIVATE int run_tests(hgobj gobj)
         "Hook not found")
 
     /*
-     *  REV-CLOUD V17.3.1: a hook that does not take the child's topic, and
+     *  A hook that does not take the child's topic, and
      *  an update of a node that does not exist, are the peer's data too:
      *  they were an ERROR of the treedb, the second with a stack and the
      *  whole kw dumped.
@@ -630,7 +630,7 @@ PRIVATE int run_tests(hgobj gobj)
         "Node not found: 'nosuch'")
 
     /*
-     *  REV-CLOUD V18.2-V18.3: the rest of what a peer can get wrong is a
+     *  The rest of what a peer can get wrong is a
      *  WARNING too -- refused by C_NODE before the treedb is asked, or said
      *  by the treedb as the peer's (treedb_set_peer_data()). Each one was an
      *  ERROR, most with a stack.
@@ -654,7 +654,7 @@ PRIVATE int run_tests(hgobj gobj)
         "Can't decode json content64")
 
     /*
-     *  REV-CLOUD V23.4.2: a NUL in a string of the record (a frame is
+     *  A NUL in a string of the record (a frame is
      *  decoded with JSON_ALLOW_NUL). C read the id "dx\u0000evil" as "dx",
      *  and the key "dx" was taken; an update of "top" with the id
      *  "top\u0000x" saved that id under "top". Refused, at any depth.
@@ -688,7 +688,7 @@ PRIVATE int run_tests(hgobj gobj)
         json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "departments", "record", "id", "a/b", "name", "AB"),
         "cannot create the node")
     {
-        /*  V19.3.3: import-db refuses what the upload gets wrong, counted  */
+        /*  Import-db refuses what the upload gets wrong, counted  */
         const char *db = "{\"departments\": [1, \"x\", {\"id\": 5}], \"nosuch\": [{\"id\": \"q\"}]}";
         gbuffer_t *gbuf = gbuffer_create(256, 256);
         gbuffer_append_string(gbuf, db);
@@ -704,7 +704,7 @@ PRIVATE int run_tests(hgobj gobj)
         GBUFFER_DECREF(gbuf)
     }
     {
-        /*  V20.4.4: a valid record with no fkey imports with nothing logged  */
+        /*  A valid record with no fkey imports with nothing logged  */
         const char *db = "{\"departments\": [{\"id\": \"plain\", \"name\": \"Plain\"}]}";
         gbuffer_t *gbuf = gbuffer_create(256, 256);
         gbuffer_append_string(gbuf, db);
@@ -722,7 +722,7 @@ PRIVATE int run_tests(hgobj gobj)
         GBUFFER_DECREF(gbuf)
     }
     {
-        /*  V19.3.3: no node_id and no filter, all the instances of the topic  */
+        /*  No node_id and no filter, all the instances of the topic  */
         json_t *resp = ask(gobj, "instances", json_pack("{s:s}", "topic_name", "items"));
         if(kw_get_int(gobj, resp, "result", -1, 0) != 0 ||
                 json_array_size(kw_get_list(gobj, resp, "data", 0, 0)) != 2) {
@@ -748,7 +748,7 @@ PRIVATE int run_tests(hgobj gobj)
         JSON_DECREF(resp)
     }
     {
-        /*  V20.3: an rt list is fed outside the window too (update = append)  */
+        /*  An rt list is fed outside the window too (update = append)  */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
         json_t *rt = tranger2_open_rt_mem(priv->tranger, "departments", "probe", NULL,
             rt_probe_callback, "rt_probe", "c_node_commands", NULL);
@@ -761,7 +761,7 @@ PRIVATE int run_tests(hgobj gobj)
         tranger2_close_rt_mem(priv->tranger, rt);
     }
     {
-        /*  V20.4.3: the options of children and parent_refs may be NULL  */
+        /*  The options of children and parent_refs may be NULL  */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
         json_t *top = treedb_get_node(priv->tranger, TREEDB, "departments", "top");
         json_t *dev = treedb_get_node(priv->tranger, TREEDB, "departments", "dev");
@@ -1001,7 +1001,7 @@ PRIVATE int ac_treedb_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  REV-CLOUD V19.2: a subscriber runs OUTSIDE the peer's window. The
+     *  A subscriber runs OUTSIDE the peer's window. The
      *  create of `probe` comes from a command; what this subscriber writes
      *  in its handler is its own C, and its fault is an ERROR, not the
      *  WARNING of the peer's data (main.c asks for the priority).

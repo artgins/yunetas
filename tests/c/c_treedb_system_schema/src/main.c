@@ -369,7 +369,7 @@ PRIVATE const char *expected_log_msgs[] = {
     "Cannot load json file, bad json",
     "Schema applied",
     /*  Test 13d: every command refuses `denied`, which logs nothing  */
-    /*  Test 13d2: the data of a peer is refused, a WARNING each (V20.4)  */
+    /*  Test 13d2: the data of a peer is refused, a WARNING each  */
     AS_WARNING "Command parameter of the wrong type",       // save-schema treedb_name 5
     AS_WARNING "Command parameter of the wrong type",       // apply-schema treedb_name 5
     AS_WARNING "treedb not open here, refused",
@@ -384,8 +384,8 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "treedb name breaks the name rule, or is too long, refused",
     AS_WARNING "open-treedb without a treedb_schema json object, refused",
     AS_WARNING "Command parameter of the wrong type",       // files_max_size "big": the parser's
-    AS_WARNING "Command parameter of the wrong type",       // 1.5: the parser's too, a real with decimals (V21.3.2)
-    /*  Test 13d3: more of a peer's data refused, a WARNING each (V20)  */
+    AS_WARNING "Command parameter of the wrong type",       // 1.5: the parser's too, a real with decimals
+    /*  Test 13d3: more of a peer's data refused, a WARNING each  */
     AS_WARNING "topic of a wrong shape, refused",           // a file: __timeranger2__.json
     AS_WARNING "topic of a wrong shape, refused",           // a file: the schema file
     AS_WARNING "Topic refused: bad pkey2s",                 // pkey2s twice
@@ -437,7 +437,7 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "a 'file' column must be flagged 'fkey' too",
     AS_WARNING "Topic refused: bad 'file' column",
     /*  the same from C: the open goes as it always went, the topic logged
-     *  and left out, and the treedb opens (REV-CLOUD V20 #1)  */
+     *  and left out, and the treedb opens  */
     "Creating __timeranger2__.json",
     "Creating TreeDB schema file",
     "Creating topic",
@@ -729,7 +729,7 @@ PRIVATE const char *expected_log_msgs[] = {
     AS_WARNING "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
     AS_WARNING "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
     AS_ERROR "Node refused: the time of its tkey does not fit a record (negative, or past 44 bits)",
-    AS_WARNING "Node refused: its tkey is a text that is no date",   // V46.3, a peer
+    AS_WARNING "Node refused: its tkey is a text that is no date",   // a peer
     AS_ERROR "Node refused: its tkey is a text that is no date",     // and a C caller
     "Creating topic",                                       // raw_t
     AS_ERROR "Record time past what an md2 row keeps (44 bits): appended CUT",

@@ -604,8 +604,8 @@ PRIVATE json_t *kw_path_segment_child(
  *  A LOOP, one segment a turn: it recursed once per segment, and a deep kw
  *  with a long path from a peer could exhaust the stack, so the walk was cut
  *  at 64 segments, and a segment at 255 bytes -- each one an ERROR even
- *  with `verbose` FALSE, and a path that is there answered as not found
- *  (REV-CLOUD V21.2.4). With `verbose` FALSE nothing is logged for a path
+ *  with `verbose` FALSE, and a path that is there answered as not found.
+ *  With `verbose` FALSE nothing is logged for a path
  *  that is not there: the caller decides.
  ***************************************************************************/
 PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)

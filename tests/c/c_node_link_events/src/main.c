@@ -123,7 +123,7 @@ static int register_yuno_and_more(void)
             "msg", "fkey reference: its hook does not link into this column",
             "msg", "fkey reference: parent node not found",
             "msg", "fkey reference: parent node not found",
-            "msg", "node already exists, create_only refused",     // 8d: refused by the command (V18.3)
+            "msg", "node already exists, create_only refused",     // 8d: refused by the command
             "msg", "with_link_events changed",
             "msg", "with_link_events changed",
             "msg", "Topic name not found in treedbs",

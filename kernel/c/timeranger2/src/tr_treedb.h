@@ -231,7 +231,7 @@ PUBLIC json_t *treedb_create_topic( // WARNING Return is NOT YOURS
  *  The names that go into a reference (`topic^id^hook`): no '^' in the
  *  topic name, nor in the id of a `hook` or a `file` column (a file column
  *  derives the hook `as_<topic>_<col>`), and a hook id shorter than
- *  NAME_MAX (REV-CLOUD V21.2.2, V22.5.1). Not the ids of the lists of
+ *  NAME_MAX. Not the ids of the lists of
  *  its indexes, which hold the name of the tranger's gobj. And what only
  *  this asks, not treedb_create_topic(): a hook column of type dict or
  *  list, an fkey one of type dict, list or string (a store whose schema has

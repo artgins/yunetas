@@ -9,8 +9,8 @@
  *          The master polls one slave: block A (holding 0, 1 register: "a").
  *          Its config has three more, never polled: slave 3, with no block,
  *          slave 250, a reserved id, and slave 0, the broadcast. Each is reported once, at start,
- *          and no cycle logs anything for them. Up to the fix of REV-CLOUD
- *          V46 every cycle logged "slave without mapping" and "cur_map_
+ *          and no cycle logs anything for them. Up to 7.29.3
+ *          every cycle logged "slave without mapping" and "cur_map_
  *          NULL" for slave 3, and "cur_map_ DISABLED" for slave 250.
  *
  *          On the message of cycle 1 it queues requests (REQUESTS, below),
@@ -23,10 +23,10 @@
  *          - a write answered with an exception whose CRC does not match,
  *            and a read answered with registers whose CRC does not match:
  *            each fails its request as a bad answer, logged as a warning.
- *            Up to the fix of REV-CLOUD V45.2 the exception was taken
+ *            Up to 7.29.2 the exception was taken
  *            before its CRC was checked, and a read with a bad CRC logged
  *            an internal error ("answered WITHOUT reading its answer").
- *          - (REV-CLOUD V46) a request to slave 248 is refused: 248-255 are
+ *          - a request to slave 248 is refused: 248-255 are
  *            reserved in RTU; so is the polled slave 250 of the config, whose
  *            block is disabled. A read the slave never answers times out,
  *            and its exception comes late, while the next request, a write,
@@ -34,12 +34,12 @@
  *            and the echo that follows answers the write. Up to the fix the
  *            late exception failed the write that succeeded, and its echo
  *            was dropped.
- *          - (REV-CLOUD V47) two reads answered with noise after the answer,
+ *          - two reads answered with noise after the answer,
  *            in the same bytes (0x00, and 0x00 0xFF): the noise is dropped,
  *            and the read sent after each is answered. With 226945f9c the
  *            noise began a frame, which swallowed the next answer.
  *
- *          (REV-CLOUD V47) Slave 1 has a block B (holding 10, 1 register)
+ *          Slave 1 has a block B (holding 10, 1 register)
  *          that the slave answers with 2 registers every cycle: it is logged
  *          once, not in every cycle. Slave 0, the RTU broadcast, is in the
  *          config with a block: it is reported once at start and never
@@ -48,16 +48,16 @@
  *          master runs: a warning, and cycle 2 polls the map it started
  *          with. Before, the write freed the map the cycle pointed into.
  *
- *          (REV-CLOUD V47, follow-up) The answer of block B, the last of the
+ *          The answer of block B, the last of the
  *          cycle, carries a noise byte in cycles 2 and 3 too: a line that
  *          spikes in every cycle is logged once, and once more ("a cycle
  *          came without noise") when cycle 4 comes clean. Before, every
- *          noisy answer was a warning; and up to the fix of REV-CLOUD V48.2
- *          the noise after the last block was counted after the cycle had
+ *          noisy answer was a warning; and in a development version, never
+ *          released, the noise after the last block was counted after the cycle had
  *          closed, for the next one: the info came a cycle late, after the
  *          end of the test.
  *
- *          (REV-CLOUD V48.2) Two reads whose slave sends a noise byte, 0x00
+ *          Two reads whose slave sends a noise byte, 0x00
  *          and 0xFF, in a read of its own before the answer: neither can
  *          start an RTU answer (0 is the broadcast, 248-255 are reserved),
  *          so both are dropped and counted, and each read is answered.

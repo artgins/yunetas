@@ -888,7 +888,7 @@ About 5 us of the 9.2 us is `process_start_time()`, a read of
 `/proc/self/stat` made at every delete to name the moved directory; about
 4 us is the `rename()`. The start time of a process does not change, so that
 half can be paid once per process. Everything else moved inside its noise:
-the fixes of V38-V40 (iterator bounds on a replica, the purge and link order,
+the fixes of three reviews (iterator bounds on a replica, the purge and link order,
 the `.purged` retry, the owed reads of an rt_disk follower, the parts of a
 multi-key `C_TRANGER` iterator) cost no measurable time on the read path of
 the master or of a replica. `C_TRANGER` itself is not in a benchmark: its

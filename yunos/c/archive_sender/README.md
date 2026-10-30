@@ -219,7 +219,7 @@ rsync over ssh:
 
 The archive directory must be on the filesystem of the store (the batches are
 hard links). The retention of the owner of the store names the same directory,
-for example `raw_tracks_archive_directory` in yunovatios.
+for example `raw_tracks_archive_directory` in an application's config.
 
 ## Crash safety
 

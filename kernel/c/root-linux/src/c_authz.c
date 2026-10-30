@@ -25,9 +25,9 @@
  *          the `kw` of the global authzs is the client's request. An
  *          entry of `permissions` may carry its own `parameters`, which
  *          replace the role's for that entry:
- *              {"id": "renfe-viewer", "service": "controlcenter",
+ *              {"id": "load-20k-viewer", "service": "controlcenter",
  *               "realm_id": "...", "permission": "read-scenarios",
- *               "parameters": {"scenario_id": ["renfe-20k-hidraulia"]}}
+ *               "parameters": {"scenario_id": ["load-20k"]}}
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2026, ArtGins.

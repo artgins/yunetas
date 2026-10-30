@@ -102,19 +102,19 @@ PRIVATE void check(BOOL ok, const char *name)
 
 /***************************************************************************
  *  The __md_iev__ of a command that came through the controlcenter from
- *  a gui_agent (the shape seen in the audit of wattyzer)
+ *  a gui_agent (the shape seen in the audit of a node)
  ***************************************************************************/
 PRIVATE json_t *md_iev_via_controlcenter(const char *command_line)
 {
     return json_pack("{s:s, s:s, s:[{s:s, s:{}}], s:[{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s},"
                      " {s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}], s:s}",
         "console_purpose", "statnodes",
-        "console_node", "wattyzer",
+        "console_node", "node1",
         "command_stack",
             "command", command_line,
             "kw",
         "ievent_gate_stack",
-            "dst_yuno", "wattyzer",
+            "dst_yuno", "node1",
             "dst_role", "yuneta_agent",
             "dst_service", "controlcenter",
             "src_yuno", "artgins.com",
@@ -122,7 +122,7 @@ PRIVATE json_t *md_iev_via_controlcenter(const char *command_line)
             "src_service", "top-16",
             "user", "yuneta_agent@artgins.com",
             "host", "artgins",
-            "input_service", "wattyzer",
+            "input_service", "node1",
             "input_channel", "controlcenter",
 
             "dst_yuno", "",
@@ -134,7 +134,7 @@ PRIVATE json_t *md_iev_via_controlcenter(const char *command_line)
             "host", "544f1345-65a6-455c-aa94-62b6b020b5c5",
             "input_service", "__top_side__",
             "input_channel", "top-16",
-            "__username__", "claudia@artgins.com",
+            "__username__", "operator@example.com",
         "__msg_type__", "__command__"
     );
 }
@@ -229,7 +229,7 @@ PRIVATE void test_content64(void)
     kw = json_pack("{s:s, s:s#, s:s}",
         "id", "auth_bff",
         "content64", b64, (int)b64_len,
-        "__username__", "claudia@artgins.com"
+        "__username__", "operator@example.com"
     );
     jn_record = audit_record_build("install-binary", kw, DATE, command_table);
     record = json2uglystr(jn_record);
@@ -265,7 +265,7 @@ PRIVATE void test_source_summary(void)
     json_t *kw = json_pack("{s:s, s:s, s:s, s:o}",
         "id", "gate_mqtts",
         "cmd2agent", "run-yuno",
-        "__username__", "claudia@artgins.com",
+        "__username__", "operator@example.com",
         "__md_iev__", md_iev_via_controlcenter("run-yuno id=gate_mqtts")
     );
     json_t *jn_record = audit_record_build("run-yuno", kw, DATE, command_table);
@@ -275,7 +275,7 @@ PRIVATE void test_source_summary(void)
 
     check(jn_kw && !json_object_get(jn_kw, "__md_iev__"), "(b) no __md_iev__ in the record");
     check(json_is_string(json_object_get(jn_record, "user")) &&
-        strcmp(json_string_value(json_object_get(jn_record, "user")), "claudia@artgins.com") == 0,
+        strcmp(json_string_value(json_object_get(jn_record, "user")), "operator@example.com") == 0,
         "(b) the user is the end user (__username__)");
     check(jn_source &&
         strcmp(kw_get_str(0, jn_source, "console_purpose", "", 0), "statnodes") == 0 &&
@@ -313,7 +313,7 @@ PRIVATE void test_read_only(void)
     };
     for(int i=0; read_only[i]; i++) {
         json_t *kw = json_pack("{s:s, s:o}",
-            "__username__", "claudia@artgins.com",
+            "__username__", "operator@example.com",
             "__md_iev__", md_iev_via_controlcenter(read_only[i])
         );
         json_t *jn_record = audit_record_build(read_only[i], kw, DATE, command_table);
@@ -663,7 +663,7 @@ PRIVATE void test_secrets(void)
 PRIVATE void test_stats_reset(void)
 {
     json_t *kw = json_pack("{s:s, s:s, s:s, s:o}",
-        "id", "gate_x", "stats", "__reset__", "__username__", "claudia@artgins.com",
+        "id", "gate_x", "stats", "__reset__", "__username__", "operator@example.com",
         "__md_iev__", md_iev_via_controlcenter("stats-yuno")
     );
     json_t *jn_record = audit_record_build("stats-yuno", kw, DATE, command_table);
@@ -758,7 +758,7 @@ PRIVATE void test_long_read_only(void)
  ***************************************************************************/
 PRIVATE void test_wrapper_text_wins(void)
 {
-    json_t *kw = json_pack("{s:s, s:s}", "command", "list-yunos", "__username__", "claudia@artgins.com");
+    json_t *kw = json_pack("{s:s, s:s}", "command", "list-yunos", "__username__", "operator@example.com");
     json_t *jn_record = audit_record_build(
         "command-yuno id=treedb service=treedb_x command='delete-node topic_name=users id=bob force=1'",
         kw, DATE, command_table
@@ -874,7 +874,7 @@ PRIVATE json_t *keystroke_kw(const char *user, const char *console, const char *
 {
     gbuffer_t *gbuf = gbuffer_binary_to_base64(key, strlen(key));
     json_t *kw = json_pack("{s:s, s:s, s:s, s:s, s:s, s:o}",
-        "agent_id", "wattyzer",
+        "agent_id", "node1",
         "cmd2agent", "write-tty",
         "name", console,
         "content64", (const char *)gbuffer_cur_rd_pointer(gbuf),
@@ -920,12 +920,12 @@ PRIVATE void test_tty_bursts(void)
     /*
      *  A burst: its first write at once, the rest when the burst ends
      */
-    BOOL all_tty = type_keys(jn_bursts, "claudia@artgins.com", "console-1", typed, 3600, jn_records);
+    BOOL all_tty = type_keys(jn_bursts, "operator@example.com", "console-1", typed, 3600, jn_records);
     check(all_tty, "(l) write-tty is taken by audit_tty_command()");
     json_t *jn_first = json_array_get(jn_records, 0);
     check(json_array_size(jn_records) == 1 &&
         strcmp(kw_get_str(0, jn_first, "command", "", 0), "write-tty") == 0 &&
-        strcmp(kw_get_str(0, jn_first, "user", "", 0), "claudia@artgins.com") == 0 &&
+        strcmp(kw_get_str(0, jn_first, "user", "", 0), "operator@example.com") == 0 &&
         strcmp(kw_get_str(0, jn_first, "console", "", 0), "console-1") == 0 &&
         strcmp(kw_get_str(0, jn_first, "date", "", 0), DATE) == 0 &&
         kw_get_int(0, jn_first, "writes", 0, 0) == 1 &&
@@ -934,7 +934,7 @@ PRIVATE void test_tty_bursts(void)
         "(l) the first write of a burst is recorded at once: who, when, which console, bytes"
     );
 
-    json_t *kw = json_pack("{s:s}", "__username__", "claudia@artgins.com");
+    json_t *kw = json_pack("{s:s}", "__username__", "operator@example.com");
     BOOL taken = audit_tty_command(jn_bursts, "list-yunos", kw, DATE, 3600, command_table, jn_records);
     check(!taken && json_array_size(jn_records) == 1,
         "(l) another command: not taken, the burst goes on");
@@ -971,7 +971,7 @@ PRIVATE void test_tty_bursts(void)
     /*
      *  Another user into the same console: another burst
      */
-    type_keys(jn_bursts, "claudia@artgins.com", "console-1", "ab", 3600, jn_records);
+    type_keys(jn_bursts, "operator@example.com", "console-1", "ab", 3600, jn_records);
     type_keys(jn_bursts, "intruder@example.com", "console-1", "cd", 3600, jn_records);
     check(json_array_size(jn_records) == 3 &&
         strcmp(kw_get_str(0, json_array_get(jn_records, 2), "user", "", 0), "intruder@example.com") == 0,
@@ -985,7 +985,7 @@ PRIVATE void test_tty_bursts(void)
     /*
      *  The interval: a burst ends when its time has passed
      */
-    type_keys(jn_bursts, "claudia@artgins.com", "console-2", "abc", 0, jn_records);
+    type_keys(jn_bursts, "operator@example.com", "console-2", "abc", 0, jn_records);
     check(json_array_size(jn_records) >= 2,
         "(l) a burst of 0 seconds ends at the next command");
     json_array_clear(jn_records);
@@ -1003,11 +1003,11 @@ PRIVATE void test_tty_bursts(void)
     size_t old_size = 0;
     for(int i=0; i<1000; i++) {
         char key[2] = {session[i], 0};
-        kw = keystroke_kw("claudia@artgins.com", "console-3", key);
+        kw = keystroke_kw("operator@example.com", "console-3", key);
         old_size += size_of_old_record("write-tty", kw);
         JSON_DECREF(kw)
     }
-    type_keys(jn_bursts, "claudia@artgins.com", "console-3", session, 3600, jn_records);
+    type_keys(jn_bursts, "operator@example.com", "console-3", session, 3600, jn_records);
     audit_tty_close_bursts(jn_bursts, jn_records);
     size_t new_size = 0;
     json_array_foreach(jn_records, idx, jn_record) {
@@ -1336,11 +1336,11 @@ PRIVATE void test_command_word(void)
      */
     json_t *jn_bursts = json_object();
     json_t *jn_records = json_array();
-    kw = keystroke_kw("claudia@artgins.com", "console-1", "a");
+    kw = keystroke_kw("operator@example.com", "console-1", "a");
     audit_tty_command(jn_bursts, "write-tty", kw, DATE, 3600, command_table, jn_records);
     audit_tty_command(jn_bursts, "write-tty", kw, DATE, 3600, command_table, jn_records);
     JSON_DECREF(kw)
-    kw = json_pack("{s:s}", "__username__", "claudia@artgins.com");
+    kw = json_pack("{s:s}", "__username__", "operator@example.com");
     audit_tty_command(jn_bursts, "CLOSE-CONSOLE name=console-1", kw, DATE, 3600, command_table, jn_records);
     JSON_DECREF(kw)
     check(json_object_size(jn_bursts) == 0 && json_array_size(jn_records) == 2,
@@ -1354,7 +1354,7 @@ PRIVATE void test_command_word(void)
      */
     jn_bursts = json_object();
     jn_records = json_array();
-    kw = keystroke_kw("claudia@artgins.com", "console-9", "a");
+    kw = keystroke_kw("operator@example.com", "console-9", "a");
     int ret1 = audit_command_records(jn_bursts, "EV_WRITE_TTY", kw, DATE, 3600, command_table, jn_records);
     int ret2 = audit_command_records(jn_bursts, "Write-Tty", kw, DATE, 3600, command_table, jn_records);
     JSON_DECREF(kw)
@@ -1407,7 +1407,7 @@ PRIVATE void test_more_secrets(void)
     }
 
     /*
-     *  The runbook of wattyzer gate_pvpc
+     *  The runbook of a gate with an api_key
      */
     check_no_secret("command-yuno id=5006 command=write-attr attribute=api_key value=S3CR3TVALUE", NULL,
         "S3CR3TVALUE", "(q) command-yuno write-attr attribute=api_key value=<token>");
@@ -2380,8 +2380,8 @@ PRIVATE void test_generated_commands(void)
 PRIVATE void test_cost(void)
 {
     json_t *kw = json_pack("{s:s, s:s, s:o}",
-        "agent_id", "wattyzer",
-        "__username__", "claudia@artgins.com",
+        "agent_id", "node1",
+        "__username__", "operator@example.com",
         "__md_iev__", md_iev_via_controlcenter("list-yunos")
     );
     const char *commands[] = {"list-yunos", "run-yuno"};
@@ -2420,7 +2420,7 @@ PRIVATE void test_cost(void)
         kw = json_pack("{s:s, s:s, s:s, s:o}",
             "topic_name", "users",
             "content", contents[c],
-            "__username__", "claudia@artgins.com",
+            "__username__", "operator@example.com",
             "__md_iev__", md_iev_via_controlcenter("update-node")
         );
         int n = 100000;

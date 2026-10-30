@@ -295,8 +295,8 @@ withdraws the subscription it replaces first. Up to 7.25.4 every repeated
 frame went to `gobj_subscribe_event()`, which deleted the subscription, made
 it again, and logged a warning with a stack trace and the whole kw.
 
-A gate whose peers subscribe per device (two subscriptions per device, in the
-SPAs of hidraulia) raises the cap in the `kw` of the `C_IEVENT_SRV` of its
+A gate whose peers subscribe per device (two subscriptions per device, in a
+monitoring SPA) raises the cap in the `kw` of the `C_IEVENT_SRV` of its
 channel tree:
 
 ```json

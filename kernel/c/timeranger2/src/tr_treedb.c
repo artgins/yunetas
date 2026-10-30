@@ -411,7 +411,7 @@ PRIVATE BOOL treedb_trace = 0;
  *  set by C_NODE around the calls of a command): a fault of the DATA -- a
  *  field, an fkey, a link that cannot be made -- is then the peer's, a
  *  WARNING without a stack; for a C caller it is a broken contract, an
- *  ERROR with one (REV-CLOUD V18.3).
+ *  ERROR with one.
  */
 PRIVATE BOOL __peer_data__ = FALSE;
 
@@ -427,8 +427,7 @@ PRIVATE BOOL __peer_data__ = FALSE;
 /*
  *  The publication of a change: its subscribers run as a C caller, not
  *  inside the peer's window -- a subscriber that writes another treedb
- *  (db_history_ce -> C_AUTHZ) kept the ERRORs of its own contract
- *  (REV-CLOUD V19.2).
+ *  (db_history_ce -> C_AUTHZ) kept the ERRORs of its own contract.
  */
 static inline int run_treedb_callback(
     treedb_callback_t treedb_callback,
@@ -451,7 +450,7 @@ static inline int run_treedb_callback(
  *  The append of a node: tranger2_append_record() feeds the topic's rt
  *  lists in the same call, and their callbacks (C_TRANGER's open-rt, which
  *  publishes EV_TRANGER_RECORD_ADDED) are subscribers like those of the
- *  publication: they run as a C caller too (REV-CLOUD V20.3).
+ *  publication: they run as a C caller too.
  */
 static inline int append_outside_peer_window(
     json_t *tranger,
@@ -655,7 +654,7 @@ PUBLIC json_t *treedb_topic_pkey2s( // Return list with pkey2s
         /*  A topic that is not open has no instances: one a hook names and
          *  treedb_open_db() left out (logged there). Asked of NULL, the
          *  reader logged "kw must be list or dict" with no context, on every
-         *  delete that walked the hook (REV-CLOUD V14.2).  */
+         *  delete that walked the hook.  */
         return NULL;
     }
     json_t *list = kw_get_list(gobj, topic_desc, "pkey2s", 0, 0);
@@ -735,7 +734,7 @@ PRIVATE char *build_id_index_path(
  *  tranger.treedbs.<treedb_name>.<topic_name>.<index_name>, walked by KEYS.
  *  A pkey2 name comes from the schema, and as a segment of a kw path a
  *  backtick in it made the index somewhere else than where it is read
- *  (treedb_get_pkey2_index(), by keys) (REV-CLOUD V20.5).
+ *  (treedb_get_pkey2_index(), by keys).
  *  Return the index, or NULL (logged) if a level is not a dict.
  ***************************************************************************/
 PRIVATE json_t *create_topic_index(
@@ -971,7 +970,7 @@ PUBLIC BOOL treedb_is_treedbs_topic(
 }
 
 /***************************************************************************
- *  TWO name rules (REV-CLOUD V12.1, V13.1, V14.2):
+ *  TWO name rules:
  *  - a treedb or topic NAME is a directory and a key: THE name rule of
  *    timeranger2 (tranger2_name_is_identifier(): not empty, not "." or "..",
  *    no '/', no '`');
@@ -1434,7 +1433,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*
      *  Versions are json_int_t end to end: cut to an int, 2147483648 read
      *  as a NEGATIVE version, older than any file, and the literal C_TREEDB
-     *  had decided to install never was (REV-CLOUD V20 K)
+     *  had decided to install never was
      */
     json_int_t schema_new_version = jn_schema?
         kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER) :
@@ -2318,7 +2317,7 @@ PRIVATE void clear_treedb_hooks(
  *  The columns a NEW topic is created with: some, each one a json object,
  *  an `id` among them (the pkey is fixed to "id"), and every one what
  *  parse_schema_cols() accepts. A schema fault: an ERROR, a WARNING inside
- *  the window of a peer's data (REV-CLOUD V20 D1).
+ *  the window of a peer's data.
  ***************************************************************************/
 PRIVATE int check_cols_of_new_topic(
     hgobj gobj,
@@ -2427,8 +2426,7 @@ PRIVATE int check_cols_of_new_topic(
  *  - not the tkey: the list of the id index is named by the tkey, and the
  *    two lists shared one id ("tranger2_open_list() failed");
  *  - once: the same, twice.
- *  A schema fault: an ERROR, a WARNING inside the window of a peer's data
- *  (REV-CLOUD V20.5).
+ *  A schema fault: an ERROR, a WARNING inside the window of a peer's data.
  ***************************************************************************/
 PRIVATE const char *pkey2s_fault(
     const char *topic_tkey,
@@ -2531,7 +2529,7 @@ PRIVATE json_t *col_of_cols(json_t *cols, const char *col_id)
  *  id is that part, and a `file` column's is in the hook it derives on
  *  __assets__, `as_<topic>_<col>` (derive_file_hooks(); its length is
  *  treedb_check_file_hooks()'s): with a '^' in it every link of a file
- *  failed (REV-CLOUD V22.5.1)
+ *  failed
  ***************************************************************************/
 PRIVATE BOOL col_id_breaks_refs(hgobj gobj, const char *col_id, json_t *col)
 {
@@ -2548,7 +2546,7 @@ PRIVATE BOOL col_id_breaks_refs(hgobj gobj, const char *col_id, json_t *col)
 /***************************************************************************
  *  The names of a NEW topic that go into the references of its children
  *  (`topic^id^hook`, the fkey of a child), and the columns its pkey2s
- *  index (REV-CLOUD V21.2.2):
+ *  index:
  *  - its name and the ids of its hook columns are parts of a ref: no '^',
  *    the separator of the parts (split in more than three parts, every ref
  *    to its nodes was undecodable), and a hook id shorter than NAME_MAX
@@ -2721,8 +2719,8 @@ PRIVATE int check_list_ids_of_new_topic(
  *  A topic that is ON DISK already (its directory holds its
  *  topic_desc.json), created outside the window of a peer's data: a C
  *  caller's open of an existing store. Its pkey2s and the ids of the
- *  lists of its indexes are opened AS THEY ALWAYS WERE (REV-CLOUD V20 c4
- *  #2): refused, the topic was gone from the treedb at the next restart --
+ *  lists of its indexes are opened AS THEY ALWAYS WERE: refused, the topic
+ *  was gone from the treedb at the next restart --
  *  the CRITICAL "Cannot create topic of the schema", an exit of a yuno
  *  whose on_critical_error exits (C_AUTHZ) -- for a fault its store has
  *  lived with:
@@ -5255,7 +5253,7 @@ PRIVATE const char *fkey_ref_id(json_t *fkeys, char *bf, int bfsize)
  *  a date x1000 on an sf_tm_ms topic), and past TRANGER2_MAX_TIME the append
  *  keeps it CUT, the flags over its high bits. A topic made by a peer can
  *  have a string tkey, and "@99999999999999 +0000" in it was a node whose
- *  __tm__ was not its date, without a word (REV-CLOUD V20 c5 #4); a text
+ *  __tm__ was not its date, without a word; a text
  *  that is no date was NOW up to 7.29.3, and is refused too, as one
  *  written as a number that is not a JSON integer (" 5", "10.5"). Refused
  *  before anything is written: a WARNING in a peer's window, an ERROR for
@@ -7781,9 +7779,9 @@ PRIVATE json_int_t get_next_rowid_id(
  *  Compose the id of a node whose pkey carries the `qualified` flag: the
  *  id of its parent, a dot, and its own name.
  *
- *      treedbs   treedb_yunovatioscodb
- *      topics    treedb_yunovatioscodb.yunos
- *      cols      treedb_yunovatioscodb.yunos.yuno_role
+ *      treedbs   treedb_myapp
+ *      topics    treedb_myapp.yunos
+ *      cols      treedb_myapp.yunos.yuno_role
  *
  *  A name is unique only inside its parent, so it is the parent's id that
  *  makes it whole, and the parent's id already carries its own. The parent
@@ -7888,7 +7886,7 @@ PRIVATE const char *build_qualified_id(
  *  reads it up to the NUL, so the node was indexed under one name and saved
  *  with another -- a create of "dx\u0000evil" took the key "dx", and an
  *  update of "g1" with the id "g1\u0000x" saved that id under "g1", kept
- *  after a reload, with no log (REV-CLOUD V23.4.2). Refused for every
+ *  after a reload, with no log. Refused for every
  *  caller: a WARNING in a peer's window, an ERROR with a stack from C
  *  (log_data_fault()). Return 0, or -1 refused.
  ***************************************************************************/
@@ -7936,7 +7934,7 @@ PRIVATE int refuse_node_name_with_nul(
  *  id and the pkey2 values are (refuse_node_name_with_nul()). C reads a
  *  ref up to its NUL, so "\u0000users^u1^users" was the empty ref, left
  *  out, and the create saved "" with no log; a ref with the NUL after its
- *  third part linked the node to the parent C read (REV-CLOUD V24.4). A
+ *  third part linked the node to the parent C read. A
  *  peer's record never gets here with one (C_NODE refuses a NUL in any of
  *  its texts): this is a C caller's, an ERROR with a stack. Asked by every
  *  write that reads an fkey ref of a kw: a create, an update (its `file`
@@ -8099,7 +8097,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  none): an integer was read by
      *  kw_get_str() with an ERROR, and
      *  the node got a uuid or a rowid
-     *  in silence (REV-CLOUD V21.2.4)
+     *  in silence
      *-------------------------------*/
     json_t *jn_given_id = json_object_get(kw, "id");
     if(json_is_null(jn_given_id)) {
@@ -12114,7 +12112,7 @@ PRIVATE int delete_node(
         /*
          *  By key, and truncated as add_secondary_node() keys it: read as a
          *  path, deleting `q`b` took the instance `b` out of `q` and left
-         *  its own entry behind (REV-CLOUD V12.1).
+         *  its own entry behind.
          */
         char key_[RECORD_KEY_VALUE_MAX];
         snprintf(key_, sizeof(key_), "%s", id);
@@ -14763,7 +14761,7 @@ PRIVATE int replace_links_in_memory(
             /*
              *  A record with no value for the fkey has no parent there. Said
              *  only when that drops links the node has: a record of a node
-             *  that never had any is a valid record (REV-CLOUD V20.4.4).
+             *  that never had any is a valid record.
              */
             json_t *had_refs = get_fkey_refs(cur_value);
             if(json_array_size(had_refs) > 0) {
@@ -15811,7 +15809,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
      */
     json_t *ids_list = 0;
     /*  No filter is a legitimate ask (all of them): read of NULL, it logged
-     *  "kw must be list or dict" (REV-CLOUD V19.3.3)  */
+     *  "kw must be list or dict"  */
     json_t *jn_id = jn_filter? kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT) : NULL;
     if(jn_id) {
         ids_list = kwid_get_ids(jn_id);
@@ -15949,7 +15947,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
      */
     json_t *ids_list = 0;
     /*  No filter is a legitimate ask (all of them): read of NULL, it logged
-     *  "kw must be list or dict" (REV-CLOUD V19.3.3)  */
+     *  "kw must be list or dict"  */
     json_t *jn_id = jn_filter? kw_get_dict_value(gobj, jn_filter, "id", 0, KW_EXTRACT) : NULL;
     if(jn_id) {
         ids_list = kwid_get_ids(jn_id);
@@ -15992,7 +15990,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
          *  Only a SECONDARY index of the topic: under its name the treedb
          *  also keeps the primary one ("id"), whose fields were walked as
          *  instances -- 9 errors per node, for every node of the topic
-         *  when no id was given (REV-CLOUD V18.3).
+         *  when no id was given.
          */
         BOOL is_pkey2 = FALSE;
         json_t *topic_pkey2s = treedb_topic_pkey2s(tranger, topic_name);

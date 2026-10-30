@@ -622,7 +622,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
 
     /*  A '^' in the id of a `file` column: it is in the hook the column
      *  derives, as_<topic>_<col>, and every link of a file failed with
-     *  "Cannot build the reference of a node" (REV-CLOUD V22.5.1)  */
+     *  "Cannot build the reference of a node"  */
     json_t *caret_cols = json_pack("{s:{s:s, s:s, s:i, s:s, s:[s,s]}, s:{s:s, s:s, s:i, s:s, s:[s,s,s]}}",
         "id",
             "id", "id", "header", "Id", "fillspace", 20, "type", "string",

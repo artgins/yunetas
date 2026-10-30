@@ -130,9 +130,9 @@ By default the SPA never sees a raw token (SEC-06): tokens live only in
 HttpOnly cookies scoped to the BFF host, so they cannot be forwarded to a
 backend on a **different** host. When a single SPA must open WebSockets to
 Yuneta backends on *other* hosts, for example the `gui_treedb` browser served
-at `artgins.ytreedb.com` that connects to `wss://app.wattyzer.com:1602`, or
+at `artgins.ytreedb.com` that connects to `wss://app.example.com:1602`, or
 the Monitor workspace of `gui_agent` that talks to a node's agent directly
-(`wss://agent.yunovatios.es:1993`), it forwards the access_token itself in the
+(`wss://agent.example.com:1993`), it forwards the access_token itself in the
 `C_IEVENT_CLI` identity_card `jwt` field. The remote `C_IEVENT_SRV` accepts an identity-card JWT with priority
 over the (absent) cookie, and `C_AUTHZ` validates it against the issuer JWKS
 exactly as a cookie token — so each remote backend must have the issuer's
@@ -936,7 +936,7 @@ Points found so far (verified this session unless noted):
    [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.6. So the treedb surface of every
    yuno is already fail-closed per user, while the agent's own control plane
    is wide open — the inverse of what an operator expects. Verified 2026-08-12 by
-   `claudia@artgins.com` (point 3): every topic of `treedb_system_schema`
+   a test operator (point 3): every topic of `treedb_system_schema`
    answered `-403 No permission to 'read'` until they were given a role in
    THAT yuno's `C_AUTHZ`. The matrix must cover the per-yuno treedb
    permissions, not only the agent commands, and until it does an operator
@@ -957,7 +957,7 @@ Points found so far (verified this session unless noted):
    `realm_id:* service:* permission:*`. The matrix needs granular roles *below*
    root, for example read-only observer, deploy-only, console-only (kitchen)
    and lifecycle-only, so that day-to-day operators are not root.
-   `claudia@artgins.com` is the concrete test case. They are CC-root but not in
+   A test operator is the concrete test case. They are CC-root but not in
    the node authz, so today, with the gate off, they have full node management
    without `open-console`. The matrix must decide what they get per node.
 

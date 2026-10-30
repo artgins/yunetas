@@ -124,7 +124,7 @@ The test drives `C_TREEDB` through its own commands and checks:
      pkey2 `id`, refused at the save; an `apply-schema` of a saved schema
      (written by hand) whose topic the treedb refuses, with the file in use
      unchanged; and a dict of topics keyed by their names, still a schema.
-   - **13d5**: a C caller's `open-treedb` goes as before V20 -- a store with a
+   - **13d5**: a C caller's `open-treedb` goes as before 7.27.0 -- a store with a
      leftover topic directory and a seed with no string id opens, with the
      old ERRORs, while the same open from a peer is refused
      (`check_c_caller_open_as_before`); `close-treedb force=1` from a peer,

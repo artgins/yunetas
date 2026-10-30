@@ -699,9 +699,8 @@ PRIVATE int run_tests(hgobj gobj)
      *      bytes, a segment under a string -- is
      *      said by the answer only: kw_find_path()
      *      walks any path in a loop and, verbose
-     *      FALSE, logs nothing (REV-CLOUD V21.2.4;
-     *      C_NODE walked it and refused it with a
-     *      WARNING, V20.15). A string at the end is
+     *      FALSE, logs nothing (C_NODE walked it
+     *      and refused it with a WARNING). A string at the end is
      *      answered as it is (kw_collapse() logged
      *      an ERROR)
      *-----------------------------------------------*/

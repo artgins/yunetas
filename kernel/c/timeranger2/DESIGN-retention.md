@@ -361,13 +361,13 @@ blocks the yuno for as long as it takes.
   not cheap together, on a yuno with one thread. So the owner purges **a slice
   of keys per tick** (§7).
 
-Measured on 2026-10-21: a purge of 3,058 keys (the yunovatios census), one
+Measured on 2026-10-21: a purge of about 3,000 keys (an application's store), one
 `.purged` and three unlinks per key (small files):
 
 | Node | No barrier | `fsync` per key | Batch of 100 (`syncfs`) |
 |---|---|---|---|
-| yunovatios-central (Rocky 9, slow VM) | 1.0 s | **2.8 s** (0.9 ms/key) | 1.1 s |
-| yunovatios-controlador (Debian 13, VM) | 0.5 s | **5.6 s** (1.8 ms/key) | 0.7 s |
+| node A (Rocky 9, slow VM) | 1.0 s | **2.8 s** (0.9 ms/key) | 1.1 s |
+| node B (Debian 13, VM) | 0.5 s | **5.6 s** (1.8 ms/key) | 0.7 s |
 | dev machine (NVMe) | 0.2 s | 3.9 s | 0.4 s |
 
 **The barrier is per key.** A slice of 100 keys blocks the yuno for at most
@@ -456,7 +456,7 @@ is possible later, once two owners have written the same loop.
 These were the open questions of the proposal.
 
 1. **`fsync` per key, not a barrier per batch** (§6). Measured on both
-   yunovatios nodes: at most 1.8 ms per key, in slices of about 100 keys per
+   VMs: at most 1.8 ms per key, in slices of about 100 keys per
    tick. The two-barrier batch stays available as an optimization.
 2. **An unreadable `.purged` flags the key `unlisted`** (§4.4), with its own
    message. The existing retry paths read the `.purged` again.
@@ -632,7 +632,7 @@ a key is archived, its directory in the topic level. Measured on 2026-10-27
 on the dev machine (NVMe), 3,000 keys, one file purged per key, three rounds:
 **delete 11.8-12.3 ms per key, archive 35.5-37.2 ms per key: three times
 more**. The absolute figures of that machine were about nine times worse that
-day than on 2026-10-21 (§6: 3.9 s for 3,058 keys), so the ratio is the figure
+day than on 2026-10-21 (§6: 3.9 s for about 3,000 keys), so the ratio is the figure
 to keep; on the slowest node of §6 (1.8 ms per key for a delete) an archive
 would cost about 5.4 ms per key. An owner that archives does a slice about a
 third of the one it deletes in (§7): 30 to 40 keys per tick instead of 100.

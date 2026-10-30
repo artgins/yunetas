@@ -1093,7 +1093,7 @@ PRIVATE int open_database(hgobj gobj)
      *  this gobj (their `src`), as the agent and the controlcenter do. It
      *  was stamped in the kw, which makes a command a PEER's: C_TREEDB
      *  refuses a peer's impose_c_schema, and asks a peer's open what it
-     *  does not ask the code's (REV-CLOUD V20).
+     *  does not ask the code's.
      */
     gobj_write_str_attr(gobj, "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"));
 

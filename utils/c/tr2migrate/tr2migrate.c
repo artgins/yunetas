@@ -399,7 +399,7 @@ PRIVATE int copy_files_first_level(char *source, char *destine)
  *  rule timeranger2 reads a text time with (tranger2_time_of_json_text()):
  *  the text of a JSON integer is that integer, another number (" 5",
  *  "007", "1,5") or a text that is no date is refused, any other a date,
- *  taken to ms when `in_ms`. Up to R48 the v1 code read it with
+ *  taken to ms when `in_ms`. Up to 7.29.3 the v1 code read it with
  *  parse_date_basic() and did not check the answer: a text it could not
  *  read left the time uninitialised. Return -1 refused (logged), 0 read.
  ***************************************************************************/

@@ -6,7 +6,7 @@
  *          logs an ERROR and exits with -1 when register_yuno_and_more()
  *          answers a negative number. Up to 7.26.9 that answer was added to
  *          the exit code and the yuno RAN, and its services failed later
- *          with "gclass NOT FOUND" (REV-CLOUD V24.4).
+ *          with "gclass NOT FOUND".
  *
  *          The test forks. The child is the yuno: its
  *          register_yuno_and_more() registers a driver gclass, and then one

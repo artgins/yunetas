@@ -62,8 +62,8 @@
  *          12. an offset in a comment ("(UTC+02:00)", "(GMT-0500)",
  *              "(+0200)") is the zone when no other is given, before a
  *              zone name in a comment (7.28.5 to 7.29.3 took the name and
- *              lost the offset; REV-CLOUD V46.3), but not one that is
- *              not whole ("(UTC-05:0)" was -05; V47.2).
+ *              lost the offset), but not one that is
+ *              not whole ("(UTC-05:0)" was -05).
  *          13. a weekday after a date names it: "Oct 1 2026 Thu" is that
  *              day, not 2026 Thursdays back (1987-12-03, up to 7.29.3).
  *
@@ -575,7 +575,7 @@ PRIVATE void test_words(void)
 
 /***************************************************************************
  *  10. Forms the port read that 7.28.5 to 7.29.1 read otherwise, or not
- *  at all (REV-CLOUD V44.2.4)
+ *  at all
  ***************************************************************************/
 PRIVATE void test_forms_of_the_port(void)
 {
@@ -669,7 +669,7 @@ PRIVATE void test_forms_of_the_port(void)
 
 /***************************************************************************
  *  11. More forms the port read that 7.28.5 to 7.29.2 read otherwise, or
- *  not at all (REV-CLOUD V45.3)
+ *  not at all
  ***************************************************************************/
 PRIVATE void test_more_forms_of_the_port(void)
 {
@@ -768,7 +768,7 @@ PRIVATE void test_more_forms_of_the_port(void)
 }
 
 /***************************************************************************
- *  12. An offset in a comment (REV-CLOUD V46.3)
+ *  12. An offset in a comment
  ***************************************************************************/
 PRIVATE void test_offset_in_a_comment(void)
 {
@@ -810,7 +810,7 @@ PRIVATE void test_offset_in_a_comment(void)
 
         /*
          *  Nor an offset that is not whole: a ':' after the hours needs
-         *  both digits of the minutes, as outside a comment (V47.2)
+         *  both digits of the minutes, as outside a comment
          */
         {"2026-10-01 10:00:00 (-05:0)",                     "2026-10-01 10:00:00 +0200", 0},
         {"2026-10-01 10:00:00 (-05:)",                      "2026-10-01 10:00:00 +0200", 0},

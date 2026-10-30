@@ -302,7 +302,7 @@ PUBLIC json_t *msg2db_open_db(
      *  What this loop takes is what the second one opens lists for: a topic
      *  it leaves out can still be in the tranger (opened before, by somebody
      *  else), and the second loop gave it a list and an index all the same,
-     *  without a word (REV-CLOUD V17.3.2).
+     *  without a word.
      *------------------------------*/
     json_t *accepted_topics = json_object();
     int idx;
@@ -415,7 +415,7 @@ PUBLIC json_t *msg2db_open_db(
         if(!json_object_get(accepted_topics, topic_name)) {
             /*  Left out by the first loop (a bad name, no pkey=id, no
              *  pkey2, a topic not created): opening its list here said it
-             *  three times more (REV-CLOUD V16.4).  */
+             *  three times more.  */
             continue;   // Error already logged
         }
 
@@ -1583,8 +1583,8 @@ PUBLIC BOOL msg2db_id_incomplete(
 /***************************************************************************
  *  Index a record under (id, pkey2 value). Both are KEYS, not a path: an
  *  id is data, and one holding the delimiter was stored nested inside
- *  another id's entry, while the "newest first" check read it as a key
- *  (REV-CLOUD V12.1). `record` is owned.
+ *  another id's entry, while the "newest first" check read it as a key.
+ *  `record` is owned.
  ***************************************************************************/
 PRIVATE int index_record(
     hgobj gobj,

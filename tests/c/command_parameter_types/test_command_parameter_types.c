@@ -2,7 +2,7 @@
  *          test_command_parameter_types.c
  *
  *          What a command parameter takes, whatever gives it: the command
- *          line (text), kw (json) or its declared default (REV-CLOUD V20.4).
+ *          line (text), kw (json) or its declared default.
  *
  *          A value of another shape is refused before the handler runs: an
  *          ERROR with a stack when C code calls the command, a WARNING when
@@ -17,27 +17,26 @@
  *            - an integer, a real, a boolean: a number or a boolean, never
  *              an object or an array; text read as one (a boolean as
  *              true/false, yes/no, on/off or an integer), or refused;
- *            - and the handler gets the EXACT type (REV-CLOUD V21.3.2): a
+ *            - and the handler gets the EXACT type: a
  *              number given to a boolean is true or false, a boolean given
  *              to an integer 1 or 0, a real given to an integer that
  *              integer -- and one with decimals, or out of range, refused
  *              as the text "2.7" is; an integer given to a real a real;
  *            - a number written as text: nothing before or after it, and
  *              in its range ("nan", "inf", an overflow refused: strtoll()
- *              saturated in silence, V21.3.3); the text of a real a
+ *              saturated in silence); the text of a real a
  *              decimal number (no hex) whose underflow is a number, that
- *              of an integer or a boolean an integer (V22.4.3); of the
+ *              of an integer or a boolean an integer; of the
  *              JSON grammar, ".5", "5.", "+5" and "007" refused, and read
- *              in the "C" locale whatever LC_NUMERIC is (V23.4.6);
- *            - a text of kw with a NUL inside refused, but for a DTP_JSON
- *              (V22.4.2);
+ *              in the "C" locale whatever LC_NUMERIC is;
+ *            - a text of kw with a NUL inside refused, but for a DTP_JSON;
  *            - a parameter given in another case on the line reaches the
- *              handler under its declared name (V22.4.1);
+ *              handler under its declared name;
  *            - a DTP_JSON: anything; text that is not json is a string,
  *              unless it starts as json and breaks;
  *            - a null, or an empty text for a number, is no value: the
  *              default, or absent -- the kw's "" reached the handler
- *              (V21.3.4) --, or "is required";
+ *              before --, or "is required";
  *            - the line has the last word over a refused kw value, and the
  *              refused value does not reach the handler under the name;
  *            - command_parameter_from_text() reads a text as the parser
@@ -353,7 +352,7 @@ int main(int argc, char *argv[])
 
     /*
      *  The EXACT type: a number to a boolean, a boolean to a number, a real
-     *  to an integer (REV-CLOUD V21.3.2). As it came, a `1` reached a
+     *  to an integer. As it came, a `1` reached a
      *  kw_get_bool() that logged an ERROR with a stack and took its default.
      */
     expect_value(yuno, "boolean given the integer 1: true", "typed",
@@ -378,7 +377,6 @@ int main(int argc, char *argv[])
 
     /*
      *  A number written as text: nothing before or after it, in its range
-     *  (REV-CLOUD V21.3.3)
      */
     expect_refused(yuno, "integer text past 64 bits", "typed",
         json_pack("{s:s}", "n", "99999999999999999999"),
@@ -391,14 +389,14 @@ int main(int argc, char *argv[])
         json_pack("{s:s}", "n", "5 "), "parameter 'n' must be an integer, not a text", FALSE);
     expect_refused(yuno, "real text nan", "typed",
         json_pack("{s:s}", "r", "nan"), "parameter 'r' must be a number, not a text", FALSE);
-    expect_refused(yuno, "real text inf", "typed",      // no JSON number (V23.4.6): it was "out of its range"
+    expect_refused(yuno, "real text inf", "typed",      // no JSON number: it was "out of its range"
         json_pack("{s:s}", "r", "inf"), "parameter 'r' must be a number, not a text", FALSE);
     expect_refused(yuno, "real text past a double", "typed",
         json_pack("{s:s}", "r", "1e999"), "parameter 'r' must be a number, not a number out of its range", FALSE);
 
     /*
      *  An empty text for a number with no default is no value, absent: kw
-     *  passed the "" on to the handler (REV-CLOUD V21.3.4)
+     *  passed the "" on to the handler
      */
     expect_value(yuno, "real empty in kw, no default: absent", "typed",
         json_pack("{s:s}", "r", ""), "r", NULL);
@@ -410,7 +408,7 @@ int main(int argc, char *argv[])
     /*
      *  A parameter reaches the handler under its DECLARED name: `N=5` was
      *  stored as "N", the handler read `n` and took its default, and a kw
-     *  `n` beat the line (REV-CLOUD V22.4.1)
+     *  `n` beat the line
      */
     expect_value(yuno, "a key in another case is the declared parameter", "typed N=5",
         0, "n", json_integer(5));
@@ -419,7 +417,7 @@ int main(int argc, char *argv[])
 
     /*
      *  A NUL inside a text of kw (an ievent frame is decoded with
-     *  JSON_ALLOW_NUL): C read it up to the NUL (REV-CLOUD V22.4.2)
+     *  JSON_ALLOW_NUL): C read it up to the NUL
      */
     expect_refused(yuno, "integer given a text with a NUL", "typed",
         json_pack("{s:s%}", "n", "5\0junk", (size_t)6),
@@ -435,7 +433,7 @@ int main(int argc, char *argv[])
 
     /*
      *  The text of a real is a decimal number, as jansson reads one; that
-     *  of an integer or a boolean an integer (REV-CLOUD V22.4.3)
+     *  of an integer or a boolean an integer
      */
     expect_refused(yuno, "real text in hex", "typed",
         json_pack("{s:s}", "r", "0x10"), "parameter 'r' must be a number, not a text", FALSE);
@@ -451,7 +449,6 @@ int main(int argc, char *argv[])
     /*
      *  A number written as text is one of the JSON grammar, the whole
      *  text: strtod() and strtoll() took ".5", "5.", "+5" and "007" (as 7)
-     *  (REV-CLOUD V23.4.6)
      */
     expect_refused(yuno, "real text .5", "typed r=.5",
         0, "parameter 'r' must be a number, not a text", FALSE);

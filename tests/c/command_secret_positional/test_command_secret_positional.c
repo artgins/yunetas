@@ -24,8 +24,8 @@
  *            5. a secret that is not required (key=value only) before a
  *               required parameter: accepted
  *
- *          And an ATTRIBUTE flagged SDF_SECRET must have a secret's name
- *          (REV-CLOUD V23.4.3): elsewhere than its gclass it is masked by
+ *          And an ATTRIBUTE flagged SDF_SECRET must have a secret's name:
+ *          elsewhere than its gclass it is masked by
  *          its name only (the machine trace with ev_kw, a dump of a peer's
  *          kw), so gclass_create() refuses one that has not, with one ERROR
  *          checked in the FIFO of expected logs. Not on the ESP32 port.
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
     /*
      *  A SDF_SECRET attribute must have a secret's name: the ERROR of the
      *  refusal, in the FIFO of expected logs, and nothing for the one that
-     *  has it (REV-CLOUD V23.4.3)
+     *  has it
      */
     gobj_log_register_handler("testing", 0, capture_log_write, 0);
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);

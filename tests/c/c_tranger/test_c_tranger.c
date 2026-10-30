@@ -32,7 +32,7 @@
  *        a name longer than NAME_MAX), a record without its pkey or with
  *        a pkey that is a path, a __t__ that is no date; a replica answers
  *        READ-ONLY to delete-key, delete-topic and create-topic
- *      - more of it (REV-CLOUD V20): a topic named as a file of the
+ *      - more of it: a topic named as a file of the
  *        database, a new topic_version over a system topic, a record that
  *        is not a dict, a key that is a path (open-iterator, open-list,
  *        open-rt), a time bound that is a dict (and an integer one, taken),
@@ -217,7 +217,7 @@ PRIVATE json_t *expect_role_warnings(int n)
 
 /*  The kw of a command as C_IEVENT_SRV delivers it from a peer: with the
  *  `__username__` it stamps. Its refusals are WARNINGs; without it the
- *  caller is C code, and they are ERRORs with a stack (REV-CLOUD V20 #17)  */
+ *  caller is C code, and they are ERRORs with a stack  */
 #define PEER_USER   "peer@test"
 
 PRIVATE json_t *as_peer(json_t *kw)  // kw owned, returned
@@ -2551,8 +2551,8 @@ PRIVATE int do_test(void)
             "record", "id", "K", "tm", (json_int_t)BASE_T), yuno);
     check_int("add-record refused", kw_get_int(0, r, "result", -999, 0), -403);
     check_str("add-record asks", g_last_authz, "write");
-    /*  A -403 names the yuno first, as every answer of a command does
-     *  (REV-CLOUD V20.12): here the yuno has no role, the prefix is empty  */
+    /*  A -403 names the yuno first, as every answer of a command does:
+     *  here the yuno has no role, the prefix is empty  */
     check_bool("a -403 names the yuno",
         strstr(kw_get_str(0, r, "comment", "", 0), ": No permission to 'write'") != NULL, TRUE);
     JSON_DECREF(r)
@@ -2560,7 +2560,7 @@ PRIVATE int do_test(void)
         (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 0);
 
     /*  check-json asks `read`, as print-tranger: it had no authz, and its
-     *  walk logs an ERROR per node held twice (REV-CLOUD V20.11)  */
+     *  walk logs an ERROR per node held twice  */
     g_deny_authz = "read";
     g_last_authz[0] = 0;
     r = gobj_command(yuno, "check-json", json_object(), yuno);
@@ -2570,7 +2570,7 @@ PRIVATE int do_test(void)
     g_deny_authz = NULL;
     global_result += test_json(NULL);
 
-    /*  And what it finds is its ANSWER, logging nothing (REV-CLOUD V21.2.3):
+    /*  And what it finds is its ANSWER, logging nothing:
      *  json_check_refcounts() logged an ERROR for every json held more than
      *  max_refcount times. By default it looks for corrupted jsons only.  */
     set_expected_results("check-json answers", json_array(), NULL, NULL, 1);
@@ -2582,7 +2582,7 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     /*  What is held more than max_refcount times is the ANSWER, a 0: -1 is a
      *  fault, a corrupted json or a walk cut short. A sound tranger asked
-     *  with max_refcount=1 answered -1 (REV-CLOUD V22.5.4).  */
+     *  with max_refcount=1 answered -1.  */
     r = gobj_command(yuno, "check-json", json_pack("{s:i}", "max_refcount", 1), yuno);
     jn_report = kw_get_dict(0, r, "data", 0, 0);
     check_int("check-json max_refcount=1: answers what it found, a 0",
@@ -2654,8 +2654,8 @@ PRIVATE int do_test(void)
      *      for each one -- an unknown topic or a name with '/' or '..'
      *      ("Cannot open topic", "Invalid topic name"), a system topic to
      *      delete, an unknown system_flag, a record without its pkey or
-     *      with a pkey that is a path, a __t__ that is no date (REV-CLOUD
-     *      V20.4.2). The phase captures the warnings too.
+     *      with a pkey that is a path, a __t__ that is no date.
+     *      The phase captures the warnings too.
      *-------------------------------------------------*/
     if(!tranger2_create_topic(tranger, "topic_sys", "id", "tm", NULL, sf_string_key,
             json_pack("{s:s}", "id", ""), json_pack("{s:b}", "system_topic", 1)) ||
@@ -2680,9 +2680,9 @@ PRIVATE int do_test(void)
         for(int i = 0; i < 5; i++) {
             expect_refusal(expected_refusals, "record of a wrong shape, refused");
         }
-        json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",    // V20.4.1
+        json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",
             "msg", "Command parameter of the wrong type", "__priority__", "WARNING"));
-        /*  the same refusal for a C caller: an ERROR (REV-CLOUD V20 #17)  */
+        /*  the same refusal for a C caller: an ERROR  */
         json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",
             "msg", "topic not found, refused", "__priority__", "ERROR"));
         json_array_append_new(expected_refusals, json_pack("{s:s, s:s}",
@@ -2783,7 +2783,7 @@ PRIVATE int do_test(void)
     global_result += test_json(NULL);
 
     /*-------------------------------------------------*
-     *      More of a peer's data, refused with a WARNING (REV-CLOUD V20):
+     *      More of a peer's data, refused with a WARNING:
      *      a topic named as a FILE of the database (its mkrdir() was a
      *      CRITICAL, an exit of the yuno), a new topic_version over a
      *      SYSTEM topic (it took its mark), a record that is not a dict
@@ -2825,15 +2825,15 @@ PRIVATE int do_test(void)
         json_t *dated = expect_role_warnings(1);
         json_array_extend(expected, dated);
         JSON_DECREF(dated)
-        /*  V46.3, V47.2, V48: a text in the tkey that is no date, six times  */
+        /*  A text in the tkey that is no date, six times  */
         for(int i = 0; i < 6; i++) {
             expect_refusal(expected, "record of a wrong shape, refused");
         }
-        /*  V47.2: the text of a JSON integer in the tkey, taken  */
+        /*  The text of a JSON integer in the tkey, taken  */
         json_t *int_text = expect_role_warnings(1);
         json_array_extend(expected, int_text);
         JSON_DECREF(int_text)
-        /*  REV-CLOUD V20 #3: a peer's writes into a treedb's topic, a new topic in its store  */
+        /*  a peer's writes into a treedb's topic, a new topic in its store  */
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // add-record
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // delete-key
         expect_refusal(expected, "write of a topic of a treedb or a msg2db, refused");  // delete-topic
@@ -2855,7 +2855,7 @@ PRIVATE int do_test(void)
         json_array_extend(expected, changed);
         JSON_DECREF(changed)
         expect_refusal(expected, "topic of a wrong shape, create refused");
-        /*  V23.4.2: a NUL in the pkey, down the record, in its json text  */
+        /*  A NUL in the pkey, down the record, in its json text  */
         for(int i = 0; i < 3; i++) {
             expect_refusal(expected, "record of a wrong shape, refused");
         }
@@ -2932,7 +2932,7 @@ PRIVATE int do_test(void)
 
     /*  A path that is not there, of any length or under a string, is said
      *  by the answer only: kw_find_path() walks it in a loop and, with
-     *  verbose FALSE, logs nothing (REV-CLOUD V21.2.4). They were refused
+     *  verbose FALSE, logs nothing. They were refused
      *  with a WARNING here, where kw_find_path() logged an ERROR.  */
     {
         char long_path[300 + sizeof("`y")];
@@ -2949,7 +2949,7 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
 
     /*
-     *  A new topic_version of a topic that exists (REV-CLOUD V20 D4): it
+     *  A new topic_version of a topic that exists: it
      *  re-writes topic_cols.json from jn_cols, so without them the columns
      *  were written EMPTY; and over a topic of a treedb, whose schema is the
      *  treedb's, it took its cols and pkey2s for good. A plain topic with
@@ -3005,7 +3005,7 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  A time a record cannot keep (REV-CLOUD V20 D8): the md2 row holds 44
+     *  A time a record cannot keep: the md2 row holds 44
      *  bits of __t__ and of __tm__, the flags were written over the rest
      */
     r = gobj_command(yuno, "add-record",
@@ -3020,7 +3020,7 @@ PRIVATE int do_test(void)
         (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 2);
 
     /*
-     *  And a tkey that is a DATE (REV-CLOUD V20 c4 B): approxidate() reads
+     *  And a tkey that is a DATE: approxidate() reads
      *  "@<seconds> +0000" with no year limit, and the row kept 44 bits of
      *  it -- of it times 1000 on an sf_tm_ms topic, where 2e10 seconds is
      *  already past them. A date it can keep is taken.
@@ -3050,10 +3050,10 @@ PRIVATE int do_test(void)
         (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 1);
 
     /*
-     *  A text in the tkey that is no date (REV-CLOUD V46.3): approxidate()
+     *  A text in the tkey that is no date: approxidate()
      *  read it as NOW. Nor is a text written as a number that is not the
-     *  text of a JSON integer (V47.2): R46 read " 5" and "10.5" as dates.
-     *  Nor a decimal comma (V48): approxidate() read "1,5" as May 1. A
+     *  text of a JSON integer: an unreleased version read " 5" and "10.5"
+     *  as dates. Nor a decimal comma: approxidate() read "1,5" as May 1. A
      *  text with a NUL inside ("5\u0000junk", 5 for the tranger) was
      *  refused already, as any string of a record with one (json_nul_fault())
      */
@@ -3080,7 +3080,8 @@ PRIVATE int do_test(void)
 
     /*
      *  The text of a JSON integer in the tkey is that integer, in the unit
-     *  of tm (V47.2): R46 refused "1761000000000", a bound took it
+     *  of tm: an unreleased version refused "1761000000000", a bound took
+     *  it
      */
     r = gobj_command(yuno, "add-record",
         as_peer(json_pack("{s:s, s:{s:s, s:s}}", "topic_name", "topic_tm_ms",
@@ -3094,7 +3095,7 @@ PRIVATE int do_test(void)
         (json_int_t)tranger2_topic_key_size(tranger, "topic_tm_ms", "M"), 2);
 
     /*
-     *  REV-CLOUD V20 #3 (G): the topics of a treedb or a msg2db open on the
+     *  The topics of a treedb or a msg2db open on the
      *  tranger are written through it, never by a peer's add-record,
      *  delete-key or delete-topic: a raw record appended to `users` was that
      *  node at the next load. Nor does a peer make a new topic in its store.
@@ -3202,7 +3203,7 @@ PRIVATE int do_test(void)
     }
 
     /*
-     *  REV-CLOUD V23.4.2: a NUL in a string of a peer's record (a frame is
+     *  A NUL in a string of a peer's record (a frame is
      *  decoded with JSON_ALLOW_NUL). C reads a string up to it: the pkey
      *  "K\u0000evil" was appended under the key "K". Refused, at any depth,
      *  and in the json text of the record too, which was parsed up to it.
@@ -3316,24 +3317,24 @@ PRIVATE int do_test(void)
             as_peer(json_pack("{s:s, s:s, s:s}",
                 "topic_name", TOPIC_NAME5, "key", "P", "before", "007"
             )), yuno);
-        check_refused("delete-key-files of a number that is no JSON integer (V47.2: it was the 7th)", r);
+        check_refused("delete-key-files of a number that is no JSON integer (it was the 7th)", r);
         r = gobj_command(yuno, "delete-key-files",
             as_peer(json_pack("{s:s, s:s, s:s}",
                 "topic_name", TOPIC_NAME5, "key", "P", "before", "1,5"
             )), yuno);
-        check_refused("delete-key-files of a decimal comma (V48: it was May 1)", r);
+        check_refused("delete-key-files of a decimal comma (it was May 1)", r);
         r = gobj_command(yuno, "delete-key-files",
             as_peer(json_pack("{s:s, s:s, s:s}",
                 "topic_name", TOPIC_NAME5, "key", "P", "before", "10,5"
             )), yuno);
-        check_refused("delete-key-files of a decimal comma (V48: it was May 10)", r);
+        check_refused("delete-key-files of a decimal comma (it was May 10)", r);
         {
             static const char nul_date[] = "2026-10-01T00:00:00Z\0garbage";
             r = gobj_command(yuno, "delete-key-files",
                 as_peer(json_pack("{s:s, s:s, s:s%}",
                     "topic_name", TOPIC_NAME5, "key", "P", "before", nul_date, sizeof(nul_date) - 1
                 )), yuno);
-            check_refused("delete-key-files of a date with a NUL inside (V48: it was the date)", r);
+            check_refused("delete-key-files of a date with a NUL inside (it was the date)", r);
         }
         check_int("the refused befores purged nothing",
             (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME5, "P"), 2);
@@ -3709,7 +3710,7 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     /*  Nor does it delete, or create a topic: refused before the library,
      *  which logged an ERROR ("Only master can delete", "Cannot open
-     *  TimeRanger topic. Not found and no master") (REV-CLOUD V20.4.2)  */
+     *  TimeRanger topic. Not found and no master")  */
     r = gobj_command(yuno, "delete-key",
         json_pack("{s:s, s:s, s:b}", "topic_name", TOPIC_NAME, "key", KEY_A, "force", 1), yuno);
     check_bool("delete-key on a replica says READ-ONLY",

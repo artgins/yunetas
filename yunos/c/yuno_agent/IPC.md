@@ -458,7 +458,7 @@ channel's `authorized_services` attr: the set of services that this channel can
 reach. The no-treedb path yields `{dst_service:[]}`, so the set degrades to
 the single primary service. This realizes the long-standing `available_services`
 design — one authentication can legitimately grant several services (the GUI
-frontends authenticate against `db_history_wz` and reach `treedb_wattyzer`,
+frontends authenticate against `db_history` and reach `treedb_myapp`,
 `treedb_authzs`, … over the same channel).
 
 Since 7.6.1 the authenticate response also carries a `superuser` flag, captured

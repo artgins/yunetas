@@ -47,7 +47,7 @@ declared name: `N=5` reaches the handler as `n`, and beats a kw `n`. A NUL
 inside a text of kw: refused for an integer, a boolean (from a peer) and a
 string, kept as it came by a `DTP_JSON`. The text reader: a real `0x10` and
 `0x1p3` refused, `1e-400` is `0.0`, an integer `2.0` and a boolean `1.0`
-refused. The JSON grammar (REV-CLOUD V23.4.6): a real `.5`, `5.`, `+5`,
+refused. The JSON grammar: a real `.5`, `5.`, `+5`,
 `007` and `1e`, an integer `+5` and `007` (from a peer), a boolean `007` and
 `+1`, all refused (`strtod()` and `strtoll()` took them); an integer `-0`, a
 boolean `-1`, a real `1E5`, `-0.5e-1` and `0`, taken. And the locale: with the

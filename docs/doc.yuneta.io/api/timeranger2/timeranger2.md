@@ -654,13 +654,13 @@ Nothing is logged: the text comes from a peer or a user, and the caller
 says it. Up to SDK 7.29.3 a bound with no `T` was cut by `strtoll()` (`" 5"`
 was 5, `"10.5"` 10, `"2026-10-01 00:00:00"` 2026) and a tkey was read by
 `approxidate()` (`"5"` the 5th of this month, a text that is no date NOW).
-The unreleased R46 code read every text that was not `-?[0-9]+` as a date:
-`" 5"` was the 5th, `"10.5"` May 10, in silence; and until R48 a decimal
-comma was too (`approxidate()` reads `"1,5"` as May 1, `"10,5"` as May 10),
+Unreleased development versions after it read every text that was not
+`-?[0-9]+` as a date: `" 5"` was the 5th, `"10.5"` May 10, in silence; a
+decimal comma was too (`approxidate()` reads `"1,5"` as May 1, `"10,5"` as May 10),
 and digits in groups (`"5 5"` May 5, `"2026 10 01"` January 10 of 2026).
-Until R49 a word more kept the misreading (`"1,5 days ago"`, `"5 5 ago"`,
+Later a word more kept the misreading (`"1,5 days ago"`, `"5 5 ago"`,
 `"2026 10 01 10:00"`, `",5"`), and `"01 10 2026"`, a date read right, was
-refused. In R49 an hour with am/pm after a date (`"Oct 1 2026 3 pm"`), the
+refused. Then an hour with am/pm after a date (`"Oct 1 2026 3 pm"`), the
 decimal comma of the seconds (`"2026-10-01T10:00:00,500Z"`), a comma before
 a clock time (`"2026-10-01,10:00"`) and a two-digit year after a month name
 (`"Oct 1 26"`) were refused, and a day and a year after any word were a
@@ -745,7 +745,7 @@ is no text"* when `jn_text` is not a string.
 
 **Notes**
 
-`json_string_value()` gives the text up to its first NUL. Before R48 the
+`json_string_value()` gives the text up to its first NUL. Up to 7.29.3 the
 tranger read a tkey and a bound with it: `{"id":1,"tm":"5\u0000junk"}` was
 appended with `__tm__` 5, and a `before` of
 `"2026-10-01T00:00:00Z\u0000garbage"` purged the files before that date.
@@ -2835,7 +2835,7 @@ Only the library shares one, where it is the same topic and key:
 history iterator and then its feed the same `match_cond`, so the feed gets
 the bounds the iterator resolved for that key (a keyless list gives each
 key's iterator a copy, and its feed the negative bounds unresolved).
-Up to R48 `tr2search -r` did, and every topic read a date in the unit of the
+Up to 7.29.3 `tr2search -r` did, and every topic read a date in the unit of the
 first one.
 
 ```C
@@ -2963,8 +2963,8 @@ The two axes are not ordered the same way, and the scan knows it:
   name or path is too long: a load reads it whole (logged once)"*), never tried
   again, and read whole at every load, with no log there (a replica loads it at
   every append). The master and the load ask the same length rule, so the
-  file's range is never taken from its first and last rows. Up to the R46
-  round a path too long logged an ERROR with a stack at EVERY late append, and
+  file's range is never taken from its first and last rows. Up to 7.29.3 a
+  path too long logged an ERROR with a stack at EVERY late append, and
   a reload took the file as in order (a late row's maximum was hidden from a
   `t` query); a name too long logged an ERROR at every load. For example, a
   topic directory of 3950 bytes and a key of 120: `keys/<key>/2000-01-01.json`
@@ -3214,7 +3214,7 @@ The path of that link, `disks/<rt_id>/<key>/<file>`, is longer than the
 master's `keys/<key>/<file>`, so a key the master stores can be too long for a
 feed. Its records do not reach that feed, and the master logs it ONCE for the
 key and the feed, at its first record (*"Path too long, the records of this
-key do not reach this feed (logged once)"*). In the R46 round (unreleased) it
+key do not reach this feed (logged once)"*). An unreleased development version
 logged an ERROR with a stack for every record and every feed; up to 7.29.3 the
 path was cut in silence and the link was made from the cut path. For example,
 with a feed directory of 3962 bytes, a key of 200 bytes (no room for

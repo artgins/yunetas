@@ -39,7 +39,7 @@
  *            never show in it. The echo of an 06 carries its value back,
  *            and the transport's dump of what it RECEIVES cannot hide it
  *            (nobody can mark received bytes): only that line may.
- *          - (REV-CLOUD V45) the requests go out at once on the message of
+ *          - the requests go out at once on the message of
  *            cycle 1, not a timeout_polling later; a request whose numbers
  *            are not numbers ("abc", null, "010", 20.9, "12ab"), or that
  *            passes 65535, is refused, and the refusal of a value that
@@ -48,7 +48,7 @@
  *            dropped by its transaction id instead of answering the next
  *            one; and an answer with an MBAP of length 3 fails its request
  *            as a bad answer (a warning), not as an internal error.
- *          - (REV-CLOUD V46) an exception of another function (0x84 to a
+ *          - an exception of another function (0x84 to a
  *            03) fails its read as a bad answer, not as the exception; the
  *            late echo of a write (06, its value made to be found), which
  *            comes while a read is in flight, is dumped hidden by the
@@ -58,7 +58,7 @@
  *            taken; an MBAP of length 65535 drops the connection instead of
  *            swallowing every answer after it; and a block answered with a
  *            write function (06, in cycle 2) fails, not "answered again".
- *          - (REV-CLOUD V46) the disabled block is reported once, at start,
+ *          - the disabled block is reported once, at start,
  *            and every cycle skips it: no log, and no timeout_polling wait
  *            between block A and block B. Up to the fix each cycle logged
  *            "cur_map_ DISABLED" and waited timeout_polling there, so no
@@ -120,7 +120,7 @@ PRIVATE const char *requests[] = {
      *  Refused at once, so answered before the queued ones: a number of a
      *  request is a json integer or its text, as the command parser reads
      *  one -- no "abc" as 0, no "010" as 8, no 20.9 as 20 -- and it fits.
-     *  Up to the fix of REV-CLOUD V45.2 every one of them was sent
+     *  Up to 7.29.2 every one of them was sent.
      */
     "{'tag': 'a_txt', 'type': 'holding_register', 'address': 'abc', 'value': 1}",
     "{'tag': 'a_null', 'type': 'holding_register', 'address': null, 'value': 1}",

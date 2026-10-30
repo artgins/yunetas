@@ -6484,7 +6484,7 @@ PRIVATE json_t *answered_topic(hgobj gobj, json_t *jn_resp, const char *topic_na
  *    - after an edit of the left topic `departments` (tw_ose) publishes
  *      it WHOLE: the edit made it the operator's, its left columns too.
  *      It was published without its left `id` column, a topic the treedb
- *      refuses at its next open (REV-CLOUD V20 #18).
+ *      refuses at its next open.
  *
  *  Red before: the save with no edit answered "saved ... schema_version 3"
  *  with `departments` and `users.email` in the schema, and the apply put

@@ -4391,7 +4391,7 @@ PRIVATE void trace_refused_record(
  *  the first bytes of its json, masked and walked on a budget
  *  (json_mask_secrets_capped(), the kernel's rule for a kw from a peer).
  *  The record comes from a peer or a user, and its whole dump came with
- *  every refused append (REV-CLOUD V47.2).
+ *  every refused append.
  ***************************************************************************/
 PRIVATE void trace_refused_peer_record(
     hgobj gobj,
@@ -4515,7 +4515,7 @@ PRIVATE int append_content(
     /*
      *  An md2 row keeps 44 bits of each time: the flags go over the rest.
      *  A time past them is appended cut, as it always was -- and said: it
-     *  was cut without a word (REV-CLOUD V20 c5 #4). A caller that takes
+     *  was cut without a word. A caller that takes
      *  the time from a peer refuses it first (tranger2_record_tkey_time()).
      */
     if((md_record.__t__ | md_record.__tm__) > TRANGER2_MAX_TIME || tm_wrapped) {
@@ -9756,8 +9756,9 @@ PRIVATE int master_to_update_client_load_record_callback(
  *  longer than keys/<key>/<file>, which fitted). The records of that key
  *  do not reach that feed. Logged ONCE for the key of the feed, at its
  *  first record: the path is the same for every record (the file name has
- *  one length), and up to the R46 round an ERROR with a stack came with
- *  every record and every feed. The flag is looked up only on this path,
+ *  one length), and an unreleased development version logged an ERROR
+ *  with a stack for every record and every feed. The flag is looked up
+ *  only on this path,
  *  never for a record whose path fits.
  *  `key` is data: a KEY of the dict, never a path.
  ***************************************************************************/
@@ -15058,7 +15059,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
          *  long (the master could not write it either, and logged it once):
          *  the file is taken as marked, read whole, never trusted. Not
          *  logged: a replica loads the file at every append of the master,
-         *  and up to the R46 round an ERROR came with each load (name too
+         *  and up to 7.29.3 an ERROR came with each load (name too
          *  long; a path too long was not seen, the file was taken as in
          *  order and a late row's file hidden from a t query).
          */
@@ -15312,7 +15313,7 @@ PRIVATE void mark_file_unordered(
          *  `<mark>_not_on_disk`, nothing to try again, and the cell keeps
          *  `<mark>`, so a later append returns above. A load does not
          *  look for it either (marker_fits()), it reads the file whole.
-         *  Up to the R46 round every late append tried it again and
+         *  Up to 7.29.3 every late append tried it again and
          *  build_path() logged an ERROR with a stack each time.
          */
         json_object_del(cache_cell, not_on_disk);
@@ -18288,14 +18289,15 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
  *  (see the header). Up to 7.29.3 a bound with no 'T' was cut by
  *  strtoll() (" 5" was 5, "10.5" 10, "2026-10-01 00:00:00" 2026) and a
  *  tkey read by approxidate() (a text that is no date was NOW, "5" the
- *  5th of this month). R46 read every text that is not -?[0-9]+ as a
- *  date: " 5" was the 5th, "10.5" May 10, in silence. Up to R48 a word more
+ *  5th of this month). Unreleased development versions after it read
+ *  every text that is not -?[0-9]+ as a date: " 5" was the 5th, "10.5"
+ *  May 10, in silence. Then a word more
  *  kept a misreading ("1,5 days ago", "5 5 ago", "2026 10 01 10:00"), and
- *  "01 10 2026", a date read right, was refused (V49). Up to R49 an hour
+ *  "01 10 2026", a date read right, was refused. Then an hour
  *  with am/pm after a date ("Oct 1 2026 3 pm"), the decimal comma of the
  *  seconds ("10:00:00,500"), a comma before a clock time and a two-digit
  *  year after a month name ("Oct 1 26") were refused, and a day and a
- *  year after any word were a date ("yesterday 1 2026", V50).
+ *  year after any word were a date ("yesterday 1 2026").
  ***************************************************************************/
 PUBLIC int tranger2_time_of_text(
     const char *text,

@@ -1469,7 +1469,7 @@ PRIVATE const char *secret_name_parts[] = {
  *  (api_key, apikey, x-api-key, ESIOS_API_KEY; session_id, __session_id__)
  */
 PRIVATE const char *secret_name_joined[] = {
-    "apikey",       // api_key of wattyzer gate_pvpc (write-attr attribute=api_key value=...)
+    "apikey",       // api_key of a gate (write-attr attribute=api_key value=...)
     "sessionid",    // __session_id__ of c_ievent_srv / c_prot_mqtt2
     "sessionkey",
     "authdata",     // auth_data of c_prot_mqtt2 (the MQTT 5 auth data)
@@ -5855,8 +5855,7 @@ PUBLIC int json_check_refcounts(
  *  dict or a list gets a frame (32 bytes): a scalar is counted where its
  *  container is walked. Up to 7.26.9 a frame was reserved for EVERY child
  *  of the container being walked, scalars too, so a list of a million
- *  integers asked one block of 32 MB and the walk stopped at its root
- *  (REV-CLOUD V24.4.5).
+ *  integers asked one block of 32 MB and the walk stopped at its root.
  *
  *  The frames are kept in chunks of REFCOUNT_CHUNK_FRAMES: no block grows
  *  with the json, MAX_BLOCK bounds none of them.
@@ -6158,8 +6157,8 @@ PRIVATE BOOL refcount_check_one(
      *  more times than its refcount says it is held has a refcount BELOW
      *  the truth -- what check-json exists to find: a cycle whose refcounts
      *  are corrupted, a json json_object_set_new()'d into two places. Such a
-     *  cycle was walked round until its frames passed MAX_BLOCK (REV-CLOUD
-     *  V22.5.3), and then ended without saying it (V23.4.4). The root is
+     *  cycle was walked round until its frames passed MAX_BLOCK,
+     *  and then ended without saying it. The root is
      *  reached once by the caller, who holds it.
      */
     uint32_t reached = 0;

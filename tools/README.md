@@ -364,7 +364,7 @@ of what it read (on stderr).
 T=/yuneta/development/yunetas/tools/treedb
 
 python3 $T/check_store_schemas.py                       # every store under /yuneta/store
-python3 $T/check_store_schemas.py /yuneta/store/wattyzerdb   # one store
+python3 $T/check_store_schemas.py /yuneta/store/myappdb     # one store
 
 # a node still on an older package: stream it over ssh
 ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py

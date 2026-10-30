@@ -167,7 +167,7 @@ first (-403 included).
  *  command parser and of C_TREEDB: from outside -- the kw carries
  *  `__username__`, C_IEVENT_SRV's stamp (command_is_external()) -- the
  *  mistake is the peer's, a WARNING without a stack; from C code it is a
- *  broken contract, an ERROR with one (REV-CLOUD V20 #17).
+ *  broken contract, an ERROR with one.
  */
 #define log_refusal(gobj_, peer_, ...)                                  \
     do {                                                                \
@@ -858,7 +858,7 @@ PRIVATE BOOL command_is_external(json_t *kw)
  *  or a name that breaks the topic rule, is refused BEFORE the tranger,
  *  which logs an ERROR for it ("Cannot open topic", "Invalid topic name"):
  *  a WARNING for a peer's, an ERROR for a C caller's, a broken contract
- *  (log_refusal(), REV-CLOUD V20.4.2). TRUE = refused.
+ *  (log_refusal()). TRUE = refused.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_topic_name(hgobj gobj, BOOL peer, const char *topic_name)
 {
@@ -933,8 +933,8 @@ PRIVATE const char *schema_owner_of_topic(json_t *tranger, const char *topic_nam
  *  keep the immutable seeds and ask their authz. A raw record appended to
  *  `users` was that node at the next load (the newest record of a key
  *  wins), a delete-key took a node behind the treedb's back, and a
- *  delete-topic took a topic of a running treedb, whose next writes failed
- *  (REV-CLOUD V20 G). A C caller is its own owner. TRUE = refused, with a
+ *  delete-topic took a topic of a running treedb, whose next writes failed.
+ *  A C caller is its own owner. TRUE = refused, with a
  *  WARNING.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_write_of_owned_topic(
@@ -973,9 +973,9 @@ PRIVATE BOOL refuse_peer_write_of_owned_topic(
  *  one was an ERROR of the tranger (a name too long, a CRITICAL), or was
  *  dropped in silence, and two key types made a topic that refused every
  *  append. Nor a file of the database by that name (its mkrdir() was a
- *  CRITICAL), nor a new topic_version over a SYSTEM topic (REV-CLOUD V20).
+ *  CRITICAL), nor a new topic_version over a SYSTEM topic.
  *
- *  From a peer (`peer`), also (REV-CLOUD V20 A, J, L):
+ *  From a peer (`peer`), also:
  *  - the jn_var the tranger can take from outside
  *    (tranger2_topic_var_fault()): no field the tranger keeps itself, no
  *    `system_topic` (a topic nothing deletes), `topic_version` and
@@ -1055,8 +1055,8 @@ PRIVATE json_t *refuse_peer_new_topic(
              *  A new topic_version re-writes topic_cols.json and topic_var.json
              *  of a topic that exists (the change of a schema): over a SYSTEM
              *  topic it took the mark that protects it from delete-topic, and
-             *  its columns. Refused as delete-topic refuses it (REV-CLOUD
-             *  V20.7); the change of any other topic is the feature it is.
+             *  its columns. Refused as delete-topic refuses it;
+             *  the change of any other topic is the feature it is.
              */
             json_t *topic = tranger2_topic(priv->tranger, topic_name);  // NULL: logged
             json_int_t new_version = json_is_object(jn_var)?
@@ -1070,7 +1070,7 @@ PRIVATE json_t *refuse_peer_new_topic(
             } else if(new_version > version &&
                     (owner = schema_owner_of_topic(priv->tranger, topic_name))) {
                 /*
-                 *  The rule (REV-CLOUD V20 D4): the schema of a topic that a
+                 *  The rule: the schema of a topic that a
                  *  treedb or a msg2db open on this tranger declares is THEIRS,
                  *  and it moves with theirs (a literal, save-schema +
                  *  apply-schema), never with a create-topic: written over
@@ -1096,8 +1096,7 @@ PRIVATE json_t *refuse_peer_new_topic(
                  *  written from no columns, they were wiped. A topic of a
                  *  plain tranger, with its jn_cols, keeps the feature; and so
                  *  does one that has no columns by design (timeranger2
-                 *  columns are optional): there is nothing to wipe
-                 *  (REV-CLOUD V20 c3#1d).
+                 *  columns are optional): there is nothing to wipe.
                  */
                 why = "a new topic_version of a topic that exists needs its jn_cols: "
                     "without them its columns were written empty";
@@ -1133,7 +1132,7 @@ PRIVATE json_t *refuse_peer_new_topic(
  *  not an integer was appended in silence under the key 0. And no string
  *  of it holds a NUL (json_nul_fault(), at any depth): a frame is decoded
  *  with JSON_ALLOW_NUL, and C reads a string up to its NUL, a pkey among
- *  them (REV-CLOUD V23.4.2). Nor does its `__t__` fall in a purged period
+ *  them. Nor does its `__t__` fall in a purged period
  *  of its key (tranger2_record_in_purged_period()): the tranger refused it
  *  with an ERROR, and the peer read "see the log". The cause when refused,
  *  said in a WARNING for a peer, an ERROR for a C caller (log_refusal());
@@ -1183,8 +1182,7 @@ PRIVATE const char *refuse_peer_record(
         why = "a negative __t__";
     } else if(!why && (uint64_t)__t__ > TRANGER2_MAX_TIME) {
         /*  The md2 row holds 44 bits of it: the flags were written over the
-         *  rest, and the record kept another time than its file's name
-         *  (REV-CLOUD V20 D8)  */
+         *  rest, and the record kept another time than its file's name  */
         why = "a __t__ larger than the time a record keeps (44 bits)";
     } else if(!why && __t__ > 0) {
         /*  The tranger names the file of the record by its __t__  */
@@ -1201,8 +1199,8 @@ PRIVATE const char *refuse_peer_record(
          *  read by tranger2_time_of_json_text(): the text of a JSON integer is
          *  that integer, another text a date (x1000 on an sf_tm_ms topic),
          *  and a text that is neither does not fit. A date has no year
-         *  limit: "@<seconds> +0000" is any number of seconds (REV-CLOUD
-         *  V20 c4 B), so the value the row would keep is asked, as the
+         *  limit: "@<seconds> +0000" is any number of seconds,
+         *  so the value the row would keep is asked, as the
          *  append computes it (tranger2_record_tkey_time()).
          */
         BOOL fits = TRUE;
@@ -1248,8 +1246,8 @@ PRIVATE const char *refuse_peer_record(
  *  A key a command names is a directory of the topic, `keys/<key>/`, and
  *  the tranger reads it with no check when it opens a list, an iterator or
  *  a feed on it: `../../<another topic>/keys/<k>` read the records of
- *  another topic, under the permission asked for this one (REV-CLOUD
- *  V20.2). One component: no '/', no leading '.', NAME_MAX at most -- what
+ *  another topic, under the permission asked for this one.
+ *  One component: no '/', no leading '.', NAME_MAX at most -- what
  *  tranger2_delete_key() and add-record ask of a key. An empty key is none
  *  (every key). TRUE = refused, with a WARNING for a peer, an ERROR for a C
  *  caller (log_refusal()).
@@ -1275,7 +1273,7 @@ PRIVATE BOOL refuse_peer_key(hgobj gobj, BOOL peer, const char *topic_name, cons
  *  Something that is not a directory is there by that name: a file of the
  *  database (`__timeranger2__.json`), or a link to nothing. The mkrdir() of
  *  a topic over it was a CRITICAL of the tranger, an exit of the yuno with
- *  the default on_critical_error (REV-CLOUD V20.1).
+ *  the default on_critical_error.
  ***************************************************************************/
 PRIVATE BOOL path_is_not_a_directory(const char *path)
 {
@@ -2311,7 +2309,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Check AUTHZS
      *
      *  `read`, the permission of print-tranger: both walk the tranger
-     *  json and change nothing (REV-CLOUD V20.11).
+     *  json and change nothing.
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
@@ -2330,7 +2328,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  What it finds is the ANSWER: json_check_refcounts() logged an ERROR,
      *  and a json trace, for every json held more than max_refcount times
      *  -- with the default 1, every node of a treedb, held by its indexes
-     *  and its parents' hooks: a reader filled the log (REV-CLOUD V21.2.3).
+     *  and its parents' hooks: a reader filled the log.
      *  Only a corrupted json is our own broken invariant, and is logged.
      */
     json_int_t max_refcount = kw_get_int(gobj, kw, "max_refcount", 0, 0);
@@ -2361,7 +2359,6 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  -1 is a fault: a corrupted json, or a walk that stopped short. What
      *  is held more than max_refcount times is the answer to the question
      *  asked, a 0: with max_refcount=1 a sound treedb answered -1
-     *  (REV-CLOUD V22.5.4)
      */
     json_t *jn_comment;
     if(max_refcount > 0) {
@@ -3396,7 +3393,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  tranger2_time_of_json_text() -- the text of a JSON integer is that
      *  number, another a date, and one that is neither is refused by the
      *  tranger, with a warning. They were DTP_STRING, and an integer
-     *  from a kw was refused by the command parser (REV-CLOUD V20.13).
+     *  from a kw was refused by the command parser.
      */
     static const char *time_bounds[] = {"from_t", "to_t", "from_tm", "to_tm", NULL};
     for(int i = 0; time_bounds[i]; i++) {
@@ -3834,7 +3831,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     if(json_is_string(jn_record)) {
         const char *s = json_string_value(jn_record);
         if(json_string_length(jn_record) != strlen(s)) {
-            /*  Its json text, parsed up to the NUL (REV-CLOUD V23.4.2)  */
+            /*  Its json text, parsed up to the NUL  */
             not_a_record = "the json text of the record holds a NUL";
         } else {
             record = anystring2json(s, strlen(s), FALSE);
@@ -3843,7 +3840,7 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         record = json_incref(jn_record);
     }
     if(!json_is_object(record)) {
-        /*  A peer's data: it answered -1 with no log (REV-CLOUD V20.9)  */
+        /*  A peer's data: it answered -1 with no log  */
         log_refusal(gobj, command_is_external(kw),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,

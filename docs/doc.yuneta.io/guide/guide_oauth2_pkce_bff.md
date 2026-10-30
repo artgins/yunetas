@@ -293,7 +293,7 @@ The `Domain` attribute is critical: it allows the cookie set by the BFF on port 
 
 ```json
 {
-  "issuer":               "https://auth.artgins.com/realms/estadodelaire.com/",
+  "issuer":               "https://auth.artgins.com/realms/myrealm/",
   "client_id":            "gui_treedb",
   "client_secret":        "",
   "cookie_domain":        "yunetas.com",
@@ -359,7 +359,7 @@ in production:
 ```javascript
 keycloak_configs = {
   "treedb.yunetas.com": {
-    realm: "estadodelaire.com",
+    realm: "myrealm",
     "auth-server-url": "https://auth.artgins.com",
     resource: "gui_treedb",
     "public-client": true

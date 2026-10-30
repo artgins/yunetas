@@ -5212,7 +5212,7 @@ PRIVATE json_t *as_peer(json_t *kw)  // kw owned, returned
 
 /***************************************************************************
  *  Test 13d2: the data of a peer is refused -- a WARNING, no stack, and -1
- *  that says why -- before the library logs its ERROR (REV-CLOUD V20.4):
+ *  that says why -- before the library logs its ERROR:
  *  a treedb_name of the wrong type (which made save-schema save EVERY
  *  treedb), a treedb that is not open here ("Treedb not open here"), an
  *  unknown or a system topic to delete ("Topic name not found in
@@ -5229,7 +5229,7 @@ PRIVATE int check_peer_data_refused(hgobj gobj)
 
     /*
      *  A wrong type does not widen a write to every treedb: refused by the
-     *  command parser (V20.4.1), with no answer per treedb
+     *  command parser, with no answer per treedb
      */
     const char *scoped_cmds[] = {"save-schema", "apply-schema", NULL};
     for(int i = 0; scoped_cmds[i]; i++) {
@@ -5399,8 +5399,8 @@ PRIVATE json_t *seeded_schema(const char *treedb_name)
 }
 
 /***************************************************************************
- *  Test 13d3: more of a peer's data is refused, a WARNING each (REV-CLOUD
- *  V20): a topic named as a FILE of the database (its mkrdir() was a
+ *  Test 13d3: more of a peer's data is refused, a WARNING each:
+ *  a topic named as a FILE of the database (its mkrdir() was a
  *  CRITICAL), pkey2s that collide or break the column rule (an index
  *  corrupted, an ERROR per create), names too long for the lists of the
  *  indexes (an id cut, two lists on one), a filename_mask that is a path
@@ -5508,8 +5508,7 @@ PRIVATE int check_more_peer_data_refused(hgobj gobj)
     memset(too_long, 't', sizeof(too_long) - 1);
     too_long[sizeof(too_long) - 1] = 0;
     /*  `.x`: its node in __system__ (the name is its id) was refused with an
-     *  ERROR, and it ran with no projection; `x.json` is a file of a store
-     *  (REV-CLOUD V21.2.1)  */
+     *  ERROR, and it ran with no projection; `x.json` is a file of a store  */
     const char *bad_names[] = {"__system__", "__other", "a^b", too_long, ".x", "x.json", NULL};
     for(int i = 0; bad_names[i]; i++) {
         result += check_refused(gobj, bad_names[i],
@@ -5527,7 +5526,7 @@ PRIVATE int check_more_peer_data_refused(hgobj gobj)
         );
     }
     {
-        /*  the schema of another treedb: its id is not the name (V21.2.2)  */
+        /*  the schema of another treedb: its id is not the name  */
         result += check_refused(gobj, "open-treedb with the schema of another treedb",
             gobj_command(priv->gobj_treedbs, "open-treedb",
                 as_peer(json_pack("{s:s, s:s, s:o}", "treedb_name", "treedb_refused",
@@ -5706,8 +5705,7 @@ PRIVATE int close_and_delete_treedb(hgobj gobj, const char *treedb_name, const c
 
 /***************************************************************************
  *  Test 13d4: what the treedb refuses of a peer's schema is refused BEFORE
- *  the open, and the store a peer names must be that treedb's (REV-CLOUD
- *  V20, third pass):
+ *  the open, and the store a peer names must be that treedb's:
  *  - a topic with no columns, no `id` column, a bad `file` column: the
  *    open logged the CRITICAL "Cannot create topic of the schema", an exit
  *    with the peer's exit_on_error (D1); a C caller's is an ERROR;
@@ -5762,7 +5760,7 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
         );
     }
     /*
-     *  A C caller's open goes as it always went (REV-CLOUD V20 #1): the
+     *  A C caller's open goes as it always went: the
      *  topic the treedb refuses is logged (the ERROR and the CRITICAL "Cannot
      *  create topic of the schema", which does not exit: exit_on_error 0)
      *  and left out, and the treedb OPENS. Refused up front, it answered -1,
@@ -5786,7 +5784,7 @@ PRIVATE int check_peer_schema_and_store_refused(hgobj gobj)
     /*
      *  ... and so does its name: a name of the system from C opens, as it
      *  did (the name rule is a peer's). And so does a C caller's
-     *  create-topic (REV-CLOUD V20 c4 #3): the up-front checks of C_TREEDB
+     *  create-topic: the up-front checks of C_TREEDB
      *  are a peer's, and a file of the database is refused by the tranger,
      *  as it was (its CRITICAL, with exit_on_error 0 here)
      */
@@ -6180,7 +6178,7 @@ PRIVATE int check_done(hgobj gobj, const char *what, json_t *jn_resp)
 }
 
 /***************************************************************************
- *  Test 13d5 (REV-CLOUD V20, fourth pass), #1: an open-treedb of the C
+ *  Test 13d5, #1: an open-treedb of the C
  *  code goes as it always went, whatever its data: what tr_treedb refuses
  *  of it is logged and left out, and the treedb OPENS -- the agent exits
  *  on an open-treedb that answers -1 (c_agent.c), and the yunos of the
@@ -6619,7 +6617,7 @@ PRIVATE int close_peer_treedb(hgobj gobj, const char *treedb_name)
 }
 
 /***************************************************************************
- *  Test 13d6 (REV-CLOUD V20, fifth pass), c4 A: a PEER never makes the
+ *  Test 13d6, c4 A: a PEER never makes the
  *  treedb adopt a topic another database of its store owns. The store of
  *  a treedb is the tranger of others too: the db_history yunos open their
  *  msg2db `alarms` on it. create-topic of the msg2db's topic with a higher
@@ -7050,7 +7048,7 @@ PRIVATE int check_peer_open_of_code_treedb(hgobj gobj)
 }
 
 /***************************************************************************
- *  Test 13d7 (REV-CLOUD V20, sixth pass), c5 #7: a peer never closes a
+ *  Test 13d7, c5 #7: a peer never closes a
  *  treedb the code of the yuno opened, playing or PAUSED, with `force` or
  *  without. mqtt_broker opens treedb_mqtt_broker in mt_start and keeps it
  *  through a pause: the guards of close-treedb asked only a PLAYING yuno,
@@ -7268,7 +7266,7 @@ PRIVATE int check_tkey_date_past_max_c_node(hgobj gobj)
     }
     JSON_DECREF(node)
 
-    /*  V46.3: a tkey that is a text that is no date, NOW up to 7.29.3  */
+    /*  A tkey that is a text that is no date, NOW up to 7.29.3  */
     result += check_refused(gobj, "create-node of a peer with a tkey that is no date",
         gobj_command(gobj_db, "create-node",
             as_peer(json_pack("{s:s, s:{s:s, s:s}}",

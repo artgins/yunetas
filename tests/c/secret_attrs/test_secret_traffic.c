@@ -352,11 +352,11 @@ PRIVATE void check_received_dump(void)
     if(strcmp(text, expected)!=0) {
         printf("     got      %s\n     expected %s\n", text, expected);
     }
-    check_int("the bytes masked", (int)masked, 9+25+9+9+1+2);   // "pin" is a secret's name (V23.4.3)
+    check_int("the bytes masked", (int)masked, 9+25+9+9+1+2);   // "pin" is a secret's name
 
     /*
      *  A JWT, and the token after "Bearer ", by their shape: wherever they
-     *  are in the bytes (REV-CLOUD V23.4.3)
+     *  are in the bytes
      */
     char text3[] =
         "{\"note\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig-hunter2\","
@@ -373,7 +373,7 @@ PRIVATE void check_received_dump(void)
     }
 
     /*
-     *  REV-CLOUD V24.4.2/3: a value under a secret's name that is a scheme
+     *  A value under a secret's name that is a scheme
      *  and its credential is masked WHOLE (the name rule masked the scheme,
      *  and the scheme rule then saw "******"); "Basic" wherever a "Bearer"
      *  would be; a "name: value" of another header or a label; a quoted
@@ -401,8 +401,8 @@ PRIVATE void check_received_dump(void)
         {"Authorization: Basic dXNlcjpwYXNz\r\n", "Authorization: Basic ************\r\n"},
 
         /*
-         *  REV-CLOUD V24, the security review of 2e8d0589f: each rule judges
-         *  the bytes as they came, 7.26.9's rules among them whole -- V24
+         *  Each rule judges
+         *  the bytes as they came, 7.26.9's rules among them whole -- a review
          *  showed what 7.26.9 masked, and the end of a dump is where a cap
          *  cuts a credential
          */

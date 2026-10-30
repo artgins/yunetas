@@ -9,8 +9,8 @@
  *            2. attr on, no permission     -> command DENIED (-403), not run
  *            3. attr on, self src (==gobj) -> bypass, command runs
  *            4. attr on, permission granted-> command runs
- *            5. the permission is asked BEFORE the parameters are read
- *               (REV-CLOUD V21.3.8): without it, a parameter of the wrong
+ *            5. the permission is asked BEFORE the parameters are read:
+ *               without it, a parameter of the wrong
  *               type still answers -403, never its diagnostic; with it,
  *               the parameter is refused (-1); and the checker is asked
  *               for the command's NAME, not its line (the line, with its
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
     check_int("ext allow runs", g_executed, 1);
     JSON_DECREF(r)
 
-    /* Case 6: the permission first, then the parameters (REV-CLOUD V21.3.8) */
+    /* Case 6: the permission first, then the parameters */
     g_allow = FALSE; g_executed = 0; g_checked_command[0] = 0;
     r = gobj_command(yuno, "typed n=abc",
         json_pack("{s:s}", "__username__", "alice"), src);

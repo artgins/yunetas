@@ -491,7 +491,7 @@ PRIVATE int test_open(void)
     result += test_json(NULL);
 
     /*
-     *  The secondary keys, before the topic exists too (REV-CLOUD V20.5):
+     *  The secondary keys, before the topic exists too:
      *  named twice, the pkey "id", with a backtick, or the tkey, the index
      *  of a pkey2 collided with another (a node stored inside itself, two
      *  lists on one id) or was made where it is not read. A schema fault:
@@ -569,7 +569,7 @@ PRIVATE int test_open(void)
      *  The names that go into a reference, `topic^id^hook`: a '^' in the
      *  name of the topic or of a hook split every ref to its nodes in more
      *  than three parts. And a pkey2 is the value of the column of its
-     *  name: one that names no column indexed nothing (REV-CLOUD V21.2.2).
+     *  name: one that names no column indexed nothing.
      *  An ERROR for a C caller, a WARNING inside the window of a peer's.
      */
     set_expected_results(
@@ -625,7 +625,7 @@ PRIVATE int test_open(void)
 
     /*
      *  An id is a string: an integer was read with an ERROR of kw_get_str()
-     *  and the node made with no id, or a uuid (REV-CLOUD V21.2.4)
+     *  and the node made with no id, or a uuid
      */
     set_expected_results(
         "create-node refuses an id that is not a string",

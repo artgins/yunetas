@@ -32,7 +32,7 @@
 /*
  *  A fault of the DATA of a node: an ERROR with its stack for a C caller, a
  *  WARNING without it when a command of this gclass handed a peer's data to
- *  the treedb (treedb_set_peer_data(), REV-CLOUD V18.3)
+ *  the treedb (treedb_set_peer_data())
  */
 #define log_data_fault(gobj_, opt_, ...)                    \
     do {                                                    \
@@ -708,7 +708,7 @@ PRIVATE int mt_start(hgobj gobj)
          *  The seeds of a peer are its data at every start, not only at the
          *  one inside its open-treedb: a pause-yuno + play-yuno applies them
          *  again with no window of anybody's around, and what they get wrong
-         *  came back as ERRORs (REV-CLOUD V20 D7).
+         *  came back as ERRORs.
          */
         BOOL peer_seeds = gobj_read_bool_attr(gobj, "peer_initial_load");
         BOOL peer_data_ = peer_seeds? treedb_set_peer_data(TRUE) : FALSE;
@@ -2933,7 +2933,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     /*
      *  The topic AFTER the permission: a peer without it was told which
-     *  topics exist, and could raise warnings at will (REV-CLOUD V16.1).
+     *  topics exist, and could raise warnings at will.
      */
     if(refuse_peer_topic_name(gobj, topic_name)) {
         json_decref(jn_content);
@@ -3123,7 +3123,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     /*
      *  The topic AFTER the permission: a peer without it was told which
-     *  topics exist, and could raise warnings at will (REV-CLOUD V16.1).
+     *  topics exist, and could raise warnings at will.
      */
     if(refuse_peer_topic_name(gobj, topic_name)) {
         json_decref(jn_content);
@@ -3169,7 +3169,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  A node that does not exist, and no `create`: the peer's data, a
      *  warning and a refusal. mt_update_node logs an ERROR with a stack for
-     *  it: for a C caller it is a broken contract (REV-CLOUD V17.3.1).
+     *  it: for a C caller it is a broken contract.
      */
     if(is_new && !create) {
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3370,7 +3370,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     /*
      *  The topic AFTER the permission: a peer without it was told which
-     *  topics exist, and could raise warnings at will (REV-CLOUD V16.1).
+     *  topics exist, and could raise warnings at will.
      */
     if(refuse_peer_topic_name(gobj, topic_name)) {
         return msg_iev_build_response(
@@ -4663,7 +4663,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     /*
      *  The topic AFTER the permission: a peer without it was told which
-     *  topics exist, and could raise warnings at will (REV-CLOUD V16.1).
+     *  topics exist, and could raise warnings at will.
      */
     if(refuse_peer_topic_name(gobj, topic_name)) {
         return msg_iev_build_response(
@@ -4864,7 +4864,7 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
     /*
      *  A pkey2 that is not a SECONDARY index of the topic: "id" named the
      *  primary one, and every field of every node was walked as an
-     *  instance, 9 errors per node (REV-CLOUD V18.3).
+     *  instance, 9 errors per node.
      */
     if(!empty_string(pkey2)) {
         BOOL is_pkey2 = FALSE;
@@ -5757,7 +5757,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
          *  What the upload names is the peer's data, as in create-node: an
          *  unknown topic, records that are not a list, a record of a wrong
          *  shape are refused with a WARNING and counted, not read on into
-         *  ERRORs of the treedb (REV-CLOUD V19.3.3). In the default mode
+         *  ERRORs of the treedb. In the default mode
          *  (abort) the first one ends the import, as any other failure.
          */
         const char *refused = NULL;
@@ -6559,7 +6559,7 @@ PRIVATE int write_seed_links(
              *  The ref is asked first, with no log of its own: the ref of a
              *  peer's seed went to decode_parent_ref(), treedb_get_node()
              *  and treedb_link_nodes(), each one an ERROR for what it did
-             *  not like, inside the peer's window too (REV-CLOUD V20 D7)
+             *  not like, inside the peer's window too
              */
             char parent_topic[NAME_MAX];
             char parent_id[NAME_MAX];
@@ -6649,7 +6649,7 @@ PRIVATE int write_seed_links(
  *  The seeds are the data of whoever opened the treedb: what they get wrong
  *  (a topic the treedb has not, a record without id, a ref that names no
  *  parent) is a WARNING inside the window of a peer's data -- C_TREEDB
- *  opens it around an external open-treedb (REV-CLOUD V20.8) -- and an
+ *  opens it around an external open-treedb -- and an
  *  ERROR for a C caller.
  ***************************************************************************/
 PRIVATE int apply_initial_load(hgobj gobj)
@@ -6880,7 +6880,7 @@ PRIVATE void mark_copy_not_pure(json_t *jn)
 /***************************************************************************
  *  A hook, an fkey or a parent ref named by a command is a PEER's data: one
  *  that breaks the name rule is a warning and a refusal here, not the error
- *  with which treedb refuses it (REV-CLOUD V13.1, V14.2). TRUE = refused.
+ *  with which treedb refuses it. TRUE = refused.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_col_name(
     hgobj gobj,
@@ -6908,7 +6908,7 @@ PRIVATE BOOL refuse_peer_col_name(
 /***************************************************************************
  *  A topic named by a command that is not one of this treedb (unknown, or a
  *  name that breaks the topic rule) is the peer's data: a warning and a
- *  refusal, the same for every command (REV-CLOUD V15.3). The methods below
+ *  refusal, the same for every command. The methods below
  *  log an ERROR for it: for a C caller it is a broken contract. TRUE =
  *  refused.
  ***************************************************************************/
@@ -6973,7 +6973,7 @@ PRIVATE BOOL refuse_peer_col_without_flag(
  *  The hook a link or an unlink names must take the CHILD's topic in its
  *  map ('hook': {'<child topic>': '<child field>'}): the peer's data, a
  *  warning and a refusal before the treedb logs its ERROR ("Topic child not
- *  defined in hook desc links", REV-CLOUD V17.3.1). TRUE = refused.
+ *  defined in hook desc links"). TRUE = refused.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_hook_without_child_topic(
     hgobj gobj,
@@ -7007,14 +7007,14 @@ PRIVATE BOOL refuse_peer_hook_without_child_topic(
  *  The record a create, an update or a delete hands over is the peer's: a
  *  dict, and its `id`, when it has one, a string. Anything else was read
  *  further down as a path holding the wrong type -- an ERROR with a stack
- *  and the kw dumped, per read (REV-CLOUD V18.2.2, V18.3). An absent id --
+ *  and the kw dumped, per read. An absent id --
  *  or a null one, which the readers take as absent -- is left to the treedb:
- *  a uuid, rowid or qualified id is made there (V19.3.1). And no string of
+ *  a uuid, rowid or qualified id is made there. And no string of
  *  it holds a NUL (json_nul_fault(), at any depth): an ievent frame is
  *  decoded with JSON_ALLOW_NUL, and C reads a string up to its NUL -- an id
  *  "dx\u0000evil" was indexed as "dx", which then was "Node already exists",
  *  and an update of "g1" with the id "g1\u0000x" saved that id under the key
- *  "g1" (V23.4.2). NULL, or why it is refused.
+ *  "g1". NULL, or why it is refused.
  ***************************************************************************/
 PRIVATE const char *refuse_peer_record(
     hgobj gobj,

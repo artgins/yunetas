@@ -528,7 +528,7 @@ zero. Against zero, the first morning reads as *everything doubled*.
 {
     "date": "2026-08-05",
     "version": 1,
-    "node": "wattyzer",
+    "node": "node1",
     "generated_at": 1754400000,
     "sources": [
         {"file": ".../access.log", "lines": 14321, "kept": 9812,

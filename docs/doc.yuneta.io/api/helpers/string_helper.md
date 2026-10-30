@@ -520,8 +520,8 @@ after `Bearer` or `Basic` ([`mask_secrets_inline()`](#mask_secrets_inline)).
 
 **A known effect, accepted: an ordinary name with one of those segments is a
 secret's too.** `pass`, `pin` and `otp` are whole segments, so `gpio_pin` (a
-pin of a board), a `pass` that counts passes, `first_pass` and wattyzer's
-`sum_sla_pass` (`c_db_history_wz.c`) are taken for secrets: a trace or a dump
+pin of a board), a `pass` that counts passes, `first_pass` and an
+application's `sum_sla_pass` are taken for secrets: a trace or a dump
 shows their values as `********`. It errs on the safe side -- telling them from
 `db_pass` or `sim_pin` would need to know what a name means. The names are
 compared in ASCII, whatever the locale (7.27.0+: a Turkish `LC_CTYPE` did not
@@ -852,8 +852,8 @@ after it, or one word, to a blank or one of `,;&)]}<>"'`.
     ASCII, mixes its case past its first letter, or is long. For `Bearer` it
     has 8 characters at least; for `Basic` its run of base64 decodes to bytes
     that hold a `:` (a `user:password`), whatever follows the run in the word
-    (`(Basic dXNlcjpwYXNz)`) and whatever its length. In the first commit of
-    V24 the token was cut at the first byte of no token68 (`Bearer
+    (`(Basic dXNlcjpwYXNz)`) and whatever its length. In the first version of
+    this rule the token was cut at the first byte of no token68 (`Bearer
     abc%2Bdefghijk` showed it all: `abc` was too short).
 
   | Text | Shown |

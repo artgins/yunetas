@@ -492,7 +492,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *  The dict named `key` in `dict`. A console (or a route) is named by the
  *  user: the name is a KEY, as it is written (json_object_set), never a
  *  path -- read as one, a name holding the delimiter was not found, or
- *  found a field of another console (REV-CLOUD V12.1).
+ *  found a field of another console.
  ***************************************************************************/
 PRIVATE json_t *named_dict(hgobj gobj, json_t *dict, const char *key, BOOL required)
 {

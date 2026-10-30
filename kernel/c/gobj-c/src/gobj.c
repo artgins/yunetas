@@ -954,8 +954,8 @@ PRIVATE int check_secret_positional_params(
  *  (view-attrs, view-config, the create_delete2 trace); everywhere else a
  *  secret is told by its name -- the machine trace with ev_kw of a kw that
  *  carries it, a dump of a peer's kw, any json_mask_secrets() with no
- *  gclass at hand -- and a secret named `vault` showed there in clear
- *  (REV-CLOUD V23.4.3). Refused, fail closed: the gclass is not created.
+ *  gclass at hand -- and a secret named `vault` showed there in clear.
+ *  Refused, fail closed: the gclass is not created.
  *
  *  Not on the ESP32 port (ESP_PLATFORM): its code is FROZEN, never to be
  *  touched, and its C_WIFI declares `wifi_list` SDF_SECRET; the check

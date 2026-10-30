@@ -1037,10 +1037,8 @@ the master's database in read-only mode and registers an
 into `disks/<rt_id>/` for that subscriber. The subscriber's
 filesystem watcher fires, and it re-reads the hardlinks.
 
-Memory
-`feedback_cross_yuno_via_store_not_command`:
-in wattyzer (and by extension other multi-yuno SPAs), cross-yuno
-queries from the SPA go through `db_history_wz` reading B+ yunos'
+In a multi-yuno SPA, cross-yuno
+queries from the SPA go through its `db_history` yuno reading B+ yunos'
 stores *non-master* via this pattern. **[`cmd_command_yuno`](https://github.com/artgins/yunetas/blob/7.29.3/yunos/c/yuno_agent/src/c_agent.c#L6259) does not
 work** for B+ yunos, because they do not publish their service through
 `__top_side__`. The store path is the correct one.
@@ -1636,8 +1634,8 @@ an `id` column would collide on a single `cols` topic keyed by name, and two
 treedbs with a `users` topic would collide on a single `topics` topic keyed by
 name — `users` is a topic of `authzs`, `mqtt_broker` and `controlcenter`
 alike. So the id of a node is **the id of its parent, a dot, and its own
-name**: `treedb_yunovatioscodb.yunos` for a topic,
-`treedb_yunovatioscodb.yunos.yuno_role` for a column. Unique by construction,
+name**: `treedb_myapp.yunos` for a topic,
+`treedb_myapp.yunos.yuno_role` for a column. Unique by construction,
 and the projector composes it instead of looking it up.
 
 The separator cannot be `^`. That is the character an fkey reference is split
@@ -2956,7 +2954,7 @@ PRIVATE char variable_config[]= "\
 {                                                                   \n\
     ...                                                             \n\
     'global': {                                                     \n\
-        'treedbs.dynamic_schema_treedbs': ['treedb_wattyzer']       \n\
+        'treedbs.dynamic_schema_treedbs': ['treedb_myapp']          \n\
     },                                                              \n\
     ...                                                             \n\
 }                                                                   \n\

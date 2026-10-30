@@ -62,8 +62,8 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
     /*
      *  The priority is not in the logged json: it is added here, so that an
      *  expected entry can ask for it ("__priority__": "WARNING"). An entry
-     *  that does not name it matches any priority, as before (REV-CLOUD
-     *  V19.2: nothing kept a WARNING from turning into an ERROR again).
+     *  that does not name it matches any priority, as before (and
+     *  nothing kept a WARNING from turning into an ERROR again).
      */
     if(json_is_object(msg)) {
         json_object_set_new(msg, "__priority__", json_string(gobj_get_log_priority_name(priority)));

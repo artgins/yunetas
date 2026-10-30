@@ -224,11 +224,11 @@ lost. With the keys of the packaged file:
   the burst ends.
 
 ```json
-{"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"claudia@artgins.com"}
+{"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"operator@example.com"}
 {"command":"install-binary id=auth_bff content64='<33554432 bytes sha256:401b36b9…>'","date":"…","user":"yuneta","kw":{}}
 {"command":"set-user-pwd username=bob password=<redacted>","date":"…","user":"yuneta","kw":{}}
-{"command":"write-tty","date":"…","user":"claudia@artgins.com","console":"console-1","writes":1,"bytes":1}
-{"command":"write-tty","date":"…","user":"claudia@artgins.com","console":"console-1","writes":212,"bytes":230,"until":"…"}
+{"command":"write-tty","date":"…","user":"operator@example.com","console":"console-1","writes":1,"bytes":1}
+{"command":"write-tty","date":"…","user":"operator@example.com","console":"console-1","writes":212,"bytes":230,"until":"…"}
 ```
 
 Up to 7.25.4 an `install-binary` of a 32 MB yuno wrote 134 MB (the base64 three

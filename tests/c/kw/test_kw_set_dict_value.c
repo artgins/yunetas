@@ -229,7 +229,7 @@ static void test_readers_create_refused(void)
 }
 
 /*
- *  The other half (REV-CLOUD V10.1): with KW_CREATE, a path that holds a
+ *  The other half: with KW_CREATE, a path that holds a
  *  value of another type, or no kw at all, handed the default back -- an
  *  orphan the caller wrote into and nobody freed (the leak check at the
  *  end catches it). And an empty segment, which the writer dropped, so
@@ -307,8 +307,8 @@ static void test_invalid_utf8_segment(void)
 }
 
 /*
- *  REV-CLOUD V11.1. A null at the leaf is "no value": a create replaces it,
- *  as a missing key (it answered NULL since the V10.1 contract). And the
+ *  A null at the leaf is "no value": a create replaces it, as a missing
+ *  key (it answered NULL since the contract above). And the
  *  caller that did not check that NULL: msg_iev_push_stack() went on with
  *  json_object_set_new(NULL), which frees the stack, and then used it.
  */
@@ -335,8 +335,8 @@ static void test_null_leaf_is_absent(void)
 
     /*
      *  A peer's __md_iev__ (or a stack in it) of the wrong type: replaced
-     *  with a warning, nothing used freed, and the entry lands (REV-CLOUD
-     *  V13.4: refusing it warned again on every push of the same message).
+     *  with a warning, nothing used freed, and the entry lands (refusing
+     *  it warned again on every push of the same message).
      */
     json_t *kw2 = json_pack("{s:i}", "__md_iev__", 5);
     int ret = msg_iev_push_stack(0, kw2, "ievent_gate_stack", json_pack("{s:s}", "x", "y"));

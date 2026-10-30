@@ -11,7 +11,7 @@
  *  23:59:59.500 of an axis in ms (it was 23:59:59.000, and lost it).
  *
  *  A text time, as a bound and as a tkey, is read by ONE rule,
- *  tranger2_time_of_text() (REV-CLOUD V46.3, V47.2, V48): "" is no time
+ *  tranger2_time_of_text(): "" is no time
  *  (no bound, no tkey value); the text of a JSON integer,
  *  -?(0|[1-9][0-9]*), is that integer in the unit of its axis; a text
  *  written as another number (" 5", "5 ", "10.5", "007", "+5", "1E5", or
@@ -22,24 +22,25 @@
  *  a WARNING. Up to 7.29.3 approxidate() read a text that is no date as
  *  NOW in silence, and a bound with no 'T' was cut by strtoll() ("garbage"
  *  was no bound, "2000-01-02 00:00:00 +0000" the time 2000, " 5" 5, "10.5"
- *  10). R46 read " 5" and "10.5" as dates (the 5th, May 10) in silence,
+ *  10). An unreleased version read " 5" and "10.5" as dates (the 5th,
+ *  May 10) in silence,
  *  refused "" (no bound until then) and every integer text in a tkey
  *  ("1761000000000" was a bound, and no tkey), and took "007" as 7.
  *
- *  A word more does not save a misreading (V49): ",5", "5,", "1,5 days
+ *  A word more does not save a misreading: ",5", "5,", "1,5 days
  *  ago", "2026,10,01", "5 5 ago", "2026 10 01 10:00" are refused, and day
- *  month year ("01 10 2026", refused in R48) and a day and a year after a
+ *  month year ("01 10 2026", refused for a while) and a day and a year after a
  *  month ("Oct 1, 2026") are dates.
  *
- *  And not more than that (V50): the hour of "3 pm" ends a run of digits
- *  ("Oct 1 2026 3 pm", refused in R49, is a date); the decimal comma of
+ *  And not more than that: the hour of "3 pm" ends a run of digits
+ *  ("Oct 1 2026 3 pm", refused for a while, is a date); the decimal comma of
  *  the seconds ("2026-10-01T10:00:00,500Z"), a comma before a clock time
  *  ("2026-10-01,10:00") and a two-digit year after a month name ("Oct 1
  *  26") are dates too; a day and a year after a word that is no month
  *  name ("yesterday 1 2026", read as September 30) are refused.
  *
- *  The tools (V49.1.1): tr2search -r and tr2list -r list, topic by topic,
- *  what each lists on that topic alone. tr2search handed every topic one
+ *  The tools: tr2search -r and tr2list -r list, topic by topic,
+ *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
  *  unit: a topic in ms after one in seconds listed every record.
  *
@@ -354,14 +355,15 @@ PRIVATE int do_test(void)
 
     /*
      *  A bound written as a number that is not the text of a JSON integer
-     *  is refused: R46 read " 5", "5 " and "10.5" as dates (0 rows here, in
+     *  is refused: an unreleased version read " 5", "5 " and "10.5" as
+     *  dates (0 rows here, in
      *  silence; up to 7.29.3 strtoll() made them 5 and 10), and "007" as 7
      */
     {
         const char *refused[] = {
             " 5", "5 ", "10.5", "007", "+5", "1E5", "-007",
-            "1,5", "10,5", " 1,5 ", "-1,5",     // V48: approxidate() read "1,5" as May 1
-            "5 5", "2026 10 01", NULL           // V48: May 5, January 10 of 2026
+            "1,5", "10,5", " 1,5 ", "-1,5",     // approxidate() read "1,5" as May 1
+            "5 5", "2026 10 01", NULL           // May 5, January 10 of 2026
         };
         json_t *expected = json_array();
         for(int i = 0; refused[i]; i++) {
@@ -397,7 +399,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  A bound with a NUL inside is refused, judged whole (V48): its C text
+     *  A bound with a NUL inside is refused, judged whole: its C text
      *  stops at the NUL, and "<a date>\u0000garbage" was that date
      */
     {
@@ -430,7 +432,8 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  "" is no bound (as up to 7.29.3; R46 refused it), "-0" is 0 (no
+     *  "" is no bound (as up to 7.29.3; an unreleased version refused it),
+     *  "-0" is 0 (no
      *  bound), "1761000000000" that integer: no WARNING
      */
     set_expected_results("date bounds: '', '-0' and an integer text", NULL, NULL, NULL, 1);
@@ -502,7 +505,8 @@ PRIVATE int do_test(void)
 
     /*
      *  A text tkey written as a number that is not the text of a JSON
-     *  integer is refused, as a bound is: R46 appended " 5", "5 ", "10.5"
+     *  integer is refused, as a bound is: an unreleased version appended
+     *  " 5", "5 ", "10.5"
      *  and "007" as dates (the 5th, May 10, the 7th), in silence
      */
     {
@@ -528,7 +532,7 @@ PRIVATE int do_test(void)
 
             /*
              *  The last one with a large content: the trace shows the first
-             *  bytes of the record, it dumped the whole of it (V47.2)
+             *  bytes of the record, it dumped the whole of it
              */
             json_t *record = json_pack("{s:I, s:s, s:s}", "id", (json_int_t)3, "tm", refused[i], "content", "X");
             if(!refused[i+1]) {
@@ -550,7 +554,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  A text tkey with a NUL inside is refused, judged whole (V48):
+     *  A text tkey with a NUL inside is refused, judged whole:
      *  "5\u0000junk" was appended with __tm__ 5
      */
     set_expected_results(
@@ -587,7 +591,8 @@ PRIVATE int do_test(void)
 
     /*
      *  The text of a JSON integer is that integer, in the unit of the tm
-     *  axis, as a bound is: R46 refused "1761000000000" (ms) and "-0". ""
+     *  axis, as a bound is: an unreleased version refused "1761000000000"
+     *  (ms) and "-0". ""
      *  is no tkey value, as a missing one: 0
      */
     set_expected_results("date bounds: a text tkey that is a JSON integer, or ''", NULL, NULL, NULL, 1);
@@ -665,7 +670,7 @@ PRIVATE int do_test(void)
             {"10 5",                        FALSE,  FALSE,  -1, 0},
             {" 2026 10 01 ",                FALSE,  FALSE,  -1, 0},
             {"-5 5",                        FALSE,  FALSE,  -1, 0},
-            /*  V49: a comma that is no number, and a word more  */
+            /*  A comma that is no number, and a word more  */
             {",5",                          FALSE,  FALSE,  -1, 0},
             {"5,",                          FALSE,  FALSE,  -1, 0},
             {" ,5 ",                        FALSE,  FALSE,  -1, 0},
@@ -685,7 +690,7 @@ PRIVATE int do_test(void)
             {"10 2026",                     FALSE,  FALSE,  -1, 0},
             {"01 10 26",                    FALSE,  FALSE,  -1, 0},
             {"-01 10 2026",                 FALSE,  FALSE,  -1, 0},
-            /*  V49: day month year, and a day and a year after a month  */
+            /*  Day month year, and a day and a year after a month  */
             {"01 10 2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
             {"1 2 2026 00:00:00 +0000",     FALSE,  FALSE,   0, 1769904000},
             {"Oct 1 2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
@@ -693,7 +698,7 @@ PRIVATE int do_test(void)
             {"Oct 1,2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
             {"1 Oct, 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
             {"Thu, 01 Oct 2026 10:00:00 +0000", FALSE, FALSE, 0, 1790848800},
-            /*  V50: an hour with am/pm ends a run of digits, and is not in it  */
+            /*  An hour with am/pm ends a run of digits, and is not in it  */
             {"29 Oct 2026 10 am +0000",     FALSE,  FALSE,   0, 1793268000},
             {"29 Oct 2026 10 AM +0000",     FALSE,  FALSE,   0, 1793268000},
             {"Oct 1 2026 3 pm +0000",       FALSE,  FALSE,   0, 1790866800},
@@ -706,7 +711,7 @@ PRIVATE int do_test(void)
             {"1 2 3 pm",                    FALSE,  FALSE,  -1, 0},
             {"2026 10 01 10 am",            FALSE,  FALSE,  -1, 0},
             {"Oct 1 2026 2026 pm",          FALSE,  FALSE,  -1, 0},
-            /*  V50: the decimal comma of the seconds, and a comma before a clock time  */
+            /*  The decimal comma of the seconds, and a comma before a clock time  */
             {"2026-10-01T10:00:00,500Z",    FALSE,  FALSE,   0, 1790848800},
             {"2026-10-01T10:00:00,5+0000",  FALSE,  FALSE,   0, 1790848800},
             {"2026-10-01 10:00:00,500 +0000", FALSE, FALSE,  0, 1790848800},
@@ -717,7 +722,7 @@ PRIVATE int do_test(void)
             {"2026-10-01,10",               FALSE,  FALSE,  -1, 0},
             {"10:00:00,500 1 Oct 2026 +0000", FALSE, FALSE,  0, 1790848800},
             {"1,10:00 5 5",                 FALSE,  FALSE,  -1, 0},
-            /*  V50: a two-digit year after a month name and a day  */
+            /*  A two-digit year after a month name and a day  */
             {"Oct 1 26 00:00:00 +0000",     FALSE,  FALSE,   0, 1790812800},
             {"Oct 1, 26 00:00:00 +0000",    FALSE,  FALSE,   0, 1790812800},
             {"Oct 1,26 00:00:00 +0000",     FALSE,  FALSE,   0, 1790812800},
@@ -725,7 +730,7 @@ PRIVATE int do_test(void)
             {"Oct. 1 2026 00:00:00 +0000",  FALSE,  FALSE,   0, 1790812800},
             {"5,26 days ago",               FALSE,  FALSE,  -1, 0},
             {"Oct 1 026",                   FALSE,  FALSE,  -1, 0},
-            /*  V50: after the name of a month, not after any word  */
+            /*  After the name of a month, not after any word  */
             {"yesterday 1 2026",            FALSE,  FALSE,  -1, 0},
             {"Mon 1 2026",                  FALSE,  FALSE,  -1, 0},
             {"today 1, 2026",               FALSE,  FALSE,  -1, 0},
@@ -801,7 +806,7 @@ PRIVATE int do_test(void)
 
         /*
          *  A day month year with no time takes the time of day of NOW: only
-         *  its day is checked. Up to R48 it was refused (V49), and 7.29.3
+         *  its day is checked. An unreleased version refused it, and 7.29.3
          *  read it right.
          */
         json_int_t value = 0;
@@ -849,7 +854,7 @@ PRIVATE int do_test(void)
     result += test_json(NULL);
 
     /*
-     *  tranger2_time_of_json_text(): the whole of a json string (V48)
+     *  tranger2_time_of_json_text(): the whole of a json string
      */
     set_expected_results("date bounds: tranger2_time_of_json_text()", NULL, NULL, NULL, 1);
     {
@@ -898,7 +903,7 @@ PRIVATE int do_test(void)
 
     /*
      *  The tools: a recursive listing reads a text bound in the unit of
-     *  EACH topic (V49.1.1). tr2search handed one match_cond to every
+     *  EACH topic. Up to 7.29.3 tr2search handed one match_cond to every
      *  topic, and the open of the first wrote the bound into it as an
      *  integer in ITS unit: the next topic read that integer as is.
      */

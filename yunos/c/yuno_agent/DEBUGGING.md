@@ -354,7 +354,7 @@ agent gives each yuno that it runs its own `domain_dir`
 /yuneta/realms/<realm_owner>/<realm_name>.<realm_role>.<realm_env>/<role>^<id>/logs/<filename_mask>
 ```
 
-For example, `/yuneta/realms/artgins/artgins.yunetacontrol.com/controlcenter^1996/logs/controlcenter-4.log`.
+For example, `/yuneta/realms/myowner/cc.example.com/controlcenter^1996/logs/controlcenter-4.log`.
 The agent itself and the utilities run by hand have a fixed `domain_dir` in
 their `main.c`: `/yuneta/realms/agent/agent/logs/` for `yuneta_agent`,
 `/yuneta/realms/agent/<utility>/logs/` for `ycommand`, `ybatch` and the
@@ -525,7 +525,7 @@ one for the console writes.
 **A read-only command** gets only the command, the date and the user:
 
 ```json
-{"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"claudia@artgins.com"}
+{"command":"list-yunos","date":"2026-09-24T10:00:00.000000000+0200","user":"operator@example.com"}
 ```
 
 The command tables do not say which commands are read-only, so the list is by
@@ -590,7 +590,7 @@ nearest first:
           "hops":[{"role":"controlcenter","yuno":"artgins.com","service":"top-16",
                    "user":"yuneta_agent@artgins.com","host":"artgins"},
                   {"role":"gui_agent","yuno":"gui_agent_yuno","service":"agent_link",
-                   "user":"claudia@artgins.com","host":"544f1345-65a6-455c-aa94-62b6b020b5c5"}]}
+                   "user":"operator@example.com","host":"544f1345-65a6-455c-aa94-62b6b020b5c5"}]}
 ```
 
 - `user` is the end user (`__username__` of the kw), or the user of the nearest
@@ -847,9 +847,9 @@ make a **burst**. A burst lasts 60 seconds from its first write.
   `date` is the time of its first write, `until` the time of its last one.
 
 ```json
-{"command":"write-tty","date":"2026-09-24T10:00:00.1+0200","user":"claudia@artgins.com",
+{"command":"write-tty","date":"2026-09-24T10:00:00.1+0200","user":"operator@example.com",
  "console":"console-1","writes":1,"bytes":1,"source":{…}}
-{"command":"write-tty","date":"2026-09-24T10:00:00.4+0200","user":"claudia@artgins.com",
+{"command":"write-tty","date":"2026-09-24T10:00:00.4+0200","user":"operator@example.com",
  "console":"console-1","writes":212,"bytes":230,"until":"2026-09-24T10:00:58.9+0200","source":{…}}
 ```
 

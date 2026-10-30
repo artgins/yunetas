@@ -192,8 +192,8 @@ PRIVATE int test_delete_instance_drops_secondary_keeps_primary(
 }
 
 /***************************************************************************
- *  The pkey2 index is keyed by the node id as a KEY, not as a path
- *  (REV-CLOUD V11.2): an id may hold the path delimiter, and read as a
+ *  The pkey2 index is keyed by the node id as a KEY, not as a path:
+ *  an id may hold the path delimiter, and read as a
  *  path `k`b` put its instances INSIDE the index entry of `k`.
  ***************************************************************************/
 PRIVATE int test_pkey2_index_keyed_by_id(
@@ -246,8 +246,8 @@ PRIVATE int test_pkey2_index_keyed_by_id(
 }
 
 /***************************************************************************
- *  delete_node() takes the node out of the pkey2 index by KEY (REV-CLOUD
- *  V12.1): read as a path, deleting `q`b` took the instance `b` out of
+ *  delete_node() takes the node out of the pkey2 index by KEY:
+ *  read as a path, deleting `q`b` took the instance `b` out of
  *  `q` and left its own entry behind. And names are identifiers: a
  *  treedb or a topic named with the delimiter is refused.
  ***************************************************************************/
@@ -308,7 +308,7 @@ PRIVATE int test_delete_node_by_key_and_names(
     }
 
     /*
-     *  TWO rules (REV-CLOUD V14.2): a column is a key, not a directory, so a
+     *  TWO rules: a column is a key, not a directory, so a
      *  '/' in its id is fine; the delimiter is not.
      */
     if(!treedb_create_topic(
@@ -346,7 +346,7 @@ PRIVATE int test_delete_node_by_key_and_names(
 /***************************************************************************
  *  The example of treedb.md ("Names", treedb_open_db): a topic whose name
  *  breaks the topic rule is LEFT OUT, the rest opens, and a '/' in a column
- *  is fine (REV-CLOUD V14.4: the first version of that example did not even
+ *  is fine (the first version of that example did not even
  *  open, it lacked 'system_flag' and 'header').
  ***************************************************************************/
 static char schema_names_doc[]= "\
@@ -436,7 +436,7 @@ PRIVATE int test_names_doc_example(json_t *tranger)
 }
 
 /***************************************************************************
- *  A '.' in a topic, a hook or an fkey (REV-CLOUD V15.1): kwid_get() splits
+ *  A '.' in a topic, a hook or an fkey: kwid_get() splits
  *  its path at '`' AND '.', so the treedb, which built its paths from these
  *  names, looked in another place -- a link to `par.v1` answered -1, a hook
  *  `kids.all` was "link field not found" at the open, a hook `..` never

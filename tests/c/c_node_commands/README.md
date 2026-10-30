@@ -47,7 +47,7 @@ hook `departments`), users under departments (`users`), items with a pkey2
 What a command names, and the record it hands over, is the peer's data,
 refused with a WARNING that `main.c` lists in order: among them a record whose
 `id` is not a string, and one with a NUL in a string -- its id or down it
-(REV-CLOUD V23.4.2: the id `"dx\u0000evil"` took the key `dx`, and an update
+(the id `"dx\u0000evil"` took the key `dx`, and an update
 of `top` with the id `"top\u0000x"` saved that id under `top`). The answer is
 `Wrong record: <why>`.
 

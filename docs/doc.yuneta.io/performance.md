@@ -500,11 +500,11 @@ the modbus and mbus modules, which no measured binary links, so they were not
 built: their measured code is the code of 7.27.7.
 
 What the new append is for: a writer of raw history that receives frames as
-text (yunovatios `db_tracks_ce`) parsed each frame whole to read three of its
+text (an application's `db_tracks_ce`) parsed each frame whole to read three of its
 members, and dumped it again to store it. With the text path, on the same
 machine and with the same SDK, it stores **2.2 times more frames per second**
 (24,736 -> 53,308, 100 000 frames, 4 alternated rounds). On a Xeon E-2386G
-it holds the 20 000 records per second of a public tender for 10.5 minutes at
+it holds 20 000 records per second for 10.5 minutes at
 55% of one core, ~27.6 us a frame (it was ~42 us); reading three members of a
 frame of ~1 KB costs 0.75 us there, against 19.85 us for the parse, delete,
 dump and free of the whole.
@@ -539,7 +539,7 @@ scanner and the text append).
 
 ## 7.27.7 against 7.27.5
 
-7.27.7 closes three reviews of the retention of 7.27.5 (V38 to V40): the
+7.27.7 closes three reviews of the retention of 7.27.5: the
 bounds of an iterator on a replica whose numbering a purge moved, the order
 of a purge and the links of its feeds, a base read again after a failure
 that passes, the reads an rt_disk follower owes after `EMFILE`, the parts of

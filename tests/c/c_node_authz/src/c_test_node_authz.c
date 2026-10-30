@@ -578,7 +578,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += expect(gobj, "nobody", "export-db", json_object(), TRUE);
 
     /*
-     *  The permission BEFORE the topic (REV-CLOUD V16.1): a user without it
+     *  The permission BEFORE the topic: a user without it
      *  is refused -403 for a topic that does not exist too, not told
      *  "Topic not found" (which said which topics exist).
      */

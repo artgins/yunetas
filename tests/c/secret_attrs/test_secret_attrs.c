@@ -27,12 +27,12 @@
  *               write-attr reads its value as the attribute's type (a
  *               json one a bare word as the text, a dict or a list its
  *               json, a pointer refused) and its refusal does not repeat
- *               the value: a secret json's was echoed (V22.3.3, V22.4.6).
+ *               the value: a secret json's was echoed.
  *            4b. The command-yuno shape: a SDF_WILD_CMD command forwards
  *               free keys to a table that is not known where it is traced;
  *               a key with a secret's name (password=...) is masked, in
  *               the line, in the kw, and inside a quoted `command`.
- *            4c. A secret by its VALUE (V23.4.3): a JWT and the token
+ *            4c. A secret by its VALUE: a JWT and the token
  *               after "Bearer " are masked under any name or none, in a
  *               text and in a json; pass, pin and otp are secrets' names
  *               as whole segments (not passive, ping, otpx), key and cert
@@ -42,7 +42,7 @@
  *               (C_IEVENT_SRV, C_IEVENT_CLI) is masked; the log line of a
  *               peer's app (EV_REMOTE_LOG) is capped and masked, its kw not
  *               dumped; and the frame of an event that is not public is
- *               one WARNING, masked (V23.4.1).
+ *               one WARNING, masked.
  *            4d. A json that does not parse is never logged as it came
  *               (anystring2json(), string2json(), json_config_string2json(),
  *               a dict or list attr written as text): not its bytes, not
@@ -1071,7 +1071,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
 
     /*
      *  write-attr reads its value text AS the attribute's type, as the
-     *  parser reads a parameter of that type (REV-CLOUD V21.3.6): strtoll()
+     *  parser reads a parameter of that type: strtoll()
      *  wrote "12abc" as 12
      */
     json_int_t pin_before = gobj_read_integer_attr(holder, "pin");
@@ -1095,8 +1095,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
     /*
      *  A json attr takes a bare word as the text, a dict or a list its
      *  json, a pointer is refused, and a refusal never repeats the value:
-     *  a json one was echoed whole, a secret's too (REV-CLOUD V22.3.3,
-     *  V22.4.6)
+     *  a json one was echoed whole, a secret's too
      */
     resp = gobj_command(gobj_yuno(),
         "write-attr gobj_name=secret-holder attribute=vault_secret value={bad-secret-hunter2",
@@ -1152,7 +1151,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
     /*
      *  The `set` of a trace command takes text or json (DTP_JSON): `set=yes`
      *  was atoi()'d to a RESET, and a GUI's `set: 1` was refused for not
-     *  being a text (REV-CLOUD V21.3.6)
+     *  being a text
      */
     resp = gobj_command(gobj_yuno(), "set-global-trace",
         json_pack("{s:s, s:i}", "level", "start_stop", "set", 1), gobj);
@@ -1358,7 +1357,7 @@ PRIVATE void check_log_dumps(hgobj gobj)
         check_masking_is_linear("password=", "x", MASKED_AS_TEXT);
 
         /*
-         *  And the shapes of V24.4: a scheme word repeated ("Bearer Bearer
+         *  And the shapes a review found: a scheme word repeated ("Bearer Bearer
          *  ..." looked ahead from each of its words: quadratic), a text of
          *  ':' after secrets' names, and a container that does not close;
          *  and of 7.27.0: names in brackets, %-encoded, as labels, and the
@@ -1615,7 +1614,6 @@ PRIVATE void check_json_parse_logs(hgobj gobj)
 
 /*
  *  A secret by its VALUE, and what still reached the log or an answer
- *  (REV-CLOUD V23.4.1, V23.4.3)
  */
 PRIVATE void check_secret_values(hgobj gobj)
 {
@@ -1658,12 +1656,12 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"BEARER   tok-hunter2", "BEARER   ********"},
         {"the jwt eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.c2ln.", "the jwt ********."},
         {"pin=1234 sim_pin=5678 ping=1", "pin=******** sim_pin=******** ping=1"},
-        {"eyJabc.def x=eyJabc", "******** x=eyJabc"},  // two parts: a JWT a cap cut (V24.4.3)
+        {"eyJabc.def x=eyJabc", "******** x=eyJabc"},  // two parts: a JWT a cap cut
         {"xeyJa.b.c", NULL},               // inside a word
         {"bearer=x", "bearer=********"},   // its name, as before
 
         /*
-         *  REV-CLOUD V24.4.2: after "Bearer" or "Basic" the word is masked
+         *  After "Bearer" or "Basic" the word is masked
          *  when it can be a credential, never when it reads as prose
          */
         {"the bearer of this letter", NULL},
@@ -1683,7 +1681,7 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"basic YTpi", "basic ********"},  // "a:b"
 
         /*
-         *  REV-CLOUD V24.4.3: the false negatives
+         *  The false negatives
          */
         {"Bearer Bearer TOKEN", "Bearer Bearer ********"},
         {"Bearer \"tok\"", "Bearer ********"},
@@ -1706,9 +1704,9 @@ PRIVATE void check_secret_values(hgobj gobj)
         {"Wrong token: try again", "Wrong token: ******** again"},  // a secret's name and a ':' is a label
 
         /*
-         *  REV-CLOUD V24, the security review of 2e8d0589f: each rule judges
+         *  Each rule judges
          *  the text as it came, and 7.26.9's reading of the parameters is
-         *  kept whole -- V24 showed what 7.26.9 masked
+         *  kept whole -- a review showed what 7.26.9 masked
          */
         {"eyJzdWIiOiJ4In0.bearer12345678=sr1-hunter2", "********=********"},  // a JWT of two parts took the name
         {"Bearer Bearer pwd=x \"sr2-hunter2\"", "Bearer Bearer ********"},   // the doubled scheme took the '='
@@ -1799,7 +1797,6 @@ PRIVATE void check_secret_values(hgobj gobj)
     /*
      *  mask_secrets_inline_capped(): masked FIRST, then cut. Cut first,
      *  "Bearer abcd" was all of a token of 15 that a cap left: it showed
-     *  (REV-CLOUD V24, the ievent logs)
      */
     struct {
         const char *in;
@@ -2064,7 +2061,6 @@ PRIVATE void check_secret_values(hgobj gobj)
 
     /*
      *  And the name of a stats out of session: it was logged whole
-     *  (REV-CLOUD V24.4)
      */
     watch("oos3-hunter2", "Not in session");
     resp = gobj_stats(srv, "password=oos3-hunter2 x=1", 0, gobj);
@@ -2077,8 +2073,8 @@ PRIVATE void check_secret_values(hgobj gobj)
 
     /*
      *  Masked BEFORE they are capped: capped first, the token that the cap
-     *  cut showed its first bytes, too short to be judged one (REV-CLOUD
-     *  V24, the security review of 2e8d0589f). 49 bytes, " Bearer ", and
+     *  cut showed its first bytes, too short to be judged one.
+     *  49 bytes, " Bearer ", and
      *  the cap at 64 leaves 7 of the token.
      */
     char line[256];
@@ -2147,7 +2143,7 @@ PRIVATE void check_secret_values(hgobj gobj)
 
     /*
      *  ... and its NAME is masked as its kw is: a password or a JWT sent as
-     *  the name of the event showed (REV-CLOUD V24.4.1)
+     *  the name of the event showed
      */
     gbuf = gbuffer_create(1024, 1024);
     gbuffer_append_string(gbuf,
@@ -2176,7 +2172,7 @@ PRIVATE void check_secret_values(hgobj gobj)
      *  A frame that is not json: its WARNING says where it broke, not
      *  jansson's quote of the bytes there ("premature end of input near
      *  '\"sr12-hunter2'"): the dump of the frame is masked, and the error
-     *  showed the secret (REV-CLOUD V24, the security review)
+     *  showed the secret
      */
     gbuf = gbuffer_create(1024, 1024);
     gbuffer_append_string(gbuf, "{\"event\": \"x\", \"kw\": {\"password\": \"sr12-hunter2");
@@ -2200,8 +2196,8 @@ PRIVATE void check_secret_values(hgobj gobj)
     check_true("a frame that is not an inter-event is refused", iev_kw? FALSE : TRUE);
 
     /*
-     *  The parser's refusals repeat no credential of the line (REV-CLOUD
-     *  V24.4.4): a JWT written as a key, an Authorization written as extra
+     *  The parser's refusals repeat no credential of the line:
+     *  a JWT written as a key, an Authorization written as extra
      *  text, a json "password": x, a secret as the first word
      */
     struct {
@@ -2232,7 +2228,7 @@ PRIVATE void check_secret_values(hgobj gobj)
     /*
      *  A key with a NUL (C code can build one; a parser refuses it) is
      *  judged by all its bytes: it was judged up to the NUL and its value
-     *  shown (REV-CLOUD V24.4)
+     *  shown
      */
     json_t *jn_nul_key = json_object();
     json_object_setn_new(jn_nul_key, "a\0password", 10, json_string("nulkey-hunter2"));
@@ -2919,7 +2915,7 @@ PRIVATE sdata_desc_t driver_attrs_table[] = {
 
 /*
  *  A SDF_SECRET attr has a secret's name: gclass_create() refuses one that
- *  has not (REV-CLOUD V23.4.3; tests/c/command_secret_positional), so a
+ *  has not (tests/c/command_secret_positional), so a
  *  secret with a plain name -- this `vault_secret` was `vault` -- can no
  *  longer exist on Linux
  */

@@ -223,11 +223,11 @@ agent-first — if the agent can do it, do it through the agent, and every time
 something genuinely cannot be done through the agent, it gets recorded here.*
 
 **Verified end-to-end SSH-less (2026-07-24).** The whole reverse-channel path
-was exercised with a real non-owner operator identity (`claudia@artgins.com`,
+was exercised with a real non-owner operator identity (a test operator,
 root in the controlcenter, **not** in any node's authz), no SSH anywhere:
 operator → `wss://<cc>:1996` (OAuth2 password grant, client `yunetacontrol`) →
 `command-agent agent_id=<node> cmd2agent=<cmd>` → node agent. Results on the
-wattyzer agent:
+agent of a staging node:
 
 - `list-agents`, and `command-agent … cmd2agent=list-yunos` → **worked**
   ("Command sent to 1 nodes" + the table). So **every Tier-1 command runs for
@@ -237,7 +237,7 @@ wattyzer agent:
   the node.
 - `command-agent … cmd2agent=open-console` → **`No permission to 'open-console'
   in service 'agent'`**. The *only* command that refused, because
-  `cmd_open_console` calls `gobj_user_has_authz` unconditionally and claudia is
+  `cmd_open_console` calls `gobj_user_has_authz` unconditionally and the operator is
   not in the node's authz.
 
 **Two consequences for the seal.** (1) With the per-command gate off, the
@@ -321,7 +321,7 @@ here is a candidate for promotion to Tier 1:
 - **Setting a user's password in the IdP** (2026-09-08). `C_IDP_KEYCLOAK` can
   create an account (`register-idp-user`) and mail it an invitation, but no
   agent or yuno command sets a password: a test identity with a KNOWN password
-  (the read-only `claudia_user@artgins.com` of yunovatios) was created by
+  (a read-only test user of an application) was created by
   running the Keycloak admin API **from the node**, with the provisioner
   secret the yuno keeps in its persistent attrs — the secret never left the
   box, but the operation was a shell on the node. Either an
@@ -423,7 +423,7 @@ measurement method and the client-side trust asymmetry in
 used only by `--tunnel`, and `url` wins when both are present. The two
 yunovatios nodes are registered with a `url` and **no** `ssh` field at all, so a
 sealed node is already registrable. Note the client_id is the **node's own**
-(`controlador.yunovatios.es`), not the SPA's (`yunetacontrol`, auth-code-only
+(`node.example.com`), not the SPA's (`yunetacontrol`, auth-code-only
 and therefore useless headless) — picking the wrong one is what makes a
 headless login hang rather than refuse.
 
@@ -470,7 +470,7 @@ authz 'list', allow -> YES
 
 So the operator's identity does reach the *internal* yuno, not only the agent
 — and it is super-user today because of what the store holds (`yuneta`,
-`yuneta_admin@artgins.com` and `claudia@artgins.com` all carry
+`yuneta_admin@artgins.com` and a test operator all carry
 `roles^root^users` = `realm_id:*, service:*, permission:*`), not because of the
 architecture. A narrower role is possible without touching any code.
 

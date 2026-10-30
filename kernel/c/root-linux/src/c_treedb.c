@@ -153,7 +153,7 @@
  *  command parser (refuse_parameter()): from outside -- the kw carries
  *  `__username__`, C_IEVENT_SRV's stamp (command_is_external()) -- the
  *  mistake is the peer's, a WARNING without a stack; from C code it is a
- *  broken contract, an ERROR with one (REV-CLOUD V20 #5).
+ *  broken contract, an ERROR with one.
  */
 #define log_refusal(gobj_, peer_, ...)                                  \
     do {                                                                \
@@ -1047,8 +1047,8 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  refused for its data BEFORE anything
      *  is made, with a WARNING
      *  (refuse_peer_open_treedb()). A C
-     *  caller's open goes as it always went
-     *  (REV-CLOUD V20 #1): what tr_treedb
+     *  caller's open goes as it always went:
+     *  what tr_treedb
      *  refuses of its schema is logged and
      *  left out, and the treedb opens -- the
      *  agent EXITS on an open-treedb that
@@ -1127,7 +1127,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  A treedb the yuno's code opens is the code's, open or closed: a peer
      *  that opened it while it was closed (refuse_peer_open_treedb()) put its
      *  own schema over the code's, and the code's next open found it "already
-     *  open" and went on without its treedb (REV-CLOUD V20 c4 Residual)
+     *  open" and went on without its treedb
      */
     if(!external) {
         json_object_set_new(priv->jn_opened_by_code, treedb_name, json_true());
@@ -1282,12 +1282,11 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  and C_NODE creates them in its start, in this call. An EXTERNAL
      *  command (the one C_IEVENT_SRV stamps with `__username__`) is a peer's:
      *  what its seeds get wrong is said as WARNINGs, by C_NODE and by the
-     *  treedb (REV-CLOUD V20.8). A C caller (the agent's own open-treedb)
+     *  treedb. A C caller (the agent's own open-treedb)
      *  keeps its ERRORs. C_NODE opens the treedb itself OUTSIDE the window:
      *  the store and the schema are not the seeds. And it is told where its
      *  seeds come from (`peer_initial_load`): it applies them again at every
-     *  start (a pause-yuno + play-yuno), with nobody's window around it
-     *  (REV-CLOUD V20 D7).
+     *  start (a pause-yuno + play-yuno), with nobody's window around it.
      */
     json_object_set_new(kw_resource, "peer_initial_load", json_boolean(external));
     BOOL peer_data = external? treedb_set_peer_data(TRUE) : FALSE;
@@ -1451,13 +1450,13 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  mt_start and closes it in mt_stop, so its `treedbs`
      *  service and its handles live through a pause, and a
      *  close of a paused broker was a use of freed memory
-     *  at its next play-yuno or stop (REV-CLOUD V20 c5).
+     *  at its next play-yuno or stop.
      *  From outside, a yuno whose code closes the treedb in
      *  its pause reopens it with `pause-yuno` +
      *  `play-yuno`; the broker, with a restart of the yuno.
      *  The name is compared in any case, as the service is
      *  found: `TREEDB_MQTT_BROKER` closed the broker's
-     *  treedb_mqtt_broker (REV-CLOUD V20 c6r).
+     *  treedb_mqtt_broker.
      *
      *  Then, while the yuno plays, nobody closes a treedb
      *  without `force` -- a C caller neither. `force` is
@@ -1508,8 +1507,8 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     /*
      *  And `force` from OUTSIDE only for a treedb that peer opened: on
-     *  another peer's, that peer may hold its handles (REV-CLOUD V20 #0,
-     *  #15; one the yuno's code opened was refused above). The opener is
+     *  another peer's, that peer may hold its handles (one
+     *  the yuno's code opened was refused above). The opener is
      *  the `__username__` of its open (jn_opened_by_peer, by the name it
      *  was opened with: treedb_name_here() above); a C caller keeps its
      *  force.
@@ -1678,7 +1677,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  A treedb the yuno's code opened is the code's, open or closed: from
      *  outside, its projection in __system__, its saved schema and its
      *  records are not deleted while it is closed either, the code's next
-     *  open reads them (REV-CLOUD V20 c7). Its name in any case, as close
+     *  open reads them. Its name in any case, as close
      *  compares it. A C caller deletes it.
      */
     if(command_is_external(kw) && treedb_opened_by_code(gobj, treedb_name)) {
@@ -1905,8 +1904,8 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  pkey2s, its directory -- a topic another database of the store owns,
      *  a msg2db's above all, is not adopted (foreign_topic_fault()) --, and
      *  the ids made from its names; then its `file` columns against
-     *  the hooks the treedb has. A C caller's create goes as it always went
-     *  (REV-CLOUD V20 c4 #3): treedb_create_topic() judges and logs it.
+     *  the hooks the treedb has. A C caller's create goes as it always went:
+     *  treedb_create_topic() judges and logs it.
      */
     BOOL peer = command_is_external(kw);
     if(peer) {
@@ -1952,7 +1951,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                  *  Its `file` columns against the hooks the treedb's
                  *  __assets__ has: two columns of one hook was an ERROR after
                  *  the topic was created, and the new column linked through
-                 *  the other's hook (REV-CLOUD V20 C)
+                 *  the other's hook
                  */
                 json_t *hook_topics = json_pack("[{s:s, s:O}]",
                     "topic_name", topic_name, "cols", cols_
@@ -2105,7 +2104,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  msg2db or another treedb open on it, or one whose schema file names
      *  it (topic_of_another_store_db()): delete-topic takes its directory
      *  and every record in it, with no `force`, and the other's next writes
-     *  failed (REV-CLOUD V20 c4 A). A peer cannot make the treedb hold one
+     *  failed. A peer cannot make the treedb hold one
      *  any more (create-topic, foreign_topic_fault()); one a C caller
      *  adopted is still its owner's.
      */
@@ -3229,7 +3228,7 @@ PRIVATE void places_moved_from_file(
  *  its left columns too: the edit made the topic the operator's, and the
  *  topic is what the editor shows. It stayed without its left columns, and
  *  a left `id` column went with them -- the save published a topic with no
- *  `id`, which the treedb refuses at its next open (REV-CLOUD V20 #18).
+ *  `id`, which the treedb refuses at its next open.
  *  Return {id: true}, YOURS.
  ***************************************************************************/
 PRIVATE json_t *left_out_of_rebuild(hgobj gobj, json_t *tree, json_t *left)
@@ -3624,7 +3623,6 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  Each topic as the treedb creates it at the next open, the check of
      *  apply-schema (refuse_peer_schema_topics()): a draft whose topic the
      *  treedb refuses was published, and refused only at its apply
-     *  (REV-CLOUD V20 #18)
      */
     {
         const char *bad_topic = NULL;
@@ -3663,7 +3661,7 @@ PRIVATE json_t *cmd_save_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  A PEER's versions stop at TRANGER2_VERSION_MAX: past it, its
      *  apply-schema and every later save of the treedb were refused, and the
-     *  peer had locked itself out of its own treedb (REV-CLOUD V20 c4 D). The
+     *  peer had locked itself out of its own treedb. The
      *  save that would raise one past it is refused, nothing written. A C
      *  caller's versions are json_int_t end to end.
      */
@@ -4362,7 +4360,7 @@ PRIVATE json_t *check_saved_schema_to_apply(
      *  refuses there is gone from the treedb, and logged as the CRITICAL
      *  "Cannot create topic of the schema" -- an exit of the yuno with its
      *  exit_on_error. A pkey2s of "id", or the tkey, edited in __system__
-     *  went through save-schema and apply-schema (REV-CLOUD V20 c2#3).
+     *  went through save-schema and apply-schema.
      */
     const char *bad_topic = NULL;
     const char *why = refuse_peer_schema_topics(gobj, peer, treedb_name, in_use_dir, saved, &bad_topic);
@@ -4917,9 +4915,9 @@ PRIVATE json_t *cmd_diff_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  *  The id of a node of the projection: the id of its parent, a dot, and
  *  its own name.
  *
- *      treedbs   treedb_yunovatioscodb
- *      topics    treedb_yunovatioscodb.yunos
- *      cols      treedb_yunovatioscodb.yunos.yuno_role
+ *      treedbs   treedb_myapp
+ *      topics    treedb_myapp.yunos
+ *      cols      treedb_myapp.yunos.yuno_role
  *
  *  A topic name is unique only inside its treedb, and a column name only
  *  inside its topic: keyed by the bare name, the second treedb of a store
@@ -5913,8 +5911,8 @@ PRIVATE json_t *schema_id_described(
  *
  *  Return NULL, or the collision (YOURS), logged naming both elements:
  *  {"id": ..., "first": ..., "second": ...}. A WARNING when the schema is
- *  a peer's (`peer`, REV-CLOUD V20 F), the ERROR it always was otherwise
- *  (without a stack, as before: REV-CLOUD V20 c4 #1).
+ *  a peer's (`peer`), the ERROR it always was otherwise
+ *  (without a stack, as before).
  ***************************************************************************/
 PRIVATE json_t *schema_id_collision(
     hgobj gobj,
@@ -11847,7 +11845,7 @@ PRIVATE json_t *treedb_tranger_here(hgobj gobj, const char *treedb_name)
  *  it), so `TREEDB_X` acts on the open treedb_x; but its store, its files
  *  and the maps of priv are keyed by the name it was opened with, the name
  *  of its C_NODE. Read by the name from the wire, a guard missed it and a
- *  close left the maps behind (REV-CLOUD V20 c6r). A name no treedb open
+ *  close left the maps behind. A name no treedb open
  *  here answers to is returned as it is: a closed treedb is a directory,
  *  and those differ by case. Copied: a close destroys the C_NODE whose name
  *  it is.
@@ -11881,8 +11879,8 @@ PRIVATE const char *treedb_name_here(
 /***************************************************************************
  *  Did the yuno's code open a treedb of this name in this process
  *  (jn_opened_by_code)? In any case, as the service registry compares
- *  names: a peer's `TREEDB_X` is the code's treedb_x when open (REV-CLOUD
- *  V20 c6r). Asked by close-treedb and delete-treedb; open-treedb asks
+ *  names: a peer's `TREEDB_X` is the code's treedb_x when open.
+ *  Asked by close-treedb and delete-treedb; open-treedb asks
  *  find_code_treedb_sharing_services(), which also matches the names of
  *  its tranger.
  ***************************************************************************/
@@ -11906,8 +11904,7 @@ PRIVATE BOOL treedb_opened_by_code(hgobj gobj, const char *treedb_name)
  *  registry compares names in any case. So the code's `treedb_x` shares
  *  them with `TREEDB_X` and `tranger_treedb_x`, and the code's `tranger_y`
  *  with `y`: a peer's open of one of them took a service name, and the
- *  code's next open answered "a service named ... exists already"
- *  (REV-CLOUD V20 c7).
+ *  code's next open answered "a service named ... exists already".
  ***************************************************************************/
 PRIVATE const char *find_code_treedb_sharing_services(hgobj gobj, const char *treedb_name)
 {
@@ -11940,7 +11937,7 @@ PRIVATE const char *find_code_treedb_sharing_services(hgobj gobj, const char *tr
  *  identity a yuno's code acts with is an ATTRIBUTE of the gobj that
  *  sends the command (`src`, read by the authz) -- mqtt_broker, which put
  *  the yuno's `__username__` in the kw of its own open-treedb and
- *  close-treedb, holds it as its attribute since REV-CLOUD V20.
+ *  close-treedb, holds it as its attribute.
  ***************************************************************************/
 PRIVATE BOOL command_is_external(json_t *kw)
 {
@@ -11951,8 +11948,8 @@ PRIVATE BOOL command_is_external(json_t *kw)
  *  A treedb named by a schema command (save-schema, saved-schema,
  *  apply-schema) that this service has not opened is the peer's data: a
  *  warning and a refusal, BEFORE in_use_schema_dir() logs its ERROR ("Treedb
- *  not open here"), which says a broken contract to a C caller (REV-CLOUD
- *  V20.4.2): an ERROR with a stack for a C caller (log_refusal()). TRUE =
+ *  not open here"), which says a broken contract to a C caller:
+ *  an ERROR with a stack for a C caller (log_refusal()). TRUE =
  *  refused.
  ***************************************************************************/
 PRIVATE BOOL refuse_peer_treedb_not_open(hgobj gobj, BOOL peer, const char *treedb_name)
@@ -12006,7 +12003,7 @@ PRIVATE size_t treedb_list_id_len(
  *  Something that is not a directory is there by that name: a file of the
  *  database (`__timeranger2__.json`, `<treedb>.treedb_schema.json`), or a
  *  link to nothing. The mkrdir() of a topic over it was a CRITICAL of the
- *  tranger, an exit of the yuno with its on_critical_error (REV-CLOUD V20.1).
+ *  tranger, an exit of the yuno with its on_critical_error.
  ***************************************************************************/
 PRIVATE BOOL path_is_not_a_directory(const char *path)
 {
@@ -12026,15 +12023,15 @@ PRIVATE BOOL path_is_not_a_directory(const char *path)
  *    yuno with exit_on_error;
  *  - not in the namespace of the system ("__"): `__system__` is the store
  *    of the schemas, held by this service, and its lock refused the open
- *    with a CRITICAL of the tranger (REV-CLOUD V20.3); nor any other name
+ *    with a CRITICAL of the tranger; nor any other name
  *    of the store (tranger2_reserved_name_fault(): a leading '.', a '.json'
  *    or '.bak' suffix): the name is the id of the treedb's node in
  *    __system__, which cannot start with a '.', and `.x` ran with no
- *    projection (REV-CLOUD V21.2.1);
+ *    projection;
  *  - no ".treedb_schema.json" in it: treedb_open_db() cuts the name there
  *    (`a.treedb_schema.json` is the treedb `a`), so the treedb was registered
  *    under another name than its C_NODE's, and every call of that C_NODE
- *    logged "TreeDB not found" (REV-CLOUD V20 D6);
+ *    logged "TreeDB not found";
  *  - short enough for the LONGEST name made from it. Of the files, that is
  *    `.<name>.treedb_schema.json.tmp` (write_schema_tmp() of apply-schema;
  *    save-schema's `<name>.treedb_schema.json.new` is one shorter), each one
@@ -12042,14 +12039,14 @@ PRIVATE BOOL path_is_not_a_directory(const char *path)
  *    `__assets__`, the longest topic every treedb has, with no tkey
  *    (treedb_list_id_len()): 38 + the yuno and its '-' + 2 * the name. So
  *    the name is 108 bytes at most out of a yuno, and half the yuno's
- *    `<role>^<name>-` less in one (REV-CLOUD V20.4; the yuno is in the id
+ *    `<role>^<name>-` less in one (the yuno is in the id
  *    after 7.27.10), and each topic of it is asked again with its
  *    own name and keys (refuse_peer_new_topic()).
  *  Asked by every command that takes a treedb_name from OUTSIDE (`peer`):
  *  delete-treedb built the paths of the files of saved_schemas/ from it,
- *  and `x/../T` reached the files of the treedb T (REV-CLOUD V20 D2). A C
+ *  and `x/../T` reached the files of the treedb T. A C
  *  caller's name is its own, as it always was: what its open-treedb opens,
- *  its close-treedb closes (REV-CLOUD V20 #1).
+ *  its close-treedb closes.
  *  NULL when it can be used, else why (logged as a WARNING).
  ***************************************************************************/
 PRIVATE const char *refuse_peer_treedb_name(hgobj gobj, BOOL peer, const char *treedb_name)
@@ -12066,7 +12063,7 @@ PRIVATE const char *refuse_peer_treedb_name(hgobj gobj, BOOL peer, const char *t
          *  suffix): a treedb `.x` was opened, and its node in the `treedbs`
          *  topic of __system__ -- the name is its id, which cannot start
          *  with a '.' -- was refused with an ERROR, outside the peer's
-         *  window, so it ran with no projection (REV-CLOUD V21.2.1)
+         *  window, so it ran with no projection
          */
     } else if(strstr(treedb_name, ".treedb_schema.json")) {
         why = "a name with '.treedb_schema.json' in it is cut there by the treedb";
@@ -12095,8 +12092,8 @@ PRIVATE const char *refuse_peer_treedb_name(hgobj gobj, BOOL peer, const char *t
  *  timeranger2), `<topic>/keys/<key>/<expansion>.json` and `.md2`. Nothing
  *  checked it: `../../tmp/evil` wrote the records out of the store, `%Y/%m`
  *  made a CRITICAL of every append (a directory that is not there), and an
- *  expansion longer than a file name an ERROR of every append (REV-CLOUD
- *  V20.2). It must expand to ONE name of a file, so it is made of letters,
+ *  expansion longer than a file name an ERROR of every append.
+ *  It must expand to ONE name of a file, so it is made of letters,
  *  digits, '-' and '_' (no '/', '\\', '.', blank or '%'), and of the
  *  strftime() conversions that write only digits and '-' (the names of
  *  months and days depend on the locale). Each conversion may write 20
@@ -12140,7 +12137,7 @@ PRIVATE const char *refuse_peer_filename_mask(const char *filename_mask)
  *  schema: `<treedb>.<topic>` and `<treedb>.<topic>.<col>`
  *  (build_schema_node_id()), each one a record key of RECORD_KEY_VALUE_MAX.
  *  One that does not fit was an ERROR with a stack per projection, and the
- *  column left out of __system__ (REV-CLOUD V20 D5). NULL when they fit,
+ *  column left out of __system__. NULL when they fit,
  *  else why.
  ***************************************************************************/
 PRIVATE const char *projection_ids_fault(
@@ -12186,7 +12183,7 @@ PRIVATE const char *projection_ids_fault(
  *    (path_is_not_a_directory()), nor a directory that is not a topic (no
  *    topic_desc.json: `.blobs`, where the files of the treedb live), where
  *    the tranger wrote topic_cols.json and topic_var.json and then logged
- *    "Not a topic" (REV-CLOUD V20 D3);
+ *    "Not a topic";
  *  - the id of the list of each index of it, the tkey and every pkey2
  *    (treedb_list_id_len()), NAME_MAX at most;
  *  - the ids of the topic and its columns in __system__
@@ -12200,7 +12197,7 @@ PRIVATE const char *projection_ids_fault(
  *    `<treedb>.treedb_schema.json`, `.<treedb>.treedb_schema.json.tmp`,
  *    `.blobs`, the system topics), asked by NAME, so a store that does not
  *    exist yet is covered: its tranger wrote `__timeranger2__.json` over
- *    the topic's directory, a CRITICAL (REV-CLOUD V20 A, J).
+ *    the topic's directory, a CRITICAL.
  *  NULL when it can be created, else why: always logged, once.
  ***************************************************************************/
 PRIVATE const char *refuse_peer_new_topic(
@@ -12284,7 +12281,7 @@ PRIVATE const char *refuse_peer_new_topic(
  *  A version of a peer's schema (`schema_version`, `topic_version`), as
  *  the treedb reads it (kw_get_int() with KW_WILD_NUMBER): an integer, or
  *  the decimal string of one -- the literals write them so ('26') --, from
- *  0 to TRANGER2_VERSION_MAX (REV-CLOUD V20 E, K). Absent is 0. A dict or
+ *  0 to TRANGER2_VERSION_MAX. Absent is 0. A dict or
  *  a list was an ERROR of every read; a real, a boolean, "0x1A" or "017"
  *  (octal to strtoll()) a number nobody wrote; and one past an int was cut
  *  where it was read as one.
@@ -12320,21 +12317,21 @@ PRIVATE BOOL peer_version_is_valid(json_t *jn_version)
  *  published by save-schema or apply-schema), each one a NEW topic of the
  *  treedb (refuse_peer_new_topic()): tr_treedb refused a bad one with an
  *  ERROR at the open, and then logged the CRITICAL "Cannot create topic of
- *  the schema", an exit of the yuno with exit_on_error (REV-CLOUD V20 D1).
+ *  the schema", an exit of the yuno with exit_on_error.
  *  A topic is a list of them or a dict keyed by their names, its `pkey`
  *  "id" and its `system_flag` "sf_string_key" (treedb_open_db() leaves
  *  another one out, with an ERROR), and the `file` columns of all of them
  *  derive __assets__ hooks of their own (treedb_check_file_hooks()).
  *
  *  Of a PEER's schema (`peer`), and only of it (a C caller's schema is
- *  read as it always was, REV-CLOUD V20 B):
+ *  read as it always was):
  *  - ONE name per topic, which every reader of the schema takes: the
  *    readers disagreed (the up-front checks took `topic_name`, parse_schema()
  *    and the projection `id`), so one name was checked and another one
  *    opened. In a list a topic is named by its `id`, a string; in a dict
  *    by its key. A `topic_name`, or an `id` in a dict, is the same name or
  *    the topic is refused;
- *  - the types of what the treedb reads of a topic (REV-CLOUD V20 E):
+ *  - the types of what the treedb reads of a topic:
  *    `topic_version` and the schema's `schema_version` a version
  *    (peer_version_is_valid()), `system_topic` and `main_topic` booleans,
  *    `tkey` a string. Of another type each one was an ERROR of a kw_get_*()
@@ -12516,8 +12513,8 @@ PRIVATE const char *refuse_peer_schema_topics(
     if(!why) {
         /*
          *  The `file` columns of all of them: each one derives an __assets__
-         *  hook of its own, `as_<topic>_<col>`, which two columns could share
-         *  (REV-CLOUD V20 C): the open logged an ERROR and the CRITICAL "Bad
+         *  hook of its own, `as_<topic>_<col>`, which two columns could share:
+         *  the open logged an ERROR and the CRITICAL "Bad
          *  'file' column: __assets__ hooks NOT derived"
          */
         BOOL peer_data = treedb_set_peer_data(peer);
@@ -12541,7 +12538,7 @@ PRIVATE const char *refuse_peer_schema_topics(
  *  What an EXTERNAL open-treedb (a peer's, command_is_external()) hands is
  *  its data, refused with a WARNING BEFORE anything is made -- the tranger
  *  of the open makes the directory of the store, and a refusal after it
- *  left the store and its services behind (REV-CLOUD V20 #14):
+ *  left the store and its services behind:
  *  - the name (refuse_peer_treedb_name()) and the filename_mask
  *    (refuse_peer_filename_mask());
  *  - what only the yuno's code configures: exit_on_error (a CRITICAL of the
@@ -12555,20 +12552,20 @@ PRIVATE const char *refuse_peer_schema_topics(
  *  - the attributes C_NODE takes, of their types, and the seeds, each one
  *    a json object with its `id`, a string (a seed without one is no seed:
  *    it stayed in initial_load, read as a string by every write of its
- *    topic, an ERROR with a stack per read, REV-CLOUD V20 D7). The rest of
+ *    topic, an ERROR with a stack per read). The rest of
  *    what a seed says is C_NODE's to judge;
  *  - last, the name of a treedb the yuno's code opened in this process
  *    (jn_opened_by_code), while it is closed, compared in ANY case as the
  *    service registry compares it (treedb_opened_by_code()). Opened by a
  *    peer then (a C_TREEDB kept across the close of its treedb), the peer's
  *    schema replaced the code's file in use, and the code's own next open
- *    answered "already open" and went on without its treedb (REV-CLOUD V20
- *    c4 Residual). In another case it is another directory but the same
+ *    answered "already open" and went on without its treedb. In
+ *    another case it is another directory but the same
  *    services: the code's next open answered "already open" for the peer's
- *    C_NODE (c6r). And a name whose services are that treedb's
+ *    C_NODE. And a name whose services are that treedb's
  *    (find_code_treedb_sharing_services(): `tranger_<it>`, or `<x>` of the
  *    code's `tranger_<x>`) took one of its service names, and the code's
- *    next open answered "a service named ... exists already" (c7). While
+ *    next open answered "a service named ... exists already". While
  *    that treedb is open, the services already exist and cmd_open_treedb()
  *    answers it -- unless an earlier check refuses it first (the same name
  *    in another case finds the open treedb's tranger, so a topic both
@@ -12650,7 +12647,7 @@ PRIVATE json_t *refuse_peer_open_treedb(
 
     /*
      *  The schema of THIS treedb: its file is <treedb_name>.treedb_schema.json,
-     *  and its `id` said another treedb (REV-CLOUD V21.2.2). No id is none.
+     *  and its `id` said another treedb. No id is none.
      */
     json_t *jn_schema_id = json_object_get(jn_treedb_schema, "id");
     if(!json_absent(jn_schema_id) &&
@@ -12958,7 +12955,7 @@ PRIVATE const char *schema_file_of_another_db(
 
 /***************************************************************************
  *  POSITIVE evidence that ANOTHER database of the store says the topic
- *  `topic_name` is its own (REV-CLOUD V20 c5 #1): a msg2db or another
+ *  `topic_name` is its own: a msg2db or another
  *  treedb open on the tranger holds it (topic_of_another_db()), or a schema
  *  file of one in the store names it, open or not
  *  (schema_file_of_another_db()). "msg2db" or "treedb", the database in
@@ -12999,7 +12996,7 @@ PRIVATE const char *topic_of_another_store_db(
  *  treedb's -- its records loaded as nodes and written by C_NODE, a higher
  *  topic_version rewrote its topic_cols.json and topic_var.json under the
  *  msg2db, which never wrote them back (its version is lower), and a
- *  delete-topic took the directory and every record (REV-CLOUD V20 c4 A).
+ *  delete-topic took the directory and every record.
  *  So it is refused on POSITIVE evidence that another database owns it
  *  (topic_of_another_store_db()): a msg2db or another treedb open on the
  *  store holds it, or a schema file of one in the store names it -- the
@@ -13049,7 +13046,7 @@ PRIVATE const char *foreign_topic_fault(
  *  keeps the first mark and ignores the others, and a mark on a topic not
  *  hooked to itself, each with an ERROR at every open -- outside the
  *  window of a peer's data, so the peer's mistake read as a broken
- *  contract (REV-CLOUD V20 c4 C). Asked as topic_hooks_itself() of
+ *  contract. Asked as topic_hooks_itself() of
  *  tr_treedb asks it, without touching the topic. NULL when they can be
  *  opened, else why, the topic in *bad_topic (held by the schema).
  ***************************************************************************/
@@ -13124,8 +13121,8 @@ PRIVATE const char *main_topic_fault(hgobj gobj, json_t *jn_topics, const char *
  *  The directory of C_TREEDB is the parent of other stores too (C_AUTHZ's
  *  `authzs`, C_TRANGER stores: `tracks`, `automations`...), and a name that
  *  matched one opened it as a treedb, with the peer's schema -- or met the
- *  lock of its tranger, a CRITICAL with the peer's exit_on_error
- *  (REV-CLOUD V20 c2#1). So:
+ *  lock of its tranger, a CRITICAL with the peer's exit_on_error.
+ *  So:
  *  - a directory (not a file);
  *  - with the schema file of that treedb, `<name>.treedb_schema.json`:
  *    every store open-treedb made has it (C_AUTHZ's `authzs` holds

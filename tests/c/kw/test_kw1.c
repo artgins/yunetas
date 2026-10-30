@@ -364,7 +364,7 @@ static int test2_false(void)
 }
 
 /***************************************************************************
- *  REV-CLOUD V14.1: the logger honours the precision of "%.Ns" and "%.*s".
+ *  The logger honours the precision of "%.Ns" and "%.*s".
  *  It skipped it, so every capped value of the tree was logged whole.
  ***************************************************************************/
 static int test_log_precision_caps_the_value(void)
@@ -396,7 +396,7 @@ static int test_log_precision_caps_the_value(void)
 }
 
 /***************************************************************************
- *  REV-CLOUD V15.2: the length modifiers, and a '%' that is no conversion.
+ *  The length modifiers, and a '%' that is no conversion.
  *  "%zu" of 5000000000 logged 705032704, "%llu" of ULLONG_MAX logged -1,
  *  "%jd" took the json conversion (and crashed), and "100%" consumed an
  *  argument that was not there, losing the keys after it (a '%' that ends
@@ -439,7 +439,7 @@ static int test_log_length_modifiers(void)
 }
 
 /***************************************************************************
- *  REV-CLOUD V17.3.3: "%m" is glibc's, strerror(errno) and NO argument. It
+ *  "%m" is glibc's, strerror(errno) and NO argument. It
  *  consumed one, so the key after it was read shifted.
  ***************************************************************************/
 static int test_log_percent_m_takes_no_argument(void)
@@ -470,7 +470,7 @@ static int test_log_percent_m_takes_no_argument(void)
 }
 
 /***************************************************************************
- *  REV-CLOUD V18.2.3: a cap by bytes ended in the middle of a UTF-8
+ *  A cap by bytes ended in the middle of a UTF-8
  *  character: json_sprintf() refused the comment it was in, and the log
  *  wrote a broken byte. utf8_prefix_len() backs up to the character's start,
  *  and the logger's "%.Ns" uses it.
@@ -581,7 +581,7 @@ static int test_utf8_columns(void)
 }
 
 /***************************************************************************
- *  REV-CLOUD V14.4: a filter path too long for kw_match_simple() is said
+ *  A filter path too long for kw_match_simple() is said
  *  ONCE per process (the matchers run per publication and per record).
  ***************************************************************************/
 static int test_match_simple_long_path_said_once(void)
@@ -613,7 +613,7 @@ static int test_match_simple_long_path_said_once(void)
 }
 
 /***************************************************************************
- *  REV-CLOUD V13.4: KW_CREATE|KW_REQUIRED over a null leaf with no default
+ *  KW_CREATE|KW_REQUIRED over a null leaf with no default
  *  answers NULL as a missing key does, and says it as a missing key does
  *  (it answered NULL in silence while the missing key logged).
  ***************************************************************************/
@@ -718,7 +718,7 @@ static int test_reg_f001_gbuffer_deserialize_bad_base64(void)
  *  Regression f003: a deeply nested kw plus a long backtick-delimited path
  *  must not exhaust the stack. kw_find_path() walks the path in a LOOP (it
  *  recursed once per segment, and was cut at 64 segments with an ERROR even
- *  with verbose FALSE, REV-CLOUD V21.2.4), so a deep path that is there is
+ *  with verbose FALSE), so a deep path that is there is
  *  found, one that is not is answered NULL logging nothing, and a segment
  *  longer than 255 bytes is looked up as the key it is.
  ***************************************************************************/
@@ -787,7 +787,7 @@ static int test_reg_f003_kw_find_path_depth(void)
 
 /***************************************************************************
  *  json_refcounts_report(): what the refcounts say, as an answer, logging
- *  nothing, each json once and a cycle walked once (REV-CLOUD V21.2.3):
+ *  nothing, each json once and a cycle walked once:
  *  json_check_refcounts() logged an ERROR per fault and recursed round a
  *  cycle for ever -- a cycle is two nodes in each other's hooks.
  ***************************************************************************/
@@ -873,7 +873,7 @@ static int test_json_refcounts_report(void)
      *  report exists to find: `c` is held by the root and by `d`, with a
      *  refcount of 1. Only the jsons held more than once were remembered,
      *  so the walk went c, d, c, d... until its frames passed MAX_BLOCK, and
-     *  answered totals of a walk it did not say was cut (REV-CLOUD V22.5.3).
+     *  answered totals of a walk it did not say was cut.
      *  Every dict and list is remembered now: it ends, each counted once.
      */
     json_t *c = json_object();
@@ -893,8 +893,8 @@ static int test_json_refcounts_report(void)
     }
     /*
      *  ... and it is REPORTED: `c` is reached twice, from the root and from
-     *  `d`, with a refcount of 1 -- the walk ended, and said nothing
-     *  (REV-CLOUD V23.4.4). Its path is where it was reached once too many.
+     *  `d`, with a refcount of 1 -- the walk ended, and said nothing.
+     *  Its path is where it was reached once too many.
      */
     if(json_integer_value(json_object_get(jn_report, "corrupted")) != 1) {
         printf("corrupted %d, expected 1\n", (int)json_integer_value(json_object_get(jn_report, "corrupted")));
@@ -955,7 +955,7 @@ static int test_json_refcounts_report(void)
 
     /*
      *  json_nul_fault(): a NUL in a string, at any depth (a json decoded with
-     *  JSON_ALLOW_NUL); C reads a string up to it (REV-CLOUD V23.4.2)
+     *  JSON_ALLOW_NUL); C reads a string up to it
      */
     json_t *rec = json_pack("{s:s, s:{s:[s, s%]}}",
         "id", "dx",
@@ -995,8 +995,8 @@ static int test_json_refcounts_report(void)
  *  json_refcounts_report() of a list of a MILLION scalars, under the
  *  default MAX_BLOCK (16 MB): walked whole. A frame was reserved for every
  *  child of the container walked, scalars too, one block of 32 MB for the
- *  root: the walk stopped there, "truncated", one json counted (REV-CLOUD
- *  V24.4.5). Only a dict or a list gets a frame now, and no block of the
+ *  root: the walk stopped there, "truncated", one json counted.
+ *  Only a dict or a list gets a frame now, and no block of the
  *  walk grows with the json. And a list of 40 000 records (more frames than
  *  one chunk holds), counted right.
  ***************************************************************************/

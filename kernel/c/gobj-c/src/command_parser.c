@@ -125,7 +125,6 @@ PUBLIC json_t *command_parser(
     /*
      *  The permission is asked BEFORE the parameters are read: a caller
      *  without it gets the 403, never the diagnostic of a parameter
-     *  (REV-CLOUD V21.3.8)
      */
     json_t *kw_denied = refuse_command_without_authz(gobj, cnf_cmd, kw, src);
     if(kw_denied) {
@@ -239,7 +238,7 @@ PRIVATE json_t *refuse_command_without_authz(
     /*
      *  The kw with its SDF_SECRET parameters masked: a permission is no
      *  question of a secret's value, and the authz trace, which prints what
-     *  the checker got, masks by names only (REV-CLOUD V22.3.4)
+     *  the checker got, masks by names only
      */
     json_object_set_new(kw_authz, "kw", kw? mask_secret_params(kw, cnf_cmd) : json_object());
     /*
@@ -366,7 +365,7 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
 
 /***************************************************************************
  *  What a parameter takes, whatever gives it: the command line (text), kw
- *  (json) or its declared default (text) (REV-CLOUD V20.4):
+ *  (json) or its declared default (text):
  *
  *      DTP_STRING      a string
  *      DTP_DICT        a json object (text: the json of one)
@@ -393,7 +392,7 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
  *  A string from kw with a NUL inside is refused (but for DTP_JSON, where it
  *  stays as it came): C reads it up to the NUL.
  *
- *  The handler gets the EXACT type (number_as_type(), REV-CLOUD V21.3.2): a
+ *  The handler gets the EXACT type (number_as_type()): a
  *  number given to a DTP_BOOLEAN is true unless 0; a boolean given to a
  *  DTP_INTEGER or a DTP_REAL is 1 or 0; a real given to a DTP_INTEGER is
  *  that integer, and a real with decimals is refused, as the text "2.7" is.
@@ -530,7 +529,7 @@ PRIVATE json_t *number_as_type(data_type_t type, json_t *value, const char **ref
  *  else a JSON number:
  *      -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?
  *  strtoll() and strtod() took ".5", "5.", "+5" and "007" (as 7), blanks
- *  before the number, and strtod() hex, "nan" and "inf" (REV-CLOUD V23.4.6).
+ *  before the number, and strtod() hex, "nan" and "inf".
  ***************************************************************************/
 PRIVATE BOOL is_ascii_digit(char c)
 {
@@ -651,7 +650,6 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, co
         /*
          *  A number of the JSON grammar, the whole text: the text of a real
          *  a JSON number, that of an integer or a boolean a JSON integer
-         *  (REV-CLOUD V22.4.3, V23.4.6)
          */
         if(!is_json_number_text(s, DTP_IS_REAL(type)? FALSE : TRUE)) {
             *refused = "a text that does not read as one";
@@ -757,7 +755,6 @@ PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, con
      *  A NUL inside a text (an ievent frame is decoded with JSON_ALLOW_NUL):
      *  C reads it up to the NUL, so "5\u0000junk" was 5, "yes\u0000no" true,
      *  and a string reached the handler other than it was sent
-     *  (REV-CLOUD V22.4.2)
      */
     BOOL nul_inside = (json_is_string(value) &&
         json_string_length(value) != strlen(json_string_value(value)))? TRUE : FALSE;
@@ -1496,7 +1493,7 @@ PRIVATE json_t *build_cmd_kw(
         /*
          *  Under its DECLARED name: find_ip_parameter() matches any case,
          *  and `cmd N=5` arrived as "N" -- the handler read `n` and took
-         *  its default, and a kw `n` beat the line (REV-CLOUD V22.4.1)
+         *  its default, and a kw `n` beat the line
          */
         const char *name = ip2? ip2->name : key;
         json_object_set_new(kw_cmd, name, jn_param);
@@ -1515,7 +1512,7 @@ PRIVATE json_t *build_cmd_kw(
          *  rest of it as extra text (password=correct horse battery, as a
          *  key=value or positional), and the `value` of a write-attr is no
          *  secret parameter: `write-attr attribute=password value=correct
-         *  horse battery` answered 'horse battery' (REV-CLOUD V23.4.3).
+         *  horse battery` answered 'horse battery'.
          *  Else the extra text is echoed, its secrets masked.
          */
         *result = -1;
@@ -1556,7 +1553,7 @@ PRIVATE json_t *build_cmd_kw(
      *  The keys of kw that are not parameters reach the handler too;
      *  callers (the GUI) depend on it. Not a parameter that has no value
      *  here (but a DTP_JSON): what kw gave it was no value -- a null, an
-     *  empty text for a number (REV-CLOUD V21.3.4: the "" reached the
+     *  empty text for a number (the "" reached the
      *  handler) -- or was refused and the line gave it under another
      *  spelling of its name.
      */

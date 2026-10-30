@@ -22,9 +22,9 @@ What it checks:
   appends a dict or its json text; `delete-key` with `force`;
   `delete-key-files` by date, by an integer and of every key, its `purged` in
   `list-keys`, and its refusals (a `before` in the future, no date, `"007"`
-  -- the 7th of this month before V47.2, and it purged --, `"1,5"` and
-  `"10,5"` -- May 1 and May 10 before R48 --, a date with a NUL inside --
-  that date before R48 --, none, a
+  -- the 7th of this month up to 7.29.3, and it purged --, `"1,5"` and
+  `"10,5"` -- May 1 and May 10 up to 7.29.3 --, a date with a NUL inside --
+  that date up to 7.29.3 --, none, a
   key not there, answered with no log; a key that is a path, answered as the
   other commands answer it; a topic of a treedb and a mask whose ids do not
   sort as time, from C code too); an `add-record` whose `__t__` falls in a
@@ -56,7 +56,7 @@ What it checks:
     `add-record` there is taken;
   - `add-record` of a record that is not a dict, without its pkey, with a
     pkey that is a path, with a NUL in its pkey, down it or in its json text
-    (the pkey `"K\u0000evil"` was appended under `K`: REV-CLOUD V23.4.2), a `__t__` of `9223372036854775807` and of
+    (the pkey `"K\u0000evil"` was appended under `K`), a `__t__` of `9223372036854775807` and of
     `TRANGER2_MAX_TIME + 1` (both refused as larger than the 44 bits of an
     md2 row: every `__t__` of 44 bits is a date), and an integer tkey time of
     more than 44 bits;
@@ -69,9 +69,9 @@ What it checks:
   - `add-record` of a tkey that is a text the tranger refuses
     (`tranger2_time_of_text()`): `"garbage"`, and `" 5"`, `"10.5"`,
     `"1,5"` and `"10,5"` (written as numbers that are not the text of a
-    JSON integer: R46 appended them as dates, R47 the last two); a text
+    JSON integer: an unreleased development version appended them as dates); a text
     with a NUL inside, refused as any string of a record with one; `"1761000000000"`, the text of a JSON integer,
-    is appended with that `tm` (R46 refused it);
+    is appended with that `tm` (an unreleased development version refused it);
   - a key that is a path (`open-iterator`, `open-list`, `open-rt`), a time
     bound that is a dict (and an integer one, taken);
   - a `print-tranger` path that is not there -- a segment of 300 bytes, a

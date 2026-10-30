@@ -2266,8 +2266,8 @@ PRIVATE BOOL send_request(hgobj gobj)
          *  Set response timeout. A broadcast is answered by no slave: its
          *  wait is the time its frame takes on the line and then the
          *  turnaround delay, and it ends as done (ac_timeout_response()).
-         *  Up to the fix of REV-CLOUD V50.2 it was the turnaround delay
-         *  alone, counted from before the frame was sent: a long frame at
+         *  A development version, never released, waited the turnaround
+         *  delay alone, counted from before the frame was sent: a long frame at
          *  a low speed was still on the line when the next request went.
          */
         if(broadcast_in_flight(gobj)) {
@@ -2729,8 +2729,8 @@ PRIVATE int drop_noise(hgobj gobj, gbuffer_t *gbuf, size_t len, BOOL hidden, con
  *  a device that breaks the standard and answers it (an echo), not from the
  *  line: counted with the noise (rx_noise_dropped), but warned under their
  *  own name, once per connection, and the warning of the noise of the line
- *  is left alone. Up to the fix of REV-CLOUD V50.2 they were "bytes that
- *  cannot start an answer", and took the place of the noise warning.
+ *  is left alone. (A development version, never released, called them
+ *  "bytes that cannot start an answer", in place of the noise warning.)
  *  A broadcast is a write: dumped hidden under the traffic trace.
  ***************************************************************************/
 PRIVATE int drop_broadcast_bytes(hgobj gobj, gbuffer_t *gbuf, size_t len)

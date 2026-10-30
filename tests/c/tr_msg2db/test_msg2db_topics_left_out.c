@@ -9,7 +9,7 @@
  *  index, asked whether the topic was in the tranger -- not whether the
  *  first loop had taken it -- so a topic left out but opened in the tranger
  *  before (by somebody else) got a list and an index all the same, without
- *  a word (REV-CLOUD V17.3.2).
+ *  a word.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -100,8 +100,8 @@ PRIVATE int do_test(void)
 
     /*
      *  Each topic left out is said once, by the first loop, and nothing
-     *  more: the second loop said each one three times more up to 7.26.8
-     *  (V16.4), and opened `pre` without a word up to 7.26.9.
+     *  more: the second loop said each one three times more up to 7.26.8,
+     *  and opened `pre` without a word up to 7.26.9.
      */
     set_expected_results("left_out", json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Creating __timeranger2__.json",

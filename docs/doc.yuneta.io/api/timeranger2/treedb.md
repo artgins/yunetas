@@ -1692,7 +1692,7 @@ A refusal takes nothing, not even the blobs no row names. [`treedb_gc_files2()`]
 **Example**
 
 ```C
-json_t *would = treedb_gc_files(tranger, "treedb_yunovatioscedb", TRUE);
+json_t *would = treedb_gc_files(tranger, "treedb_myapp", TRUE);
 if(!would) {
     /* refused (logged): nothing was taken, see gobj_log_last_message() */
 }
@@ -1990,11 +1990,11 @@ json_t *treedb_import_files(
 
 ```C
 json_t *result = treedb_import_files(
-    tranger, "treedb_yunovatioscedb",
-    "/yuneta/store/censo", "memorias/malaga",
+    tranger, "treedb_myapp",
+    "/yuneta/store/myapp", "photos/site-1",
     FALSE, "yuneta"
 );
-/* result.files: {"memorias/malaga/nave-1.jpg": "ba7816bf..."} */
+/* result.files: {"photos/site-1/hall-1.jpg": "ba7816bf..."} */
 JSON_DECREF(result)
 ```
 
@@ -3440,7 +3440,7 @@ int treedb_set_files_limits(
 **Example**
 
 ```C
-treedb_set_files_limits(tranger, "treedb_wattyzer",
+treedb_set_files_limits(tranger, "treedb_myapp",
     20*1024*1024,
     json_pack("[s,s,s]", "image/jpeg", "image/png", "application/pdf")
 );
@@ -3765,7 +3765,7 @@ json_t *kw = json_pack("{s:s, s:{s:{s:s, s:s, s:s}}}",
     "__files__",
         "foto", "content64", b64, "original_name", "nave-1.jpg", "content_type", "image/jpeg"
 );
-if(treedb_store_files(tranger, "treedb_yunovatioscedb", "places", kw) == 0) {
+if(treedb_store_files(tranger, "treedb_myapp", "places", kw) == 0) {
     /* kw.foto == "__assets__^<sha256>^as_places_foto" */
 }
 ```

@@ -8,7 +8,7 @@ publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
 that polls two slaves: slave 1 with blocks A (`a`, `uint32`) and B (`b`), and
 slave 2 with block C (`c`). Between A and B slave 1 has a block whose address
 is out of range: it is logged once at start, and every cycle skips it with no
-log and no wait (REV-CLOUD V46.2; before, each cycle logged *"cur_map_
+log and no wait (before, each cycle logged *"cur_map_
 DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
 800 ms).
 
@@ -16,8 +16,8 @@ DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
   cycle 1 and the echo of a write (06) in cycle 2. Only `{slave_id 1, a}` is
   published, at once (within 800 ms of the request of block A), and nothing
   of slave 2. Each failure is logged once, as a warning, not on every cycle;
-  the 06 to block B fails it (*"Modbus answer of another function"*). Before
-  the fix of REV-CLOUD V46.2 it counted as the answer of the block.
+  the 06 to block B fails it (*"Modbus answer of another function"*). Up to
+  7.29.3 it counted as the answer of the block.
 - On the message of cycle 1 a write (function 06) is queued: the slave must
   see it once, and the polling must go on after it.
 - With it, four more requests, each of which must be answered with
@@ -33,7 +33,7 @@ DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
   show. The one line allowed is the transport's dump of what it receives
   (`⏪`): the echo of an 06 carries its value, and received bytes cannot be
   marked secret.
-- (REV-CLOUD V45) The requests go out at once on the message of cycle 1, not
+- The requests go out at once on the message of cycle 1, not
   a `timeout_polling` later. Requests whose numbers are not numbers
   (`"abc"`, `null`, `"010"`, `20.9`, `"12ab"`, an id `"x"`), or that pass
   65535, are refused, and the refusal of a value that does not fit does not
@@ -41,7 +41,7 @@ DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
   (`timeout_response` first) is dropped by its transaction id instead of
   answering the next one. An answer with an MBAP of length 3 fails its read
   as a bad answer (a warning), not as an internal error.
-- (REV-CLOUD V46.2) An exception `0x84` to a read (03) fails it as a bad
+- An exception `0x84` to a read (03) fails it as a bad
   answer (`error_code` 0), not as exception 2. A write (06) of `0x7E5F` is
   answered late, while the next read is in flight: its echo is dropped, and
   the master's own `traffic` dump of it is hidden (before the fix it showed
@@ -71,11 +71,11 @@ queues writes of one and three registers (06, 16), one and nine coils (05,
 15), reads them back (03, 01), a write the slave refuses with exception 1,
 and two answers with a bad CRC: an exception and a read. Each must be
 answered in order; the two bad CRCs fail their request with a warning
-(*"Modbus answer with a bad CRC"*). Before the fix of REV-CLOUD V45.2 the
+(*"Modbus answer with a bad CRC"*). Up to 7.29.2 the
 exception was taken before its CRC was checked, and the read logged an
 internal error (*"answered WITHOUT reading its answer"*).
 
-(REV-CLOUD V46.2) A request to slave 248 is refused (248-255 are reserved in
+A request to slave 248 is refused (248-255 are reserved in
 RTU). Slave 3 of the config has no block and slave 250 a reserved id: each is
 logged once at start and never polled, and no cycle logs anything for them
 (before, each cycle logged *"slave without mapping"* and *"cur_map_ NULL"*
@@ -85,7 +85,7 @@ is in flight: it is dropped, and the echo that follows answers the write.
 Before the fix the request to 248 and the polls of 250 went out, and the late
 exception failed the write, whose echo was then dropped.
 
-(REV-CLOUD V47) Two reads are answered with noise after the answer, in the
+Two reads are answered with noise after the answer, in the
 same bytes: `0x00`, and `0x00 0xFF`. The noise is dropped with a warning
 (*"Modbus: bytes after the answer, dropped"*), and the read sent after each is
 answered. With `226945f9c` (never released) the noise began a frame: after
@@ -102,16 +102,16 @@ freed memory: *"cur_slave_ NULL"* every cycle, with `slaves_` read as a string).
 The answer of block B, the last of the cycle, carries a noise byte in cycles 2
 and 3 too: the noisy answers are logged once, and cycle 4, clean, logs
 *"Modbus: a cycle came without noise"*. Before, each noisy answer was a
-warning; and up to the fix of REV-CLOUD V48.2 the noise after the last block
-was counted after its cycle had ended, so the info came a cycle late, after
-the end of the test. (REV-CLOUD V48.2) Two reads whose slave sends a noise
+warning; and in a development version, never released, the noise after the last
+block was counted after its cycle had ended, so the info came a cycle late, after
+the end of the test. Two reads whose slave sends a noise
 byte, `0x00` and `0xFF`, in a read of its own (a `C_TIMER0` holds the answer
 50 ms) before the answer: neither can start an RTU answer, so both are
 dropped and counted, and each read is answered. Before, the byte was taken as
 the head of a frame, which swallowed the answer: each read timed out.
 `rx_noise_dropped` is 6 at the end. Cycle 4 ends the test.
 
-`test3` (`main_test3.c` + `c_test3.c`, REV-CLOUD V48.2) gives an RTU master a
+`test3` (`main_test3.c` + `c_test3.c`) gives an RTU master a
 map with only slave 0, the broadcast: nothing to poll, so every tick of
 `timeout_polling` ends a cycle that polled nothing, as a master that only
 serves requests does. Three reads, three seconds apart, are each answered
@@ -124,7 +124,7 @@ master inside its `EV_MODBUS_ANSWER`: nothing more is polled or logged
 (before, *"cur_slave_ NULL"*, and an `EV_TIMEOUT` *"NOT DEFINED"* in
 `ST_DISCONNECTED` at the next tick).
 
-(REV-CLOUD V49.2) Between the first read and the other two, three requests
+Between the first read and the other two, three requests
 to slave 0, the RTU broadcast, with `timeout_response` at 4 s. A read from
 slave 0 is refused at once (*"Modbus request refused"*). A write to slave 0
 that the slave does not answer, as the standard says, is answered as done
@@ -137,7 +137,7 @@ writes failed there too; and the `0x00` of the echo was dropped, and its
 `06 00 50` taken as the head of a frame of 82 bytes (*"Modbus frame dropped:
 not the answer awaited"*, `slave_id` 6).
 
-(REV-CLOUD V50.2) The master of `test3` has a `baudrate` of 1200, as behind
+The master of `test3` has a `baudrate` of 1200, as behind
 a `tcp://` gateway to a slow bus. A write of 123 registers to slave 0 (255
 bytes, 2338 ms on that line) must be answered as done no sooner than 2.5 s
 (its line time and the turnaround delay) and within 4.5 s. Before the fix the
@@ -147,7 +147,7 @@ answered at the first tick after 200 ms, with its frame still on the line
 echo of a broadcast is warned under its own name (*"Modbus: bytes during a
 broadcast, dropped..."*), not as the noise of the line.
 
-`test4` (`main_test4.c` + `c_test4.c`, REV-CLOUD V50.2) gives the master,
+`test4` (`main_test4.c` + `c_test4.c`) gives the master,
 `"RTU"`, the slave side of a pty as its `url`: it creates its own `C_UART`.
 The test answers RTU frames by hand on the master side of the pty, keeps a fd
 of its own on the slave side, and counts the fds of the process open on that

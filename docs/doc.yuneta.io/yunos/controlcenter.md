@@ -113,7 +113,7 @@ connection. And the client at the end must know it too: `ycommand` logs
 event, in its request:
 
 ```json
-{"agent_id": "node1",
+{"agent_id": "node-a",
  "cmd2agent": "watch-yuno-stats ids=2120,5120 period=2000",
  "__relays__": ["EV_YUNO_STATS"]}
 ```
@@ -138,7 +138,7 @@ for a request made through the local agent (it is answered twice, see
 above: `-w` gives the node's answer time to arrive):
 
 ```bash
-ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=node1 cmd2agent="list-yunos"'
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=node-a cmd2agent="list-yunos"'
 ```
 
 That link is believed only for an agent it asked: the agent's channel
@@ -308,7 +308,7 @@ ycommand ... -c 'save-scenario revision=7 scenario={...}' # -> scenario 't1' was
 
 ```bash
 ycommand --url=wss://<cc-host>:1996 --yuno-role=controlcenter --yuno-service=controlcenter \
-    -c 'save-scenario scenario={"id":"t1","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"report":[{"yuno":"1620","command":"help"}]}}'
+    -c 'save-scenario scenario={"id":"t1","node":"node-a","yunos":[{"id":"1620"}],"actions":{"report":[{"yuno":"1620","command":"help"}]}}'
 ycommand ... -c 'scenarios'
 ycommand ... -c 'scenarios scenario_id=t1'
 ycommand ... -c 'delete-scenario scenario_id=t1'      # and its runs
@@ -516,7 +516,7 @@ of steps, `on` and `off`, as those of an action, where a step that names no
 `yuno` goes to the switch's own:
 
 ```json
-{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "artgins",
+{"key": "pp12", "id": "pp12", "service": "sim_controllers", "rate": "tx", "node": "node-a",
  "switch": {
      "on":  [{"command": "set-devices devices=20"}, {"command": "set-period period=1000"},
              {"command": "set-controllers controllers=125"}, {"command": "resume-generation"}],
@@ -555,7 +555,7 @@ the whole kw of `command-yuno` as the filter that selects the yuno, so such a
 parameter would pick another yuno or none. `save-scenario` refuses it:
 
 ```bash
-ycommand ... -c 'save-scenario scenario={"id":"t2","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x date=1"}]}}'
+ycommand ... -c 'save-scenario scenario={"id":"t2","node":"node-a","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x date=1"}]}}'
 # -> ... actions.stop[0]: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno
 ```
 
@@ -566,7 +566,7 @@ replace the routing of the step's answer (the run waits for its deadline), a
 `__username__` the user the control center stamps.
 
 ```bash
-ycommand ... -c 'save-scenario scenario={"id":"t3","node":"wattyzer","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x __username__=root"}]}}'
+ycommand ... -c 'save-scenario scenario={"id":"t3","node":"node-a","yunos":[{"id":"1620"}],"actions":{"stop":[{"yuno":"1620","command":"set-x __username__=root"}]}}'
 # -> ... actions.stop[0]: command: the parameter '__username__' is a framework key: it would replace what the control center sets
 ```
 
