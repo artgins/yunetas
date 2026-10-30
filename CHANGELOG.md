@@ -257,6 +257,31 @@
   `200 success` with empty cookies). A `Host` whose name
   is over 253 bytes gets no `Domain`, with a WARNING whose `host_len` is the
   length of the name in the request (it used to get the `Domain`). In 7.29.3. `c_auth_bff/test21`, `test23`.
+- **C_AUTH_BFF: a token lifetime of 0 from the IdP no longer deletes its
+  cookie on arrival.** Keycloak answers `"refresh_expires_in": 0` for an
+  offline token (scope `offline_access`), meaning no expiry; the BFF wrote
+  `Max-Age=0`, the browser deleted the cookie and the next refresh answered
+  `401 missing_refresh_token` (and `"expires_in": 0` left no cookie at all).
+  A lifetime of 0 writes a cookie of the browser session (no `Max-Age`). In
+  7.29.3. `c_auth_bff/test24`.
+- **C_AUTH_BFF: a logout with no `refresh_token` cookie ends the session in
+  the browser, and only for a same-site request.** In 7.29.3 it answered
+  `401 missing_refresh_token` with no `Set-Cookie`, so the access cookie
+  stayed alive. Now, with no IdP call (there is no refresh_token to end that
+  session with), it clears both cookies (`Max-Age=0`) and answers `200
+  {"success": true}` only when the request carries the `access_token` cookie
+  (`SameSite=Strict` proves a same-site request) and, when `allowed_origin`
+  is set, that exact `Origin` (another gets `403 origin_not_allowed`). A
+  request with no cookie at all gets `200` with no `Set-Cookie`: there is
+  nothing to end, so a cross-site form cannot log a user out. A
+  `refresh_token` cookie of 4096 bytes or more is none the BFF wrote: `400
+  token_too_large` (it was taken as absent). `missing_refresh_token` is only
+  for `/auth/refresh`. In 7.29.3. `c_auth_bff/test19`, `test24`.
+- **C_AUTH_BFF: an IdP success whose body is not a JSON object is a WARNING,
+  not two ERRORs** (an empty body, a proxy's HTML page, `[1, 2]`): in 7.29.3
+  it logged an ERROR with a stack from `kw_get_dict()` plus *"BFF server
+  error"*. It is `502 auth_empty_response` with the WARNING *"BFF IdP answer
+  refused"* and an `error` naming the case. In 7.29.3.
 - **C_AUTH_BFF keeps the browser's refresh_token when the IdP issues no new
   one.** An IdP success with no `refresh_token` wrote an empty refresh_token
   cookie over the good one, with nothing logged, and the next refresh
@@ -269,8 +294,10 @@
 - **C_AUTH_BFF reads the IdP answer as data of a peer.** A token that is not
   a string gave an ERROR with a stack from `kw_get_str()` (and a
   wrong-typed refresh_token a `200` with an empty cookie); it is a WARNING
-  with no stack naming the token and its type, and `502
-  auth_unexpected_error`. A lifetime (`expires_in`, `refresh_expires_in`) is
+  with no stack naming the token and its type (*"BFF IdP answer refused"*,
+  without the ERROR every other 5xx keeps), and `502
+  auth_unexpected_error`. `refresh_expires_in` is answered only when a
+  refresh_token cookie was written. A lifetime (`expires_in`, `refresh_expires_in`) is
   a JSON integer or the text of one (`"300"`); anything else gets its
   default with a WARNING. In 7.29.3.
 - **C_AUTH_BFF: a 502 or 429 goes out with its own HTTP status.**
@@ -346,8 +373,8 @@
 - **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
-  1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.7, gui_agent
-  1.2.7 to 1.2.9 and gui_treedb 1.1.3 to 1.1.5. The `yunetas` CLI 1.0.5 and
+  1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.8, gui_agent
+  1.2.7 to 1.3.0 and gui_treedb 1.1.3 to 1.1.6. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, and a login
@@ -369,6 +396,11 @@
   without example ids or node labels, and the `json_flatten_dict()` history
   (here, in `CLAUDE.md`, `kwid.c`/`kwid.h` and the kwid guide) says that a
   dict keyed by a yuno id N came back as an array of N+1 elements.
+- **gobj-js and gobj-ui tests**: the linearity of the secret masking is
+  checked by counting its work, not timing it (red for a 0.3x or a 2x
+  rescan on every shape, whatever the load; the suite runs in about 4 s
+  instead of 25), and the treedb fold model's extended-parent, tie-break,
+  double-mark and multivalued-fkey rules are tested, each with a mutant red.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -678,26 +710,45 @@
   7.29.3.
 - **In a zone that skips a whole day, a day counted back onto that day is no
   date, and the last noon that passed is the one of the day before.** Apia
-  skipped 2011-12-30: `"yesterday 12:30"` said on the 31st was the 31st at
-  12:30, ahead of now (in 7.29.3). `"yesterday noon"`, `"yesterday 12:30"`
-  and `"last friday noon"` are refused, and `"noon"` is the 29th at 12:00;
-  a date written in full keeps the step forward (`"2011-12-30 12:00"` is the
-  31st at 12:00 +1400).
-- **A sign glued to the digits of a date is no zone, and with no clock time
-  an offset outside -12:00..+14:00 is no date.** The reading of an offset
-  after a day (unreleased) took `"2026-10-01-10:00"` as October 1 in a zone
-  of -10:00, `"2026.10-2026.10"` as the 11th and `"now-2026"` as a zone of
-  -20:26. A sign that touches digits is a zone only right after a clock time
-  (`"2026-10-01T10:00-05:00"`); write `"2026-10-01 -10:00"`.
-- **The date reader calls `tzset()`, and the limit of its local reading is
-  documented**: a `TZ` changed with `setenv()` alone was not seen (unreleased,
-  since the reader stopped using `mktime()`); the reading is exact for a zone
-  that never changes its offset twice in less than 48 hours, which no tzdata
-  zone does since 1970 (a POSIX `TZ` with one day of summer time is read an
-  hour late that day). A clock time with a zone and no date is of the day of
-  now in that zone (`"02:30 CET"` at 00:30 CEST on 2026-10-25 is the 24th),
-  as in 7.29.3, documented. `test_date_bound_units` reports each case it
-  skips against the real clock and checks the zone of an offset.
+  skipped 2011-12-30. In 7.29.3 `"yesterday 12:30"` said on the 31st was the
+  31st at 12:30, after now, and `"yesterday noon"`, `"noon -1 day"` and
+  `"last friday noon"` were the 29th at 12:00. All are no date now, and
+  `"noon"` is the 29th at 12:00. A count of hours, minutes or seconds counts
+  no day: `"noon -2 hours"` and `"tea -30 minutes"` are the 29th at 10:00
+  and 16:30 (in 7.29.3 the 29th or the 31st at 10:00 depending on the text
+  read before). A date written in full keeps the step forward
+  (`"2011-12-30 12:00"` is the 31st at 12:00 +1400). Apia and Fakaofo are
+  tested.
+- **A sign glued to the digits of a date with only a day before it is no
+  zone, and with no clock time an offset outside -12:00..+14:00 is no
+  date.** The reading of an offset after a day (unreleased) took
+  `"2026-10-01-10:00"` as October 1 in a zone of -10:00, `"2026.10-2026.10"`
+  as the 11th and `"now-2026"` as a zone of -20:26; 7.29.3 refused them, and
+  they are refused again (write `"2026-10-01 -10:00"`). A sign glued to
+  digits is a zone right after a clock time (`"2026-10-01T10:00-05:00"`) and
+  after a clock time, noon or epoch seconds said before it
+  (`"10:00 2026-10-01-0500"`, `"@1790000000-0500"`), as 7.29.3 read it.
+  After epoch seconds any offset is read: it only gives the offset to show
+  the time with. **BREAKING against 7.29.3:** with no clock time, an offset
+  of no zone in a comment is no date (`"2026-10-01 (UTC+15:00)"`, `"now
+  (+1500)"`); 7.29.3 lost the comment's offset and read them in UTC or as
+  now, while it already refused the same offsets written apart.
+- **The date reader calls `tzset()` only when `TZ` changed, and the limit of
+  its local reading is documented** (`approxidate_careful()`, and so
+  `tranger2_time_of_text()`, which reads a text tkey at every append). A
+  `TZ` changed with `setenv()` or `unsetenv()` alone is seen; a change of
+  `/etc/localtime` while the process runs is seen at its next `tzset()`, not
+  per text. Over 300k texts of 20 forms (20 alternated rounds, medians):
+  with `TZ` unset 187 ms in 7.29.3 (its `mktime()` called `tzset()` for each
+  local time) and 127 ms now, `tranger2_time_of_text()` 0.95 and 0.70 µs a
+  call; with `TZ` set 124 and 129 ms (0.68 and 0.74 µs), within the spread
+  of the runs (about ±22 ms). The reading is exact for a zone that never
+  changes its offset twice in less than 48 hours (no tzdata zone since
+  1970). A clock time with a zone and no date is of the day of now in that
+  zone (`"02:30 CET"` at 00:30 CEST on 2026-10-25 is the 24th), as in
+  7.29.3. `test_date_bound_units` reports each case it skips against the
+  real clock and checks the zone of an offset; `test_date_text` counts
+  `tzset()`.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
   bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text

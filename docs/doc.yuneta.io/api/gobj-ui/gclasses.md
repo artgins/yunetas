@@ -23,7 +23,7 @@ register_c_yui_nav();
 ## The shell and the navigation
 
 (js_register_c_yui_shell)=
-### [`register_c_yui_shell()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_shell.js#L4480)
+### [`register_c_yui_shell()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_shell.js#L4480)
 
 `C_YUI_SHELL` draws the frame of the application from one JSON file: the
 toolbar, the menus and the zones. Its API is in [The shell](shell_api.md).
@@ -50,34 +50,34 @@ tree gives it to the content on the screen, and sends it when a node shows
 again a content that it made before.
 
 (js_register_c_yui_nav)=
-### [`register_c_yui_nav()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_nav.js#L1235)
+### [`register_c_yui_nav()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_nav.js#L1235)
 
 `C_YUI_NAV` draws the menu of the shell. Each zone takes its own layout, and the
 layout changes with the width of the screen.
 
 (js_register_c_yui_pager)=
-### [`register_c_yui_pager()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_pager.js#L545)
+### [`register_c_yui_pager()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_pager.js#L545)
 
 `C_YUI_PAGER` holds a stack of pages inside one zone, for a movement that goes
 in and returns.
 
 (js_register_c_yui_wizard)=
-### [`register_c_yui_wizard()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_wizard.js#L631)
+### [`register_c_yui_wizard()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_wizard.js#L631)
 
 `C_YUI_WIZARD` drives a sequence of steps with a way forward and a way back.
 
 (js_register_c_yui_service_view)=
-### [`register_c_yui_service_view()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_service_view.js#L386)
+### [`register_c_yui_service_view()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_service_view.js#L386)
 
 `C_YUI_SERVICE_VIEW` puts a view of a service in a zone of the shell.
 
 (js_yui_mount_service_view)=
-### [`yui_mount_service_view(host, spec)`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_service_view.js#L153)
+### [`yui_mount_service_view(host, spec)`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_service_view.js#L153)
 
 Puts a view of a service in a host, from a description of it.
 
 (js_expose_view_container)=
-### [`expose_view_container(host, view)`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_service_view.js#L216)
+### [`expose_view_container(host, view)`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_service_view.js#L216)
 
 Gives the container of a view to the host that holds it.
 
@@ -86,7 +86,7 @@ Gives the container of a view to the host that holds it.
 ## Windows
 
 (js_register_c_yui_window)=
-### [`register_c_yui_window()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_window.js#L1847)
+### [`register_c_yui_window()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_window.js#L1847)
 
 `C_YUI_WINDOW` draws a window that floats above the application.
 
@@ -130,7 +130,7 @@ gobj_start(win);                    // opened by the reader: the focus goes in
 ```
 
 (js_register_c_yui_window_manager)=
-### [`register_c_yui_window_manager()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_window_manager.js#L988)
+### [`register_c_yui_window_manager()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_window_manager.js#L988)
 
 `C_YUI_WINDOW_MANAGER` holds the windows, and it draws the dock of them.
 
@@ -152,7 +152,7 @@ element of the application that fills the screen can use the same variables:
 ```
 
 (js_register_c_yui_update_watch)=
-### [`register_c_yui_update_watch()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_update_watch.js#L743)
+### [`register_c_yui_update_watch()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_update_watch.js#L743)
 
 `C_YUI_UPDATE_WATCH` tells the reader that a newer build of the SPA is
 deployed (since gobj-ui 7.27.29). A tab that was opened before a deploy runs
@@ -181,7 +181,7 @@ if(update_watch) {
 ```
 
 (js_yui_update_watch_language_changed)=
-### [`yui_update_watch_language_changed()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_update_watch.js#L759)
+### [`yui_update_watch_language_changed()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_update_watch.js#L759)
 
 The bar of `C_YUI_UPDATE_WATCH` hangs off the body. With a shell, it changes
 language with the shell's `EV_LANGUAGE_CHANGED`. The login screen has no
@@ -202,7 +202,7 @@ yui_update_watch_language_changed();
 ## Data
 
 (js_register_c_yui_form)=
-### [`register_c_yui_form()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_form.js#L4562)
+### [`register_c_yui_form()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_form.js#L4562)
 
 `C_YUI_FORM` is the one engine of forms of the library. The attribute
 `render_mode` chooses between the form that runs a command and the form that
@@ -383,7 +383,7 @@ gobj_write_bool_attr(form, "selectable", true);   // the column is shown
 ```
 
 (js_register_c_yui_json)=
-### [`register_c_yui_json()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_json.js#L1526)
+### [`register_c_yui_json()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_json.js#L1526)
 
 `C_YUI_JSON` draws a JSON value, and it draws a big one without the cost of the
 whole tree. It draws it three ways, and each one answers a different question:
@@ -415,7 +415,7 @@ and the graph are not drawn again. Before, the time was the text of
 the language of the application.
 
 (js_register_c_yui_json_pad)=
-### [`register_c_yui_json_pad()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_json_pad.js#L900)
+### [`register_c_yui_json_pad()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_json_pad.js#L900)
 
 `C_YUI_JSON_PAD` is a pad for JSON from outside the application. Paste the
 JSON, and a `C_YUI_JSON` child shows it. When the text is not JSON, the last
@@ -429,12 +429,12 @@ texts and its layout in `localStorage`, under the key in its `storage_key`
 attribute. An empty `storage_key` keeps nothing.
 
 (js_register_c_yui_json_graph)=
-### [`register_c_yui_json_graph()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_json_graph.js#L2585)
+### [`register_c_yui_json_graph()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_json_graph.js#L2585)
 
 `C_YUI_JSON_GRAPH` draws a JSON value as a graph.
 
 (js_register_c_yui_period)=
-### [`register_c_yui_period()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_period.js#L1479)
+### [`register_c_yui_period()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_period.js#L1479)
 
 `C_YUI_PERIOD` chooses a range of time. Its calendar takes the language of the
 application. The algebra behind it is in [Time and periods](time.md).
@@ -444,7 +444,7 @@ application. The algebra behind it is in [Time and periods](time.md).
 ## TreeDB
 
 (js_register_c_yui_treedb_topics)=
-### [`register_c_yui_treedb_topics()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_treedb_topics.js#L3674)
+### [`register_c_yui_treedb_topics()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_treedb_topics.js#L3674)
 
 `C_YUI_TREEDB_TOPICS` draws the topics of a treedb as cards, with a panel of
 information.
@@ -464,13 +464,13 @@ the view is in session does not read. For example:
 ```
 
 (js_register_c_yui_treedb_graph)=
-### [`register_c_yui_treedb_graph()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_treedb_graph.js#L3899)
+### [`register_c_yui_treedb_graph()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_treedb_graph.js#L3899)
 
 `C_YUI_TREEDB_GRAPH` draws a treedb as the graph that it is: the topics are the
 nodes, and the links between hook and foreign key are the edges.
 
 (js_register_c_yui_treedb_schema)=
-### [`register_c_yui_treedb_schema()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_treedb_schema.js#L986)
+### [`register_c_yui_treedb_schema()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_treedb_schema.js#L986)
 
 `C_YUI_TREEDB_SCHEMA` draws the schema of a treedb. It draws it as the schema
 literal in C draws it: one card for each topic, and the fields of the topic in
@@ -489,7 +489,7 @@ The diagram keeps the scale that it is drawn at. It does not zoom to the
 container when it appears.
 
 (js_register_c_yui_schema_editor)=
-### [`register_c_yui_schema_editor()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_schema_editor.js#L4993)
+### [`register_c_yui_schema_editor()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_schema_editor.js#L4993)
 
 `C_YUI_SCHEMA_EDITOR` edits the schemas that a yuno keeps in its
 `treedb_system_schema`. The store keeps a schema in three flat topics:
@@ -602,7 +602,7 @@ The texts in `code` above are i18n keys. The locales of the application must
 have them.
 
 (js_register_c_yui_treedb_topic_with_form)=
-### [`register_c_yui_treedb_topic_with_form()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_treedb_topic_with_form.js#L5729)
+### [`register_c_yui_treedb_topic_with_form()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_treedb_topic_with_form.js#L5729)
 
 `C_YUI_TREEDB_TOPIC_WITH_FORM` draws one topic with the form of its records.
 
@@ -652,7 +652,7 @@ screen.
   there.
 
 (js_register_c_g6_nodes_tree)=
-### [`register_c_g6_nodes_tree()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_g6_nodes_tree.js#L13273)
+### [`register_c_g6_nodes_tree()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_g6_nodes_tree.js#L13273)
 
 `C_G6_NODES_TREE` draws a tree of nodes with the library G6.
 
@@ -722,13 +722,13 @@ one of these graphs needs its key in each locale, or its `prebuild` fails.
 ```
 
 (js_register_c_yui_gobj_tree_js)=
-### [`register_c_yui_gobj_tree_js()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_gobj_tree_js.js#L4113)
+### [`register_c_yui_gobj_tree_js()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_gobj_tree_js.js#L4113)
 
 `C_YUI_GOBJ_TREE_JS` draws the tree of the gobjs of the application, for a
 development panel.
 
 (js_register_c_yui_gclass)=
-### [`register_c_yui_gclass()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_gclass.js#L1904)
+### [`register_c_yui_gclass()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_gclass.js#L1904)
 
 `C_YUI_GCLASS` shows what a gclass IS: its attributes, its commands, its
 events and its states, read from the descriptor the runtime holds. It draws
@@ -736,7 +736,7 @@ the descriptor and not a document written beside it, so what it shows cannot
 go stale.
 
 (js_register_c_yui_fsm_graph)=
-### [`register_c_yui_fsm_graph()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_fsm_graph.js#L1011)
+### [`register_c_yui_fsm_graph()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_fsm_graph.js#L1011)
 
 `C_YUI_FSM_GRAPH` draws the state machine of a gclass as a graph: one node per
 state and one edge per event that moves between two of them. It is what
@@ -747,7 +747,7 @@ state and one edge per event that moves between two of them. It is what
 ## Charts and maps
 
 (js_register_c_yui_uplot)=
-### [`register_c_yui_uplot()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_uplot.js#L602)
+### [`register_c_yui_uplot()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_uplot.js#L602)
 
 `C_YUI_UPLOT` draws a chart of a series of time with the library uPlot.
 
@@ -800,7 +800,7 @@ chart.setLegend(null, false);
 ```
 
 (js_register_c_yui_map)=
-### [`register_c_yui_map()`](https://github.com/artgins/gobj-ui.js/blob/7.29.7/src/c_yui_map.js#L1164)
+### [`register_c_yui_map()`](https://github.com/artgins/gobj-ui.js/blob/7.29.8/src/c_yui_map.js#L1164)
 
 `C_YUI_MAP` draws a map with the library maplibre. The controls are in
 [Map controls](maplibre.md).
