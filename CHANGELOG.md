@@ -15327,8 +15327,8 @@ key `show more`. The JS API docs are repinned to the new tag.
 `store_file_bytes()` wrote the manifest's `original_name` into the asset node
 whether or not it was the name already stored, and every update appends an
 instance: a repeated `import-assets` over the same directory added one
-instance per asset that said exactly what the previous one said (about 12,000 rows
-of nothing on a real store). The name is compared with the stored
+instance per asset that said exactly what the previous one said (thousands of
+rows of nothing on a large store). The name is compared with the stored
 one first, and only a NEW name is written. Test 17 of
 `tests/c/tr_treedb_files`.
 
@@ -16053,8 +16053,8 @@ the test drives them as strings the way the agent does.
 
 A treedb node often owns something that is not json — a photo, a plan, a
 signed pdf — and today those bytes live wherever whoever loaded them put
-them. In one application that is about 350 MB of device photos under
-`/yuneta/store/resources/<topic>/`, referenced from `devices.photo`
+them: hundreds of megabytes of images under
+`/yuneta/store/resources/<topic>/`, referenced from a column
 as a free string, pushed to the node by an `rsync` from a developer's
 laptop. Nothing owns them: no command writes one, so a user cannot add or
 replace a photo from the SPA or from `ycommand`; nothing checks the path
@@ -16098,7 +16098,7 @@ a leaked url.
 
 **`import-assets` is the bulk path, and it moves no bytes at all.** One
 command walks a directory that is already on the node and turns it into N
-assets — for one application, about 12,000 files that are already sitting
+assets — thousands of files that are already sitting
 in the store. Sending hundreds of megabytes through the control plane, one
 base64 message per file, is the thing it exists to avoid. It reads an
 arbitrary path, so it is confined to a configured `import_root` and refused
