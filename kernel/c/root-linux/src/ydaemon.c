@@ -346,11 +346,12 @@ PRIVATE int relauncher(
  *  The wait before a relaunch, cut short by a SIGQUIT whenever it comes.
  *  SIGQUIT is blocked BEFORE the stop is looked at, and the wait takes it
  *  from the pending set (sigtimedwait), so one that arrives after the look
- *  ends the wait at once. Up to 7.29.3 the look was followed by a sleep(): a
- *  SIGQUIT between the two found nobody to wake, and the whole wait ran --
- *  past systemd's TimeoutStopSec, or --stop's own wait, and into a SIGKILL
- *  once the wait could grow to a minute. One left pending when the wait
- *  ends is delivered to the handler as the mask is restored.
+ *  ends the wait at once. The wait was a sleep(): a SIGQUIT that came
+ *  after the child ended and before the sleep() found nobody to wake, and
+ *  the whole wait ran -- 2 s up to 7.29.3; once the wait could grow to a
+ *  minute, past systemd's TimeoutStopSec, or --stop's own wait, and into a
+ *  SIGKILL. One left pending when the wait ends is delivered to the
+ *  handler as the mask is restored.
  ***************************************************************************/
 PRIVATE void wait_to_relaunch(int seconds)
 {

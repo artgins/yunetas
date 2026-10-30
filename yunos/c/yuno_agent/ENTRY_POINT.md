@@ -273,9 +273,10 @@ more sets it back to 2 s. A SIGQUIT (§4.2) cuts a wait short: the watcher
 exits at once and does not relaunch. That holds whenever the SIGQUIT comes,
 even just before the wait starts: the watcher blocks SIGQUIT, looks at the
 stop, and waits in `sigtimedwait()`, which takes a SIGQUIT that is pending.
-Up to 7.29.3 it looked at the stop and then called `sleep()`, and a SIGQUIT
-between the two let the whole wait run -- with the wait grown to 60 s, past
-systemd's `TimeoutStopSec=30` or the 10 s of `--stop`, and into a SIGKILL.
+The wait was a `sleep()`, and a SIGQUIT that came after the child ended and
+before the `sleep()` let the whole wait run: 2 s up to 7.29.3, and, once the
+wait could grow to 60 s, past systemd's `TimeoutStopSec=30` or the 10 s of
+`--stop`, and into a SIGKILL.
 
 ```c
 sigprocmask(SIG_BLOCK, {SIGQUIT}, &old);
