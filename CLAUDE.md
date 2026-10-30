@@ -62,8 +62,9 @@ takes it.
 
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
 **Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
-registry** — since 2026-08-03 there are no `file:` consumers left (wattyzer
-moved on 2026-07-25, the in-repo `yunos/js/*` yunos followed). So library work
+registry** — since 2026-08-03 there are no `file:` consumers left (the
+first application moved on 2026-07-25, the in-repo `yunos/js/*` yunos
+followed). So library work
 reaches an app only once published, and each SPA builds standalone. **Every
 app commits its `package-lock.json`** (since 2026-10-22; until then all of
 them ignored it, so one commit could build two bundles): a fresh checkout
@@ -191,8 +192,8 @@ The standalone repo carries **two maintained lines**, and they are consumed in
     gobj-js 7.26.22 reports a child destroyed under its own publication as an
     ERROR, as the C kernel does.
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
-  **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, wattyzer, yunovatios,
-  estadodelaire, yunomusica — all pull it from the **npm registry**, and all import it by package
+  **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, and the
+  applications built on it — all pull it from the **npm registry**, and all import it by package
   specifier (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map
   `"./src/*"`; the source lives under `src/` mirroring v1, with `index.js` and
   the vite plugin at the package root, and the published tarball ships all of
@@ -202,10 +203,8 @@ The standalone repo carries **two maintained lines**, and they are consumed in
 - **`v1` branch** (latest tag `1.0.4`, npm dist-tag `legacy`) — the **frozen**
   legacy GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
   charts/maps). `v1` is **maintenance-only** — do not land feature work here.
-  **It has no consumer left**: estadodelaire left it for v2 on 2026-10-13
-  (its plan, decisions and the gaps it found in
-  `estadodelaire/gui/MIGRACION_V2.md`), and hidraulia, the last one, on
-  2026-10-15 (GUI 2.0.0, on estadodelaire's code: `hidraulia/gui/MIGRACION_V2.md`).
+  **It has no consumer left**: the last two applications left it for v2 on
+  2026-10-13 and 2026-10-15, each with its migration plan in its own repo.
   Each keeps its v1 in a `gui-v1-final` tag. The local
   `kernel/js/gobj-ui` checkout is **no longer `v1`** — do not point a
   dependency at it for a v1 consumer. (The in-repo
@@ -216,8 +215,8 @@ That is the whole point of the registry model, and it is the thing to remember
 when a change "does not show up": publish the library, then raise the range in
 the consumer. Dropping the `file:` symlinks also let every consumer drop
 `resolve.preserveSymlinks`, which had been suppressing tree-shaking of the
-`index.js` barrel (in wattyzer it pulled all of `maplibre-gl` into the bundle
-for an app with no map — 1.5 MB).
+`index.js` barrel (in one application it pulled all of `maplibre-gl` into the
+bundle for an app with no map — 1.5 MB).
 
 `@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
 (public, snapshot start — history not preserved; single line on `main`, symmetric
@@ -248,11 +247,10 @@ in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
 patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
 `EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
 caught up at the `7.6.7` release.) **Every** consumer takes it from the
-registry — estadodelaire, hidraulia, wattyzer, yunomusica, the three yunovatios
-GUIs and the in-repo `yunos/js/*` yunos — but they do **not** all declare the
-same floor, and assuming they do has been wrong since the in-repo yunos moved
-ahead: `yunos/js/*`, the yunovatios GUIs, wattyzer's gui, yunomusica and
-estadodelaire and hidraulia are on `^7.28.0` (2026-10-25). Check the consumer's own
+registry — the applications and the in-repo `yunos/js/*` yunos — but they do
+**not** all declare the same floor, and assuming they do has been wrong since
+the in-repo yunos moved ahead: all of them were on `^7.28.0` on 2026-10-25.
+Check the consumer's own
 `package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
 unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
 `src/`.
@@ -266,7 +264,7 @@ Operational notes:
   this when touching `kernel/js/gobj-ui/**`.
 - `dist/` is no longer on any consumer's critical path: the v2 consumers import
   source files by specifier (`src/` ships in the published tarball too, so
-  wattyzer does the same from the registry). Still run `npm run build` to
+  an application does the same from the registry). Still run `npm run build` to
   validate, and before publishing.
 - A **v1** release would be cut from a **v1** checkout of the standalone repo
   (`npm run build` + `npm publish`; this local submodule stays on `main`), but
@@ -274,13 +272,12 @@ Operational notes:
 - gobj-ui installs its own copies of shared third-party libs (i18next,
   @antv/g6, maplibre-gl, tabulator-tables, tom-select, uplot,
   vanilla-jsoneditor). Any consumer that also depends on one of them must add
-  `resolve.dedupe` for the full list in its `vite.config.js` (mirror
-  wattyzer's, the reference v2 consumer) — otherwise components importing a
+  `resolve.dedupe` for the full list in its `vite.config.js` (mirror the
+  reference v2 application's) — otherwise components importing a
   module-level singleton (e.g. i18next's `t`) bind an uninitialized second
   copy and render blank.
-- Preserve backwards compatibility for existing consumers (wattyzer,
-  yunovatios, estadodelaire, hidraulia, yunomusica and the in-repo yunos, all
-  on published v2) and update the repo's `README.md` when the
+- Preserve backwards compatibility for existing consumers (the
+  applications and the in-repo yunos, all on published v2) and update the repo's `README.md` when the
   contract changes.
 
 ### `jansson` is Yuneta's own JSON library (`github.com/artgins/jansson`)
@@ -848,12 +845,12 @@ one. The `[c]test` bracket trick does not save either of them.
 
 ### External projects (registered in the CLI)
 
-Projects (wattyzer, estadodelaire, …) can be registered so the `yunetas`
+Projects (your applications) can be registered so the `yunetas`
 CLI builds them right after the SDK. Registry: `~/.yuneta/projects.json`
 (machine-local user state, outside the source tree).
 
 ```bash
-yunetas register-project /yuneta/development/projects/wattyzer
+yunetas register-project /yuneta/development/projects/myapp
 yunetas list-projects / unregister-project <name>
 yunetas init|build|clean                  # SDK + every registered project
 yunetas init|build|clean <name>...        # only those projects (SDK skipped)
@@ -1190,8 +1187,8 @@ delivery must carry); its yunos are then made with `yuno_citizen` in its
 `yunos/`.
 
 The **JS GUI yuno** scaffold (Vite + declarative shell on gobj-ui v2) is the
-`gui/` of both, kept once in `skeletons/project_base/gui/` (it lived in
-`wattyzer/templates/js_gui/`, a private repo, from 2026-05-21 to 2026-10-26).
+`gui/` of both, kept once in `skeletons/project_base/gui/` (it lived in a
+private repo from 2026-05-21 to 2026-10-26).
 gobj-ui's deploy round raises its ranges and runs
 `utils/c/yuno-skeleton/check_project_gui.sh`, which generates a project and
 installs and builds its gui.
@@ -1311,22 +1308,22 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   (it runs), unless the app called `set_strings_are_text(true)` (gobj-js
   7.26.3+). Data goes in as a Text node (`text_node()` in gobj-ui); markup
   you mean goes in `html_markup('<i class="yi-…"></i>')`. gobj-ui (7.26.10+),
-  `yunos/js/*` and the yunovatios GUIs run in that mode, and their `prebuild`
+  `yunos/js/*` and the applications run in that mode, and their `prebuild`
   runs the check gobj-ui publishes
   (`node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs`; its
   `acorn` is a dependency of gobj-ui since 7.26.29, so an app need not
-  declare it). So do wattyzer, yunomusica and the
+  declare it). So does the
   project templates' `gui/` scaffold (which takes gobj-ui from npm since
   2026-10-11; it used to vendor lib-yui). **The default does not flip in 7.x, by decision
-  (2026-10-11):** the reason was hidraulia, then frozen on gobj-ui v1, whose
-  markup is plain strings, taking gobj-js through `^7.22.2` -- a flipped
-  default would have reached it by its range and broken it. Since 2026-10-15
-  hidraulia is on v2 too and opts in like every v2 app, so that reason is
-  gone; flipping the default is the user's call. Every v2 app opts
+  (2026-10-11):** the reason was an application then frozen on gobj-ui v1,
+  whose markup is plain strings, taking gobj-js through `^7.22.2` -- a
+  flipped default would have reached it by its range and broken it. Since
+  2026-10-15 it is on v2 too and opts in like every v2 app, so that reason
+  is gone; flipping the default is the user's call. Every v2 app opts
   in at startup instead. **The static check is not enough to turn the mode
-  on:** it cannot see markup a helper RETURNS (`svg(path, size)` in
-  yunomusica drew every icon as text under the mode and failed 11 of 30
-  e2e tests); load the app with the mode on and read the console for the
+  on:** it cannot see markup a helper RETURNS (an application's
+  `svg(path, size)` drew every icon as text under the mode and failed 11 of
+  30 e2e tests); load the app with the mode on and read the console for the
   `html_markup()` warnings before deploying it.
 - `gobj_create_default_service()` DOES register in `__jn_services__`, so
   `gobj_find_service("app")` finds it — this line used to say the opposite, and
@@ -1334,8 +1331,8 @@ Examples: `c_yui_main.js` (`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
   `gobj_flag_service` to a default service before building the gobj, and the
   registration is keyed off that flag. It matters beyond a lookup: a default
   service is a legal `src` for an inter-yuno message, so it can subscribe to a
-  backend event and get the answer delivered to it by name (`C_YV_APP` counting
-  open alarms for the toolbar badge does exactly that).
+  backend event and get the answer delivered to it by name (an application's
+  main gclass counting open alarms for the toolbar badge does exactly that).
 - `pure_child` gobjs are not auto-started by `c_yuno.mt_play` — call
   `gobj_start(child)` explicitly.
 - A pure-child `C_TIMER` or `C_IEVENT_CLI` **publishes** to its parent, which
@@ -1640,8 +1637,8 @@ from the schema source of truth, never hand-draw them.
   columns: the hook, and the fkey.
 - **A `treedb_schema_<db>.c` holds what the schema editor exports, and
   nothing else**: the GRAPH of the schema as a comment, then the literal.
-  `<db>` is the treedb id without its `treedb_` prefix (`treedb_wattyzer` →
-  `treedb_schema_wattyzer.c`, array `static char treedb_schema_wattyzer[]`).
+  `<db>` is the treedb id without its `treedb_` prefix (`treedb_myapp` →
+  `treedb_schema_myapp.c`, array `static char treedb_schema_myapp[]`).
   No function, no hand-written note, no second literal (a msg2db schema gets
   its own `msg2db_schema_<name>.c`). The export is `schema_to_c()` in gobj-ui,
   and the graph is `schema_to_diagram()`, DERIVED from the literal, never
@@ -1970,8 +1967,8 @@ equivalent.
   `__version__` and rewrites `__description__` as **ONE short line saying what
   that version changes** — operators read it in `list-configs`, and a long one
   is read by nobody. No chained history of earlier versions, no rationale, no
-  long rollback notes: those go in the commit and the CHANGELOG (yunovatios
-  descriptions had grown past 7,000 characters that way). Rollback is
+  long rollback notes: those go in the commit and the CHANGELOG (an
+  application's descriptions had grown past 7,000 characters that way). Rollback is
   config-row reassignment, not file reverts.
   ⚠️ **A bumped version does not reach the yuno on its own, and the reason is
   not the config's primary index — it is the YUNO's record.** `get_yuno_config()`
@@ -2053,8 +2050,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   cycle is CLOSED, or when it is strictly necessary -- a kernel change that
   every yuno links is the typical case.
 - **The release suite runs on the dev machine only**: `yunetas test` under
-  `ulimit -Sn 1024`, before the tag. The second run on **wattyzer** was
-  dropped by the user on 2026-10-23 (it had been the rule since 2026-09-25).
+  `ulimit -Sn 1024`, before the tag. The second run on a **staging node**
+  was dropped by the user on 2026-10-23 (it had been the rule since 2026-09-25).
   What it used to catch is now nobody's: the dev machine differs from the
   nodes in `CONFIG_DEBUG_TRACK_MEMORY` (on locally, off on the nodes), the
   kernel (7.0 has fine-grained ctime and never reuses a removed directory's
