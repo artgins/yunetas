@@ -24,8 +24,9 @@
  *                 (sent while the stop waits: dropped, with ONE warning
  *                 when the stop ends) and a start (taken when the stop
  *                 ends). A second C_UDP is sent "gone", stopped and
- *                 DESTROYED in that turn, with its send in flight (an
- *                 ERROR, "GObj NOT STOPPED"). 300 ms later the first must
+ *                 DESTROYED in that turn, with its send in flight: no
+ *                 error (up to 7.29.3 an ERROR, "GObj NOT STOPPED. UV
+ *                 handler ACTIVE!"). 300 ms later the first must
  *                 be running in ST_IDLE with no EV_STOPPED (the start came
  *                 before the stop ended), and the peer must have "four":
  *                 the socket is closed when the stop ends. In the fixes

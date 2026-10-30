@@ -40,8 +40,11 @@
  *          failed with a send in flight left it in ST_WAIT_STOPPED for ever
  *          (only a stopped gobj ended its stop at the completion of a send),
  *          a stop made by itself left it running (every later gobj_start()
- *          said "GObj ALREADY RUNNING"), and a destroy with a send in flight
- *          was a use after free when the send completed.
+ *          said "GObj ALREADY RUNNING"), a destroy with a send in flight
+ *          was a use after free when the send completed, and a start while
+ *          the stop waited armed the read again with the completion of its
+ *          cancel still to come: it failed the new read, and the C_UDP
+ *          stopped by itself. Each start has a new read now, as in C_UDP_S.
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
@@ -305,14 +308,16 @@ PRIVATE void mt_destroy(hgobj gobj)
         marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
     }
 
-    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
-            NULL
-        );
-    }
+    /*
+     *  A C_UDP destroyed before its stop ended (in ST_WAIT_STOPPED: a
+     *  host that did not wait for EV_STOPPED) is no error, as for C_TCP:
+     *  its read and its send in flight are canceled here, and the loop frees
+     *  them when their completions come, with no callback. Up to 7.29.3
+     *  it was an ERROR, "GObj NOT STOPPED. UV handler ACTIVE!", left from
+     *  the libuv port, where a handle still active at the free was a use
+     *  after free. A destroy of a running gobj is said by gobj_destroy(),
+     *  which stops it first.
+     */
 
     log_closing_drops(gobj);    // destroyed in ST_WAIT_STOPPED: its stop never ended
 
@@ -349,8 +354,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 /***************************************************************************
  *  Open the socket of the url and start its read: ST_IDLE. -1: logged, and
- *  nothing is left in flight (ST_STOPPED). The read event is kept between
- *  starts; the connect event holds the socket.
+ *  nothing is left in flight (ST_STOPPED). Each start has a new read
+ *  event; the connect event holds the socket.
  ***************************************************************************/
 PRIVATE int open_the_socket(hgobj gobj)
 {
@@ -398,27 +403,26 @@ PRIVATE int open_the_socket(hgobj gobj)
     /*-------------------------------*
      *      Setup reading event
      *-------------------------------*/
-    if(!priv->yev_reading) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        priv->yev_reading = yev_create_read_event(
-            yuno_event_loop(),
-            yev_callback,
-            gobj,
-            yev_get_fd(priv->yev_connect),
-            gbuffer_create(rx_buffer_size, rx_buffer_size)
-        );
-    }
+    /*
+     *  A new read on each start, as C_UDP_S does. The read of the previous
+     *  start can still have a completion to come: its stop ends at the
+     *  first completion of the read (its own failure, or the cancel), and
+     *  the completion of the cancel may come later. Destroyed here, the
+     *  loop frees it when that completion comes, with no callback. In the
+     *  fixes after 7.29.3 it was started again: that completion landed on
+     *  the new read, which failed, and a C_UDP started while its stop
+     *  waited stopped by itself ("UDP: read FAILED, the client stops").
+     */
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
 
-    if(priv->yev_reading) {
-        yev_set_fd(priv->yev_reading, yev_get_fd(priv->yev_connect));
-
-        if(!yev_get_gbuf(priv->yev_reading)) {
-            json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
-        } else {
-            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
-        }
-    }
+    json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+    priv->yev_reading = yev_create_read_event(
+        yuno_event_loop(),
+        yev_callback,
+        gobj,
+        yev_get_fd(priv->yev_connect),
+        gbuffer_create(rx_buffer_size, rx_buffer_size)
+    );
 
     if(!priv->yev_reading || yev_start_event(priv->yev_reading) < 0) {
         gobj_log_error(gobj, 0,
@@ -428,6 +432,8 @@ PRIVATE int open_the_socket(hgobj gobj)
             "url",          "%s", url,
             NULL
         );
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+
         /*
          *  The connect in flight is canceled and freed by the loop when its
          *  completion comes, with no callback; its free closes the socket

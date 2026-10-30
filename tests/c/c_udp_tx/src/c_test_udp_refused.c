@@ -19,8 +19,19 @@
  *                 flight, it ended with the gobj still running.
  *              2. a start must be taken (ST_IDLE): in the fixes after
  *                 7.29.3 it said "GObj ALREADY RUNNING". Then a stop: a
- *                 second EV_STOPPED, and the yuno dies; the memory check at
- *                 the end catches a leaked event or gbuffer.
+ *                 second EV_STOPPED.
+ *              3. started again, RESTARTS times: a datagram, a stop and a
+ *                 start in one turn. The stop waits for the send and the
+ *                 cancel of the read, and the start is taken when it ends:
+ *                 RESTART_MS later the C_UDP must run in ST_IDLE, with no
+ *                 new EV_STOPPED. In the fixes after 7.29.3 the start
+ *                 armed the read event again while the completion of its
+ *                 cancel was still to come; that completion landed on the
+ *                 new read, which failed, and the C_UDP stopped by itself
+ *                 ("UDP: read FAILED, the client stops") at every restart.
+ *              4. a stop: a third EV_STOPPED, and the yuno dies; the
+ *                 memory check at the end catches a leaked event or
+ *                 gbuffer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -38,6 +49,8 @@
  ***************************************************************************/
 #define SETTLE_MS       300
 #define DATAGRAMS       50
+#define RESTARTS        25
+#define RESTART_MS      100
 
 /***************************************************************************
  *              Structures
@@ -76,6 +89,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_udp;
     int phase;
     int stopped;
+    int restarts;
 } PRIVATE_DATA;
 
 
@@ -279,9 +293,57 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, SETTLE_MS);
             break;
 
-        default:
+        case 2:
             check_udp(gobj, "TEST: the stop of the C_UDP started again did not end",
                 ST_STOPPED, FALSE, 2);
+            if(gobj_start(priv->gobj_udp) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: the C_UDP did not start for the restarts",
+                    "state",        "%s", gobj_current_state(priv->gobj_udp),
+                    NULL
+                );
+            }
+            priv->phase = 3;
+            set_timeout(priv->timer, RESTART_MS);
+            break;
+
+        case 3:
+            check_udp(gobj, "TEST: a C_UDP started while its stop waited did not stay running",
+                ST_IDLE, TRUE, 2);
+            if(priv->restarts < RESTARTS) {
+                priv->restarts++;
+                gbuffer_t *gbuf = gbuffer_create(64, 64);
+                gbuffer_append_string(gbuf, "nobody listens");
+                gobj_send_event(
+                    priv->gobj_udp,
+                    EV_TX_DATA,
+                    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+                    gobj
+                );
+                gobj_stop(priv->gobj_udp);
+                if(gobj_start(priv->gobj_udp) < 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "TEST: a start while the stop waits was refused",
+                        "state",        "%s", gobj_current_state(priv->gobj_udp),
+                        "restart",      "%d", priv->restarts,
+                        NULL
+                    );
+                }
+                set_timeout(priv->timer, RESTART_MS);
+                break;
+            }
+            gobj_stop(priv->gobj_udp);
+            priv->phase = 4;
+            set_timeout(priv->timer, SETTLE_MS);
+            break;
+
+        default:
+            check_udp(gobj, "TEST: the last stop of the C_UDP did not end",
+                ST_STOPPED, FALSE, 3);
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,

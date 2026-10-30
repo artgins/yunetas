@@ -606,6 +606,19 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
+
+    /*
+     *  The socket of a clisrv is its own (a client's is its connect
+     *  event's, closed by the free of that event): the stop closes it when
+     *  it ends, so a clisrv destroyed before its stop ended closes it here,
+     *  after its events are stopped. Up to 7.29.3 it was left open: a
+     *  socket leaked per clisrv destroyed so, and its peer never saw the
+     *  end of the connection.
+     */
+    if(priv->fd_clisrv > 0) {
+        close(priv->fd_clisrv);
+        priv->fd_clisrv = -1;
+    }
 }
 
 /***************************************************************************

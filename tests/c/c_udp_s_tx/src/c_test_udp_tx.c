@@ -30,12 +30,12 @@
  *          After 500 ms the socket must have "one" and "two", in order,
  *          and C_UDP_S must still be in ST_IDLE. Then, in ONE turn, it is
  *          sent "gone", stopped and DESTROYED, before EV_STOPPED, with that
- *          send in flight (an ERROR, "GObj NOT STOPPED"). The destroy
- *          cancels the send, and the loop frees it
- *          with no callback: up to 7.29.3 the send events were not kept,
- *          and the completion ran on the freed gobj (a use after free). The
- *          yuno dies 300 ms later: the memory check at the end catches a
- *          leaked event or gbuffer.
+ *          send in flight: no error (up to 7.29.3 an ERROR, "GObj NOT
+ *          STOPPED. UV handler ACTIVE!"). The destroy cancels the send,
+ *          and the loop frees it with no callback: up to 7.29.3 the send
+ *          events were not kept, and the completion ran on the freed gobj
+ *          (a use after free). The yuno dies 300 ms later: the memory
+ *          check at the end catches a leaked event or gbuffer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

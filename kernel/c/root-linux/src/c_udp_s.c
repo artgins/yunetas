@@ -275,14 +275,16 @@ PRIVATE void mt_destroy(hgobj gobj)
         marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
     }
 
-    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
-            NULL
-        );
-    }
+    /*
+     *  A C_UDP_S destroyed before its stop ended (in ST_WAIT_STOPPED: a
+     *  host that did not wait for EV_STOPPED) is no error, as for C_TCP:
+     *  its read and its sends in flight are canceled here, and the loop frees
+     *  them when their completions come, with no callback. Up to 7.29.3
+     *  it was an ERROR, "GObj NOT STOPPED. UV handler ACTIVE!", left from
+     *  the libuv port, where a handle still active at the free was a use
+     *  after free. A destroy of a running gobj is said by gobj_destroy(),
+     *  which stops it first.
+     */
 
     /*
      *  The sends in flight of a C_UDP_S destroyed before its stop ended (a

@@ -22,10 +22,12 @@ datagrams with `EV_TX_DATA`:
 
 After 500 ms the socket must hold `one two`, in order, and `C_UDP_S` must
 still be listening (`ST_IDLE`). Then, in ONE turn, `C_UDP_S` is sent `gone`,
-stopped and DESTROYED, before its `EV_STOPPED`, with that send in flight: an
-ERROR (*"GObj NOT STOPPED. UV handler ACTIVE!"*), and the destroy cancels the
-send, which the loop frees with no callback. Up to 7.29.3 the send events were
-not kept, and the completion ran on the freed gobj (red: a SegFault). The yuno
+stopped and DESTROYED, before its `EV_STOPPED`, with that send in flight: no
+error, and the destroy cancels the send, which the loop frees with no callback.
+Up to 7.29.3 the send events were not kept, and the completion ran on the
+freed gobj (red: a SegFault); and the destroy was an ERROR (*"GObj NOT
+STOPPED. UV handler ACTIVE!"*, left from the libuv port; red: an unexpected
+error). The yuno
 dies 300 ms later; the memory check at the end catches a leaked send event or
 gbuffer.
 

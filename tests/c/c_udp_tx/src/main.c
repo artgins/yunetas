@@ -106,11 +106,10 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "Playing yuno",
             "msg", "udp tx data empty, ignored",
-            "msg", "GObj NOT STOPPED. UV handler ACTIVE!",          // destroyed with its send in flight
             "msg", "udp data sent while the client stops, dropped", // "late", said when the stop ends
             "msg", "TEST: done",
             "msg", "Exit to die",
