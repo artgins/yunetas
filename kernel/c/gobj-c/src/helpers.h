@@ -74,7 +74,7 @@ extern "C"{
  *  freed it, so every `return` inside a case lost glibc's compiled automaton,
  *  ~1 KB, outside gbmem (invisible to its audit and to cur_system_memory).
  *  29 of the 63 SWITCHS of the tree return from a case, several per message:
- *  C_MQIOGATE's send path lost ~1.1 KB per message and a gate_hub grew to
+ *  C_MQIOGATE's send path lost ~1.1 KB per message and a gate_b grew to
  *  1 GB in 25 minutes. Now only CASES_RE touches a regex, and it frees it
  *  before the case body runs.
  *

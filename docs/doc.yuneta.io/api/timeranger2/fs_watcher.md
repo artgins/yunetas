@@ -383,7 +383,7 @@ in place (since 7.25.9; in slices since 7.25.10):
    coming).
 
 In 7.25.9 the owner rescanned the whole tree inside the one `FS_OVERFLOW_TYPE`
-call. A timeranger2 follower of 50000 keys on the busy disk of a central took
+call. A timeranger2 follower of 50000 keys on the busy disk of node B took
 56 s, then 243 s -- the yuno deaf to its agent, its commands and its timers all
 that time. The slices keep it answering; the pass costs the same.
 
@@ -685,7 +685,7 @@ says the path is not watched any more (its `size_dl_watch` reads 0).
 
 Up to 7.25.8 an overflow aborted the yuno, to be relaunched and reload clean.
 Under a sustained burst the reload met the next overflow: in an application's
-stress test of its central, a `db_history` following a `db_tracks` at ~3000
+stress test of its node B, a `db_history` following a `db_events` at ~3000
 records/s over ~60000 keys aborted five times in two hours, each relaunch
 spending 2-3 minutes catching up before falling again.
 

@@ -35,15 +35,15 @@
  },
  "story": {
   "title": "Yuneta 7.27.10: a store that writes json text as it arrives",
-  "lead": "7.27.10 gives timeranger2 an append for a record that is already json text, `tranger2_append_record_text()`, and gobj-c a reader of the members of a json object from its text, `json_scan_object_members()`, with jansson's verdict and no node built. A writer of raw history that receives frames as text no longer parses each one whole to read three of its members and dumps it again to store it: db_tracks stores 2.2 times more frames per second on the same machine (24 700 -> 53 300), and on a Xeon E-2386G holds 20 000 records per second at 55% of one core. Against 7.27.7, the last release with a study, every one of the 41 figures stays inside its noise or gets faster: the appends of perf_timeranger2 are 1.6 to 2.9% faster. The study found, and the release fixes, a 1.6% loss of the json append that the split of the append had brought.",
+  "lead": "7.27.10 gives timeranger2 an append for a record that is already json text, `tranger2_append_record_text()`, and gobj-c a reader of the members of a json object from its text, `json_scan_object_members()`, with jansson's verdict and no node built. A writer of raw history that receives frames as text no longer parses each one whole to read three of its members and dumps it again to store it: db_events stores 2.2 times more frames per second on the same machine (24 700 -> 53 300), and on a Xeon E-2386G holds 20 000 records per second at 55% of one core. Against 7.27.7, the last release with a study, every one of the 41 figures stays inside its noise or gets faster: the appends of perf_timeranger2 are 1.6 to 2.9% faster. The study found, and the release fixes, a 1.6% loss of the json append that the split of the append had brought.",
   "hero": {
    "value": "2.2x",
-   "text": "frames stored per second by db_tracks with the text path: 53 300 against 24 700, the same source and the same SDK. On a production node (Xeon E-2386G) 20 000 records per second sustained for 10.5 minutes at 55% of a core, ~27.6 us a frame (was ~42)."
+   "text": "frames stored per second by db_events with the text path: 53 300 against 24 700, the same source and the same SDK. On a production node (Xeon E-2386G) 20 000 records per second sustained for 10.5 minutes at 55% of a core, ~27.6 us a frame (was ~42)."
   },
   "tiles": [
    [
-    "app.db_tracks_frames",
-    "db_tracks: frames stored per second"
+    "app.db_events_frames",
+    "db_events: frames stored per second"
    ],
    [
     "tr2.tm_build_appends",
@@ -1214,12 +1214,12 @@
    "t": 0.98
   },
   {
-   "id": "app.db_tracks_frames",
+   "id": "app.db_events_frames",
    "group": "application",
-   "bench": "db_tracks (an application yuno)",
+   "bench": "db_events (an application yuno)",
    "case": "100 000 frames over TCP4H, each appended and acked",
-   "label": "db_tracks: frames stored and acked per second",
-   "short": "db_tracks frames/s",
+   "label": "db_events: frames stored and acked per second",
+   "short": "db_events frames/s",
    "meaning": "The writer of a raw history: what one yuno stores per second when frames arrive as json text.",
    "unit": "frames/s",
    "better": "higher",
@@ -1235,11 +1235,11 @@
    },
    "n": 4,
    "scope": "application",
-   "method": "The same db_tracks source built twice against the SDK of this release: as it was (each frame parsed whole, its __md_trq__ deleted, dumped again by tranger2_append_record()) and with the text path (json_scan_object_members() reads id and __md_trq__ from the text, tranger2_append_record_text() writes it). Pinned to one CPU, a Python feeder on another, 100 000 frames of ~850 bytes, 4 alternated rounds.",
+   "method": "The same db_events source built twice against the SDK of this release: as it was (each frame parsed whole, its __md_trq__ deleted, dumped again by tranger2_append_record()) and with the text path (json_scan_object_members() reads id and __md_trq__ from the text, tranger2_append_record_text() writes it). Pinned to one CPU, a Python feeder on another, 100 000 frames of ~850 bytes, 4 alternated rounds.",
    "verdict": "gain",
    "change_pct": 115.51,
    "t": 263.3,
-   "reason": "The parse, the delete, the dump and the free of a frame of ~1 KB cost ~20 us; reading three members from its text costs 0.75 us (Xeon E-2386G). On a production node, 20 000 records per second on one server: db_tracks stores 19 906 frames/s sustained for 10.5 minutes at 55% of its core, ~27.6 us a frame (it was ~42 us, 77% of the core without keeping up), none lost, none duplicated in the steady state."
+   "reason": "The parse, the delete, the dump and the free of a frame of ~1 KB cost ~20 us; reading three members from its text costs 0.75 us (Xeon E-2386G). On a production node, 20 000 records per second on one server: db_events stores 19 906 frames/s sustained for 10.5 minutes at 55% of its core, ~27.6 us a frame (it was ~42 us, 77% of the core without keeping up), none lost, none duplicated in the steady state."
   }
  ],
  "figures": [

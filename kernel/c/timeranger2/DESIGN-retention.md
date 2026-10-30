@@ -13,7 +13,7 @@ text says so (§4.5, §8). Line numbers are those of `timeranger2.c` at
 
 A timeranger2 store grows for ever. Nothing in the SDK can free the old part
 of a topic that is in use, and no project does it today: the history stores of
-the production yunos (`db_tracks`, `db_history`) keep every record they ever
+the production yunos (`db_events`, `db_history`) keep every record they ever
 wrote. A telemetry node that appends a few hundred records per second fills its
 disk in days, and a retention period ("keep 30 days of readings") is a common
 requirement of such systems.

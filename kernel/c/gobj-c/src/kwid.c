@@ -4334,8 +4334,8 @@ PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_s
  *  A LITERAL '`' IN A KEY IS DOUBLED. That is what makes every possible
  *  key representable and, with it, the flat form has NO forbidden keys --
  *  the previous implementation had to reserve all-digit keys for array
- *  indices, and the ids of this very system ("4630", a yuno id) broke that
- *  rule: {"4630": {...}} came back as an ARRAY OF 4631 ELEMENTS.
+ *  indices, and the ids of this very system ("7302", a yuno id) broke that
+ *  rule: {"7302": {...}} came back as an ARRAY OF 7303 ELEMENTS.
  *
  *  AN ARRAY INDEX IS '[N]', not a bare number. It costs one byte over a
  *  bare index and it buys the whole forbidden-key rule back: a dict key is
@@ -4973,7 +4973,7 @@ PUBLIC int flat_apply(json_t *jn_flat, json_t *jn_diff, char *error, int error_s
  *
  *  They answer the CURRENT flat form -- array indices as '[N]', escapes,
  *  empty containers preserved -- and not the one they used to: that one
- *  turned a dict keyed by a yuno id into an array of 4631 elements, lost
+ *  turned a dict keyed by a yuno id into an array of 7303 elements, lost
  *  every empty container, and split any key holding a backtick. There is
  *  no stored data in the old form to be compatible with; the only caller
  *  in production prints it on a console.

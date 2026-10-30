@@ -218,23 +218,23 @@ A scenario is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_load -> gate_hub -> db_tracks, both nodes",
+    "description": "sim_load -> gate -> db_events, both nodes",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",         "id": "gen1",   "service": "sim_load", "rate": "tx"},
-        {"key": "gate_edge",   "id": "4120",   "label": "gate_hub",
+        {"key": "sim",      "id": "gen1",   "service": "sim_load", "rate": "tx"},
+        {"key": "gate_a",   "id": "7601",   "label": "gate",
          "queue_service": "__output_side__"},
-        {"key": "tracks_edge", "id": "4520",   "label": "db_tracks"},
-        {"key": "gate_hub",    "id": "4120",   "label": "gate_hub", "node": "node-b"},
-        {"key": "tracks_hub",  "id": "4520",   "label": "db_tracks", "node": "node-b"}
+        {"key": "events_a", "id": "7501",   "label": "db_events"},
+        {"key": "gate_b",   "id": "7601",   "label": "gate", "node": "node-b"},
+        {"key": "events_b", "id": "7501",   "label": "db_events", "node": "node-b"}
     ],
-    "links": [["sim", "gate_edge"], ["gate_edge", "tracks_edge"], ["gate_hub", "tracks_hub"]],
+    "links": [["sim", "gate_a"], ["gate_a", "events_a"], ["gate_b", "events_b"]],
     "actions": {
         "start":  [{"yuno": "sim", "command": "set-clients clients=10"},
                    {"yuno": "sim", "command": "resume-load"}],
         "stop":   [{"yuno": "sim", "command": "set-clients clients=0"}],
-        "report": [{"yuno": "gate_edge", "service": "__yuno__", "command": "view-config"}]
+        "report": [{"yuno": "gate_a", "service": "__yuno__", "command": "view-config"}]
     },
     "view": {"mode": "graph"}
 }
@@ -244,7 +244,7 @@ A scenario is a document saved whole:
 (7.27.21+) names the service that holds a yuno's output queue when it is not
 the one it is watched on: a gate's queue towards its store is in
 `__output_side__`, and its main service reports none. `watch-scenario` adds
-it to the watch (`ids=4120,4120:__output_side__`), and the console shows that
+it to the watch (`ids=7601,7601:__output_side__`), and the console shows that
 queue on the card and in a chart of its own. `agent_url`
 instead of `node` makes a DIRECT scenario, which the web console watches
 through its own link to that agent (and which `run-scenario` refuses). An

@@ -328,8 +328,8 @@ its `treedb_system_schema` and a replica of a data treedb that it shares with
 another yuno.
 
 ```
-db_history    (4620):  "Authz.master": true    → master of the authzs store
-gate_hub      (4020):  "Authz.master": false   → replica of the same store
+db_history    (7301):  "Authz.master": true    → master of the authzs store
+gate_b        (7401):  "Authz.master": false   → replica of the same store
 ```
 
 **Asking a running yuno: `treedb-info`.** Until 7.13.0 the flag was not
@@ -357,7 +357,7 @@ persisted `topic_cols.json` masks the new in-memory schema (§3.4).
 non-master `C_NODE` now answer
 
 ```
-ERROR -1: gate_hub^4020: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
+ERROR -1: gate_b^7401: treedb 'treedb_authzs' is READ-ONLY, this yuno is not the master of its tranger
 ```
 
 Before 7.13.0 they answered **success**: the node was built in the in-memory

@@ -114,7 +114,7 @@ event, in its request:
 
 ```json
 {"agent_id": "node-a",
- "cmd2agent": "watch-yuno-stats ids=4120,4520 period=2000",
+ "cmd2agent": "watch-yuno-stats ids=7601,7501 period=2000",
  "__relays__": ["EV_YUNO_STATS"]}
 ```
 
@@ -256,23 +256,23 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 ```json
 {
     "id": "stress-demo",
-    "description": "sim_load -> gate_hub -> db_tracks, both nodes",
+    "description": "sim_load -> gate -> db_events, both nodes",
     "group": "demo",
     "node": "node-a",
     "yunos": [
-        {"key": "sim",         "id": "gen1",   "service": "sim_load", "rate": "tx"},
-        {"key": "gate_edge",   "id": "4120",   "label": "gate_hub",
+        {"key": "sim",      "id": "gen1",   "service": "sim_load", "rate": "tx"},
+        {"key": "gate_a",   "id": "7601",   "label": "gate",
          "queue_service": "__output_side__"},
-        {"key": "tracks_edge", "id": "4520",   "label": "db_tracks"},
-        {"key": "gate_hub",    "id": "4120",   "label": "gate_hub", "node": "node-b"},
-        {"key": "tracks_hub",  "id": "4520",   "label": "db_tracks", "node": "node-b"}
+        {"key": "events_a", "id": "7501",   "label": "db_events"},
+        {"key": "gate_b",   "id": "7601",   "label": "gate", "node": "node-b"},
+        {"key": "events_b", "id": "7501",   "label": "db_events", "node": "node-b"}
     ],
-    "links": [["sim", "gate_edge"], ["gate_edge", "tracks_edge"], ["gate_hub", "tracks_hub"]],
+    "links": [["sim", "gate_a"], ["gate_a", "events_a"], ["gate_b", "events_b"]],
     "actions": {
         "start":  [{"yuno": "sim", "command": "set-clients clients=10"},
                    {"yuno": "sim", "command": "resume-load"}],
         "stop":   [{"yuno": "sim", "command": "set-clients clients=0"}],
-        "report": [{"yuno": "gate_edge", "service": "__yuno__", "command": "view-config"}]
+        "report": [{"yuno": "gate_a", "service": "__yuno__", "command": "view-config"}]
     },
     "view": {"mode": "graph"}
 }
@@ -310,7 +310,7 @@ ycommand ... -c 'save-scenario revision=7 scenario={...}' # -> scenario 't1' was
 
 ```bash
 ycommand --url=wss://<cc-host>:1996 --yuno-role=controlcenter --yuno-service=controlcenter \
-    -c 'save-scenario scenario={"id":"t1","node":"node-a","yunos":[{"id":"4620"}],"actions":{"report":[{"yuno":"4620","command":"help"}]}}'
+    -c 'save-scenario scenario={"id":"t1","node":"node-a","yunos":[{"id":"7301"}],"actions":{"report":[{"yuno":"7301","command":"help"}]}}'
 ycommand ... -c 'scenarios'
 ycommand ... -c 'scenarios scenario_id=t1'
 ycommand ... -c 'delete-scenario scenario_id=t1'      # and its runs
@@ -427,9 +427,9 @@ line the client wrote:
 
 ```bash
 ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b period=2000'
-# -> the agent of node-b gets: watch-yuno-stats ids=gen3:sim_load,gen4:sim_load,gen5:sim_load,4120,4120:__output_side__,4130,4130:__output_side__,4140,4140:__output_side__,4520 period=2000
-ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b keys=tracks'
-# -> watch-yuno-stats ids=4520 period=2000
+# -> the agent of node-b gets: watch-yuno-stats ids=gen3:sim_load,gen4:sim_load,gen5:sim_load,7601,7601:__output_side__,7604,7604:__output_side__,7605,7605:__output_side__,7501 period=2000
+ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b keys=events'
+# -> watch-yuno-stats ids=7501 period=2000
 ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b stop=1'
 ```
 
@@ -557,7 +557,7 @@ the whole kw of `command-yuno` as the filter that selects the yuno, so such a
 parameter would pick another yuno or none. `save-scenario` refuses it:
 
 ```bash
-ycommand ... -c 'save-scenario scenario={"id":"t2","node":"node-a","yunos":[{"id":"4620"}],"actions":{"stop":[{"yuno":"4620","command":"set-x date=1"}]}}'
+ycommand ... -c 'save-scenario scenario={"id":"t2","node":"node-a","yunos":[{"id":"7301"}],"actions":{"stop":[{"yuno":"7301","command":"set-x date=1"}]}}'
 # -> ... actions.stop[0]: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno
 ```
 
@@ -568,7 +568,7 @@ replace the routing of the step's answer (the run waits for its deadline), a
 `__username__` the user the control center stamps.
 
 ```bash
-ycommand ... -c 'save-scenario scenario={"id":"t3","node":"node-a","yunos":[{"id":"4620"}],"actions":{"stop":[{"yuno":"4620","command":"set-x __username__=root"}]}}'
+ycommand ... -c 'save-scenario scenario={"id":"t3","node":"node-a","yunos":[{"id":"7301"}],"actions":{"stop":[{"yuno":"7301","command":"set-x __username__=root"}]}}'
 # -> ... actions.stop[0]: command: the parameter '__username__' is a framework key: it would replace what the control center sets
 ```
 

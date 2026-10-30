@@ -1184,7 +1184,7 @@ names its own feeds `` <treedb>`<topic>`<id> ``). The id may come from a peer,
 so a refused id is logged as a **warning**, without a stack.
 
 ```C
-tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "db_history^4620", "", NULL); // ok
+tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "db_history^7301", "", NULL); // ok
 tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "a`b`c", "", NULL);           // ok
 tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, ".hidden", "", NULL);         // NULL: reserved
 tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "../x", "", NULL);            // NULL: escapes

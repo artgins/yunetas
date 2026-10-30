@@ -301,13 +301,13 @@ here is a candidate for promotion to Tier 1:
 - **Publishing a SPA bundle** into a vhost (`rsync dist/ → /yuneta/gui/<fqdn>/`).
   Same gap as above and today's most frequent one: every front-end release of
   two applications and the treedb GUI goes this way. It is also the one that
-  bites first when a node is reimaged — on 2026-08-27 a controller node's
+  bites first when a node is reimaged — on 2026-08-27 node A's
   SSH host key had changed and the deploy hung at the verification prompt, while
   every backend task of the same session (binaries, configs, snapshots, commands)
   went through the agent untouched. On 2026-09-13 it failed a second way: an
   Internet-wide password botnet (2,000-3,000 attempts per hour per node) filled
   sshd's `MaxStartups` slots, and sshd dropped the rsync deploys to a staging
-  node and the controller at random, up to 1,464 drops per hour, while the agent's
+  node and node A at random, up to 1,464 drops per hour, while the agent's
   `wss://` channel was not affected. Relaxing `LoginGraceTime` and `MaxStartups`
   brought the drops to zero, but only the seal removes the exposure. A
   `write-file`, or a vhost-aware command, would promote it to Tier 1.
@@ -348,8 +348,8 @@ here is a candidate for promotion to Tier 1:
   generator fleets of a load test (several `sim_load` yunos on one node)
   cannot run their queues on a node's
   HDDs (every save of their counters fsyncs), so the node got a tmpfs (`mount
-  -t tmpfs ... /mnt/simram`, with sudo) and each yuno's realm dir a `data ->
-  /mnt/simram/data/<name>` symlink made BEFORE its first run. The binary, the
+  -t tmpfs ... /mnt/ramdisk`, with sudo) and each yuno's realm dir a `data ->
+  /mnt/ramdisk/data/<name>` symlink made BEFORE its first run. The binary, the
   configs, the yunos and their run are Tier 1 (`install-binary`,
   `create-config`, `create-yuno`, `run-yuno`), but the mount and the symlink
   are a shell on the node -- and a reboot drops the mount, so it is done
@@ -429,13 +429,12 @@ headless login hang rather than refuse.
 
 ### 5.5 An internal yuno needs its own `C_AUTHZ`, or the seal locks it out
 
-**Found 2026-08-25 on the controller node and the central node of an
-application.**
+**Found 2026-08-25 on node A and node B of an application.**
 `authz_checker()` ([`c_authz.c`](../../../kernel/c/root-linux/src/c_authz.c))
 opens with `gobj_find_service_by_gclass(C_AUTHZ)` and, finding nothing, denies
 **everyone** — fail-closed by design. Three yunos had no such service:
-`db_tracks_edge` (controller), `db_tracks_hub` (central) and `gate_meter`
-(controller). Every authz-guarded command answered `-403 No permission` to
+`db_events_a` (node A), `db_events_b` (node B) and `gate_meter`
+(node A). Every authz-guarded command answered `-403 No permission` to
 every principal, `yuneta_admin@artgins.com` with the `root` role included. Not
 a permissions problem: there was nobody to read the permissions. Their own logs
 said it plainly — `{"function": "authz_checker", "msg": "No gclass authz
@@ -450,7 +449,7 @@ The fix is per-yuno configuration, not framework: declare the `authz` service
 (`C_AUTHZ`, priority 0) and point it at the node's authzs store as a
 **follower** (`Authz.master: false`, `Authz.authz_service: <store>`). The
 store's master stays the yuno that carries `Authz.initial_load`
-(`db_history_edge.4630` / `db_history.4620`). `master` governs who may WRITE
+(`db_history.7302` / `db_history.7301`). `master` governs who may WRITE
 the authz store — it is not a privilege level, and a follower authorizes just
 as well as a master.
 

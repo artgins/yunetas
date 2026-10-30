@@ -127,7 +127,7 @@ reason.
   7.27.9 changed no measured code): a store that writes json text as it
   arrives. `tranger2_append_record_text()` and `json_scan_object_members()`
   let a writer of raw history skip the parse and the dump of every frame:
-  an application's db_tracks yuno stores 2.2 times more frames per second
+  an application's db_events yuno stores 2.2 times more frames per second
   (24,700 -> 53,300), and holds 20,000 records/s on a Xeon E-2386G at 55% of one core. Every one
   of the 41 figures inside its noise or faster; the one loss the study found
   (-1.6% of the json append) is fixed in the release.

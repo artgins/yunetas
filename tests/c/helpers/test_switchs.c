@@ -10,7 +10,7 @@
  *          compiled automaton, ~1 KB. It was allocated by regcomp(3), OUTSIDE
  *          gbmem: the gbmem audit and cur_system_memory never saw it, which
  *          is why this test measures the libc heap (mallinfo2) instead. It
- *          was C_MQIOGATE's send path, one leak per message: a gate_hub
+ *          was C_MQIOGATE's send path, one leak per message: a gate_b
  *          grew to 1 GB in 25 minutes in an application's stress test.
  *
  *          Copyright (c) 2026, ArtGins.

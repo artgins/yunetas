@@ -7165,7 +7165,7 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  *  are taken here, on loopback, ONCE per yuno and service however many
  *  requesters watch it: the timer runs at the shortest period asked.
  *
- *      watch-yuno-stats ids=gen1,4120,4520:db period=2000
+ *      watch-yuno-stats ids=gen1,7601,7501:db period=2000
  *      watch-yuno-stats stop=1
  ***************************************************************************/
 PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj src)

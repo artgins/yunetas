@@ -37,14 +37,14 @@ pushes as its `cpu` kind, read once a second (`timeout_stats`):
 The filesystems are looked for once a minute (a yuno may have thousands of
 stores, on a handful of devices), and each is measured at every reading.
 Before 7.28.4 a yuno told only of `/yuneta`: the queues of a simulator filled
-a ramdisk (`/mnt/simram`) while `/yuneta` had room, and each simulator died on
+a ramdisk (`/mnt/ramdisk`) while `/yuneta` had room, and each simulator died on
 a message it could not save. Example, from `stats-yuno`:
 
 ```json
 {"cpu": 12, "uptime": 86400, "mem_rss_kb": 5324,
  "mem_node_total_mb": 31885, "mem_node_available_percent": 35,
  "disk_size_in_gigas": 1832, "disk_free_percent": 73,
- "disk_min_free_percent": 4, "disk_min_free_path": "/mnt/simram/queues",
+ "disk_min_free_percent": 4, "disk_min_free_path": "/mnt/ramdisk/queues",
  "disk_min_free_size_gigas": 26}
 ```
 
@@ -61,7 +61,7 @@ again and again. It is what the agent's `watch-yuno-stats` asks of its yunos.
 # the yuno's own stats (the `cpu` reading of a watch), every 2 s, for 60 s
 publish-stats stats_service=__yuno__ period=2000 ttl=60000
 # a service's stats; no ttl: the attribute publish_stats_ttl (60000 ms)
-publish-stats stats_service=db_tracks period=5000
+publish-stats stats_service=db_events period=5000
 # never ending on its own: until stop=1 or the requester goes
 publish-stats stats_service=__yuno__ period=2000 ttl=-1
 publish-stats stats_service=__yuno__ stop=1

@@ -109,8 +109,8 @@ identical: a flat JSON is written by one side and read by the other.
 - **A literal backtick inside a key is doubled.** With that, every key is
   representable and **the form forbids nothing** — which matters more than it
   sounds: the first implementation had to reserve all-digit keys for array
-  indices, and a dictionary keyed by a yuno id (`"4630"`) came back as an array
-  of 4631 elements.
+  indices, and a dictionary keyed by a yuno id (`"7302"`) came back as an array
+  of 7303 elements.
 - **An array index is `[N]`**, canonical, no leading zeros. It costs one byte
   over a bare number and it buys the forbidden-key rule back.
 - **A dict key that begins with `[` doubles it** (`[[0]`), so it can never be

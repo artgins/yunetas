@@ -310,10 +310,10 @@ the command takes (`id`, `realm_id`, `yuno_role`, `yuno_name`,
 | `update-public-service` | writes `ip`, `port`, `url` into every public service |
 
 ```bash
-ycommand -c 'kill-yuno id=4120'                    # one yuno
-ycommand -c 'kill-yuno yuno_role=gate_hub'         # every yuno of a role
+ycommand -c 'kill-yuno id=7601'                    # one yuno
+ycommand -c 'kill-yuno yuno_role=gate_b'         # every yuno of a role
 ycommand -c 'kill-yuno'                            # EVERY yuno of the node
-ycommand -c 'command-yuno id=4120 service=__yuno__ command=view-config'
+ycommand -c 'command-yuno id=7601 service=__yuno__ command=view-config'
 ```
 
 **`command-yuno` with no filter is kept, on purpose.** Its broadcast is a real
@@ -501,9 +501,9 @@ gone does not launch them again (it finds them alive) --, and the answer of
 the connected ones adds how many were signalled.
 
 ```bash
-ycommand -c 'kill-yuno id=4520 force=1'
+ycommand -c 'kill-yuno id=7501 force=1'
 # yuneta_agent^node: 1 yuno(s) alive but not connected to the agent: signalled (9), not waited for: a run-yuno before they are gone does not launch them again
-# data: [{"id": "4520", "yuno_role": "db_tracks", "pids": [6933, 6934]}]
+# data: [{"id": "7501", "yuno_role": "db_events", "pids": [6933, 6934]}]
 ```
 
 Up to 7.25.21 `kill-yuno` selected only the yunos the agent saw running, and
@@ -577,7 +577,7 @@ What the agent contributes on top:
 
    ```
    "msg": "yuno alive but not connected to the agent: not launched again",
-   "yuno_id": "4520", "yuno_role": "db_tracks", "pids": [6933, 6934]
+   "yuno_id": "7501", "yuno_role": "db_events", "pids": [6933, 6934]
    ```
 
    It comes back on its own when it reaches the agent. A `run-yuno` that
@@ -729,9 +729,9 @@ Pin the yunos of a node by their logical cpus (`lscpu -e`: two threads of a
 core share it), one record per yuno:
 
 ```bash
-printf '{"id":"4520","cpu_core":1}' > /tmp/rec.json
+printf '{"id":"7501","cpu_core":1}' > /tmp/rec.json
 ycommand -c "command-agent service=treedb_yuneta_agent command=update-node topic_name=yunos content64=\$\$(/tmp/rec.json)"
-ycommand -c "kill-yuno id=4520"; ycommand -c "run-yuno id=4520"   # taken at its next start
+ycommand -c "kill-yuno id=7501"; ycommand -c "run-yuno id=7501"   # taken at its next start
 grep Cpus_allowed_list /proc/<pid>/status
 ```
 
@@ -1129,9 +1129,9 @@ running", grep the agent log for `does NOT move forward` before anything else.
   ```bash
   ycommand -c 'deactivate-snap all=1'    # node bounce; one yuno stuck in a disk wait
   # agent log: "... still alive after 10 s: each one launched when it is gone"
-  ycommand -c 'kill-yuno id=4120'        # the operator: leave it down
-  # 4120's old process dies: the window does not launch it
-  ycommand -c 'run-yuno id=4120'         # when wanted again
+  ycommand -c 'kill-yuno id=7601'        # the operator: leave it down
+  # 7601's old process dies: the window does not launch it
+  ycommand -c 'run-yuno id=7601'         # when wanted again
   ```
 
   With `all=1` the whole node goes, which on a realm with many citizen
