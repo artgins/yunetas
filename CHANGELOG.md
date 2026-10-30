@@ -69,11 +69,39 @@
   without one it selects every X"*). In 7.29.3 and older.
 - **A relaunched yuno starts with the signals its starter gave, like the
   first one.** Relaunched children inherited the watcher's `SIG_IGN` for
-  SIGTERM, SIGINT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE: an ignored signal
-  never reaches a signalfd, so `kill -USR1` (the trace cycle) did nothing on
-  a relaunched yuno and the programs it ran inherited the ignores; and they
-  inherited the watcher's SIGQUIT handler, so a stop that came before the
-  yuno's signalfd was lost. In 7.29.3 and older.
+  SIGTERM, SIGINT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE, and its SIGQUIT
+  handler. Once the yuno blocked them for its signalfd they reached it all
+  the same (Linux queues a blocked signal even when it is ignored), but one
+  that came before the signalfd was thrown away (a SIGQUIT by the inherited
+  handler), and the programs the yuno ran inherited the ignores. In 7.29.3
+  and older.
+- **A yuno's signals are blocked from its fork to its signalfd, whoever
+  started it.** The watcher blocks SIGPIPE, SIGTERM, SIGALRM, SIGQUIT,
+  SIGINT, SIGUSR1 and SIGUSR2 around each fork, and the child keeps them
+  blocked until its signalfd reads them: one that comes before is pending.
+  Up to 7.29.3 only a yuno the agent launched had that. With an empty mask
+  (both agents' systemd units, a start by hand), a SIGQUIT before the
+  signalfd ended the child with a core dump and the watcher relaunched it,
+  and a SIGUSR1 ended it. A stop that comes as the watcher forks is passed
+  to the child, which up to 7.29.3 ran until `--stop`'s SIGKILL. In 7.29.3
+  and older.
+- **Every program a yuno runs starts with no signal blocked and none
+  ignored.** `run_process2()`, `run_command()`, `pty_sync_spawn()`, C_PTY's
+  command and `launch_daemon()` reset the mask and the ignores before exec.
+  The agent's `startup_command` and `cert_sync_copy_cmd`, logcenter's
+  `restart_yuneta_command` and watchfs's `command` run through
+  `run_process2()` of `sh -c` instead of `system()`, which gives the
+  caller's mask and sets SIGQUIT to SIG_IGN while it waits. Up to 7.29.3
+  every program a yuno ran had `SigBlk: 0x7a06` (unless dash cleared it), so
+  a `timeout` it ran could not stop its child with SIGTERM, and ctrl+c did
+  nothing in a console. In 7.29.3 and older.
+- **`run_command()` takes the whole command and all of its stderr.** It is
+  `posix_spawn()` of `/bin/sh -c` with stdout and stderr on its pipe. Up to
+  7.29.3 it was `popen()` of the command with `2>&1` appended, in a 4 KB
+  buffer: a longer command was cut with nothing said, and only the last
+  command of a list had its stderr taken. In 7.29.3 and older.
+- **watchfs: the command with the file name ran from a buffer out of scope,
+  and an empty `command` is said.** In 7.29.3 and older.
 - **The watcher sets its signals before its first fork, unblocks SIGQUIT and
   ignores SIGHUP.** A SIGQUIT right after the first fork found the default
   disposition, ended the watcher and left the yuno an orphan; a SIGHUP ended
@@ -122,6 +150,15 @@
   log. A directory that cannot be looked at (`access()` fails with something
   other than ENOENT, such as no permission on a parent) may still be there:
   it is not counted as removed either. The unchecked removal is in 7.29.3.
+- **A delete the agent's treedb refuses says which record, its cause, and
+  what was deleted before it.** This covers `delete-binary` (count,
+  directories left, files kept), `delete-config`, `delete-realm` and
+  `delete-public-service`, whose `data` now lists only what was deleted. Up
+  to 7.29.3 the answer was the last error alone, `delete-realm` and
+  `delete-public-service` listed the failed record in `data`, and
+  `delete-config` leaked its data array. A directory whose path has a part
+  that is not a directory (`ENOTDIR`) is not there, as with `ENOENT` (a
+  development version asked to remove it by hand). In 7.29.3 and older.
 - **`delete-yuno yuno_release=<the primary's release>` no longer deletes every
   release.** The delete of the primary's own pkey2 takes the whole key, so
   this form passed the "`yuno_release=` or `whole=1`" gate as one release and
@@ -235,7 +272,8 @@
   commas, `_`, a `.` not between digits, where letters and digits touch --
   `"Oct1"` is `"Oct 1"`, but not an ordinal, `"5th"`, nor the `T` of ISO
   8601 -- and at the `-` or `/` of a date with a month name, `"Oct-1-5"` is
-  `"Oct 1 5"`; a comment is passed over whole), and the words it skips (`ago`,
+  `"Oct 1 5"`; a comment is passed over whole, also between a count and its am/pm or
+  unit), and the words it skips (`ago`,
   `at`, `on`, `the`, `of`, a weekday) are skipped by the rule too. These are
   refused:
     - a comma between two digits (`"1,5 days ago"` was September 26,
@@ -279,10 +317,13 @@
       `"October 1st, 2026 at 3 pm"`), and with no month name its month and
       year (`"1st 10 2026"`);
     - digits inside a comment (`"Oct 1 2026 (x 5 5 y)"`), and a clock time
-      between a month and its day (`"Oct 10:00 1 2026"`).
+      between a month and its day (`"Oct 10:00 1 2026"`);
+    - epoch seconds alone with a comment (`"1761000000 (UTC)"`,
+      `"(EST) 1761000000"`; a development version refused them).
 
   A number alone is never an hour: `"Oct 29 10"` is 2010-10-29, as in
-  7.29.3. A dot between digits is left to `approxidate_careful()`
+  7.29.3; after `at` it is, with no half of the day, and the reader refuses
+  it (below). A dot between digits is left to `approxidate_careful()`
   (`"1.10 2026"` is October 1). tr2migrate reads a text time by the rule too
   (it read it with an unchecked `parse_date_basic()`). In 7.29.3 too.
 - **A weekday after a date names it** (`approxidate_careful()`, the port of
@@ -294,17 +335,37 @@
   plural, it stays a count (`"2 wednesday"`, `"Oct 1 2 fridays"`).
   `"2026-10-01 5 friday"` is now refused (it was August 28). A year (four
   digits, 1970-9999) before a weekday is a year, never a count: `"2026 Thu"`
-  was 2026 Thursdays back (1988), and `"Oct 1 2026 thursdays"` (1987-12-03)
+  was 2026 Thursdays back (1988) and is now no date (a weekday with no day,
+  below), and `"Oct 1 2026 thursdays"` (1987-12-03)
   is now refused, its plural with no count left; a count of units stays one
-  (`"2026 days ago"`). The weekday is not checked against its date:
+  (`"2026 days ago"`); and a count of weekdays from 1970 up is a year, so
+  `"2000 mondays ago"` is no date (write weeks). The weekday is not checked against its date:
   `"Oct 5 2026 friday"` is Monday, October 5. `test_date_text` §13-14. In
   7.29.3 and older.
-- **Any blank parts a count from its unit, weekday or am/pm**
-  (`approxidate_careful()`): the reader parted two pieces at any blank but
-  looked past a count over a space or a tab only, so `"Oct 1 10\vpm"` was
-  2010-10-01 and `"2\ndays ago"` no date; they are 22:00 on October 1 and
-  two days back, and the time rule of timeranger2, which parts words at any
-  blank, agrees with it again. `test_date_text` §14. In 7.29.3 and older.
+- **Any blank or comment parts a count from its unit, weekday or am/pm**
+  (`approxidate_careful()`): the reader parted two pieces at any blank and
+  passed over a comment, but looked past a count over a space or a tab only,
+  so `"Oct 1 10\vpm"` was 2010-10-01, `"2\ndays ago"` no date, and
+  `"Oct 1 5 (CEST) pm"` 2005-10-01 (`"Oct 29 3 (CEST) PM"` 2003-10-29) while
+  the time rule of timeranger2 took the 5 as the hour. They are 22:00 on
+  October 1, two days back, and 17:00 CEST (the zone of the comment is
+  read); the rule and the reader agree again. `test_date_text` §14-15. In
+  7.29.3 and older.
+- **A weekday names a day, and the text must say it**
+  (`approxidate_careful()`): a weekday that is no count was passed over
+  even with no day in the text, so `"monday 10:00"` was today at 10:00,
+  `"2026 Thu"` today in 2026, `"Oct Thu"` today. Now a weekday needs its
+  day, as a date (`"Thu, 01 Oct 2026"`) or counted from today
+  (`"yesterday Tue"`, `"2 days ago Mon"`); else the text is no date, and a
+  time bound or tkey written that way is refused. The weekday is still not
+  checked against that day. `test_date_text` §15. In 7.29.3 and older.
+- **A number alone after `at` is an hour, and no date**
+  (`approxidate_careful()`): `"Oct 1 at 10"` was 2010-10-01, `"at 10"` the
+  10th of the month, `"1 Oct at 3"` 2003-10-01 (as git's `date.c` reads
+  them). For a person it is an hour, one that says neither am nor pm
+  (`"at 3"` is 03:00 or 15:00): an hour (0-23) alone after `at` is now no
+  date. `"Oct 1 at 10 pm"`, `"Oct 1 at 10:00"` and `"at 2026-10-01 10:00"`
+  are read. `test_date_text` §15. In 7.29.3 and older.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -489,6 +550,27 @@
 - **The queue drops of C_TCP are counted per gobj**: the *"throw away tcp tx
   message"* error was counted by one static counter for the process, so it
   reported the drops of every C_TCP together. In 7.29.3.
+- **An empty write gets its `EV_TX_READY` one turn later, in `C_TCP`,
+  `C_UDP` and `C_UART`.** An ignored empty `EV_TX_DATA` published none, so a
+  host that only goes on after `EV_TX_READY` waited for ever (unreleased; in
+  7.29.3 an empty write was a write that could not start). With nothing in
+  flight or queued the transport posts `EV_TX_READY` to itself and publishes
+  it on the next turn, never inside the sender's `gobj_send_event()`; with a
+  write in flight or queued, that write's `EV_TX_READY` covers it. A `C_UDP`
+  send that does not start no longer publishes `EV_TX_READY` inside the
+  sender's send either: the datagram is dropped with an error and the event
+  is posted. A gbuffer handed to a transport belongs to it until its
+  `EV_TX_READY`: copy it to send the same bytes twice.
+- **`C_UDP` can be used: it registers, sends its whole queue and keeps the
+  stop contract.** It was an unfinished port in 7.29.3 and older:
+  `register_c_udp()` failed (`EV_STOPPED` declared as an input), `c_udp.h`
+  declared `C_PROT_UDP`, the connect completion was "event type NOT
+  IMPLEMENTED", only the first datagram was sent (the rest stayed queued and
+  `EV_TX_READY` never came), a datagram the kernel refused stopped it with
+  only a trace, a stop published nothing and did not wait for its send, its
+  read event leaked, and `txBytes`/`rxBytes` read 0. Each is now wired as in
+  `C_UDP_S`. It is still not registered by the SDK: a yuno includes
+  `c_udp.h` and calls `register_c_udp()`. New test `c_udp_tx`.
 - **A `max_run` stop tried again in a minute keeps its minute across a save,
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
