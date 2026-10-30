@@ -167,12 +167,14 @@
   not ended; nothing in raw mode), so `cat >/dev/null; echo DONE` ends; the
   master is closed (one fd leaked per call) and the command is always
   reaped (with SIGCHLD at `SIG_IGN` the kernel reaps it and the answer is
-  0, not *"waitpid() FAILED"*). When stdin is a terminal each ctrl+d is
+  0, not *"waitpid() FAILED"*, also for a command killed by a signal). When stdin is a terminal each ctrl+d is
   passed on and the input after it still reaches the command; any other
   stdin ends once (documented). The end of the command is seen by a pidfd
   in the main loop, so a process it left in the background no longer holds
   the call (`(trap '' HUP; exec sleep 3) & sleep 0.2` took 3 s, now 0.2 s;
-  without a pidfd the exit is looked for every 100 ms with a WARNING), and
+  without a pidfd the exit is looked for every 100 ms with a WARNING; a
+  command already reaped when its pidfd is opened is its end, with no
+  WARNING; `SYS_pidfd_open` is defined where kernel headers lack it), and
   `poll()` replaces `select()`, whose `fd_set` overflowed above
   `FD_SETSIZE`. The `C_PTY` child leaves with `_exit()`. In 7.29.3 and
   older.
@@ -243,14 +245,26 @@
   the last message before the operation whose cause they answer, as the
   deletes do. In 7.29.3 (those answers read `gobj_log_last_message()`
   directly).
+- **C_AUTH_BFF refuses a token whose cookie a browser would drop.** A
+  browser keeps a cookie only when its name and value take at most 4096
+  bytes (RFC 6265 §6.1; Chrome and Firefox drop a bigger one without a
+  word), and the limit was 8 KB: a token of 4 to 8 KB got a `200` whose
+  cookie the browser dropped, and the WebSocket opened without a session,
+  with nothing logged. An access_token over 4084 bytes or a refresh_token
+  over 4083 gets `500 token_too_large`, with each size and limit. An IdP
+  success with no access_token gets `502 auth_unexpected_error` (it was
+  `200 success` with empty cookies). The `Host` is compared whole (it was cut
+  to 255 bytes without a word), and a host name over 253 bytes gets no
+  `Domain`, with a WARNING. In 7.29.3. `c_auth_bff/test21`, `test23`.
 - **C_AUTH_BFF: a 502 or 429 goes out with its own HTTP status.**
   `status_str()` had no text for them, so `auth_service_unavailable`,
   `auth_unexpected_error`, `auth_empty_response` and `auth_rate_limited`
   went out as *"500 Internal Server Error"*; an unknown status is an ERROR.
   In 7.29.3. `c_auth_bff/test22`.
-- **C_AUTH_BFF: a timeout of the IdP is ONE ERROR, logged when its task
-  ends, with its `cause`** (`idp_connect_timeout_ms` or `idp_timeout_ms`,
-  plus `connected`, `tcp_state`, `queued`). The connect watchdog added
+- **C_AUTH_BFF: a timeout of the IdP logs one ERROR for its cause, when its
+  task ends, plus the ERROR of each answer it causes** (`cause`:
+  `idp_connect_timeout_ms` or `idp_timeout_ms`, with the real `connected`
+  and `tcp_state`, and `queued`). The connect watchdog added
   *"IdP unreachable, task watchdog fired"* (in 7.29.3) and a discovery with
   requests queued *"OIDC discovery failed, draining queue"*, now an INFO.
 - **C_AUTH_BFF: a token of 8192 bytes or more is refused by its size**
@@ -276,13 +290,18 @@
   and `internal_error` (both 500), and `missing_refresh_token` for
   `/auth/logout` too; 502, not 503, for the drain after a failed discovery.
   Comments only.
+- **`kill-yuno` goes on when a yuno cannot be killed.** It stopped at the
+  first failure: the yunos already killed were not waited for, and the ones
+  after it were not killed. Every yuno is tried now, and the answer is -1
+  and names each failure with its cause. In 7.29.3.
 - **`kill-yuno` with SIGKILL no longer fails for a yuno it did kill.** A
   watcher that could not be signalled made the command answer *"Can't kill
   yuno: (see the log)"* and stop there, without waiting for the yuno it had
   killed or going on with the others; a watcher whose child ends by SIGKILL
   leaves by itself, so that is a WARNING now and the kill goes on. The
   watcher of a yuno that could not be signalled is no longer killed (it
-  would leave the yuno unsupervised). In 7.29.3 and older.
+  would leave the yuno unsupervised), and the WARNING says whether the yuno
+  got its SIGKILL or was already gone. In 7.29.3 and older.
 - **`set_yuno_must_die()` logs "Exit to die" once**, also when a stop
   reaches a daemon twice during the stop of its services. In 7.29.3 and
   older.
@@ -307,8 +326,8 @@
 - **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
-  1.1.2; then gobj-js 7.29.3, gobj-ui 7.29.5, gui_agent 1.2.7 and gui_treedb
-  1.1.3. The `yunetas` CLI 1.0.5 on PyPI. What each carries is in its own
+  1.1.2; then gobj-js 7.29.3, gobj-ui 7.29.5 and 7.29.6, gui_agent 1.2.7 and
+  1.2.8 and gui_treedb 1.1.3 and 1.1.4. The `yunetas` CLI 1.0.5 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, and a login
   denial said in the language of the app.
@@ -593,6 +612,32 @@
   counted (`"yesterday Sat"` refused at 23:30 CET on Sunday 2026-10-25 in
   Madrid); it is read from the day the text counted (unreleased).
   `test_date_text` §19.
+- **A local time that a change of hour repeats is its first one, whatever
+  text was read before it** (`approxidate_careful()`, and so
+  `tranger2_time_of_text()`): a local time with no zone went through
+  `mktime()`, and glibc settles the repeated hour with what its last call
+  cached, so in Madrid `"2026-10-25T02:30:00"` was +0200 after a text of
+  01:30 that day and +0100 after one of the 26th. It is read with the offset
+  in force before a nearby change: the repeated hour is its first
+  occurrence (`"02:30 CET"` or `"02:30 +0100"` gives the second), and a time
+  the change skips is that many minutes after it (`"2026-03-29 02:30"` is
+  03:30 +0200, documented). In 7.29.3.
+- **am/pm needs an hour, after `at` comes a time of day or a date, and
+  `never` takes no zone**: at 11:00 `"pm"` and `"today pm"` were today at
+  23:00 and `"pm 3"` the 3rd at 23:00; `"at yesterday"`, `"at now"`, `"at
+  today"` and `"at never"` were read; `"never (+0200)"` and `"(GMT) never"`
+  were the epoch while `"never UTC"` was refused. All are no date now. In
+  7.29.3.
+- **`"12 noon"` is noon, and an offset after a date or a day is its zone**:
+  `"12 noon"` was the 12th at noon and `"Oct 1 at 12 noon"` was refused; a 12
+  before noon or midnight is their hour right after `at` or with no date
+  before it, and after a date it is still the date's (`"Oct 12 noon"`).
+  `"yesterday +0000"` was refused while `"yesterday UTC"` was read: an offset
+  follows a date, `now`, `today` or a count back, as a zone name does. The
+  docs say that a count of days moves the day and a count of hours the time
+  (`"noon 1 day ago"` is yesterday's noon; before noon `"noon 24 hours ago"`
+  the day before yesterday's), and `timeranger2.h` names the zone said
+  beside the UTC offset of now. In 7.29.3.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
   bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text
@@ -792,7 +837,9 @@
   `EV_STOPPED` while the cancel of the read is still to come.
 - **A `C_TCP` clisrv destroyed before its stop ended closes its socket**, as
   the end of the stop does (`shutdown(SHUT_WR)` first, so the peer reads the
-  end and not a reset): a socket leaked and the peer never saw the end. In
+  end and not a reset, once what it wrote has left its send buffer; with
+  output still unsent the peer gets a RST): a socket leaked and the peer
+  never saw the end. In
   7.29.3. `c_tcp/test9`, which also checks again that both C_TCPs
   connected.
 - **`C_UDP` and `C_UDP_S` destroyed before their `EV_STOPPED` no longer log
