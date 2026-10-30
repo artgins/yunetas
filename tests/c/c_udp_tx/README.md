@@ -45,11 +45,13 @@ later it must be in `ST_STOPPED`, NOT running, with ONE `EV_STOPPED`, and a
 `gobj_start()` must work; a stop then publishes a second `EV_STOPPED`. Then it
 is started again and, 25 times, sent a datagram, stopped (it must wait in
 `ST_WAIT_STOPPED`) and started in ONE turn: 100 ms later it must run in
-`ST_IDLE`, with no new `EV_STOPPED`. Then, 25 times, it is stopped (in
-`ST_WAIT_STOPPED`, for the cancel of its read) and the driver starts it again
-INSIDE its `EV_STOPPED`: the stop ended at the completion of the read
-canceled, and the completion of the cancel is still to come. 100 ms later it
-must run in `ST_IDLE`, with one `EV_STOPPED` per stop. A last stop publishes
+`ST_IDLE`, with no new `EV_STOPPED`. Then, 25 times, it is sent a datagram
+and stopped (in `ST_WAIT_STOPPED`, for the send and the cancel of its read),
+and the driver starts it again INSIDE its `EV_STOPPED`: the stop ended at the
+last of those completions, and the completion of the cancel can still be to
+come. 100 ms later it must run in `ST_IDLE`, with one `EV_STOPPED` per stop.
+The send in flight is what makes this phase red on its own with the read
+kept across starts: with only the read in flight that code passes it. A last stop publishes
 the last one. In the fixes after 7.29.3 (red) it stayed in `ST_WAIT_STOPPED`
 for ever, and the start said *"GObj ALREADY RUNNING"*; and the start, in the
 stop or at its `EV_STOPPED`, armed the read again while the completion of its

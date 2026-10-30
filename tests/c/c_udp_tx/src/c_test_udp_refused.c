@@ -30,14 +30,15 @@
  *                 that completion landed on the new read, which failed,
  *                 and the C_UDP stopped by itself ("UDP: read FAILED, the
  *                 client stops") at every restart.
- *              4. RESTARTS times: a stop (in ST_WAIT_STOPPED, for the
- *                 cancel of the read), and a start made at its EV_STOPPED,
- *                 inside the action: the stop ended at the completion of
- *                 the read canceled, and the completion of the cancel is
- *                 still to come. RESTART_MS later the C_UDP must run in
- *                 ST_IDLE, with one EV_STOPPED per stop. In the fixes
- *                 after 7.29.3 that completion failed the read armed
- *                 again, and the C_UDP stopped by itself at every restart.
+ *              4. RESTARTS times: a datagram and a stop (in
+ *                 ST_WAIT_STOPPED, for the send and the cancel of the
+ *                 read), and a start made at its EV_STOPPED, inside the
+ *                 action: the stop ended at the last of those completions,
+ *                 and the completion of the cancel can still be to come.
+ *                 RESTART_MS later the C_UDP must run in ST_IDLE, with one
+ *                 EV_STOPPED per stop. In the fixes after 7.29.3 that
+ *                 completion failed the read armed again, and the C_UDP
+ *                 stopped by itself.
  *              5. a stop: the last EV_STOPPED, and the yuno dies; the
  *                 memory check at the end catches a leaked event or
  *                 gbuffer.
@@ -377,8 +378,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check_udp(gobj, "TEST: a C_UDP started at its EV_STOPPED did not stay running",
                 ST_IDLE, TRUE, 2 + priv->restarts_at_stopped);
             if(priv->restarts_at_stopped < RESTARTS) {
+                gbuffer_t *gbuf = gbuffer_create(64, 64);
+                gbuffer_append_string(gbuf, "nobody listens");
+                gobj_send_event(
+                    priv->gobj_udp,
+                    EV_TX_DATA,
+                    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+                    gobj
+                );
                 stop_and_check_it_waits(gobj,
-                    "TEST: the stop with the read in flight did not wait"
+                    "TEST: the stop with a send and the read in flight did not wait"
                 );
                 set_timeout(priv->timer, RESTART_MS);  // ac_stopped() starts it
                 break;

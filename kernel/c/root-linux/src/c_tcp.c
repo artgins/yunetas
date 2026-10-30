@@ -623,6 +623,13 @@ PRIVATE void mt_destroy(hgobj gobj)
      *  after its events are stopped, the way the stop does: shutdown(SHUT_WR)
      *  first, so its peer reads the end of the connection (a FIN) even when
      *  data it sent is still unread, which makes a bare close() send a RST.
+     *  The FIN goes out after what this side wrote: while that output is
+     *  still in the send buffer, the close() of a socket with unread data
+     *  drops it, and the peer gets a RST and no FIN, as at the end of a stop.
+     *
+     *  shutdown() is not checked: it can only fail on a connection that is
+     *  already gone (ENOTCONN once the peer reset it), and then the close()
+     *  that follows is all there is to do.
      */
     if(priv->fd_clisrv > 0) {
         shutdown(priv->fd_clisrv, SHUT_WR);
@@ -1756,6 +1763,13 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
          *  the last application data).  shutdown(SHUT_WR) transitions the socket
          *  to FIN_WAIT_1 first, so the subsequent close() follows the graceful
          *  TCP teardown path and the peer can complete its own shutdown().
+         *  The FIN goes out after what this side wrote: while that output is
+         *  still in the send buffer, the close() of a socket with unread data
+         *  drops it, and the peer gets a RST and no FIN.
+         *
+         *  shutdown() is not checked: it can only fail on a connection that
+         *  is already gone (ENOTCONN once the peer reset it), and then the
+         *  close() that follows is all there is to do.
          */
         if(priv->fd_clisrv > 0) {
             if(trace_level & TRACE_URING) {

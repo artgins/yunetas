@@ -111,7 +111,10 @@ the write in flight, and the loop frees them when their completions come, with
 no callback. A clisrv's socket, which its stop closes when it ends, is closed
 by the destroy the way the stop closes it: `shutdown(SHUT_WR)` first, so the
 peer reads the end of the connection (a FIN) even when data it sent is still
-unread, which makes a bare `close()` send a RST. Up to 7.29.3 the write events
+unread, which makes a bare `close()` send a RST. The FIN goes out after what
+the clisrv wrote: while that output is still in the socket's send buffer (a
+peer that does not read), the `close()` of a socket with unread data drops it,
+and the peer gets a RST and no FIN, as at the end of a stop. Up to 7.29.3 the write events
 were not kept, and that completion ran on the freed gobj (a use after free; a
 crash in a plain build); and a clisrv's socket was left open (a socket leaked,
 and the peer never saw the end of the connection). `tests/c/c_tcp`
