@@ -739,6 +739,51 @@ PRIVATE int do_test(void)
             {" 2000-01-02T00:00:00+0000 ",  FALSE,  FALSE,   0, 946771200},
             {"@9300000000000000 +0000",     TRUE,   FALSE,  -2, 0},
             {"@9300000000000000 +0000",     FALSE,  FALSE,   0, 9300000000000000LL},
+            /*  A comma before an hour closes a date, or it is refused  */
+            {"1 2,10:00",                   FALSE,  FALSE,  -1, 0},
+            {"5 5,10:00 ago",               FALSE,  FALSE,  -1, 0},
+            {"12 2026,10:00",               FALSE,  FALSE,  -1, 0},
+            {"1,5:29",                      FALSE,  FALSE,  -1, 0},
+            {"2026,10:00",                  FALSE,  FALSE,  -1, 0},
+            {"5 5,3 pm",                    FALSE,  FALSE,  -1, 0},
+            {"01 10 2026,10:00 +0000",      FALSE,  FALSE,   0, 1790848800},
+            {"1 Oct 2026,10:00 +0000",      FALSE,  FALSE,   0, 1790848800},
+            {"1 Oct 2026,3 pm +0000",       FALSE,  FALSE,   0, 1790866800},
+            {"Oct 1 2026,3 pm +0000",       FALSE,  FALSE,   0, 1790866800},
+            /*  A number before a count (an hour with am/pm, a unit) is a date's, or it is refused  */
+            {"12 10 pm",                    FALSE,  FALSE,  -1, 0},
+            {"5 5 pm",                      FALSE,  FALSE,  -1, 0},
+            {"12 10pm",                     FALSE,  FALSE,  -1, 0},
+            {"5 at 3 pm",                   FALSE,  FALSE,  -1, 0},
+            {"2026 3 pm",                   FALSE,  FALSE,  -1, 0},
+            {"1 5days ago",                 FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 3 pm. +0000",      FALSE,  FALSE,   0, 1790866800},
+            {"Oct 1 2026 3 pm+0000",        FALSE,  FALSE,   0, 1790866800},
+            /*  The words and separators approxidate passes over  */
+            {"Oct.. 1 2026 00:00:00 +0000", FALSE,  FALSE,   0, 1790812800},
+            {"Oct_1_2026 00:00:00 +0000",   FALSE,  FALSE,   0, 1790812800},
+            {"march on 5 2026 00:00:00 +0000", FALSE, FALSE, 0, 1772668800},
+            {"march the 5 2026 00:00:00 +0000", FALSE, FALSE, 0, 1772668800},
+            {"march of 5 2026 00:00:00 +0000", FALSE, FALSE, 0, 1772668800},
+            {"Oct Thu 1 2026 00:00:00 +0000", FALSE, FALSE,  0, 1790812800},
+            {"5 the 5",                     FALSE,  FALSE,  -1, 0},
+            {"5 at 5 ago",                  FALSE,  FALSE,  -1, 0},
+            {"5_5",                         FALSE,  FALSE,  -1, 0},
+            {"5_5 ago",                     FALSE,  FALSE,  -1, 0},
+            {"5. 5 ago",                    FALSE,  FALSE,  -1, 0},
+            {"1_5 days ago",                FALSE,  FALSE,  -1, 0},
+            {"2026_10_01",                  FALSE,  FALSE,  -1, 0},
+            {"2026. 10. 01",                FALSE,  FALSE,  -1, 0},
+            {"Mon the 1 2026",              FALSE,  FALSE,  -1, 0},
+            /*  A count after a comma is no year of a date  */
+            {"Oct 1,50 days ago",           FALSE,  FALSE,  -1, 0},
+            {"Oct 1,26 fridays",            FALSE,  FALSE,  -1, 0},
+            /*  A weekday after a date names it: the year before it is no count  */
+            {"Oct 1 2026 Thu 00:00:00 +0000", FALSE, FALSE,  0, 1790812800},
+            {"1 Oct 2026 Thu 00:00:00 +0000", FALSE, FALSE,  0, 1790812800},
+            {"Oct 5 2026 friday 00:00:00 +0000", FALSE, FALSE, 0, 1791158400},
+            {"Oct 1,26 friday 00:00:00 +0000", FALSE, FALSE,  0, 1790812800},
+            {"5 5 friday",                  FALSE,  FALSE,  -1, 0},
         };
         for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
             json_int_t value = -12345;
@@ -765,6 +810,38 @@ PRIVATE int do_test(void)
         if(ret != 0 || value < 1790812800 - DAY_SECS || value > 1790812800 + 2*DAY_SECS) {
             printf("%sERROR%s --> tranger2_time_of_text('01 10 2026'): %d %" JSON_INTEGER_FORMAT
                 " (%s), expected 2026-10-01\n",
+                On_Red BWhite, Color_Off, ret, value, why? why : "");
+            result += -1;
+        }
+
+        /*
+         *  Dates with no year or no clock time, read against NOW: only that
+         *  they are dates is checked
+         */
+        static const char *dates_of_now[] = {
+            "Oct 1,3 pm",
+            "Oct 1 2026 5 days ago",
+            "01 10 2026 5 days ago",
+            "Oct 1, 50 days ago",
+            NULL
+        };
+        for(int i = 0; dates_of_now[i]; i++) {
+            ret = tranger2_time_of_text(dates_of_now[i], FALSE, FALSE, &value, &why);
+            if(ret != 0) {
+                printf("%sERROR%s --> tranger2_time_of_text('%s'): %d (%s), expected a date\n",
+                    On_Red BWhite, Color_Off, dates_of_now[i], ret, why? why : "");
+                result += -1;
+            }
+        }
+
+        /*
+         *  A number alone is never an hour: "Oct 29 10" is 2010-10-29, a
+         *  year of 2 digits, as "Oct 1 26" is
+         */
+        ret = tranger2_time_of_text("Oct 29 10", FALSE, FALSE, &value, &why);
+        if(ret != 0 || value < 1288310400 - DAY_SECS || value > 1288310400 + 2*DAY_SECS) {
+            printf("%sERROR%s --> tranger2_time_of_text('Oct 29 10'): %d %" JSON_INTEGER_FORMAT
+                " (%s), expected 2010-10-29\n",
                 On_Red BWhite, Color_Off, ret, value, why? why : "");
             result += -1;
         }

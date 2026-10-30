@@ -679,24 +679,42 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         read as a date: up to 7.29.3 a bound read it with strtoll() (" 5"
         was 5, "10.5" 10), and approxidate() reads "1,5" as May 1, "5 5"
         as May 5, "2026 10 01" as January 10.
-      - Nor is a text that holds such numbers among other words: a comma
-        between two digits ("1,5 days ago", "2026,10,01"), or two or more
-        words of digits in a row ("5 5 ago", "2026 10 01 10:00",
-        "12 2026 10:00"). approxidate() reads them as September 26, May 5,
-        January 10. A run of digits is a date only as a person writes
-        one: day month year ("01 10 2026", "01 10 2026 10:00"; with
-        numbers alone the year has 4 digits, "1 2 34" is refused), or a
-        day and a year of 4 or 2 digits after the name of a month, 3
-        letters or more of it in any case ("Oct 1 2026", "Oct 1, 2026",
-        "Oct 1,2026", "Oct 1 26", "Sept. 1 2026"; after another word it
-        is refused: approxidate() reads "yesterday 1 2026" as September
-        30). The hour of "3 pm" (1 or 2 digits, then am or pm in any
-        case) ends a run and is not in it: "Oct 1 2026 3 pm",
-        "01 10 2026 3 pm". Three commas between digits are a date's and
-        are kept: the decimal comma of the seconds of a clock time
-        ("2026-10-01T10:00:00,500Z"; not "10:00,5", read as the 5th), a
-        comma before a clock time ("2026-10-01,10:00"), and one between a
-        day and a year after a month name ("Oct 1,2026", "Oct 1,26").
+      - Nor is a text that holds such numbers among other words. Its words
+        are parted as approxidate_careful() parts them: by blanks, commas,
+        '_', and a '.' that is not between two digits ("Oct. 1", "3 pm.";
+        "01.10.2026" is one word). "ago", "at", "on", "the", "of" and a
+        weekday are passed over, as approxidate_careful() passes over
+        them: they part no digits ("5 the 5" is "5 5") and no month from
+        its day ("march the 5 2026" is March 5).
+        - A comma between two digits ("1,5 days ago", "2026,10,01",
+          "1,5:29"), read as September 26, January 10, the 1st at 05:29.
+          Three are a date's and kept: the decimal comma of the seconds of
+          a clock time ("2026-10-01T10:00:00,500Z"; not "10:00,5", read as
+          the 5th); a comma that closes a date before its hour, a clock
+          time or an hour with am/pm ("2026-10-01,10:00", "1 Oct
+          2026,10:00", "Oct 1,3 pm"; not "1 2,10:00", read as February 1,
+          nor "2026,10:00"); and one between a day and a year after a
+          month name ("Oct 1,2026", "Oct 1,26"; not "Oct 1,50 days ago",
+          whose 50 is a count).
+        - Two or more words of digits in a row ("5 5 ago", "2026 10 01
+          10:00", "12 2026 10:00", "2026_10_01"), read as May 5, January
+          10, October 12. A run of digits is a date only as a person
+          writes one: day month year ("01 10 2026", "01 10 2026 10:00";
+          with numbers alone the year has 4 digits, "1 2 34" is refused),
+          or after the name of a month, 3 letters or more of it in any
+          case, a day, or a day and a year of 4 or 2 digits ("Oct 1",
+          "1 Oct 2026", "Oct 1 2026", "Oct 1, 2026", "Oct 1 26", "Sept. 1
+          2026"; after another word it is refused: "yesterday 1 2026" is
+          read as September 30). A number alone is no hour: "Oct 29 10"
+          is 2010-10-29.
+        - A number that a unit, am/pm or a weekday follows is a count
+          ("5 days", "3 pm", "3pm", "2 fridays"): it ends a run and is not
+          in it, and the run before it must be a date, even of one number:
+          "Oct 1 2026 3 pm", "01 10 2026 5 days ago" are dates; "12 10 pm"
+          (read as the 12th at 22:00), "5 5 pm", "2026 3 pm" and "1 5days
+          ago" are refused. After a month, a day or a year, a number
+          before a weekday is that date's ("Oct 1 2026 Thu", "Oct 5
+          friday"), as approxidate_careful() reads it.
         A DOT between digits cannot be refused by its shape: "1.10 2026"
         and "01.10.2026" are dates (day.month), and only
         approxidate_careful() judges it.
