@@ -386,6 +386,14 @@ what was deleted. Up to 7.29.3 the answer was the cause alone, the `data` of
 `delete-realm` and `delete-public-service` named the record that failed as
 if deleted, and `delete-config` lost its `data` (a leak in the agent).
 
+The `<cause>` is what the delete logged as an ERROR. When it logged none,
+the cause is *"(see the log)"*: the treedb refuses a record that still has
+links with a WARNING (*"has down links"*, *"has up links"*), and the
+WARNING is in the log. For example
+*"…: realm 'r2' NOT deleted: (see the log); before it, 0 realms deleted"*.
+Up to 7.29.3 that cause was empty, or the cause of an older, unrelated
+failure. `delete-yuno` gives the same cause.
+
 `delete-binary record_only=1` deletes the record and leaves its files, and
 says where they are, in the comment and in the `data` (`"removed": false`):
 *"… remove its files by hand: ["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*. The guards of each
