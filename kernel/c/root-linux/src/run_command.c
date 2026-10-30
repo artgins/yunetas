@@ -652,10 +652,7 @@ PUBLIC int pty_sync_spawn(
         close(pidfd);
     }
 
-    /*
-     *  What the command left in the terminal, without waiting: a process
-     *  it left in the background may hold the terminal open
-     */
+    // non-blocking: a process the command left in the background may hold the terminal open
     int flags = fcntl(master, F_GETFL);
     if(flags < 0 || fcntl(master, F_SETFL, flags|O_NONBLOCK) < 0) {
         gobj_log_error(0, 0,

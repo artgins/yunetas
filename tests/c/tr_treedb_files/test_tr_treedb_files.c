@@ -542,7 +542,7 @@ PRIVATE int test_hooks_follow_the_schema(json_t *tranger)
         test,
         json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Creating topic",
-            /*  `works.plan` has no `writable` either: the warning fires
+            /*  `works.drawing` has no `writable` either: the warning fires
              *  when the hook is CREATED, once per topic and not per pass.  */
             "msg", "a 'file' column without 'writable' cannot be filled by a person",
             "msg", "a 'file' column must be flagged 'fkey' too",

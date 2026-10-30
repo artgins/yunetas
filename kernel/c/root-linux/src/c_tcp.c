@@ -984,6 +984,20 @@ PRIVATE void set_secure_connected(hgobj gobj)
 /***************************************************************************
  *  WARNING set disconnected when all yevents has stopped
  *  It's the signal that gclass can be re-used
+ *
+ *  The tx queues: the in-flight write (gbuf_txing) is a partial write on a
+ *  dead socket, and the encrypted output waiting to be written
+ *  (dl_tx_encrypted) belongs to the TLS session that died: both are always
+ *  discarded. The pending queue (dl_tx) is discarded when the connection had
+ *  been established: its byte stream is broken, and resending would desync
+ *  the protocol. When the connection was NEVER established
+ *  (inform_disconnection still FALSE: a failed connect or a dropped
+ *  handshake), those bytes never reached the wire: in the reconnect-on-tx
+ *  model (timeout_inactivity) a running client keeps them, and
+ *  start_pending_writes() flushes them once the retry connects.
+ *
+ *  A host may destroy the gobj when it gets EV_DISCONNECTED (see alive_t):
+ *  then nothing of the gobj is touched after the publish.
  ***************************************************************************/
 PRIVATE void set_disconnected(hgobj gobj)
 {
@@ -1065,23 +1079,7 @@ PRIVATE void set_disconnected(hgobj gobj)
     gobj_write_bool_attr(gobj, "connected", FALSE);
     gobj_write_bool_attr(gobj, "secure_connected", FALSE);
 
-    /*
-     *  Clean tx messages.
-     *
-     *  The in-flight write (gbuf_txing) is a partial write on a now-dead
-     *  socket: always discard it.
-     *
-     *  The pending queue (dl_tx) is discarded too WHEN the connection had been
-     *  established (its byte stream is broken — resending would desync the
-     *  protocol). But when the connection was NEVER established
-     *  (inform_disconnection is still FALSE: a failed connect / dropped
-     *  handshake), those bytes were never put on the wire, so in the
-     *  reconnect-on-tx model (timeout_inactivity) we KEEP them and a running
-     *  client flushes them via start_pending_writes() once the retry connects.
-     *
-     *  The encrypted output waiting to be written (dl_tx_encrypted) is
-     *  always discarded: it belongs to the TLS session that just died.
-     */
+    // dl_tx is kept only when its bytes never reached the wire (see the header)
     GBUFFER_DECREF(priv->gbuf_txing)
     dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
     BOOL keep_pending_tx =
@@ -1098,11 +1096,7 @@ PRIVATE void set_disconnected(hgobj gobj)
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
 
-        /*
-         *  A host may destroy the gobj on EV_DISCONNECTED (see alive_t):
-         *  then nothing of it is touched. Up to 7.25.22 its attrs were reset
-         *  after the publish
-         */
+        // its host may destroy it on EV_DISCONNECTED (see the header)
         alive_t marker;
         alive_push(priv, &marker);
         gobj_publish_event(gobj, EV_DISCONNECTED, 0);
