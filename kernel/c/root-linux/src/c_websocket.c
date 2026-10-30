@@ -1820,7 +1820,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 priv->inform_on_close = TRUE;
 
                 /*
-                 *  SEC-06: pass the Cookie header from the HTTP Upgrade
+                 *  Pass the Cookie header from the HTTP Upgrade
                  *  request to the upper layer (c_ievent_srv) so it can
                  *  authenticate via httpOnly cookie JWT without relying on
                  *  a JWT field in the IDENTITY_CARD message.

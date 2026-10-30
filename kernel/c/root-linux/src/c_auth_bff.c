@@ -2,7 +2,7 @@
  *          c_auth_bff.c
  *          Auth_bff GClass — Backend For Frontend (BFF) for OAuth2.
  *
- *  SEC-06 — httpOnly cookie token storage:
+ *  httpOnly cookie token storage:
  *  ========================================
  *  This GClass acts as an HTTP server (not WebSocket) that mediates
  *  between the browser SPA and the IdP authorization server.
@@ -43,7 +43,7 @@
  *              backend host (multi-backend browsing).  Synchronous — no
  *              IdP round-trip.  Gated by the `expose_access_token` attr
  *              (default false); when disabled the endpoint responds 404 as
- *              if it did not exist.  This is a DELIBERATE, opt-in SEC-06
+ *              if it did not exist.  This is a DELIBERATE, opt-in
  *              relaxation: it makes the access_token readable by JavaScript,
  *              so enable it ONLY on a BFF whose SPA must forward the token
  *              cross-origin (e.g. gui_treedb).  Keep it off everywhere else.
@@ -219,7 +219,7 @@ SDATA (DTP_STRING,      "client_secret",        SDF_RD|SDF_SECRET, "",     "Clie
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
-SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in SEC-06 relaxation: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
+SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in relaxation of the httpOnly-cookie rule: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
 SDATA (DTP_DICT,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
 SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
@@ -1186,7 +1186,7 @@ PRIVATE void build_cors_headers(hgobj gobj, const char *origin,
     const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
     if(empty_string(allowed_origin)) {
         /*
-         *  SEC-06: never reflect an arbitrary Origin or fall back to "*".
+         *  Never reflect an arbitrary Origin or fall back to "*".
          *  If allowed_origin is not configured, deny cross-origin access
          *  by omitting the CORS headers entirely.
          */
@@ -2441,7 +2441,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
         /*
-         *  SEC-06: validate redirect_uri against the configured allowed prefix.
+         *  Validate redirect_uri against the configured allowed prefix.
          *  This prevents the BFF from forwarding arbitrary redirect URIs to
          *  IdP, which could be exploited in phishing/open-redirect attacks.
          */
@@ -2537,7 +2537,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  never enters the PENDING_AUTH queue.
          *
          *  Gated by `expose_access_token` (default false): a DELIBERATE,
-         *  opt-in SEC-06 relaxation.  When disabled the endpoint is invisible
+         *  opt-in relaxation of the httpOnly-cookie rule.  When disabled the endpoint is invisible
          *  (404 unknown_endpoint), so a BFF that does not opt in keeps its
          *  tokens unreadable by JavaScript exactly as before.
          */

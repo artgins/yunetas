@@ -2,7 +2,7 @@
  *          c_auth_bff.h
  *          Auth_bff GClass — Backend For Frontend OAuth2 helper.
  *
- *  SEC-06: The BFF runs as a separate HTTP listener (default port 1801).
+ *  The BFF runs as a separate HTTP listener (default port 1801).
  *  It provides three endpoints consumed by the browser SPA:
  *
  *    POST /auth/callback  — exchange PKCE authorization code for tokens

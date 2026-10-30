@@ -177,9 +177,9 @@ SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARN
 SDATA (DTP_STRING,      "__session_id__",       SDF_VOLATIL, "", "Session ID, WARNING set by c_authz"),
 SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
 
-// SEC-06: Cookie header captured from the HTTP Upgrade request.
+// Cookie header captured from the HTTP Upgrade request.
 // Used as a JWT source when no jwt field is present in IDENTITY_CARD.
-SDATA (DTP_STRING,      "http_cookie",          SDF_VOLATIL|SDF_SECRET, "", "Cookie header from HTTP Upgrade (SEC-06)"),
+SDATA (DTP_STRING,      "http_cookie",          SDF_VOLATIL|SDF_SECRET, "", "Cookie header from HTTP Upgrade (the auth BFF token cookie)"),
 
 SDATA (DTP_STRING,      "client_yuno_role",     SDF_VOLATIL, 0, "yuno role of connected client"),
 SDATA (DTP_STRING,      "client_yuno_name",     SDF_VOLATIL, 0, "yuno name of connected client"),
@@ -755,7 +755,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_reset_volatil_attrs(gobj);
 
     /*
-     *  SEC-06: save the Cookie header forwarded by c_websocket.c during
+     *  Save the Cookie header forwarded by c_websocket.c during
      *  the HTTP Upgrade.  ac_identity_card will use it as a JWT source
      *  when the IDENTITY_CARD message carries no explicit jwt field,
      *  which is the case for browser clients using the BFF/httpOnly-cookie
@@ -979,7 +979,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *  Do authentication
      *-------------------------*/
     /*
-     *  SEC-06: if no jwt was supplied in the IDENTITY_CARD message (browser
+     *  If no jwt was supplied in the IDENTITY_CARD message (browser
      *  clients using the BFF/httpOnly-cookie flow send an empty string),
      *  try to extract the access_token from the Cookie header that was
      *  captured during the HTTP Upgrade and stored in "http_cookie".
@@ -995,7 +995,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
             size_t search_len = strlen(search);
             const char *p = strstr(http_cookie, search);
             /*
-             *  SEC-06: verify we matched the exact cookie name, not a
+             *  Verify we matched the exact cookie name, not a
              *  substring (e.g. "xaccess_token=").  The match must be at
              *  the start of the string or preceded by "; " / " ".
              */

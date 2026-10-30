@@ -4,7 +4,7 @@
  *
  *          Authentication Backend-For-Frontend (BFF)
  *
- *          SEC-06: HTTP service that mediates OAuth2 flows between the
+ *          HTTP service that mediates OAuth2 flows between the
  *          browser SPA and Keycloak.  Tokens are stored as httpOnly
  *          cookies and never exposed to JavaScript.
  *
