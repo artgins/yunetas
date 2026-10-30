@@ -2,7 +2,7 @@
  *          ydaemon.c
  *
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
- *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
+ *  Child → daemon_restore_signals() → the yuno installs its signalfd() → clean shutdown → _exit().
  *
  *          Copyright (c) 2014-2018 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -54,14 +54,39 @@ PRIVATE volatile int watcher_pid = 0;
 PRIVATE volatile sig_atomic_t stop_requested = 0;   // the watcher got SIGQUIT: no relaunch
 PRIVATE const char *pid_file = NULL;
 
+/*
+ *  The signals the watcher sets for itself, and what its starter gave it
+ *  for them and for its mask: every child is given that back
+ */
+PRIVATE const int watcher_signals[] = {
+    SIGPIPE, SIGTERM, SIGALRM, SIGINT, SIGUSR1, SIGUSR2, SIGHUP, SIGQUIT
+};
+#define WATCHER_SIGNALS ((int)(sizeof(watcher_signals)/sizeof(watcher_signals[0])))
+PRIVATE struct sigaction given_actions[WATCHER_SIGNALS];
+PRIVATE sigset_t given_mask;
+
 /***************************************************************************
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
- *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
+ *  Child → daemon_restore_signals() → as its starter left them → the yuno
+ *  installs its signalfd() → clean shutdown → _exit().
  *
  *  SIGQUIT, the stop, is not ignored by the watcher: it is noted, and the
  *  child that ends after it is not relaunched, whatever its end (SA_RESTART:
  *  the waitpid() goes on). Up to 7.25.22 it was ignored, and an agent that
- *  crashed in its orderly stop was relaunched 2 s later.
+ *  crashed in its orderly stop was relaunched 2 s later. It is unblocked
+ *  too: a yuno that the agent launches inherits the agent's mask, where
+ *  SIGQUIT is blocked for its signalfd.
+ *
+ *  SIGHUP is ignored, as SIGTERM: the stop is SIGQUIT and nothing else.
+ *  The watcher has no terminal (setsid()), so a SIGHUP can only be a stray
+ *  one (a `kill -HUP` by name, a script that reloads by signal), and up to
+ *  7.29.3 it ended the watcher and left its child running unsupervised.
+ *
+ *  Set once, in the process that daemon_run() starts in, before its first
+ *  fork: the watcher has them from its first instruction. Up to 7.29.3
+ *  they were set after each fork of a child, so a SIGQUIT that came right
+ *  after the first one ended the watcher (its default) and left the child
+ *  an orphan.
  ***************************************************************************/
 PRIVATE void on_watcher_sigquit(int sig)
 {
@@ -70,19 +95,74 @@ PRIVATE void on_watcher_sigquit(int sig)
 
 PRIVATE void daemon_catch_signals(void)
 {
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGTERM, SIG_IGN);
-    signal(SIGALRM, SIG_IGN);
-    signal(SIGINT, SIG_IGN);     // ctrl+c
-    signal(SIGUSR1, SIG_IGN);
-    signal(SIGUSR2, SIG_IGN);
+    if(sigprocmask(SIG_SETMASK, NULL, &given_mask) < 0) {
+        print_error(0, "sigprocmask() FAILED, errno %d %s", errno, strerror(errno));
+        sigemptyset(&given_mask);
+    }
 
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = on_watcher_sigquit;
-    sa.sa_flags = SA_RESTART;
-    sigemptyset(&sa.sa_mask);
-    sigaction(SIGQUIT, &sa, NULL);
+    struct sigaction sa_ignore;
+    memset(&sa_ignore, 0, sizeof(sa_ignore));
+    sa_ignore.sa_handler = SIG_IGN;
+    sigemptyset(&sa_ignore.sa_mask);
+
+    struct sigaction sa_quit;
+    memset(&sa_quit, 0, sizeof(sa_quit));
+    sa_quit.sa_handler = on_watcher_sigquit;
+    sa_quit.sa_flags = SA_RESTART;
+    sigemptyset(&sa_quit.sa_mask);
+
+    for(int i = 0; i < WATCHER_SIGNALS; i++) {
+        int sig = watcher_signals[i];
+        if(sigaction(sig, (sig == SIGQUIT)? &sa_quit : &sa_ignore, &given_actions[i]) < 0) {
+            print_error(0, "sigaction(%d) FAILED, errno %d %s", sig, errno, strerror(errno));
+            memset(&given_actions[i], 0, sizeof(given_actions[i]));
+            given_actions[i].sa_handler = SIG_DFL;
+        }
+    }
+
+    sigset_t quit_set;
+    sigemptyset(&quit_set);
+    sigaddset(&quit_set, SIGQUIT);
+    if(sigprocmask(SIG_UNBLOCK, &quit_set, NULL) < 0) {
+        print_error(0, "sigprocmask(SIG_UNBLOCK) FAILED, errno %d %s", errno, strerror(errno));
+    }
+}
+
+/***************************************************************************
+ *  The child gets back what the watcher's starter gave for the signals the
+ *  watcher sets, and its mask: a relaunched child starts as the first one,
+ *  and as the yuno would started in the foreground. Up to 7.29.3 the
+ *  relaunched ones inherited the watcher's: SIGTERM, SIGINT, SIGALRM,
+ *  SIGUSR1, SIGUSR2 and SIGPIPE ignored, which a signalfd never sees (so
+ *  `kill -USR1`, the trace cycle, did nothing, and a program the yuno runs
+ *  inherited them too), and SIGQUIT caught by the watcher's handler, so
+ *  one that came before the yuno's signalfd was lost.
+ ***************************************************************************/
+PRIVATE void daemon_restore_signals(void)
+{
+    for(int i = 0; i < WATCHER_SIGNALS; i++) {
+        if(sigaction(watcher_signals[i], &given_actions[i], NULL) < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "sigaction() FAILED",
+                "signal",       "%d", watcher_signals[i],
+                "errno",        "%d", errno,
+                "serror",       "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+    if(sigprocmask(SIG_SETMASK, &given_mask, NULL) < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "sigprocmask() FAILED",
+            "errno",        "%d", errno,
+            "serror",       "%s", strerror(errno),
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -191,8 +271,12 @@ PRIVATE int relauncher(
      *  The second fork: the child runs the yuno, the parent (the watcher)
      *  waits for it and says whether to relaunch it. The child is not the
      *  leader of the session the watcher made, so it can never get a
-     *  controlling terminal back.
+     *  controlling terminal back. A stop that came before the first one
+     *  launches nothing: nobody would stop that child.
      */
+    if(stop_requested) {
+        return 1;
+    }
     uint64_t stable_timer = start_msectimer(RELAUNCH_STABLE_MS);
     pid_t pid = fork();
     if(debug) {
@@ -210,7 +294,6 @@ PRIVATE int relauncher(
         /*------------------------*
          *  we are the parent
          *------------------------*/
-        daemon_catch_signals();
         int status;
         if(waitpid(pid, &status, 0) == -1) {
             print_error(PEF_EXIT,
@@ -271,6 +354,8 @@ PRIVATE int relauncher(
          *  we are the child
          *  (return 0)
          *------------------------*/
+        daemon_restore_signals();
+
         /* umask 0: the yuno gives every file it makes its mode explicitly */
         umask(0);
 
@@ -410,6 +495,7 @@ PUBLIC int daemon_run(
 {
     int ret;
 
+    daemon_catch_signals();
     continue_as_daemon(work_dir, process_name);
     while((ret=relauncher(process, process_name, work_dir, domain_dir, cleaning_fn))<0) {
         // relauncher() < 0: the yuno ended in a way that asks for it again

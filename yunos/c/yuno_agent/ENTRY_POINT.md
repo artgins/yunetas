@@ -234,18 +234,22 @@ records `watcher_pid = getpid()`. This is the **watcher** process.
 
 [`relauncher()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/ydaemon.c#L156): `fork()` again. The watcher `waitpid()`s on
 the grandchild, and the grandchild is the **actual yuno**. The grandchild
-inherits umask 0, chdirs to `work_dir`, and calls `process()`.
+gets back the signals its starter gave (§4.2), inherits umask 0, chdirs to
+`work_dir`, and calls `process()`.
 
 ### 4.2 Watcher signal posture
 
 ```c
-signal(SIGPIPE, SIG_IGN);
-signal(SIGTERM, SIG_IGN);
-signal(SIGALRM, SIG_IGN);
-signal(SIGINT,  SIG_IGN);     // ctrl+c
-signal(SIGUSR1, SIG_IGN);
-signal(SIGUSR2, SIG_IGN);
-sigaction(SIGQUIT, {on_watcher_sigquit, SA_RESTART});   // notes the stop
+// daemon_catch_signals(): once, before the first fork
+sigaction(SIGPIPE, SIG_IGN, &given[...]);   // what the starter gave is kept
+sigaction(SIGTERM, SIG_IGN, ...);
+sigaction(SIGALRM, SIG_IGN, ...);
+sigaction(SIGINT,  SIG_IGN, ...);           // ctrl+c
+sigaction(SIGUSR1, SIG_IGN, ...);
+sigaction(SIGUSR2, SIG_IGN, ...);
+sigaction(SIGHUP,  SIG_IGN, ...);
+sigaction(SIGQUIT, {on_watcher_sigquit, SA_RESTART}, ...);   // notes the stop
+sigprocmask(SIG_UNBLOCK, {SIGQUIT}, NULL);
 ```
 
 The watcher is deliberately deaf to everything except `SIGCHLD` (delivered
@@ -254,6 +258,36 @@ implicitly via `waitpid`), `SIGKILL` (uncatchable, terminates it) and
 after it is **not relaunched**, whatever its end (`SA_RESTART` keeps the
 `waitpid()` going). Up to 7.25.22 SIGQUIT was ignored too, and an agent that
 crashed during its orderly stop was relaunched 2 s later.
+
+- **Set before the first fork.** `daemon_run()` sets them in the process it
+  starts in, so the watcher has them from its first instruction, and a stop
+  that comes before the first child is forked launches nothing. Up to 7.29.3
+  they were set after each fork of a child: a SIGQUIT that came right after
+  the first one found the default, ended the watcher, and left the child an
+  orphan.
+- **SIGQUIT is unblocked.** A yuno that the agent launches inherits the
+  agent's mask, where SIGQUIT is blocked for its signalfd; the watcher would
+  hear its stop only when it looked for it.
+- **SIGHUP is ignored, as SIGTERM.** The stop is SIGQUIT and nothing else
+  (`--stop`, the units' `ExecStop`). The watcher has no terminal (`setsid()`),
+  so a SIGHUP can only be a stray one, a `kill -HUP` by name or a script that
+  reloads by signal, and taking it as a stop would let it take the yuno down
+  for good. Up to 7.29.3 it ended the watcher, and the child ran on with
+  nobody to relaunch it.
+- **Every child gets back what the starter gave.** Right after its fork the
+  child restores the dispositions of those signals and the mask that the
+  watcher was started with: a relaunched child starts as the first one, and
+  as the yuno would in the foreground. Up to 7.29.3 the relaunched children
+  inherited the watcher's: SIGTERM, SIGINT, SIGALRM, SIGUSR1, SIGUSR2 and
+  SIGPIPE ignored (`SigIgn: 0x7a02` in `/proc/<pid>/status`), which a
+  signalfd never sees, so `kill -10 <pid>` (the trace cycle) did nothing on
+  a relaunched yuno and the programs it ran inherited them too; and SIGQUIT
+  caught by the watcher's handler, so one that came before the yuno's
+  signalfd was lost.
+
+```bash
+grep -E 'SigIgn|SigBlk' /proc/<yuno pid>/status   # the same before and after a relaunch
+```
 
 ### 4.3 `waitpid()` decision matrix
 
