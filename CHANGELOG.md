@@ -67,6 +67,20 @@
   every yuno; `delete-realm` every realm with no yunos; `delete-public-service`
   every public service. Each refuses an empty id now (*"delete-X needs an id:
   without one it selects every X"*). In 7.29.3 and older.
+- **A relaunched yuno starts with the signals its starter gave, like the
+  first one.** Relaunched children inherited the watcher's `SIG_IGN` for
+  SIGTERM, SIGINT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE: an ignored signal
+  never reaches a signalfd, so `kill -USR1` (the trace cycle) did nothing on
+  a relaunched yuno and the programs it ran inherited the ignores; and they
+  inherited the watcher's SIGQUIT handler, so a stop that came before the
+  yuno's signalfd was lost. In 7.29.3 and older.
+- **The watcher sets its signals before its first fork, unblocks SIGQUIT and
+  ignores SIGHUP.** A SIGQUIT right after the first fork found the default
+  disposition, ended the watcher and left the yuno an orphan; a SIGHUP ended
+  the watcher and left its child unsupervised (the stop is SIGQUIT only, and
+  the watcher has no terminal, so a SIGHUP is a stray one); and a watcher
+  started by the agent inherited SIGQUIT blocked. A stop that comes before
+  the first child is forked launches nothing. In 7.29.3 and older.
 - **The watcher waits longer while a yuno keeps failing.** Up to 7.29.3 (as
   before v7) it relaunched a yuno that ended abnormally every 2 s for ever:
   a cause that does not go away (an audit directory or a log that cannot be
@@ -105,13 +119,18 @@
   directory named by no record stayed in `/yuneta/repos`. Now that version's
   item has `"removed": false` and the answer is -1, counting the records
   deleted and naming the directories to remove by hand; the cause is in the
-  log. The unchecked removal is in 7.29.3.
+  log. A directory that cannot be looked at (`access()` fails with something
+  other than ENOENT, such as no permission on a parent) may still be there:
+  it is not counted as removed either. The unchecked removal is in 7.29.3.
 - **`delete-yuno yuno_release=<the primary's release>` no longer deletes every
   release.** The delete of the primary's own pkey2 takes the whole key, so
   this form passed the "`yuno_release=` or `whole=1`" gate as one release and
   removed the yuno with all of them. When the yuno has other releases it is
-  refused now, asking for `whole=1`; a yuno with one release still loses it
-  when it is named. In 7.29.3.
+  refused now, asking for `whole=1` without `yuno_release`; a yuno with one
+  release still loses it when it is named. And `yuno_release=` together with
+  `whole=1` is refused: they are two deletes and the command does not guess
+  (with a release other than the primary's it deleted only that one, with the
+  primary's every release). In 7.29.3.
 - **Docs:** the public examples name no private project, client, node or
   person, and nothing cites a private review. The scope examples of the
   control center (`c_authz.c`, `c_controlcenter.c`, its README and page), the
@@ -204,7 +223,10 @@
 - **BREAKING: a time text with a word more no longer keeps a misreading**
   (`tranger2_time_of_text()`): `",5"` and `"5,"` are refused like `".5"`. A
   text is split into words as `approxidate_careful()` splits it (blanks,
-  commas, `_`, a `.` not between digits), and the words it skips (`ago`,
+  commas, `_`, a `.` not between digits, where letters and digits touch --
+  `"Oct1"` is `"Oct 1"`, but not an ordinal, `"5th"`, nor the `T` of ISO
+  8601 -- and at the `-` or `/` of a date with a month name, `"Oct-1-5"` is
+  `"Oct 1 5"`; a comment is passed over whole), and the words it skips (`ago`,
   `at`, `on`, `the`, `of`, a weekday) are skipped by the rule too. These are
   refused:
     - a comma between two digits (`"1,5 days ago"` was September 26,
@@ -220,7 +242,17 @@
       weekday (`"12 10 pm"` was the 12th at 22:00 where 12:10 pm was meant,
       `"5 5 pm"`, `"5 at 3 pm"`, `"2026 3 pm"`, `"1 5days ago"` September
       26);
-    - a count after the comma of a day and a year (`"Oct 1,50 days ago"`).
+    - a count after the comma of a day and a year (`"Oct 1,50 days ago"`);
+    - letters glued to digits that hide a run (`"5the5"`, `"5on5"`, `"5ago5"`
+      were May 5, `"2026on10on01"` January 10, `"Oct-1 5"` 2005-10-01; a
+      development version read `"1 2thu"` as February 1 and `"Oct1 5 friday"`
+      as 2005-10-01);
+    - after a day and a month name, anything but a year of 4 or 2 digits
+      (`"1 Oct 5"`, `"01-Oct 5"`, `"Oct 1 10:00 5"` were 2005-10-01);
+    - after an ordinal and no month name, anything but a month and a year of
+      4 digits (`"5th 2026"` was the 5th of the current month, `"5th 2"`
+      February 5), and `"Oct 1st 2"` (2002-10-01);
+    - a number alone beside a comment (`"26 (CEST)"` was the 26th).
 
   A date written the way a person writes one stays a date:
     - day month year with blanks and a 4-digit year (`"01 10 2026"`). With
@@ -233,7 +265,12 @@
       `"Oct 1 2026 3 pm."`, `"01 10 2026 5 days ago"`);
     - the decimal comma of the seconds of ISO 8601
       (`"2026-10-01T10:00:00,500Z"`) and a comma that closes a date before
-      its hour (`"2026-10-01,10:00"`, `"1 Oct 2026,10:00"`, `"Oct 1,3 pm"`).
+      its hour (`"2026-10-01,10:00"`, `"1 Oct 2026,10:00"`, `"Oct 1,3 pm"`);
+    - an ordinal day with its year and an hour (`"Oct 1st 2026 3 pm"`,
+      `"October 1st, 2026 at 3 pm"`), and with no month name its month and
+      year (`"1st 10 2026"`);
+    - digits inside a comment (`"Oct 1 2026 (x 5 5 y)"`), and a clock time
+      between a month and its day (`"Oct 10:00 1 2026"`).
 
   A number alone is never an hour: `"Oct 29 10"` is 2010-10-29, as in
   7.29.3. A dot between digits is left to `approxidate_careful()`
@@ -246,8 +283,19 @@
   1987; `"Oct 1 26 Thu"` was 26 Thursdays back, and `"Oct 5 friday"` 5
   Fridays back with the month lost. With no date before it, or in the
   plural, it stays a count (`"2 wednesday"`, `"Oct 1 2 fridays"`).
-  `"2026-10-01 5 friday"` is now refused (it was August 28).
-  `test_date_text` §13. In 7.29.3 and older.
+  `"2026-10-01 5 friday"` is now refused (it was August 28). A year (four
+  digits, 1970-9999) before a weekday is a year, never a count: `"2026 Thu"`
+  was 2026 Thursdays back (1988), and `"Oct 1 2026 thursdays"` (1987-12-03)
+  is now refused, its plural with no count left; a count of units stays one
+  (`"2026 days ago"`). The weekday is not checked against its date:
+  `"Oct 5 2026 friday"` is Monday, October 5. `test_date_text` §13-14. In
+  7.29.3 and older.
+- **Any blank parts a count from its unit, weekday or am/pm**
+  (`approxidate_careful()`): the reader parted two pieces at any blank but
+  looked past a count over a space or a tab only, so `"Oct 1 10\vpm"` was
+  2010-10-01 and `"2\ndays ago"` no date; they are 22:00 on October 1 and
+  two days back, and the time rule of timeranger2, which parts words at any
+  blank, agrees with it again. `test_date_text` §14. In 7.29.3 and older.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -336,39 +384,56 @@
   as a `pause-yuno` of a gate over a serial line), took the yuno down. Short
   of that, a stop inside the read left the tty open (the next start leaked
   the fd and published `EV_CONNECTED` to a host still connected), and a stop
-  with the read in flight never reached `ST_STOPPED`. `C_UART` keeps the stop
-  contract of `C_TCP` now: `ST_WAIT_STOPPED` while a read or write is in
-  flight, then the tty closed, `EV_DISCONNECTED` if it was connected, and
-  `EV_STOPPED` last. Its `traffic` and `connections` trace levels work (they
+  with the read in flight never reached `ST_STOPPED`. A stop of a `C_UART`
+  now ends at once, inside `gobj_stop()`: the writes are cut, the read is
+  freed as a drop frees it (a tty has no shutdown to wait for), the tty is
+  closed, `EV_DISCONNECTED` if it was connected, and `EV_STOPPED` last, the
+  stop contract of `C_TCP` in its synchronous form. So a host's
+  `gobj_stop(); gobj_start();` in one turn (to change its line's url) brings
+  the line back; up to 7.29.3 that start was refused with *"Initial wrong
+  task state"*. Its `traffic` and `connections` trace levels work (they
   read the global mask), and a read no longer logs two "GClass Attribute NOT
   FOUND". In 7.29.3 and older. `c_prot_modbus_m/test4`, over a pty.
 - **`C_UART`: a stop no longer waits for a write the line does not take, and
   a destroy after it no longer uses freed memory.** The write in flight is
   kept and, on a stop, a drop or a disconnection, canceled; what it left in
-  the tty is discarded and the writes queued behind it are dropped, so a stop
-  waits only for the cancel of its read. Up to 7.29.3 a `C_UART` destroyed
+  the tty is discarded and the writes queued behind it are dropped. Up to
+  7.29.3 a `C_UART` destroyed
   with a write in flight ran the write's completion on the freed gobj.
 - **`C_UART`: the writes go one at a time, and a short write sends its rest.**
   When the line takes part of a write, the rest goes before the next one, and
   `EV_TX_READY` is published when the last queued write is done (not once per
   `EV_TX_DATA`). Up to 7.29.3 the rest was lost with no log: of a 64 KB
   write, 11,776 bytes went, then `EV_TX_READY`. A read or write interrupted
-  with `EINTR` goes again; up to 7.29.3 it dropped the line.
+  with `EINTR` goes again (16 interruptions within a second drop the line
+  with an error); up to 7.29.3 the first one dropped the line. A
+  `tcflush()` failing with EIO on a hangup is not logged as an error.
 - **`C_UART` takes `EV_DROP`** (in `ST_CONNECTED`): it closes the tty,
   publishes `EV_DISCONNECTED` and opens the device again after
   `timeout_between_connections`. The Modbus master sends it down when it
   cannot frame what it reads; up to 7.29.3 `C_UART` refused it with an error.
-- **`C_UART`: a destroy in `ST_WAIT_STOPPED` closes the tty, and a start there
-  is refused** (`gobj_start()` answers -1, as with `C_TCP`), and the stop goes
-  on to `ST_STOPPED` and `EV_STOPPED`. Up to 7.29.3 the fd stayed open after
-  such a destroy, and such a start armed its timer and lost the stop. A host
-  that destroys the `C_UART` in the `EV_DISCONNECTED` of a stop is not
-  followed by an `EV_STOPPED` from the freed gobj.
+- **`C_UART`: a destroy closes the tty** (up to 7.29.3 a destroy during a
+  stop left the fd open), and a host that destroys the `C_UART` in the
+  `EV_DISCONNECTED` of a stop is not followed by an `EV_STOPPED` from the
+  freed gobj.
+- **`C_UART` refuses the writes a host must not send** (in 7.29.3): an empty
+  gbuffer is ignored with a warning (it lost a write event, and later dropped
+  the line); a gbuffer already queued or in flight is refused (-1) with an
+  error naming the line (two writes ran on it at once); `EV_TX_DATA` in
+  `ST_DISCONNECTED` is dropped with an error, as `C_TCP` does (it was
+  *"Event NOT DEFINED"*).
+- **A `C_UART` whose read does not start again drops the line** instead of
+  staying connected and deaf, at connect and after `EV_RX_DATA`; and the read
+  buffer is not leaked when the read event cannot be created. In 7.29.3.
 - **`C_UART`'s attributes say what the line runs at.** A `baudrate` the tty
   does not know runs the line at 9600 and the attribute says 9600 (*"Bad
   baudrate: the line runs at 9600"*); the same for `parity`, `bytesize` and
-  `stopbits`. The Modbus master counts a broadcast frame's time with the
-  `C_UART`'s `baudrate`, so it counts at the real speed.
+  `stopbits`. After `tcsetattr()` the speed is read back with
+  `cfgetospeed()`, and a speed the driver adjusted is written to `baudrate`
+  with a warning. The Modbus and M-Bus masters count frame times with that
+  attribute, read down their bottom chain (`gobj_has_bottom_attr()`), so a
+  `C_UART` under an intermediate layer is found too (up to 7.29.3 the Modbus
+  master looked only at its direct bottom).
 - **`C_UART`: a read of the tty that cannot be created drops the line with an
   error**, and the line opens again after `timeout_between_connections`. Up
   to 7.29.3 the NULL event was used.
@@ -395,7 +460,26 @@
   transport, not `url`: an `"RTU"` master creates a `C_UART` whatever its url
   says, so RTU through a `tcp://` gateway needs a `C_TCP` bottom given by the
   host (example added). New test `c_prot_modbus_m/test5`: a `C_UART` hosted
-  by the test on a pty (held stop, held destroy, drop, short write).
+  by the test on a pty (held stop, held destroy, drop, short write, stop and
+  start in one turn, refused writes).
+- **C_TCP, C_UDP and C_UDP_S ignore an empty write, with a warning** (*"tcp
+  tx data empty, ignored"*, *"udp tx data empty, ignored"*), and no
+  `EV_TX_READY` comes for it, as in `C_UART`. In 7.29.3 an empty gbuffer was
+  a write that could not start: C_TCP dropped the connection with two
+  errors, C_UDP_S dropped the datagram with two errors, and C_UDP kept the
+  event, its gbuffer and the write in flight for ever, so every later
+  datagram waited in its queue.
+- **C_TCP, C_UDP and C_UDP_S refuse a gbuffer already queued or in flight**
+  (-1, *"… already queued or in flight, refused"*). In 7.29.3 it was queued
+  again, which failed with an error that named no gobj and lost a reference,
+  or the second write found the gbuffer consumed and dropped the connection.
+- **C_UDP drops a send that does not start instead of holding every later
+  datagram** (*"Cannot send datagram: dropped"*), as C_UDP_S has done since
+  7.25.4: the create and the start of its write were not checked, so the
+  event leaked and the queue stopped for ever. In 7.29.3.
+- **The queue drops of C_TCP are counted per gobj**: the *"throw away tcp tx
+  message"* error was counted by one static counter for the process, so it
+  reported the drops of every C_TCP together. In 7.29.3.
 - **A `max_run` stop tried again in a minute keeps its minute across a save,
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
