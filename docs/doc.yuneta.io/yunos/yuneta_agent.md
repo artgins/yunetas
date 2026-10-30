@@ -367,13 +367,24 @@ its files and whether the agent removed them:
 
 A directory the agent cannot remove has `"removed": false`, and so has one it
 cannot look at (it cannot tell whether the directory is there, for example
-without permission on a parent directory). The error is in the log, the record is deleted all the same, and the answer is an error
+without permission on a parent directory). A directory that is not there is
+`"removed": true`: its path does not exist, or a part of it is not a
+directory (`ENOTDIR`: then no directory can be at that path). The error is in the log, the record is deleted all the same, and the answer is an error
 (`-1`) that counts the records deleted and names the directories to remove by
 hand: *"…: 1 binaries deleted, 1 of them with files the agent could not remove
 (see the log): remove them by hand: ["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*.
 Up to 7.29.3 a failed removal was not looked at, and the answer said only
 *"1 binaries deleted"*; a directory the agent could not look at was not
 removed and was not named.
+
+A delete that the treedb refuses stops there, and the answer names it, with
+its cause and what was deleted before it, which is in the `data`:
+*"…: binary 'emailsender' version '7.29.2' NOT deleted: <cause>; before it,
+0 binaries deleted"*. `delete-config`, `delete-realm` and
+`delete-public-service` answer the same way, and their `data` lists only
+what was deleted. Up to 7.29.3 the answer was the cause alone, the `data` of
+`delete-realm` and `delete-public-service` named the record that failed as
+if deleted, and `delete-config` lost its `data` (a leak in the agent).
 
 `delete-binary record_only=1` deletes the record and leaves its files, and
 says where they are, in the comment and in the `data` (`"removed": false`):

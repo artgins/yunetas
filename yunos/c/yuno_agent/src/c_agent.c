@@ -1013,7 +1013,7 @@ SDATA (DTP_INTEGER,     "audit_keep_days",  SDF_WR,             "7",            
 SDATA (DTP_BOOLEAN,     "cert_sync_enabled",     SDF_WR|SDF_PERSIST, "1",           "Enable periodic TLS certificate auto-sync + hot-reload"),
 SDATA (DTP_INTEGER,     "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900",         "Seconds between cert-sync checks (default 15 min)"),
 SDATA (DTP_STRING,      "cert_sync_store_dir",   SDF_RD,             "/yuneta/store/certs", "Directory watched for cert file changes (owned by yuneta). Config only"),
-SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_RD,             "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root, with system()). Config only: up to 7.25.21 write-attr could set it, and persist it"),
+SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_RD,             "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root, with sh -c). Config only: up to 7.25.21 write-attr could set it, and persist it"),
 SDATA (DTP_INTEGER,     "cert_sync_last_check",  SDF_RSTATS,         "0",           "Unix ts of last cert-sync check"),
 SDATA (DTP_INTEGER,     "cert_sync_last_action", SDF_RSTATS,         "0",           "Unix ts of last time a cert change was applied"),
 SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome (ok / skipped / error)"),
@@ -2671,26 +2671,45 @@ PRIVATE json_t *cmd_delete_public_service(hgobj gobj, const char *cmd, json_t *k
      *  Delete
      */
     int result = 0;
-    json_t *jn_data = json_array();
+    json_t *jn_data = json_array();     // the ones deleted
+    json_t *jn_comment = 0;
 
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        json_array_append_new(jn_data, json_string(kw_get_str(gobj, node, "id", "", 0)));
+        const char *id = kw_get_str(gobj, node, "id", "", 0);
         if(gobj_delete_node(
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
-            result += -1;
+            /*
+             *  Said with the ones deleted before it (in `data`): up to
+             *  7.29.3 the answer was the cause alone, and `data` named the
+             *  one that failed among them
+             */
+            char after[64] = "";
+            int not_tried = (int)json_array_size(iter) - idx - 1;
+            if(not_tried > 0) {
+                snprintf(after, sizeof(after), "; %d not tried, after it", not_tried);
+            }
+            jn_comment = json_sprintf(
+                "%s: public service '%s' NOT deleted: %s; before it, %d public services deleted%s",
+                gobj_yuno_role_plus_name(), id, gobj_log_last_message(),
+                (int)json_array_size(jn_data), after
+            );
+            result = -1;
             break;
         }
+        json_array_append_new(jn_data, json_string(id));
     }
 
     JSON_DECREF(iter)
 
+    if(!jn_comment) {
+        jn_comment = json_sprintf("%s: %d public services deleted",
+            gobj_yuno_role_plus_name(), (int)json_array_size(jn_data));
+    }
     return msg_iev_build_response(
         gobj,
         result,
-        result<0?
-            json_sprintf("%s", gobj_log_last_message()):
-            json_sprintf("%d public services deleted", idx),
+        jn_comment,
         0,
         jn_data,
         kw  // owned
@@ -3059,25 +3078,43 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  Delete
      */
     int result = 0;
-    json_t *jn_data = json_array();
+    json_t *jn_data = json_array();     // the ones deleted
+    json_t *jn_comment = 0;
     json_array_foreach(iter, idx, node) {
-        json_array_append_new(jn_data, json_string(kw_get_str(gobj, node, "id", "", 0)));
+        const char *id = kw_get_str(gobj, node, "id", "", 0);
         if(gobj_delete_node(
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
-            result += -1;
+            /*
+             *  Said with the ones deleted before it (in `data`): up to
+             *  7.29.3 the answer was the cause alone, and `data` named the
+             *  one that failed among them
+             */
+            char after[64] = "";
+            int not_tried = (int)json_array_size(iter) - idx - 1;
+            if(not_tried > 0) {
+                snprintf(after, sizeof(after), "; %d not tried, after it", not_tried);
+            }
+            jn_comment = json_sprintf(
+                "%s: realm '%s' NOT deleted: %s; before it, %d realms deleted%s",
+                gobj_yuno_role_plus_name(), id, gobj_log_last_message(),
+                (int)json_array_size(jn_data), after
+            );
+            result = -1;
             break;
         }
+        json_array_append_new(jn_data, json_string(id));
     }
 
     JSON_DECREF(iter)
 
+    if(!jn_comment) {
+        jn_comment = json_sprintf("%s: %d realms deleted",
+            gobj_yuno_role_plus_name(), (int)json_array_size(jn_data));
+    }
     return msg_iev_build_response(
         gobj,
         result,
-        result<0?
-            json_sprintf("%s: realm NOT deleted: %s",
-                gobj_yuno_role_plus_name(), gobj_log_last_message()):
-            json_sprintf("%d realms deleted", idx),
+        jn_comment,
         0,
         jn_data,
         kw  // owned
@@ -4048,7 +4085,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Select some binary please"),
+            json_sprintf("%s: binary not found, nothing deleted", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4105,8 +4142,9 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 );
             } else {
                 jn_comment = json_sprintf(
-                    "Cannot delete binary '%s' version '%s'. Using in %d yunos "
+                    "%s: cannot delete binary '%s' version '%s'. Using in %d yunos "
                     "(use force=1 to override)",
+                    gobj_yuno_role_plus_name(),
                     role,
                     node_version,
                     use
@@ -4190,13 +4228,19 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_data = json_array();
     json_t *jn_kept = json_array();   // the files of the records deleted alone
     json_t *jn_left = json_array();   // the directories rmrdir() could not remove
+    json_t *failed_node = 0;          // the delete that failed: the ones after it are not tried
+    int not_tried = 0;
+    char failed_cause[256] = "";
     json_array_foreach(jn_units, idx, unit) {
         node = kw_get_dict(gobj, unit, "node", 0, KW_REQUIRED);
         json_t *taken = kw_get_list(gobj, unit, "taken", 0, KW_REQUIRED);
 
         if(gobj_delete_node(
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
-            result += -1;
+            snprintf(failed_cause, sizeof(failed_cause), "%s", gobj_log_last_message());
+            failed_node = node;
+            not_tried = (int)json_array_size(jn_units) - idx - 1;
+            result = -1;
             break;
         }
 
@@ -4246,17 +4290,19 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
             /*
              *  Remove from store in filesystem. A directory that is not
-             *  there is nothing left behind; one rmrdir() could not remove
-             *  (logged by it) is, and so is one the agent cannot look at
-             *  (access() fails with other than ENOENT): it may be there.
-             *  The answer says so. Up to 7.29.3 the second was "removed".
+             *  there is nothing left behind: ENOENT, or ENOTDIR (a part of
+             *  its path is not a directory, so no directory can be at that
+             *  path). One rmrdir() could not remove (logged by it) is left,
+             *  and so is one the agent cannot look at (access() fails
+             *  otherwise: no permission on a parent, say): it may be there.
+             *  The answer says so. Up to 7.29.3 the last was "removed".
              */
             BOOL removed = TRUE;
             if(access(destination, F_OK)==0) {
                 if(rmrdir(destination)<0) {
                     removed = FALSE;    // Error already logged
                 }
-            } else if(errno != ENOENT) {
+            } else if(errno != ENOENT && errno != ENOTDIR) {
                 int err = errno;
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -4283,42 +4329,64 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         }
     }
 
-    JSON_DECREF(jn_units)
-
     /*
+     *  What was done, said whole even when a later delete failed: the
+     *  records of the units before it are gone, and so are their
+     *  directories, or not (jn_left), or they stay (jn_kept). Up to 7.29.3
+     *  a failure said only its own cause, and lost all of that.
+     *
      *  Directories left and records deleted alone never meet in one call:
      *  record_only=1 removes no directory, and without it every version
      *  taken passed the name guard above, so each has its directory.
      */
-    if(result < 0) {
-        jn_comment = json_sprintf("%s", gobj_log_last_message());
-    } else if(json_array_size(jn_left) > 0) {
+    json_t *jn_done;
+    if(json_array_size(jn_left) > 0) {
         /*
          *  The records are gone and these directories are not: named by no
          *  record, nothing removes them but a hand.
          */
         char *left = json2uglystr(jn_left);
-        jn_comment = json_sprintf(
-            "%s: %d binaries deleted, %d of them with files the agent could not remove "
+        jn_done = json_sprintf(
+            "%d binaries deleted, %d of them with files the agent could not remove "
             "(see the log): remove them by hand: %s",
-            gobj_yuno_role_plus_name(), deleted, (int)json_array_size(jn_left),
+            deleted, (int)json_array_size(jn_left),
             left? left: ""
         );
         GBMEM_FREE(left);
         result = -1;
     } else if(records_only > 0) {
         char *kept = json_array_size(jn_kept)? json2uglystr(jn_kept): 0;
-        jn_comment = json_sprintf(
-            "%s: %d binaries deleted, %d of them the record only (record_only=1): "
+        jn_done = json_sprintf(
+            "%d binaries deleted, %d of them the record only (record_only=1): "
             "remove its files by hand%s%s",
-            gobj_yuno_role_plus_name(), deleted, records_only,
+            deleted, records_only,
             kept? ": ": " (the record names none)",
             kept? kept: ""
         );
         GBMEM_FREE(kept);
     } else {
-        jn_comment = json_sprintf("%d binaries deleted", deleted);
+        jn_done = json_sprintf("%d binaries deleted", deleted);
     }
+    if(failed_node) {
+        char after[64] = "";
+        if(not_tried > 0) {
+            snprintf(after, sizeof(after), "; %d not tried, after it", not_tried);
+        }
+        jn_comment = json_sprintf(
+            "%s: binary '%s' version '%s' NOT deleted: %s; before it, %s%s",
+            gobj_yuno_role_plus_name(),
+            kw_get_str(gobj, failed_node, "id", "", 0),
+            kw_get_str(gobj, failed_node, "version", "", 0),
+            failed_cause,
+            json_string_value(jn_done),
+            after
+        );
+    } else {
+        jn_comment = json_sprintf("%s: %s",
+            gobj_yuno_role_plus_name(), json_string_value(jn_done));
+    }
+    JSON_DECREF(jn_done)
+    JSON_DECREF(jn_units)
     JSON_DECREF(jn_kept)
     JSON_DECREF(jn_left)
     return msg_iev_build_response(
@@ -4733,7 +4801,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Select some configuration please"),
+            json_sprintf("%s: configuration not found, nothing deleted", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -4748,6 +4816,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     BOOL by_instance = !empty_string(kw_get_str(gobj, kw, "version", "", 0));
     int deleted = 0;
+    json_t *jn_taken_counts = json_array();    // the versions each delete takes
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
         const char *node_version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
@@ -4762,18 +4831,21 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
             gobj, resource, "version", node, by_instance, &whole, src
         );
         deleted += (int)json_array_size(taken);
+        json_array_append_new(jn_taken_counts, json_integer((json_int_t)json_array_size(taken)));
         int use = count_yunos_using(gobj, taken, "name_version",
             whole? "": node_version, src);
         JSON_DECREF(taken)
         if(use > 0 && !force) {
             json_t *comment = json_sprintf(
-                "Cannot delete configuration '%s' version '%s'%s. Using in %d yunos "
+                "%s: cannot delete configuration '%s' version '%s'%s. Using in %d yunos "
                 "(use force=1 to override)",
+                gobj_yuno_role_plus_name(),
                 kw_get_str(gobj, node, "id", "", KW_REQUIRED),
                 node_version,
                 whole? " (its primary: the delete takes every version)": "",
                 use
             );
+            JSON_DECREF(jn_taken_counts)
             JSON_DECREF(iter)
             return msg_iev_build_response(
                 gobj,
@@ -4789,36 +4861,52 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Delete
      */
+    /*
+     *  Delete. A failure stops there, and the answer says it with what
+     *  was deleted before it, which is in `data`. Up to 7.29.3 it said
+     *  only the one that failed (and its data leaked).
+     */
     json_t *jn_data = json_array();
+    int done = 0;
     json_array_foreach(iter, idx, node) {
         const char *id = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
         const char *version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
 
         if(gobj_delete_node(
                 priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
+            char after[64] = "";
+            int not_tried = (int)json_array_size(iter) - idx - 1;
+            if(not_tried > 0) {
+                snprintf(after, sizeof(after), "; %d not tried, after it", not_tried);
+            }
             json_t *comment = json_sprintf(
-                "Cannot delete the configuration: %s %s",
-                id, version
+                "%s: configuration '%s' version '%s' NOT deleted: %s; "
+                "before it, %d configurations deleted%s",
+                gobj_yuno_role_plus_name(), id, version, gobj_log_last_message(),
+                done, after
             );
+            JSON_DECREF(jn_taken_counts)
             JSON_DECREF(iter)
             return msg_iev_build_response(
                 gobj,
                 -1,
                 comment,
                 0,
-                0,
+                jn_data,
                 kw  // owned
             );
         }
+        done += (int)json_integer_value(json_array_get(jn_taken_counts, (size_t)idx));
         json_array_append_new(jn_data, json_string(id));
     }
 
+    JSON_DECREF(jn_taken_counts)
     JSON_DECREF(iter)
 
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%d configurations deleted", deleted),
+        json_sprintf("%s: %d configurations deleted", gobj_yuno_role_plus_name(), deleted),
         0,
         jn_data,
         kw  // owned
@@ -7057,7 +7145,7 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
  *  are taken here, on loopback, ONCE per yuno and service however many
  *  requesters watch it: the timer runs at the shortest period asked.
  *
- *      watch-yuno-stats ids=stress,2120,5120:db period=2000
+ *      watch-yuno-stats ids=gen1,4120,4520:db period=2000
  *      watch-yuno-stats stop=1
  ***************************************************************************/
 PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -8923,14 +9011,22 @@ PRIVATE int exec_startup_command(hgobj gobj)
             "cmd",          "%s", startup_command,
             NULL
         );
-        if(system(startup_command)!=0) {
+        /*
+         *  run_process2() and not system(): the command starts with no
+         *  signal blocked (system() gives it the agent's mask, the signals
+         *  it keeps for its signalfd), and SIGQUIT is not set to SIG_IGN
+         *  while it runs (that throws away a stop that is pending)
+         */
+        char *const argv[] = {"sh", "-c", (char *)startup_command, NULL};
+        int status = run_process2("/bin/sh", argv);
+        if(status != 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "system() FAILED",
+                "msg",          "%s", "The startup command FAILED",
                 "script",       "%s", startup_command,
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
+                "status",       "%d", status,
+                "exit_code",    "%d", (status > 0 && WIFEXITED(status))? WEXITSTATUS(status): -1,
                 NULL
             );
         }
@@ -12368,7 +12464,8 @@ PRIVATE int cert_sync_tick(hgobj gobj)
      */
     BOOL copy_ok = TRUE;
     if(!empty_string(copy_cmd)) {
-        int rc = system(copy_cmd);
+        char *const argv[] = {"sh", "-c", (char *)copy_cmd, NULL};
+        int rc = run_process2("/bin/sh", argv);    // not system(): see exec_startup_command()
         if(rc != 0) {
             copy_ok = FALSE;
             gobj_log_warning(gobj, 0,
@@ -12377,7 +12474,7 @@ PRIVATE int cert_sync_tick(hgobj gobj)
                 "msg",          "%s", "cert-sync copy command FAILED",
                 "cmd",          "%s", copy_cmd,
                 "rc",           "%d", rc,
-                "errno",        "%d", errno,
+                "exit_code",    "%d", (rc > 0 && WIFEXITED(rc))? WEXITSTATUS(rc): -1,
                 NULL
             );
         }
