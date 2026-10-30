@@ -178,9 +178,10 @@ the events the `C_UART` publishes to it.
 - The line not read, 64 KB and 8 bytes sent (no `EV_TX_READY`: the write is
   held), and a stop: 300 ms later the `C_UART` is in `ST_STOPPED` with its
   tty closed, and `EV_DISCONNECTED` and `EV_STOPPED` came. Then started
-  again; the same held write, a stop and a destroy right after it; and the
-  line is read again, so the canceled write would complete if it were still
-  there.
+  again; the same held write, with one write more than `max_tx_queue` (1:
+  the oldest queued is dropped, *"uart tx queue full, the oldest write
+  dropped"*), a stop and a destroy right after it; and the line is read
+  again, so the canceled write would complete if it were still there.
 - A stop with the read in flight (`ST_WAIT_STOPPED`) and a destroy there: the
   tty is closed. Against 7.29.3 the fd stayed open (*"The fds open on the tty
   are not the expected"*).

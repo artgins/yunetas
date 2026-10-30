@@ -278,7 +278,6 @@ typedef struct _PRIVATE_DATA {
 
     uint8_t rx[RX_BUFFER_SIZE];
     size_t rx_len;
-    json_int_t wire_ms;             // wire time of RX_BUFFER_SIZE bytes at the line's speed
     uint64_t t_answer;              // msectimer: the most an answer lasts, bounds the re-arms
     BOOL rx_bad;                    // a bad frame arrived: wait out the timeout
     char rx_why[256];
@@ -352,28 +351,18 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(max_telegrams,         gobj_read_integer_attr)
 
     /*
-     *  The longest an answer can be on the wire: two frames, each byte with
-     *  its start, data, parity and stop bits. Behind a tcp:// gateway the
-     *  same attrs say the speed of its bus
+     *  The speed of the line is checked here, once: a C_UART bottom gets it
      */
-    json_int_t baudrate = gobj_read_integer_attr(gobj, "baudrate");
-    if(baudrate <= 0) {
+    if(gobj_read_integer_attr(gobj, "baudrate") <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "M-Bus baudrate must be positive, 2400 taken",
-            "baudrate",     "%d", (int)baudrate,
+            "baudrate",     "%d", (int)gobj_read_integer_attr(gobj, "baudrate"),
             NULL
         );
-        baudrate = 2400;
+        gobj_write_integer_attr(gobj, "baudrate", 2400);
     }
-    const char *parity = gobj_read_str_attr(gobj, "parity");
-    json_int_t bits = 1 + gobj_read_integer_attr(gobj, "bytesize") +
-        gobj_read_integer_attr(gobj, "stopbits");
-    if(!empty_string(parity) && strcasecmp(parity, "none") != 0) {
-        bits++;
-    }
-    priv->wire_ms = (RX_BUFFER_SIZE * bits * 1000 + baudrate - 1) / baudrate;
 }
 
 /***************************************************************************
@@ -1063,6 +1052,39 @@ PRIVATE int send_frame(hgobj gobj, const uint8_t *bf, size_t len)
 }
 
 /***************************************************************************
+ *  The longest an answer can be on the wire: two frames, each byte with its
+ *  start, data, parity and stop bits, at the speed the line runs at. A
+ *  C_UART bottom says it (a speed its tty does not know runs at 9600, and
+ *  its attrs say so); behind a tcp:// gateway this gobj's attrs say the
+ *  speed of its bus. Read when a request goes: up to 7.29.3 it was counted
+ *  once, at create, from this gobj's attrs.
+ ***************************************************************************/
+PRIVATE json_int_t answer_wire_ms(hgobj gobj)
+{
+    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    hgobj line = (bottom_gobj && gobj_has_attr(bottom_gobj, "baudrate"))? bottom_gobj : gobj;
+
+    json_int_t baudrate = gobj_read_integer_attr(line, "baudrate");
+    if(baudrate <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Bad baudrate: the wire time of an answer is counted at 2400",
+            "baudrate",     "%d", (int)baudrate,
+            NULL
+        );
+        baudrate = 2400;
+    }
+    const char *parity = gobj_read_str_attr(line, "parity");
+    json_int_t bits = 1 + gobj_read_integer_attr(line, "bytesize") +
+        gobj_read_integer_attr(line, "stopbits");
+    if(!empty_string(parity) && strcasecmp(parity, "none") != 0) {
+        bits++;
+    }
+    return (RX_BUFFER_SIZE * bits * 1000 + baudrate - 1) / baudrate;
+}
+
+/***************************************************************************
  *  Send a request, and wait for its answer
  ***************************************************************************/
 PRIVATE void send_request(hgobj gobj, const uint8_t *bf, size_t len)
@@ -1070,7 +1092,7 @@ PRIVATE void send_request(hgobj gobj, const uint8_t *bf, size_t len)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->rx_len = 0;
-    priv->t_answer = start_msectimer((uint64_t)(priv->timeout_response + priv->wire_ms));
+    priv->t_answer = start_msectimer((uint64_t)(priv->timeout_response + answer_wire_ms(gobj)));
     priv->rx_bad = FALSE;
     priv->rx_why[0] = 0;
     priv->rx_dump[0] = 0;

@@ -725,6 +725,7 @@ DEFINED in state"* at every stop.
 | `xonxoff` | `bool` | Software flow control. |
 | `rtscts` | `bool` | Hardware flow control. |
 | `timeout_between_connections` | `integer` | Milliseconds between two opens (default `2000`; `0` is raised to 1000 ms, with one warning). |
+| `max_tx_queue` | `integer` | Writes that may wait behind the one in flight (default `0`: no limit, as in `C_TCP`). When the queue is full the oldest waiting write is dropped, with an error (*"uart tx queue full, the oldest write dropped"*, said for the first drop and then once every `max_tx_queue` drops). Example: `"max_tx_queue": 16`. |
 
 ```json
 {"name": "serial_bus", "gclass": "C_UART",
@@ -737,8 +738,9 @@ Every `EV_TX_DATA` is queued, and the writes go to the tty **one at a time,
 in order**. When the line takes only part of a write (a short write: the
 output buffer of the tty is full), the rest goes before the next write.
 `EV_TX_READY` is published when the last write queued is done, not once per
-`EV_TX_DATA`. A write that the kernel interrupts (`EINTR`: the write of a
-tty runs blocking in a worker of io_uring) goes again; so does a read.
+`EV_TX_DATA`. The queue has no limit unless `max_tx_queue` is set. A write
+that the kernel interrupts (`EINTR`: the write of a tty runs blocking in a
+worker of io_uring) goes again; so does a read.
 
 ```C
 gbuffer_t *gbuf = gbuffer_create(len, len);

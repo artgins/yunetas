@@ -20,8 +20,9 @@
  *            stop: the stop must end, with the tty closed and EV_STOPPED,
  *            without waiting for the other side to read. Up to 7.29.3 it
  *            waited in ST_WAIT_STOPPED until the other side read.
- *          - The same, and a destroy right after the stop; then the test
- *            reads the line again. Up to 7.29.3 the held write completed on
+ *          - The same, with one write more than its max_tx_queue (1): the
+ *            oldest queued is dropped, with an error. And a destroy right
+ *            after the stop; then the test reads the line again. Up to 7.29.3 the held write completed on
  *            the destroyed gobj: a use after free.
  *          - A stop with the read in flight (ST_WAIT_STOPPED) and a destroy
  *            there: the tty must be closed. Up to 7.29.3 its fd was lost.
@@ -444,10 +445,11 @@ PRIVATE void new_uart(hgobj gobj)
     priv->gobj_uart = gobj_create(
         name,
         C_UART,
-        json_pack("{s:s, s:i, s:i}",
+        json_pack("{s:s, s:i, s:i, s:i}",
             "url", priv->pty_path,
             "baudrate", 9600,
-            "timeout_between_connections", RECONNECT_MS
+            "timeout_between_connections", RECONNECT_MS,
+            "max_tx_queue", 1
         ),
         gobj
     );
@@ -740,6 +742,9 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             slave_read(gobj, SLAVE_HOLD);
             send_pattern(gobj, 0, TX_SIZE);
             send_pattern(gobj, 0, HELD_TAIL);
+            if(priv->phase == PHASE_HELD_DESTROY) {
+                send_pattern(gobj, 0, HELD_TAIL);   // max_tx_queue 1: the one queued is dropped
+            }
             set_timeout(priv->timer, SETTLE_MS);
             break;
 

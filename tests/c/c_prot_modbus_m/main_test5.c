@@ -8,7 +8,8 @@
  *            goes, in order, and EV_TX_READY once
  *          - EV_DROP: the tty closed, EV_DISCONNECTED, and opened again
  *          - A write the line does not take, and a stop: the stop ends;
- *            again, and a destroy right after the stop
+ *            again, a write more than max_tx_queue, and a destroy right
+ *            after the stop
  *          - A destroy, and a start, in ST_WAIT_STOPPED
  *          - A host that destroys it in the EV_DISCONNECTED of a stop
  *
@@ -127,6 +128,7 @@ static int register_yuno_and_more(void)
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));
+    json_array_append_new(errors_list, json_pack("{s:s}", "msg", "uart tx queue full, the oldest write dropped"));
     // uart2: destroyed in ST_WAIT_STOPPED
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "Start Uart"));
     json_array_append_new(errors_list, json_pack("{s:s}", "msg", "tty opened"));

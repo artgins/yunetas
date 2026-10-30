@@ -20,7 +20,9 @@
  *
  *          The writes go one at a time, in order: a short write (the line
  *          took part of it) sends its rest before the next, and EV_TX_READY
- *          is published when the last write queued is done.
+ *          is published when the last write queued is done. The queue is
+ *          bounded by max_tx_queue (0, the default: no bound, as C_TCP);
+ *          full, it drops its oldest write, with an error.
  *
  *          Up to 7.29.3 a stop stopped the read and nothing else: inside its
  *          EV_RX_DATA the tty stayed open (overwritten, so leaked, by the
@@ -92,6 +94,7 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",         "Not used, b
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
+SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         "0",        "Maximum writes waiting behind the one in flight; when full the oldest is dropped, with an error. 0: no limit (as C_TCP)"),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
@@ -150,6 +153,8 @@ typedef struct _PRIVATE_DATA {
     yev_event_h yev_client_rx;
     yev_event_h yev_client_tx;  // the write in flight: one at a time
     dl_list_t dl_tx;            // the gbuffers waiting for it, in order
+    json_int_t max_tx_queue;
+    json_int_t tx_queue_dropped;    // writes dropped by a full queue, said 1 of max_tx_queue
     char inform_disconnection;
     BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
     alive_t *alive;             // the markers of the publishes in progress (see alive_t)
@@ -184,6 +189,12 @@ PRIVATE void mt_create(hgobj gobj)
         subscriber = gobj_parent(gobj);
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+
+    /*
+     *  Do copy of heavy-used parameters, for quick access.
+     *  HACK The writable attributes must be repeated in mt_writing method.
+     */
+    SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -191,9 +202,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    //IF_EQ_SET_PRIV(timeout_inactivity,  (int) gobj_read_integer_attr)
-    //END_EQ_SET_PRIV()
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(max_tx_queue,        gobj_read_integer_attr)
+    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -849,11 +861,25 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             fd,
             gbuffer_create(rx_buffer_size, rx_buffer_size)
         );
+        if(!priv->yev_client_rx) {
+            /*
+             *  A line that cannot be read is no line: closed, and opened
+             *  again after timeout_between_connections. Up to 7.29.3 the
+             *  NULL event was used.
+             */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot create the read of the tty: the line is dropped",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                NULL
+            );
+            set_disconnected(gobj, "Cannot create the read");
+            return;
+        }
     }
 
-    if(priv->yev_client_rx) {
-        yev_set_fd(priv->yev_client_rx, fd);
-    }
+    yev_set_fd(priv->yev_client_rx, fd);
     if(!yev_get_gbuf(priv->yev_client_rx)) {
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
         yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
@@ -1388,8 +1414,26 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  Transmit: queued behind the write in flight, if there is one
+     *  Transmit: queued behind the write in flight, if there is one. A full
+     *  queue drops its oldest write, as C_TCP does
      */
+    if(priv->max_tx_queue > 0 && (json_int_t)dl_size(&priv->dl_tx) >= priv->max_tx_queue) {
+        if((priv->tx_queue_dropped % priv->max_tx_queue) == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "uart tx queue full, the oldest write dropped",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "max_tx_queue", "%d", (int)priv->max_tx_queue,
+                "dropped",      "%d", (int)priv->tx_queue_dropped,
+                NULL
+            );
+        }
+        priv->tx_queue_dropped++;
+        gbuffer_t *gbuf_oldest = dl_first(&priv->dl_tx);
+        dl_delete(&priv->dl_tx, gbuf_oldest, 0);
+        gbuffer_decref(gbuf_oldest);
+    }
     dl_add(&priv->dl_tx, gbuffer_incref(gbuf));
     write_next(gobj);   // on failure: logged, the line dropped
 
