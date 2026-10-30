@@ -1261,9 +1261,10 @@ PRIVATE void mt_create(hgobj gobj)
          *  directory and the file are both made by rotatory_open() with
          *  exit_on_fail, as the file log of every yuno, so a directory or
          *  a file that cannot be made stops the agent at start (stdout and
-         *  syslog say why, and its watcher relaunches it every 2 s until
-         *  the cause is fixed). Up to 7.29.3 a directory that could not be
-         *  made left an empty path, and the agent ran with no audit.
+         *  syslog say why, and its watcher relaunches it until the cause
+         *  is fixed: 2 s after the first end, then with a wait that doubles
+         *  up to 60 s, see ydaemon.c). Up to 7.29.3 a directory that could
+         *  not be made left an empty path, and the agent ran with no audit.
          */
         char audit_path[PATH_MAX];
         if(yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", FALSE)) {
@@ -3867,20 +3868,28 @@ PRIVATE json_t *list_delete_targets(
 }
 
 /***************************************************************************
- *  Count yunos that actually USE a config/binary node, robustly.
+ *  Count yunos that actually USE the config/binary instances a delete
+ *  takes, robustly.
  *
- *  The node's `yunos` hook is config-id-level and can carry STALE refs
- *  (a yuno whose record was deleted but whose hook entry lingers in
- *  memory until the next reload — the parent-hook is not always cleaned
- *  on a multi-version parent). So validate every hooked yuno id with
- *  gobj_get_node (a deleted yuno returns NULL → skip). When target_version
- *  is non-empty, count only yunos pinned to THAT version (a yuno uses
- *  config version = its name_version, binary version = its role_version),
- *  so an unused/superseded version can be pruned while another is in use.
+ *  Each instance (version) has its OWN `yunos` hook: a yuno is linked to
+ *  the version it was created on (create-yuno role_version=/name_version=),
+ *  so a delete that takes several versions reads the list of every one of
+ *  them, and a yuno that two lists name counts once. Up to 7.29.3 only the
+ *  list of the node given was read: a yuno pinned to another version of a
+ *  key the delete took whole was not looked at.
+ *
+ *  A hook can carry STALE refs (a yuno whose record was deleted but whose
+ *  hook entry lingers in memory until the next reload — the parent-hook is
+ *  not always cleaned on a multi-version parent). So validate every hooked
+ *  yuno id with gobj_get_node (a deleted yuno returns NULL → skip). When
+ *  target_version is non-empty, count only yunos pinned to THAT version (a
+ *  yuno uses config version = its name_version, binary version = its
+ *  role_version), so an unused/superseded version can be pruned while
+ *  another is in use.
  ***************************************************************************/
 PRIVATE int count_yunos_using(
     hgobj gobj,
-    json_t *node,               // config/binary node with the "yunos" hook
+    json_t *instances,          // NOT owned, config/binary nodes with the "yunos" hook
     const char *version_field,  // "name_version" (config) or "role_version" (binary)
     const char *target_version, // node's version; "" => count any version
     hgobj src
@@ -3889,29 +3898,38 @@ PRIVATE int count_yunos_using(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     int use = 0;
-    json_t *yunos = kw_get_list(gobj, node, "yunos", 0, 0);
-    int i; json_t *jn_yuno_id;
-    json_array_foreach(yunos, i, jn_yuno_id) {
-        const char *yuno_id = json_string_value(jn_yuno_id);
-        if(empty_string(yuno_id)) {
-            continue;
+    json_t *seen = json_object();
+    int idx; json_t *instance;
+    json_array_foreach(instances, idx, instance) {
+        json_t *yunos = kw_get_list(gobj, instance, "yunos", 0, 0);
+        int i; json_t *jn_yuno_id;
+        json_array_foreach(yunos, i, jn_yuno_id) {
+            const char *yuno_id = json_string_value(jn_yuno_id);
+            if(empty_string(yuno_id)) {
+                continue;
+            }
+            if(json_object_get(seen, yuno_id)) {
+                continue;   // named by the list of another version too
+            }
+            json_object_set_new(seen, yuno_id, json_true());
+            json_t *y = gobj_get_node(
+                priv->resource,
+                "yunos",
+                json_pack("{s:s}", "id", yuno_id),
+                json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+                src
+            );
+            if(!y) {
+                continue;   // stale hook ref: the yuno is gone, not a real user
+            }
+            if(empty_string(target_version) ||
+                    strcmp(kw_get_str(gobj, y, version_field, "", 0), target_version)==0) {
+                use++;
+            }
+            JSON_DECREF(y);
         }
-        json_t *y = gobj_get_node(
-            priv->resource,
-            "yunos",
-            json_pack("{s:s}", "id", yuno_id),
-            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-            src
-        );
-        if(!y) {
-            continue;   // stale hook ref: the yuno is gone, not a real user
-        }
-        if(empty_string(target_version) ||
-                strcmp(kw_get_str(gobj, y, version_field, "", 0), target_version)==0) {
-            use++;
-        }
-        JSON_DECREF(y);
     }
+    JSON_DECREF(seen)
     return use;
 }
 
@@ -4068,7 +4086,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         const char *role = kw_get_str(gobj, node, "id", "", KW_REQUIRED);
         const char *node_version = kw_get_str(gobj, node, "version", "", KW_REQUIRED);
 
-        int use = count_yunos_using(gobj, node, "role_version",
+        int use = count_yunos_using(gobj, taken, "role_version",
             whole? "": node_version, src);
         if(use > 0 && !force) {
             if(whole) {
@@ -4166,6 +4184,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     int records_only = 0;
     json_t *jn_data = json_array();
     json_t *jn_kept = json_array();   // the files of the records deleted alone
+    json_t *jn_left = json_array();   // the directories rmrdir() could not remove
     json_array_foreach(jn_units, idx, unit) {
         node = kw_get_dict(gobj, unit, "node", 0, KW_REQUIRED);
         json_t *taken = kw_get_list(gobj, unit, "taken", 0, KW_REQUIRED);
@@ -4221,16 +4240,22 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             }
 
             /*
-             *  Remove from store in filesystem
+             *  Remove from store in filesystem. A directory that is not
+             *  there is nothing left behind; one rmrdir() could not remove
+             *  (logged by it) is, and the answer says so.
              */
+            BOOL removed = TRUE;
             if(access(destination,0)==0) {
-                rmrdir(destination);
+                if(rmrdir(destination)<0) {
+                    removed = FALSE;    // Error already logged
+                    json_array_append_new(jn_left, json_string(destination));
+                }
             }
             json_array_append_new(jn_data, json_pack("{s:s, s:s, s:s, s:b}",
                 "id", role,
                 "version", version,
                 "files", destination,
-                "removed", 1
+                "removed", removed
             ));
         }
     }
@@ -4239,6 +4264,20 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     if(result < 0) {
         jn_comment = json_sprintf("%s", gobj_log_last_message());
+    } else if(json_array_size(jn_left) > 0) {
+        /*
+         *  The records are gone and these directories are not: named by no
+         *  record, nothing removes them but a hand.
+         */
+        char *left = json2uglystr(jn_left);
+        jn_comment = json_sprintf(
+            "%s: %d binaries deleted, %d of them with files the agent could not remove "
+            "(see the log): remove them by hand: %s",
+            gobj_yuno_role_plus_name(), deleted, (int)json_array_size(jn_left),
+            left? left: ""
+        );
+        GBMEM_FREE(left);
+        result = -1;
     } else if(records_only > 0) {
         char *kept = json_array_size(jn_kept)? json2uglystr(jn_kept): 0;
         jn_comment = json_sprintf(
@@ -4253,6 +4292,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         jn_comment = json_sprintf("%d binaries deleted", deleted);
     }
     JSON_DECREF(jn_kept)
+    JSON_DECREF(jn_left)
     return msg_iev_build_response(
         gobj,
         result,
@@ -4694,9 +4734,9 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
             gobj, resource, "version", node, by_instance, &whole, src
         );
         deleted += (int)json_array_size(taken);
-        JSON_DECREF(taken)
-        int use = count_yunos_using(gobj, node, "name_version",
+        int use = count_yunos_using(gobj, taken, "name_version",
             whole? "": node_version, src);
+        JSON_DECREF(taken)
         if(use > 0 && !force) {
             json_t *comment = json_sprintf(
                 "Cannot delete configuration '%s' version '%s'%s. Using in %d yunos "
@@ -5508,6 +5548,42 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      */
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
+        /*
+         *  The release of the PRIMARY is not one release: c_node's delete
+         *  of the primary's own pkey2 reaches treedb_delete_node(), which
+         *  takes every release of the yuno. So, with other releases behind
+         *  it, it is the whole yuno, and that is asked with whole=1. Up to
+         *  7.29.3 it passed as one release and deleted them all.
+         */
+        if(by_instance && !whole) {
+            BOOL whole_key = FALSE;
+            json_t *taken = instances_taken_by_delete(
+                gobj, resource, "yuno_release", node, by_instance, &whole_key, src
+            );
+            int releases = (int)json_array_size(taken);
+            JSON_DECREF(taken)
+            if(whole_key && releases > 1) {
+                json_t *comment = json_sprintf(
+                    "%s: cannot delete release '%s' of yuno '%s' alone: it is the primary, "
+                    "and its delete takes every release of the yuno (%d). "
+                    "Add whole=1 to delete the yuno and all of its releases.",
+                    gobj_yuno_role_plus_name(),
+                    SDATA_GET_STR(node, "yuno_release"),
+                    SDATA_GET_ID(node),
+                    releases
+                );
+                JSON_DECREF(iter)
+                return msg_iev_build_response(
+                    gobj,
+                    -1,
+                    comment,
+                    0,
+                    0,
+                    kw  // owned
+                );
+            }
+        }
+
         /*
          *  Instance records carry a stale yuno_running (the live runtime flag
          *  lives on the in-memory primary, not on the per-release record). When
@@ -10277,9 +10353,9 @@ PRIVATE void kill_yuno_unregistered(
 
 /***************************************************************************
  *  kill-yuno of the yunos alive that the agent does not know running: the
- *  processes of each one (its watcher and its child) get `signal2kill`; the
- *  watcher ignores SIGQUIT and ends with its child's orderly exit, SIGKILL
- *  takes both. Return a list of {id, yuno_role, yuno_name, pids}, owned.
+ *  processes of each one (its watcher and its child) get `signal2kill`; a
+ *  SIGQUIT tells the watcher not to relaunch, and it ends with its child's
+ *  exit (or at once, when it is waiting to relaunch), SIGKILL takes both. Return a list of {id, yuno_role, yuno_name, pids}, owned.
  ***************************************************************************/
 PRIVATE json_t *signal_unconnected_yunos(
     hgobj gobj,
