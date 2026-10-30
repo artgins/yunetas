@@ -260,7 +260,7 @@ static int register_yuno_and_more(void)
     /*
      *  Negative-path test: the BFF translates Keycloak's invalid_grant/401
      *  on a /auth/refresh call into a browser-facing HTTP 401 with
-     *  error_code="session_expired".  A 4xx response is logged as INFO
+     *  error_code="session_expired".  A 4xx response is logged as WARNING
      *  (not ERROR) — no expected errors to declare.
      */
     set_expected_results(

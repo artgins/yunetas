@@ -3,8 +3,7 @@
  *          Auth_bff GClass — Backend For Frontend OAuth2 helper.
  *
  *  The BFF runs as a separate HTTP listener, on the port its yuno
- *  configures (no default: the in-repo SPAs expect it on 1806/1807 for
- *  gui_agent and 1808 for gui_treedb, the localhost example on 1801).
+ *  configures (there is no default port).
  *  It provides five POST endpoints consumed by the browser SPA, plus the
  *  CORS preflight (OPTIONS):
  *
@@ -21,8 +20,8 @@
  *  C_IEVENT_CLI identity_card to another backend host.  Everywhere else the
  *  tokens are written as httpOnly; Secure; SameSite=Strict cookies so the
  *  browser forwards them automatically with every WebSocket HTTP Upgrade to
- *  the backend yuno, on any port of the same host (a cookie's Domain has no
- *  port).
+ *  the backend yuno, on any port of the same host (a cookie is not scoped
+ *  by port).
  *
  *  IdP configuration (priority order):
  *
@@ -86,7 +85,9 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  auth_empty_response       502  IdP reply had no JSON body
  *  auth_timeout              504  Watchdog fired, no reply in time
  *  token_too_large           500  IdP token does not fit in a cookie
- *                                 (BFF_TOKEN_MAX, 8 KB)
+ *                                 (BFF_TOKEN_MAX, 8 KB: a token of 8192
+ *                                 bytes or more); the `error` says the
+ *                                 sizes
  *
  *  ---------------------------------------------------------------------
  *  Codes emitted by request validation (before talking to IdP)
@@ -108,7 +109,9 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  server_busy               503  Pending queue full
  *  internal_error            500  /auth/token could not build its reply
  *                                 (the access_token cookie is not valid
- *                                 UTF-8, or out of memory)
+ *                                 UTF-8, or out of memory); also an error
+ *                                 answered without its code (a bug of the
+ *                                 BFF, logged with a stack)
  *
  *  New codes MUST be added here first, then implemented in c_auth_bff.c,
  *  then added to the GUI i18n catalogue.  Never introduce an error_code

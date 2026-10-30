@@ -77,6 +77,8 @@ SET(TESTS
     test19_logout_no_cookie
     test20_discovery_timeout
     test21_big_token
+    test22_discovery_unreachable
+    test23_cookie_no_host
 )
 
 foreach(test ${TESTS})

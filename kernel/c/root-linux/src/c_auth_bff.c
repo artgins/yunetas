@@ -302,6 +302,15 @@ typedef struct _PRIVATE_DATA {
     hgobj   gobj_discovery_task;        /* one-shot OIDC discovery task; NULL when idle */
 
     /*
+     *  What the connect watchdog saw when it ended the task in flight
+     *  (ac_timeout): said by the end of that task (ac_end_task), in the
+     *  one ERROR of the failure.
+     */
+    BOOL        connect_timed_out;
+    BOOL        connect_was_connected;
+    const char *connect_tcp_state;
+
+    /*
      *  Statistics — plain counters in PRIVATE_DATA, NOT SDF_*STATS
      *  attributes, so the hot path stays a single ++ instruction with
      *  no JSON cost.  Exposed via mt_stats() below; mt_stats also
@@ -488,6 +497,10 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE void arm_connect_watchdog(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->connect_timed_out = FALSE;    /* a new task: nothing fired for it yet */
+    priv->connect_was_connected = FALSE;
+    priv->connect_tcp_state = NULL;
 
     if(!priv->gobj_idprovider) {
         return;
@@ -860,10 +873,22 @@ PRIVATE const char *status_str(int code)
         case 400: return "400 Bad Request";
         case 401: return "401 Unauthorized";
         case 403: return "403 Forbidden";
+        case 404: return "404 Not Found";
+        case 405: return "405 Method Not Allowed";
+        case 429: return "429 Too Many Requests";
         case 500: return "500 Internal Server Error";
+        case 502: return "502 Bad Gateway";
         case 503: return "503 Service Unavailable";
         case 504: return "504 Gateway Timeout";
-        default:  return "500 Internal Server Error";
+        default:
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "👤BFF HTTP status without its text, answered as 500",
+                "status",       "%d", code,
+                NULL
+            );
+            return "500 Internal Server Error";
     }
 }
 
@@ -877,9 +902,13 @@ PRIVATE char *make_set_cookie(hgobj gobj, const char *name, const char *value,
     int max_age, const char *domain)
 {
     char buf[BFF_SET_COOKIE_MAX];
+    BOOL with_domain = !empty_string(domain);
     int n = snprintf(buf, sizeof(buf),
-        "Set-Cookie: %s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Strict",
-        name, value, max_age);
+        "Set-Cookie: %s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Strict%s%s\r\n",
+        name, value, max_age,
+        with_domain? "; Domain=" : "",
+        with_domain? domain : ""
+    );
     if(n < 0 || n >= (int)sizeof(buf)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -887,16 +916,11 @@ PRIVATE char *make_set_cookie(hgobj gobj, const char *name, const char *value,
             "msg",          "%s", "Set-Cookie truncated, dropping cookie",
             "cookie",       "%s", name,
             "value_len",    "%d", (int)strlen(value),
+            "domain_len",   "%d", (int)strlen(domain? domain : ""),
             NULL
         );
         return NULL;
     }
-    if(!empty_string(domain) && n < (int)sizeof(buf) - 64) {
-        snprintf(buf + n, sizeof(buf) - n, "; Domain=%s", domain);
-        n = (int)strlen(buf);
-    }
-    /* append CRLF */
-    snprintf(buf + n, sizeof(buf) - n, "\r\n");
     return gbmem_strdup(buf);
 }
 
@@ -959,6 +983,9 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
  *
  *  In that case, return "" (empty) so make_set_cookie() omits the Domain
  *  attribute entirely, letting the cookie bind to the exact request host.
+ *  A request with no Host says no host to match, so it gets no Domain
+ *  either: Domain is written only when the Host is that domain or one of
+ *  its subdomains.
  ***************************************************************************/
 PRIVATE const char *effective_cookie_domain(
     hgobj gobj,
@@ -969,7 +996,14 @@ PRIVATE const char *effective_cookie_domain(
         return "";  /* not configured — no Domain attribute */
     }
     if(empty_string(request_host)) {
-        return cookie_domain;  /* no Host header — keep configured value */
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PROTOCOL,
+            "msg",              "%s", "request without Host, omitting Domain attribute",
+            "cookie_domain",    "%s", cookie_domain,
+            NULL
+        );
+        return "";
     }
 
     /* Strip port from request host (e.g. "localhost:5173" → "localhost") */
@@ -1137,6 +1171,22 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->st_bff_errors++;
 
+    if(empty_string(error_code)) {
+        /*
+         *  Every error answered carries a code of the catalog (c_auth_bff.h):
+         *  one without it is a broken caller, and answers internal_error
+         */
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "👤BFF error response without error_code",
+            "status",       "%d", status_code,
+            "error",        "%s", error_msg ? error_msg : "",
+            NULL
+        );
+        error_code = "internal_error";
+    }
+
     /*
      *  Tag the log line with the connection origin (peername/sockname),
      *  so rejected requests can be traced back to who tried to enter.
@@ -1158,7 +1208,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
             "msg",          "%s", "👤BFF server error",
             "status",       "%d", status_code,
             "status_text",  "%s", status_text ? status_text : "",
-            "error_code",   "%s", error_code ? error_code : "",
+            "error_code",   "%s", error_code,
             "error",        "%s", error_msg ? error_msg : "",
             "peername",     "%s", peername ? peername : "",
             "sockname",     "%s", sockname ? sockname : "",
@@ -1171,7 +1221,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
             "msg",          "%s", "👤BFF request rejected",
             "status",       "%d", status_code,
             "status_text",  "%s", status_text ? status_text : "",
-            "error_code",   "%s", error_code ? error_code : "",
+            "error_code",   "%s", error_code,
             "error",        "%s", error_msg ? error_msg : "",
             "peername",     "%s", peername ? peername : "",
             "sockname",     "%s", sockname ? sockname : "",
@@ -1181,7 +1231,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
 
     json_t *jn_body = json_pack("{s:b, s:s, s:s}",
         "success",    0,
-        "error_code", error_code ? error_code : "unknown_error",
+        "error_code", error_code,
         "error",      error_msg ? error_msg : ""
     );
     send_json_response(browser, status_code, status_text, jn_body, extra_headers);
@@ -1523,16 +1573,35 @@ PRIVATE json_t *send_token_to_browser(
     int64_t     expires_in    = kw_get_int(gobj, jn_body, "expires_in",     300, 0);
     int64_t     ref_exp_in    = kw_get_int(gobj, jn_body, "refresh_expires_in", 1800, 0);
 
+    /*
+     *  A token travels in a cookie, and comes back in one: what is read
+     *  back (extract_cookie) holds BFF_TOKEN_MAX - 1 bytes. A bigger token
+     *  is refused here, by its size, before anything reads it.
+     */
+    size_t at_len = strlen(access_token);
+    size_t rt_len = strlen(refresh_token);
+    if(at_len >= BFF_TOKEN_MAX || rt_len >= BFF_TOKEN_MAX) {
+        char error_msg[192];
+        snprintf(error_msg, sizeof(error_msg),
+            "Token too large for a cookie: access_token %zu bytes, "
+            "refresh_token %zu bytes, limit %d",
+            at_len, rt_len, BFF_TOKEN_MAX - 1
+        );
+        send_error_response(gobj, gobj_bottom_gobj(gobj), 500, status_str(500),
+            "token_too_large", error_msg, cors_hdrs);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
     /* Extract username/email from JWT payload (middle segment) */
     char username[256] = "";
     char email[256]    = "";
     if(!empty_string(access_token)) {
         /*
          *  Quick base64url decode of the payload without a full JWT library.
-         *  Sized for the whole token (BFF_TOKEN_MAX): up to 7.29.3 the buffer
-         *  was 2 KB, so the payload of a token with many roles (a 4 KB
-         *  access_token is common) was skipped, and the login answered an
-         *  empty username and email with nothing logged.
+         *  Sized for the whole token, which fits BFF_TOKEN_MAX (checked
+         *  above): a payload that is not read is a payload that cannot be
+         *  read, never one too big.
          */
         BOOL claims_read = FALSE;
         const char *p1 = strchr(access_token, '.');
@@ -2693,17 +2762,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
 
-    gobj_log_error(gobj, 0,
-        "function",  "%s", __FUNCTION__,
-        "msgset",    "%s", MSGSET_PROTOCOL,
-        "msg",       "%s", "👤BFF IdP unreachable, task watchdog fired",
-        "task",      "%s", gobj_short_name(stuck),
-        "discovery", "%d", priv->gobj_discovery_task? 1:0,
-        "connected", "%d", gobj_read_bool_attr(priv->gobj_idprovider, "connected")? 1:0,
-        "tcp_state", "%s", tcp? gobj_current_state(tcp):"?",
-        "issuer",    "%s", priv->issuer,
-        NULL
-    );
+    /*
+     *  Said by the end of the task (ac_end_task), which comes on the next
+     *  turn: one ERROR for the failure, with what the watchdog saw.
+     */
+    priv->connect_timed_out = TRUE;
+    priv->connect_was_connected = gobj_read_bool_attr(priv->gobj_idprovider, "connected");
+    priv->connect_tcp_state = tcp? gobj_current_state(tcp) : "?";
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "👤BFF IdP unreachable, task watchdog fired: task=%s, tcp_state=%s",
+            gobj_short_name(stuck), priv->connect_tcp_state
+        );
+    }
 
     /*
      *  Abort the connect that just burned its whole budget.
@@ -2772,6 +2842,21 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     clear_timeout(priv->gobj_timer);    /* the task answered within its budget */
 
+    /*
+     *  Who ended a task by timeout: the connect watchdog (the IdP could
+     *  not be reached, ac_timeout), or C_TASK's exec_timeout (connected,
+     *  and the IdP did not answer)
+     */
+    BOOL connect_timed_out = priv->connect_timed_out;
+    BOOL was_connected = priv->connect_was_connected;
+    const char *tcp_state = priv->connect_tcp_state? priv->connect_tcp_state : "";
+    priv->connect_timed_out = FALSE;
+    priv->connect_was_connected = FALSE;
+    priv->connect_tcp_state = NULL;
+    const char *timeout_cause = connect_timed_out?
+        "idp_connect_timeout_ms: the IdP could not be reached" :
+        "idp_timeout_ms: the IdP did not answer";
+
     if(src == priv->gobj_discovery_task) {
         priv->gobj_discovery_task = NULL;  /* volatile: it destroys itself after this end */
         int discovery_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
@@ -2784,16 +2869,21 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         if(discovery_result == -2) {
             /*
-             *  No result handler ran, so nothing said it: up to 7.29.3
-             *  a discovery that timed out with no request queued left
-             *  no trace, and idp_timeouts did not count it.
+             *  No result handler ran, so this is the one ERROR of the
+             *  failure: the cause, and the requests it leaves unserved.
+             *  Every other failure was said by the handler that stopped
+             *  the task.
              */
             priv->st_idp_timeouts++;
             gobj_log_error(gobj, 0,
-                "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_PROTOCOL,
-                "msg",      "%s", "👤BFF OIDC discovery: IdP did not answer in time",
-                "issuer",   "%s", priv->issuer,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "👤BFF OIDC discovery: IdP did not answer in time",
+                "cause",        "%s", timeout_cause,
+                "connected",    "%d", connect_timed_out? (was_connected? 1:0) : 1,
+                "tcp_state",    "%s", tcp_state,
+                "queued",       "%d", (int)dl_size(&priv->dl_pending),
+                "issuer",       "%s", priv->issuer,
                 NULL
             );
         }
@@ -2819,7 +2909,12 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  both.
          */
         if(dl_size(&priv->dl_pending) > 0) {
-            gobj_log_error(gobj, 0,
+            /*
+             *  The cause is already said (one ERROR), and each request
+             *  answered says its 502 (send_error_response): this is only
+             *  how many.
+             */
+            gobj_log_info(gobj, 0,
                 "function", "%s", __FUNCTION__,
                 "msgset",   "%s", MSGSET_PROTOCOL,
                 "msg",      "%s", "👤BFF OIDC discovery failed, draining queue",
@@ -2846,6 +2941,9 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "function",   "%s", __FUNCTION__,
             "msgset",     "%s", MSGSET_PROTOCOL,
             "msg",        "%s", "👤BFF IdP outbound watchdog fired",
+            "cause",      "%s", timeout_cause,
+            "connected",  "%d", connect_timed_out? (was_connected? 1:0) : 1,
+            "tcp_state",  "%s", tcp_state,
             "task_valid", "%d", priv->task_valid ? 1 : 0,
             NULL
         );

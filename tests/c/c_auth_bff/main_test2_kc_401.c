@@ -259,7 +259,7 @@ static int register_yuno_and_more(void)
     /*
      *  Negative-path test: the BFF translates Keycloak's invalid_grant/401
      *  into a browser-facing HTTP 401 with error_code="invalid_credentials".
-     *  A 4xx response is logged as INFO (not ERROR) because it's a normal
+     *  A 4xx response is logged as WARNING (not ERROR) because it's a normal
      *  business outcome — so no expected errors to declare here.
      */
     set_expected_results(

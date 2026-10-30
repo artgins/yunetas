@@ -190,8 +190,8 @@ Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
 - `Path=/` — sent with all requests to the origin.
 - `Domain` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)) — `cookie_domain`, written only
   when that attr is set and the request's `Host` (without its port) is that
-  domain or a subdomain of it. On a mismatch the BFF omits it and logs a
-  WARNING, and the cookie binds to the exact host. `Domain` extends the cookie
+  domain or a subdomain of it. On a mismatch, or on a request with no `Host`,
+  the BFF omits it and logs a WARNING, and the cookie binds to the exact host. `Domain` extends the cookie
   to the subdomains; it is not what carries it to another port. A cookie is
   not scoped by port, so a cookie set by the BFF on port 1801 is sent with the
   WebSocket upgrade to ports 1600 / 1800 / etc of the same host name in any
@@ -264,9 +264,15 @@ thing twice. On expiry it fails the task through `C_TASK`'s own path
 
 A failed discovery is **not** terminal: `process_next` re-arms it on the next
 request, so recovery rides on a retry — there is nothing to poll for, the
-endpoints are only needed at login. What an operator sees in the log is
-*"BFF IdP unreachable, task watchdog fired"* (with `connected` and
-`tcp_state`), then *"OIDC discovery failed, draining queue"*.
+endpoints are only needed at login. What an operator sees in the log is ONE
+ERROR for the failure: *"OIDC discovery: IdP did not answer in time"*, with
+its `cause` (`idp_connect_timeout_ms: the IdP could not be reached`, or
+`idp_timeout_ms: the IdP did not answer`), `connected`, `tcp_state` and the
+number of requests `queued`; each request queued is then answered 502, and
+its answer logged (*"BFF server error"*, `auth_service_unavailable`). A
+request whose own task times out is the same: ONE ERROR (*"BFF IdP outbound
+watchdog fired"*, with its `cause`) and the line of its 504. `idp_timeouts`
+counts both.
 
 **The SPA side matters as much.** A `502 auth_service_unavailable` on
 `/auth/refresh` is a failure of the TRANSPORT and says nothing about the
@@ -1674,9 +1680,10 @@ config.
 
 ### 8.12 Cookie Domain is shared across all yunos on the host
 
-The BFF sets `Domain=<host>` with no port. A cookie set by the BFF on
-:1801 goes automatically to the WebSocket on :1800, on :1600 and on the other
-ports of the same hostname. This is deliberate, because it lets the SPA move
+A cookie is not scoped by port: with or without `Domain` (§2.4), a cookie set
+by the BFF on :1801 goes automatically to the WebSocket on :1800, on :1600 and
+on the other ports of the same hostname. With `cookie_domain` set, and a `Host`
+of that domain, the cookie goes to its subdomains too. This is deliberate, because it lets the SPA move
 between services. But it means that any yuno on the same hostname can read the
 cookie. Do not run an untrusted yuno on the same hostname as the BFF.
 

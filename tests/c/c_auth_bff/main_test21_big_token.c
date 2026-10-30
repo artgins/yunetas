@@ -6,7 +6,12 @@
  *          as the token of a user with many roles: ~4 KB). The BFF must
  *          still read its claims and answer the username and email; up
  *          to 7.29.3 it read a payload of 2 KB at most and answered them
- *          empty, with nothing logged.
+ *          empty, with nothing logged. Then a second login answered with
+ *          an access_token over 8 KB: refused by its size, 500
+ *          token_too_large, with ONE log, the ERROR of the 500 answered.
+ *          The warnings are captured too: in the fixes after 7.29.3 the
+ *          size was found only by the cookie, after a WARNING that the
+ *          payload could not be read and an ERROR "Set-Cookie truncated".
  *
  *          Topology (all on 127.0.0.1):
  *            c_test21_big_token   (driver, default service, autoplay)
@@ -284,11 +289,15 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*------------------------------*
-     *  Capture only errors
+     *  Captured: errors and warnings (see main()). The one log of the
+     *  token over 8 KB: the ERROR of its 500.
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_array(),   // empty — we expect no errors
+        json_pack("[{s:s, s:s}]",
+            "msg",          "👤BFF server error",
+            "error_code",   "token_too_large"
+        ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
         TRUE            // verbose
@@ -333,7 +342,7 @@ int main(int argc, char *argv[])
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
 
     /*------------------------------------------------*
      *      Memory leak check

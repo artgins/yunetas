@@ -2,7 +2,12 @@
  *          C_TEST21_BIG_TOKEN.C
  *
  *          Driver for test21_big_token (POST /auth/login answered with a
- *          4 KB access_token; same checks as test1_login).
+ *          4 KB access_token; same checks as test1_login), then a second
+ *          POST /auth/login answered with an access_token over 8 KB, too
+ *          large for a cookie: it must be refused by its size, 500
+ *          token_too_large, with ONE log for the failure (the ERROR of
+ *          the 500 answered) and no WARNING that its payload could not be
+ *          read (main_test21 captures the warnings too).
  *
  *          Sequence
  *          ========
@@ -30,7 +35,12 @@
  *                  kc_ok          == 1
  *                  kc_errors      == 0
  *                  bff_errors     == 0
- *              → set_yuno_must_die
+ *              → raise the mock KC's access_token_pad to BIG_PAD and POST
+ *                /auth/login again on the same connection
+ *
+ *            EV_ON_MESSAGE (second answer)
+ *              → expect status 500, body.error_code == "token_too_large"
+ *              → stop the stacks; set_yuno_must_die 100 ms later
  *
  *          Any deviation fires a gobj_log_error, which the self-contained
  *          test harness (set_expected_results + test_json in main) treats
@@ -44,6 +54,11 @@
 #include <yunetas.h>
 
 #include "c_test21_big_token.h"
+
+/***************************************************************************
+ *              Constants
+ ***************************************************************************/
+#define BIG_PAD     9000    /* an access_token over BFF_TOKEN_MAX (8 KB) */
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -74,6 +89,7 @@ typedef struct _PRIVATE_DATA {
     hgobj   gobj_http_cl;   /* transient HTTP client → BFF */
     BOOL    test_passed;
     BOOL    dying;          /* TRUE once a death-timer is armed */
+    int     answers;        /* answers of the BFF received */
 } PRIVATE_DATA;
 
 
@@ -277,15 +293,11 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Client connected: POST /auth/login.
+ *  POST /auth/login
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE void post_login(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "test1: connected to BFF, posting /auth/login");
-    }
 
     json_t *jn_headers = json_pack("{s:s}",
         "Origin", "http://localhost"
@@ -301,9 +313,70 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "data",     jn_data
     );
     gobj_send_event(priv->gobj_http_cl, EV_SEND_MESSAGE, query, gobj);
+}
+
+/***************************************************************************
+ *  The mock KC of __idp_side__: its next token carries a pad of `pad`
+ *  bytes
+ ***************************************************************************/
+PRIVATE void set_mock_token_pad(hgobj gobj, json_int_t pad)
+{
+    hgobj idp_side = gobj_find_service("__idp_side__", FALSE);
+    json_t *jn_filter = json_pack("{s:s}",
+        "__gclass_name__", "C_MOCK_KEYCLOAK"
+    );
+    json_t *dl = idp_side? gobj_match_children_tree(idp_side, jn_filter) : NULL;
+    if(!idp_side) {
+        JSON_DECREF(jn_filter)
+    }
+    if(dl && json_array_size(dl) > 0) {
+        hgobj mock = (hgobj)(size_t)json_integer_value(json_array_get(dl, 0));
+        gobj_write_integer_attr(mock, "access_token_pad", pad);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", "test21_big_token: no C_MOCK_KEYCLOAK found under __idp_side__",
+            NULL
+        );
+    }
+    gobj_free_iter(dl);
+}
+
+/***************************************************************************
+ *  Client connected: POST /auth/login.
+ ***************************************************************************/
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "test1: connected to BFF, posting /auth/login");
+    }
+
+    post_login(gobj);
 
     JSON_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  The second answer: the token over 8 KB is refused by its size
+ ***************************************************************************/
+PRIVATE void check_too_large_answer(hgobj gobj, json_t *kw)
+{
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+    const char *error_code = jn_body? kw_get_str(gobj, jn_body, "error_code", "", 0) : "";
+
+    if(status != 500 || strcmp(error_code, "token_too_large") != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "test21_big_token: a token over 8 KB was not refused with token_too_large",
+            "status",       "%d", status,
+            "error_code",   "%s", error_code,
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -313,6 +386,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     hgobj bff_side = NULL;
+
+    priv->answers++;
+    if(priv->answers == 2) {
+        check_too_large_answer(gobj, kw);
+        bff_side = gobj_find_service("__bff_side__", FALSE);
+        goto end;
+    }
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
@@ -414,6 +494,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     priv->test_passed = TRUE;
+
+    /*
+     *  The second login, on the same connection: a token over 8 KB
+     */
+    set_mock_token_pad(gobj, BIG_PAD);
+    post_login(gobj);
+    KW_DECREF(kw)
+    return 0;
 
 end:
     KW_DECREF(kw)

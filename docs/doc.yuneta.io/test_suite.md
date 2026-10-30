@@ -346,6 +346,10 @@ crash or leak cannot mask neighbours.
 | **`test16_unknown_endpoint`** | Unknown `/auth/*` path → 404, not 5xx. |
 | **`test18_discovery_failure`** | The IdP's discovery document has `issuer` but no `token_endpoint`: the BFF refuses it and does not mark the discovery done. |
 | **`test19_logout_no_cookie`** | `POST /auth/logout` with no refresh cookie is refused up front (401, `missing_refresh_token`), before any IdP call. |
+| **`test20_discovery_timeout`** | The IdP accepts the discovery GET and never answers: the discovery task ends by `idp_timeout_ms`, ONE ERROR (*"OIDC discovery: IdP did not answer in time"*), counted in `idp_timeouts`. |
+| **`test21_big_token`** | A login answered with a ~4 KB access_token: its claims are still read (`username`, `email`). Then one over 8 KB: refused by its size, `500 token_too_large`, with no WARNING that its payload could not be read (warnings captured too). |
+| **`test22_discovery_unreachable`** | The IdP cannot be reached (a listener of the test with its accept queue full: the SYN is dropped). The connect watchdog (`idp_connect_timeout_ms`) ends the discovery with ONE ERROR, with its `cause`; the login queued behind it is answered `502 Bad Gateway` on the wire, `auth_service_unavailable`. In the fixes after 7.29.3 the failure was three ERRORs; up to 7.29.3 the 502 went out as `500 Internal Server Error`. |
+| **`test23_cookie_no_host`** | `cookie_domain` set: a login with a `Host` of the domain gets `Domain=` on its cookies, one with no `Host` gets none, with a WARNING. Up to 7.29.3 a request with no `Host` kept the `Domain`. |
 
 **Source:** `tests/c/c_auth_bff/` (includes `c_mock_keycloak`, `test_helpers`).
 

@@ -389,7 +389,14 @@ only when `cookie_domain` is set and the request's `Host` (without its port)
 is that domain or one of its subdomains. When the `Host` does not match, the
 BFF omits `Domain`, logs a WARNING (*"cookie_domain does not match request
 Host, omitting Domain attribute"*), and the cookie binds to the exact host of
-the request.
+the request. A request with no `Host` gets no `Domain` either, with a WARNING
+(*"request without Host, omitting Domain attribute"*).
+
+A token travels in a cookie and comes back in one, so the BFF takes a token of
+at most 8191 bytes (`BFF_TOKEN_MAX`, 8 KB). A bigger access or refresh token is
+refused by its size, before anything reads it: `500 token_too_large`, and its
+`error` says the sizes (*"Token too large for a cookie: access_token 9312
+bytes, refresh_token 652 bytes, limit 8191"*).
 
 ---
 
@@ -448,7 +455,10 @@ in production:
   answer is `502 auth_service_unavailable`. `idp_timeouts` counts every IdP
   task that ends by one of the two watchdogs: a login, callback, refresh or
   logout (answered `504 auth_timeout`) and the discovery (each request queued
-  behind it is answered `502`). A
+  behind it is answered `502`). A timeout is ONE ERROR, logged when its task
+  ends, with its `cause` -- *"OIDC discovery: IdP did not answer in time"*
+  (with the number `queued`) or *"BFF IdP outbound watchdog fired"* -- plus
+  the line of each answer it causes. A
   failed discovery is retried at the next request, not by a timer.
 - **Stable error_code for GUI i18n.** Every error response carries a
   stable `error_code` (snake_case, for example `session_expired`,
@@ -461,7 +471,10 @@ in production:
   rejected"*), not an ERROR — a wrong password is not a server error. A 5xx
   answer is an ERROR (*"👤BFF server error"*). When the IdP's answer maps to
   one of the generic codes, one more ERROR line carries what the IdP said
-  (*"👤BFF IdP rejected the request"*). All secrets (cookies, passwords,
+  (*"👤BFF IdP rejected the request"*). The status on the wire is the one of
+  the catalog (`502`, `429`, ...), and every error answered carries a code of
+  the catalog: one without it is a bug of the BFF, logged with a stack and
+  answered `internal_error`. All secrets (cookies, passwords,
   authorization headers, client_secret) are redacted by
   [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c#L1023) with case-insensitive key matching.
 - **Stats.** `mt_stats` exposes:
