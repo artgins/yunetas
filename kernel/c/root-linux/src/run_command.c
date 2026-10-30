@@ -17,6 +17,8 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <sys/syscall.h>
+#include <poll.h>
 #include <pty.h>
 #include <spawn.h>
 #include "run_command.h"
@@ -35,7 +37,7 @@
  *  the soft limit of open files, which one opened before the limit was
  *  lowered is: that one gets O_CLOEXEC instead, and the exec of the
  *  program closes it. A yuno never execs itself, so the flag changes
- *  nothing for it. Up to this fix such an fd failed the whole spawn.
+ *  nothing for it. Without it, such an fd would fail the whole spawn.
  ***************************************************************************/
 PRIVATE int add_close_of_open_fds(posix_spawn_file_actions_t *actions)
 {
@@ -75,11 +77,12 @@ PRIVATE int add_close_of_open_fds(posix_spawn_file_actions_t *actions)
  *  its stdout and stderr go to `out_fd` and its stdin is /dev/null.
  *
  *  A yuno keeps its signals blocked for its signalfd, and a blocked or an
- *  ignored signal stays so across exec: up to 7.29.3 every program a yuno
- *  ran had SIGTERM, SIGINT, SIGQUIT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE
- *  blocked, so a `timeout` it ran could not stop its child with SIGTERM,
- *  nor a ctrl+c the command of a console. And it inherited every fd of the
- *  yuno without O_CLOEXEC, and held it open after the yuno closed it.
+ *  ignored signal stays so across exec: left so, every program a yuno ran
+ *  would have SIGTERM, SIGINT, SIGQUIT, SIGALRM, SIGUSR1, SIGUSR2 and
+ *  SIGPIPE blocked, so a `timeout` it ran could not stop its child with
+ *  SIGTERM, nor a ctrl+c the command of a console. And it would inherit
+ *  every fd of the yuno without O_CLOEXEC, and hold it open after the yuno
+ *  closed it.
  *
  *  NULL when both are made (destroy both), else the call that failed, its
  *  error in *perr, and nothing to destroy.
@@ -173,10 +176,9 @@ PRIVATE const char *spawn_setup(
  *  Run a command with /bin/sh -c and get its output, stdout and stderr in
  *  one, when it ends. Synchronous. NULL (logged) when it cannot be run.
  *  The command starts as spawn_setup() says: clean signals, no fd of the
- *  caller, stdin on /dev/null (up to 7.29.3 it read the caller's).
- *  Up to 7.29.3 it was popen() of the command with " 2>&1" appended, in a
- *  buffer of 4 KB that cut a longer command with nothing said, and the
- *  redirection took only the last command of a list.
+ *  caller, stdin on /dev/null, not the caller's. The command is passed
+ *  whole, of any length, and stdout and stderr of every command of a list
+ *  go to the output.
  *
  *  Its end is the end of its output: every process that still has the
  *  command's stdout or stderr holds it, a process left in the background
@@ -316,8 +318,8 @@ PUBLIC gbuffer_t *run_command(const char *command) // posix_spawn() of sh -c, sy
  *  Run the program `path` with `argv` and wait for its end. No shell: argv
  *  reaches the program as it is. The program starts as spawn_setup() says:
  *  no signal blocked, every one at its default, no fd of the caller but
- *  stdin, stdout and stderr. Up to 7.29.3 it inherited the caller's mask,
- *  ignores and every fd without O_CLOEXEC.
+ *  stdin, stdout and stderr, not the caller's mask, ignores or fds
+ *  without O_CLOEXEC.
  *
  *  Return the status of waitpid(2), 0 when the program exited with 0, or -1
  *  when it could not be run or waited for (logged).
@@ -429,23 +431,64 @@ PRIVATE void send_end_of_input(int master, BOOL line_open)
 }
 
 /***************************************************************************
+ *  Reap the command of pty_sync_spawn(): 1 when it ended (its status in
+ *  `status`, or 0 when the kernel reaped it: SIGCHLD at SIG_IGN, or a
+ *  handler that reaps, and waitpid() answers ECHILD), 0 when it runs yet
+ *  (with WNOHANG), -1 when it could not be waited for (logged)
+ ***************************************************************************/
+PRIVATE int reap_command(const char *command, pid_t pid, int *status, int flags)
+{
+    while(1) {
+        pid_t w = waitpid(pid, status, flags);
+        if(w == pid) {
+            return 1;
+        }
+        if(w == 0) {
+            return 0;
+        }
+        if(errno == ECHILD) {
+            *status = 0;    // reaped already: no status to read
+            return 1;
+        }
+        if(errno != EINTR) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "waitpid() FAILED",
+                "command",      "%s", command,
+                "pid",          "%d", (int)pid,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            return -1;
+        }
+    }
+}
+
+/***************************************************************************
  *  Run a command with /bin/sh -c in a pseudo terminal, and pass the
  *  caller's terminal to it and its output to the caller's, until it ends.
  *  The command starts with no signal blocked, every signal at its default
  *  and no fd of the caller but the terminal (clean_child_before_exec()).
  *
- *  At the end of the caller's stdin the command gets the end of its
+ *  The end of the caller's stdin reaches the command as the end of its
  *  terminal's input (send_end_of_input()), so `cat >/dev/null` ends. When
- *  the command ends, what it left in the terminal is passed on without
- *  waiting for a process it left in the background, the terminal is
- *  closed and the command reaped. 0 when it exited (whatever its exit
- *  code), -1 when it could not be run, was killed by a signal, or could
- *  not be followed (said).
+ *  stdin is a terminal each end typed there (ctrl+d) is passed, and its
+ *  input goes on reaching the command afterwards. Any other stdin ends
+ *  once: the command gets ONE end of input, so only its first reader of
+ *  the terminal sees it, and a second reader waits (a terminal has no end
+ *  that stays, as a pipe has).
  *
- *  Up to 7.29.3 the terminal was never closed (one fd per call), the
- *  command was not reaped when its terminal was read to its end before
- *  its exit was seen (a zombie, and -1 for a command that exited), and a
- *  command that read its stdin to the end never got it.
+ *  The end of the command is seen by a pidfd, so a process it left in the
+ *  background holding the terminal does not hold this call (without a
+ *  pidfd, the exit is looked for every 100 ms). Then what is left in the
+ *  terminal is passed on without waiting for such a process, the terminal
+ *  is closed and the command reaped.
+ *
+ *  0 when it exited (whatever its exit code; also when the kernel reaped
+ *  it, SIGCHLD at SIG_IGN, and its status is lost), -1 when it could not
+ *  be run, was killed by a signal, or could not be followed (said).
  ***************************************************************************/
 PUBLIC int pty_sync_spawn(
     const char *command
@@ -490,26 +533,40 @@ PUBLIC int pty_sync_spawn(
     /*
      *  Parent
      */
-    BOOL stdin_open = TRUE;
+    int pidfd = (int)syscall(SYS_pidfd_open, pid, 0);
+    if(pidfd < 0) {
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "pidfd_open() FAILED: the end of the command is looked for every 100 ms",
+            "command",      "%s", command,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    BOOL stdin_is_tty = isatty(STDIN_FILENO)? TRUE : FALSE;
+    BOOL stdin_open = (master != STDIN_FILENO)? TRUE : FALSE;  // the master is fd 0 when the caller has none
     BOOL line_open = FALSE;     // bytes passed to the command since its last newline
-    BOOL reaped = FALSE;
+    int reaped = 0;
     int status = 0;
     while(!reaped) {
-        fd_set read_fd;
-        FD_ZERO(&read_fd);
-        FD_SET(master, &read_fd);
-        if(stdin_open) {
-            FD_SET(STDIN_FILENO, &read_fd);
-        }
+        struct pollfd pfd[3] = {
+            {.fd = master,                          .events = POLLIN},
+            {.fd = stdin_open? STDIN_FILENO : -1,   .events = POLLIN},
+            {.fd = pidfd,                           .events = POLLIN}
+        };
 
-        if(select(master+1, &read_fd, NULL, NULL, NULL) < 0) {
+        int n = poll(pfd, 3, pidfd >= 0? -1 : 100);
+        if(n < 0) {
             if(errno == EINTR) {
                 continue;
             }
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "select() FAILED",
+                "msg",          "%s", "poll() FAILED",
                 "command",      "%s", command,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
@@ -518,7 +575,7 @@ PUBLIC int pty_sync_spawn(
             break;
         }
 
-        if(FD_ISSET(master, &read_fd)) {
+        if(pfd[0].revents) {
             char output;
             ssize_t x = read(master, &output, 1);   // read from program
             if(x > 0) {
@@ -529,23 +586,30 @@ PUBLIC int pty_sync_spawn(
             }
         }
 
-        if(stdin_open && FD_ISSET(STDIN_FILENO, &read_fd)) {
+        if(stdin_open && pfd[1].revents) {
             char input;
             ssize_t x = read(STDIN_FILENO, &input, 1);  // read from tty
-            if(x == 0 || (x < 0 && errno != EINTR && errno != EAGAIN)) {
-                stdin_open = FALSE;
-                send_end_of_input(master, line_open);
-            } else if(x > 0) {
+            if(x > 0) {
                 x = write(master, &input, 1);   // write to program
                 if(x > 0) {
                     line_open = (input != '\n')? TRUE : FALSE;
                 }
+            } else if(x == 0 && stdin_is_tty && !(pfd[1].revents & POLLHUP)) {
+                send_end_of_input(master, line_open);   // a ctrl+d: the terminal goes on
+                line_open = FALSE;
+            } else if(x == 0 || (errno != EINTR && errno != EAGAIN)) {
+                stdin_open = FALSE;
+                send_end_of_input(master, line_open);
             }
         }
 
-        if(waitpid(pid, &status, WNOHANG) == pid) {
-            reaped = TRUE;
+        reaped = reap_command(command, pid, &status, WNOHANG);
+        if(reaped < 0) {
+            break;  // Error already logged
         }
+    }
+    if(pidfd >= 0) {
+        close(pidfd);
     }
 
     /*
@@ -553,7 +617,17 @@ PUBLIC int pty_sync_spawn(
      *  it left in the background may hold the terminal open
      */
     int flags = fcntl(master, F_GETFL);
-    if(flags >= 0 && fcntl(master, F_SETFL, flags|O_NONBLOCK) == 0) {
+    if(flags < 0 || fcntl(master, F_SETFL, flags|O_NONBLOCK) < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "fcntl() FAILED: what the command left in its terminal is not passed on",
+            "command",      "%s", command,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    } else {
         char drain_buf[4096];
         ssize_t n;
         while((n = read(master, drain_buf, sizeof(drain_buf))) > 0) {
@@ -563,22 +637,11 @@ PUBLIC int pty_sync_spawn(
     }
     close(master);
 
-    while(!reaped) {
-        if(waitpid(pid, &status, 0) == pid) {
-            reaped = TRUE;
-        } else if(errno != EINTR) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "waitpid() FAILED",
-                "command",      "%s", command,
-                "pid",          "%d", pid,
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
-            return -1;
-        }
+    if(reaped < 0) {
+        return -1;
+    }
+    if(!reaped && reap_command(command, pid, &status, 0) < 0) {
+        return -1;  // Error already logged
     }
 
     return WIFEXITED(status)? 0 : -1;

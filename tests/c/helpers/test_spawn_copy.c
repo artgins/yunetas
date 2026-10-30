@@ -26,7 +26,9 @@
  *          (its first child reaped by the kernel) answers the pid and says
  *          no error. launch_daemon() from a caller with stdin and stdout
  *          closed says an exec failure. pty_sync_spawn() leaves no fd and no
- *          zombie, and passes the end of its stdin to the command.
+ *          zombie, and passes the end of its stdin to the command (each
+ *          ctrl+d of a terminal); it answers 0 with SIGCHLD at SIG_IGN, and
+ *          ends with its command, not with a process left in the background.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -39,6 +41,8 @@
 #include <signal.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <time.h>
+#include <pty.h>
 #include <yunetas.h>
 
 #define APP "test_spawn_copy"
@@ -591,6 +595,45 @@ PRIVATE int pty_stdin_end_in_a_line(void)
     return pty_sync_spawn("cat; echo; echo DONE") == 0? 0 : 1;
 }
 
+/***************************************************************************
+ *  pty_sync_spawn() with SIGCHLD at SIG_IGN: the kernel reaps the command,
+ *  waitpid() answers ECHILD, and that is the end of a command, not an error
+ ***************************************************************************/
+PRIVATE int pty_sigchld_ignored(void)
+{
+    struct sigaction ign;
+    memset(&ign, 0, sizeof(ign));
+    ign.sa_handler = SIG_IGN;
+    sigaction(SIGCHLD, &ign, NULL);
+    return pty_sync_spawn("true") == 0? 0 : 1;
+}
+
+/***************************************************************************
+ *  pty_sync_spawn() ends with its command, not with a process the command
+ *  left in the background that holds the terminal (3 s here)
+ ***************************************************************************/
+PRIVATE int pty_background_left(void)
+{
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    int r = pty_sync_spawn("(trap '' HUP; exec sleep 3) & sleep 0.2");
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    double secs = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec)/1e9;
+    if(r != 0) {
+        return 1;
+    }
+    return secs < 2.0? 0 : 2;
+}
+
+/***************************************************************************
+ *  pty_sync_spawn() with a terminal as stdin: each end of input typed there
+ *  (ctrl+d) reaches the command, so a second reader gets its own
+ ***************************************************************************/
+PRIVATE int pty_two_readers(void)
+{
+    return pty_sync_spawn("cat >/dev/null; echo A; cat >/dev/null; echo B") == 0? 0 : 1;
+}
+
 PRIVATE void test_pty_sync_spawn(void)
 {
     char file[PATH_MAX];
@@ -624,6 +667,45 @@ PRIVATE void test_pty_sync_spawn(void)
             ok_or_fail(0, "a pipe as the stdin of pty_sync_spawn()");
         }
     }
+    if(ftruncate(out, 0) == 0 && lseek(out, 0, SEEK_SET) == 0) {
+        r = run_in_child(pty_sigchld_ignored, devnull, out, 10);
+        wait_and_read(file, text, sizeof(text));
+        if(r != 0 || strstr(text, "FAILED")) {
+            printf("     the child answered %d, said: %s\n", r, text);
+        }
+        ok_or_fail(r == 0 && strstr(text, "FAILED") == NULL,
+            "pty_sync_spawn() with SIGCHLD ignored: answers 0 and says no error");
+    }
+
+    if(ftruncate(out, 0) == 0 && lseek(out, 0, SEEK_SET) == 0) {
+        r = run_in_child(pty_background_left, devnull, out, 10);
+        if(r != 0) {
+            printf("     the child answered %d\n", r);
+        }
+        ok_or_fail(r == 0,
+            "pty_sync_spawn(): ends with its command, not with a process it left in the background");
+    }
+
+    if(ftruncate(out, 0) == 0 && lseek(out, 0, SEEK_SET) == 0) {
+        int tty_master = -1;
+        int tty_slave = -1;
+        if(openpty(&tty_master, &tty_slave, NULL, NULL, NULL) == 0) {
+            const char typed[] = "abc\n\x04\x04";    // a line, then ctrl+d twice
+            ssize_t w = write(tty_master, typed, sizeof(typed) - 1);
+            r = run_in_child(pty_two_readers, tty_slave, out, 10);
+            close(tty_slave);
+            close(tty_master);
+            wait_and_read(file, text, sizeof(text));
+            if(r != 0) {
+                printf("     the child answered %d\n", r);
+            }
+            ok_or_fail(w == (ssize_t)sizeof(typed) - 1 && r == 0 && strstr(text, "A") && strstr(text, "B"),
+                "pty_sync_spawn(): with a terminal as stdin, each ctrl+d reaches the command");
+        } else {
+            ok_or_fail(0, "a terminal as the stdin of pty_sync_spawn()");
+        }
+    }
+
     close(out);
     close(devnull);
     unlink(file);

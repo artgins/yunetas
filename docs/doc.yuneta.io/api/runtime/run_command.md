@@ -168,11 +168,26 @@ a byte like any other. Up to 7.29.3 the end of stdin was read again at once,
 for ever, and each time one byte that was never read went to the command:
 about 500 000 bytes a second, and never the end.
 
-When the command ends, what it left in the terminal is passed on without
-waiting for a process it left in the background, the terminal is closed,
-and the command is reaped. Up to 7.29.3 the terminal was never closed (one
-fd per call), and a command whose terminal was read to its end before its
-exit was seen was not reaped (a zombie) and answered `-1`.
+When the caller's stdin is a terminal, each ctrl+d typed there is passed
+on, and what is typed after it goes on reaching the command. Any other
+stdin ends once, and so the command gets one end of input: a terminal has
+no end that stays, as a pipe has. Only the first reader of the terminal
+sees it, and a second one waits. With `abc` and a newline on a pipe,
+`cat >/dev/null; echo A; cat >/dev/null; echo B` prints `A` and waits;
+typed on a terminal, a second ctrl+d gets to `B`.
+
+The call ends with the command, not with a process the command left in the
+background: the exit is seen by a pidfd (`pidfd_open()`), so
+`(trap '' HUP; exec sleep 3) & sleep 0.2` takes 0.2 s, not 3 s. Without a
+pidfd (a kernel older than 5.3) a WARNING says so and the exit is looked
+for every 100 ms. Then what the command left in the terminal is passed on
+without waiting for such a process, the terminal is closed, and the
+command is reaped. Up to 7.29.3 the terminal was never closed (one fd per
+call), and a command whose terminal was read to its end before its exit
+was seen was not reaped (a zombie) and answered `-1`.
+
+With `SIGCHLD` at `SIG_IGN` in the caller the kernel reaps the command and
+its exit status is lost: the call answers `0` and logs nothing.
 
 ```C
 int pty_sync_spawn(const char *command);
@@ -186,5 +201,6 @@ int pty_sync_spawn(const char *command);
 
 **Returns**
 
-`0` when the command exited, whatever its exit code; `-1` when it could
-not be run, was killed by a signal, or could not be followed (logged).
+`0` when the command exited, whatever its exit code (also when the kernel
+reaped it, with `SIGCHLD` ignored); `-1` when it could not be run, was
+killed by a signal, or could not be followed (logged).

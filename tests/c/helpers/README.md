@@ -293,7 +293,13 @@ with a 10 s limit: three calls answer 0 and leave no fd and no zombie
 (7.29.3: one fd per call), and a command that reads its stdin to the end
 ends when the caller's stdin ends, after a line ended or not (`cat
 >/dev/null; echo DONE` with stdin `/dev/null`, and `abc` with no newline
-through a pipe; 7.29.3: never).
+through a pipe; 7.29.3: never). With `SIGCHLD` at `SIG_IGN` it answers 0
+and logs no error (7.29.3 read a status that `waitpid()` never wrote); with
+`(trap '' HUP; exec sleep 3) & sleep 0.2` it ends in under 2 s (7.29.3: 3
+s, held by the process left in the background); and with a terminal as
+stdin carrying `abc`, a newline and two ctrl+d, both readers of `cat
+>/dev/null; echo A; cat >/dev/null; echo B` get their end (7.29.3: not
+even the first).
 
 `test_replace_string` covers `replace_string()`, written again after 7.28.4
 on gbmem: every occurrence replaced left to right without overlaps (`"aaa"`,
