@@ -2129,7 +2129,7 @@ PRIVATE json_t *switch_scenario(BOOL with_off, const char *on_yuno)
         "id", SW_SCENARIO,
         "node", AGENT_HOST,
         "yunos",
-            "key", "sim", "id", "pp1", "service", "sim_controllers", "switch", jn_switch,
+            "key", "sim", "id", "pp1", "service", "sim_fleet", "switch", jn_switch,
             "key", "gate", "id", "2120",
         "actions",
             "start", "yuno", "gate", "command", "play-yuno",
@@ -2215,8 +2215,8 @@ PRIVATE int test_switch(hgobj gobj, hgobj client)
         -1, "yuno 'gate' has no switch", "on of a yuno with no switch is refused");
 
     const char *on_lines[] = {
-        "command-yuno id=pp1 service=sim_controllers command=set-controllers controllers=5",
-        "command-yuno id=pp1 service=sim_controllers command=resume-generation",
+        "command-yuno id=pp1 service=sim_fleet command=set-controllers controllers=5",
+        "command-yuno id=pp1 service=sim_fleet command=resume-generation",
         0
     };
     ret += run_serial(gobj, client, "on", "sim", on_lines, "on sends its steps in order, to its yuno");

@@ -4608,7 +4608,7 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  the description of its FIRST version for the rest of its life while
      *  its content changed underneath -- and `list-configs` shows that column,
      *  which is where an operator reads what a config row is for. Found on
-     *  e.com, where the webstats row still announced "1: initial load" after
+     *  a staging node, where the webstats row still announced "1: initial load" after
      *  its content had stopped reading the openresty tree.
      *
      *  Set unconditionally, exactly as create-config does: a content with no

@@ -138,8 +138,8 @@ static int test_round_trips(void)
 
     /*  The one that broke: a dict keyed by a yuno id. */
     round_trip("numeric key (a yuno id)",
-        "{\"1630\":{\"role\":\"db_history_co\"}}",
-        "{\"1630`role\":\"db_history_co\"}");
+        "{\"1630\":{\"role\":\"db_history\"}}",
+        "{\"1630`role\":\"db_history\"}");
     round_trip("numeric keys, several",
         "{\"1620\":1,\"1630\":2,\"0\":3}", "{\"1620\":1,\"1630\":2,\"0\":3}");
 

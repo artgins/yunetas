@@ -786,7 +786,7 @@ PRIVATE json_t *cmd_list_reports(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *
  *  And it does not heal.  Once `<path>` is empty, `notifempty` skips it, so
  *  the rotation is never attempted again: one lost signal costs the rest of
- *  the life of the node.  It cost eight days on yunovatios-central, found by
+ *  the life of the node.  It cost eight days on a Rocky 9 test node, found by
  *  someone listing the directory.
  *
  *  The signature is exact and needs no history: after a healthy rotation the
@@ -3738,7 +3738,7 @@ PRIVATE int complete_run(hgobj gobj)
  *  (RFC 5321), and this report is one single line of 40 KB. A relay is
  *  entitled to fold it, and OVH does: it inserts CRLF+space every ~1000
  *  bytes, in the middle of whatever is there. The first mail sent from
- *  e.com arrived with "&Delta;" split into "& Delta;", a row label reading
+ *  a staging node arrived with "&Delta;" split into "& Delta;", a row label reading
  *  "cl ients", a path reading "ac cess.log", and a "<td" cut in half, which
  *  stops being a tag and prints as text in the middle of a table.
  *
@@ -4371,7 +4371,7 @@ PRIVATE gbuffer_t *build_html_report(hgobj gobj, json_t *report)
 
         /*
          *  Most traffic first, and capped. The names come from the Host
-         *  header, so anybody can invent one: the first mail from e.com
+         *  header, so anybody can invent one: the first mail from a node
          *  listed 52 rows in hash order, half of them forged names with one
          *  request each, and the vhosts that matter were scattered among
          *  them.

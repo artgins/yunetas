@@ -10,7 +10,7 @@
  *          C_TCP let a second TLS write start while the first was still
  *          in flight; a short write then had its remainder sent AFTER
  *          the second one and the peer failed the record MAC ("bad
- *          record mac"). Seen in yunovatios' stress test on the central.
+ *          record mac"). Seen in an application's stress test on its central.
  *
  *          The client's C_TCP must end with max_tx_in_progress == 1: that
  *          is the rule the fix establishes, checked without depending on

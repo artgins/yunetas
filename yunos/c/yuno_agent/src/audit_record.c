@@ -4,7 +4,7 @@
  *          What the agent writes to its audit file for one command.
  *
  *          Up to 7.25.4 the record was the command, the date and the WHOLE
- *          kw. On wattyzer that was 0.6-1.2 GB on every deploy day: an
+ *          kw. On a staging node that was 0.6-1.2 GB on every deploy day: an
  *          install-binary carries the binary as base64 (43 MB for a 32 MB
  *          yuno) THREE times -- in the command text (ycommand puts
  *          `content64=...` inside it), in kw.__command__ and in the

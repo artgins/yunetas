@@ -1,5 +1,5 @@
 {
-    "command": "command-yuno id=1911 service=treedb_authzs command=create-node topic_name=users record='{\"id\":\"carlos4@mussss.es\"}'",
+    "command": "command-yuno id=1911 service=treedb_authzs command=create-node topic_name=users record='{\"id\":\"user4@example.com\"}'",
     "_kw": {},
     "ignore_fail": true,
     "filter": ["result", "data"],
@@ -9,7 +9,7 @@
         {
             "result": 0,
             "data": {
-                "id": "carlos4@mussss.es",
+                "id": "user4@example.com",
                 "roles": [],
                 "disabled": false,
                 "properties": {},
@@ -20,7 +20,7 @@
 
 
 {
-    "command": "command-yuno id=1911 service=treedb_authzs command=delete-node topic_name=users record='{\"id\":\"carlos4@mussss.es\"}'",
+    "command": "command-yuno id=1911 service=treedb_authzs command=delete-node topic_name=users record='{\"id\":\"user4@example.com\"}'",
     "_kw": {},
     "ignore_fail": true,
     "filter": ["result", "data"],
@@ -30,7 +30,7 @@
         {
             "result": 0,
             "data": {
-                "id": "carlos4@mussss.es",
+                "id": "user4@example.com",
                 "roles": [],
                 "disabled": false,
                 "properties": {},

@@ -13,7 +13,7 @@ nothing but the count of what it read.
     python3 check_store_schemas.py                    # every store under /yuneta/store
     python3 check_store_schemas.py /yuneta/store/x    # one store, or several dirs
     python3 check_store_schemas.py --list-ids-gobj tranger_x <dir>   # see LIST below
-    python3 check_store_schemas.py --list-ids-yuno db_history_ce^1620 <dir>
+    python3 check_store_schemas.py --list-ids-yuno db_history^1620 <dir>
 
 It needs nothing but python3, so it runs on a node with no SDK sources:
 installed with the packages under /yuneta/development/yunetas/tools/treedb/,
@@ -48,8 +48,8 @@ LEVEL, by what the SDK does at the open:
                 holds the yuno that opens the store (`<role>^<name>`, after
                 7.27.10) and the gclass and the name of the gobj that owns the
                 tranger, which no file says; it is ESTIMATED with a yuno of 32
-                bytes (longer than the yunos of our nodes: `db_history_ce^1620`
-                is 18), or the one given with --list-ids-yuno (an empty one for
+                bytes (longer than the yunos of our nodes: `db_history^1620`
+                is 15), or the one given with --list-ids-yuno (an empty one for
                 an SDK up to 7.27.10), and with C_TRANGER and `tranger_<treedb>`
                 (the name C_TREEDB gives it), or the name given with
                 --list-ids-gobj

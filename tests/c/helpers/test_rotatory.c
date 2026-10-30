@@ -452,7 +452,7 @@ PRIVATE void test_size_limit_in_bytes(void)
  *
  *  Up to 7.25.4 each size rotation renamed the file to .OLD and removed
  *  the previous .OLD: on a day that crossed the limit twice, the first
- *  part of the day was deleted (the agent audit of wattyzer lost the
+ *  part of the day was deleted (the agent audit of a staging node lost the
  *  mornings of 22 and 23 September 2026 this way).
  ***************************************************************************/
 PRIVATE void test_keep_all_old(void)

@@ -8,8 +8,8 @@
  *  watcher is full (fs.inotify.max_queued_events), further events are
  *  dropped and an IN_Q_OVERFLOW says so. Up to 7.25.8 fs_watcher then
  *  aborted the yuno to reload clean; under a sustained burst the reload met
- *  the next overflow and a follower lived in a crash loop (yunovatios'
- *  stress test of its central: five aborts in two hours). Now the watcher
+ *  the next overflow and a follower lived in a crash loop (an
+ *  application's stress test of its central: five aborts in two hours). Now the watcher
  *  sets its watches again and the follower rebuilds the feed from the
  *  filesystem: what the lost events said is still there.
  *

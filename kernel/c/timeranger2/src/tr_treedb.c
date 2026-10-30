@@ -427,7 +427,7 @@ PRIVATE BOOL __peer_data__ = FALSE;
 /*
  *  The publication of a change: its subscribers run as a C caller, not
  *  inside the peer's window -- a subscriber that writes another treedb
- *  (db_history_ce -> C_AUTHZ) kept the ERRORs of its own contract.
+ *  (db_history -> C_AUTHZ) kept the ERRORs of its own contract.
  */
 static inline int run_treedb_callback(
     treedb_callback_t treedb_callback,

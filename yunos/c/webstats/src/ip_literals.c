@@ -18,7 +18,7 @@
  *  digits), and in a report full of addresses marked "banned" that is
  *  enough for it to accept the mail (250 queued) and deliver it to NOBODY
  *  -- no bounce, no Junk, not at gmail or outlook either. Found on
- *  2026-09-30, bisecting wattyzer's report of 2026-09-29 down to one row
+ *  2026-09-30, bisecting a staging node's report of 2026-09-29 to one row
  *  of Top clients. Google Cloud addresses start with 34, so it comes back.
  *  Proven on the relay: [34.140.132.132] and 34.140.132.132/32 pass, and
  *  so does a middle dot; 34[.]140[.]132[.]132 -- the usual defang -- does

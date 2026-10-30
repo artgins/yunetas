@@ -87,7 +87,7 @@ if(args.msgfile) {
         reactivePower: 8.0,
         factor: 0.21,
         current: 0.035,
-        yuno: "C_GATE_ENCHUFE^gate_enchufe"
+        yuno: "C_GATE_PLUG^gate_plug"
     };
 }
 

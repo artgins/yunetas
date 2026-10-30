@@ -11,7 +11,7 @@
  *  OWNS its default and decrefs it when it finds the field. A boolean default
  *  is a jansson singleton and never noticed; a string or an integer was freed
  *  after the first message that carried its field, and the next one logged
- *  "BAD json_decref()" (the alarms msg2db of yunovatios, schema 2: the yuno
+ *  "BAD json_decref()" (the alarms msg2db of an application, schema 2: the yuno
  *  corrupted its heap and was relaunched).
  *
  *  What this test pins, through an append run and a load run:

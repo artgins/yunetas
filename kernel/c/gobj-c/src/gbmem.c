@@ -345,7 +345,7 @@ PUBLIC void print_track_mem(void)
      *  if a handler holds one block per line. The report is what was busy
      *  at THIS instant and nothing the report itself allocates.
      *
-     *  Measured 2026-09-20 while chasing db_history_ce: this guard did NOT
+     *  Measured 2026-09-20 while chasing a db_history: this guard did NOT
      *  change that yuno's count (1207 before and after), so what it reports
      *  there was already busy when the walk began. The guard closes the
      *  hazard, it does not explain that case.

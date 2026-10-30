@@ -2805,8 +2805,9 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
          *  in long-lived stdin-pipe mode the operator has already typed /
          *  piped every line — clearing the queue silently turns a single
          *  "already exists" into a half-applied deploy (real case: the
-         *  7.4.3 wattyzer deploy lost find-new-yunos + deactivate-snap
-         *  because an install-binary returned -1 for an existing slot).
+         *  7.4.3 deploy of an application lost find-new-yunos +
+         *  deactivate-snap because an install-binary returned -1 for an
+         *  existing slot).
          *  In pipe mode every line behaves as ignore-fail by default;
          *  the explicit '-' prefix path stays for explicit semantics.
          */

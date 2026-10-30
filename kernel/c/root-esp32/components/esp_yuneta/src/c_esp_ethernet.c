@@ -592,7 +592,7 @@ PRIVATE int ac_ethernet_link_up(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         NULL
     );
 
-    // TODO parece que recibe link up sin estar conectado el cable ethernet, ocurre en saniki
+    // TODO it seems to get link up with no ethernet cable plugged in; seen at a client installation
     // TODO paso la publicación de EV_ETHERNET_LINK_UP a cuando se recibe la ip
     // gobj_publish_event(gobj, EV_ETHERNET_LINK_UP, json_incref(kw));
 
