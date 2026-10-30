@@ -83,6 +83,10 @@
  *              zero and "now" name today, so a weekday after them is read
  *              ("0 days ago Mon"); "ago" with no count before it is no
  *              date ("5 (days) ago" was the 5th).
+ *          17. a long text is read in time that grows with its length, not
+ *              with its square: "at", 20000 comments, "on" and 20000 "the"
+ *              took seconds (the place after "at" was looked for again from
+ *              every piece).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1029,6 +1033,50 @@ PRIVATE void test_at_zero_counts_and_ago(void)
 }
 
 /***************************************************************************
+ *  17. A long hostile text is read in linear time: "at", 20000 comments,
+ *  "on" and 20000 "the" (140 KB) took about 2 s, because the piece right
+ *  after "at" was looked for again, past every comment, from each "the".
+ *  It is no date (no number in it), and must be refused well under a
+ *  second, also under a sanitizer.
+ ***************************************************************************/
+PRIVATE void test_long_hostile_text(void)
+{
+    const int n = 20000;
+    size_t size = 2 + (size_t)n*3 + 3 + (size_t)n*4 + 1;
+    char *text = gbmem_malloc(size);
+    if(!text) {
+        printf("FAIL no memory for the long text\n");
+        global_result += -1;
+        return;
+    }
+    char *p = text;
+    memcpy(p, "at", 2);
+    p += 2;
+    for(int i = 0; i < n; i++) {
+        memcpy(p, "(x)", 3);
+        p += 3;
+    }
+    memcpy(p, " on", 3);
+    p += 3;
+    for(int i = 0; i < n; i++) {
+        memcpy(p, " the", 4);
+        p += 4;
+    }
+    *p = 0;
+
+    int error = 0;
+    uint64_t timer = start_msectimer(500);
+    approxidate_careful(text, &error);
+    BOOL too_slow = test_msectimer(timer);
+    if(error != 1 || too_slow) {
+        printf("FAIL approxidate of a long text of %zu bytes: error %d (expected 1), %s\n",
+            strlen(text), error, too_slow? "500 ms passed" : "in time");
+        global_result += -1;
+    }
+    gbmem_free(text);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -1069,6 +1117,7 @@ int main(int argc, char *argv[])
     test_blanks_and_years_before_weekdays();
     test_comments_weekdays_and_at();
     test_at_zero_counts_and_ago();
+    test_long_hostile_text();
 
     gobj_end();
 

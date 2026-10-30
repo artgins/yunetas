@@ -255,6 +255,8 @@ version). A count of zero and `"now"` are today, so a weekday after them is
 read (`"0 days ago Mon"`, `"now Wed"`, refused by a development version), and
 `ago` with no count before it is no date (`"5 (days) ago"`, `"5 ago"`;
 7.29.3: the 5th).
+§17: a long hostile text is read in linear time (`"at"`, 20000 comments,
+`"on"`, 20000 `"the"`: about 2 s before, now refused well under 500 ms).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

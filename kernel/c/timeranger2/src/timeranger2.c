@@ -218,6 +218,15 @@ typedef struct {
 #define DATE_EPOCH_DIGITS   9
 
 /*
+ *  The longest text a time may be, in bytes. No date needs more ("Thu Oct
+ *  01 2026 10:00:00 GMT+0200 (Central European Summer Time)" is 66), and
+ *  a text that comes from a peer or a command line is read in time that
+ *  grows with its length: a longer one is refused, not read.
+ */
+#define TIME_TEXT_MAX       256
+#define TIME_TEXT_TOO_LONG  "a time text longer than 256 bytes"
+
+/*
  *  The base of a key whose old files were deleted, in its directory
  *  (tranger2_delete_key_files(), DESIGN-retention.md). No file id and no
  *  key starts with '.', so the name cannot be taken for either.
@@ -18549,6 +18558,9 @@ PUBLIC int tranger2_time_of_text(
 
     if(!text || !*text) {
         ret = 0;    // no time: no bound, no tkey value
+    } else if(strnlen(text, TIME_TEXT_MAX + 1) > TIME_TEXT_MAX) {
+        why_ = TIME_TEXT_TOO_LONG;
+        ret = -1;
     } else if(is_json_integer_text(text)) {
         errno = 0;
         long long v = strtoll(text, NULL, 10);
@@ -18607,6 +18619,12 @@ PUBLIC int tranger2_time_of_json_text(
         return -1;
     }
     const char *text = json_string_value(jn_text);
+    if(json_string_length(jn_text) > TIME_TEXT_MAX) {
+        if(why) {
+            *why = TIME_TEXT_TOO_LONG;
+        }
+        return -1;
+    }
     if(json_string_length(jn_text) != strlen(text)) {
         if(why) {
             *why = "a text with a NUL in it";

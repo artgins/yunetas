@@ -640,6 +640,7 @@ int tranger2_time_of_text(
 | Return | Text |
 |---|---|
 | `0`, `*value` `0` | `""`: no time (no bound, no tkey value). |
+| `-1`, *"a time text longer than 256 bytes"* | A text of more than 256 bytes, whatever it holds (also as a json string, in [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)). No date needs more, and the reader takes time that grows with the length of a text that may come from a peer: a 140 KB text of `"at"`, comments and `"the"` took it seconds. |
 | `0`, `*value` the integer | The text of a JSON integer, `-?(0|[1-9][0-9]*)`: `"5"`, `"-86400"`, `"-0"`, `"1761000000000"`. |
 | `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`, and with a decimal comma, `"1,5"`, `"10,5"`, `",5"`, `"5,"`. It is never read as a date. |
 | `-1`, *"a comma between digits, not a date"* | A comma between two digits among other words: `"1,5 days ago"`, `"1,5days ago"`, `"2026,10,01"`, `"10:00,5"`, `"1,5:29"`, `"yesterday 1,2026"`. `approxidate()` reads them as September 26 (1 and 5 days ago), January 10 of 2026, the 5th, the 1st at 05:29, September 30. Three commas of a date are kept: (1) the decimal comma of the seconds of a clock time, ISO 8601's (`"2026-10-01T10:00:00,500Z"`, `"10:00:00,5"`); (2) a comma that closes a date before its hour, a clock time or an hour with am/pm: `"2026-10-01,10:00"`, `"1 Oct 2026,10:00"`, `"01 10 2026,10:00"`, `"Oct 1,3 pm"`. What is before it must be a date, or the comma is refused: `"1 2,10:00"`, `"12 2026,10:00"`, `"2026,10:00"`, read as February 1, October 12 and the year 2026; (3) a comma between a day (1 or 2 digits) and a year (4 or 2 digits) after the name of a month: `"Oct 1,2026"`, `"Oct 1,26"`. Not when the number after the comma is a count: `"Oct 1,50 days ago"`, as `"1,5 days ago"` is refused. |
@@ -721,6 +722,7 @@ tranger2_time_of_text("Oct 1 at 10", FALSE, FALSE, &v, &why);             // -1,
 tranger2_time_of_text("Oct 1 at 24", FALSE, FALSE, &v, &why);             // -1, why "a text that is no date": no hour
 tranger2_time_of_text("at 5 Oct 2026 00:00:00 +0000", FALSE, FALSE, &v, &why);  // 0, v 1791158400
 tranger2_time_of_text("monday 10:00", FALSE, FALSE, &v, &why);            // -1, why "a text that is no date": which monday?
+tranger2_time_of_text(<a text of 300 bytes>, FALSE, FALSE, &v, &why);   // -1, why "a time text longer than 256 bytes"
 ```
 
 ---

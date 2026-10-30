@@ -668,6 +668,10 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     match_cond (from_t, to_t, from_tm, to_tm) and a text tkey -- one rule
     for both, the command parser's for an integer:
       - "" is no time: 0 (no bound; no tkey value).
+      - A text longer than 256 bytes is refused, whatever it holds (*why
+        "a time text longer than 256 bytes"): no date needs more, and the
+        reading takes time that grows with the length of a text that may
+        come from a peer.
       - The text of a JSON integer, -?(0|[1-9][0-9]*), is that integer, in
         the unit of its axis ("1761000000000" on a ms axis is milliseconds,
         "-5" a negative, relative bound).

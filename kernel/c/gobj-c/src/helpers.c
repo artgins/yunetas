@@ -7271,7 +7271,8 @@ typedef struct {
     BOOL today_said;        // "today" or "now": a day, as a date says one
     BOOL counted_back;      // a count back, of zero too ("0 days ago"), "yesterday", or a weekday
                             // back ("last friday"): a day counted from today
-    const char *after_at;   // the end of the last "at" (or "at the"): a number alone after it is no date
+    const char *after_at_piece; // the first piece after the last "at" (or "at the"), found once:
+                                // a number alone there is no date
 
     BOOL vague;             // a piece that is not an absolute date (refused by parse_date_basic)
     int understood;         // pieces that say something
@@ -7733,11 +7734,14 @@ PRIVATE BOOL month_follows(const char *p)
 
 /***************************************************************************
  *  Is the piece that `start` begins the first one after "at" (or "at
- *  the"), with only blanks or comments between them?
+ *  the"), with only blanks or comments between them? That piece is found
+ *  once, when "at" is read: looking for it again from every piece walked
+ *  the blanks and comments after "at" once per piece, and a long text
+ *  ("at", many comments, "on", many "the") took seconds.
  ***************************************************************************/
 PRIVATE BOOL right_after_at(date_reading_t *rd, const char *start)
 {
-    return (rd->after_at && skip_to_next_piece(NULL, rd->after_at) == start)? TRUE : FALSE;
+    return (rd->after_at_piece && rd->after_at_piece == start)? TRUE : FALSE;
 }
 
 /***************************************************************************
@@ -8422,12 +8426,12 @@ PRIVATE const char *read_word(date_reading_t *rd, const char *p)
         return end;
     }
     if(strcmp(word, "at") == 0) {
-        rd->after_at = end;
+        rd->after_at_piece = skip_to_next_piece(NULL, end);
         return end;
     }
     if(strcmp(word, "the") == 0) {
         if(right_after_at(rd, p)) {
-            rd->after_at = end;     // "Oct 1 at the 10" was 2010-10-01
+            rd->after_at_piece = skip_to_next_piece(NULL, end);  // "Oct 1 at the 10" was 2010-10-01
         }
         return end;
     }

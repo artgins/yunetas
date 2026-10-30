@@ -60,7 +60,9 @@
  *  with a blank or a mark and no comment are a number, refused (",
  *  1761000000", "_1761000000", as " 1761000000"); a count of zero and
  *  "now" are today ("0 days ago Mon", refused for a while); "ago" with no
- *  count before it is no date ("5 (days) ago" was the 5th).
+ *  count before it is no date ("5 (days) ago" was the 5th). A text longer
+ *  than 256 bytes is refused, whatever it holds: a long hostile one took
+ *  approxidate_careful() seconds.
  *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
@@ -944,6 +946,75 @@ PRIVATE int do_test(void)
                     On_Red BWhite, Color_Off, cases[i].text, ret, value, why? why : "",
                     cases[i].ret, cases[i].value);
                 result += -1;
+            }
+        }
+
+        /*
+         *  A text longer than 256 bytes is refused whatever it holds: 256
+         *  bytes of a date and blanks are a date, 257 are not, and nor is a
+         *  long hostile text (approxidate_careful() took seconds on
+         *  "at", 20000 comments, "on", 20000 "the")
+         */
+        {
+            char bf[300];
+            const char *date = "2026-10-01T00:00:00+0000";
+            for(int len = 256; len <= 257; len++) {
+                memset(bf, ' ', sizeof(bf));
+                memcpy(bf, date, strlen(date));
+                bf[len] = 0;
+                json_int_t v = -12345;
+                const char *w = NULL;
+                int r = tranger2_time_of_text(bf, FALSE, FALSE, &v, &w);
+                json_t *jn_text = json_string(bf);
+                json_int_t vj = -12345;
+                const char *wj = NULL;
+                int rj = tranger2_time_of_json_text(jn_text, FALSE, FALSE, &vj, &wj);
+                JSON_DECREF(jn_text)
+                BOOL ok = (len == 256)?
+                    (r == 0 && v == 1790812800 && rj == 0 && vj == 1790812800) :
+                    (r == -1 && w && strcmp(w, "a time text longer than 256 bytes") == 0 &&
+                        rj == -1 && wj && strcmp(wj, w) == 0);
+                if(!ok) {
+                    printf("%sERROR%s --> a time text of %d bytes: %d %" JSON_INTEGER_FORMAT
+                        " (%s), json %d (%s)\n",
+                        On_Red BWhite, Color_Off, len, r, v, w? w : "", rj, wj? wj : "");
+                    result += -1;
+                }
+            }
+
+            const int n = 20000;
+            size_t size = 2 + (size_t)n*3 + 3 + (size_t)n*4 + 1;
+            char *hostile = gbmem_malloc(size);
+            if(!hostile) {
+                printf("%sERROR%s --> no memory for the long text\n", On_Red BWhite, Color_Off);
+                result += -1;
+            } else {
+                char *p = hostile;
+                memcpy(p, "at", 2);
+                p += 2;
+                for(int i = 0; i < n; i++) {
+                    memcpy(p, "(x)", 3);
+                    p += 3;
+                }
+                memcpy(p, " on", 3);
+                p += 3;
+                for(int i = 0; i < n; i++) {
+                    memcpy(p, " the", 4);
+                    p += 4;
+                }
+                *p = 0;
+                json_int_t v = -12345;
+                const char *w = NULL;
+                uint64_t timer = start_msectimer(100);
+                int r = tranger2_time_of_text(hostile, FALSE, FALSE, &v, &w);
+                BOOL too_slow = test_msectimer(timer);
+                if(r != -1 || !w || strcmp(w, "a time text longer than 256 bytes") != 0 || too_slow) {
+                    printf("%sERROR%s --> a hostile time text of %zu bytes: %d (%s)%s\n",
+                        On_Red BWhite, Color_Off, strlen(hostile), r, w? w : "",
+                        too_slow? ", 100 ms passed" : "");
+                    result += -1;
+                }
+                gbmem_free(hostile);
             }
         }
 
