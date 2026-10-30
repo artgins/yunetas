@@ -340,7 +340,13 @@ access_token that is not a string"*. Two WARNINGs with no stack say it: one
 names the token and its type (*"👤BFF IdP answered a token that is not a
 string"*, `"type": "integer"`), and one is the answer of the 502 (*"👤BFF IdP
 answer refused"*, `"error_code": "auth_unexpected_error"`). A success with no
-access_token is refused the same way, with that second WARNING only. Every
+access_token is refused the same way, with that second WARNING only. So is
+a success whose body is not a JSON object, answered `502 auth_empty_response`:
+an empty body, text that is not JSON (a proxy's HTML page), or another JSON
+type (`[1, 2]`). Its `error` says which (*"Authentication service answered
+success with an empty body"*), and a body labelled `application/json` that
+does not parse also gets the WARNING of the HTTP parser (*"data of a peer is
+not json"*). Every
 other 5xx of the BFF is an ERROR (*"👤BFF server error"*). A lifetime
 (`expires_in`, `refresh_expires_in`) is a JSON integer or the text of one:
 `"expires_in": "300"` is read as 300, as some IdPs send it. Anything else

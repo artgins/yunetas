@@ -73,6 +73,8 @@ SDATA (DTP_INTEGER,     "access_token_len", SDF_RD, "0",    "If > 0, the access_
 SDATA (DTP_INTEGER,     "refresh_token_len",SDF_RD, "0",    "If > 0, the refresh_token is made exactly that long by lengthening its signature"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
 SDATA (DTP_DICT,        "body_patch",       SDF_RD, "{}",   "Keys set over the synthesised token envelope; a key whose value is null is removed from it (an answer with no refresh_token, a token of another type)"),
+SDATA (DTP_STRING,      "raw_content_type", SDF_RD, "",     "If non-empty, a token request is answered 200 with this Content-Type and `raw_body` as its bytes, written as they are (an empty body, a body that is not JSON, a JSON that is not an object)"),
+SDATA (DTP_STRING,      "raw_body",         SDF_RD, "",     "The body of a raw answer (see raw_content_type); empty: Content-Length 0"),
 SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, sent verbatim instead of the synthesised /.well-known body (lets a test return a body missing required endpoints — exercises save_oidc_discovery's failure path)"),
 SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
@@ -246,6 +248,52 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
 
 
+
+/***************************************************************************
+ *  A 200 whose Content-Type and body are written as they are, straight to
+ *  the transport below the http_sr child that delivered the request: the
+ *  http_sr only sends a body it can dump as json.
+ ***************************************************************************/
+PRIVATE void mk_send_raw(hgobj gobj, hgobj browser_src, const char *content_type,
+    const char *body)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t body_len = strlen(body);
+    gbuffer_t *gbuf = gbuffer_create(256 + body_len, 256 + body_len);
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_MEMORY,
+            "msg",      "%s", "mock-kc: no memory for a raw answer",
+            NULL
+        );
+        return;
+    }
+    gbuffer_printf(gbuf,
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %d\r\n\r\n",
+        content_type,
+        (int)body_len
+    );
+    if(body_len > 0) {
+        gbuffer_append(gbuf, (void *)body, body_len);
+    }
+
+    json_t *kw_tx = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
+    );
+    gobj_send_event(gobj_bottom_gobj(browser_src), EV_TX_DATA, kw_tx, gobj);
+    priv->st_responses_sent++;
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "mock-kc → %s: raw 200, %s, %d bytes",
+            gobj_short_name(browser_src), content_type, (int)body_len
+        );
+    }
+}
 
 /***************************************************************************
  *  Send a JSON response back to the http_sr child that delivered `src`.
@@ -697,6 +745,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                               : (status == 401) ? "401 Unauthorized"
                               : (status == 500) ? "500 Internal Server Error"
                                                 : "200 OK";
+
+        const char *raw_content_type = gobj_read_str_attr(gobj, "raw_content_type");
+        if(!empty_string(raw_content_type)) {
+            mk_send_raw(gobj, src, raw_content_type, gobj_read_str_attr(gobj, "raw_body"));
+            KW_DECREF(kw)
+            return 0;
+        }
 
         json_t *jn_body;
         if(status == 200) {

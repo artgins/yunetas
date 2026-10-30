@@ -1370,8 +1370,9 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
 }
 
 /***************************************************************************
- *  A success of the IdP whose content is refused (a token that is not a
- *  string, no access_token): 502 to the browser, logged as a WARNING
+ *  A success of the IdP whose content is refused (a body that is not a
+ *  JSON object, a token that is not a string, no access_token): 502 to
+ *  the browser, logged as a WARNING
  *  "👤BFF IdP answer refused" -- bad data of a peer, not a fault of the
  *  BFF. The caller has already said what in the answer is wrong, or says
  *  it in `error_msg`.
@@ -1812,11 +1813,23 @@ PRIVATE json_t *send_token_to_browser(
         STOP_TASK()
     }
 
-    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, KW_REQUIRED);
-    if(!jn_body) {
-        send_error_response(gobj, gobj_bottom_gobj(gobj), 502, status_str(502),
-            "auth_empty_response",
-            "Empty response from authentication service", cors_hdrs);
+    json_t *jn_body = json_object_get(kw, "body");
+    if(!json_is_object(jn_body)) {
+        char error_msg[128];
+        if(!jn_body) {
+            // Not labelled JSON (a gbuffer), or labelled and not JSON (the parser warned)
+            snprintf(error_msg, sizeof(error_msg),
+                "Authentication service answered success with a body that is not JSON");
+        } else if(json_is_string(jn_body) && empty_string(json_string_value(jn_body))) {
+            snprintf(error_msg, sizeof(error_msg),
+                "Authentication service answered success with an empty body");
+        } else {
+            snprintf(error_msg, sizeof(error_msg),
+                "Authentication service answered success with a body that is a JSON %s, "
+                "not an object", json_kind_name(jn_body));
+        }
+        send_idp_answer_refused(gobj, gobj_bottom_gobj(gobj),
+            "auth_empty_response", error_msg, cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }

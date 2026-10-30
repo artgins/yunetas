@@ -173,9 +173,10 @@ need it.
    ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
    The answer is data of a peer: a token that is not a string is refused
    (`502 auth_unexpected_error`, a WARNING naming its type and the WARNING
-   *"👤BFF IdP answer refused"* of the 502, no ERROR), and a lifetime that
-   is not a JSON integer or the text of one gets its default, with a
-   WARNING naming the value. A lifetime of 0 (Keycloak's offline token) is
+   *"👤BFF IdP answer refused"* of the 502, no ERROR), a body that is not a
+   JSON object (empty, not JSON, `[1, 2]`) is refused the same way as
+   `502 auth_empty_response`, and a lifetime that is not a JSON integer
+   or the text of one gets its default, with a WARNING naming the value. A lifetime of 0 (Keycloak's offline token) is
    a token with no expiry: its cookie gets no `Max-Age`.
 
 State and nonce are the SPA's responsibility — the BFF does not generate

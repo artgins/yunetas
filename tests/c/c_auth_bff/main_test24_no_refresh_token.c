@@ -2,17 +2,20 @@
  *          MAIN_TEST24_NO_REFRESH_TOKEN.C
  *
  *          Self-contained auth_bff test: an IdP that answers a success
- *          with no refresh_token, with a lifetime of 0, or with a token or
- *          a lifetime of another type; and a logout with no refresh_token
- *          cookie. Fourteen requests on one connection, one at a time; the
- *          driver (c_test24_no_refresh_token.c) says what each must get.
+ *          with no refresh_token, with a lifetime of 0, with a token or a
+ *          lifetime of another type, or with a body that is not a JSON
+ *          object; and a logout with no refresh_token cookie. Eighteen
+ *          requests on one connection, one at a time; the driver
+ *          (c_test24_no_refresh_token.c) says what each must get.
  *          The logs, in order: one WARNING for the two logins with no
  *          refresh_token (said once per process); for an access_token that
  *          is an integer and a refresh_token that is an object, a WARNING
  *          naming its type and the WARNING of the 502 (a fault of the
  *          peer, no ERROR); a WARNING for each lifetime that is not a
- *          number of seconds ("soon", 300.5, false), with its value. No
- *          ERROR.
+ *          number of seconds ("soon", 300.5, false), with its value; for a
+ *          body that is empty, a JSON array, or not JSON, the WARNING of
+ *          its 502 (auth_empty_response), after the WARNING of the HTTP
+ *          parser for a body labelled JSON that is not. No ERROR.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -280,7 +283,8 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         json_pack("[{s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s, s:s}]",
+                "{s:s, s:s, s:s}, {s:s, s:s, s:s}, {s:s, s:s, s:s}, "
+                "{s:s, s:s}, {s:s, s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}]",
             "msg",          "👤BFF IdP answered a login with no refresh_token: "
                             "its session cannot be refreshed, it ends with its "
                             "access_token (said once)",
@@ -311,7 +315,17 @@ static int register_yuno_and_more(void)
             "msg",          "👤BFF IdP answered a lifetime that is not a number "
                             "of seconds, its default is used",
             "key",          "refresh_expires_in",
-            "value",        "false"
+            "value",        "false",
+
+            "msg",          "👤BFF IdP answer refused",
+            "error_code",   "auth_empty_response",
+            "msg",          "👤BFF IdP answer refused",
+            "error_code",   "auth_empty_response",
+            "msg",          "data of a peer is not json",
+            "msg",          "👤BFF IdP answer refused",
+            "error_code",   "auth_empty_response",
+            "msg",          "👤BFF IdP answer refused",
+            "error_code",   "auth_empty_response"
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

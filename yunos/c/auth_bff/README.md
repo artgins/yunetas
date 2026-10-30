@@ -79,6 +79,17 @@ Set-Cookie: refresh_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict
 {"success": true, "username": "john", "email": "john@example.com", "expires_in": 300}
 ```
 
+**An IdP success that cannot be read** is answered `502` with a WARNING
+*"👤BFF IdP answer refused"*, not an ERROR: it is bad data of a peer. A token
+that is not a string, or no access_token: `auth_unexpected_error`. A body
+that is not a JSON object (empty, a proxy's HTML page, `[1, 2]`):
+`auth_empty_response`, whose `error` says which:
+
+```
+{"success": false, "error_code": "auth_empty_response",
+ "error": "Authentication service answered success with an empty body"}
+```
+
 **A lifetime of 0** (`"refresh_expires_in": 0`, the offline token of
 Keycloak) is a token with no expiry: its cookie has no `Max-Age`, a cookie of
 the browser session, and the answer says 0.

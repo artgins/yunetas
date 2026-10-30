@@ -22,6 +22,12 @@
  *            body_patch               (dict) keys set over the synthesized
  *                                             envelope; a null value removes
  *                                             its key
+ *            raw_content_type         (str)  if set, a token request gets a
+ *                                             200 with this Content-Type and
+ *                                             raw_body written as it is (an
+ *                                             empty body, text that is not
+ *                                             JSON, a JSON array)
+ *            raw_body                 (str)  the body of that raw answer
  *            latency_ms               (int)  if > 0, defer the response by
  *                                             this many ms via an internal
  *                                             C_TIMER child (single pending

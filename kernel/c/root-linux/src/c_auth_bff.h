@@ -87,7 +87,9 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *                                 or with a token that is not a string:
  *                                 logged as a WARNING, "IdP answer
  *                                 refused", data of a peer)
- *  auth_empty_response       502  IdP reply had no JSON body
+ *  auth_empty_response       502  IdP success whose body is not a JSON
+ *                                 object (empty, not JSON, another JSON
+ *                                 type): a WARNING, "IdP answer refused"
  *  auth_timeout              504  Watchdog fired, no reply in time
  *  token_too_large           500  IdP token does not fit in a browser
  *                                 cookie: its name and value pass 4096
