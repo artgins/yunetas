@@ -425,7 +425,8 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -481,7 +482,8 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
     return msg_iev_build_response(
         gobj,
         result,
-        json_sprintf("==> List consoles of agent22: '%s'", node_uuid()),
+        json_sprintf("%s: ==> List consoles of agent22: '%s'",
+            gobj_yuno_role_plus_name(), node_uuid()),
         0,
         jn_data, // owned
         kw  // owned
@@ -541,7 +543,8 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -561,7 +564,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What console name?"),
+            json_sprintf("%s: What console name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -571,7 +574,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What process?"),
+            json_sprintf("%s: What process?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -592,7 +595,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 gobj,
                 -1,
                 json_sprintf(
-                    "Too much opened consoles: %d",
+                    "%s: Too much opened consoles: %d", gobj_yuno_role_plus_name(),
                     (int)kw_size(priv->list_consoles)
                 ),
                 0,
@@ -615,7 +618,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Cannot open console: '%s'", name),
+                json_sprintf("%s: Cannot open console: '%s'", gobj_yuno_role_plus_name(), name),
                 0,
                 0,
                 kw  // owned
@@ -649,7 +652,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Console gobj not found: '%s'", name),
+                json_sprintf("%s: Console gobj not found: '%s'", gobj_yuno_role_plus_name(), name),
                 0,
                 0,
                 kw  // owned
@@ -662,7 +665,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Error opening console: '%s'", name),
+                json_sprintf("%s: Error opening console: '%s'", gobj_yuno_role_plus_name(), name),
                 0,
                 0,
                 kw  // owned
@@ -713,7 +716,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         0,
         0,
-        json_sprintf("Console opened: '%s'", name),  // owned
+        json_sprintf("%s: Console opened: '%s'", gobj_yuno_role_plus_name(), name),  // owned
         kw  // owned
     );
 }
@@ -733,7 +736,8 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -750,7 +754,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What console name?"),
+            json_sprintf("%s: What console name?", gobj_yuno_role_plus_name()),
             0,
             0,
             kw  // owned
@@ -762,7 +766,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Console not found: '%s'", name),
+            json_sprintf("%s: Console not found: '%s'", gobj_yuno_role_plus_name(), name),
             0,
             0,
             kw  // owned
@@ -786,7 +790,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
     return msg_iev_build_response(
         gobj,
         ret,
-        json_sprintf("Console closed: '%s'", name),
+        json_sprintf("%s: Console closed: '%s'", gobj_yuno_role_plus_name(), name),
         0,
         0, // owned
         kw  // owned
