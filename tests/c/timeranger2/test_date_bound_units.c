@@ -54,6 +54,14 @@
  *  number alone after "at" is an hour with no half of the day ("Oct 1 at
  *  10" was 2010-10-01).
  *
+ *  After "at" (or "at the") no number alone is a date, of any value ("Oct
+ *  1 at 24" was 2024-10-01, "at 10.30" October 30), but a day before a
+ *  month name is ("at 5 Oct 2026", refused for a while); epoch seconds
+ *  with a blank or a mark and no comment are a number, refused (",
+ *  1761000000", "_1761000000", as " 1761000000"); a count of zero and
+ *  "now" are today ("0 days ago Mon", refused for a while); "ago" with no
+ *  count before it is no date ("5 (days) ago" was the 5th).
+ *
  *  The tools: tr2search -r and tr2list -r list, topic by topic,
  *  what each lists on that topic alone. Up to 7.29.3 tr2search handed every topic one
  *  match_cond, and the open of the first wrote the date into it in ITS
@@ -889,6 +897,13 @@ PRIVATE int do_test(void)
             {"1761000000 (UTC) 5",          FALSE,  FALSE,  -1, 0},
             {"1761000000 1761000000",       FALSE,  FALSE,  -1, 0},
             {"99999999 (UTC)",              FALSE,  FALSE,  -1, 0},
+            {", 1761000000 (UTC)",          FALSE,  FALSE,   0, 1761000000},
+            /*  With no comment, epoch seconds and a blank or a mark are numbers  */
+            {" 1761000000",                 FALSE,  FALSE,  -1, 0},
+            {", 1761000000",                FALSE,  FALSE,  -1, 0},
+            {"_1761000000",                 FALSE,  FALSE,  -1, 0},
+            {". 1761000000",                FALSE,  FALSE,  -1, 0},
+            {"1761000000_",                 FALSE,  FALSE,  -1, 0},
             /*  A weekday names a day the text must say  */
             {"monday 10:00",                FALSE,  FALSE,  -1, 0},
             {"10:00 monday",                FALSE,  FALSE,  -1, 0},
@@ -904,6 +919,19 @@ PRIVATE int do_test(void)
             {"Oct 1 2026 at 10",            FALSE,  FALSE,  -1, 0},
             {"Oct 1 2026 at 10 pm +0000",   FALSE,  FALSE,   0, 1790892000},
             {"Oct 1 2026 at 10:00 +0000",   FALSE,  FALSE,   0, 1790848800},
+            /*  ... and so is any number alone after "at", or "at the"  */
+            {"Oct 1 2026 at 24",            FALSE,  FALSE,  -1, 0},
+            {"Oct 1 at 30",                 FALSE,  FALSE,  -1, 0},
+            {"Oct 1 at 2026",               FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at the 10",        FALSE,  FALSE,  -1, 0},
+            {"Oct 1 2026 at 10.30",         FALSE,  FALSE,  -1, 0},
+            {"at 10.30",                    FALSE,  FALSE,  -1, 0},
+            /*  but a day before a month name  */
+            {"at 5 Oct 2026 00:00:00 +0000",  FALSE, FALSE,  0, 1791158400},
+            {"at 26 Oct 2026 00:00:00 +0000", FALSE, FALSE,  0, 1792972800},
+            /*  "ago" needs a count  */
+            {"5 (days) ago",                FALSE,  FALSE,  -1, 0},
+            {"5 ago",                       FALSE,  FALSE,  -1, 0},
         };
         for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
             json_int_t value = -12345;
@@ -948,6 +976,9 @@ PRIVATE int do_test(void)
             "Oct 1 10\vpm",
             "2\vdays ago",
             "2 (x) days ago",
+            "0 days ago Mon",
+            "zero days ago Mon",
+            "now Mon",
             NULL
         };
         for(int i = 0; dates_of_now[i]; i++) {

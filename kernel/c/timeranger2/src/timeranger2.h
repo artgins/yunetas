@@ -719,9 +719,11 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           name, only a month and a year of 4 digits ("1st 10 2026"; "5th
           2026", the 5th of a month the text does not say, and "5th 2",
           February 5, are refused). A number alone is no hour: "Oct 29 10"
-          is 2010-10-29; after "at" it is the hour a person means, with no
-          half of the day, and approxidate_careful() refuses it ("Oct 1 at
-          10", "at 3"; "Oct 1 at 10:00", "Oct 1 at 10 pm" are dates).
+          is 2010-10-29; after "at" (or "at the") a person means a time,
+          and approxidate_careful() refuses a number alone there, of any
+          value ("Oct 1 at 10", "at 3", "Oct 1 at 24", "Oct 1 at the 10",
+          "at 10.30"; "Oct 1 at 10:00", "Oct 1 at 10 pm" and "at 5 Oct
+          2026", a day before a month name, are dates).
         - A number that a unit, am/pm or a weekday follows is a count
           ("5 days", "3 pm", "3pm", "2 fridays"): it ends a run and is not
           in it, and the run before it must be a date, even of one number:
@@ -736,7 +738,9 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
           against the date: "Oct 5 2026 friday" is Monday, October 5.
         - Not refused: epoch seconds (9 digits or more, no leading zero)
           alone with a comment, "1761000000 (UTC)", "(EST) 1761000000",
-          as "1761000000 UTC" (refused for a while).
+          as "1761000000 UTC" (refused for a while). Without a comment a
+          blank or a mark about them leaves a number, refused as " 5" is:
+          " 1761000000", ", 1761000000", "_1761000000".
         A DOT between digits cannot be refused by its shape: "1.10 2026"
         and "01.10.2026" are dates (day.month), and only
         approxidate_careful() judges it.

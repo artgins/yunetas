@@ -18298,6 +18298,15 @@ PRIVATE BOOL digits_close_a_date(const char *s, const char *end)
 }
 
 /***************************************************************************
+ *  Has `s` a comment, a "(" closed by a ")"?
+ ***************************************************************************/
+PRIVATE BOOL text_has_comment(const char *s)
+{
+    const char *open = strchr(s, '(');
+    return (open && strchr(open, ')'))? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Has `s` digits that approxidate_careful() misreads as a date? `*why`
  *  says which:
  *
@@ -18344,7 +18353,9 @@ PRIVATE BOOL digits_close_a_date(const char *s, const char *end)
  *  "1700000000 +0000" (git's raw date, a sign inside) and "01.10.2026"
  *  are not of these shapes, and stay dates; nor are epoch seconds (9
  *  digits or more, no leading zero) alone with a comment, "1761000000
- *  (UTC)", refused for a while.
+ *  (UTC)", refused for a while. Without a comment they are a number with
+ *  a blank or a mark about it, and refused as " 1761000000" is
+ *  (is_number_shaped_text()): ", 1761000000", "_1761000000".
  ***************************************************************************/
 PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
 {
@@ -18497,7 +18508,8 @@ PRIVATE BOOL digits_are_no_date(const char *s, const char **why)
         }
         words++;
     }
-    if(words == 1 && !signed_first && !zero_first && lens[0] >= DATE_EPOCH_DIGITS) {
+    if(words == 1 && !signed_first && !zero_first && lens[0] >= DATE_EPOCH_DIGITS &&
+            text_has_comment(s)) {
         return FALSE;   // "1761000000 (UTC)", "(EST) 1761000000"
     }
     if(words > 0 && !(!signed_first && words == 3 &&
