@@ -246,6 +246,56 @@
   the last message before the operation whose cause they answer, as the
   deletes do. In 7.29.3 (those answers read `gobj_log_last_message()`
   directly).
+- **`C_PROT_HTTP_CL` form-urlencodes a form built from `data`, each key and
+  each value** (security fix). Unreserved bytes (RFC 3986) stay as they are,
+  a space becomes `+` and every other byte `%XX`; the values were written as
+  they were. A user with `+` in the mail, or `+`, `%` or `&` in the
+  password, could not log in, and a user could add parameters (`client_id`,
+  `grant_type`, `scope`) to a request the BFF signs with its
+  `client_secret`; a refresh_token cookie with `&` did the same at refresh
+  and logout. This hits C_AUTH_BFF (login, callback, refresh, logout) and
+  C_TASK_AUTHENTICATE. A `query` text is still sent as it is. **A caller
+  that encoded its `data` values itself must stop doing so.** In 7.29.3.
+  `c_prot_http_cl/test1`, `c_task_authenticate/test5_form_encoding`,
+  `c_auth_bff/test25`.
+- **An HTTP body over its limit is refused with ONE warning, not read on with
+  an ERROR flood.** `ghttp_parser` read every body up to the max block, and
+  each piece past it logged ERRORs with a stack (2 million for 10 MB in a
+  yuno of 16 MB). The body kept is now at most `max_body_size` (new
+  `C_PROT_HTTP_CL` attribute), never more than half the max block; over it
+  there is one warning (*"HTTP body larger than its limit, message
+  refused"*), a response gets `EV_ON_MESSAGE` with `body_too_large` and no
+  body, and the connection is dropped. `EV_ON_MESSAGE` also carries
+  `body_size`. C_AUTH_BFF reads at most 1 MB from the IdP and answers `502
+  auth_unexpected_error`. In 7.29.3. `c_auth_bff/test25`.
+- **C_AUTH_BFF refuses an IdP token with a byte a cookie value cannot
+  carry** (outside RFC 6265 cookie-octet): `502 auth_unexpected_error`, with
+  a WARNING naming the token, the position and the byte. The tokens were
+  written into `Set-Cookie` as they came: `; Domain=evil.com` added an
+  attribute, and a CR LF began a header, leaving the refresh cookie without
+  `HttpOnly`, `Secure` or `SameSite`. In 7.29.3. `c_auth_bff/test25`.
+- **C_AUTH_BFF: a logout with a refresh_token cookie needs exactly
+  `allowed_origin` too.** Another origin, none, `null` or a prefix gets `403
+  origin_not_allowed`, with no IdP call and no `Set-Cookie`; that path
+  ignored `Origin` while the path without the cookie checked it. In 7.29.3.
+  `c_auth_bff/test25`.
+- **C_AUTH_BFF reads a token cookie by the rule it writes by.** A cookie
+  whose name and value pass 4096 bytes gets `400 token_too_large` in
+  `/auth/refresh`, `/auth/logout` and `/auth/token` alike. 7.29.3 took such
+  cookies up to 8 KB and answered 401 above, as if absent (`/auth/token`
+  answers `400 token_too_large` now where it answered `401
+  missing_access_token`). `c_auth_bff/test25`.
+- **C_AUTH_BFF passes on a well-formed `Retry-After` of an IdP 429, and
+  exposes it to CORS.** Only delay-seconds or an IMF-fixdate is forwarded;
+  anything else is dropped with a WARNING. Every CORS answer carries
+  `Access-Control-Expose-Headers: Retry-After`, so an SPA on another origin
+  can read it. In 7.29.3. `c_auth_bff/test25`.
+- **C_AUTH_BFF answers pipelined requests in their order** (RFC 9112
+  §9.3.2). An answer known at once waits behind a request still at the IdP;
+  more than `pending_queue_size` waiting answers drop the connection with a
+  WARNING. A 400, 404 or 503 overtook IdP answers still queued (browsers do
+  not pipeline; other clients do). In 7.29.3. `c_auth_bff/test8_queue_full`,
+  `test25`.
 - **C_AUTH_BFF refuses a token whose cookie a browser would drop.** A
   browser keeps a cookie only when its name and value take at most 4096
   bytes (RFC 6265bis, the Set-Cookie algorithm; Chrome and Firefox drop a
@@ -262,7 +312,9 @@
   offline token (scope `offline_access`), meaning no expiry; the BFF wrote
   `Max-Age=0`, the browser deleted the cookie and the next refresh answered
   `401 missing_refresh_token` (and `"expires_in": 0` left no cookie at all).
-  A lifetime of 0 writes a cookie of the browser session (no `Max-Age`). In
+  A lifetime of 0 writes a cookie of the browser session (no `Max-Age`); the
+  OAuth2 / BFF guide says that a browser that restores its session (Chrome,
+  Firefox) can keep such a cookie, which matters for an offline token. In
   7.29.3. `c_auth_bff/test24`.
 - **C_AUTH_BFF: a logout with no `refresh_token` cookie ends the session in
   the browser, and only for a same-site request.** In 7.29.3 it answered
@@ -273,15 +325,16 @@
   (`SameSite=Strict` proves a same-site request) and, when `allowed_origin`
   is set, that exact `Origin` (another gets `403 origin_not_allowed`). A
   request with no cookie at all gets `200` with no `Set-Cookie`: there is
-  nothing to end, so a cross-site form cannot log a user out. A
-  `refresh_token` cookie of 4096 bytes or more is none the BFF wrote: `400
-  token_too_large` (it was taken as absent). `missing_refresh_token` is only
-  for `/auth/refresh`. In 7.29.3. `c_auth_bff/test19`, `test24`.
+  nothing to end, so a cross-site form cannot log a user out.
+  `missing_refresh_token` is only for `/auth/refresh`. In 7.29.3.
+  `c_auth_bff/test19`, `test24`.
 - **C_AUTH_BFF: an IdP success whose body is not a JSON object is a WARNING,
   not two ERRORs** (an empty body, a proxy's HTML page, `[1, 2]`): in 7.29.3
   it logged an ERROR with a stack from `kw_get_dict()` plus *"BFF server
   error"*. It is `502 auth_empty_response` with the WARNING *"BFF IdP answer
-  refused"* and an `error` naming the case. In 7.29.3.
+  refused"* and an `error` naming the case (an empty body only when it has
+  no byte: the JSON string `""` is called a JSON string). In 7.29.3.
+  `c_auth_bff/test24`, `test25`.
 - **C_AUTH_BFF keeps the browser's refresh_token when the IdP issues no new
   one.** An IdP success with no `refresh_token` wrote an empty refresh_token
   cookie over the good one, with nothing logged, and the next refresh
@@ -377,8 +430,10 @@
   1.2.7 to 1.3.0 and gui_treedb 1.1.3 to 1.1.6. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
-  the current libraries, a deadline on every call to the auth BFF, and a login
-  denial said in the language of the app.
+  the current libraries, a deadline on every call to the auth BFF, a login
+  denial said in the language of the app, and a session refresh that ends
+  the session on a final answer or after repeated answers that are not the
+  BFF's, retries a 429, and drops an answer of an earlier session.
 - **Docs and examples: one set of example ids.** The examples, tests and
   docs of the SDK, gobj-js, gobj-ui and yunos-js take their ids from one
   set: `db_history^7301`/`7302`, `gate_b^7401`, `gate_probe^7701`,
@@ -397,10 +452,19 @@
   (here, in `CLAUDE.md`, `kwid.c`/`kwid.h` and the kwid guide) says that a
   dict keyed by a yuno id N came back as an array of N+1 elements.
 - **gobj-js and gobj-ui tests**: the linearity of the secret masking is
-  checked by counting its work, not timing it (red for a 0.3x or a 2x
-  rescan on every shape, whatever the load; the suite runs in about 4 s
-  instead of 25), and the treedb fold model's extended-parent, tie-break,
-  double-mark and multivalued-fkey rules are tested, each with a mutant red.
+  checked twice. A count of its work (a tick in every function, loop and
+  expression-bodied arrow, and a model of what each native string, array,
+  typed-array, URI, JSON and regular-expression call reads, so one regex
+  pass counts 1.00000) catches a superlinear cost of 2% or more. A timing
+  in thread CPU time, in a process where no built-in is patched (15 x
+  256 KB against 3.75 MB, limit 1.5), catches what no count sees: a
+  backtracking regex inside one call, a `+=` string flattened later, an
+  allocation. A rescan costing 0.3x or 1x the masking at 1 MB fails on
+  nearly every shape, idle or with eight suites at once; an O(n log n) step
+  fails the count on purpose (the masking is linear, as in C). The suite
+  runs in about 15 s instead of 25. The treedb fold model's
+  extended-parent, tie-break, double-mark and multivalued-fkey rules are
+  tested, each with a mutant red.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -709,16 +773,21 @@
   fridays"` October 9. `"Oct 1 3 pm"` and `"1 Oct 3 pm"` are still read. In
   7.29.3.
 - **In a zone that skips a whole day, a day counted back onto that day is no
-  date, and the last noon that passed is the one of the day before.** Apia
-  skipped 2011-12-30. In 7.29.3 `"yesterday 12:30"` said on the 31st was the
-  31st at 12:30, after now, and `"yesterday noon"`, `"noon -1 day"` and
-  `"last friday noon"` were the 29th at 12:00. All are no date now, and
-  `"noon"` is the 29th at 12:00. A count of hours, minutes or seconds counts
-  no day: `"noon -2 hours"` and `"tea -30 minutes"` are the 29th at 10:00
-  and 16:30 (in 7.29.3 the 29th or the 31st at 10:00 depending on the text
-  read before). A date written in full keeps the step forward
-  (`"2011-12-30 12:00"` is the 31st at 12:00 +1400). Apia and Fakaofo are
-  tested.
+  date, the last noon that passed is the one of the day before, and none of
+  it depends on the text read before.** Apia skipped 2011-12-30. In 7.29.3,
+  on the 31st at 00:00, `"yesterday 12:30"`, `"noon"`, `"noon -2 hours"`,
+  `"tea -30 minutes"` and `"2011-12-30 12:00"` were on the 29th when read
+  first, and on the 31st after a text of the 29th (`"yesterday 12:30"` the
+  31st at 12:30, ahead of now): `mktime()` put a time of the skipped day on
+  the side of the change its last call had cached. `"yesterday noon"`,
+  `"noon -1 day"` and `"last friday noon"` were the 29th at 12:00 then, and
+  at 13:00 also the 31st after such a text. Now `"yesterday 12:30"`,
+  `"yesterday noon"`, `"noon -1 day"` and `"last friday noon"` are no date,
+  and `"noon"` is the 29th at 12:00. A count of hours, minutes or seconds
+  counts no day: `"noon -2 hours"` and `"tea -30 minutes"` are the 29th at
+  10:00 and 16:30. A date written in full is read as any time a change
+  skips: `"2011-12-30 12:00"` is 24 hours later, the 31st at 12:00 +1400.
+  Apia and Fakaofo are tested.
 - **A sign glued to the digits of a date with only a day before it is no
   zone, and with no clock time an offset outside -12:00..+14:00 is no
   date.** The reading of an offset after a day (unreleased) took
@@ -733,22 +802,63 @@
   of no zone in a comment is no date (`"2026-10-01 (UTC+15:00)"`, `"now
   (+1500)"`); 7.29.3 lost the comment's offset and read them in UTC or as
   now, while it already refused the same offsets written apart.
-- **The date reader calls `tzset()` only when `TZ` changed, and the limit of
-  its local reading is documented** (`approxidate_careful()`, and so
-  `tranger2_time_of_text()`, which reads a text tkey at every append). A
-  `TZ` changed with `setenv()` or `unsetenv()` alone is seen; a change of
-  `/etc/localtime` while the process runs is seen at its next `tzset()`, not
-  per text. Over 300k texts of 20 forms (20 alternated rounds, medians):
-  with `TZ` unset 187 ms in 7.29.3 (its `mktime()` called `tzset()` for each
-  local time) and 127 ms now, `tranger2_time_of_text()` 0.95 and 0.70 µs a
-  call; with `TZ` set 124 and 129 ms (0.68 and 0.74 µs), within the spread
-  of the runs (about ±22 ms). The reading is exact for a zone that never
+- **The date reader reads a text in the `TZ` of the process when the text
+  is read, whatever other code did before** (`approxidate_careful()`, and so
+  `tranger2_time_of_text()`, which reads a text tkey at every append). With
+  `TZ` set it calls `tzset()` at every text (glibc then compares `TZ` with
+  the text of its last load), so a `TZ` changed with `setenv()` alone is
+  seen, also after other code made libc load another zone (`localtime()`,
+  `mktime()` and `ctime()` call `tzset()` inside libc: a line of log does
+  it). With `TZ` unset `tzset()` looks at `/etc/localtime`, so the reader
+  calls it only when the last text was read with `TZ` set, or when the zone
+  libc holds (`tzname[]`, `timezone`, `daylight`) is not the one it held at
+  the end of the last text. A zone loaded that way with the same names and
+  offsets as the local one (`Europe/Paris` in a process of `Europe/Madrid`)
+  is not seen, and a change of `/etc/localtime` while the process runs is
+  seen at the next `tzset()` of the process, not per text. Over 300k texts
+  of 20 forms (20 alternated rounds on one CPU, medians): with `TZ` unset
+  166 ms in 7.29.3 (its `mktime()` called `tzset()` for each local time) and
+  117 ms now, `tranger2_time_of_text()` 0.86 and 0.69 µs a call; with `TZ`
+  set 110 and 125 ms (0.64 and 0.72 µs), of which the `tzset()` of each text
+  is about 20 ns; the rest of that difference goes to the release study. The reading is exact for a zone that never
   changes its offset twice in less than 48 hours (no tzdata zone since
   1970). A clock time with a zone and no date is of the day of now in that
   zone (`"02:30 CET"` at 00:30 CEST on 2026-10-25 is the 24th), as in
   7.29.3. `test_date_bound_units` reports each case it skips against the
   real clock and checks the zone of an offset; `test_date_text` counts
   `tzset()`.
+- **Epoch seconds glued to a minus sign are read, as with a plus sign**
+  (`approxidate_careful()`, `tranger2_time_of_text()`): `"1790000000-0500"`
+  and `"1790000000-05:00"` are that second, as `"1790000000+0200"` and
+  `"@1790000000-0500"` were. 7.29.3 refused them: the minus was taken as the
+  `-` of a date of numbers, and epoch seconds start none.
+  `test_date_text`, `test_date_bound_units`.
+- **A minus sign, a count and its unit after a clock time is a duration, as
+  without the sign** (`approxidate_careful()`, `tranger2_time_of_text()`):
+  `"10:00 -1d"`, `"10:00-1d"` and `"10:00 -1 day"` are yesterday at 10:00,
+  and `"2026-10-01 10:00 -1d"` and `"10:00 2026-10-01-1d"` September 30 at
+  10:00, as `"10:00 1d"` is. 7.29.3 refused them, the `-1` read as a zone.
+  With no unit it is still a zone (`"10:00 -0500"`). `test_date_text`,
+  `test_date_bound_units`.
+- **`gmtime2timezone()` gives the offset of the zone at the time it
+  converts, and keeps the `TZ` of the process when it cannot copy it.** It
+  returned, and wrote in `*offset`, the offset at the moment of the call: a
+  time of January in `Europe/Madrid` got +7200 in summer. Its copy of `TZ`
+  was a `strdup()`, and when that failed the `unsetenv()` at the end lost
+  the `TZ` of the process in silence. The copy is a `gbmem_strdup()` now;
+  when it fails, `TZ` is left as it was, the error is logged and the time is
+  taken in UTC. No caller in the SDK reads the offset or the return. In
+  7.29.3. `test_date_text`.
+- **`get_hours_range()`, `get_days_range()`, `get_weeks_range()`,
+  `get_months_range()` and `get_years_range()` give the bounds of the zone
+  asked, or of UTC with no zone, whatever the zone of the process.** They
+  built the bounds with `mktime()` in the zone of the process and
+  `tm_isdst` 0: with the process in `Asia/Tokyo` a day of `Europe/Madrid`
+  started at 00:00 in Tokyo, and with no zone a day of UTC started at the
+  midnight of the process (an hour late in summer). The bounds are read as
+  the date reader reads a local time (the day of a change of hour has 23 or
+  25 hours), and an hour is cut from `t` itself. `time2range` shows it. In
+  7.29.3. `test_date_text`.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
   bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text
