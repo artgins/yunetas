@@ -2042,7 +2042,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   deploy ONLY the affected binary -- the agent with `systemctl restart` of its
   unit (`--stop`/`--start` on a node without the units), one
   agent at a time and a `*.bak-pre-<version>` of the running one first; the
-  controlcenter as a new release of 1996/1997 on a.com. No rebuild of every
+  controlcenter as a new release of 1996/1997 on the company server. No rebuild of every
   yuno, no `sync-binaries` round over the nodes. **Why:** 7.25.13 changed only
   `yuno_agent` and `controlcenter`, and the full procedure (suite on two
   machines, packages, every yuno of every node rebuilt and upgraded) cost
