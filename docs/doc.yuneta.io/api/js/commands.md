@@ -10,7 +10,7 @@ description: >-
 A gclass declares its commands in a table, in the same way that it declares its
 attributes. Every descriptor is an `SDataDesc`, and the macros below build one.
 
-**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js)
+**Source code:** [`src/gobj.js`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js)
 
 The command table goes to [`gclass_create()`](js_gclass.md#js_gclass_create):
 
@@ -60,14 +60,14 @@ const gmt = {
 ## The descriptor
 
 (js_SDataDesc)=
-### [`SDataDesc`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L165)
+### [`SDataDesc`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L165)
 
 The class that holds one descriptor. Every macro below builds one of these, and
 each macro fills a different set of its fields. Build a descriptor with a macro
 and never with the constructor: the order of the fields is an internal detail.
 
 (js_SDATA_END)=
-### [`SDATA_END()`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L182)
+### [`SDATA_END()`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L182)
 
 The end of a table. Every table finishes with it.
 
@@ -76,7 +76,7 @@ The end of a table. Every table finishes with it.
 ## Commands
 
 (js_SDATACM)=
-### [`SDATACM(type, name, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L184)
+### [`SDATACM(type, name, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L184)
 
 Declares one command.
 
@@ -90,7 +90,7 @@ Declares one command.
 | `description` | The help line of the command. |
 
 (js_SDATACM2)=
-### [`SDATACM2(type, name, flag, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L185)
+### [`SDATACM2(type, name, flag, alias, items, json_fn, description)`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L185)
 
 Declares one command, and adds a `flag`. Use it when the command needs an
 authorization flag, such as `SDF_AUTHZ_X`.
@@ -100,7 +100,7 @@ authorization flag, such as `SDF_AUTHZ_X`.
 ## Parameters
 
 (js_SDATAPM)=
-### [`SDATAPM(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L186)
+### [`SDATAPM(type, name, flag, default_value, description)`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L186)
 
 Declares one parameter of a command. It takes the same shape as
 [`SDATA()`](js_attrs.md#js_SDATA).
@@ -146,7 +146,7 @@ gobj_command(gobj_remote_yuno, "list-rows", {service: "my_service", limit: "50"}
 :::
 
 (js_SDATAPM0)=
-### [`SDATAPM0(type, name, flag, authpth, description)`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L188)
+### [`SDATAPM0(type, name, flag, authpth, description)`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L188)
 
 Declares one parameter with an authorization path, and no default value.
 
@@ -155,7 +155,7 @@ Declares one parameter with an authorization path, and no default value.
 ## Authorizations
 
 (js_SDATAAUTHZ)=
-### [`SDATAAUTHZ(type, name, flag, alias, items, description)`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L187)
+### [`SDATAAUTHZ(type, name, flag, alias, items, description)`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L187)
 
 Declares one authorization of the gclass. The authorization table goes to
 [`gclass_create()`](js_gclass.md#js_gclass_create).
@@ -165,7 +165,7 @@ Declares one authorization of the gclass. The authorization table goes to
 ## Table columns
 
 (js_SDATADF)=
-### [`SDATADF(type, name, flag, header, fillspace, description)`](https://github.com/artgins/gobj-js/blob/7.29.3/src/gobj.js#L189)
+### [`SDATADF(type, name, flag, header, fillspace, description)`](https://github.com/artgins/gobj-js/blob/7.29.4/src/gobj.js#L189)
 
 Declares one column of a table of data. `header` is the title of the column, and
 `fillspace` is its part of the width. A schema of a command response uses these

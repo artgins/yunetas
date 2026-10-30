@@ -172,7 +172,8 @@
   stdin ends once (documented). The end of the command is seen by a pidfd
   in the main loop, so a process it left in the background no longer holds
   the call (`(trap '' HUP; exec sleep 3) & sleep 0.2` took 3 s, now 0.2 s;
-  without a pidfd the exit is looked for every 100 ms with a WARNING; a
+  without a pidfd the exit is looked for every 100 ms, with a WARNING at each
+  call when `pidfd_open()` fails and once per process when built without it; a
   command already reaped when its pidfd is opened is its end, with no
   WARNING; `SYS_pidfd_open` is defined where kernel headers lack it), and
   `poll()` replaces `select()`, whose `fd_set` overflowed above
@@ -247,15 +248,31 @@
   directly).
 - **C_AUTH_BFF refuses a token whose cookie a browser would drop.** A
   browser keeps a cookie only when its name and value take at most 4096
-  bytes (RFC 6265 §6.1; Chrome and Firefox drop a bigger one without a
-  word), and the limit was 8 KB: a token of 4 to 8 KB got a `200` whose
+  bytes (RFC 6265bis, the Set-Cookie algorithm; Chrome and Firefox drop a
+  bigger one without a word), and the limit was 8 KB: a token of 4 to 8 KB got a `200` whose
   cookie the browser dropped, and the WebSocket opened without a session,
   with nothing logged. An access_token over 4084 bytes or a refresh_token
   over 4083 gets `500 token_too_large`, with each size and limit. An IdP
   success with no access_token gets `502 auth_unexpected_error` (it was
-  `200 success` with empty cookies). The `Host` is compared whole (it was cut
-  to 255 bytes without a word), and a host name over 253 bytes gets no
-  `Domain`, with a WARNING. In 7.29.3. `c_auth_bff/test21`, `test23`.
+  `200 success` with empty cookies). A `Host` whose name
+  is over 253 bytes gets no `Domain`, with a WARNING whose `host_len` is the
+  length of the name in the request (it used to get the `Domain`). In 7.29.3. `c_auth_bff/test21`, `test23`.
+- **C_AUTH_BFF keeps the browser's refresh_token when the IdP issues no new
+  one.** An IdP success with no `refresh_token` wrote an empty refresh_token
+  cookie over the good one, with nothing logged, and the next refresh
+  answered `401 missing_refresh_token`. A refresh answered with no
+  `refresh_token` now sends no `Set-Cookie` for it, so the browser keeps its
+  own (RFC 6749 §6: the server MAY issue a new one); a login or callback
+  answered with none clears the cookie (`Max-Age=0`, so no token of an
+  earlier session stays) and answers `refresh_expires_in: 0`, with one
+  WARNING per process. In 7.29.3. `c_auth_bff/test24`.
+- **C_AUTH_BFF reads the IdP answer as data of a peer.** A token that is not
+  a string gave an ERROR with a stack from `kw_get_str()` (and a
+  wrong-typed refresh_token a `200` with an empty cookie); it is a WARNING
+  with no stack naming the token and its type, and `502
+  auth_unexpected_error`. A lifetime (`expires_in`, `refresh_expires_in`) is
+  a JSON integer or the text of one (`"300"`); anything else gets its
+  default with a WARNING. In 7.29.3.
 - **C_AUTH_BFF: a 502 or 429 goes out with its own HTTP status.**
   `status_str()` had no text for them, so `auth_service_unavailable`,
   `auth_unexpected_error`, `auth_empty_response` and `auth_rate_limited`
@@ -293,7 +310,8 @@
 - **`kill-yuno` goes on when a yuno cannot be killed.** It stopped at the
   first failure: the yunos already killed were not waited for, and the ones
   after it were not killed. Every yuno is tried now, and the answer is -1
-  and names each failure with its cause. In 7.29.3.
+  and names each failure with its cause, the error of `kill()` included
+  (*"7601 (Cannot kill yuno pid 4242: Operation not permitted (errno 1))"*). In 7.29.3.
 - **`kill-yuno` with SIGKILL no longer fails for a yuno it did kill.** A
   watcher that could not be signalled made the command answer *"Can't kill
   yuno: (see the log)"* and stop there, without waiting for the yuno it had
@@ -326,8 +344,9 @@
 - **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
-  1.1.2; then gobj-js 7.29.3, gobj-ui 7.29.5 and 7.29.6, gui_agent 1.2.7 and
-  1.2.8 and gui_treedb 1.1.3 and 1.1.4. The `yunetas` CLI 1.0.5 on PyPI. What each carries is in its own
+  1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.7, gui_agent
+  1.2.7 to 1.2.9 and gui_treedb 1.1.3 to 1.1.5. The `yunetas` CLI 1.0.5 and
+  1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, and a login
   denial said in the language of the app.
@@ -647,6 +666,33 @@
   (`"noon 1 day ago"` is yesterday's noon; before noon `"noon 24 hours ago"`
   the day before yesterday's), and `timeranger2.h` names the zone said
   beside the UTC offset of now. In 7.29.3.
+- **A count right after a month name, with no day in the text, is no
+  date**: `"Jan 1 pm"` was January 21 at 13:00 (today's day of the month),
+  `"Oct 1 pm"` today at 13:00, `"Oct 5 days ago"` October 16, `"Oct 2
+  fridays"` October 9. `"Oct 1 3 pm"` and `"1 Oct 3 pm"` are still read. In
+  7.29.3.
+- **In a zone that skips a whole day, a day counted back onto that day is no
+  date, and the last noon that passed is the one of the day before.** Apia
+  skipped 2011-12-30: `"yesterday 12:30"` said on the 31st was the 31st at
+  12:30, ahead of now (in 7.29.3). `"yesterday noon"`, `"yesterday 12:30"`
+  and `"last friday noon"` are refused, and `"noon"` is the 29th at 12:00;
+  a date written in full keeps the step forward (`"2011-12-30 12:00"` is the
+  31st at 12:00 +1400).
+- **A sign glued to the digits of a date is no zone, and with no clock time
+  an offset outside -12:00..+14:00 is no date.** The reading of an offset
+  after a day (unreleased) took `"2026-10-01-10:00"` as October 1 in a zone
+  of -10:00, `"2026.10-2026.10"` as the 11th and `"now-2026"` as a zone of
+  -20:26. A sign that touches digits is a zone only right after a clock time
+  (`"2026-10-01T10:00-05:00"`); write `"2026-10-01 -10:00"`.
+- **The date reader calls `tzset()`, and the limit of its local reading is
+  documented**: a `TZ` changed with `setenv()` alone was not seen (unreleased,
+  since the reader stopped using `mktime()`); the reading is exact for a zone
+  that never changes its offset twice in less than 48 hours, which no tzdata
+  zone does since 1970 (a POSIX `TZ` with one day of summer time is read an
+  hour late that day). A clock time with a zone and no date is of the day of
+  now in that zone (`"02:30 CET"` at 00:30 CEST on 2026-10-25 is the 24th),
+  as in 7.29.3, documented. `test_date_bound_units` reports each case it
+  skips against the real clock and checks the zone of an offset.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
   bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text
