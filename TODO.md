@@ -72,8 +72,8 @@ Severity in parentheses where one was assigned.
 ### Projects (code outside this repo)
 
 Moved to the TODO of each project on 2026-10-02: `msg2db_id_incomplete()` in
-the db_history alarms (four applications), and the url in `C_GATE_PVPC`'s logs
-(one application).
+the db_history alarms (four applications), and the url in the logs of an
+application's gate (one application).
 
 ---
 

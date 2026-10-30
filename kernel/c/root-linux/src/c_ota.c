@@ -231,7 +231,7 @@ PRIVATE int mt_start(hgobj gobj)
      *  Entry point can auto-start this.
      *  We only try to connect and download the firmware when url_ota attribute is written
      *  The url_ota must include the filename to download, example:
-     *          "https://esp.ota.mussss.yunetacontrol.com:9999/firmware-example-v1.0.bin"
+     *          "https://ota.example.com:9999/firmware-example-v1.0.bin"
      */
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
