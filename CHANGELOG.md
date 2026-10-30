@@ -67,6 +67,17 @@
   every yuno; `delete-realm` every realm with no yunos; `delete-public-service`
   every public service. Each refuses an empty id now (*"delete-X needs an id:
   without one it selects every X"*). In 7.29.3 and older.
+- **The watcher passes a stop to the child it waits for.** A SIGQUIT that
+  came after the watcher looked at the stop, after a fork, reached only the
+  watcher; `--stop` had listed the processes before that fork, so it killed
+  the child with SIGKILL 10 s later. The handler sends the SIGQUIT on to the
+  child. In 7.29.3 and older.
+- **A yuno blocks its signals from the first line of
+  `yuneta_entry_point()`.** With `--start` a SIGQUIT before the watcher sets
+  its signals is the stop, and nothing is launched; up to 7.29.3 a yuno
+  started by hand or by a systemd unit ended with a core dump.
+  `get_yuno_signal_set()` is the one definition of that set. In 7.29.3 and
+  older.
 - **A relaunched yuno starts with the signals its starter gave, like the
   first one.** Relaunched children inherited the watcher's `SIG_IGN` for
   SIGTERM, SIGINT, SIGALRM, SIGUSR1, SIGUSR2 and SIGPIPE, and its SIGQUIT
@@ -101,15 +112,36 @@
   nothing to the daemon; that child was never reaped (a zombie per call);
   the error pipe was read once without waiting, so an exec failure was
   missed unless it came first, and the daemon kept the pipe open. More than
-  255 arguments were cut with nothing said; now they are refused. In 7.29.3
-  and older.
+  255 arguments were cut with nothing said; now they are refused. A first
+  child reaped by somebody else (the caller's SIGCHLD at `SIG_IGN`) is not
+  an error. In 7.29.3 and older.
 - **`run_command()` takes the whole command and all of its stderr.** It is
   `posix_spawn()` of `/bin/sh -c` with stdout and stderr on its pipe. Up to
   7.29.3 it was `popen()` of the command with `2>&1` appended, in a 4 KB
   buffer: a longer command was cut with nothing said, and only the last
-  command of a list had its stderr taken. In 7.29.3 and older.
-- **watchfs: the command with the file name ran from a buffer out of scope,
-  and an empty `command` is said.** In 7.29.3 and older.
+  command of a list had its stderr taken. It returns when its output ends,
+  so a process left in the background with stdout or stderr on the pipe
+  holds it (`sleep 9 >/dev/null &` holds it 9 s; `>/dev/null 2>&1 &` does
+  not). An ERROR names the call that failed. In 7.29.3 and older.
+- **watchfs: an empty `command` is said, a command that does not fit is
+  refused, and `use_parameter` passes the file.** The command with the file
+  is checked at each step (the path, its quoting, the whole command of
+  16 KB): one that does not fit is not run, and an ERROR says so. Up to
+  7.29.3 a command longer than 4 KB ran cut with nothing said, a quoted path
+  that was cut lost its closing quote, and `use_parameter` gave the command
+  `'/'` instead of the last file that matched. In 7.29.3 and older.
+- **No program a yuno runs inherits its file descriptors, and
+  `run_command()` gives it `/dev/null` as stdin.** `run_process2()`,
+  `run_command()`, `launch_daemon()`, `pty_sync_spawn()` and the command of
+  `C_PTY` close every fd above stderr in the child (the new
+  `clean_child_before_exec()` does it in a forked child). Up to 7.29.3 every
+  program kept each fd of the yuno that had no `O_CLOEXEC` (a listening
+  socket, a log file), and the `run_command()` command read the caller's
+  stdin. In 7.29.3 and older.
+- **`pty_sync_spawn()` stops reading stdin at its end.** Up to 7.29.3 it read
+  stdin again at once, for ever, and wrote a byte never read to the command
+  each time (about 500 000 bytes a second). The `C_PTY` child leaves with
+  `_exit()`. In 7.29.3 and older.
 - **The watcher sets its signals before its first fork, unblocks SIGQUIT and
   ignores SIGHUP.** A SIGQUIT right after the first fork found the default
   disposition, ended the watcher and left the yuno an orphan; a SIGHUP ended
@@ -163,7 +195,13 @@
   agent22): `pong`, "Yuno not found", "Select some … please", the
   run/kill/play/pause counters, the console commands. An answer relayed by
   the control center, or mixed with other agents' answers, did not say which
-  agent gave it. In 7.29.3 and older.
+  agent gave it. One line when the `json_sprintf()` expression fits in 80
+  bytes, else broken after the format string. A delete the treedb refuses
+  says *"(see the log)"* when it logged no ERROR: the treedb refuses a
+  record with links with a WARNING, which does not fill the last message, so
+  `delete-realm`, `delete-public-service`, `delete-binary`, `delete-config`
+  and `delete-yuno` answered an empty cause, or the cause of an older,
+  unrelated failure. In 7.29.3 and older.
 - **A delete the agent's treedb refuses says which record, its cause, and
   what was deleted before it.** This covers `delete-binary` (count,
   directories left, files kept), `delete-config`, `delete-realm` and
@@ -182,6 +220,15 @@
   `whole=1` is refused: they are two deletes and the command does not guess
   (with a release other than the primary's it deleted only that one, with the
   primary's every release). In 7.29.3.
+- **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
+  make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
+  `conf/backend_config.js` that does not exist, required Direct Access
+  Grants off, put the BFF on 1801 and named error codes that are not in the
+  catalog. It now gives `/auth/login` (the password grant through the BFF,
+  used by gui_agent and gui_treedb) and `/auth/callback` (PKCE, served but
+  unused in-repo), the BFF port per SPA (1806/1807, 1808), session restore,
+  refresh with backoff and the opt-in `/auth/token`. The `auth_bff` README
+  and page say the same, and no comment cites a security check-list id.
 - **Docs:** the public examples name no private project, client, node or
   person, and nothing cites a private review. The scope examples of the
   control center (`c_authz.c`, `c_controlcenter.c`, its README and page), the
@@ -333,7 +380,10 @@
     - digits inside a comment (`"Oct 1 2026 (x 5 5 y)"`), and a clock time
       between a month and its day (`"Oct 10:00 1 2026"`);
     - epoch seconds alone with a comment (`"1761000000 (UTC)"`,
-      `"(EST) 1761000000"`; a development version refused them).
+      `"(EST) 1761000000"`; a development version refused them). Without a
+      comment a blank or a mark about them leaves a number, refused as
+      `" 1761000000"` is: `", 1761000000"`, `"_1761000000"` (a development
+      version took them as dates, and `" 1761000000"` not).
 
   A number alone is never an hour: `"Oct 29 10"` is 2010-10-29, as in
   7.29.3; after `at` it is, with no half of the day, and the reader refuses
@@ -372,14 +422,41 @@
   day, as a date (`"Thu, 01 Oct 2026"`) or counted from today
   (`"yesterday Tue"`, `"2 days ago Mon"`); else the text is no date, and a
   time bound or tkey written that way is refused. The weekday is still not
-  checked against that day. `test_date_text` §15. In 7.29.3 and older.
-- **A number alone after `at` is an hour, and no date**
-  (`approxidate_careful()`): `"Oct 1 at 10"` was 2010-10-01, `"at 10"` the
-  10th of the month, `"1 Oct at 3"` 2003-10-01 (as git's `date.c` reads
-  them). For a person it is an hour, one that says neither am nor pm
-  (`"at 3"` is 03:00 or 15:00): an hour (0-23) alone after `at` is now no
-  date. `"Oct 1 at 10 pm"`, `"Oct 1 at 10:00"` and `"at 2026-10-01 10:00"`
-  are read. `test_date_text` §15. In 7.29.3 and older.
+  checked against that day. A count back of zero and `"now"` name today, as
+  `"today"` does: `"0 days ago Mon"` and `"now Mon"` are today (a development
+  version refused them; 7.29.3 read them right). `test_date_text` §15-16. In
+  7.29.3 and older.
+- **No number alone after `at` is a date** (`approxidate_careful()`):
+  `"Oct 1 at 10"` was 2010-10-01, `"at 10"` the 10th of the month,
+  `"1 Oct at 3"` 2003-10-01, `"Oct 1 at 24"` 2024-10-01, `"Oct 1 at 30"`
+  2030-10-01, `"Oct at 26"` October 26 and `"at 2026"` today in 2026 (as
+  git's `date.c` reads them). After `at` a person means a time, and a number
+  alone says an hour with no half of the day (`"at 3"` is 03:00 or 15:00) or
+  no hour at all: it is no date now, whatever its value, and so is one after
+  `at the` (`"Oct 1 at the 10"` was 2010-10-01). `"at 10.30"`, 10:30 for a
+  person, was October 30 and is no date (write `"at 10:30"`; `"at
+  1.10.2026"` is still October 1). A number before a month name is a day:
+  `"at 5 Oct 2026"` is read (a development version refused it, while `"at 26
+  Oct 2026"` passed). `"Oct 1 at 10 pm"`, `"Oct 1 at 10:00"` and `"at
+  2026-10-01 10:00"` are read. The piece after `at` is found once: a
+  development version looked for it again from every piece, so a text of
+  `"at"`, many comments, `"on"` and many `"the"` took time that grew with the
+  square of its length (about 2 s for 140 KB). `test_date_text` §15-17. In
+  7.29.3 and older.
+- **A time text longer than 256 bytes is refused**
+  (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
+  bounds and tkeys), with *"a time text longer than 256 bytes"*, whatever it
+  holds, as a C text and as a json string. No date needs more (the longest
+  form a program writes is about 66 bytes), and the reader takes time that
+  grows with the length of a text that may come from a peer or a command
+  parameter. `test_date_bound_units`. 7.29.3 had no limit.
+- **`ago` needs a count before it** (`approxidate_careful()`): with none it
+  was passed over and the number left was a day, so `"5 (days) ago"` (a
+  comment holding the unit) and `"5 ago"` were the 5th of the month, and
+  `"Oct 1 ago"` October 1. `ago` says how long back a count is: with no
+  count, `"yesterday"` or weekday back before it, the text is no date, and a
+  time bound or tkey written that way is refused. `test_date_text` §16. In
+  7.29.3 and older.
 - **An offset in a comment of a date is the zone again** (since 7.28.5):
   `"2026-10-01 10:00:00 (UTC+02:00)"` lost the offset (12:00 in Madrid; the
   port read 10:00). The first whole offset in the comments (`+hh`, `+hhmm`,
@@ -583,8 +660,34 @@
   `EV_TX_READY` never came), a datagram the kernel refused stopped it with
   only a trace, a stop published nothing and did not wait for its send, its
   read event leaked, and `txBytes`/`rxBytes` read 0. Each is now wired as in
-  `C_UDP_S`. It is still not registered by the SDK: a yuno includes
-  `c_udp.h` and calls `register_c_udp()`. New test `c_udp_tx`.
+  `C_UDP_S`, and it keeps the stop contract of `C_TCP`: a stop whose read
+  failed with a send in flight ends (it stayed in `ST_WAIT_STOPPED`), a stop
+  it makes by itself is a `gobj_stop()` so a later `gobj_start()` works, a
+  start while a stop waits is carried out when the stop ends, an
+  `EV_TX_DATA` while it stops is dropped and counted in one WARNING, the
+  socket closes when the stop ends (so the datagram in flight goes out), a
+  destroy with a send in flight touches no freed memory, and
+  `no_tx_ready_event` is an attribute. It is still not registered by the
+  SDK: a yuno includes `c_udp.h` and calls `register_c_udp()`. Tests
+  `c_udp_tx`, `c_udp_tx_refused`.
+- **Destroying a `C_TCP` or a `C_UDP_S` with a write in flight no longer
+  touches freed memory.** A host that called `gobj_stop()` and
+  `gobj_destroy()` in the turn of a send, without waiting for `EV_STOPPED`,
+  crashed: neither kept its write events, so the completion ran on the freed
+  gobj. Both keep them now (`C_UDP_S` a list: a stop and a start in one turn
+  can leave more than one in flight), the destroy cancels them and the loop
+  frees them without calling back. `C_UDP_S` also no longer counts a rest of
+  a datagram that could not be sent again as in flight for ever, which held
+  a stop for ever. In 7.29.3. `c_tcp/test9`, `c_udp_s_tx`.
+- **An empty write to a `C_TCP` that connects on demand gets its
+  `EV_TX_READY` while disconnected** (unreleased): it came only in
+  `ST_CONNECTED`, so a `timeout_inactivity` client waiting for it before
+  sending more waited for ever. It comes one turn later wherever a write is
+  accepted, and the empty write starts no connection.
+- **Docs: a gbuffer sent to `C_UDP_S` belongs to it for good.** `C_UDP_S`
+  publishes no `EV_TX_READY` (the docs said the gbuffer was free again with
+  it): send each datagram in its own gbuffer, and copy it before sending the
+  same bytes twice.
 - **A `max_run` stop tried again in a minute keeps its minute across a save,
   a report or a switch** (controlcenter; in 7.29.3). The rebuild from the runs
   kept only its wait for a node, so the stop ran at once, a minute early.
@@ -1916,9 +2019,9 @@ same. Suite on the dev machine only: 329/329 after a clean build, under
   limit: its N of 8 000 did not fit in the default 64 MB with
   `CONFIG_DEBUG_TRACK_MEMORY` (*"REACHED MAX_SYSTEM_MEMORY"*).
 - **A performance round, taken from an audit of the C SDK.** Every commit
-  was reviewed again and cherry-picked one by one; the ones that added cached state for a small gain, or changed a gclass's
-  lifecycle, were left out (a `C_TIMER` subscribed to the yuno's tick for
-  its life, a static cache of topics in timeranger2, the memo of a file id,
+  was reviewed again and cherry-picked one by one; the ones that added
+  cached state for a small gain, or changed a gclass's lifecycle, were left
+  out (a `C_TIMER` subscribed to the yuno's tick for its life, a static cache of topics in timeranger2, the memo of a file id,
   the state of a treedb's events and a column reading held for a whole
   write in C structures, the skip of the payload timer, mbedTLS's scratch
   read). Three benchmarks join `performance/c/`: `perf_ievent`
