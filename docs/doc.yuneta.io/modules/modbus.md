@@ -21,8 +21,29 @@ Address range `0x0000`–`0xFFFF`. Configuration-driven slave device
 mapping with data-format conversion and multiplier support.
 
 The master runs over [`C_TCP`](#gclass-c-tcp) (`"modbus_protocol": "TCP"`, the
-default) or over `C_UART` (`"RTU"`). Without a bottom gobj it creates its own
-from `url`: a `C_TCP` for TCP, a `C_UART` otherwise.
+default) or over [`C_UART`](#gclass-c-uart) (`"RTU"`). Without a bottom gobj
+it creates its own, chosen by `modbus_protocol` and **not by `url`**: a
+`C_TCP` for TCP, a `C_UART` otherwise. An `"RTU"` master with a `tcp://` url
+creates a `C_UART` that tries to open `tcp://...` as a device, and never
+connects (*"Cannot open tty device"* at every try). RTU through a `tcp://` gateway to a serial bus (RTU frames carried
+over TCP) needs a `C_TCP` bottom given by its host:
+
+```C
+hgobj master = gobj_create("modbus", C_PROT_MODBUS_M,
+    json_pack("{s:s, s:i, s:o}",
+        "modbus_protocol", "RTU",
+        "baudrate", 19200,          // the speed of the bus behind the gateway
+        "slaves", jn_slaves
+    ),
+    gobj
+);
+hgobj tcp = gobj_create_pure_child("modbus", C_TCP,
+    json_pack("{s:s}", "url", "tcp://192.168.50.20:4001"),
+    master
+);
+gobj_set_bottom_gobj(master, tcp);
+gobj_start(master);
+```
 
 ### Configuration
 
@@ -89,10 +110,10 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
   variables are disabled at start, with one error (*"Modbus slave id RESERVED
   in RTU"*), and every cycle skips them, as any disabled block (below). An id
   out of 0-255 is refused the same way
-  (*"Modbus slave id OUT OF RANGE"*). Until the fix of REV-CLOUD V46.2 both
+  (*"Modbus slave id OUT OF RANGE"*). Up to 7.29.3 both
   were polled, the id cut to its low byte. **Over RTU 0 is not polled
   either**: it is the broadcast, and no slave answers it, so each cycle
-  waited `timeout_response` for it (until the fix of REV-CLOUD V47.2). A
+  waited `timeout_response` for it (up to 7.29.3). A
   write to 0 still goes out, as a broadcast; a read from 0 is refused (see
   *Requests*). Over TCP 0 is a unit id like any other.
 
@@ -116,7 +137,7 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
       -> at start, once: {"msg": "Modbus object address OUT OF RANGE", ...}
   ```
 
-  Until the fix of REV-CLOUD V46.2 every cycle logged an error for each one
+  Up to 7.29.3 every cycle logged an error for each one
   (*"cur_map_ DISABLED"*, or *"slave without mapping"* and *"cur_map_ NULL"*)
   and then waited `timeout_polling` before the next block: a disabled block in
   the middle of the map delayed every block after it by `timeout_polling` in
@@ -152,7 +173,7 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
 | `timeout_polling` | `1000` | Milliseconds between the end of a cycle and the next. The timer counts whole seconds (`C_TIMER`), so less than 1000 is 1 s |
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
 | `turnaround_delay` | `200` | Over RTU, milliseconds after a broadcast write (slave 0) **has left the line** before it is answered as done and the next request goes out: the time the slaves need to carry it out (the *turnaround delay* of the Modbus serial line specification, typically 100-200 ms). It is counted from the end of the frame: the wait is the time of the frame on the line (`baudrate`) plus this delay. `0` or a negative value is taken as 0: the wait is then the frame alone. The timer ends at the next tick of the yuno (`timeout_periodic`, 1000 ms by default), so the wait lasts up to one tick more: with the defaults and a short frame, about 1.2 s at most |
-| `baudrate` | `9600` | Over RTU, the speed of the serial line, used to count how long a frame takes on it (11 bits a byte). A `C_UART` bottom says its own `baudrate`, which wins; the `C_UART` the master creates from `url` gets this one. **Behind a `tcp://` gateway to a serial bus, set it to the speed of that bus**: the master cannot see it |
+| `baudrate` | `9600` | Over RTU, the speed of the serial line, used to count how long a frame takes on it (11 bits a byte). A `C_UART` bottom says its own `baudrate`, the speed its line runs at, which wins (a speed the tty does not know runs at 9600, and its `baudrate` says 9600); the `C_UART` the master creates gets this one. **Behind a `tcp://` gateway to a serial bus, set it to the speed of that bus**: the master cannot see it. That gateway needs a `C_TCP` bottom given by the host: an `"RTU"` master creates a `C_UART`, whatever its `url` says (see above) |
 | `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, the bytes that cannot start an answer, and the bytes that come while a broadcast is in flight (below; those are warned under their own name). One per drop, not per byte |
 
 To change the map of a running master, stop it, write `slaves` and start it
@@ -165,7 +186,7 @@ JSON_DECREF(jn_slaves)
 gobj_start(gobj_modbus);
 ```
 
-(Until the fix of REV-CLOUD V47.2 a write while the master ran freed the map
+(Up to 7.29.3 a write while the master ran freed the map
 that the cycle in flight pointed into.)
 
 ### The polling cycle
@@ -231,7 +252,7 @@ logged **when the block starts failing**, or starts failing another way (a new
 exception code, or a timeout after an exception), **not on every cycle**: a
 unit id that does not exist answers the same exception every cycle, and that
 is one fact; so is a map whose block asks 1 register where the slave
-answers 2 (until the fix of REV-CLOUD V47.2 that one was logged every cycle).
+answers 2 (up to 7.29.3 that one was logged every cycle).
 When the block answers again, an info says so, with what it failed with:
 
 ```json
@@ -303,7 +324,7 @@ decimals (`20.0`), a boolean as 1 or 0, or the whole text of a JSON integer
                                                                 -> "address 65535 and size 2 pass 65535"
 ```
 
-(Up to the fix of REV-CLOUD V45.2 each of them was sent: `"abc"` and `null`
+(Up to 7.29.2 each of them was sent: `"abc"` and `null`
 as address 0, `"010"` as 8, `20.9` as 20, `"x"` as slave 0, `"12ab"` as 12.)
 
 Anything else in the request travels back in its answer, so a caller can tag
@@ -359,9 +380,7 @@ no slave answers it, so it can read nothing.
 `n * 11 * 1000 / baudrate` ms on the line, and the wait is that plus
 `turnaround_delay`, ended at the next tick of the yuno. A write of 123
 registers (255 bytes) at 9600 baud takes 293 ms on the line: the wait is at
-least 493 ms. Up to the fix of REV-CLOUD V50.2 the wait was the
-`turnaround_delay` alone, counted from before the frame was sent: the next
-request could go out while the broadcast was still on the line.
+least 493 ms.
 
 ```text
 baudrate 9600, turnaround_delay 200, a write of 123 registers to slave 0
@@ -422,17 +441,14 @@ out. Its answer, and the warning, say so, not *"before its answer"*:
 
 Over TCP slave 0 is a unit id like any other, and its answer is awaited.
 
-(Up to the fix of REV-CLOUD V49.2 a read from slave 0 over RTU went out, and
-a broadcast write failed at `timeout_response`, done or not, after 10 s of
-silence on the line. Between the fix of REV-CLOUD V48.2 and that one, never
-released, the `0x00` of a device answering slave 0 was dropped as noise and
-the bytes after it taken as a head: the request failed at `timeout_response`,
-and that head could swallow the next answer.)
+(Up to 7.29.3 a read from slave 0 over RTU went out, and a broadcast write
+failed at `timeout_response`, done or not, after 10 s of silence on the
+line.)
 
 **When it goes out.** A request that arrives while the connection waits
 between two cycles goes out at once, and the wait resumes after the requests.
 So does one sent on the `EV_ON_MESSAGE` that ends a cycle: the wait between
-cycles comes after it (until the fix of REV-CLOUD V45.2 such a request waited
+cycles comes after it (up to 7.29.2 such a request waited
 that whole `timeout_polling` first). One that arrives while a block or another
 request is in flight goes out after it, before the next block. They go **one at a time, in the order they came**,
 so a request that needs another before it in the same connection -- a meter
@@ -527,12 +543,12 @@ queued that the stop would have to catch.
 The master survives a stop from anywhere, also from inside its own
 `EV_MODBUS_ANSWER` or `EV_ON_MESSAGE`: after it publishes it checks that it
 still runs, and then sends nothing more, polls no block and arms no wait.
-The requests still queued are dropped with the warning of a stop. (Until the
-fix of REV-CLOUD V48.2 it went on with its cycle on the stopped gobj, and
+The requests still queued are dropped with the warning of a stop. (Up to
+7.29.3 it went on with its cycle on the stopped gobj, and
 logged *"cur_slave_ NULL"* there and at the next tick.) Its transport ends
 such a stop as any other: a `C_UART` closes its tty and publishes
 `EV_DISCONNECTED` and `EV_STOPPED` (see its [stop
-contract](#gclass-c-uart)). Up to the fix of REV-CLOUD V50.2 a `C_UART`
+contract](#gclass-c-uart)). Up to 7.29.3 a `C_UART`
 stopped inside its own read kept its tty open and answered -1 to the event
 loop, which ended the yuno.
 
@@ -608,7 +624,7 @@ would start (at the start of a read, or after a frame dropped in it): a
 (slave ids 248-255 are reserved). **While a broadcast is in flight every
 byte is dropped there**: no answer can come (*Broadcast*, above). That is the noise byte that comes in a read
 of its own, before an answer or between two: taken as a head, it lost the
-answer after it (until the fix of REV-CLOUD V48.2). A noise byte
+answer after it (up to 7.29.3). A noise byte
 `0x01`-`0xF7` there is still taken as a head: it may be the
 first byte of a late frame of another slave, whose head says how long it is,
 and which is read whole and dropped. Dropping every byte that is not the id of
@@ -642,29 +658,21 @@ FF                               a read of its own, the request in flight
     -> {"msg": "Modbus: a cycle came without noise", "rx_noise_dropped": 4}
 ```
 
-When the master is a service (`__modbus_caudal__` in gate_caudal), the agent
+When the master is a service (`__modbus__` in a gate), the agent
 reads the count:
 
 ```bash
-ycommand -c 'stats-yuno id=<id> service=__modbus_caudal__'   # "rx_noise_dropped": 4
+ycommand -c 'stats-yuno id=<id> service=__modbus__'   # "rx_noise_dropped": 4
 ```
 
-(Between the fix of REV-CLOUD V46.2 and the fix of REV-CLOUD V47.1, never
-released, RTU kept those bytes as the start of the next frame, and lost the
-next answer to them. Up to the fix of REV-CLOUD V48.2, also never released,
-the bytes after the last answer of a cycle were counted after the cycle had
-ended, so the info came a cycle late; and a cycle that polled nothing ended
-the noise, so a master with no block to poll logged the warning and the info
-for every noisy answer.)
-
-(Until the fix of REV-CLOUD V46.2: an exception was taken whatever its
+(Up to 7.29.3: an exception was taken whatever its
 function, so over RTU a late one failed the write sent after it, a write that
 was done, and its echo was then dropped; the echo of a write answering a block
 counted as its answer; the bytes after an answer were dropped, half a frame
 included, which left the stream in the middle of one and lost the next
 answer; and a frame of another transaction id with an MBAP length of 65535
 was "read whole", swallowing every answer of the next `timeout_response`.
-Until the fix of REV-CLOUD V45 the transaction id was written and never read,
+Up to 7.29.2 the transaction id was written and never read,
 an RTU exception was taken before its CRC, and a bad CRC or an MBAP of length
 3 logged an internal error, *"answered WITHOUT reading its answer"*.)
 
@@ -715,7 +723,7 @@ trace of `C_PROT_MODBUS_M` **and** that of its `C_TCP` dump it as
 receives **by the function of the frame**: a write (05, 06, 15, 16) or the
 exception of one -- and anything while a write is in flight, as a broken frame
 may not say its function right. So the late echo of a write, which comes while
-a read is in flight, is hidden too (until the fix of REV-CLOUD V46.2 it was
+a read is in flight, is hidden too (up to 7.29.3 it was
 dumped with its value: the gclass looked only at what was in flight). Reads,
 and their answers, are dumped in full:
 

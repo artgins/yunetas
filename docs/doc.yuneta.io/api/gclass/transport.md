@@ -701,27 +701,73 @@ a drop.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_CONNECTED`, `ST_WAIT_STOPPED` |
-| **Input events** | `EV_CONNECT`, `EV_TX_DATA`, `EV_TIMEOUT` |
-| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED` (the stop is done) |
+| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_CONNECTED`, `ST_WAIT_STOPPED` (a stop waiting for the cancel of its read) |
+| **Input events** | `EV_CONNECT`, `EV_TX_DATA`, `EV_DROP` (in `ST_CONNECTED`), `EV_TIMEOUT` |
+| **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY` (every write queued is done), `EV_STOPPED` (the stop is done) |
+
+A host of `C_UART` (it is a CHILD: its parent hears it unless a `subscriber`
+is given) declares all five output events in its FSM, in every state where
+they can come. `EV_DISCONNECTED` and `EV_STOPPED` come inside `gobj_stop()`
+when nothing is in flight, so a host declares them in the state it is in
+when it stops the `C_UART`. Up to 7.29.3 `EV_STOPPED` was never published:
+a host written against 7.29.3 that does not declare it answers *"Event NOT
+DEFINED in state"* at every stop.
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | Device path (for example `/dev/ttyUSB0`). |
-| `baudrate` | `integer` | Baud rate (default `9600`). A rate the tty does not know is an error, and 9600 is used. |
-| `bytesize` | `integer` | Data bits (`5`–`8`, default `8`). |
-| `parity` | `string` | Parity: `"none"` (default), `"odd"`, `"even"`. |
-| `stopbits` | `integer` | Stop bits (`1` or `2`, default `1`). |
+| `baudrate` | `integer` | Baud rate (default `9600`). A rate the tty does not know is an error (*"Bad baudrate: the line runs at 9600"*), the line runs at 9600, and the attribute is set to `9600`: whoever counts the time of a frame on the line (the [Modbus master](#module-modbus)) reads the speed of the line here. |
+| `bytesize` | `integer` | Data bits (`5`–`8`, default `8`). Another value is an error, and `8` is used and written back. |
+| `parity` | `string` | Parity: `"none"` (default), `"odd"`, `"even"`. Another value is an error, and `"none"` is used and written back. |
+| `stopbits` | `integer` | Stop bits (`1` or `2`, default `1`). Another value is an error, and `1` is used and written back. |
 | `xonxoff` | `bool` | Software flow control. |
 | `rtscts` | `bool` | Hardware flow control. |
 | `timeout_between_connections` | `integer` | Milliseconds between two opens (default `2000`; `0` is raised to 1000 ms, with one warning). |
 
 ```json
-{"name": "modbus_caudal", "gclass": "C_UART",
+{"name": "serial_bus", "gclass": "C_UART",
  "kw": {"url": "/dev/ttyUSB0", "baudrate": 9600, "parity": "none"}}
 ```
+
+### Writes
+
+Every `EV_TX_DATA` is queued, and the writes go to the tty **one at a time,
+in order**. When the line takes only part of a write (a short write: the
+output buffer of the tty is full), the rest goes before the next write.
+`EV_TX_READY` is published when the last write queued is done, not once per
+`EV_TX_DATA`. A write that the kernel interrupts (`EINTR`: the write of a
+tty runs blocking in a worker of io_uring) goes again; so does a read.
+
+```C
+gbuffer_t *gbuf = gbuffer_create(len, len);
+gbuffer_append(gbuf, frame, len);
+gobj_send_event(priv->gobj_uart, EV_TX_DATA,
+    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+    gobj
+);
+```
+
+Up to 7.29.3 each `EV_TX_DATA` was one write, and nothing looked at how much
+of it went: a write of 64 KB to a line that took 11,776 bytes sent those,
+published `EV_TX_READY`, and lost the rest with no log. An interrupted write
+or read dropped the line.
+
+### The drop
+
+`EV_DROP` (in `ST_CONNECTED`) drops the line: the writes are cut (as in a
+stop, below), the tty is closed, `EV_DISCONNECTED` is published, and the
+device is opened again `timeout_between_connections` later. The
+[Modbus master](#module-modbus) sends it down when it cannot
+frame what it reads.
+
+```C
+gobj_send_event(priv->gobj_uart, EV_DROP, 0, gobj);  // EV_DISCONNECTED comes inside
+```
+
+Up to 7.29.3 `C_UART` had no `EV_DROP`: the event was refused with an error,
+and nothing was dropped.
 
 ### The stop
 
@@ -730,19 +776,27 @@ running `C_UART` ends in `ST_STOPPED`, with its tty closed,
 `EV_DISCONNECTED` published if it was connected, and then `EV_STOPPED`
 **once**, to its parent (or its `subscriber`):
 
-- at once, inside `gobj_stop()`, when nothing is in flight: a `C_UART`
-  disconnected (waiting to open its device again), or one stopped inside its
-  own `EV_RX_DATA` -- a host above it that stops on an answer;
-- later, from `ST_WAIT_STOPPED`, when its read is canceled and its writes in
-  flight complete. A write that the line does not take (its output held by
-  flow control) is not waited for: the output not yet sent is discarded, and
-  the write ends.
+- at once, inside `gobj_stop()`, when its read is not in flight: a
+  `C_UART` disconnected (waiting to open its device again), or one stopped
+  inside its own `EV_RX_DATA` -- a host above it that stops on an answer;
+- later, from `ST_WAIT_STOPPED`, when the cancel of its read completes (the
+  next turn of the event loop).
+
+A stop does not wait for the writes. The write in flight is canceled, the
+output it left in the tty is discarded (`tcflush(TCOFLUSH)`), and the writes
+queued behind it are dropped. So a write that the line does not take (its
+output held by flow control, or by a peer that does not read) never holds a
+stop. A drop and a disconnection cut the writes the same way.
 
 `EV_STOPPED` is the last thing it does with itself: a host may destroy it
-there. A stopped `C_UART` starts again with `gobj_start()`, and opens its
-device anew. The completion of a write publishes `EV_TX_READY` only while
-the `C_UART` is connected: a write of a connection already dropped, or of a
-stopped gobj, says nothing.
+there. A host that destroys it in the `EV_DISCONNECTED` of a stop is wrong
+(the kernel says so: *"Destroying a gobj while its tree is publishing"*),
+and the `C_UART` touches nothing of itself after that publication.
+A stopped `C_UART` starts again with `gobj_start()`, and opens its device
+anew. A `gobj_start()` while it is in `ST_WAIT_STOPPED` is refused: it
+answers -1 and logs *"Initial wrong task state"*, and the stop goes on to
+`ST_STOPPED` and `EV_STOPPED`. A `C_UART` destroyed in `ST_WAIT_STOPPED`
+closes its tty, and publishes nothing more.
 
 ```C
 gobj_stop(priv->gobj_uart);     // EV_DISCONNECTED and EV_STOPPED may come inside
@@ -764,7 +818,10 @@ disconnection); stopped with the read in flight it stayed in
 `ST_WAIT_STOPPED` for ever, and the next start never opened the device;
 `EV_STOPPED` was never published. And in both cases the callback of the
 stopped `C_UART` answered -1 to the event loop, which **ended the loop, and
-the yuno with it**. `tests/c/c_prot_modbus_m` (`test4`, over a pty).
+the yuno with it**. A `C_UART` destroyed with a write in flight was used
+after it was freed, when the write completed; one destroyed in
+`ST_WAIT_STOPPED` left its tty open. `tests/c/c_prot_modbus_m` (`test4`, a
+Modbus master over a pty; `test5`, a `C_UART` hosted by the test over a pty).
 
 ### Trace levels
 

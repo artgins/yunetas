@@ -7,20 +7,31 @@
  *          The stop contract, the one of C_TCP: every stop of a running
  *          C_UART ends in ST_STOPPED, with its tty closed, EV_DISCONNECTED
  *          published if it was connected, and then EV_STOPPED, ONCE --
- *          synchronously, inside gobj_stop(), when nothing was in flight
- *          (a stop inside its own EV_RX_DATA, or while disconnected), or
- *          later, from ST_WAIT_STOPPED, when the read and the writes in
- *          flight complete. EV_STOPPED is the last thing it does with
- *          itself. A write the line does not take (its output held by flow
- *          control) is not waited for for ever: the output not sent is
- *          discarded, and the write ends.
+ *          synchronously, inside gobj_stop(), when its read was not in
+ *          flight (a stop inside its own EV_RX_DATA, or while
+ *          disconnected), or later, from ST_WAIT_STOPPED, when the cancel
+ *          of its read completes. EV_STOPPED is the last thing it does with
+ *          itself; so is EV_DISCONNECTED when a host destroys it there.
+ *          A host declares EV_DISCONNECTED and EV_STOPPED in its FSM.
+ *          A stop, a drop (EV_DROP) or a disconnection does not wait for
+ *          the writes: the write in flight is canceled, the output it left
+ *          in the tty is discarded, and the writes queued behind it go.
+ *          A start in ST_WAIT_STOPPED is refused (-1): the stop goes on.
+ *
+ *          The writes go one at a time, in order: a short write (the line
+ *          took part of it) sends its rest before the next, and EV_TX_READY
+ *          is published when the last write queued is done.
+ *
  *          Up to 7.29.3 a stop stopped the read and nothing else: inside its
  *          EV_RX_DATA the tty stayed open (overwritten, so leaked, by the
  *          next start, whose EV_CONNECTED reached a host still connected),
  *          with the read in flight it stayed in ST_WAIT_STOPPED for ever,
  *          EV_STOPPED was never published, and the callback of a stopped
  *          C_UART answered -1 to the event loop, which ENDS the loop: the
- *          yuno went down.
+ *          yuno went down. A destroy with a write in flight was a use after
+ *          free when the write completed, a destroy in ST_WAIT_STOPPED left
+ *          the tty open, a short write lost its rest (and published
+ *          EV_TX_READY), and EV_DROP was not an event of it.
  *
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -59,8 +70,10 @@ typedef enum serial_parity {
  *              Prototypes
  ***************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd);
-PRIVATE void set_disconnected(hgobj gobj, const char *cause);
+PRIVATE int set_disconnected(hgobj gobj, const char *cause);
 PRIVATE void try_to_stop_yevents(hgobj gobj); // IDEMPOTENT
+PRIVATE int write_next(hgobj gobj);
+PRIVATE void cut_the_writes(hgobj gobj);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE json_int_t time_to_reconnect(hgobj gobj);
 
@@ -119,13 +132,27 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 /*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
+/*
+ *  A publish of an event hands control to the subscribers, which may stop
+ *  the C_UART or, through its host, destroy the gobj: the call that
+ *  published keeps a marker on its stack, the markers are chained, and
+ *  mt_destroy() clears them all. Read after the publish: FALSE, the gobj is
+ *  gone and nothing of it may be touched. As in C_TCP.
+ */
+typedef struct alive_s {
+    BOOL alive;
+    struct alive_s *prev;
+} alive_t;
+
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     int tty_fd;
     yev_event_h yev_client_rx;
+    yev_event_h yev_client_tx;  // the write in flight: one at a time
+    dl_list_t dl_tx;            // the gbuffers waiting for it, in order
     char inform_disconnection;
     BOOL reconnect_floor_said;  // the warning of a 0 between connections, once per gobj
-    int tx_in_progress;         // writes in flight: a stop waits for them
+    alive_t *alive;             // the markers of the publishes in progress (see alive_t)
 } PRIVATE_DATA;
 
 
@@ -147,6 +174,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->tty_fd = -1;
+    dl_init(&priv->dl_tx, gobj);
 
     /*
      *  CHILD subscription model
@@ -175,18 +203,27 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start(priv->gobj_timer);
-
+    /*
+     *  A start while a stop waits for the cancel of its read
+     *  (ST_WAIT_STOPPED) is refused, as in C_TCP: the stop goes on, and ends
+     *  in ST_STOPPED and EV_STOPPED. Up to 7.29.3 the start went on: its
+     *  timer fired in ST_WAIT_STOPPED ("Event NOT DEFINED") and the stop
+     *  was lost.
+     */
     gobj_state_t state = gobj_current_state(gobj);
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Initial wrong task state",
             "state",        "%s", gobj_current_state(gobj),
             NULL
         );
+        return -1;
     }
+
+    gobj_start(priv->gobj_timer);
+
     if(state == ST_STOPPED) {
         gobj_change_state(gobj, ST_DISCONNECTED);
     }
@@ -229,7 +266,28 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx);
+    for(alive_t *marker = priv->alive; marker; marker = marker->prev) {
+        marker->alive = FALSE;  // destroyed inside a publish: its caller must not go on
+    }
+
+    /*
+     *  Destroyed with a stop not ended (ST_WAIT_STOPPED), or a write in
+     *  flight: its events are canceled and freed by the loop when their
+     *  completions come, with no callback; the tty is closed here. Up to
+     *  7.29.3 the write events were not kept, and their completion ran on
+     *  the freed gobj; and the tty of ST_WAIT_STOPPED was never closed.
+     */
+    cut_the_writes(gobj);
+    if(priv->yev_client_rx) {
+        if(!yev_event_is_stopped(priv->yev_client_rx)) {
+            yev_stop_event(priv->yev_client_rx);
+        }
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+    }
+    if(priv->tty_fd >= 0) {
+        close(priv->tty_fd);
+        priv->tty_fd = -1;
+    }
 }
 
 
@@ -501,6 +559,11 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     /*-----------------------------*
      *      Baud rate
      *-----------------------------*/
+    /*
+     *  A speed the tty does not know runs the line at 9600, and the attr
+     *  says so: who counts the time of a frame on the line (the Modbus
+     *  master) reads it here. Up to 7.29.3 it kept the speed asked for.
+     */
     int baudrate_ = (int)gobj_read_integer_attr(gobj, "baudrate");
     int baudrate = _serial_baudrate_to_bits(baudrate_);
     if(baudrate == -1) {
@@ -510,10 +573,11 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             "msgset",       "%s", MSGSET_PARAMETER,
             "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
-            "msg",          "%s", "Bad baudrate",
+            "msg",          "%s", "Bad baudrate: the line runs at 9600",
             "baudrate",     "%d", baudrate_,
             NULL
         );
+        gobj_write_integer_attr(gobj, "baudrate", 9600);
     }
 
     /*-----------------------------*
@@ -536,12 +600,13 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Parity UNKNOWN",
+                "msg",          "%s", "Parity UNKNOWN: the line runs with none",
                 "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
                 "parity",       "%s", sparity,
                 NULL
             );
+            gobj_write_str_attr(gobj, "parity", "none");
             break;
     } SWITCHS_END;
 
@@ -559,13 +624,14 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Bad bytesize",
+                "msg",          "%s", "Bad bytesize: the line runs with 8",
                 "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
                 "bytesize",     "%d", bytesize,
                 NULL
             );
             bytesize = 8;
+            gobj_write_integer_attr(gobj, "bytesize", bytesize);
             break;
     }
 
@@ -581,13 +647,14 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "Bad stopbits",
+                "msg",          "%s", "Bad stopbits: the line runs with 1",
                 "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
-                "stopbits",     "%d", bytesize,
+                "stopbits",     "%d", stopbits,
                 NULL
             );
             stopbits = 1;
+            gobj_write_integer_attr(gobj, "stopbits", stopbits);
             break;
     }
 
@@ -835,19 +902,40 @@ PRIVATE json_int_t time_to_reconnect(hgobj gobj)
 }
 
 /***************************************************************************
- *
+ *  The marker of a publish in progress (see alive_t)
  ***************************************************************************/
-PRIVATE void set_disconnected(hgobj gobj, const char *cause)
+PRIVATE void alive_push(PRIVATE_DATA *priv, alive_t *marker)
+{
+    marker->alive = TRUE;
+    marker->prev = priv->alive;
+    priv->alive = marker;
+}
+
+PRIVATE void alive_pop(PRIVATE_DATA *priv, alive_t *marker)
+{
+    priv->alive = marker->prev;     // only while the gobj lives
+}
+
+/***************************************************************************
+ *  The line goes: its writes are cut, its read is stopped and freed (a new
+ *  one comes with the next open), its tty closed. Running (a disconnection,
+ *  a drop) it waits in ST_DISCONNECTED to open again; at the end of a stop
+ *  (ST_STOPPED) it stays there.
+ *  EV_DISCONNECTED, once per connection, is the last thing done: its host
+ *  may destroy the gobj there. -1 when it did: nothing of it may be touched.
+ ***************************************************************************/
+PRIVATE int set_disconnected(hgobj gobj, const char *cause)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL reconnect = gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_STOPPED);
 
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
     if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-        if(gobj_is_running(gobj)) {
+        if(reconnect) {
             set_timeout(priv->gobj_timer, time_to_reconnect(gobj));
         }
-        return;
+        return 0;
     }
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_CONNECT_DISCONNECT) {
@@ -862,8 +950,22 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         );
     }
 
-    if(gobj_is_running(gobj)) {
+    if(reconnect) {
         gobj_change_state(gobj, ST_DISCONNECTED);
+    }
+
+    cut_the_writes(gobj);   // before the close: what a write left in the tty is discarded
+
+    /*
+     *  The read of a connection that went is freed with it, in flight or
+     *  not: its completion comes to nobody, and cannot reach the next
+     *  connection
+     */
+    if(priv->yev_client_rx) {
+        if(!yev_event_is_stopped(priv->yev_client_rx)) {
+            yev_stop_event(priv->yev_client_rx);
+        }
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
     }
 
     if(priv->tty_fd >= 0) {
@@ -882,30 +984,127 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         priv->tty_fd = -1;
     }
 
-    if(priv->yev_client_rx) {
-        yev_set_fd(priv->yev_client_rx, -1);
-        yev_stop_event(priv->yev_client_rx);
-    }
-
-    if(gobj_is_running(gobj)) {
+    if(reconnect) {
         set_timeout(priv->gobj_timer, time_to_reconnect(gobj));
     }
 
     /*
-     *  Info of "disconnected"
+     *  Info of "disconnected". A host may destroy the gobj here (see
+     *  alive_t)
      */
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
 
+        alive_t marker;
+        alive_push(priv, &marker);
         gobj_publish_event(gobj, EV_DISCONNECTED, 0);
+        if(!marker.alive) {
+            return -1;  // the gobj is gone
+        }
+        alive_pop(priv, &marker);
     }
+    return 0;
 }
 
 /***************************************************************************
- *  Stop the read; if it, or a write, is still in flight, wait for it in
- *  ST_WAIT_STOPPED (its callback comes back here), else end the stop:
- *  ST_STOPPED, the tty closed, EV_DISCONNECTED if it was connected, and
- *  EV_STOPPED, the last thing done with the gobj (its host may destroy it).
+ *  The writes go with the line, and nothing waits for them: the one in
+ *  flight is canceled (its event is freed by the loop when its completion
+ *  comes, with no callback), the output it left in the tty is discarded
+ *  (output held by flow control would hold the close), and the queued ones
+ *  are dropped. So a stop never waits for the other side to read.
+ ***************************************************************************/
+PRIVATE void cut_the_writes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->yev_client_tx) {
+        if(!yev_event_is_stopped(priv->yev_client_tx)) {
+            yev_stop_event(priv->yev_client_tx);
+        }
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
+
+        if(priv->tty_fd >= 0 && tcflush(priv->tty_fd, TCOFLUSH) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "tcflush() FAILED: the output of the write canceled may still go",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+        }
+    }
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+}
+
+/***************************************************************************
+ *  Start the write in flight (new, or the rest of a short one). One that
+ *  does not start will never complete, and its bytes are not sent: the line
+ *  cannot go on with a hole in it, so it is dropped (-1: the gobj may be
+ *  gone, nothing of it is touched).
+ ***************************************************************************/
+PRIVATE int start_the_write(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(yev_start_event(priv->yev_client_tx) < 0) {
+        gbuffer_t *gbuf = yev_get_gbuf(priv->yev_client_tx);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot start a write: the line is dropped",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "len",          "%d", gbuf? (int)gbuffer_leftbytes(gbuf): 0,
+            NULL
+        );
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
+        set_disconnected(gobj, "Cannot start a write");
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Start the next write queued, when none is in flight: the writes go one
+ *  at a time, so the rest of a short write goes before the next.
+ *  -1: the line was dropped, and the gobj may be gone.
+ ***************************************************************************/
+PRIVATE int write_next(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->yev_client_tx) {
+        return 0;   // its completion starts the next
+    }
+    gbuffer_t *gbuf = dl_first(&priv->dl_tx);
+    if(!gbuf) {
+        return 0;
+    }
+    dl_delete(&priv->dl_tx, gbuf, 0);   // its reference goes to the event
+
+    priv->yev_client_tx = yev_create_write_event(
+        yuno_event_loop(),
+        yev_callback,
+        gobj,
+        priv->tty_fd,
+        gbuf
+    );
+    if(!priv->yev_client_tx) {
+        // Error already logged
+        gbuffer_decref(gbuf);   // the reference given to the event not created
+        set_disconnected(gobj, "Cannot create a write");
+        return -1;
+    }
+    return start_the_write(gobj);
+}
+
+/***************************************************************************
+ *  Cut the writes and stop the read; if the read is still in flight, wait
+ *  for its cancel in ST_WAIT_STOPPED (its callback comes back here), else
+ *  end the stop: ST_STOPPED, the tty closed, EV_DISCONNECTED if it was
+ *  connected, and EV_STOPPED, the last thing done with the gobj (its host
+ *  may destroy it).
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED and ST_STOPPED
  ***************************************************************************/
 PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
@@ -917,6 +1116,8 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         return;
     }
 
+    cut_the_writes(gobj);
+
     if(priv->yev_client_rx) {
         if(!yev_event_is_stopped(priv->yev_client_rx)) {
             yev_stop_event(priv->yev_client_rx);
@@ -926,28 +1127,15 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         }
     }
 
-    if(priv->tx_in_progress > 0) {
-        to_wait_stopped = TRUE;
-        if(priv->tty_fd >= 0 && tcflush(priv->tty_fd, TCOFLUSH) < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "tcflush() FAILED: the stop waits for the line to take the write in flight",
-                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
-        }
-    }
-
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
         return;
     }
 
     gobj_change_state(gobj, ST_STOPPED);
-    set_disconnected(gobj, "Local stop");
+    if(set_disconnected(gobj, "Local stop") < 0) {
+        return;     // its host destroyed it on EV_DISCONNECTED
+    }
 
     /*
      *  The gobj is in stop. Its host may destroy it here: nothing of it is
@@ -960,6 +1148,8 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
  *  Nothing of the gobj is touched after a publication that may have stopped
  *  it: its host may have destroyed it on EV_STOPPED. And the answer is
  *  always 0: a -1 ends the event loop, and the yuno with it.
+ *  An event freed with its line (set_disconnected(), cut_the_writes()) is
+ *  never called back.
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
@@ -987,6 +1177,21 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
+                if(yev_get_result(yev_event) == -EINTR &&
+                        gobj_in_this_state(gobj, ST_CONNECTED)) {
+                    /*
+                     *  Nothing read: the read of a tty runs blocking in a
+                     *  worker of io_uring, and a notification of the ring
+                     *  interrupts it. It is read again: up to 7.29.3 the
+                     *  line was dropped.
+                     */
+                    gbuffer_clear(yev_get_gbuf(yev_event));
+                    if(yev_start_event(yev_event) < 0) {
+                        // Error already logged
+                        set_disconnected(gobj, "Cannot read again");
+                    }
+                    break;
+                }
                 if(yev_get_result(yev_event) < 0) {
                     /*
                      *  Disconnected
@@ -1005,10 +1210,10 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             );
                         }
                     }
-                    if(gobj_is_running(gobj)) {
-                        set_disconnected(gobj, strerror(-yev_get_result(yev_event)));
-                    } else {
+                    if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
                         try_to_stop_yevents(gobj);  // the end of a stop that waited for it
+                    } else {
+                        set_disconnected(gobj, strerror(-yev_get_result(yev_event)));
                     }
 
                 } else {
@@ -1028,8 +1233,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                     /*
                      *  Clear buffer, re-arm read. A subscriber may have
-                     *  stopped the gobj (the stop ended there: this event,
-                     *  idle, was stopped with it), or its host destroyed it:
+                     *  stopped or dropped the line (this event, idle, was
+                     *  stopped with it), or its host destroyed the gobj:
                      *  only the event is looked at. A subscriber that
                      *  answered an error does not stop the reading.
                      */
@@ -1044,43 +1249,69 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         case YEV_WRITE_TYPE:
             {
                 int result = yev_get_result(yev_event);
-                priv->tx_in_progress--;
-                yev_destroy_event(yev_event);
-
-                if(!gobj_is_running(gobj)) {
-                    if(gobj_current_state(gobj)==ST_WAIT_STOPPED) {
-                        try_to_stop_yevents(gobj);  // the end of a stop that waited for it
-                    }
-                    break;  // a stopped gobj says nothing of its writes
+                if(yev_event != priv->yev_client_tx) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "The completion of a write that is not the one in flight",
+                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                        "result",       "%d", result,
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    yev_destroy_event(yev_event);
+                    break;
                 }
 
-                if(!gobj_in_this_state(gobj, ST_CONNECTED)) {
-                    break;  // the write of a connection already dropped
+                if(result == -EINTR) {
+                    /*
+                     *  Nothing written: the write of a tty runs blocking in
+                     *  a worker of io_uring, and a notification of the ring
+                     *  interrupts it. It goes again: up to 7.29.3 the line
+                     *  was dropped.
+                     */
+                    start_the_write(gobj);  // on failure: logged, the line dropped
+                    break;
                 }
-
                 if(result < 0) {
                     /*
                      *  Disconnected
                      */
                     if(trace_level & TRACE_URING) {
-                        if(result != -ECANCELED) {
-                            gobj_log_info(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                                "msg",          "%s", "write FAILED",
-                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                                "errno",        "%d", -result,
-                                "strerror",     "%s", strerror(-result),
-                                NULL
-                            );
-                        }
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "write FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "errno",        "%d", -result,
+                            "strerror",     "%s", strerror(-result),
+                            NULL
+                        );
                     }
+                    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
                     set_disconnected(gobj, strerror(-result));
-
-                } else {
-                    json_t *kw_tx_ready = json_object();
-                    gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+                    break;
                 }
+
+                gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                if(gbuf && gbuffer_leftbytes(gbuf) > 0) {
+                    /*
+                     *  A short write: the line took part of it. The rest
+                     *  goes now, before anything queued. Up to 7.29.3 it was
+                     *  lost, and EV_TX_READY published.
+                     */
+                    start_the_write(gobj);  // on failure: logged, the line dropped
+                    break;
+                }
+
+                EXEC_AND_RESET(yev_destroy_event, priv->yev_client_tx)
+                if(dl_size(&priv->dl_tx) > 0) {
+                    write_next(gobj);       // on failure: logged, the line dropped
+                    break;
+                }
+
+                json_t *kw_tx_ready = json_object();
+                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
             }
             break;
 
@@ -1157,34 +1388,27 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  Transmit
+     *  Transmit: queued behind the write in flight, if there is one
      */
-    yev_event_h yev_client_tx = yev_create_write_event(
-        yuno_event_loop(),
-        yev_callback,
-        gobj,
-        priv->tty_fd,
-        gbuffer_incref(gbuf)
-    );
-    if(!yev_client_tx) {
-        // Error already logged
-        gbuffer_decref(gbuf);   // the reference given to the event not created
-        KW_DECREF(kw)
-        return -1;
-    }
-    if(yev_start_event(yev_client_tx) < 0) {
-        /*
-         *  Its callback never comes: the bytes are not sent, the line cannot
-         *  go on with a hole in it
-         */
-        yev_destroy_event(yev_client_tx);
-        set_disconnected(gobj, "write not started");
-        KW_DECREF(kw)
-        return -1;
-    }
-    priv->tx_in_progress++;
+    dl_add(&priv->dl_tx, gbuffer_incref(gbuf));
+    write_next(gobj);   // on failure: logged, the line dropped
 
     KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Drop the line: the tty closed (what is in flight cut, as in a stop),
+ *  EV_DISCONNECTED, and opened again after timeout_between_connections.
+ *  The Modbus master sends it down when it cannot frame what it reads.
+ *  Up to 7.29.3 C_UART had no EV_DROP: an error was logged and nothing
+ *  was dropped.
+ ***************************************************************************/
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    set_disconnected(gobj, "Local dropping");
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -1245,6 +1469,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_connected[] = {
         {EV_TX_DATA,            ac_tx_data,                 0},
+        {EV_DROP,               ac_drop,                    0},
         {0,0,0}
     };
     ev_action_t st_wait_stopped[] = {
@@ -1267,6 +1492,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,        EVF_OUTPUT_EVENT},
 
         {EV_TX_DATA,        0},
+        {EV_DROP,           0},
         {EV_CONNECT,        0},
         {EV_TIMEOUT,        0},
         {0, 0}

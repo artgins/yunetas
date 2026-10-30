@@ -1,7 +1,8 @@
 # c_prot_modbus_m test
 
 Tests `C_PROT_MODBUS_M`, the Modbus master: `test1` over TCP, `test2` and
-`test3` with RTU framing, `test4` over its own `C_UART` on a pty.
+`test3` with RTU framing, `test4` over its own `C_UART` on a pty. And `test5`
+tests the `C_UART` alone, on a pty.
 
 `test1` (`main_test1.c` + `c_test1.c`) is about what a polling cycle
 publishes. A raw server (`C_PROT_RAW`) answers Modbus TCP by hand to a master
@@ -161,6 +162,36 @@ dumps what it reads. Against SDK 7.29.3 the first stop left the tty open
 (*"The fds open on the tty are not the expected"*), and the read callback of
 the stopped `C_UART` answered -1 to the event loop, which ended the loop: the
 yuno went down in the middle of the test.
+
+`test5` (`main_test5.c` + `c_test5.c`) hosts a `C_UART` on the slave side of
+a pty, and plays the other side of the line on the master side: it reads it,
+or stops reading it to fill the line. It counts the fds open on the tty, and
+the events the `C_UART` publishes to it.
+
+- A write of 64 KB, more than the line takes at once: all of it arrives, in
+  order, and `EV_TX_READY` comes once. Against SDK 7.29.3 the write was short
+  and its rest lost: 11,776 bytes arrived, then `EV_TX_READY` (*"A phase did
+  not end"*, `rx_count` 11776).
+- `EV_DROP`: `EV_DISCONNECTED` inside the send, the tty closed, and opened
+  again after `timeout_between_connections` (500 ms here). 7.29.3 had no
+  `EV_DROP` in `C_UART`.
+- The line not read, 64 KB and 8 bytes sent (no `EV_TX_READY`: the write is
+  held), and a stop: 300 ms later the `C_UART` is in `ST_STOPPED` with its
+  tty closed, and `EV_DISCONNECTED` and `EV_STOPPED` came. Then started
+  again; the same held write, a stop and a destroy right after it; and the
+  line is read again, so the canceled write would complete if it were still
+  there.
+- A stop with the read in flight (`ST_WAIT_STOPPED`) and a destroy there: the
+  tty is closed. Against 7.29.3 the fd stayed open (*"The fds open on the tty
+  are not the expected"*).
+- A stop with the read in flight and a `gobj_start()` there: refused with -1
+  and *"Initial wrong task state"*, and the stop ends in `ST_STOPPED` with
+  `EV_STOPPED`.
+- A host that stops the `C_UART` in its `EV_RX_DATA` and destroys it in the
+  `EV_DISCONNECTED` of that stop (wrong, and the kernel says so: *"Destroying
+  a gobj while its tree is publishing"*): no `EV_STOPPED` comes from the freed
+  gobj. Without the guard the `C_UART` published `EV_STOPPED` from it (a
+  SEGV under ASan).
 
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.
 
