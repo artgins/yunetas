@@ -104,6 +104,9 @@ target_link_options(test_helpers PUBLIC LINKER:--wrap=lstat,--wrap=close)
 # test_rotatory fakes the free space of one directory, the clocks (wall and monotonic) and a failing rename (see its header)
 target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,--wrap=time,--wrap=clock_gettime,--wrap=rename)
 
+# test_spawn_copy makes a pidfd_open() wait for the end of its process (see its header)
+target_link_options(test_spawn_copy PUBLIC LINKER:--wrap=syscall)
+
 # test_date_text fakes the wall clock: approxidate() and the rest read now with time() (see its header)
 target_link_options(test_date_text PUBLIC LINKER:--wrap=time)
 

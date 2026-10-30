@@ -179,15 +179,20 @@ typed on a terminal, a second ctrl+d gets to `B`.
 The call ends with the command, not with a process the command left in the
 background: the exit is seen by a pidfd (`pidfd_open()`), so
 `(trap '' HUP; exec sleep 3) & sleep 0.2` takes 0.2 s, not 3 s. Without a
-pidfd (a kernel older than 5.3) a WARNING says so and the exit is looked
-for every 100 ms. Then what the command left in the terminal is passed on
+pidfd (a kernel older than 5.3, or kernel headers older than 5.3 on an
+architecture whose syscall number the source does not carry) a WARNING
+says so and the exit is looked for every 100 ms. Then what the command left in the terminal is passed on
 without waiting for such a process, the terminal is closed, and the
 command is reaped. Up to 7.29.3 the terminal was never closed (one fd per
 call), and a command whose terminal was read to its end before its exit
 was seen was not reaped (a zombie) and answered `-1`.
 
 With `SIGCHLD` at `SIG_IGN` in the caller the kernel reaps the command and
-its exit status is lost: the call answers `0` and logs nothing.
+its exit status is lost: the call answers `0` and logs nothing. That holds
+for a command that ends before its pidfd is opened too (`true`): the
+kernel has no process with its pid then, and the call takes that as the
+end of the command. The call cannot tell how the command ended, so a
+command killed by a signal (`kill -9`) also answers `0`.
 
 ```C
 int pty_sync_spawn(const char *command);
@@ -202,5 +207,6 @@ int pty_sync_spawn(const char *command);
 **Returns**
 
 `0` when the command exited, whatever its exit code (also when the kernel
-reaped it, with `SIGCHLD` ignored); `-1` when it could not be run, was
-killed by a signal, or could not be followed (logged).
+reaped it, with `SIGCHLD` ignored: then a command killed by a signal
+answers `0` too); `-1` when it could not be run, was killed by a signal, or
+could not be followed (logged).

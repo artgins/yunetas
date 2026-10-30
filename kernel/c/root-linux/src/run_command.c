@@ -24,6 +24,19 @@
 #include "run_command.h"
 
 /***************************************************************************
+ *      Constants
+ ***************************************************************************/
+/*
+ *  Kernel headers older than 5.3 have no SYS_pidfd_open: its number is the
+ *  same on these architectures. Elsewhere pty_sync_spawn() looks for the
+ *  end of its command every 100 ms.
+ */
+#if !defined(SYS_pidfd_open) && (defined(__x86_64__) || defined(__i386__) || \
+        defined(__aarch64__) || defined(__arm__) || defined(__riscv))
+    #define SYS_pidfd_open 434
+#endif
+
+/***************************************************************************
  *      Prototypes
  ***************************************************************************/
 
@@ -487,8 +500,9 @@ PRIVATE int reap_command(const char *command, pid_t pid, int *status, int flags)
  *  is closed and the command reaped.
  *
  *  0 when it exited (whatever its exit code; also when the kernel reaped
- *  it, SIGCHLD at SIG_IGN, and its status is lost), -1 when it could not
- *  be run, was killed by a signal, or could not be followed (said).
+ *  it, SIGCHLD at SIG_IGN, and its status is lost: then a command killed
+ *  by a signal answers 0 too), -1 when it could not be run, was killed by
+ *  a signal, or could not be followed (said).
  ***************************************************************************/
 PUBLIC int pty_sync_spawn(
     const char *command
@@ -533,15 +547,30 @@ PUBLIC int pty_sync_spawn(
     /*
      *  Parent
      */
+    int reaped = 0;
+    int status = 0;
+#ifdef SYS_pidfd_open
     int pidfd = (int)syscall(SYS_pidfd_open, pid, 0);
-    if(pidfd < 0) {
+    int pidfd_errno = errno;
+#else
+    int pidfd = -1;
+    int pidfd_errno = ENOSYS;
+#endif
+    if(pidfd < 0 && pidfd_errno == ESRCH) {
+        /*
+         *  No process with that pid: the command ended and was reaped
+         *  already (SIGCHLD at SIG_IGN, or a handler that reaps), so its
+         *  status is lost.
+         */
+        reaped = 1;
+    } else if(pidfd < 0) {
         gobj_log_warning(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "pidfd_open() FAILED: the end of the command is looked for every 100 ms",
             "command",      "%s", command,
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
+            "errno",        "%d", pidfd_errno,
+            "strerror",     "%s", strerror(pidfd_errno),
             NULL
         );
     }
@@ -549,8 +578,6 @@ PUBLIC int pty_sync_spawn(
     BOOL stdin_is_tty = isatty(STDIN_FILENO)? TRUE : FALSE;
     BOOL stdin_open = (master != STDIN_FILENO)? TRUE : FALSE;  // the master is fd 0 when the caller has none
     BOOL line_open = FALSE;     // bytes passed to the command since its last newline
-    int reaped = 0;
-    int status = 0;
     while(!reaped) {
         struct pollfd pfd[3] = {
             {.fd = master,                          .events = POLLIN},

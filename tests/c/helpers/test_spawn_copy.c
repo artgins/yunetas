@@ -27,8 +27,15 @@
  *          no error. launch_daemon() from a caller with stdin and stdout
  *          closed says an exec failure. pty_sync_spawn() leaves no fd and no
  *          zombie, and passes the end of its stdin to the command (each
- *          ctrl+d of a terminal); it answers 0 with SIGCHLD at SIG_IGN, and
- *          ends with its command, not with a process left in the background.
+ *          ctrl+d of a terminal); it answers 0 with SIGCHLD at SIG_IGN, also
+ *          with no WARNING for a command the kernel reaped before its pidfd
+ *          was opened, and ends with its command, not with a process left in
+ *          the background.
+ *
+ *          syscall() is wrapped (--wrap=syscall, CMakeLists.txt): with
+ *          `wait_for_end_before_pidfd` set, a pidfd_open() waits until its
+ *          process is gone, so the command is always reaped before its
+ *          pidfd is opened, and not only when the scheduler says so.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -43,11 +50,41 @@
 #include <fcntl.h>
 #include <time.h>
 #include <pty.h>
+#include <stdarg.h>
+#include <sys/syscall.h>
 #include <yunetas.h>
 
 #define APP "test_spawn_copy"
 
 PRIVATE int global_result = 0;
+PRIVATE int wait_for_end_before_pidfd = 0;
+
+/***************************************************************************
+ *  The wrap of syscall(): see the header
+ ***************************************************************************/
+long __real_syscall(long number, ...);
+long __wrap_syscall(long number, ...);
+long __wrap_syscall(long number, ...)
+{
+    va_list ap;
+    va_start(ap, number);
+    long a1 = va_arg(ap, long);
+    long a2 = va_arg(ap, long);
+    long a3 = va_arg(ap, long);
+    long a4 = va_arg(ap, long);
+    long a5 = va_arg(ap, long);
+    long a6 = va_arg(ap, long);
+    va_end(ap);
+
+#ifdef SYS_pidfd_open
+    if(number == SYS_pidfd_open && wait_for_end_before_pidfd) {
+        for(int i = 0; i < 500 && kill((pid_t)a1, 0) == 0; i++) {
+            usleep(10*1000);
+        }
+    }
+#endif
+    return __real_syscall(number, a1, a2, a3, a4, a5, a6);
+}
 
 PRIVATE void ok_or_fail(int cond, const char *name)
 {
@@ -597,7 +634,10 @@ PRIVATE int pty_stdin_end_in_a_line(void)
 
 /***************************************************************************
  *  pty_sync_spawn() with SIGCHLD at SIG_IGN: the kernel reaps the command,
- *  waitpid() answers ECHILD, and that is the end of a command, not an error
+ *  waitpid() answers ECHILD, and that is the end of a command, not an error.
+ *  A command reaped before its pidfd is opened (pidfd_open() answers ESRCH,
+ *  forced here by the wrap of syscall()) has ended too. Its status is lost,
+ *  so a command killed by a signal answers 0 as well.
  ***************************************************************************/
 PRIVATE int pty_sigchld_ignored(void)
 {
@@ -605,7 +645,16 @@ PRIVATE int pty_sigchld_ignored(void)
     memset(&ign, 0, sizeof(ign));
     ign.sa_handler = SIG_IGN;
     sigaction(SIGCHLD, &ign, NULL);
-    return pty_sync_spawn("true") == 0? 0 : 1;
+    if(pty_sync_spawn("true") != 0) {
+        return 1;
+    }
+    wait_for_end_before_pidfd = 1;
+    int r = pty_sync_spawn("true");
+    wait_for_end_before_pidfd = 0;
+    if(r != 0) {
+        return 2;
+    }
+    return pty_sync_spawn("kill -9 $$") == 0? 0 : 3;
 }
 
 /***************************************************************************
