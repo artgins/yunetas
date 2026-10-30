@@ -26,12 +26,12 @@ A treedb is a **memory database**, and timeranger2 rewrites the **whole record**
 on every update. So a photo cannot be a field of a node: it would sit in RAM for
 the life of the yuno and be rewritten every time the node changed state.
 
-Measured on the central node of an application (2026-09-04):
+Measured on one real store (2026-09-04), in round figures:
 
 | | |
 |---|---|
-| blobs | **12 134** |
-| on disk | **346 MB** |
+| blobs | **about 12,000** |
+| on disk | **about 350 MB** |
 | the same as base64 in records | **~460 MB of RAM, permanently** |
 
 That is the whole reason the bytes live outside the record. It is **not** a
@@ -50,8 +50,9 @@ count the delete dialog prints ("N children will be UNLINKED").
 It is a different thing from the two neighbours it will sit next to in the list:
 
 - `image` — the field **holds** the file: a url or a data uri, drawn with
-  `<img>`. That is the model an application's census used before `C_ASSETS`,
-  where `devices.photo` was a path under a directory that nothing owned.
+  `<img>`. That is the model an application's device records used before
+  `C_ASSETS`, where `devices.photo` was a path under a directory that nothing
+  owned.
 - `icon` — the **name** of an icon of the app's set (`yi-bolt`).
 
 ⚠️ A new field type goes in **three** places, and the third is the only one that
@@ -182,10 +183,10 @@ this cheaper than `put-asset`:
    `update-node`.
 
 Step 3 is where the optimisation is paid for, and it costs one thing: the
-history of names below is written only when bytes travel. A census reload that
+history of names below is written only when bytes travel. A bulk reload that
 takes the optimisation records nothing new; one that does not appends an
-instance per asset — 12 134 appends with nothing changed. Both are correct, and
-the cheap one is the default.
+instance per asset — about 12,000 appends with nothing changed. Both are
+correct, and the cheap one is the default.
 
 ### The client's hash is an OPTIMISATION, never a requirement
 
@@ -201,10 +202,10 @@ client's id — and fills the fkey itself. The same code minus one comparison.
 
 What that costs is exactly what step 3 was buying: with no id up front the bytes
 must ALWAYS travel, because nothing can be known to be a duplicate until it has
-arrived. A census reload is 12 134 assets already stored: with the hash first it
-sends ~0, without it sends **346 MB** to discover that nothing was new. The
-optimisation trades microseconds of sha256 for minutes of wire, which is why it
-is the default and not the rule.
+arrived. A bulk reload is about 12,000 assets already stored: with the hash
+first it sends ~0, without it sends **about 350 MB** to discover that nothing
+was new. The optimisation trades microseconds of sha256 for minutes of wire,
+which is why it is the default and not the rule.
 
 **What must NOT be done is to send the file NAME as the id.** If a name ever
 became the identity, the three things content addressing gives would go with it:
@@ -370,14 +371,14 @@ The failure mode is "the newcomer's file is not stored", never "the stored file
 is replaced".
 
 Today `put-asset` always sends the whole file and dedupes on arrival, at roughly
-2.3× the file in RAM. On a census reload, where nearly every asset is already
+2.3× the file in RAM. On a bulk reload, where nearly every asset is already
 stored, step 3 is the difference between seconds and half an hour.
 
 ### The second door: a directory already on the node
 
 The bulk load is treedb's too. A directory that is already on the machine
 becomes N assets in **one command and no bytes on the wire** — which is what
-rebuilding a store from scratch means (§12), and 346 MB is not something to send
+rebuilding a store from scratch means (§12), and 350 MB is not something to send
 one file at a time.
 
 Two things it carries over from `C_ASSETS`, and one it must add:
@@ -660,9 +661,9 @@ anyway — the stores of that application have been wiped for less (schema 17,
 the same day this note was written).
 
 What that does NOT remove is the way back in. Rebuilding from scratch is exactly
-re-ingesting 12 134 blobs and 346 MB, so the bulk load is not a convenience, it
-is the only path — which is why it is treedb's too, and why it has to answer the
-`path -> id` map (§5).
+re-ingesting about 12,000 blobs and 350 MB, so the bulk load is not a
+convenience, it is the only path — which is why it is treedb's too, and why it
+has to answer the `path -> id` map (§5).
 
 ## 13. The tests: `tests/c/tr_treedb_files`
 
@@ -817,8 +818,8 @@ None of them is open in §14, so §14 is wrong to say "none".
   other says *"the second arrival is an update of its node"* and sells the
   history of names. If the client skips the bytes, no `__files__` arrives and
   the index node is not touched: the history is recorded ONLY when bytes
-  travel. Choose, and name the cost — a census reload that does send bytes
-  appends one instance per asset, 12 134 appends with nothing changed.
+  travel. Choose, and name the cost — a bulk reload that does send bytes
+  appends one instance per asset, about 12,000 appends with nothing changed.
 
 - **`C_ASSETS` loses more than §11 lists.** `list-assets` and `delete-asset`
   (`c_assets.c:203-204`) become `nodes` / `delete-node` on `__assets__` and
@@ -836,7 +837,7 @@ None of them is open in §14, so §14 is wrong to say "none".
 
 - **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
   (`tr_treedb.c:5160`). The write path looks the asset up before creating it,
-  or a census reload prints thousands of traces.
+  or a bulk reload prints thousands of traces.
 
 - **The derived hooks must be derived at run time too.** `parse_hooks()` runs
   at open (`tr_treedb.c:1113`) and from `parse_schema()` (`:1970`); a `file`
@@ -970,7 +971,7 @@ only what maps to a topic of THIS treedb or to one no longer open at all.
   bytes on disk"* there. Not decided, not implemented; the docs say it.
 - **`treedb_create_node()` on an existing pkey warns WITH a stack trace**
   (§15.3). The write path looks the asset up before creating it, so the
-  census reload is quiet — but the trap is still there for the next caller.
+  bulk reload is quiet — but the trap is still there for the next caller.
 
 ### 16.8 Found after the merge (2026-09-05)
 

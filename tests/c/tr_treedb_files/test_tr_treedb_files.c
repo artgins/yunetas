@@ -1453,7 +1453,7 @@ PRIVATE int test_second_arrival_keeps_the_name(json_t *tranger)
  *  names is worth an instance -- when the name is NEW. Written through
  *  whatever the name, a repeated `import-assets` over the same directory
  *  appended one instance per asset that said exactly what the previous
- *  one said: 12.134 rows of nothing on an application's census.
+ *  one said: about 12,000 rows of nothing on a real store.
  ***************************************************************************/
 PRIVATE int test_same_name_appends_nothing(json_t *tranger)
 {

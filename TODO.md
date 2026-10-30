@@ -54,14 +54,14 @@ Severity in parentheses where one was assigned.
   loop took and print them on failure, so a recurrence says which.
 
 - **`validate-locales` cannot see 180 keys of gui_agent and 79 of
-  gui_treedb** (found in R46, 2026-10-29). They reach `t()` as backend data
-  (auth error codes), are asked for by gobj-ui at run time, go through
-  unmarked helpers, or may be dead; a deleted one still builds. Each needs its
+  gui_treedb** (found 2026-10-29, in gui_agent 1.1.9). They reach `t()` as
+  backend data (auth error codes), are asked for by gobj-ui at run time, go
+  through unmarked helpers, or may be dead; a deleted one still builds. Each needs its
   own decision (mark it with `*_I18N_KEYS` + `/* i18n */`, `/* i18n: data */`,
   or remove it). They are frozen in `src/i18n_keys_seen.test.js` of each app:
   no other key of the locales can become unseen, and the list may only shrink.
   That test starts from the keys the locales HAVE, so a key handed to `t()`
-  by a variable and in NO locale is not its case: since R47
+  by a variable and in NO locale is not its case: since gui_agent 1.2.0
   `src/i18n_key_reads.test.js` freezes the reads whose value the reader cannot
   follow and nobody marked (73 in gui_agent, 21 in gui_treedb), so no new one
   can be added. Still invisible, and rendered as the raw key: a new VALUE
@@ -345,7 +345,7 @@ application's gate (one application).
 - **Bound the size of an archive batch at its cause**
   (`tranger2_archive_key_files()`). A first archive of a long history makes a
   batch of unbounded file count, and `archive_keeper` refuses anything above
-  `max_files` (100000 since R44; it was 10000, which a first retention of
+  `max_files` (100000 since 7.29.2; it was 10000, which a first retention of
   about seven months on an hourly topic passed). Split one purge into several
   batches of at most N file ids, all made durable before the base, each with
   its manifest and ready mark, all removed if the base fails: the same cut
@@ -353,7 +353,7 @@ application's gate (one application).
 - **A batch whose purge did not happen should not stay visible.** A batch
   whose base was not written holds hard links to live files, so a late
   append, `tranger2_write_user_flag()` or `tranger2_delete_instance()`
-  changes it after its `manifest.json` (documented in R44: a reader takes a
+  changes it after its `manifest.json` (documented in 7.29.2: a reader takes a
   file id from the batch with the latest `@<t>`). Keep the batch hidden
   (`.new-`) until after the base and settle leftovers at the next archive of
   the key (`upto` at or before the base: rename; after it: remove), the case
@@ -415,7 +415,7 @@ application's gate (one application).
 - **Nothing ends a half-open channel on the keeper's side.** `C_TCP` has no
   keepalive and its `timeout_inactivity` works for clients only, so a dead
   sender keeps its channel slot until a `begin` of the same batch takes it
-  over (`stale_session_timeout`, R44); stale channels can use up the
+  over (`stale_session_timeout`, 7.29.2); stale channels can use up the
   `__range__`. Needs a server-side inactivity close or TCP keepalive in
   `C_TCP`/`C_CHANNEL`, or a keeper timer that drops channels idle past
   `stale_session_timeout`.

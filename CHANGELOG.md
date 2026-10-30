@@ -119,8 +119,10 @@
   the webstats record, the audit examples and `test_audit_record.c` use
   generic names (`stress.example.com`, `load-20k`, `stress-demo`,
   `node-a`/`node-b`, `myapp`, `app.example.com`, `ops@example.com`). The
-  retention design and the 7.27.10 performance report give their figures
-  without the corpus, the node or the tender. Comments, tests and docs keep
+  retention design, the design of the `file` columns and the 7.27.10
+  performance report give their figures without saying whose data or which
+  node they come from, and the old entries of this CHANGELOG cite no review
+  by its id. Comments, tests and docs keep
   what was fixed without the review citation, and "before the fix" names the
   release. The same in gobj-js, gobj-ui and yunos-js; the gui_agent QA reads
   the ids of the installation it checks from the environment or
@@ -466,6 +468,13 @@
 - **gui_agent 1.2.2, gui_treedb 1.1.0** (`yunos/js`): the controls test reads
   an upper-case tag, a tag written in pieces and a const shadowed in a block
   (names are resolved by block, not by function).
+- **gui_agent 1.2.3** (`yunos/js`): the placeholder of a role's scope and the
+  examples name no private project, and `scripts/qa.mjs` takes the ids of the
+  installation it checks from the environment or `~/.yuneta/.qa-creds`. After
+  1.2.3 (`main`), a check fails before it opens anything when a setting it
+  needs is not set, and names it; the gates of the held scenario, the number
+  of its generators and the codes of its nodes are settings too, with no
+  default (`QA_QUEUE_GATES`, `QA_SWITCH_COUNT`, `QA_NODE_CODES`).
 - **gobj-js 7.29.0** (`kernel/js/gobj-js`): `build_path()` keeps a root `/`
   and a `..` never goes above the first segment, as in C.
 
@@ -2386,7 +2395,7 @@ no hot path uses.
 
 ## v7.27.7 (2026-10-22)
 
-A patch release of fixes from the reviews V38-V42. In timeranger2, the rowid
+A patch release of fixes from five reviews. In timeranger2, the rowid
 bounds of an iterator on a replica now move with its numbering. Several
 passing failures of a replica or of an rt_disk follower are now retried
 instead of being lost: an `EMFILE`, a purge that crosses a read, a link that
@@ -2600,7 +2609,7 @@ passed: 316, with 1 skipped.
   rotation). The three built from worktrees and run in rotation: 8 rounds,
   24 for the figures that left their noise, 48 for the read phase of
   `perf_timeranger2`. 40 of 41 figures stay inside their noise: the fixes of
-  reviews V38-V40 cost no measurable time on the read path of the master or
+  those reviews cost no measurable time on the read path of the master or
   of a replica (a page of 1 row on a replica 6.27 -> 6.31 us, +0.6%; an
   iterator open +1.1%), nor on the appends (+0.5%), the opens of a store, the
   treedb writes, the event loop, TCP or TLS. One price, and it appeared in
@@ -3085,8 +3094,8 @@ KiB).
 
 ## v7.27.0 (2026-10-15)
 
-A hardening release, out of nineteen more rounds of review (the cloud
-review, V17..V35; V31..V34 went into the entries of earlier rounds)
+A hardening release, out of nineteen more rounds of review (four of them
+went into the entries of earlier rounds)
 of the C kernel and the JS layer. A minor version, because it changes
 contracts. What a user of the SDK has to know:
 
@@ -3128,11 +3137,11 @@ only those two checks taken out of the same `tr_treedb.c` it runs at 2.33 us,
 as 7.26.9 -- about 0.1 us per write, the saved update included. The yunos are
 1.3-1.4% larger (stripped).
 
-Out of the seventeenth review (the cloud review, V17), read while
+Out of the seventeenth review (the cloud review), read while
 7.26.9 was being deployed.
 
 - **fix: `c_node` refuses two more peer mistakes with a WARNING, not the
-  treedb's ERROR** (V17.3.1). An `update-node` of a node that does not exist,
+  treedb's ERROR**. An `update-node` of a node that does not exist,
   without `create`, logged an ERROR with a stack and dumped the whole kw: it
   is now *"node not found, update refused (no 'create' option)"*, the id capped
   at 64, and the answer *"Node not found: '<id>' of topic '<topic>'"*. A
@@ -3143,12 +3152,12 @@ Out of the seventeenth review (the cloud review, V17), read while
   `mt_update_node` and the treedb keep their ERROR for a C caller, whose
   contract it is.
 - **fix: `msg2db_open_db()` opened a list and an index for a topic it had
-  left out** (V17.3.2) when the tranger had that topic open already: the
+  left out** when the tranger had that topic open already: the
   loop that opens the lists asked whether the topic was in the tranger, not
   whether the first loop had taken it. It reads what the first loop took now
   (a topic `tranger2_create_topic()` refuses is not taken either). Test
   `tr_msg2db/test_msg2db_topics_left_out`.
-- **fix: the logger's `%m` took an argument** (V17.3.3). glibc's `%m` takes
+- **fix: the logger's `%m` took an argument**. glibc's `%m` takes
   none -- it is `strerror(errno)` -- so every key after it was read shifted,
   and on 7.26.9 the next string read crashed the process
   (`kw/test_kw1`). `%m` logs `strerror(errno)` now, with the caller's
@@ -3166,54 +3175,53 @@ Out of the seventeenth review (the cloud review, V17), read while
   nodes without `jq` (three of six). Run on all six nodes after the 7.26.9
   upgrade: clean.
 - **JS layer: gobj-ui 7.26.25** publishes `scripts/validate-locales.mjs`, and
-  every SPA runs that one from its `prebuild` and keeps no copy (V17.3.4):
-  the copies had drifted into three families with different rules, and two
-  of them skipped `t('topic') + ':'` as a key built by concatenation, so the
-  gobj tree's *"topic:"* went untranslated in two applications. An
-  import conflict of a hook map names the hook column it is written in
-  (V17.3.5). gui_agent 0.29.39, gui_treedb 0.17.106; every SPA on
-  `^7.26.25` and deployed.
+  every SPA runs that one from its `prebuild` and keeps no copy: the copies
+  had drifted into three families with different rules, and two of them
+  skipped `t('topic') + ':'` as a key built by concatenation, so the gobj
+  tree's *"topic:"* went untranslated in two applications. An import conflict
+  of a hook map names the hook column it is written in. gui_agent 0.29.39,
+  gui_treedb 0.17.106; every SPA on `^7.26.25` and deployed.
 - **docs:** the 7.26.9 release body nests its sub-bullets again (the 4 spaces
   stripped from every line had flattened them).
 
-Out of the eighteenth review (V18):
+Out of the eighteenth review:
 
-- **What a peer gets wrong in a treedb command is a WARNING** (V18.3; the
-  leftovers in V19 below). `C_NODE` refuses before calling the treedb, after the permission:
-  a record that is not a json object or whose `id` is not a string
-  (create, update, delete; also a `content64` that decodes to something
-  else -- it was read on as a path of the wrong type, two ERRORs with a stack
-  and the kw dumped); `create_only` of a node that exists; `instances` by a
-  `pkey2` that is not a secondary index. What only the treedb can judge is
-  said by the treedb: **new `treedb_set_peer_data()` / `treedb_peer_data()`**
-  mark the data in course as a peer's, and then a field required or of the
-  wrong type, an fkey that cannot be linked, a link that would close a
-  cycle, a node linked to itself, an unlink of a child that does not hang
-  there, a create of an id that exists, and the seed-link refusals of
+- **What a peer gets wrong in a treedb command is a WARNING** (the leftovers
+  in the nineteenth review below). `C_NODE` refuses before calling the treedb,
+  after the permission: a record that is not a json object or whose `id` is
+  not a string (create, update, delete; also a `content64` that decodes to
+  something else -- it was read on as a path of the wrong type, two ERRORs
+  with a stack and the kw dumped); `create_only` of a node that exists;
+  `instances` by a `pkey2` that is not a secondary index. What only the treedb
+  can judge is said by the treedb: **new `treedb_set_peer_data()` /
+  `treedb_peer_data()`** mark the data in course as a peer's, and then a field
+  required or of the wrong type, an fkey that cannot be linked, a link that
+  would close a cycle, a node linked to itself, an unlink of a child that does
+  not hang there, a create of an id that exists, and the seed-link refusals of
   `C_NODE` are WARNINGs without a stack. `C_NODE` sets it around the calls of
   create, update, delete, link, unlink and import-db. A C caller still gets
   the ERROR -- and so does a subscriber the treedb publishes to during the
-  call (V19.2) --; a schema fault is an ERROR always.
+  call --; a schema fault is an ERROR always.
 - **fix: `instances` by `pkey2: "id"` walked the PRIMARY index as instances**
   -- 9 errors per node, for every node of the topic without a `node_id`, by
   anyone with `read`. `treedb_list_instances()` refuses a `pkey2` that is not
   a secondary index of the topic, once.
-- **fix: a cap by bytes cut a UTF-8 character** (V18.2.3): a `json_sprintf()`
+- **fix: a cap by bytes cut a UTF-8 character**: a `json_sprintf()`
   comment with `'%.64s'` of a name with a non-ASCII byte at the edge was
   refused whole (the answer fell back to a generic one), and the log wrote a
   broken byte. **New `utf8_prefix_len()`** (helpers): the logger's `%.Ns`
   backs up to the character's start, and the 26 capped comments of
   `C_NODE`, `C_IEVENT_SRV` and the agent's watch request use it.
-- `data.md`: the MyST label `treedb-file-columns` had moved to the new
-  section of R19 (two links led to it); C_NODE's refusal table says what each
-  command answers. `log.md`: SDK 7.26.8 logged `%1$s`/`%qd`/`%I64d`
+- `data.md`: the MyST label `treedb-file-columns` had moved to the new section
+  of the nineteenth review (two links led to it); C_NODE's refusal table says
+  what each command answers. `log.md`: SDK 7.26.8 logged `%1$s`/`%qd`/`%I64d`
   (the forms with `*` and `%j…` were the crashing ones); `%m` ignores a
   precision.
 - `c_node`'s seed-link check reads the hook map by key, as `_link_nodes()`.
 
-Out of the nineteenth review (V19):
+Out of the nineteenth review:
 
-- **fix: the peer's window reached the subscribers** (V19.2). The mark of
+- **fix: the peer's window reached the subscribers**. The mark of
   `treedb_set_peer_data()` is process-wide and the treedb publishes its
   `EV_TREEDB_NODE_*` synchronously, so a subscriber that wrote from its
   handler (`db_history` -> `C_AUTHZ` -> `treedb_authzs`) had its own
@@ -3233,8 +3241,8 @@ Out of the nineteenth review (V19):
   a dict fkey ref whose fields are not strings (read by key, said once);
   `import-db` of an unknown topic, records that are not a list, or a record
   of a wrong shape (refused before the treedb, counted in `errores`).
-- A `null` record id is absent again, as before R20: the treedb makes it
-  (uuid, rowid, qualified) or says it is required.
+- A `null` record id is absent again, as before the twentieth review: the
+  treedb makes it (uuid, rowid, qualified) or says it is required.
 - The last byte caps a peer or an operator can reach -- `C_IEVENT_SRV`'s
   service refusals, `C_YUNO`'s ip, the control center's command checks --
   use `utf8_prefix_len()`.
@@ -3263,54 +3271,54 @@ Out of the nineteenth review (V19):
   + ' required'`), and `not saved yet` (written WITHOUT `t()` by
   `yui_file_field.js`). gui_agent 0.29.40, gui_treedb 0.17.107.
 
-Out of the twentieth review (V20):
+Out of the twentieth review:
 
-- **BREAKING: the command parser types every parameter** (V20.4.1,
-  `command_parser.c`), required or optional, from the line, the kw or its
-  default alike. A `DTP_STRING` must be a string, a `DTP_DICT` an object, a
-  `DTP_LIST` an array; a `DTP_INTEGER`/`DTP_REAL`/`DTP_BOOLEAN` takes a
-  number or a boolean, never an object or an array; text is read AS the type
-  (`"5"` -> 5 by strtoll/strtod with the whole text consumed -- replaced by
-  the JSON grammar in V23.4.6, below; a boolean as true/false, yes/no, on/off
-  or a number); a `null` is no value. Another shape
-  is refused BEFORE the handler (so before its authz check): `-1`, a WARNING
-  when the kw carries `__username__` (a peer), an ERROR with a stack from C.
-  The line has the last word over a refused kw value. A `DTP_JSON` takes
-  anything; on the line, text that is not json arrives as a string, except a
-  text that starts like json (`{`, `[`, `"`) and breaks, which is refused. A
-  declared default that does not read as its type is an ERROR. Up to 7.26.9 a
-  required parameter given in kw was forwarded with no coercion at all, so a
-  handler read `"5"` as 0 or an object where it wanted a string -- and
-  `save-schema {"treedb_name": 5}` fell back to "every treedb" and saved all
-  six (V20.4.2). **A handler can now trust a parameter's declared type**; a
-  parameter it takes in several shapes ON PURPOSE must be declared
-  `DTP_JSON`. Retyped for that reason: `C_NODE` `set-link-events` `set`,
-  `C_IDP_KEYCLOAK`'s `brief`, `enabled`, `emailVerified`, `requiredActions`
-  and `actions`, `C_PROT_MODBUS_M`'s `address`/`size` (and, in the
-  applications, a `set-coordinates` `lng`/`lat` and a gate's `body`). New test
-  `command_parameter_types` (the whole matrix). Docs: `command_parser.md`.
+- **BREAKING: the command parser types every parameter** (`command_parser.c`),
+  required or optional, from the line, the kw or its default alike. A
+  `DTP_STRING` must be a string, a `DTP_DICT` an object, a `DTP_LIST` an
+  array; a `DTP_INTEGER`/`DTP_REAL`/`DTP_BOOLEAN` takes a number or a boolean,
+  never an object or an array; text is read AS the type (`"5"` -> 5 by
+  strtoll/strtod with the whole text consumed -- replaced by the JSON grammar
+  in the twenty-third review, below; a boolean as true/false, yes/no, on/off
+  or a number); a `null` is no value. Another shape is refused BEFORE the
+  handler (so before its authz check): `-1`, a WARNING when the kw carries
+  `__username__` (a peer), an ERROR with a stack from C. The line has the last
+  word over a refused kw value. A `DTP_JSON` takes anything; on the line, text
+  that is not json arrives as a string, except a text that starts like json
+  (`{`, `[`, `"`) and breaks, which is refused. A declared default that does
+  not read as its type is an ERROR. Up to 7.26.9 a required parameter given in
+  kw was forwarded with no coercion at all, so a handler read `"5"` as 0 or an
+  object where it wanted a string -- and `save-schema {"treedb_name": 5}` fell
+  back to "every treedb" and saved all six. **A handler can now trust a
+  parameter's declared type**; a parameter it takes in several shapes ON
+  PURPOSE must be declared `DTP_JSON`. Retyped for that reason: `C_NODE`
+  `set-link-events` `set`, `C_IDP_KEYCLOAK`'s `brief`, `enabled`,
+  `emailVerified`, `requiredActions` and `actions`, `C_PROT_MODBUS_M`'s
+  `address`/`size` (and, in the applications, a `set-coordinates` `lng`/`lat`
+  and a gate's `body`). New test `command_parameter_types` (the whole matrix).
+  Docs: `command_parser.md`.
 - **fix: `treedb_create_node()` on a uuid topic read a stack buffer out of
-  its scope** (V20.2.1): the generated id lived in a `char[]` declared inside
+  its scope**: the generated id lived in a `char[]` declared inside
   the `if`, and was used after it -- reachable by a peer's `create-node` or
   `import-db` with no `id`. The id is read back from the kw.
 - **fix: `gobj_service_factory()` read the service name from a kw it had
-  freed** (V20.2.2), in its `create_delete2` trace: the name keeps its own
+  freed**, in its `create_delete2` trace: the name keeps its own
   reference now, and the gclass name comes from the gclass.
-- **fix: the peer's window reached the rt lists of the treedb's appends**
-  (V20.3). A `C_TRANGER` `open-rt` (and any rt_mem list) on a treedb topic
-  ran inside the window of a peer's write, so its subscriber's own faults
-  were lowered to WARNINGs. The treedb turns the mark off around its appends
-  as around its publication.
+- **fix: the peer's window reached the rt lists of the treedb's appends**. A
+  `C_TRANGER` `open-rt` (and any rt_mem list) on a treedb topic ran inside the
+  window of a peer's write, so its subscriber's own faults were lowered to
+  WARNINGs. The treedb turns the mark off around its appends as around its
+  publication.
 - **fix: `treedb_node_children()` / `treedb_parent_refs()` with NULL
-  options logged an ERROR** (V20.4.3). `replace_links_in_memory` warns about
-  an absent fkey only when it drops the links the node had (V20.4.4: an
+  options logged an ERROR**. `replace_links_in_memory` warns about
+  an absent fkey only when it drops the links the node had (an
   `import-db` of valid records warned for each).
 - `kw_find_path()` with `verbose` FALSE logs nothing for a path that is not
-  there (a peer's `print-tranger path=` reached it; see V21 below for the
-  last two cases); `authzs authz=<unknown>` answers with a WARNING, not an
-  ERROR, and caps the name.
+  there (a peer's `print-tranger path=` reached it; see the twenty-first
+  review below for the last two cases); `authzs authz=<unknown>` answers with
+  a WARNING, not an ERROR, and caps the name.
 - **`C_TRANGER` and `C_TREEDB` refuse what a peer gets wrong, with a
-  WARNING, before the library** (V20.4.2; five passes of fixes and
+  WARNING, before the library** (five passes of fixes and
   adversarial checks), and a C caller keeps its ERROR -- with a stack -- and
   its path. Every answer starts with the yuno's role.
   - **fix: a `create-topic` with a name longer than NAME_MAX made the yuno
@@ -3339,35 +3347,34 @@ Out of the twentieth review (V20):
     with a stack from C (a C caller's create used to be appended with the
     time cut). Links, unlinks and snapshot saves of an existing node are not
     checked, so a node that already holds such a time is not locked out.
-  - `C_TREEDB` `open-treedb` from a peer checks everything BEFORE anything
-    is created, so a refused open leaves nothing on disk: the name (108
-    bytes, no `__`, no `^`), `filename_mask`, `impose_c_schema`,
-    `exit_on_error` and `import_root` (settings only code sets), the
-    schema's shape (one name per topic, types, `main_topic`, versions up to
-    the new `TRANGER2_VERSION_MAX`), every topic as `create-topic` would
-    judge it, `file` columns sharing an `__assets__` hook, the store, and a
-    topic another database owns. A C caller (the agent, the control center,
-    mqtt_broker, the db_history yunos) keeps its pre-V20 path exactly.
-    **fix: a peer could close the treedb of a paused mqtt_broker**, which
-    keeps its `C_TREEDB` and treedb from `mt_start` to `mt_stop` -- freed
-    memory at the next play. `close-treedb` from a peer never closes a
-    treedb the yuno's code opened, playing or paused, with or without
-    `force`, whatever the case of the name (service names are
+  - `C_TREEDB` `open-treedb` from a peer checks everything BEFORE anything is
+    created, so a refused open leaves nothing on disk: the name (108 bytes, no
+    `__`, no `^`), `filename_mask`, `impose_c_schema`, `exit_on_error` and
+    `import_root` (settings only code sets), the schema's shape (one name per
+    topic, types, `main_topic`, versions up to the new
+    `TRANGER2_VERSION_MAX`), every topic as `create-topic` would judge it,
+    `file` columns sharing an `__assets__` hook, the store, and a topic
+    another database owns. A C caller (the agent, the control center,
+    mqtt_broker, the db_history yunos) keeps its path of before the twentieth
+    review exactly. **fix: a peer could close the treedb of a paused
+    mqtt_broker**, which keeps its `C_TREEDB` and treedb from `mt_start` to
+    `mt_stop` -- freed memory at the next play. `close-treedb` from a peer
+    never closes a treedb the yuno's code opened, playing or paused, with or
+    without `force`, whatever the case of the name (service names are
     case-insensitive), and a peer can neither `delete-treedb` it (open or
-    closed) nor open a treedb that would take its name or its
-    `tranger_<name>` service; `force` on a treedb a peer opened is taken,
-    while the yuno plays, only from the user who opened it. The name of an
-    OPEN treedb is taken in any case by every `C_TREEDB` command, which then
-    acts under the name it was opened with (its files, its maps, its
-    answers: `apply-schema` of `TREEDB_X` could write a
-    `TREEDB_X.treedb_schema.json` into `treedb_x`'s store). A topic is another
-    database's on positive evidence only -- a msg2db or treedb open on the
-    tranger holds it, or another database's schema file in the store names
-    it (a db_history's msg2db `alarms`, open or closed): `create-topic`,
-    `delete-topic`, a peer's `open-treedb`, `save-schema` and
-    `apply-schema` refuse it, and a topic the treedb itself dropped comes
-    back. `save-schema` runs the topic checks (and refuses a version past
-    the maximum).
+    closed) nor open a treedb that would take its name or its `tranger_<name>`
+    service; `force` on a treedb a peer opened is taken, while the yuno plays,
+    only from the user who opened it. The name of an OPEN treedb is taken in
+    any case by every `C_TREEDB` command, which then acts under the name it
+    was opened with (its files, its maps, its answers: `apply-schema` of
+    `TREEDB_X` could write a `TREEDB_X.treedb_schema.json` into `treedb_x`'s
+    store). A topic is another database's on positive evidence only -- a
+    msg2db or treedb open on the tranger holds it, or another database's
+    schema file in the store names it (a db_history's msg2db `alarms`, open or
+    closed): `create-topic`, `delete-topic`, a peer's `open-treedb`,
+    `save-schema` and `apply-schema` refuse it, and a topic the treedb itself
+    dropped comes back. `save-schema` runs the topic checks (and refuses a
+    version past the maximum).
   - **fix: `save-schema` published a topic an older release left without
     its `id` column** once one of its columns was edited: such a topic is
     published whole.
@@ -3401,9 +3408,9 @@ Out of the twentieth review (V20):
   click crosses the FSM (new INPUT events, no new output event). gui_agent
   0.29.42, gui_treedb 0.17.109; every SPA on `^7.26.28` and deployed.
 
-Out of the twenty-first review (V21):
+Out of the twenty-first review:
 
-- **BREAKING: the parser hands the handler the EXACT type** (V21.3.2), and a
+- **BREAKING: the parser hands the handler the EXACT type**, and a
   caller gets what it did not before -- `-1` for a real with decimals given to
   an integer, a number given to a boolean converted, an empty numeric `""`
   absent. A number given
@@ -3416,19 +3423,19 @@ Out of the twenty-first review (V21):
   and took the default. **A number written as text** has nothing before or
   after it (`" 5"` was taken, `"5 "` refused) and is in its range:
   `limit=99999999999999999999` was saturated in silence to 2^63-1, and
-  `nan`, `inf`, `1e999` are refused (V21.3.3). **An empty text given in kw to
-  a number with no default is absent** (V21.3.4: `kw_update_missing()` passed
+  `nan`, `inf`, `1e999` are refused. **An empty text given in kw to
+  a number with no default is absent** (`kw_update_missing()` passed
   the `""` on to the handler), and a value of kw that is refused does not
   reach the handler under its name when the line gives it in another case.
   The list of what a caller gets `-1` for since 7.27.0 is in
   `command_parser.md` (*What a caller must send*).
-- **The parser asks the per-command permission BEFORE the parameters**
-  (V21.3.8): with `enable_command_authz`, a caller without the permission
-  gets `-403`, never the diagnostic of a parameter. The checker is asked for
-  the command's NAME, and a denial logs and answers the name: it was handed
-  the whole line, with its parameters -- a password among them -- and logged
-  it. A permission a handler asks itself (`C_TREEDB`'s `create`, `C_NODE`'s
-  `read`) is still asked after the typing: the parser does not know it.
+- **The parser asks the per-command permission BEFORE the parameters**: with
+  `enable_command_authz`, a caller without the permission gets `-403`, never
+  the diagnostic of a parameter. The checker is asked for the command's NAME,
+  and a denial logs and answers the name: it was handed the whole line, with
+  its parameters -- a password among them -- and logged it. A permission a
+  handler asks itself (`C_TREEDB`'s `create`, `C_NODE`'s `read`) is still
+  asked after the typing: the parser does not know it.
 - New `command_parameter_from_text()`: a text read as a type, as the parser
   reads a parameter. **fix: `write-attr` wrote `value=yes` as FALSE**, `abc`
   as 0 and `12abc` as 12 (`atoi()`, `strtoll()`): a boolean, integer or real
@@ -3436,26 +3443,26 @@ Out of the twenty-first review (V21):
   The `set` of the yuno's trace commands is `DTP_JSON` and takes text or json
   -- `1`/`true`/`set`/`yes`/`on`, `0`/`false`/`reset`/`no`/`off`, a level --:
   **fix: `set=yes` was a reset**, and a GUI's `set: 1` was refused.
-- **`kw_find_path()` walks the path in a loop** (V21.2.4): it recursed once
+- **`kw_find_path()` walks the path in a loop**: it recursed once
   per segment and was cut at 64 segments and at a segment of 255 bytes, each
   one an ERROR even with `verbose` FALSE, and a path that is there answered
   as not found. `print-tranger` of `C_TRANGER` and of `C_NODE` call it now
   (they walked the path themselves and refused those with a WARNING).
-- **`check-json` answers what it finds, and logs nothing** (V21.2.3; in
+- **`check-json` answers what it finds, and logs nothing** (in
   `C_TRANGER` and in the agent): new `json_refcounts_report()`, the counts
   and the first 20 with their path, each json walked once, in a loop.
   `json_check_refcounts()` logged an ERROR for each json held more than
   `max_refcount` times (default 1: every node of a treedb), and recursed
   round a cycle of hooks for ever. Its default is `0` now: corrupted jsons
   only, the one fault that is also logged.
-- **A peer's treedb name is not a name of the store** (V21.2.1,
-  `tranger2_reserved_name_fault()`): a treedb `.x` opened and its projection
+- **A peer's treedb name is not a name of the store**
+  (`tranger2_reserved_name_fault()`): a treedb `.x` opened and its projection
   in `__system__` was refused with an ERROR (an id cannot start with `.`);
   `x.json` and `x.bak` too. **A peer's schema is the treedb's**: one whose
-  `id` names another treedb is refused (V21.2.2).
+  `id` names another treedb is refused.
 - **`tr_treedb`: a NEW topic with a `^` in its name or in the id of a hook,
   a hook id of `NAME_MAX` or more, or a pkey2 that names no column, is
-  refused** (V21.2.2): every reference to its nodes (`topic^id^hook`) was
+  refused**: every reference to its nodes (`topic^id^hook`) was
   undecodable, and the index of such a pkey2 held nothing. A topic on disk
   with them opens as it was, with an ERROR naming the fault.
   `treedb_create_node()` refuses an `id` that is not a string (an integer
@@ -3463,11 +3470,11 @@ Out of the twenty-first review (V21):
 - `authzs`: the WARNING caps the authz name, and the answer caps a service
   that is not there.
 - `command_parser.md` writes who is a peer -- a kw with `__username__`, which
-  `C_IEVENT_SRV` stamps -- and what follows from it (V21.2.6): a command
+  `C_IEVENT_SRV` stamps -- and what follows from it: a command
   that comes in by a `C_IEVENT_CLI` link is the server's, a C caller here
   when the server is not an agent, and "the same user" of `force` is one
   identity of an agent.
-- **JS layer: gobj-ui 7.26.29** (V21.4). The test FINDS every library
+- **JS layer: gobj-ui 7.26.29**. The test FINDS every library
   function that hands a key on (to `t()`, an `i18n` / `data-i18n*` value or a
   key position) and fails until it is in `I18N_KEY_FUNCTIONS`: 39 were
   missing, so a literal handed to one went unasked. `validate-locales` holds
@@ -3492,26 +3499,26 @@ Out of the twenty-first review (V21):
   and no title. Every SPA on `^7.26.31` and deployed, the migrated
   application in the deploy round.
 
-Out of the twenty-second review (V22):
+Out of the twenty-second review:
 
-- **BREAKING: the parser stores a parameter under its DECLARED name**
-  (V22.4.1), and a handler gets what it did not before: `cmd N=5` arrives as
-  `"n"`, and the line beats a kw `n`. The line finds a parameter in any case,
-  and `cmd N=5` arrived as `"N"` -- the handler read `n` and took its default,
-  in silence, and a kw `n` beat the line.
-- **BREAKING: a text of kw with a NUL inside is refused** (V22.4.2): a caller
+- **BREAKING: the parser stores a parameter under its DECLARED name**, and a
+  handler gets what it did not before: `cmd N=5` arrives as `"n"`, and the
+  line beats a kw `n`. The line finds a parameter in any case, and `cmd N=5`
+  arrived as `"N"` -- the handler read `n` and took its default, in silence,
+  and a kw `n` beat the line.
+- **BREAKING: a text of kw with a NUL inside is refused**: a caller
   gets `-1` where it got an answer. An ievent frame is decoded with
   `JSON_ALLOW_NUL`, and C read `"5\u0000junk"` as 5 and `"yes\u0000no"` as
   true; a string reached the handler other than it was sent. A `DTP_JSON`
   keeps it as it came.
-- **BREAKING: the text of a real is a decimal number** (V22.4.3; and of the
-  JSON grammar since V23.4.6, below): `0x10` was `16.0` (`strtod()` reads hex,
-  which an integer never took) and is `-1` now, and an underflow is a number
-  (`1e-400` is `0.0`), only an overflow refused. The text of an integer or a
-  boolean stays an integer: `2.0` is refused, the json `2.0` is 2.
-  `command_parser.md` says it, and that a json text that breaks, given in kw
-  to a `DTP_JSON`, stays a string.
-- **Secrets that still reached the log or an answer** (V22.3): out of
+- **BREAKING: the text of a real is a decimal number** (and of the JSON
+  grammar since the twenty-third review, below): `0x10` was `16.0` (`strtod()`
+  reads hex, which an integer never took) and is `-1` now, and an underflow is
+  a number (`1e-400` is `0.0`), only an overflow refused. The text of an
+  integer or a boolean stays an integer: `2.0` is refused, the json `2.0`
+  is 2. `command_parser.md` says it, and that a json text that breaks, given
+  in kw to a `DTP_JSON`, stays a string.
+- **Secrets that still reached the log or an answer**: out of
   session `C_IEVENT_SRV` and `C_IEVENT_CLI` logged the whole forwarded line
   -- a `set-password` through `command-yuno` to a yuno that had just gone --,
   the command's name now; four WARNINGs of `C_IEVENT_SRV` dumped a peer's kw
@@ -3522,37 +3529,37 @@ Out of the twenty-second review (V22):
   keystrokes -- is `SDF_SECRET` in the agent, agent22 and the controlcenter;
   and the parser hands the authz checker the kw with its `SDF_SECRET`
   parameters masked.
-- **`write-attr` reads every type as the parser does** (V22.4.6): a json
+- **`write-attr` reads every type as the parser does**: a json
   attr takes a bare word as the text (it was refused), a dict or a list its
   json, checked for its shape (they answered *"Can't write attr"*), and a
   pointer is refused saying why.
 - **`C_IEVENT_CLI` answers a command to a service not found with
   `EV_MT_COMMAND_ANSWER`** (it went as `EV_MT_STATS_ANSWER`), and caps the
-  name in the log and in the answer (V22.4.7).
+  name in the log and in the answer.
 - **BREAKING: `tr_treedb`: a NEW topic with a `^` in the id of a `file`
-  column is refused** (V22.5.1), where it was created: it is in the hook the
+  column is refused**, where it was created: it is in the hook the
   column derives on `__assets__`, `as_<topic>_<col>`, and every link of a file
   failed (*"Cannot build the reference of a node"*). A topic on disk with it
   opens, with an ERROR.
-- **`json_refcounts_report()` remembers every dict and list it meets**
-  (V22.5.3): only the jsons held more than once were, so a cycle whose
-  refcounts are corrupted below the truth -- what it exists to find -- was
-  walked round until its frames passed `MAX_BLOCK`, and the report did not
-  say it was cut. It says `truncated` now, and `max_refcount` is a
-  `json_int_t` (2^40 acted as 0); the function is new in this cycle.
-- **BREAKING: `check-json` answers `-1` for a FAULT only** (V22.5.4,
-  `C_TRANGER` and the agent), and `0` where it answered `-1`: a corrupted json
-  or a walk cut short is the fault. The jsons held more than `max_refcount`
-  times are the answer to what was asked, a `0`: with `max_refcount=1` a sound
-  treedb answered `-1`.
-- Docs (V22.4.4, V22.5.2, V22.5.5, V22.5.6): `treedb.md` says a treedb with
+- **`json_refcounts_report()` remembers every dict and list it meets**: only
+  the jsons held more than once were, so a cycle whose refcounts are corrupted
+  below the truth -- what it exists to find -- was walked round until its
+  frames passed `MAX_BLOCK`, and the report did not say it was cut. It says
+  `truncated` now, and `max_refcount` is a `json_int_t` (2^40 acted as 0); the
+  function is new in this cycle.
+- **BREAKING: `check-json` answers `-1` for a FAULT only** (`C_TRANGER` and
+  the agent), and `0` where it answered `-1`: a corrupted json or a walk cut
+  short is the fault. The jsons held more than `max_refcount` times are the
+  answer to what was asked, a `0`: with `max_refcount=1` a sound treedb
+  answered `-1`.
+- Docs: `treedb.md` says a treedb with
   an old fault on disk opens, but its schema is not saved nor applied while
   the fault is in it, and how to remove it; `data.md` that the yuno's code
   can still open a `.x` treedb; `kwid.md` that a container of refcount 0 is
   an ERROR of `kw_find_path()`; `kernel/c/README.md` lists
   `json_refcounts_report()`; `test_suite.md` and the comment of
   `treedb_check_new_topic()` brought up to date.
-- **JS layer: gobj-ui 7.26.32** (V22.2, V22.6). **fix: `validate-locales`
+- **JS layer: gobj-ui 7.26.32**. **fix: `validate-locales`
   hung the build on a recursive helper** -- 7.26.29 re-read a function at
   every call of it, and `label_of(n)` calling itself in three branches never
   ended; what a function returns is read once now, and a recursion is not
@@ -3583,7 +3590,7 @@ Out of the twenty-second review (V22):
   than `null`, which Chrome logged once per colour field each time the form
   was filled. Every SPA on `^7.26.34` and deployed.
 - **JS layer: gobj-ui 7.26.35 to 7.26.40, gobj-js 7.26.20** (the
-  twenty-third review, V23.3, V23.5, V23.6). gobj-ui: a window whose host
+  twenty-third review). gobj-ui: a window whose host
   names no `$parent`
   outlives a logout and the next shell takes it in -- since 7.26.31 it stayed
   alive with its DOM detached, and gui_agent's developer window vanished after
@@ -3624,24 +3631,24 @@ Out of the twenty-second review (V22):
   `src/yui_uplot_ink.js` (`yui_uplot_axes()`), for an app's own uPlot too.
   Every SPA on `^7.26.40` / `^7.26.20` and deployed.
 
-Out of the twenty-third review (V23):
+Out of the twenty-third review:
 
-- **BREAKING: a number written as text is one of the JSON grammar** (V23.4.6,
-  `command_parser.c`), the whole text: the text of an integer, and of a
-  boolean that is not a word, is a JSON integer `-?(0|[1-9][0-9]*)`, that of
-  a real a JSON number `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`. A
+- **BREAKING: a number written as text is one of the JSON grammar**
+  (`command_parser.c`), the whole text: the text of an integer, and of a
+  boolean that is not a word, is a JSON integer `-?(0|[1-9][0-9]*)`, that of a
+  real a JSON number `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`. A
   caller that typed `.5`, `5.`, `+5` or `007` gets `-1` (`strtod()` and
   `strtoll()` took them, `007` as 7); what was refused still is (blanks, hex,
-  `nan`, `inf` -- now *"a text that does not read as one"*, it was *"out of its
-  range"* --, an overflow, `2.0` for an integer), and an underflow is a number.
-  And it is read in the `"C"` locale whatever `LC_NUMERIC` is (`newlocale()` +
-  `strtod_l()`, which work in a `FULLY_STATIC` binary): with the `LC_NUMERIC`
-  of `es_ES`, `strtod()` read `2.5` as 2 and took `2,5` -- latent, no yuno sets
-  it. `command_parameter_from_text()` (`write-attr`) reads the same. gobj-js
-  has no twin of this reader; its `C_YUNO` reads the `set` of the trace
-  commands as C does now (gobj-js `main`, unreleased). Test
+  `nan`, `inf` -- now *"a text that does not read as one"*, it was *"out of
+  its range"* --, an overflow, `2.0` for an integer), and an underflow is a
+  number. And it is read in the `"C"` locale whatever `LC_NUMERIC` is
+  (`newlocale()` + `strtod_l()`, which work in a `FULLY_STATIC` binary): with
+  the `LC_NUMERIC` of `es_ES`, `strtod()` read `2.5` as 2 and took `2,5` --
+  latent, no yuno sets it. `command_parameter_from_text()` (`write-attr`)
+  reads the same. gobj-js has no twin of this reader; its `C_YUNO` reads the
+  `set` of the trace commands as C does now (gobj-js `main`, unreleased). Test
   `command_parameter_types`.
-- **Secrets told by their VALUE** (V23.4.3): `mask_secrets_inline()`,
+- **Secrets told by their VALUE**: `mask_secrets_inline()`,
   `json_mask_secrets()` (every string, under any key) and
   `mask_secrets_in_text()` mask a JWT (`eyJ...`, three base64url parts) and
   the token after `Bearer ` (any case) wherever they are -- the shapes the
@@ -3657,7 +3664,7 @@ Out of the twenty-third review (V23):
   `mask_secrets_inline()`, `json_mask_secrets()`) follow the same rule (gobj-js
   `main`, unreleased; `api/js/logging.md` and `api/js/traces.md` say it).
 - **`write-attr attribute=password value=correct horse battery` answers
-  `'<...>'`** (V23.4.3), not `'horse battery'` (`-1` either way): the parser
+  `'<...>'`**, not `'horse battery'` (`-1` either way): the parser
   repeats no extra text of a line that carries a secret (a secret parameter
   given on it, or anything `mask_secrets_inline()` masks in it); `system.md`
   sold it as solved. `write-attr` and the `set` of the trace commands read a
@@ -3671,7 +3678,7 @@ Out of the twenty-third review (V23):
   (authz checker, `commands` trace), not by the `machine` / `ev_kw` trace of an
   event that carries it, which masks by names.
 - **BREAKING: a gclass with an `SDF_SECRET` attribute that has no secret's
-  name is refused** (V23.4.3, `gclass_create()`): one ERROR naming the gclass
+  name is refused** (`gclass_create()`): one ERROR naming the gclass
   and the attribute, and `NULL` -- fail closed. The flag masks the attribute
   where its gclass is asked; everywhere else (the `machine` trace with
   `ev_kw`, a dump of a peer's kw) a secret is told by its name, and one named
@@ -3688,20 +3695,20 @@ Out of the twenty-third review (V23):
   tables, 23 required parameters followed by a required one): none is
   affected but the two cases of the test, the ESP32 port's 17 tables among
   them. Test `command_secret_positional`.
-- **The frame of an event that is not public is ONE WARNING, masked**
-  (V23.4.1): `iev_create_from_gbuffer()` looked it up in silence, and
-  `C_IEVENT_SRV` (before the session too) and `C_IEVENT_CLI` traced the whole
-  kw raw under *"iev_event NULL"*, a jwt, a password and a nested
-  `client_secret` with it, a json of any size. It is *"Frame of an event that
-  is not public, refused"*, `MSGSET_PROTOCOL`, the name capped to 64 bytes,
-  `peername`, the kw masked and capped to 256 bytes, said by
-  `iev_create_from_gbuffer()` whatever `verbose` (only it knows the name; the
-  callers close the channel). A frame without `"event"` or `"kw"` logged two
-  ERRORs there and the caller's WARNING: with `verbose` 0 only the caller
-  says it now. `EV_REMOTE_LOG` (a browser's log line, in session): its text is
-  capped to 1 KB and masked, and the kw is not dumped. Test
-  `c_ievent_srv_identity_card` (a new card), `secret_attrs`.
-- **BREAKING: a NUL in a string of a record is refused** (V23.4.2), where it
+- **The frame of an event that is not public is ONE WARNING, masked**:
+  `iev_create_from_gbuffer()` looked it up in silence, and `C_IEVENT_SRV`
+  (before the session too) and `C_IEVENT_CLI` traced the whole kw raw under
+  *"iev_event NULL"*, a jwt, a password and a nested `client_secret` with it,
+  a json of any size. It is *"Frame of an event that is not public, refused"*,
+  `MSGSET_PROTOCOL`, the name capped to 64 bytes, `peername`, the kw masked
+  and capped to 256 bytes, said by `iev_create_from_gbuffer()` whatever
+  `verbose` (only it knows the name; the callers close the channel). A frame
+  without `"event"` or `"kw"` logged two ERRORs there and the caller's
+  WARNING: with `verbose` 0 only the caller says it now. `EV_REMOTE_LOG` (a
+  browser's log line, in session): its text is capped to 1 KB and masked, and
+  the kw is not dumped. Test `c_ievent_srv_identity_card` (a new card),
+  `secret_attrs`.
+- **BREAKING: a NUL in a string of a record is refused**, where it
   was taken: `C_NODE` (create, update, delete, import) and `C_TRANGER`'s
   `add-record` walk the peer's record (new `json_nul_fault()`), a WARNING;
   `C_NODE` answers `Wrong record: <why>` (it was `Wrong record: a json object,
@@ -3712,26 +3719,26 @@ Out of the twenty-third review (V23):
   the id `"g1\u0000x"` saved that id under the key `g1`, kept after a reload,
   and an `add-record` of the pkey `"K\u0000evil"` was appended under `K`.
   Tests `c_node_commands`, `c_tranger`, `tr_treedb_update_instance`.
-- **`json_refcounts_report()` REPORTS a refcount below the truth** (V23.4.4):
-  every json is counted each time the walk reaches it, and one reached more
-  times than its refcount (a corrupted cycle, a json
-  `json_object_set_new()`'d into two places) is `corrupted`, at the path of
-  the reach too many; the root counts the caller's reference. It ended on such
-  a cycle and said nothing. Its cost, as measured in V24 (below): 24 to 48
-  bytes per json walked, up to 72 while its set doubles, plus 32 per dict or
-  list; with no memory left it says `truncated`. `check-json` keeps its rule:
-  `-1` for a corrupted json or a walk cut short. Test `kw1`.
-- `CHANGELOG`: the V22 bullets that change what a caller receives say
-  BREAKING (V23.4.5). Docs: `command_parser.md` (the JSON grammar, with
-  examples; the extra text; the limit), `json_helper.md` (`truncated` in the
-  example, `json_nul_fault()`), `string_helper.md`, `guide_sdata.md`,
+- **`json_refcounts_report()` REPORTS a refcount below the truth**: every json
+  is counted each time the walk reaches it, and one reached more times than
+  its refcount (a corrupted cycle, a json `json_object_set_new()`'d into two
+  places) is `corrupted`, at the path of the reach too many; the root counts
+  the caller's reference. It ended on such a cycle and said nothing. Its cost,
+  as measured in the twenty-fourth review (below): 24 to 48 bytes per json
+  walked, up to 72 while its set doubles, plus 32 per dict or list; with no
+  memory left it says `truncated`. `check-json` keeps its rule: `-1` for a
+  corrupted json or a walk cut short. Test `kw1`.
+- `CHANGELOG`: the bullets of the twenty-second review that change what a
+  caller receives say BREAKING. Docs: `command_parser.md` (the JSON grammar,
+  with examples; the extra text; the limit), `json_helper.md` (`truncated` in
+  the example, `json_nul_fault()`), `string_helper.md`, `guide_sdata.md`,
   `gclass.md`, `ievent.md`, `msg_ievent.md`, `system.md`, `data.md`,
   `treedb.md`, `test_suite.md`, `kernel/c/README.md`.
 
-Out of the twenty-fourth review (V24):
+Out of the twenty-fourth review:
 
 - **The word after `Bearer` or `Basic` is masked when it can be a credential,
-  never when it reads as prose** (V24.4.2; `mask_secrets_inline()`,
+  never when it reads as prose** (`mask_secrets_inline()`,
   `json_mask_secrets()`, `mask_secrets_in_text()`): a quoted one (`Bearer
   "tok"`), one after the scheme written twice (`Bearer Bearer tok`), whatever
   its shape; else a run of token68 that is no word of prose -- it holds a digit
@@ -3742,7 +3749,7 @@ Out of the twenty-fourth review (V24):
   and `Basic Operations` are left as they are, and `Bearer mF_9.B5f-4.1JqM`,
   `Basic dXNlcjpwYXNz` are masked. The rule, with examples of both sides, is in
   `string_helper.md`.
-- **The false negatives of the masking by value** (V24.4.3): a JWT is `eyJ`,
+- **The false negatives of the masking by value**: a JWT is `eyJ`,
   base64url and a `.` of its own (a header whose only dots end it,
   `eyJhIjoxfQ.`, is none, but at the end of a dump) -- a JWE (five parts) and
   a JWT a cap cut to fewer than
@@ -3763,7 +3770,7 @@ Out of the twenty-fourth review (V24):
   and the JS side answer the same on the tables of both test suites, on
   318 008 generated texts, 30 000 generated jsons with NULs and 286 445
   names.
-- **The name of an event that is not public is masked** (V24.4.1), as its kw:
+- **The name of an event that is not public is masked**, as its kw:
   a password or a JWT sent as the NAME was written in clear. Its WARNING says
   `frame_size`, the bytes received; its `kw_size` was the size of the masked,
   capped copy (a kw of 900 KB said 101), and so was the `kw_size` of the other
@@ -3775,14 +3782,14 @@ Out of the twenty-fourth review (V24):
   window, showed its header. Out of session, the name of a stats
   (`mt_stats`) is masked and capped as the one of a command: it was logged
   whole.
-- **The parser's refusals repeat no credential** (V24.4.4): a key that is not
+- **The parser's refusals repeat no credential**: a key that is not
   a parameter (`help <jwt>=1`: *"has no option '<jwt>'"*), a key with no
   closing quote, and the first word that names no command (*"command not
   available: 'password=hunter2'"*, the help's too) are echoed masked; and an
   extra text with `Authorization: Basic <b64>` or a json `"password": x` is
   `'<...>'`, as any line that carries a secret.
 - **`json_refcounts_report()` walks a list of a million scalars under the
-  default `MAX_BLOCK`** (V24.4.5): a frame was reserved for EVERY child of the
+  default `MAX_BLOCK`**: a frame was reserved for EVERY child of the
   container walked, scalars too, in one block -- 32 MB for that list, and the
   walk stopped at its root, `truncated`, one json counted; and its set of the
   jsons met was one block too, past `MAX_BLOCK` at half a million jsons. Only a
@@ -3795,7 +3802,7 @@ Out of the twenty-fourth review (V24):
   per dict or list. The comment, `helpers.h` and `json_helper.md` said 24 to
   48 per json and 32 per container; a flat list took 70 to 111, measured the same way.
 - **BREAKING: a gclass of the yuno that is refused stops the yuno**
-  (V24.4, `yuneta_entry_point()`): a negative answer of
+  (`yuneta_entry_point()`): a negative answer of
   `register_yuno_and_more()` is an ERROR and `exit(-1)`, as a refused gclass of
   the core. The yuno ran, and its services failed later with *"gclass NOT
   FOUND"*. Every `register_yuno_and_more()` of the trees (204: the SDK, its
@@ -3811,14 +3818,14 @@ Out of the twenty-fourth review (V24):
   no cause. The tests `c_timer0` and `gobj_post_event` called it again and
   dropped the answer: they do not any more (`register_refused_gclass` has a
   second child for it).
-- **BREAKING: an fkey reference with a NUL is refused from C too** (V24.4,
-  `tr_treedb`), as the id and the pkey2 values, by every write that reads one
+- **BREAKING: an fkey reference with a NUL is refused from C too**
+  (`tr_treedb`), as the id and the pkey2 values, by every write that reads one
   from its kw: `treedb_create_node()`, `treedb_update_node()` (it links the
-  `file` columns of its kw) and `treedb_update_node_and_links()` answer `NULL`,
-  `treedb_autolink()` and `treedb_replace_links()` answer `-1`, with *"Invalid
-  fkey reference: it holds a NUL"*, an ERROR. C read the ref up to the NUL: the
-  create saved `""` with no log, or linked to the parent C read; an update of a
-  `file` column with `"\u0000junk"` unlinked its file, and with
+  `file` columns of its kw) and `treedb_update_node_and_links()` answer
+  `NULL`, `treedb_autolink()` and `treedb_replace_links()` answer `-1`, with
+  *"Invalid fkey reference: it holds a NUL"*, an ERROR. C read the ref up to
+  the NUL: the create saved `""` with no log, or linked to the parent C read;
+  an update of a `file` column with `"\u0000junk"` unlinked its file, and with
   `"<id>\u0000evil"` linked the asset `<id>`, both answered as a success. The
   kw is walked for a NUL first, and the topic's columns are copied only when
   one is there: a write without a NUL pays no copy. A peer's record never had
@@ -3838,39 +3845,39 @@ Out of the twenty-fourth review (V24):
   `mqtt.md`, `guide_sdata.md`, `api/js/logging.md`, `test_suite.md`,
   `ENTRY_POINT.md`.
 
-Out of the security review of those commits (V24, `2e8d0589f`):
+Out of the security review of those commits (`2e8d0589f`):
 
-- **fix: the masking of V24 showed what 7.26.9 masked; each rule judges the
-  text as it came now, and 7.26.9's reading is kept whole**
-  (`mask_secrets_inline()`, `json_mask_secrets()`, `mask_secrets_in_text()`).
-  A rule masked, or jumped over, its value before the next one looked: the
-  JWT of two parts of `eyJ...bearer1=x` took the name of the `name=value`,
-  the word after `Bearer Bearer` took the `=` of `pwd=x "rest"`, a label's
-  value hid the `=` inside it (`x-auth-token: password=a,b` showed `,b`; in a
-  dump, `u?password="x"` showed `x`), the token after `Bearer` was cut at the
-  first byte of no token68 (`Bearer abc%2Bdefghijk`: `abc` was too short, and
-  all of it showed), and the value of a json `"name":` in a dump stopped at
-  `;&)<>"'` too (`"password": <x>` showed `<x>`). Now the bytes to mask are
-  MARKED, every rule on the bytes as they came, a run of them is one
-  `********`; 7.26.9's reading of the parameters, and its rules of a dump, are
-  one pass each, whole; the word after a scheme ends where the token after
-  `Bearer` ended in the agent's audit record of 7.26.9 (to a blank, a quote or
-  one of `,;}]`), masked whole, its dots at the
-  end too. Those figures were against the round before (V23, `932f24fca`, the
-  C twin of gobj-js 7.26.20), not against the tag. Against 7.26.9 the masking
+- **fix: the masking of the twenty-fourth review showed what 7.26.9 masked;
+  each rule judges the text as it came now, and 7.26.9's reading is kept
+  whole** (`mask_secrets_inline()`, `json_mask_secrets()`,
+  `mask_secrets_in_text()`). A rule masked, or jumped over, its value before
+  the next one looked: the JWT of two parts of `eyJ...bearer1=x` took the name
+  of the `name=value`, the word after `Bearer Bearer` took the `=` of `pwd=x
+  "rest"`, a label's value hid the `=` inside it (`x-auth-token: password=a,b`
+  showed `,b`; in a dump, `u?password="x"` showed `x`), the token after
+  `Bearer` was cut at the first byte of no token68 (`Bearer abc%2Bdefghijk`:
+  `abc` was too short, and all of it showed), and the value of a json
+  `"name":` in a dump stopped at `;&)<>"'` too (`"password": <x>` showed
+  `<x>`). Now the bytes to mask are MARKED, every rule on the bytes as they
+  came, a run of them is one `********`; 7.26.9's reading of the parameters,
+  and its rules of a dump, are one pass each, whole; the word after a scheme
+  ends where the token after `Bearer` ended in the agent's audit record of
+  7.26.9 (to a blank, a quote or one of `,;}]`), masked whole, its dots at the
+  end too. Those figures were against the round before (`932f24fca`, the C
+  twin of gobj-js 7.26.20), not against the tag. Against 7.26.9 the masking
   still showed what 7.26.9 hid, in 66 of 232 444 generated texts inline and 56
   in a dump: the value of a name of a segment (`pass`, `pin`), a name only
   since this round, jumped over a `name=value` that 7.26.9 judged --
   `db_pass='password'=hunter2` showed `hunter2`. Now 7.26.9's reading of the
   parameters is kept whole too, inline and in a dump: its names, and no shape.
   Measured position by position against the library of 7.26.9 on 318 008
-  generated texts, nothing it hid shows. Against V23 / gobj-js 7.26.20, only
-  V24.4.2's set shows: the word after a bare `Bearer` that is shorter than 8
-  characters, a word of prose of 8 to 23, or dots only (8 876 of the 232 444
-  texts inline, 8 448 in a dump), and the value of a parameter whose word
-  holds `pass`, `pin` or `otp` only before its last `&`, `?` or `;` (above). A
-  word of prose is ASCII letters only now (a
-  character that is no ASCII made a token look like prose), and `Basic`'s
+  generated texts, nothing it hid shows. Against the twenty-third review /
+  gobj-js 7.26.20, only the set of the masking of prose shows: the word after
+  a bare `Bearer` that is shorter than 8 characters, a word of prose of 8 to
+  23, or dots only (8 876 of the 232 444 texts inline, 8 448 in a dump), and
+  the value of a parameter whose word holds `pass`, `pin` or `otp` only before
+  its last `&`, `?` or `;` (above). A word of prose is ASCII letters only now
+  (a character that is no ASCII made a token look like prose), and `Basic`'s
   base64 is read as far as it goes (`(Basic dXNlcjpwYXNz)`).
 - **The end of a dump is where a cap cuts a credential**
   (`mask_secrets_in_text()`): a JWT with no `.` yet, or the word after
@@ -3897,19 +3904,18 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   says the error without them, and its `position`. The function that drops
   the quote is public, `json_error_for_log()`, and the SDK's other logs of a
   jansson error use it (below).
-- **The agent's audit record redacts all that `mask_secrets_inline()`
-  masks, with the same function** (new `mark_secrets_inline()`, of
-  `helpers.h`): its own JWT was three parts exactly, so a JWE and a JWT of two
-  parts were written in clear, and a `name: value` (`X-Auth-Token: x`,
-  `bearer: tok`) and the words after the first of a password written with
-  blanks were not redacted. A json text inside a json text that the record
-  writes back decoded keeps what the text around it marks. Its own readings,
-  stricter than the SDK's, stay on top (the word after `Bearer ` whatever it
-  is: V24.4.2 does not reach the record). A record costs more: `run-yuno` 7.0
-  to 8.4 us, an `update-node` with a json text in its kw 8.3 to 11.5 us. A
-  masked run that ended a text of 8×N bytes read one byte past the map of
-  masked bytes (AddressSanitizer); `helpers/test_audit_record` runs whole
-  under it now.
+- **The agent's audit record redacts all that `mask_secrets_inline()` masks,
+  with the same function** (new `mark_secrets_inline()`, of `helpers.h`): its
+  own JWT was three parts exactly, so a JWE and a JWT of two parts were
+  written in clear, and a `name: value` (`X-Auth-Token: x`, `bearer: tok`) and
+  the words after the first of a password written with blanks were not
+  redacted. A json text inside a json text that the record writes back decoded
+  keeps what the text around it marks. Its own readings, stricter than the
+  SDK's, stay on top (the word after `Bearer ` whatever it is: the masking of
+  prose does not reach the record). A record costs more: `run-yuno` 7.0 to 8.4
+  us, an `update-node` with a json text in its kw 8.3 to 11.5 us. A masked run
+  that ended a text of 8×N bytes read one byte past the map of masked bytes
+  (AddressSanitizer); `helpers/test_audit_record` runs whole under it now.
 - `json_mask_secrets()`'s doc says its limit: a KEY is judged as a name, never
   as a value, so a key that is itself a credential is shown as it is.
 - The maskers stay linear. Measured with -O2 over 1 MB of each of 18 hard
@@ -3933,37 +3939,38 @@ Out of the security review of those commits (V24, `2e8d0589f`):
   `string_helper.md`, `gbuffer.md`, `msg_ievent.md`, `ievent.md`, `data.md`,
   `yuneta_agent.md`, `DEBUGGING.md`, `test_suite.md`, `api/js/logging.md`.
 - **JS layer: gobj-ui 7.26.41 and 7.26.42, gobj-js 7.26.21** (the
-  twenty-fourth review, V24.2, V24.4, V24.5, V24.6, and the security review
-  above). gobj-ui: what the reader does to a table of a `C_YUI_FORM` (a cell
-  edited, a row added or deleted, a nested table) is `edited` whatever the
-  record the form opened with -- a form that opened changed unwired its
-  tables, so their edit was lost by a close that did not ask (a client
-  application's devices without their alarm colours) --; a change of language no
-  longer adds a copy of every column title, and the titles of a form's tables
-  change language (`yui_tabulator_relocalize()` takes them); every change of a
-  badge is said, as text, in one message per turn; the canvas of a G6 graph is
-  named and shows its focus (new consumer keys `json graph`, `gobj tree graph`,
-  `treedb graph`, `fsm graph`); a nav or toolbar item without a `name` is named
-  by a key, by one rule everywhere; the openers of the schema editor are named
+  twenty-fourth review and the security review above). gobj-ui: what the
+  reader does to a table of a `C_YUI_FORM` (a cell edited, a row added or
+  deleted, a nested table) is `edited` whatever the record the form opened
+  with -- a form that opened changed unwired its tables, so their edit was
+  lost by a close that did not ask (a client application's devices without
+  their alarm colours) --; a change of language no longer adds a copy of every
+  column title, and the titles of a form's tables change language
+  (`yui_tabulator_relocalize()` takes them); every change of a badge is said,
+  as text, in one message per turn; the canvas of a G6 graph is named and
+  shows its focus (new consumer keys `json graph`, `gobj tree graph`, `treedb
+  graph`, `fsm graph`); a nav or toolbar item without a `name` is named by a
+  key, by one rule everywhere; the openers of the schema editor are named
   controls, and its topics table is a table; a gclass viewer goes where the
-  window it was opened from goes, and the windows of a destroyed shell go to the
-  shell still alive; a promise of a `before_close` guard that settles with
-  `true` closes the modal; `validate-locales` counts every write to an unmarked
-  `let` (its rule is flow-insensitive, by design: a sentinel that is no key
-  fails), fails a translated text wherever a key is read, reads the iteration
-  callbacks exactly and `.bind()`, and asks for the id a nameless item or node
-  is named by; `deploy-round` tests each app before deploying it, shows every
-  step's output, refuses a range it cannot raise safely, and takes a template as
-  a target. gobj-js: the masking of the C kernel above -- after `Bearer` or
-  `Basic` the word that can be a credential, a JWE, a `name: value`, each rule
-  on the text as it came --, with the same answers as C on 230 078 texts.
-  Measured against gobj-js 7.26.20 on those texts, what it shows that 7.26.20
-  hid is V24.4.2's set (the word after a bare `Bearer` that is shorter than 8
-  characters, prose of 8 to 23 or dots only), the second word of `Bearer Bearer
-  tok` (whose `tok` is masked now), and blanks, punctuation and parameter names:
-  no credential. Every SPA on `^7.26.42` / `^7.26.21` and deployed.
+  window it was opened from goes, and the windows of a destroyed shell go to
+  the shell still alive; a promise of a `before_close` guard that settles with
+  `true` closes the modal; `validate-locales` counts every write to an
+  unmarked `let` (its rule is flow-insensitive, by design: a sentinel that is
+  no key fails), fails a translated text wherever a key is read, reads the
+  iteration callbacks exactly and `.bind()`, and asks for the id a nameless
+  item or node is named by; `deploy-round` tests each app before deploying it,
+  shows every step's output, refuses a range it cannot raise safely, and takes
+  a template as a target. gobj-js: the masking of the C kernel above -- after
+  `Bearer` or `Basic` the word that can be a credential, a JWE, a `name:
+  value`, each rule on the text as it came --, with the same answers as C on
+  230 078 texts. Measured against gobj-js 7.26.20 on those texts, what it
+  shows that 7.26.20 hid is the set of the masking of prose (the word after a
+  bare `Bearer` that is shorter than 8 characters, prose of 8 to 23 or dots
+  only), the second word of `Bearer Bearer tok` (whose `tok` is masked now),
+  and blanks, punctuation and parameter names: no credential. Every SPA on
+  `^7.26.42` / `^7.26.21` and deployed.
 
-Out of the twenty-fifth review (V25), each finding checked before it was
+Out of the twenty-fifth review, each finding checked before it was
 fixed:
 
 - **fix: the kernel read a gobj it had just destroyed, at the end of the
@@ -4179,7 +4186,7 @@ fixed:
   logout included (the C transport logs an ended session nowhere: it is
   `EV_ON_CLOSE`), and the reason of a failed open was logged unmasked.
 
-Out of the twenty-sixth review (V26), each finding checked before it was
+Out of the twenty-sixth review, each finding checked before it was
 fixed:
 
 - **fix: destroying a RUNNING gobj whose stop says farewell at once freed it
@@ -4354,7 +4361,7 @@ fixed:
   `let`s, and no longer cuts a long list at exit; `deploy-round` reads a
   range's history by value and refuses a shallow clone.
 
-Out of the twenty-seventh review (V27), each finding checked before it was
+Out of the twenty-seventh review, each finding checked before it was
 fixed:
 
 - **fix, BREAKING: `gobj_play()` says when nothing is playing.** A play
@@ -4379,12 +4386,12 @@ fixed:
   its place, refused"*, `MSGSET_PROTOCOL`), the frame dropped, the channel
   kept. An empty `dst_service` no longer logs *"service EMPTY"* (an ERROR with
   a stack), and is still published; one that is no service is dropped (see the
-  BREAKING entry of V28 below). A stats or command request of the server for a
-  service that does not exist (*"Service not found"*) logs the name masked and
-  capped; it was in clear. What the C and the gobj-js clients do with a frame
-  they refuse is not always the same (the C one closes the channel where
-  gobj-js drops the frame): the table is in the `C_IEVENT_CLI` page. Test
-  `c_ievent_cli_peer_faults`.
+  BREAKING entry of the twenty-eighth review below). A stats or command
+  request of the server for a service that does not exist (*"Service not
+  found"*) logs the name masked and capped; it was in clear. What the C and
+  the gobj-js clients do with a frame they refuse is not always the same (the
+  C one closes the channel where gobj-js drops the frame): the table is in the
+  `C_IEVENT_CLI` page. Test `c_ievent_cli_peer_faults`.
 - **fix: a URL or a query %-encoded inside a value was not masked**
   (`mask_secrets_inline()`, `json_mask_secrets()`, `mask_secrets_in_text()`,
   and the agent's audit record through `mark_secrets_inline()`). `%XX` was
@@ -4418,10 +4425,10 @@ fixed:
   value; `validate-locales` no longer hangs on a locale's timer and reads
   const-named methods and written spreads.
 
-Out of the twenty-eighth review (V28), each finding checked before it was
-fixed (most of it regressions of the V27 fixes, folded into their entries
-above: the walks of the tree, `gobj_destroy_named_children()`, the URL
-password under a cap, the stats/command `service` masked):
+Out of the twenty-eighth review, each finding checked before it was fixed
+(most of it regressions of the twenty-seventh review's fixes, folded into
+their entries above: the walks of the tree, `gobj_destroy_named_children()`,
+the URL password under a cap, the stats/command `service` masked):
 
 - **BREAKING: `C_IEVENT_CLI` drops an event it cannot deliver to the service
   named** (`dst_service`), as gobj-js has done since 7.16.1. A `dst_service`
@@ -4475,7 +4482,7 @@ password under a cap, the stats/command `service` masked):
   does not call a rename; `validate-locales` reads an element of a const array
   as that element and fails on an unhandled rejection.
 
-Out of the twenty-ninth review (V29), each finding checked before it was
+Out of the twenty-ninth review, each finding checked before it was
 fixed (the walks of the tree are marked BREAKING above, with their measured
 cost):
 
@@ -4496,7 +4503,7 @@ cost):
   configuration of the tree or of the apps writes 0. Test
   `c_tcp_inactivity/test5`.
 
-Out of the thirtieth review (V30), each finding checked before it was
+Out of the thirtieth review, each finding checked before it was
 fixed (the walks' cost figures and the reconnection floor are corrected in
 their entries above):
 
@@ -4515,7 +4522,7 @@ their entries above):
 
 ## v7.26.9 (2026-10-11)
 
-A hardening release, out of sixteen rounds of review (the cloud review, V1..V16)
+A hardening release, out of sixteen rounds of review
 of the JS layer first and of the C kernel after. What a user of the SDK has to
 know:
 
@@ -4555,7 +4562,7 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   (the error is already logged).
   `tests/c/kw/test_kw_set_dict_value` has a case per reader; on the old library
   all five returned the freed pointer. Found by the cloud review of the JS
-  layer (§V9.2), comparing an empty path in JS and C.
+  layer, comparing an empty path in JS and C.
 - **fix: the other half -- with `KW_CREATE`, `kw_get_dict()` / `kw_get_list()`
   handed back an orphan default when the path held a value of another type,
   or `kw` was NULL** (and `kw_get_dict_value()` with a NULL `kw`): unwritten,
@@ -4591,9 +4598,8 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   at the leaf is "no value" for `KW_CREATE`: `kw_get_dict()` / `kw_get_list()`
   replace it, as a missing key -- only a value of another type is refused. (No
   release ever replaced it: up to 7.26.8 a null there handed back an orphan.)
-  Cloud review §V11.1.
 - **A name that comes from data is a KEY, never a path: one sweep over every
-  `kw_*` call with a variable path** (264 calls, cloud review §V12.1). The
+  `kw_*` call with a variable path** (264 calls). The
   readers and writers split a path at `` ` ``, so an id, a pkey2 value, a client
   id or a name a user or a peer chooses addressed the wrong place the day it
   held one. Fixed, by key (`json_object_*`):
@@ -4623,27 +4629,26 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   the frozen copy of the old timeranger and is left as it is.
 - **fix: the pkey2 index of a treedb is keyed by the node id as a KEY**
   (`add/exist/delete_secondary_node`): an id holding the path delimiter put
-  its instances INSIDE the index entry of another node. §V11.2.
+  its instances INSIDE the index entry of another node.
 - `c_prot_mqtt`: a client id is a key (a subscriber whose id held the
   delimiter received NO message, and each one logged an error with stack); `tr_msg`: a key that cannot be added skips its
   record instead of stopping the load; `kw_set_path_delimiter(0)` no longer
   makes every path an "empty segment"; `timeranger2` keeps the volatile keys
   of a topic (`disks`, `iterators`, `iterators_by_id`, `cache`) out of a
   `topic_var`; `gobj_full_name()` allocates with `gbmem_*`;
-  `tests/c/kw/test_json_flat` frees what it flattens. §V11.3.
+  `tests/c/kw/test_json_flat` frees what it flattens.
 - `tests/c/c_assets` sends `EV_TREEDB_UPDATE_NODE` by its symbol: a literal
   string passed only because the linker merged equal strings (events are
   compared by pointer), and failed under ASan.
 - `tests/c/kw/test_kw_set_dict_value`: a case for each; on the 7.26.8 library
   the ten new ones fail, the UTF-8 one with a segfault (and the four of the
   null-at-the-leaf rule fail on the code before it).
-- **TWO name rules for timeranger2 and treedb** (cloud review §V13.1,
-  §V14.2), each a new public function:
-    - a name that is a DIRECTORY -- a treedb, a topic, a msg2db and its
-      topics -- follows `tranger2_name_is_identifier()` (`timeranger2.h`):
-      not empty, not `.` or `..`, no `/` and no `` ` ``; the rule timeranger2
-      already applied to a topic. A leading `.` is allowed (the V12 checks of
-      treedb refused it, and timeranger2 did not).
+- **TWO name rules for timeranger2 and treedb**, each a new public function:
+    - a name that is a DIRECTORY -- a treedb, a topic, a msg2db and its topics
+      -- follows `tranger2_name_is_identifier()` (`timeranger2.h`): not empty,
+      not `.` or `..`, no `/` and no `` ` ``; the rule timeranger2 already
+      applied to a topic. A leading `.` is allowed (the checks of the twelfth
+      review in treedb refused it, and timeranger2 did not).
     - a COLUMN name -- a column id, a hook, an fkey -- is only a key, and
       follows `treedb_col_name_is_identifier()` (`tr_treedb.h`): not empty
       and no `` ` ``. A `/`, `.` or `..` in a column is fine: it never broke
@@ -4661,7 +4666,7 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
     - `msg2db_open_db()` refuses a msg2db name that breaks the rule, and
       leaves out a topic that does -- before the topic is created, said once;
       a topic the first loop left out for any reason is not opened by the
-      second (three more errors, §V16.4).
+      second (three more errors).
     - `c_node`: every name a command hands it -- the hook of `node_children` /
       `jtree` (and `rename_hook`), the `link` of `node_parents`, the hook of
       `link_nodes` / `unlink_nodes`, and the topic and hook of the
@@ -4671,41 +4676,40 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
       first version of this line said so wrongly).
     - gobj-ui 7.26.22: the schema editor, its import and its validation apply
       the same two rules.
-- **A name with a `.` works: the treedb looks its names up by KEY**
-  (cloud review §V15.1). `kwid_get()` splits its path at `` ` `` AND at `.` --
-  unlike the `kw_get_*()` readers -- and `tr_treedb`, `tr_msg2db`, `c_node` and
-  `c_tranger` built its paths from topic, hook and fkey names: a link to a topic
-  `par.v1` answered -1, a hook `kids.all` was "link field not found" at the
-  open, a hook `..` never linked, and a msg2db topic `.hid` was "NOT FOUND". New
-  `kwid_get_by_keys()` (`kwid.h`): the segments are given one by one and never
-  split; a NULL segment is "not found", not a terminator; call it as
-  `KWID_GET_BY_KEYS(gobj, kw, flag, key, ...)`, which counts the keys at compile
-  time (a count written by hand that missed one returned the column instead of
-  its `hook`, and the seeds of `c_node` stopped linking). Every such path (28)
-  goes through it; the `kwid_get()` doc says it splits at `.`. Only `KW_VERBOSE`
-  is read by it, and the treedb does not pass it where it says the error itself
-  (it was said twice, §V16.2). `tests/c/tr_treedb_delete_instance` links, lists
-  and unlinks through a topic `par.v1`, a hook `kids.all`, an fkey `par.ent` and
-  a hook `..`.
-- **`c_node`: a name a command hands it is the peer's data, ONE criterion**
-  (§V15.3): an unknown topic (node, nodes, create/update/delete-node, hooks,
-  links, desc(s), instances, pkey2s, parents, children, jtree, and both topics
-  of link/unlink-nodes), a `link` that is no column of the topic, a parent
-  ref that is not `topic^id^hook` (three parts, none empty, each fitting), and
-  a wrong child ref are a WARNING with the name capped and a refusal, before
-  any method logs its ERROR. `pkey2s` of an unknown topic answered 0 pkey2s
-  with no log. `tests/c/c_node_commands` pins six refusals.
-- **fix: `c_node` checks the PERMISSION before the topic** (cloud review
-  §V16.1): in create-node, update-node, delete-node and nodes
-  the topic check of this cycle ran first, so a peer without the permission
-  was told "Topic not found" -- which topics exist -- and could raise
-  warnings at will. It gets -403 now, as before the check existed
-  (`tests/c/c_node_authz` pins the four). And the same criterion reaches the
-  rest of what a command names: a `link` that is a column but no fkey, a hook
-  that is a column but no hook (children, jtree, and the hook of a parent ref
-  in link/unlink-nodes), a node that is not there (children, jtree: a warning
-  with the id, no longer an ERROR with the whole kw); a malformed parent ref
-  says which part is wrong.
+- **A name with a `.` works: the treedb looks its names up by KEY**.
+  `kwid_get()` splits its path at `` ` `` AND at `.` -- unlike the
+  `kw_get_*()` readers -- and `tr_treedb`, `tr_msg2db`, `c_node` and
+  `c_tranger` built its paths from topic, hook and fkey names: a link to a
+  topic `par.v1` answered -1, a hook `kids.all` was "link field not found" at
+  the open, a hook `..` never linked, and a msg2db topic `.hid` was "NOT
+  FOUND". New `kwid_get_by_keys()` (`kwid.h`): the segments are given one by
+  one and never split; a NULL segment is "not found", not a terminator; call
+  it as `KWID_GET_BY_KEYS(gobj, kw, flag, key, ...)`, which counts the keys at
+  compile time (a count written by hand that missed one returned the column
+  instead of its `hook`, and the seeds of `c_node` stopped linking). Every
+  such path (28) goes through it; the `kwid_get()` doc says it splits at `.`.
+  Only `KW_VERBOSE` is read by it, and the treedb does not pass it where it
+  says the error itself (it was said twice).
+  `tests/c/tr_treedb_delete_instance` links, lists and unlinks through a topic
+  `par.v1`, a hook `kids.all`, an fkey `par.ent` and a hook `..`.
+- **`c_node`: a name a command hands it is the peer's data, ONE criterion**:
+  an unknown topic (node, nodes, create/update/delete-node, hooks, links,
+  desc(s), instances, pkey2s, parents, children, jtree, and both topics of
+  link/unlink-nodes), a `link` that is no column of the topic, a parent ref
+  that is not `topic^id^hook` (three parts, none empty, each fitting), and a
+  wrong child ref are a WARNING with the name capped and a refusal, before any
+  method logs its ERROR. `pkey2s` of an unknown topic answered 0 pkey2s with
+  no log. `tests/c/c_node_commands` pins six refusals.
+- **fix: `c_node` checks the PERMISSION before the topic**: in create-node,
+  update-node, delete-node and nodes the topic check of this cycle ran first,
+  so a peer without the permission was told "Topic not found" -- which topics
+  exist -- and could raise warnings at will. It gets -403 now, as before the
+  check existed (`tests/c/c_node_authz` pins the four). And the same criterion
+  reaches the rest of what a command names: a `link` that is a column but no
+  fkey, a hook that is a column but no hook (children, jtree, and the hook of
+  a parent ref in link/unlink-nodes), a node that is not there (children,
+  jtree: a warning with the id, no longer an ERROR with the whole kw); a
+  malformed parent ref says which part is wrong.
 - **fix: the logger read every integer as an `int`**: `json_vappend()` reads
   the length modifiers (`hh h l ll j z t L`) now -- a `%zu` of 5000000000
   logged 705032704, a `%llu` of ULLONG_MAX logged -1 (one above LLONG_MAX is
@@ -4716,24 +4720,23 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   still consumes one, as it always did, and `'` is a flag (`%'d` crashed);
   a `"msg"` with no conversion is the last message too. A value is ONE
   conversion: the doc of `gobj_log_error()` says so, with the table. `gbmem.c`
-  said `"%ul"` for `"%lu"`. §V15.2, §V16.3.
+  said `"%ul"` for `"%lu"`.
 - **fix: the logger ignored the precision of `%s`**: `json_vappend()` read
   `"%.64s"` as `"%s"`, so every "capped" value of the tree (29 sites, a
   peer's data among them) was logged whole, up to 4 KiB. It reads flags,
   width and precision now, `*` included -- a `"%.*s"` would have read its
-  `int` as the string pointer. `tests/c/kw/test_kw1` pins it. §V14.1.
+  `int` as the string pointer. `tests/c/kw/test_kw1` pins it.
 - **fix: use after free in `delete_consoles_on_disconnection()`** of
   `yuno_agent` and `yuno_agent22`: the name read from the console record was
   used after `delete_console()` freed that record. It is copied first, with
   `gbmem_strdup()` (a fixed `NAME_MAX` buffer truncated a gobj name of 255
   bytes, and that console was never deleted); so is the copy in `mt_stop`.
-  §V13.3, §V14.4.
 - **`tr2list --filter` and the filter of a `ytests` step read their keys as
   PATHS**, through `kw_clone_by_path()` (``{"device`model": "T-100"}`` matches
   the field `model` inside `device`). Since `kw_clone_by_keys()` reads keys as
   keys they had silently stopped matching a nested field. `ytests` says a
   filter path not found in the response, and a filter item that is not a
-  string. §V13.2, §V14.4.
+  string.
 - `kw_match_simple()` says "filter path too long" ONCE per process (it ran per
   publication and per record, so a peer's long filter flooded the log);
   `msg_iev_push_stack()` replaces a peer's `__md_iev__` (or a stack in it) of
@@ -4744,7 +4747,7 @@ against 7.26.0 (-0.2%). Every other figure within its noise.
   same message does not warn again (`c_ievent_srv` warned twice per message);
   `kw_get_dict()` / `kw_get_list()` with `KW_CREATE|KW_REQUIRED` over a `null`
   and no default say "path NOT FOUND", as for a missing key (gobj-js 7.26.16
-  does the same). §V13.4, §V14.1.
+  does the same).
 
 - **JS layer: the review of gobj-js, gobj-ui and their use in the SPAs
   (2026-10-10/11, the cloud review, sixteen rounds).** Submodules
@@ -14346,7 +14349,7 @@ repainted only the shell's container), and the brand announced itself as
 in DATA and nothing asked for them, so `validate-locales` reads it now, the
 way another application's copy already did.
 
-**In another application**: the two census selects of the device card and the
+**In another application**: the two inventory selects of the device card and the
 select-all checkbox of the controllers view had no name; and maplibre labels
 its own chrome in English, never through the app's i18next, so zoom, compass,
 fullscreen, geolocate and the attribution toggle all read English on a Spanish
@@ -14830,8 +14833,8 @@ key `show more`. The JS API docs are repinned to the new tag.
 `store_file_bytes()` wrote the manifest's `original_name` into the asset node
 whether or not it was the name already stored, and every update appends an
 instance: a repeated `import-assets` over the same directory added one
-instance per asset that said exactly what the previous one said (12,134 rows
-of nothing on an application's census). The name is compared with the stored
+instance per asset that said exactly what the previous one said (about 12,000 rows
+of nothing on a real store). The name is compared with the stored
 one first, and only a NEW name is written. Test 17 of
 `tests/c/tr_treedb_files`.
 
@@ -15239,7 +15242,7 @@ was written by a C caller or by `import-assets` and by nobody else.
   control hid its button, which hides the way in for a person and leaves the
   `<input type=file>` enabled.
 
-The last two were found by driving a real form against a real census, not by
+The last two were found by driving a real form against a real inventory, not by
 a fixture: the control drew correctly and the log said it did not.
 
 #### `gobj-js` 7.16.3 and `gobj-ui` 7.23.50 → 7.23.59
@@ -15427,7 +15430,7 @@ empty-list case walked straight past it. **Cannot tell now means linked**, and
 collector that cannot tell must not guess.
 
 An asset node with no `id` was skipped silently by both `gc-assets` and the
-census index — one leaves an unreachable blob behind, the other makes every
+inventory index — one leaves an unreachable blob behind, the other makes every
 image that node holds unreachable. Both say so now.
 
 Three refusals of `store_asset` — empty, over `max_size`, `content_type` not
@@ -15446,10 +15449,10 @@ and each of those files came from its own path, which is what a loader links
 by. `source_path` held one, so it held the **last one written** and lost the
 rest.
 
-It is not a corner case. In an application's census **148 measurement points
-share one byte-identical photograph**: content-addressed that is a single
-asset, so 147 of them named a path no asset carried, were never even looked
-up, and came out with no image. **The load reported success**, and it was
+It is not a corner case. In an application's device inventory **148
+measurement points share one byte-identical photograph**: content-addressed
+that is a single asset, so 147 of them named a path no asset carried, were
+never even looked up, and came out with no image. **The load reported success**, and it was
 found counting rows afterwards.
 
 `source_path` is an array now and `store_asset` **accumulates** every path
@@ -15467,7 +15470,7 @@ carry one of each.
 Both fixes above were in `main` and reachable by nobody. A node that carries
 a runtime-only SDK — `outputs/`, `outputs_ext/`, `tools/`, no `kernel/` and no
 `.git` — cannot rebuild the framework, so a fix reaches it as a **package** or
-it does not reach it. The census on the central node stored its twelve
+it does not reach it. The inventory on a central node stored its twelve
 thousand assets and linked **none** of them, because its `store_asset` was the
 one that writes `source_path` as a string.
 
@@ -15512,7 +15515,7 @@ svg served from the app's own origin runs script.
 `import-assets` reads a directory that is already on the node, which is
 right for a migration and wrong for a norm: the initial data of a yuno
 belongs in `yunos/batches/`, on the authoring side, and the deploy sends it
-from there. A batch line carries ONE file (`content64=$$(...)`), so a census
+from there. A batch line carries ONE file (`content64=$$(...)`), so an inventory
 of twelve thousand images is either twelve thousand commands or a few dozen
 bundles.
 
@@ -15557,8 +15560,8 @@ the test drives them as strings the way the agent does.
 
 A treedb node often owns something that is not json — a photo, a plan, a
 signed pdf — and today those bytes live wherever whoever loaded them put
-them. In one application that is 356 MB of census images under
-`/yuneta/store/resources/<census>/`, referenced from `devices.foto`
+them. In one application that is about 350 MB of device photos under
+`/yuneta/store/resources/<topic>/`, referenced from `devices.photo`
 as a free string, pushed to the node by an `rsync` from a developer's
 laptop. Nothing owns them: no command writes one, so a user cannot add or
 replace a photo from the SPA or from `ycommand`; nothing checks the path
@@ -15575,7 +15578,7 @@ free-form json.)
 `C_ASSETS` does what the agent already does with yuno binaries: the bytes
 in a directory the service owns, one node per asset in the treedb, and
 commands as the only way in. The asset id is the **sha256 of the content**,
-so the same bytes stored twice are one asset, a whole census reload creates
+so the same bytes stored twice are one asset, a whole bulk reload creates
 nothing, a served url can be cached for ever, and replacing an asset is a
 new id plus a relinked node — which is what makes the node's own history
 say which photo it carried, and when.
@@ -15602,7 +15605,7 @@ a leaked url.
 
 **`import-assets` is the bulk path, and it moves no bytes at all.** One
 command walks a directory that is already on the node and turns it into N
-assets — for an application's census, 12 281 files that are already sitting
+assets — for one application, about 12,000 files that are already sitting
 in the store. Sending hundreds of megabytes through the control plane, one
 base64 message per file, is the thing it exists to avoid. It reads an
 arbitrary path, so it is confined to a configured `import_root` and refused
