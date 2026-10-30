@@ -462,7 +462,7 @@ plain `list-keys` or `topics` is the symptom.
 level=messages`, driven over `wss://<node>:1993` with no SSH) reads:
 
 ```
-user 'yuneta_admin@artgins.com', service: 'C_TRANGER^tranger_tracks',
+user 'yuneta_admin@artgins.com', service: 'C_TRANGER^tranger_events',
 authz 'list', allow -> YES
 ```
 
