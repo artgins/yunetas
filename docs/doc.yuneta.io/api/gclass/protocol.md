@@ -247,7 +247,7 @@ What arrives in between -- the rest of the frame the client gave up on, the
 server's own Close -- belongs to a session that is over: it is discarded, and
 nothing is published (the `debug` trace level logs it). Up to 7.25.10
 `ST_DISCONNECTED` did not declare `EV_RX_DATA`, and each such read logged
-*"Event NOT DEFINED in state"*; a controller too busy to read a frame in time
+*"Event NOT DEFINED in state"*; a client too busy to read a frame in time
 showed it. A client configured to give a slow peer more time:
 
 ```C

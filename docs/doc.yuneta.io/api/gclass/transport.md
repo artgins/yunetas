@@ -153,8 +153,8 @@ gobj_send_event(tcp, EV_TX_DATA,            // dropped, counted; EV_DISCONNECTED
 ```
 
 Up to 7.25.10 `ST_WAIT_STOPPED` did not declare `EV_TX_DATA`: *"Event NOT
-DEFINED in state"*, one ERROR per message -- ten thousand in an hour on a sim
-of 300 controllers whose central went away. Up to 7.25.20 the data then went
+DEFINED in state"*, one ERROR per message -- ten thousand in an hour on a
+simulator of 300 clients whose server went away. Up to 7.25.20 the data then went
 with no trace at the default levels (only the `connections` trace said it,
 per message). `tests/c/c_tcp` (`test_tcp_test7`, also a `C_TCP` stopped and
 destroyed in `ST_WAIT_STOPPED`).
@@ -259,7 +259,7 @@ the other and the peer failed the record MAC: *"SSL_read() FAILED"*,
 `error:0A000119` *"decryption failed or bad record mac"*, and the connection
 dropped. It shows under a burst on a full socket -- a client resending its
 window when a gate comes back -- and how often depends on the kernel: in
-an application's stress test on a Rocky 9 central (kernel 5.14) it dropped links
+an application's stress test on a Rocky 9 node B (kernel 5.14) it dropped links
 13606 times in 25 minutes. Now the encrypted output waits while a write is in
 flight, and the next clear message is taken only when nothing is waiting.
 
@@ -474,7 +474,7 @@ connection -- refuses it the same way, as a third cause with its own stat,
 WARNING level, because it is a matter of capacity: `TCP_S: Connection not
 accepted: no free child tree found`, the first one, then one a minute at most
 with the count. Up to 7.25.21 each one was an ERROR and counted nowhere: 600
-channels and 1000 simulated controllers, which retry, made 38,156 of them in
+channels and 1000 simulated clients, which retry, made 38,156 of them in
 minutes.
 
 ```text

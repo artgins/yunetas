@@ -11,7 +11,7 @@
  *          frame it gave up on, the server's own Close -- came to
  *          ST_DISCONNECTED as EV_RX_DATA, which the state did not declare:
  *          "Event NOT DEFINED in state", an ERROR in every such close. Seen
- *          on a sim of controllers too busy to read a frame in time.
+ *          on a simulator of clients too busy to read a frame in time.
  *
  *          The server here is raw (C_PROT_RAW) and plays websocket by hand:
  *          it answers the upgrade (the client checks only the 101 and drops

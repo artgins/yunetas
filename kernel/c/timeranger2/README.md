@@ -145,11 +145,11 @@ and why it is made this way, is in [`DESIGN-retention.md`](DESIGN-retention.md).
 
 ```c
 /*
- *  Keep 30 days of `raw_tracks` of one device: delete the files whose
+ *  Keep 30 days of `raw_events` of one device: delete the files whose
  *  records were all appended before now - 30 days (a topic in seconds)
  */
 json_int_t rows = tranger2_delete_key_files(
-    tranger, "raw_tracks", device_id, time_in_seconds() - 30*86400
+    tranger, "raw_events", device_id, time_in_seconds() - 30*86400
 );
 if(rows < 0) {
     // Error already logged: refused, nothing deleted -- or the purge applied
@@ -243,8 +243,8 @@ if(rows < 0) {
 By hand, `C_TRANGER` has the command (master-only, permission `delete`):
 
 ```
-command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_tracks key=<device> before=2026-09-21T00:00:00
-command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_tracks before=1790035200
+command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_events key=<device> before=2026-09-21T00:00:00
+command-yuno id=<yuno> service=tranger command=delete-key-files topic_name=raw_events before=1790035200
 ```
 
 Without `key=` it walks every key of the topic in one call. Tests:
@@ -262,11 +262,11 @@ remove. Design and crash table: [`DESIGN-retention.md`](DESIGN-retention.md)
 
 ```c
 /*
- *  Keep 30 days of `raw_tracks` in the topic, and what goes out of it in
+ *  Keep 30 days of `raw_events` in the topic, and what goes out of it in
  *  /yuneta/store/archive (it must exist, on the filesystem of the store)
  */
 json_int_t rows = tranger2_archive_key_files(
-    tranger, "raw_tracks", device_id, time_in_seconds() - 30*86400,
+    tranger, "raw_events", device_id, time_in_seconds() - 30*86400,
     "/yuneta/store/archive"
 );
 if(rows < 0) {
@@ -275,7 +275,7 @@ if(rows < 0) {
 ```
 
 ```
-/yuneta/store/archive/tr_raw_tracks/raw_tracks/dev1/2026-09-20@1792573238/
+/yuneta/store/archive/tr_raw_events/raw_events/dev1/2026-09-20@1792573238/
     2026-09-19.json  2026-09-19.md2  2026-09-20.json  2026-09-20.md2
     topic_desc.json  topic_cols.json
     manifest.json    {"files": ["2026-09-19", "2026-09-20"], "rows": 5712,

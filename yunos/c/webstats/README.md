@@ -337,7 +337,7 @@ table is the suite talking to itself.
 
 This half is where the real findings were. On 2026-08-05 the error logs held
 the Keycloak connection refusals, the `client_max_body_size` hits of real
-users, and 185 `bind() Address already in use` on `central` from an automation
+users, and 185 `bind() Address already in use` on `node-b` from an automation
 that believes it starts nginx and fails silently. None of it was in the access
 log.
 

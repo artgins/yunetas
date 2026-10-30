@@ -15,13 +15,13 @@ tr2check <TOPIC_PATH> [options]
 ```bash
 # Every key, sequence in the "seq" field, checksum in "checksum",
 # 36,000,000 records sent
-tr2check /yuneta/store/<db>/<owner>/<realm>/tracks/raw_tracks \
+tr2check /yuneta/store/<db>/<owner>/<realm>/events/raw_events \
     --checksum-field=checksum --expected=36000000 > result.json
 echo $?     # 0 pass, 1 a check failed, 2 the topic could not be checked
 ```
 
 `TOPIC_PATH` is `<directory>/<database>/<topic>`, absolute or relative to the
-current directory (`tr2check tracks` from inside the database works): the
+current directory (`tr2check raw_events` from inside the database works): the
 tool resolves it first, and takes the database and the directory above it
 from the resolved path. Up to 7.25.20 it took them from the text, and a
 relative `db/topic` or a bare `topic` opened a directory that does not exist.

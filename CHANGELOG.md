@@ -1277,7 +1277,7 @@ every node that installs it.
 - **The node uuid comes from the hardware** (packages). `node_uuid()` read
   `/yuneta/store/agent/uuid/uuid.json` and, when it was missing, wrote a
   random uuid: a reinstall of the operating system gave the node a new
-  identity, so a label printed with it and a central that had declared it
+  identity, so a label printed with it and a node B that had declared it
   lost the box, and a disk image taken after the agent ran gave every box
   written from it the SAME uuid. The new `/usr/libexec/yuneta/yuneta-node-uuid`
   (root's, outside `/yuneta`, which yuneta owns), started as root by the
@@ -1547,7 +1547,7 @@ Close frame of a websocket, read once per session.
   carries none) and `reason`, next to the `Disconnected` of the transport. A
   server used to log only its own drop (`cause: "Local dropping"`), so every
   session a browser closed looked the same whatever the browser meant -- found
-  chasing a central GUI tab that reconnected every minute. A malformed Close
+  chasing a GUI tab of node B that reconnected every minute. A malformed Close
   (a length of 1 or over 125, a code out of the RFC's ranges, a reason that is
   not UTF-8) is a WARNING of `MSGSET_PROTOCOL` with a capped dump, as the
   decoders report a bad peer packet. Case in `tests/c/c_websocket/test3`.
@@ -2448,7 +2448,7 @@ and 7.27.10's code relinked with the new code placement measured the same as
   id is what it was.
     - **The name of a treedb opened by a command is shorter now**: the id of
       the list of `__assets__` holds the yuno, so the limit is 38 bytes + the
-      yuno and its `-` + 2 times the name, inside `NAME_MAX` (98 bytes in
+      yuno and its `-` + 2 times the name, inside `NAME_MAX` (100 bytes in
       `db_history^7301`; it was 108).
     - **`tools/treedb/check_store_schemas.py --list-ids-yuno <role>^<name>`**:
       its `LIST` estimate counts the yuno too, taken as 32 bytes when it is
@@ -6654,7 +6654,7 @@ update in memory +5.0% of time, slower; the appends to a store of many keys
 - **C_TCP_S: a full server says it once a minute, as a warning, and counts
   it.** With `child_tree_filter`, a connection that found no free channel
   logged an ERROR each time, and peers retry: 600 channels and 1000
-  simulated controllers made 38,156 of them in minutes. It is now a third
+  simulated clients made 38,156 of them in minutes. It is now a third
   cause of refusal, said on the transition like the ip lists (the first one,
   then one a minute with the count), as a WARNING (a matter of capacity),
   and counted in a new stat `noChannelConnxs` -- `refusedConnxs` stays for
@@ -8120,13 +8120,13 @@ every yuno (TCP and websocket clients, rt_disk followers) and the agent.
   a server's pending read still completes. What arrives then (the rest of a
   frame given up on, the peer's Close) came as `EV_RX_DATA`, which the state
   did not declare. It is now discarded, nothing published (`debug` trace
-  level). Seen on a sim of controllers too busy to read a frame within
+  level). Seen on a simulator of clients too busy to read a frame within
   `timeout_payload`. Test: `tests/c/c_websocket` (new).
 - **C_TCP, sending while closing**: a drop or a disconnection waits in
   `ST_WAIT_STOPPED` for its last io_uring operation before it publishes
   `EV_DISCONNECTED`, and until then the layers above send. That `EV_TX_DATA`
-  was undeclared there -- ten thousand ERRORs in an hour on a sim of 300
-  controllers whose central went away. It now goes where the pending queue of
+  was undeclared there -- ten thousand ERRORs in an hour on a simulator of
+  300 clients whose server went away. It now goes where the pending queue of
   a dead connection goes (away; `connections` trace level). Test:
   `c_tcp/test7`.
 - Documented in `api/gclass/protocol.md` (C_WEBSOCKET: the states corrected,
@@ -8275,7 +8275,7 @@ against this SDK to lose the leak.
   gbmem: invisible to the gbmem audit and to `cur_system_memory`. 29 of the 63
   `SWITCHS` of the tree return from a case, several once per message:
   `C_MQIOGATE`'s `ac_send_message` (every gate with an output queue lost
-  ~1.1 KB per message; a central gate of an application's stress test reached 1
+  ~1.1 KB per message; a gate of an application's stress test reached 1
   GB in 25 minutes), `c_prot_modbus_m`, `tr_treedb`, `tr_msg2db`, `yev_loop` and
   the frame decoders of the projects. Found by a gdb breakpoint on `malloc`
   (gbmem allocates with `calloc`, so `malloc` catches only what bypasses it).
@@ -12160,7 +12160,7 @@ These behaviour changes shipped in 7.25.3 without the flag:
   paid for a dict they never read (the queues then kept it in memory per
   queued message until `msg_iev_clean_metadata()` stripped it on send).
   Callers hand over their only reference and read the out-param. Pays off
-  for a `db_events` ingesting `raw_tracks` with no realtime list open:
+  for a `db_events` ingesting `raw_events` with no realtime list open:
   +13.5% appends/s in `test_topic_pkey_integer` (+21% together with the
   change below).
 - **A `__md_tranger__` the record carries in is dropped before the content
@@ -14523,8 +14523,8 @@ and switch language.**
 
 The last windows nobody had dumped: the **frontend view**, the **site map**,
 **about**, **preferences**, the five **login screens**, the **overlay layer**
-(a toast and each of the three confirm shapes), and **an application's
-controller GUI**, the one SPA that had never been read at all.
+(a toast and each of the three confirm shapes), and **the GUI of an
+application's node A**, the one SPA that had never been read at all.
 
 **One defect, and it is a shape the sweep had not met: an `<option>`.** The
 frontend view's eight layout labels were written into its `LAYOUTS` table and
@@ -14724,7 +14724,7 @@ in DATA and nothing asked for them, so `validate-locales` reads it now, the
 way another application's copy already did.
 
 **In another application**: the two inventory selects of the device card and the
-select-all checkbox of the controllers view had no name; and maplibre labels
+select-all checkbox of a list view had no name; and maplibre labels
 its own chrome in English, never through the app's i18next, so zoom, compass,
 fullscreen, geolocate and the attribution toggle all read English on a Spanish
 map. The map takes `locale: yui_maplibre_locale(t)` at construction --
@@ -18325,7 +18325,7 @@ leaked a whole `kw` per call.
     exists"*, its topic node was never created, its hooks then failed with
     *"link topic not found"*, its rebuilt schema failed `parse_schema`, and
     `get_client_treedb_schema` fell back to the C literal — in silence. The
-    local controller's store holds five treedbs and its projection held one.
+    local node A's store holds five treedbs and its projection held one.
 
     `topics` is keyed by rowid now, with the name in the pkey2 `value`, exactly
     as `cols` has been since V6 — the same flaw, solved for columns and never

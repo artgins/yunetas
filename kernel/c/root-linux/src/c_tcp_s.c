@@ -1029,7 +1029,7 @@ PRIVATE void count_connections(hgobj gobj, json_int_t *connxs, json_int_t *tconn
  *  (`refused`, this one included). Up to 7.25.4 each refusal by the ip
  *  lists wrote its line, and up to 7.25.21 each one of a full server an
  *  ERROR: peers that retry made 38,156 of them in minutes (600 channels,
- *  1000 controllers). A full server is a matter of capacity: a warning.
+ *  1000 clients). A full server is a matter of capacity: a warning.
  ***************************************************************************/
 PRIVATE void note_refused_connection(
     hgobj gobj,

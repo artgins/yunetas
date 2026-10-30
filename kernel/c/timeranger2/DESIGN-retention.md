@@ -506,8 +506,8 @@ Each purge of a key that takes at least one file makes one batch:
 
 ```json
 {
-    "database": "tr_raw_tracks",
-    "topic": "raw_tracks",
+    "database": "tr_raw_events",
+    "topic": "raw_events",
     "key": "dev1",
     "files": ["2026-09-19", "2026-09-20"],
     "rows": 5712,
@@ -541,7 +541,7 @@ Each purge of a key that takes at least one file makes one batch:
   written `%25` and `/` written `%2F`:
 
   ```
-  <archive_directory>/.ready/tr_raw_tracks%2Fraw_tracks%2Fdev1%2F2026-09-20@1792573238
+  <archive_directory>/.ready/tr_raw_events%2Fraw_events%2Fdev1%2F2026-09-20@1792573238
   ```
 
   A reader watches that ONE directory. Watching the tree would not do: a
@@ -647,7 +647,7 @@ write, a directory that a web server serves among them. With the attribute
 empty the command is refused.
 
 ```
-command-yuno id=<yuno> service=tranger command=archive-key-files topic_name=raw_tracks key=dev1 before=2026-09-21T00:00:00
+command-yuno id=<yuno> service=tranger command=archive-key-files topic_name=raw_events key=dev1 before=2026-09-21T00:00:00
 ```
 
 ### 12.9 Tests

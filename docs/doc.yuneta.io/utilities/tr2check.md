@@ -16,7 +16,7 @@ Every key, the sequence in `seq`, the checksum in `checksum`, 36,000,000
 records sent:
 
 ```bash
-tr2check /yuneta/store/<db>/<owner>/<realm>/tracks/raw_tracks \
+tr2check /yuneta/store/<db>/<owner>/<realm>/events/raw_events \
     --checksum-field=checksum --expected=36000000 > result.json
 echo $?     # 0 pass, 1 a check failed, 2 the topic could not be checked
 ```

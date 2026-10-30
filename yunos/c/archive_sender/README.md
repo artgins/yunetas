@@ -33,7 +33,7 @@ the backup. Nothing connects to the node, so a sealed node can ship too.
 - **The ready mark.** When a batch is whole and its purge happened, the SDK
   writes an empty file in `.ready/`. Its name is the path of the batch, with
   `%` written `%25` and `/` written `%2F`, for example
-  `tracks%2Fraw_tracks%2FDEV42%2F2026-10-01@1793164943`. The yuno watches that
+  `events%2Fraw_events%2FDEV42%2F2026-10-01@1793164943`. The yuno watches that
   ONE directory (`C_FS`). It does not watch the tree, for two reasons: a
   `rename()` gives no fs event, and one watch per key does not scale.
 - **The tree is the truth, the mark is a hint.** When the yuno plays, it scans
@@ -72,11 +72,11 @@ the file.
 | `refused` | keeper | `batch`, `msg` | the batch fails here: it is tried again after `retry_period` |
 
 ```json
-{"cmd": "begin", "node": "central", "batch": "tracks/raw_tracks/DEV42/2026-10-01@1793164943",
+{"cmd": "begin", "node": "node-b", "batch": "events/raw_events/DEV42/2026-10-01@1793164943",
  "files": [{"name": "2026-10-01.json", "size": 3512018}, {"name": "2026-10-01.md2", "size": 288000},
            {"name": "topic_cols.json", "size": 612}, {"name": "topic_desc.json", "size": 455},
            {"name": "manifest.json", "size": 301}]}
-{"cmd": "end", "batch": "tracks/raw_tracks/DEV42/2026-10-01@1793164943",
+{"cmd": "end", "batch": "events/raw_events/DEV42/2026-10-01@1793164943",
  "sha256": ["9f2c...", "41d0...", "e7a5...", "0b3e...", "c8f1..."]}
 ```
 
@@ -154,7 +154,7 @@ Native, in the batch config of the node:
 {
     "global": {
         "archive_sender.archive_directory": "/yuneta/archive",
-        "archive_sender.node_name": "central",
+        "archive_sender.node_name": "node-b",
         "archive_sender.max_archive_bytes": 200000000000,
         "__output_side__.__json_config_variables__": {
             "__output_url__": "tcps://backup.example.com:1999"
@@ -184,8 +184,8 @@ Native, in the batch config of the node:
                                             "library": "(^^__tls_library__^^)",
                                             "ssl_verify_mode": "required",
                                             "ssl_use_system_ca": true,
-                                            "ssl_certificate": "/yuneta/store/certs/central.crt",
-                                            "ssl_certificate_key": "/yuneta/store/certs/private/central.key"
+                                            "ssl_certificate": "/yuneta/store/certs/node-b.crt",
+                                            "ssl_certificate_key": "/yuneta/store/certs/private/node-b.key"
                                         }
                                     }
                                 }
@@ -219,7 +219,7 @@ rsync over ssh:
 
 The archive directory must be on the filesystem of the store (the batches are
 hard links). The retention of the owner of the store names the same directory,
-for example `raw_tracks_archive_directory` in an application's config.
+for example `raw_events_archive_directory` in an application's config.
 
 ## Crash safety
 

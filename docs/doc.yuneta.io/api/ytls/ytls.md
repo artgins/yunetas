@@ -486,14 +486,14 @@ json_t *server_crypto = json_pack("{s:s, s:s, s:s, s:s}",
 );
 json_t *client_crypto = json_pack("{s:s, s:s, s:s}",
     "ssl_trusted_certificate",  "/yuneta/store/certs/backup_ca.pem",
-    "ssl_certificate",          "/yuneta/store/certs/central.crt",
-    "ssl_certificate_key",      "/yuneta/store/certs/private/central.key"
+    "ssl_certificate",          "/yuneta/store/certs/node-b.crt",
+    "ssl_certificate_key",      "/yuneta/store/certs/private/node-b.key"
 );
 
 /* In the server, after the handshake of a connection: */
 json_t *peer = ytls_get_peer_cert_info(ytls, sskt);
 if(peer && json_is_true(json_object_get(peer, "verified"))) {
-    const char *cn = json_string_value(json_object_get(peer, "cn"));   /* "central" */
+    const char *cn = json_string_value(json_object_get(peer, "cn"));   /* "node-b" */
 }
 JSON_DECREF(peer)
 ```

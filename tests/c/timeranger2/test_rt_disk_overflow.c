@@ -9,7 +9,7 @@
  *  dropped and an IN_Q_OVERFLOW says so. Up to 7.25.8 fs_watcher then
  *  aborted the yuno to reload clean; under a sustained burst the reload met
  *  the next overflow and a follower lived in a crash loop (an
- *  application's stress test of its central: five aborts in two hours). Now the watcher
+ *  application's stress test of its node B: five aborts in two hours). Now the watcher
  *  sets its watches again and the follower rebuilds the feed from the
  *  filesystem: what the lost events said is still there.
  *
@@ -291,7 +291,7 @@ PRIVATE int append_one(json_t *tranger, json_int_t id, uint64_t t)
  *  A probe: a periodic timer of PROBE_MS. The longest gap between two of its
  *  firings is the longest time the loop was deaf -- a callback that held it
  *  (the rescan after an overflow ran in one piece, and took minutes on a
- *  busy disk of a central).
+ *  busy disk of node B).
  */
 #define PROBE_MS    50
 PRIVATE uint64_t probe_last = 0;

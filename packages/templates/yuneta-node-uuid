@@ -7,7 +7,7 @@
 #   consequences on a node that is installed and imaged by somebody else:
 #
 #     - a reinstall of the operating system gives the node a new uuid, so a
-#       label printed with it, and a central that declared it, lose the box;
+#       label printed with it, and a node that declared it, lose the box;
 #     - a disk image taken after the agent ran carries uuid.json inside, so
 #       every box written from it claims the SAME uuid.
 #
@@ -77,7 +77,7 @@
 #   THE LIMIT: nothing inside a container tells a copy of it from the same
 #   container re-created over its kept store. Two containers given the SAME
 #   fixed hostname and the same uuid.json -- an image committed from a
-#   container that has one, run twice as `--hostname controller` -- claim
+#   container that has one, run twice as `--hostname node-a` -- claim
 #   the same uuid. Delete /yuneta/store/agent/uuid/uuid.json before a
 #   `docker commit` or a `docker export`, or `set` a uuid in each copy.
 #   A board written from a `docker export` is no container: it boots its own

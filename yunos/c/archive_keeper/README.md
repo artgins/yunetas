@@ -111,7 +111,7 @@ A frame whose header is not a json object drops the channel.
 {
     "global": {
         "archive_keeper.backup_directory": "/backups/yuneta",
-        "archive_keeper.allowed_nodes": ["central", "edge"],
+        "archive_keeper.allowed_nodes": ["node-b", "node-a"],
         "__input_side__.__json_config_variables__": {
             "__input_url__": "tcps://0.0.0.0:1999",
             "__ssl_certificate__": "/yuneta/store/certs/backup.example.com.crt",
@@ -204,11 +204,11 @@ openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 3650 \
     -addext 'basicConstraints=critical,CA:TRUE' \
     -addext 'keyUsage=critical,keyCertSign,cRLSign'
 
-# For each node (here "central"): its key, and its certificate
-openssl req -newkey rsa:3072 -nodes -sha256 -keyout central.key -out central.csr -subj '/CN=central'
+# For each node (here "node-b"): its key, and its certificate
+openssl req -newkey rsa:3072 -nodes -sha256 -keyout node-b.key -out node-b.csr -subj '/CN=node-b'
 printf 'basicConstraints=CA:FALSE\nextendedKeyUsage=clientAuth\n' > client.ext
-openssl x509 -req -in central.csr -CA nodes_ca.pem -CAkey nodes_ca.key -CAcreateserial \
-    -days 825 -sha256 -extfile client.ext -out central.crt
+openssl x509 -req -in node-b.csr -CA nodes_ca.pem -CAkey nodes_ca.key -CAcreateserial \
+    -days 825 -sha256 -extfile client.ext -out node-b.crt
 ```
 
 Put the keeper's port where only the nodes can reach it all the same.

@@ -8,8 +8,8 @@
  *          EV_DISCONNECTED. Until then the layers above do not know, and
  *          send: EV_TX_DATA in ST_WAIT_STOPPED, which the state did not
  *          declare -- "Event NOT DEFINED in state", an ERROR per message.
- *          Seen by the thousand on a sim of 300 controllers whose central
- *          went away. The data must go the way the pending queue of a dead
+ *          Seen by the thousand on a simulator of 300 clients whose
+ *          server went away. The data must go the way the pending queue of a dead
  *          connection goes (away), with no error, and leave ONE warning
  *          for the connection with what was dropped (up to 7.25.20 it went
  *          with no trace at the default levels).

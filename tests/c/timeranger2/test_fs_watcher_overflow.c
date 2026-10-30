@@ -6,7 +6,7 @@
  *  After an IN_Q_OVERFLOW the watcher walks the tree and hands every
  *  directory to its owner (FS_RESCAN_DIR_TYPE), a slice per loop turn. The
  *  owner reads what each directory holds, and that can be slow: a
- *  timeranger2 follower of 50000 keys on the busy disk of a central took
+ *  timeranger2 follower of 50000 keys on the busy disk of node B took
  *  minutes, and while one pass held the loop the yuno answered nothing (its
  *  agent, its commands, its timers). The pass gives the loop back every
  *  slice.

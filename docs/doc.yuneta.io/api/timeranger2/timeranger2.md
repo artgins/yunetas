@@ -504,11 +504,11 @@ int tranger2_append_record_text(
 
 ```C
 /*
- *  topic "raw_tracks": pkey "id" (sf_string_key), tkey "tm"
+ *  topic "raw_events": pkey "id" (sf_string_key), tkey "tm"
  */
 const char text[] = "{\"id\":\"DEV-1\",\"tm\":1700000001,\"m\":{\"v\":229.0}}";
 md2_record_ex_t md;
-if(tranger2_append_record_text(tranger, "raw_tracks", 0, 0, &md, text, sizeof(text) - 1) < 0) {
+if(tranger2_append_record_text(tranger, "raw_events", 0, 0, &md, text, sizeof(text) - 1) < 0) {
     // Error already logged: nothing was written
     return -1;
 }
@@ -1184,10 +1184,10 @@ names its own feeds `` <treedb>`<topic>`<id> ``). The id may come from a peer,
 so a refused id is logged as a **warning**, without a stack.
 
 ```C
-tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "db_history^7301", "", NULL); // ok
-tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "a`b`c", "", NULL);           // ok
-tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, ".hidden", "", NULL);         // NULL: reserved
-tranger2_open_rt_disk(tranger, "raw_tracks", "", NULL, cb, "../x", "", NULL);            // NULL: escapes
+tranger2_open_rt_disk(tranger, "raw_events", "", NULL, cb, "db_history^7301", "", NULL); // ok
+tranger2_open_rt_disk(tranger, "raw_events", "", NULL, cb, "a`b`c", "", NULL);           // ok
+tranger2_open_rt_disk(tranger, "raw_events", "", NULL, cb, ".hidden", "", NULL);         // NULL: reserved
+tranger2_open_rt_disk(tranger, "raw_events", "", NULL, cb, "../x", "", NULL);            // NULL: escapes
 ```
 
 **One id, one feed.** The directory is keyed by the id alone, so an id already
@@ -1488,11 +1488,11 @@ the next open of the master removes them (see the notes below).
  *  of the keys per tick of the owner's timer
  */
 uint64_t cut = time_in_seconds() - 30*86400;
-json_t *keys = tranger2_list_keys(tranger, "raw_tracks");
+json_t *keys = tranger2_list_keys(tranger, "raw_events");
 size_t n = json_array_size(keys);
 for(size_t i = priv->purge_cursor; i < n && i < priv->purge_cursor + 100; i++) {
     const char *key = json_string_value(json_array_get(keys, i));
-    if(tranger2_delete_key_files(tranger, "raw_tracks", key, cut) < 0) {
+    if(tranger2_delete_key_files(tranger, "raw_events", key, cut) < 0) {
         // Error already logged: refused, the key as it was -- or the purge
         // applied with its base not durable, the files removed at the next open
     }
@@ -1606,8 +1606,8 @@ the base). The manifest says what the batch holds and how it is numbered:
 
 ```json
 {
-    "database": "tr_raw_tracks",
-    "topic": "raw_tracks",
+    "database": "tr_raw_events",
+    "topic": "raw_events",
     "key": "dev1",
     "files": ["2026-09-19", "2026-09-20"],
     "rows": 5712,
@@ -1626,7 +1626,7 @@ When the base is written, an empty **ready mark** is created in
 archive, with `%` written `%25` and `/` written `%2F`:
 
 ```text
-<archive_directory>/.ready/tr_raw_tracks%2Fraw_tracks%2Fdev1%2F2026-09-20@1792573238
+<archive_directory>/.ready/tr_raw_events%2Fraw_events%2Fdev1%2F2026-09-20@1792573238
 ```
 
 A reader watches that one directory (a `rename()` gives no fs event, and the
@@ -1672,7 +1672,7 @@ stays.
  */
 uint64_t cut = time_in_seconds() - 30*86400;
 json_int_t rows = tranger2_archive_key_files(
-    tranger, "raw_tracks", "dev1", cut, "/yuneta/store/archive"
+    tranger, "raw_events", "dev1", cut, "/yuneta/store/archive"
 );
 if(rows < 0) {
     // Error already logged: refused, nothing archived nor deleted
@@ -1798,7 +1798,7 @@ names a file at or before the `upto` of the key's base
 ([`tranger2_delete_key_files()`](#tranger2_delete_key_files)). The append logs
 that refusal as an ERROR; a caller that must give the cause to a PEER asks
 first, and answers it. [`C_TRANGER`](#gclass-c-tranger)'s `add-record` does:
-*"record refused by topic 'raw_tracks': a __t__ in a purged period of its key:
+*"record refused by topic 'raw_events': a __t__ in a purged period of its key:
 its old files were deleted"*.
 
 `__t__` and `record` are the ones the append takes. `FALSE` for `__t__ = 0`
@@ -1842,14 +1842,14 @@ BOOL tranger2_record_in_purged_period(
 ```C
 /*
  *  Key "dev1" of a topic of one file a day, purged up to 2026-09-22
- *  (tranger2_delete_key_files(tranger, "raw_tracks", "dev1", <2026-09-23>))
+ *  (tranger2_delete_key_files(tranger, "raw_events", "dev1", <2026-09-23>))
  */
 json_t *record = json_pack("{s:s, s:I}", "id", "dev1", "tm", (json_int_t)1790035200);
-if(tranger2_record_in_purged_period(tranger, "raw_tracks", 1790035200, record)) {
+if(tranger2_record_in_purged_period(tranger, "raw_events", 1790035200, record)) {
     // 2026-09-22: refused, say so to whoever sent it
 } else {
     md2_record_ex_t md;
-    tranger2_append_record(tranger, "raw_tracks", 1790035200, 0, &md, json_incref(record));
+    tranger2_append_record(tranger, "raw_events", 1790035200, 0, &md, json_incref(record));
 }
 JSON_DECREF(record)
 ```
@@ -4053,7 +4053,7 @@ positions of the key outside its iterators moves them by it.
  *  The last g_rowid of a key, to page it by g_rowid: a key of 1823411 rows
  *  purged and 4000 live answers {"rows": 4000, "purged": 1823411, ...}
  */
-json_t *range = tranger2_topic_key_range(tranger, "raw_tracks", "dev1");
+json_t *range = tranger2_topic_key_range(tranger, "raw_events", "dev1");
 if(range) {
     json_int_t last_rowid = kw_get_int(gobj, range, "purged", 0, 0) +
                             kw_get_int(gobj, range, "rows", 0, 0);   // 1827411
