@@ -9,10 +9,11 @@
  *          Domain attribute"): Domain is written only when the Host is the
  *          domain or one of its subdomains. Up to 7.29.3 a request with no
  *          Host kept the Domain configured. The third has a Host of the
- *          domain whose name is 254 bytes, longer than a host name: no
+ *          domain whose name is 300 bytes, longer than a host name: no
  *          Domain, and a WARNING ("request Host longer than a host name,
- *          omitting Domain attribute"); the fourth, a name of 253 bytes
- *          and a port, gets the Domain.
+ *          omitting Domain attribute") whose host_len is the 300 of the
+ *          request, not the 255 bytes the BFF keeps of a Host; the fourth,
+ *          a name of 253 bytes and a port, gets the Domain.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -283,7 +284,7 @@ static int register_yuno_and_more(void)
         json_pack("[{s:s}, {s:s, s:i}]",
             "msg",          "request without Host, omitting Domain attribute",
             "msg",          "request Host longer than a host name, omitting Domain attribute",
-            "host_len",     254
+            "host_len",     300
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

@@ -12,9 +12,9 @@
  *            EV_TIMEOUT (post)
  *              → from a plain socket, four POST /auth/login pipelined:
  *                with "Host: app.example.com", with no Host, with a Host
- *                of the domain whose name is 254 bytes (longer than a
- *                host name), and with one whose name is 253 bytes and a
- *                port
+ *                of the domain whose name is 300 bytes (longer than a
+ *                host name, and than the 255 bytes the BFF keeps of a
+ *                Host), and with one whose name is 253 bytes and a port
  *              → set a check_delay_ms timer
  *
  *            EV_TIMEOUT (check)
@@ -172,8 +172,8 @@ PRIVATE int mt_pause(hgobj gobj)
 
 /***************************************************************************
  *  Four POST /auth/login pipelined on one plain socket: with a Host of the
- *  cookie_domain, with no Host, with a Host of the domain one byte longer
- *  than a host name (253), and with one of 253 bytes and a port
+ *  cookie_domain, with no Host, with a Host of the domain whose name is 300
+ *  bytes (a host name is at most 253), and with one of 253 bytes and a port
  ***************************************************************************/
 PRIVATE void post_login(hgobj gobj)
 {
@@ -186,9 +186,10 @@ PRIVATE void post_login(hgobj gobj)
     addr.sin_port = htons((uint16_t)atoi(gobj_read_str_attr(gobj, "bff_port")));
 
     const char body[] = "{\"username\": \"testuser\", \"password\": \"testpass\"}";
-    char long_label[243];
+    char long_label[289];
     memset(long_label, 'a', sizeof(long_label) - 1);
-    long_label[sizeof(long_label) - 1] = '\0';     // 242 + ".example.com": 254
+    long_label[sizeof(long_label) - 1] = '\0';     // 288 + ".example.com": 300
+    const char *label_253 = long_label + (sizeof(long_label) - 1) - 241;   // 241 + ".example.com": 253
     char request[4096];
     int len = snprintf(request, sizeof(request),
         "POST /auth/login HTTP/1.1\r\n"
@@ -221,7 +222,7 @@ PRIVATE void post_login(hgobj gobj)
         (int)strlen(body), body,
         (int)strlen(body), body,
         long_label, (int)strlen(body), body,
-        long_label + 1, (int)strlen(body), body
+        label_253, (int)strlen(body), body
     );
 
     priv->fd_browser = socket(AF_INET, SOCK_STREAM, 0);

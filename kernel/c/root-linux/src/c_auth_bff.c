@@ -17,6 +17,16 @@
  *      Note:   Requires "Direct Access Grants Enabled" in the IdP
  *              client configuration.
  *
+ *    A login or callback whose IdP answer has no refresh_token opens a
+ *    session that cannot be refreshed: its refresh_token cookie is
+ *    cleared (Max-Age=0, so no refresh_token of an earlier session stays
+ *    behind), "refresh_expires_in" is 0, and a WARNING says it, once per
+ *    process. The tokens and "expires_in"/"refresh_expires_in" of an IdP
+ *    answer are data of a peer: a token that is not a string is refused
+ *    (502 auth_unexpected_error, a WARNING naming its type), and a
+ *    lifetime is a JSON integer or the text of one ("300"), else its
+ *    default is used, with a WARNING.
+ *
  *    POST /auth/callback
  *      Body: { "code": "…", "code_verifier": "…", "redirect_uri": "…" }
  *      Action: exchange the PKCE authorization code with IdP
@@ -27,7 +37,10 @@
  *
  *    POST /auth/refresh
  *      Reads the "refresh_token" httpOnly cookie from the request.
- *      Action: call IdP refresh endpoint, overwrite cookies.
+ *      Action: call IdP refresh endpoint, overwrite cookies. An IdP
+ *              answer with no refresh_token leaves the browser's
+ *              refresh_token cookie as it is (RFC 6749 §6: the server
+ *              MAY issue a new one; when it does not, the old one stays).
  *      Returns { "success": true, "username": "…", "email": "…",
  *                "expires_in": N, "refresh_expires_in": N }.
  *
@@ -122,12 +135,13 @@
  *  IdP tokens are JWTs whose size grows with roles/groups (a Keycloak
  *  access_token with many client roles exceeds 4 KB). A token travels in
  *  a cookie, and a browser keeps a cookie only when its name and value
- *  take at most 4096 bytes (RFC 6265 §6.1, and what Chrome and Firefox
- *  keep): a bigger one is dropped with nothing said, and the session
- *  opens with no token. So the BFF refuses a token whose cookie would
- *  pass BFF_COOKIE_MAX. One max for the stored token, the extraction
- *  buffers and the Set-Cookie build, so a token that fits one always
- *  fits the others.
+ *  take at most 4096 bytes (RFC 6265bis, the Set-Cookie algorithm, and
+ *  what Chrome and Firefox keep; RFC 6265 §6.1 is only a minimum, and
+ *  counts the attributes too): a bigger one is dropped with nothing said,
+ *  and the session opens with no token. So the BFF refuses a token whose
+ *  cookie would pass BFF_COOKIE_MAX. One max for the stored token, the
+ *  extraction buffers and the Set-Cookie build, so a token that fits one
+ *  always fits the others.
  */
 #define BFF_COOKIE_MAX      4096    /* name + value of one cookie */
 #define BFF_TOKEN_MAX       BFF_COOKIE_MAX
@@ -135,10 +149,12 @@
 
 /*
  *  The longest host name (RFC 1035: 253 bytes in its text form). The
- *  Host of a request is kept in 255 bytes (PENDING_AUTH.client_host): a
- *  host name always fits, so what can be cut is the end of its port
- *  (which the Domain check does not read) or a host name too long to be
- *  one, which effective_cookie_domain() refuses.
+ *  Host of a request is kept in 255 bytes (PENDING_AUTH.client_host), and
+ *  the length of its name is measured on the whole Host before that
+ *  (client_host_name_len): a host name always fits, so what can be cut
+ *  is the end of its port (which the Domain check does not read) or a
+ *  host name too long to be one, which effective_cookie_domain() refuses,
+ *  naming its real length.
  */
 #define BFF_HOST_NAME_MAX   253
 
@@ -179,6 +195,7 @@ typedef struct _PENDING_AUTH {
     char        refresh_token[BFF_TOKEN_MAX];   /* /auth/refresh + /auth/logout */
     char        client_origin[512];     /* Origin header (for CORS) */
     char        client_host[256];       /* Host header (for cookie domain check) */
+    int         client_host_name_len;   /* length of the Host name, measured before the cut */
 } PENDING_AUTH;
 
 /***************************************************************************
@@ -341,6 +358,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_responses_dropped; /* IdP replies dropped because browser closed */
     uint64_t        st_idp_timeouts;     /* an IdP task ended by timeout (request or discovery) */
 } PRIVATE_DATA;
+
+PRIVATE BOOL no_refresh_token_said = FALSE;    /* the WARNING of a login with no refresh_token, once per process */
 
 
 
@@ -1002,11 +1021,17 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
  *  either: Domain is written only when the Host is that domain or one of
  *  its subdomains. A Host whose name is longer than a host name
  *  (BFF_HOST_NAME_MAX) gets no Domain, with a WARNING.
+ *
+ *  `host_name_len` is the length of the name of the Host (without its
+ *  port) measured on the whole Host of the request, before it was cut to
+ *  fit PENDING_AUTH.client_host: `request_host` holds all of a name that
+ *  is not longer than BFF_HOST_NAME_MAX.
  ***************************************************************************/
 PRIVATE const char *effective_cookie_domain(
     hgobj gobj,
     const char *cookie_domain,
-    const char *request_host)
+    const char *request_host,
+    size_t host_name_len)
 {
     if(empty_string(cookie_domain)) {
         return "";  /* not configured — no Domain attribute */
@@ -1024,11 +1049,11 @@ PRIVATE const char *effective_cookie_domain(
 
     /*
      *  The hostname is the Host without its port ("localhost:5173" →
-     *  "localhost"), compared in place: a Host of any length is read whole.
-     *  Accept exact match or subdomain match (host ends with "."+domain).
+     *  "localhost"), compared in place. Accept exact match or subdomain
+     *  match (host ends with "."+domain).
      */
     const char *hostname = request_host;
-    size_t host_len = strcspn(request_host, ":");
+    size_t host_len = host_name_len;
     size_t domain_len = strlen(cookie_domain);
 
     if(host_len > BFF_HOST_NAME_MAX) {
@@ -1065,6 +1090,109 @@ PRIVATE const char *effective_cookie_domain(
         NULL
     );
     return "";
+}
+
+/***************************************************************************
+ *  The name of the type of a json, for a log.
+ ***************************************************************************/
+PRIVATE const char *json_kind_name(const json_t *jn)
+{
+    switch(json_typeof(jn)) {
+        case JSON_OBJECT:   return "object";
+        case JSON_ARRAY:    return "array";
+        case JSON_STRING:   return "string";
+        case JSON_INTEGER:  return "integer";
+        case JSON_REAL:     return "real";
+        case JSON_TRUE:     return "true";
+        case JSON_FALSE:    return "false";
+        case JSON_NULL:     return "null";
+        default:            return "?";
+    }
+}
+
+/***************************************************************************
+ *  A token of a success of the IdP: its text, "" when the answer has none
+ *  (absent or null), NULL when it has one of another type -- said with a
+ *  WARNING, as data of a peer.
+ ***************************************************************************/
+PRIVATE const char *get_token_from_idp_answer(
+    hgobj gobj,
+    json_t *jn_body,
+    const char *key,
+    bff_action_t action)
+{
+    json_t *jn = json_object_get(jn_body, key);
+    if(json_absent(jn)) {
+        return "";
+    }
+    if(!json_is_string(jn)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF IdP answered a token that is not a string",
+            "action",       "%s", action_name(action),
+            "token",        "%s", key,
+            "type",         "%s", json_kind_name(jn),
+            NULL
+        );
+        return NULL;
+    }
+    return json_string_value(jn);
+}
+
+/***************************************************************************
+ *  A lifetime in seconds of a success of the IdP ("expires_in",
+ *  "refresh_expires_in"): a JSON integer, or the text of one ("300", as
+ *  some IdPs send it), from 0 to INT_MAX (it becomes a Max-Age). Absent or
+ *  null: the default. Anything else: the default, with a WARNING, as data
+ *  of a peer.
+ ***************************************************************************/
+PRIVATE int get_seconds_from_idp_answer(
+    hgobj gobj,
+    json_t *jn_body,
+    const char *key,
+    int default_value,
+    bff_action_t action)
+{
+    json_t *jn = json_object_get(jn_body, key);
+    if(json_absent(jn)) {
+        return default_value;
+    }
+
+    long long v = -1;
+    if(json_is_integer(jn)) {
+        v = (long long)json_integer_value(jn);
+    } else if(json_is_string(jn)) {
+        const char *text = json_string_value(jn);
+        size_t len = strlen(text);
+        BOOL digits = (len > 0 && len <= 10 && strspn(text, "0123456789") == len &&
+            (text[0] != '0' || len == 1));
+        if(digits) {
+            v = strtoll(text, NULL, 10);
+        }
+    }
+    if(v < 0 || v > INT_MAX) {
+        char value_text[40] = "";
+        if(json_is_string(jn)) {
+            snprintf(value_text, sizeof(value_text), "%.32s", json_string_value(jn));
+        } else if(json_is_integer(jn)) {
+            snprintf(value_text, sizeof(value_text), "%lld", (long long)json_integer_value(jn));
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF IdP answered a lifetime that is not a number "
+                                  "of seconds, its default is used",
+            "action",       "%s", action_name(action),
+            "key",          "%s", key,
+            "type",         "%s", json_kind_name(jn),
+            "value",        "%s", value_text,
+            "default",      "%d", default_value,
+            NULL
+        );
+        return default_value;
+    }
+    return (int)v;
 }
 
 /***************************************************************************
@@ -1375,6 +1503,14 @@ PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
 /***************************************************************************
  *  Shared result handler for callback and refresh.
  *  Reads IdP token response, sets httpOnly cookies, responds to browser.
+ *
+ *  An answer with no refresh_token (RFC 6749 §6: the IdP MAY issue a new
+ *  one; when it does not, the client keeps the one it has): at a refresh
+ *  the browser keeps its refresh_token cookie, so no Set-Cookie is sent
+ *  for it; at a login or callback there is none to keep, so the cookie is
+ *  cleared (Max-Age=0: no refresh_token of an earlier session stays
+ *  behind), refresh_expires_in is answered 0, and a WARNING says, once per
+ *  process, that such a session cannot be refreshed.
  ***************************************************************************/
 PRIVATE json_t *send_token_to_browser(
     hgobj gobj,
@@ -1593,10 +1729,21 @@ PRIVATE json_t *send_token_to_browser(
         STOP_TASK()
     }
 
-    const char *access_token  = kw_get_str(gobj, jn_body, "access_token",  "", 0);
-    const char *refresh_token = kw_get_str(gobj, jn_body, "refresh_token", "", 0);
-    int64_t     expires_in    = kw_get_int(gobj, jn_body, "expires_in",     300, 0);
-    int64_t     ref_exp_in    = kw_get_int(gobj, jn_body, "refresh_expires_in", 1800, 0);
+    const char *access_token  = get_token_from_idp_answer(gobj, jn_body, "access_token", action);
+    const char *refresh_token = get_token_from_idp_answer(gobj, jn_body, "refresh_token", action);
+    if(!access_token || !refresh_token) {
+        // Warning already logged
+        send_error_response(gobj, gobj_bottom_gobj(gobj), 502, status_str(502),
+            "auth_unexpected_error",
+            !access_token?
+                "Authentication service answered an access_token that is not a string" :
+                "Authentication service answered a refresh_token that is not a string",
+            cors_hdrs);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+    int expires_in = get_seconds_from_idp_answer(gobj, jn_body, "expires_in", 300, action);
+    int ref_exp_in = get_seconds_from_idp_answer(gobj, jn_body, "refresh_expires_in", 1800, action);
 
     /*
      *  A success with no access_token is no session: its cookie would be
@@ -1696,16 +1843,44 @@ PRIVATE json_t *send_token_to_browser(
         }
     }
 
+    // No refresh_token: a refresh keeps the browser's, a login clears it (see above)
+    BOOL with_refresh_token = !empty_string(refresh_token);
+    BOOL clear_refresh_cookie = FALSE;
+    if(!with_refresh_token && action != BFF_REFRESH) {
+        clear_refresh_cookie = TRUE;
+        ref_exp_in = 0;
+        if(!no_refresh_token_said) {
+            no_refresh_token_said = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "👤BFF IdP answered a login with no refresh_token: "
+                                      "its session cannot be refreshed, it ends with its "
+                                      "access_token (said once)",
+                "action",       "%s", action_name(action),
+                "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
+                "expires_in",   "%d", expires_in,
+                NULL
+            );
+        }
+    }
+
     /* Build Set-Cookie headers */
     const char *cookie_domain_cfg = gobj_read_str_attr(gobj, "cookie_domain");
     const char *request_host = kw_get_str(gobj, output_data, "_host", "", 0);
+    size_t host_name_len = (size_t)kw_get_int(gobj, output_data, "_host_name_len", 0, 0);
     const char *cookie_domain = effective_cookie_domain(
-        gobj, cookie_domain_cfg, request_host);
+        gobj, cookie_domain_cfg, request_host, host_name_len);
     char *at_cookie = make_set_cookie(gobj, COOKIE_NAME_AT, access_token,
-        (int)expires_in, cookie_domain);
-    char *rt_cookie = make_set_cookie(gobj, COOKIE_NAME_RT, refresh_token,
-        (int)ref_exp_in, cookie_domain);
-    if(!at_cookie || !rt_cookie) {
+        expires_in, cookie_domain);
+    char *rt_cookie = NULL;
+    if(with_refresh_token) {
+        rt_cookie = make_set_cookie(gobj, COOKIE_NAME_RT, refresh_token,
+            ref_exp_in, cookie_domain);
+    } else if(clear_refresh_cookie) {
+        rt_cookie = make_clear_cookie(gobj, COOKIE_NAME_RT, cookie_domain);
+    }
+    if(!at_cookie || ((with_refresh_token || clear_refresh_cookie) && !rt_cookie)) {
         /* Error already logged: a truncated cookie would break auth silently */
         GBMEM_FREE(at_cookie)
         GBMEM_FREE(rt_cookie)
@@ -1716,10 +1891,11 @@ PRIVATE json_t *send_token_to_browser(
         STOP_TASK()
     }
 
-    /* extra_headers = CORS + two Set-Cookie lines */
-    size_t extra_len = strlen(cors_hdrs) + strlen(at_cookie) + strlen(rt_cookie) + 4;
+    /* extra_headers = CORS + one or two Set-Cookie lines */
+    const char *rt_line = rt_cookie? rt_cookie : "";
+    size_t extra_len = strlen(cors_hdrs) + strlen(at_cookie) + strlen(rt_line) + 4;
     char *extra = gbmem_malloc(extra_len);
-    snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_cookie, rt_cookie);
+    snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_cookie, rt_line);
 
     json_t *jn_resp;
     if(action == BFF_CALLBACK || action == BFF_LOGIN) {
@@ -2037,8 +2213,9 @@ PRIVATE json_t *send_logout_to_browser(
     if(browser_src) {
         const char *cookie_domain_cfg = gobj_read_str_attr(gobj, "cookie_domain");
         const char *request_host = kw_get_str(gobj, output_data, "_host", "", 0);
+        size_t host_name_len = (size_t)kw_get_int(gobj, output_data, "_host_name_len", 0, 0);
         const char *cookie_domain = effective_cookie_domain(
-            gobj, cookie_domain_cfg, request_host);
+            gobj, cookie_domain_cfg, request_host, host_name_len);
         char *at_clear = make_clear_cookie(gobj, COOKIE_NAME_AT, cookie_domain);
         char *rt_clear = make_clear_cookie(gobj, COOKIE_NAME_RT, cookie_domain);
         if(!at_clear) {
@@ -2246,7 +2423,7 @@ PRIVATE void process_next(hgobj gobj)
      *  because the queue is flushed on browser disconnect — so at most
      *  one task is in flight and its validity is binary.
      */
-    json_t *kw_output = json_pack("{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw_output = json_pack("{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:i}",
         "_action",         (int)pa->action,
         "_code",           pa->code,
         "_code_verifier",  pa->code_verifier,
@@ -2255,7 +2432,8 @@ PRIVATE void process_next(hgobj gobj)
         "_password",       pa->password,
         "_refresh_token",  pa->refresh_token,
         "_origin",         pa->client_origin,
-        "_host",           pa->client_host
+        "_host",           pa->client_host,
+        "_host_name_len",  pa->client_host_name_len
     );
 
     bff_action_t action = pa->action;
@@ -2562,6 +2740,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     memset(&pa, 0, sizeof(pa));
     snprintf(pa.client_origin, sizeof(pa.client_origin), "%s", origin);
     snprintf(pa.client_host, sizeof(pa.client_host), "%s", host_hdr);
+    pa.client_host_name_len = (int)strcspn(host_hdr, ":");
 
     if(strcmp(url, "/auth/callback") == 0) {
         /* POST /auth/callback  { code, code_verifier, redirect_uri } */

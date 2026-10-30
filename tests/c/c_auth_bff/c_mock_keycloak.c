@@ -72,6 +72,7 @@ SDATA (DTP_INTEGER,     "access_token_pad", SDF_RD, "0",    "If > 0, the access_
 SDATA (DTP_INTEGER,     "access_token_len", SDF_RD, "0",    "If > 0, the access_token is made exactly that long by lengthening its signature (the BFF does not verify it)"),
 SDATA (DTP_INTEGER,     "refresh_token_len",SDF_RD, "0",    "If > 0, the refresh_token is made exactly that long by lengthening its signature"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
+SDATA (DTP_DICT,        "body_patch",       SDF_RD, "{}",   "Keys set over the synthesised token envelope; a key whose value is null is removed from it (an answer with no refresh_token, a token of another type)"),
 SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, sent verbatim instead of the synthesised /.well-known body (lets a test return a body missing required endpoints — exercises save_oidc_discovery's failure path)"),
 SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
@@ -405,6 +406,17 @@ PRIVATE json_t *build_token_envelope(hgobj gobj)
      */
     GBMEM_FREE(access)
     GBMEM_FREE(refresh)
+
+    json_t *patch = gobj_read_json_attr(gobj, "body_patch");
+    const char *key;
+    json_t *value;
+    json_object_foreach(patch, key, value) {
+        if(json_is_null(value)) {
+            json_object_del(jn, key);
+        } else {
+            json_object_set(jn, key, value);
+        }
+    }
     return jn;
 }
 

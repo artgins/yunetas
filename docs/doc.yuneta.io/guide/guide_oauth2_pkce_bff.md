@@ -288,6 +288,40 @@ save_session_info()
     └── Arms the next refresh
 ```
 
+**The IdP may answer a refresh with no new refresh_token** (RFC 6749 §6: the
+server MAY issue one; when it does not, the client keeps the one it has). The
+BFF then sends no `Set-Cookie` for `refresh_token`: the browser keeps its
+cookie, and the next refresh uses it. Only the access_token cookie is
+replaced:
+
+```
+HTTP/1.1 200 OK
+Set-Cookie: access_token=<new JWT>; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Strict
+                                         ← no Set-Cookie: refresh_token=...
+```
+
+**A login (or a callback) answered with no refresh_token opens a session that
+cannot be refreshed.** There is no refresh_token to keep, so the BFF clears the
+cookie (`Set-Cookie: refresh_token=; Max-Age=0; ...`: no refresh_token of an
+earlier session stays in the browser), answers `"refresh_expires_in": 0`, and
+logs a WARNING once per process (*"👤BFF IdP answered a login with no
+refresh_token: its session cannot be refreshed, it ends with its access_token
+(said once)"*). The session ends when its access_token expires; the next
+refresh answers `401 missing_refresh_token`. To get refreshable sessions,
+configure the IdP client to issue refresh tokens.
+
+**The answer of the IdP is data of a peer, and the BFF reads it that way.** A
+token that is not a string (`"access_token": 123`, `"refresh_token": {}`) is
+refused: `502 auth_unexpected_error`, *"Authentication service answered an
+access_token that is not a string"*, and a WARNING with no stack names the
+token and its type (*"👤BFF IdP answered a token that is not a string"*,
+`"type": "integer"`). A lifetime (`expires_in`, `refresh_expires_in`) is a JSON
+integer or the text of one: `"expires_in": "300"` is read as 300, as some IdPs
+send it. Anything else (`"expires_in": "soon"`, a negative number) gets its
+default (300 for `expires_in`, 1800 for `refresh_expires_in`) and a WARNING
+(*"👤BFF IdP answered a lifetime that is not a number of seconds, its default
+is used"*).
+
 **A refresh that cannot be made is not a logout.** A network failure, a
 timeout (`gui_treedb` gives each BFF call 15 s) or a 5xx answer such as
 `502 auth_service_unavailable` (the IdP is unreachable, for example on a node
@@ -392,12 +426,16 @@ Host, omitting Domain attribute"*), and the cookie binds to the exact host of
 the request. A request with no `Host` gets no `Domain` either, with a WARNING
 (*"request without Host, omitting Domain attribute"*). So does a request whose
 `Host` name is longer than a host name can be (253 bytes), with a WARNING
-(*"request Host longer than a host name, omitting Domain attribute"*).
+(*"request Host longer than a host name, omitting Domain attribute"*) whose
+`host_len` is the length of the name in the request (`"host_len": 300` for a
+name of 300 bytes), measured before the BFF keeps 255 bytes of the `Host`.
 
 A token travels in a cookie and comes back in one. A browser keeps a cookie
-only when its name and value take at most 4096 bytes (RFC 6265 §6.1; Chrome
-and Firefox drop a bigger one with nothing said, and the session then opens
-with no token). So the BFF takes an access_token of at most 4084 bytes (4096
+only when its name and value take at most 4096 bytes (RFC 6265bis, in the
+algorithm that parses a `Set-Cookie`; Chrome and Firefox drop a bigger one with
+nothing said, and the session then opens with no token). RFC 6265 §6.1 is not
+that rule: it counts the name, the value and the attributes, and it is a
+minimum a browser must keep. So the BFF takes an access_token of at most 4084 bytes (4096
 less `access_token`) and a refresh_token of at most 4083 (4096 less
 `refresh_token`). A bigger token is refused by its size, before anything reads
 it: `500 token_too_large`, and its `error` says the sizes (*"Token too large

@@ -117,9 +117,9 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 
 | Endpoint           | Method | Purpose                                              | Sets cookies?       |
 |--------------------|--------|------------------------------------------------------|---------------------|
-| `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant) | yes              |
-| `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant)        | yes                 |
-| `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is | yes |
+| `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant). An IdP answer with no refresh_token clears the refresh_token cookie and answers `refresh_expires_in: 0`: the session cannot be refreshed (a WARNING says it, once per process) | yes              |
+| `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant); no refresh_token in the answer: as `/auth/login` | yes                 |
+| `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is. An IdP answer with no new refresh_token sends no `Set-Cookie` for it: the browser keeps its own (RFC 6749 §6) | yes |
 | `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies     | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding) | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
@@ -171,6 +171,10 @@ need it.
    `code_verifier` ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
 6. The tokens arrive. BFF writes them as HttpOnly cookies
    ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
+   The answer is data of a peer: a token that is not a string is refused
+   (`502 auth_unexpected_error`, a WARNING naming its type), and a lifetime
+   that is not a JSON integer or the text of one gets its default, with a
+   WARNING.
 
 State and nonce are the SPA's responsibility — the BFF does not generate
 them.

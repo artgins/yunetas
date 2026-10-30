@@ -82,7 +82,8 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  auth_service_unavailable  502  IdP unreachable or 5xx
  *  auth_config_error         500  BFF misconfigured (bad client_id, ...)
  *  auth_unexpected_error     502  IdP returned something unexpected
- *                                 (also a success with no access_token)
+ *                                 (also a success with no access_token,
+ *                                 or with a token that is not a string)
  *  auth_empty_response       502  IdP reply had no JSON body
  *  auth_timeout              504  Watchdog fired, no reply in time
  *  token_too_large           500  IdP token does not fit in a browser

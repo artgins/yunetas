@@ -19,6 +19,9 @@
  *            refresh_token_ttl        (int)  seconds (default 1800)
  *            override_body            (json) if set, sent verbatim instead of
  *                                             the synthesized token envelope
+ *            body_patch               (dict) keys set over the synthesized
+ *                                             envelope; a null value removes
+ *                                             its key
  *            latency_ms               (int)  if > 0, defer the response by
  *                                             this many ms via an internal
  *                                             C_TIMER child (single pending
