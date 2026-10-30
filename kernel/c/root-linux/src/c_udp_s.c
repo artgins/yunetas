@@ -553,6 +553,40 @@ PRIVATE int udp_set_broadcast(int fd, int on)
 }
 
 /***************************************************************************
+ *  What an EV_TX_DATA must not carry. 0: send it. 1: an empty gbuffer,
+ *  nothing to send: ignored, with a warning, and no EV_TX_READY for it (up
+ *  to 7.29.3 it was a send that cannot start: two errors, and the datagram dropped). -1: a
+ *  gbuffer already queued or in flight, whose bytes the first send
+ *  consumes: refused, with an error (up to 7.29.3 it was queued again,
+ *  which failed and lost a reference).
+ ***************************************************************************/
+PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gbuffer_leftbytes(gbuf) == 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "udp tx data empty, ignored",
+            NULL
+        );
+        return 1;
+    }
+    if(gbuf->__dl__ || gbuf == priv->gbuf_txing) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "udp tx data already queued or in flight, refused",
+            "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Enqueue data
  ***************************************************************************/
 PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
@@ -1522,6 +1556,11 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
         KW_DECREF(kw)
         return -1;
+    }
+    int checked = check_tx_data(gobj, gbuf);
+    if(checked != 0) {
+        KW_DECREF(kw)
+        return checked < 0? -1 : 0;     // Error already logged
     }
 
     if(!priv->gbuf_txing) {

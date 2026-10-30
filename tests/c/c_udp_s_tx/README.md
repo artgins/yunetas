@@ -2,7 +2,7 @@
 
 Tests the transmit path of `C_UDP_S` (`kernel/c/root-linux/src/c_udp_s.c`).
 
-A driver gclass (`C_TEST_UDP_TX`) creates a `C_UDP_S` child and sends it four
+A driver gclass (`C_TEST_UDP_TX`) creates a `C_UDP_S` child and sends it these
 datagrams with `EV_TX_DATA`:
 
 1. a gbuffer with NO peer address: `yev_start_event()` refuses the sendmsg
@@ -12,8 +12,13 @@ datagrams with `EV_TX_DATA`:
 2. a datagram to the port 0 of the peer: the KERNEL refuses the sendmsg
    (`EINVAL`), and `C_UDP_S` drops it with a WARNING that names the peer and
    the cause (*"UDP: datagram refused by the kernel, dropped"*);
-3. `one`, to a plain UDP socket of the test;
-4. `two`, to the same socket.
+3. an EMPTY gbuffer, to that socket: nothing to send, ignored with a WARNING
+   (*"udp tx data empty, ignored"*). Up to 7.29.3 it was a send that cannot
+   start: two errors;
+4. `one`, to a plain UDP socket of the test;
+5. `two`, to the same socket, and the same gbuffer once more: the second send
+   is refused (-1, *"udp tx data already queued or in flight, refused"*). Up
+   to 7.29.3 it was queued again, which failed and lost a reference.
 
 After 500 ms the socket must hold `one two`, in order, and `C_UDP_S` must
 still be listening (`ST_IDLE`). Then `C_UDP_S` is stopped and the yuno dies;

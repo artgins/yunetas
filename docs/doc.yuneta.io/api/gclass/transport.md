@@ -140,25 +140,45 @@ with no trace at the default levels (only the `connections` trace said it,
 per message). `tests/c/c_tcp` (`test_tcp_test7`, also a `C_TCP` stopped and
 destroyed in `ST_WAIT_STOPPED`).
 
-### A write that does not start
+### What a host must not send
 
-`EV_TX_DATA` sends one gbuffer at a time; the next ones wait in a queue.
-A write that the loop refuses to start -- no memory to keep its submission,
-an empty gbuffer, a socket without fd (the cause is logged by
-`yev_start_event()`) -- will never complete, and its bytes are not sent. A
-stream cannot go on with a hole in it, so `C_TCP` destroys the write and
-DROPS the connection, with an ERROR *"Cannot start a write: the connection
-is dropped"*: `EV_DISCONNECTED` follows, and a client reconnects as after any
-disconnection. The same applies to the TLS writes and to the rest of a
-partial write.
+- An EMPTY gbuffer has nothing to send: it is ignored, with a WARNING
+  (*"tcp tx data empty, ignored"*), the connection stays up, and no
+  `EV_TX_READY` comes for it. Up to 7.29.3 it was a write that does not start
+  (below): two ERRORs, and the connection dropped.
+- A gbuffer already queued, or the one in flight, is REFUSED: the send
+  answers -1, with an ERROR (*"tcp tx data already queued or in flight,
+  refused"*). The write consumes the bytes of its gbuffer, so the same
+  bytes twice are two gbuffers. Up to 7.29.3 it was queued again, which
+  failed and lost a reference, or its second write found it empty and
+  dropped the connection.
 
 ```C
-gbuffer_t *gbuf = gbuffer_create(16, 16);      // EMPTY: the write does not start
+gbuffer_t *gbuf = gbuffer_create(16, 16);      // EMPTY
 gobj_send_event(gobj_tcp, EV_TX_DATA,
     json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),   // the kw owns the gbuffer
     gobj
 );
-// ERROR "Cannot start event: gbuffer WITHOUT data to write" (yev_loop),
+// WARNING "tcp tx data empty, ignored": nothing sent, still connected
+```
+
+The same holds in `C_UDP`, `C_UDP_S` (*"udp tx data ..."*) and
+[`C_UART`](#gclass-c-uart) (*"uart tx data ..."*).
+
+### A write that does not start
+
+`EV_TX_DATA` sends one gbuffer at a time; the next ones wait in a queue.
+A write that the loop refuses to start -- no memory to keep its submission,
+a socket without fd (the cause is logged by `yev_start_event()`) -- will
+never complete, and its bytes are not sent. A stream cannot go on with a
+hole in it, so `C_TCP` destroys the write and DROPS the connection, with an
+ERROR *"Cannot start a write: the connection is dropped"*: `EV_DISCONNECTED`
+follows, and a client reconnects as after any disconnection. The same
+applies to the TLS writes and to the rest of a partial write.
+
+```C
+// a write that does not start, as the log says it:
+// ERROR "Cannot start event: ..." (yev_loop, the cause),
 // ERROR "Cannot start a write: the connection is dropped", then EV_DISCONNECTED
 ```
 
@@ -477,6 +497,23 @@ UDP client transport — send and receive datagrams.
 | `txBytes` / `rxBytes` | `integer` | Byte counters (stats). |
 | `txMsgs` / `rxMsgs` | `integer` | Message counters (stats). |
 
+`EV_TX_DATA` sends one datagram at a time; the others wait in a queue. An
+empty gbuffer is ignored, with a warning (*"udp tx data empty, ignored"*);
+a gbuffer already queued or in flight is refused (-1, *"udp tx data already
+queued or in flight, refused"*). A datagram that cannot be sent is dropped,
+with an error (*"Cannot send datagram: dropped"*), and the next one is sent.
+Up to 7.29.3 a send that did not start (an empty gbuffer was one) leaked its
+event, and held every later datagram in the queue for ever.
+
+```C
+gbuffer_t *gbuf = gbuffer_create(64, 64);
+gbuffer_append_string(gbuf, "hello");
+gobj_send_event(gobj_udp, EV_TX_DATA,
+    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),   // the kw owns the gbuffer
+    gobj
+);
+```
+
 ---
 
 (gclass-c-udp-s)=
@@ -631,6 +668,13 @@ gobj_send_event(gobj_udp_s, EV_TX_DATA,
     gobj
 );
 ```
+
+An EMPTY gbuffer is not a datagram to send: it is ignored, with a WARNING
+(*"udp tx data empty, ignored"*); up to 7.29.3 it was dropped with two
+ERRORs. A gbuffer already queued, or the one in flight, is REFUSED: the send
+answers -1, with an ERROR (*"udp tx data already queued or in flight,
+refused"*); up to 7.29.3 it was queued again, which failed and lost a
+reference.
 
 A datagram that cannot be sent is DROPPED, and the next one in the queue is
 sent; nothing leaks, and the server goes on:

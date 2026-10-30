@@ -3,7 +3,7 @@
  *
  *          Driver of the C_UDP_S transmit test.
  *
- *          A C_UDP_S child is asked to send four datagrams (EV_TX_DATA):
+ *          A C_UDP_S child is asked to send these datagrams (EV_TX_DATA):
  *
  *              1. a gbuffer with NO peer address: yev_start_event()
  *                 refuses the sendmsg, and C_UDP_S drops the datagram with
@@ -15,11 +15,17 @@
  *                 a warning that names the peer and the cause. Up to 7.25.4
  *                 a refused send was taken as a disconnection: the whole
  *                 server stopped (reading too), and only a trace said so.
- *              3. "one", to a plain UDP socket of the test.
- *              4. "two", to the same socket. Up to 7.25.4 the send
- *                 completion asked for ST_CONNECTED before sending the
- *                 next datagram, a state C_UDP_S does not have: the first
- *                 datagram went, and every later one waited for ever.
+ *              3. an EMPTY gbuffer, to the socket of the test: nothing to
+ *                 send, ignored with a warning. Up to 7.29.3 it was a send
+ *                 that cannot start: two errors.
+ *              4. "one", to a plain UDP socket of the test.
+ *              5. "two", to the same socket, and the same gbuffer again:
+ *                 the second is refused (-1), with an error. Up to 7.29.3
+ *                 it was queued again, which failed and lost a reference.
+ *                 And up to 7.25.4 the send completion asked for
+ *                 ST_CONNECTED before sending the next datagram, a state
+ *                 C_UDP_S does not have: the first datagram went, and every
+ *                 later one waited for ever.
  *
  *          After 500 ms the socket must have "one" and "two", in order,
  *          and C_UDP_S must still be in ST_IDLE. Then C_UDP_S is stopped
@@ -186,14 +192,19 @@ PRIVATE int mt_play(hgobj gobj)
     struct sockaddr_in port0_addr = rx_addr;
     port0_addr.sin_port = 0;
 
-    const char *datagrams[] = {"no address", "port 0", "one", "two"};
-    for(int i = 0; i < 4; i++) {
+    const char *datagrams[] = {"no address", "port 0", "", "one", "two"};
+    for(int i = 0; i < 5; i++) {
         gbuffer_t *gbuf = gbuffer_create(64, 64);
-        gbuffer_append_string(gbuf, datagrams[i]);
+        if(!empty_string(datagrams[i])) {
+            gbuffer_append_string(gbuf, datagrams[i]);
+        }
         if(i == 1) {
             gbuffer_setaddr(gbuf, (struct sockaddr *)&port0_addr, sizeof(port0_addr));
         } else if(i > 1) {
             gbuffer_setaddr(gbuf, (struct sockaddr *)&rx_addr, sizeof(rx_addr));
+        }
+        if(i == 4) {
+            gbuffer_incref(gbuf);   // sent twice
         }
         gobj_send_event(
             priv->gobj_udp,
@@ -201,6 +212,21 @@ PRIVATE int mt_play(hgobj gobj)
             json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),  // the kw owns the gbuffer
             gobj
         );
+        if(i == 4) {
+            if(gobj_send_event(
+                    priv->gobj_udp,
+                    EV_TX_DATA,
+                    json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+                    gobj
+                ) != -1) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: the same gbuffer sent twice was not refused",
+                    NULL
+                );
+            }
+        }
     }
 
     set_timeout(priv->timer, 500);

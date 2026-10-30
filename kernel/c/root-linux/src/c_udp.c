@@ -334,6 +334,40 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 }
 
 /***************************************************************************
+ *  What an EV_TX_DATA must not carry. 0: send it. 1: an empty gbuffer,
+ *  nothing to send: ignored, with a warning, and no EV_TX_READY for it (up
+ *  to 7.29.3 it was a send that cannot start: an error, its event lost, and every later datagram held in the queue for ever). -1: a
+ *  gbuffer already queued or in flight, whose bytes the first send
+ *  consumes: refused, with an error (up to 7.29.3 it was queued again,
+ *  which failed and lost a reference).
+ ***************************************************************************/
+PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gbuffer_leftbytes(gbuf) == 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "udp tx data empty, ignored",
+            NULL
+        );
+        return 1;
+    }
+    if(gbuf->__dl__ || gbuf == priv->gbuf_txing) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "udp tx data already queued or in flight, refused",
+            "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Enqueue data
  ***************************************************************************/
 PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
@@ -418,9 +452,30 @@ PRIVATE int write_data(hgobj gobj)
             fd,
             gbuffer_incref(gbuf)
         );
+        if(!yev_write_event) {
+            GBUFFER_DECREF(gbuf)    // Error already logged: the reference given to the event
+            return -1;
+        }
 
+        /*
+         *  A send that does not start will not complete: the callback never
+         *  frees the event nor counts it done. Up to 7.29.3 the event and
+         *  its gbuffer leaked, tx_in_progress never went back to 0, and
+         *  gbuf_txing held every later datagram in the queue (as C_UDP_S
+         *  did up to 7.25.4).
+         */
+        if(yev_start_event(yev_write_event) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot send datagram: dropped",
+                "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+            yev_destroy_event(yev_write_event);
+            return -1;
+        }
         priv->tx_in_progress++;
-        yev_start_event(yev_write_event);
     }
     return 0;
 }
@@ -438,21 +493,25 @@ PRIVATE void try_more_writes(hgobj gobj)
     GBUFFER_DECREF(priv->gbuf_txing)
 
     /*
-     *  Get the next tx msg
+     *  Get the next tx msg: a datagram that cannot be sent is dropped
+     *  (logged by write_data) and the next one is tried
      */
-    gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
-    if(!gbuf_txing) {
-        /*
-         *  If no more publish tx ready
-         */
-        if(!priv->no_tx_ready_event) {
-            json_t *kw_tx_ready = json_object();
-            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-        }
-    } else {
+    gbuffer_t *gbuf_txing;
+    while((gbuf_txing = dl_first(&priv->dl_tx)) != NULL) {
         priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
-        write_data(gobj);
+        if(write_data(gobj) == 0) {
+            return;
+        }
+        GBUFFER_DECREF(priv->gbuf_txing)    // Error already logged
+    }
+
+    /*
+     *  If no more publish tx ready
+     */
+    if(!priv->no_tx_ready_event) {
+        json_t *kw_tx_ready = json_object();
+        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
     }
 }
 
@@ -842,9 +901,17 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                                 );
                             }
 
-                            priv->tx_in_progress++;
-                            yev_start_event(yev_event);
-                            break;
+                            if(yev_start_event(yev_event) == 0) {
+                                priv->tx_in_progress++;
+                                break;
+                            }
+                            gobj_log_error(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_SYSTEM,
+                                "msg",          "%s", "Cannot send the rest of a datagram: dropped",
+                                "len",          "%d", (int)gbuffer_leftbytes(yev_get_gbuf(yev_event)),
+                                NULL
+                            );
                         }
 
                         if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
@@ -934,10 +1001,17 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return -1;
     }
+    int checked = check_tx_data(gobj, gbuf);
+    if(checked != 0) {
+        KW_DECREF(kw)
+        return checked < 0? -1 : 0;     // Error already logged
+    }
 
     if(!priv->gbuf_txing) {
         priv->gbuf_txing = gbuffer_incref(gbuf);
-        write_data(gobj);
+        if(write_data(gobj) < 0) {
+            try_more_writes(gobj);  // Error already logged: this one is dropped
+        }
     } else {
         enqueue_write(gobj, gbuffer_incref(gbuf));
     }

@@ -252,6 +252,7 @@ typedef struct _PRIVATE_DATA {
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
     json_int_t max_tx_queue;
+    json_int_t tx_queue_dropped;    // writes dropped by a full queue, said 1 of max_tx_queue
     dl_list_t dl_tx_encrypted;      // TLS output waiting for the write in flight
 
     BOOL no_tx_ready_event;
@@ -1378,25 +1379,67 @@ PRIVATE void try_more_writes(hgobj gobj)
 }
 
 /***************************************************************************
+ *  What an EV_TX_DATA must not carry. 0: send it. 1: an empty gbuffer,
+ *  nothing to send: ignored, with a warning, and no EV_TX_READY for it (up
+ *  to 7.29.3 it was a write that cannot start, and the connection was
+ *  dropped, with two errors). -1: a gbuffer already queued or in flight,
+ *  whose bytes the first write consumes: refused, with an error (up to
+ *  7.29.3 it was queued again, which failed and lost a reference, or the
+ *  second write found it empty and dropped the connection).
+ ***************************************************************************/
+PRIVATE int check_tx_data(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gbuffer_leftbytes(gbuf) == 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "tcp tx data empty, ignored",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            NULL
+        );
+        return 1;
+    }
+    if(gbuf->__dl__ || gbuf == priv->gbuf_txing) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "tcp tx data already queued or in flight, refused",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            "len",          "%d", (int)gbuffer_leftbytes(gbuf),
+            NULL
+        );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Enqueue data
  ***************************************************************************/
 PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    static int counter = 0;
+    /*
+     *  The drops are counted per gobj: up to 7.29.3 one counter of the
+     *  process said the drops of every C_TCP
+     */
     size_t size = dl_size(&priv->dl_tx);
      if(priv->max_tx_queue > 0 && size >= priv->max_tx_queue) {
-         if((counter % priv->max_tx_queue)==0) {
+         if((priv->tx_queue_dropped % priv->max_tx_queue)==0) {
              gobj_log_error(gobj, 0,
                  "function",     "%s", __FUNCTION__,
                  "msgset",       "%s", MSGSET_INTERNAL,
                  "msg",          "%s", "throw away tcp tx message",
-                 "counter",      "%d", (int)counter,
+                 "counter",      "%d", (int)priv->tx_queue_dropped,
                  NULL
              );
          }
-         counter++;
+         priv->tx_queue_dropped++;
          gbuffer_t *gbuf_first = dl_first(&priv->dl_tx);
          dl_delete(&priv->dl_tx, gbuf_first, 0);
          gbuffer_decref(gbuf_first);
@@ -2282,6 +2325,11 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return -1;
     }
+    int checked = check_tx_data(gobj, gbuf);
+    if(checked != 0) {
+        KW_DECREF(kw)
+        return checked < 0? -1 : 0;     // Error already logged
+    }
     mark_secret_gbuffer(gobj, kw, gbuf);
 
     if(!priv->gbuf_txing) {
@@ -2375,6 +2423,11 @@ PRIVATE int ac_tx_data_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, 
         KW_DECREF(kw)
         return -1;
     }
+    int checked = check_tx_data(gobj, gbuf);
+    if(checked != 0) {
+        KW_DECREF(kw)
+        return checked < 0? -1 : 0;     // Error already logged
+    }
     mark_secret_gbuffer(gobj, kw, gbuf);
 
     if(priv->timeout_inactivity > 0) {
@@ -2439,6 +2492,11 @@ PRIVATE int ac_tx_data_queued(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         );
         KW_DECREF(kw)
         return -1;
+    }
+    int checked = check_tx_data(gobj, gbuf);
+    if(checked != 0) {
+        KW_DECREF(kw)
+        return checked < 0? -1 : 0;     // Error already logged
     }
     mark_secret_gbuffer(gobj, kw, gbuf);
 

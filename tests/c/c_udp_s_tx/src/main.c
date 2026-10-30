@@ -103,11 +103,13 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "UDP listening ...",
             "msg", "Cannot start event: sendmsg addr NULL or bad addr length",
             "msg", "Cannot send datagram: dropped",
+            "msg", "udp tx data empty, ignored",
+            "msg", "udp tx data already queued or in flight, refused",
             "msg", "Playing yuno",
             "msg", "UDP: datagram refused by the kernel, dropped",
             "msg", "TEST: the peer got the datagrams",

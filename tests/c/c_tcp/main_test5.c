@@ -1,8 +1,9 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test: C_TCP, a write that does not start drops the connection,
- *          and the stop ends. See c_test5.c.
+ *          Test: C_TCP, an empty write is ignored, the same gbuffer twice
+ *          refused, a write that does not start drops the connection, and
+ *          the stop ends. See c_test5.c.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -14,7 +15,7 @@
  *                      Names
  ***************************************************************************/
 #define APP_NAME        "test_tcp_" "test5"
-#define APP_DOC         "Test C_TCP: a write that does not start"
+#define APP_DOC         "Test C_TCP: an empty write, one gbuffer twice, a write that does not start"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -100,9 +101,12 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*------------------------------*
-     *  The errors of the write that does not start
+     *  The second send of one gbuffer, and the errors of the write that
+     *  does not start (the warning of the empty write is not checked
+     *  here: c_test5.c checks that it left the connection up)
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}]",
+        "msg", "tcp tx data already queued or in flight, refused",
         "msg", "Cannot start event: gbuffer WITHOUT data to write",
         "msg", "Cannot start a write: the connection is dropped"
     );

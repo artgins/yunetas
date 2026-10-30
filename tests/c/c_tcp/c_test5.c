@@ -1,14 +1,25 @@
 /***********************************************************************
  *          C_TEST5.C
  *
- *          A class to test C_TCP: a write that does not start.
+ *          A class to test C_TCP: the writes a host must not send, and a
+ *          write that does not start.
  *
  *          The C_TCP (a child of this gclass) connects to a listener of
  *          the test (a plain socket: the kernel completes the handshake,
- *          nobody accepts). Once connected it is given an EMPTY gbuffer to
- *          send: yev_start_event() refuses the write ("Cannot start event:
- *          gbuffer WITHOUT data to write"), the same -1 a write gets when
- *          there is no memory to keep its submission.
+ *          nobody accepts). Once connected:
+ *
+ *          - an EV_TX_DATA with an EMPTY gbuffer: nothing to send, it is
+ *            ignored, with a warning, and the connection stays up. Up to
+ *            7.29.3 it was a write that cannot start, and the connection
+ *            was dropped, with two errors;
+ *          - the same gbuffer sent twice: the second is refused (-1), with
+ *            an error. Up to 7.29.3 it was queued again;
+ *          - an empty gbuffer to the write of the TLS output
+ *            (EV_SEND_ENCRYPTED_DATA, which no host sends: here it is the
+ *            way to a write that does not start). yev_start_event() refuses
+ *            it ("Cannot start event: gbuffer WITHOUT data to write"), the
+ *            same -1 a write gets when there is no memory to keep its
+ *            submission.
  *
  *          A write that does not start never completes. C_TCP must drop
  *          the connection (a stream cannot go on with a hole in it), free
@@ -18,9 +29,9 @@
  *          connection stayed up, and the stop waited in ST_WAIT_STOPPED
  *          for ever.
  *
- *              1. EV_CONNECTED -> EV_TX_DATA with an empty gbuffer
+ *              1. EV_CONNECTED -> the writes above
  *              2. 1 s later: the connection must have been dropped
- *                 (EV_DISCONNECTED); the C_TCP is stopped
+ *                 (EV_DISCONNECTED) once, by the last; the C_TCP is stopped
  *              3. 1 s later: the C_TCP must be in ST_STOPPED
  *
  *          Copyright (c) 2026, ArtGins.
@@ -230,7 +241,8 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 
 
 /***************************************************************************
- *  Connected: send an EMPTY gbuffer, a write that does not start
+ *  Connected: an empty write, the same gbuffer twice, and a write that does
+ *  not start
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -243,6 +255,35 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->gobj_tcp,
             EV_TX_DATA,
             json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+            gobj
+        );
+        if(priv->disconnected != 0 || !gobj_in_this_state(priv->gobj_tcp, ST_CONNECTED)) {
+            test_fail(gobj, "TEST: an empty write dropped the connection");
+        }
+
+        gbuf = gbuffer_create(16, 16);
+        gbuffer_append_string(gbuf, "twice");
+        gbuffer_incref(gbuf);   // the second send
+        gobj_send_event(
+            priv->gobj_tcp,
+            EV_TX_DATA,
+            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+            gobj
+        );
+        if(gobj_send_event(
+                priv->gobj_tcp,
+                EV_TX_DATA,
+                json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+                gobj
+            ) != -1) {
+            test_fail(gobj, "TEST: the same gbuffer sent twice was not refused");
+        }
+
+        gbuf = gbuffer_create(16, 16);
+        gobj_send_event(
+            priv->gobj_tcp,
+            EV_SEND_ENCRYPTED_DATA,
+            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
             gobj
         );
         priv->phase = 1;
