@@ -53,7 +53,7 @@ PRIVATE const jwk_item_t  *s_hs256_key = NULL;
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE char *make_signed_token(const char *username, const char *email, int ttl);
+PRIVATE char *make_signed_token(const char *username, const char *email, int ttl, int pad);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -68,8 +68,10 @@ SDATA (DTP_STRING,      "username",         SDF_RD, "mockuser", "preferred_usern
 SDATA (DTP_STRING,      "email",            SDF_RD, "mockuser@example.com", "email claim embedded in the access_token"),
 SDATA (DTP_INTEGER,     "access_token_ttl", SDF_RD, "300",  "seconds: exp - iat for access_token"),
 SDATA (DTP_INTEGER,     "refresh_token_ttl",SDF_RD, "1800", "seconds: exp - iat for refresh_token"),
+SDATA (DTP_INTEGER,     "access_token_pad", SDF_RD, "0",    "If > 0, the access_token carries a `pad` claim of that many bytes (the token of a user with many roles)"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
 SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, sent verbatim instead of the synthesised /.well-known body (lets a test return a body missing required endpoints — exercises save_oidc_discovery's failure path)"),
+SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
 SDATA_END()
 };
@@ -344,8 +346,10 @@ PRIVATE json_t *build_token_envelope(hgobj gobj)
     int at_ttl           = (int)gobj_read_integer_attr(gobj, "access_token_ttl");
     int rt_ttl           = (int)gobj_read_integer_attr(gobj, "refresh_token_ttl");
 
-    char *access  = make_signed_token(username, email, at_ttl);
-    char *refresh = make_signed_token(username, email, rt_ttl);
+    int at_pad           = (int)gobj_read_integer_attr(gobj, "access_token_pad");
+
+    char *access  = make_signed_token(username, email, at_ttl, at_pad);
+    char *refresh = make_signed_token(username, email, rt_ttl, 0);
 
     json_t *jn = json_pack("{s:s, s:s, s:i, s:i, s:s, s:s}",
         "access_token",         access  ? access  : "",
@@ -436,12 +440,13 @@ PUBLIC void mock_keycloak_end_jwk(void)
 }
 
 /***************************************************************************
- *  Build a signed HS256 JWT with preferred_username / email / iat / exp.
+ *  Build a signed HS256 JWT with preferred_username / email / iat / exp,
+ *  and a `pad` claim of `pad` bytes when pad > 0.
  *  Returns a gbmem-allocated string owned by the caller — free with
  *  GBMEM_FREE, NOT system free().  libjwt's allocator was rewired to
  *  gbmem in mock_keycloak_init_jwk().
  ***************************************************************************/
-PRIVATE char *make_signed_token(const char *username, const char *email, int ttl)
+PRIVATE char *make_signed_token(const char *username, const char *email, int ttl, int pad)
 {
     if(!s_hs256_key) {
         gobj_log_error(0, 0,
@@ -489,6 +494,19 @@ PRIVATE char *make_signed_token(const char *username, const char *email, int ttl
 
     jwt_set_SET_INT(&jval, "exp", (jwt_long_t)(now + ttl));
     jwt_builder_claim_set(b, &jval);
+
+    if(pad > 0) {
+        char *padding = gbmem_malloc((size_t)pad + 1);
+        if(!padding) {
+            jwt_builder_free(b);
+            return NULL;    // Error already logged
+        }
+        memset(padding, 'x', (size_t)pad);
+        padding[pad] = '\0';
+        jwt_set_SET_STR(&jval, "pad", padding);
+        jwt_builder_claim_set(b, &jval);
+        GBMEM_FREE(padding)
+    }
 
     char *token = jwt_builder_generate(b);
     jwt_builder_free(b);
@@ -552,6 +570,15 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     if(strstr(url, "/.well-known/openid-configuration")) {
         priv->st_discovery_requests++;
+        if(gobj_read_bool_attr(gobj, "silent_discovery")) {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "mock-kc ← %s: discovery left unanswered", gobj_short_name(src)
+                );
+            }
+            KW_DECREF(kw)
+            return 0;
+        }
         /*
          *  OIDC discovery: derive issuer + endpoints from the request's
          *  Host header so the BFF can reach us back on the same socket.

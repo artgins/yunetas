@@ -6,7 +6,7 @@
  *  ========================================
  *  This GClass acts as an HTTP server (not WebSocket) that mediates
  *  between the browser SPA and the IdP authorization server.
- *  It exposes four endpoints:
+ *  It exposes five POST endpoints, plus the CORS preflight (OPTIONS):
  *
  *    POST /auth/login
  *      Body: { "username": "…", "password": "…" }
@@ -68,7 +68,12 @@
  *    Secure      — HTTPS only
  *    SameSite=Strict — CSRF protection
  *    Path=/      — sent with all requests to this origin
- *    Domain=<configured> — shared between port 1800 (WS) and 1801 (BFF)
+ *    Domain=<cookie_domain> — only when `cookie_domain` is configured and
+ *                the request Host is that domain or one of its
+ *                subdomains (see effective_cookie_domain); a Domain has
+ *                no port, so the cookie set by the BFF (on the port its
+ *                yuno configures) travels with the WebSocket upgrade to
+ *                the backend yuno on any port of the same host
  *
  *  Copyright (c) 2026, ArtGins.
  *  All Rights Reserved.
@@ -310,7 +315,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_idp_errors;       /* IdP round-trips with non-200 */
     uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
     uint64_t        st_responses_dropped; /* IdP replies dropped because browser closed */
-    uint64_t        st_idp_timeouts;     /* outbound watchdog fired */
+    uint64_t        st_idp_timeouts;     /* an IdP task ended by timeout (request or discovery) */
 } PRIVATE_DATA;
 
 
@@ -468,7 +473,8 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  a timer re-issuing the same query is the polling pattern the framework
  *  discards, and there is nothing to poll for — the endpoints are only
  *  needed when somebody logs in.  The cost of the first failure is one
- *  503 (see ac_end_task); the next request resolves it.
+ *  502 auth_service_unavailable for each request queued behind it (see
+ *  ac_end_task); the next request resolves it.
  *
  *  Returns TRUE if a task was started (or one was already in flight).
  ***************************************************************************/
@@ -920,7 +926,9 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
 
     while(p && *p) {
         /* skip leading whitespace */
-        while(*p == ' ') p++;
+        while(*p == ' ') {
+            p++;
+        }
 
         if(strncmp(p, name, name_len) == 0 && p[name_len] == '=') {
             const char *val_start = p + name_len + 1;
@@ -934,7 +942,9 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
             return out;
         }
         p = strchr(p, ';');
-        if(p) p++;
+        if(p) {
+            p++;
+        }
     }
     return NULL;
 }
@@ -966,7 +976,9 @@ PRIVATE const char *effective_cookie_domain(
     char hostname[256];
     snprintf(hostname, sizeof(hostname), "%s", request_host);
     char *colon = strchr(hostname, ':');
-    if(colon) *colon = '\0';
+    if(colon) {
+        *colon = '\0';
+    }
 
     /*
      *  Check: does the request hostname match the configured cookie_domain?
@@ -1515,41 +1527,63 @@ PRIVATE json_t *send_token_to_browser(
     char username[256] = "";
     char email[256]    = "";
     if(!empty_string(access_token)) {
-        /* Quick base64url decode of the payload without a full JWT library */
+        /*
+         *  Quick base64url decode of the payload without a full JWT library.
+         *  Sized for the whole token (BFF_TOKEN_MAX): up to 7.29.3 the buffer
+         *  was 2 KB, so the payload of a token with many roles (a 4 KB
+         *  access_token is common) was skipped, and the login answered an
+         *  empty username and email with nothing logged.
+         */
+        BOOL claims_read = FALSE;
         const char *p1 = strchr(access_token, '.');
-        if(p1) {
-            const char *p2 = strchr(p1 + 1, '.');
-            if(p2) {
-                size_t payload_len = (size_t)(p2 - p1 - 1);
-                char payload_b64[2048];
-                if(payload_len < sizeof(payload_b64) - 4) {
-                    memcpy(payload_b64, p1 + 1, payload_len);
-                    /* Re-pad to standard base64 */
-                    while(payload_len % 4) payload_b64[payload_len++] = '=';
-                    payload_b64[payload_len] = '\0';
-                    /* Replace URL-safe chars */
-                    for(size_t i = 0; i < payload_len; i++) {
-                        if(payload_b64[i] == '-') payload_b64[i] = '+';
-                        else if(payload_b64[i] == '_') payload_b64[i] = '/';
-                    }
-                    /* Decode */
-                    gbuffer_t *gbuf = gbuffer_base64_to_binary(payload_b64, payload_len);
-                    if(gbuf) {
-                        char *decoded = gbuffer_cur_rd_pointer(gbuf);
-                        json_error_t jerr;
-                        json_t *jn_claims = json_loads(decoded, 0, &jerr);
-                        if(jn_claims) {
-                            const char *e = kw_get_str(gobj, jn_claims, "email", "", 0);
-                            const char *u = kw_get_str(gobj, jn_claims,
-                                "preferred_username", e, 0);
-                            snprintf(username, sizeof(username), "%s", u);
-                            snprintf(email,    sizeof(email),    "%s", e);
-                            JSON_DECREF(jn_claims)
-                        }
-                        gbuffer_decref(gbuf);
+        const char *p2 = p1? strchr(p1 + 1, '.') : NULL;
+        if(p2) {
+            size_t payload_len = (size_t)(p2 - p1 - 1);
+            char payload_b64[BFF_TOKEN_MAX + 4];
+            if(payload_len < sizeof(payload_b64) - 4) {
+                memcpy(payload_b64, p1 + 1, payload_len);
+                /* Re-pad to standard base64 */
+                while(payload_len % 4) {
+                    payload_b64[payload_len++] = '=';
+                }
+                payload_b64[payload_len] = '\0';
+                /* Replace URL-safe chars */
+                for(size_t i = 0; i < payload_len; i++) {
+                    if(payload_b64[i] == '-') {
+                        payload_b64[i] = '+';
+                    } else if(payload_b64[i] == '_') {
+                        payload_b64[i] = '/';
                     }
                 }
+                /* Decode */
+                gbuffer_t *gbuf = gbuffer_base64_to_binary(payload_b64, payload_len);
+                if(gbuf) {
+                    json_error_t jerr;
+                    json_t *jn_claims = json_loadb(
+                        gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), 0, &jerr
+                    );
+                    if(jn_claims) {
+                        const char *e = kw_get_str(gobj, jn_claims, "email", "", 0);
+                        const char *u = kw_get_str(gobj, jn_claims,
+                            "preferred_username", e, 0);
+                        snprintf(username, sizeof(username), "%s", u);
+                        snprintf(email,    sizeof(email),    "%s", e);
+                        JSON_DECREF(jn_claims)
+                        claims_read = TRUE;
+                    }
+                    gbuffer_decref(gbuf);
+                }
             }
+        }
+        if(!claims_read) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "👤BFF access_token payload not readable, "
+                                      "username and email answered empty",
+                "token_len",    "%d", (int)strlen(access_token),
+                NULL
+            );
         }
     }
 
@@ -2637,7 +2671,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *
  *  The task is failed through its OWN path (EV_TIMEOUT -> stop_task(-2))
  *  rather than torn down here, so the existing EV_END_TASK handling
- *  applies unchanged: 504 to the browser for a request, drain-with-503
+ *  applies unchanged: 504 to the browser for a request, drain-with-502
  *  plus a re-armable discovery for discovery.
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -2732,8 +2766,9 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*
      *  Discovery task ends separately from the auth tasks: it never
-     *  has a browser waiting, doesn't move the idp_* counters, and
-     *  must drain the pending queue once the endpoints are cached.
+     *  has a browser waiting, moves no idp_* counter but idp_timeouts
+     *  (an IdP timeout is one, whatever the task), and must drain the
+     *  pending queue once the endpoints are cached.
      */
     clear_timeout(priv->gobj_timer);    /* the task answered within its budget */
 
@@ -2747,6 +2782,21 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         KW_DECREF(kw)
+        if(discovery_result == -2) {
+            /*
+             *  No result handler ran, so nothing said it: up to 7.29.3
+             *  a discovery that timed out with no request queued left
+             *  no trace, and idp_timeouts did not count it.
+             */
+            priv->st_idp_timeouts++;
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_PROTOCOL,
+                "msg",      "%s", "👤BFF OIDC discovery: IdP did not answer in time",
+                "issuer",   "%s", priv->issuer,
+                NULL
+            );
+        }
         if(priv->discovery_done) {
             process_next(gobj);
             return 0;
