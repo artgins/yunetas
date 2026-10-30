@@ -1294,14 +1294,6 @@ PUBLIC int launch_daemon( // Return pid of daemon
  */
 PUBLIC void clean_child_before_exec(int keep_fd);
 
-/*
- *  Close every fd of [first, last] (~0U: to the last one) that is open:
- *  close_range(), or on a kernel without it (before 5.9) each one that
- *  /proc/self/fd lists. Nothing is said: a child about to exec, or a
- *  daemon at its start, has nobody to tell.
- */
-PUBLIC void close_fd_range(unsigned int first, unsigned int last);
-
 /*------------------------------------*
  *  ### Parse url
  *------------------------------------*/
