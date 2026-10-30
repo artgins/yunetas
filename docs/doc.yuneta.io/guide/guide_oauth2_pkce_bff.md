@@ -390,13 +390,22 @@ is that domain or one of its subdomains. When the `Host` does not match, the
 BFF omits `Domain`, logs a WARNING (*"cookie_domain does not match request
 Host, omitting Domain attribute"*), and the cookie binds to the exact host of
 the request. A request with no `Host` gets no `Domain` either, with a WARNING
-(*"request without Host, omitting Domain attribute"*).
+(*"request without Host, omitting Domain attribute"*). So does a request whose
+`Host` name is longer than a host name can be (253 bytes), with a WARNING
+(*"request Host longer than a host name, omitting Domain attribute"*).
 
-A token travels in a cookie and comes back in one, so the BFF takes a token of
-at most 8191 bytes (`BFF_TOKEN_MAX`, 8 KB). A bigger access or refresh token is
-refused by its size, before anything reads it: `500 token_too_large`, and its
-`error` says the sizes (*"Token too large for a cookie: access_token 9312
-bytes, refresh_token 652 bytes, limit 8191"*).
+A token travels in a cookie and comes back in one. A browser keeps a cookie
+only when its name and value take at most 4096 bytes (RFC 6265 §6.1; Chrome
+and Firefox drop a bigger one with nothing said, and the session then opens
+with no token). So the BFF takes an access_token of at most 4084 bytes (4096
+less `access_token`) and a refresh_token of at most 4083 (4096 less
+`refresh_token`). A bigger token is refused by its size, before anything reads
+it: `500 token_too_large`, and its `error` says the sizes (*"Token too large
+for a browser cookie: access_token 5120 bytes (limit 4084), refresh_token 652
+bytes (limit 4083); a cookie name and value take at most 4096 bytes"*). An
+IdP that answers a success with no access_token is refused too: `502
+auth_unexpected_error`, *"Authentication service answered success with no
+access_token"*.
 
 ---
 
@@ -455,10 +464,13 @@ in production:
   answer is `502 auth_service_unavailable`. `idp_timeouts` counts every IdP
   task that ends by one of the two watchdogs: a login, callback, refresh or
   logout (answered `504 auth_timeout`) and the discovery (each request queued
-  behind it is answered `502`). A timeout is ONE ERROR, logged when its task
-  ends, with its `cause` -- *"OIDC discovery: IdP did not answer in time"*
-  (with the number `queued`) or *"BFF IdP outbound watchdog fired"* -- plus
-  the line of each answer it causes. A
+  behind it is answered `502`). A timeout logs one ERROR for its cause, when
+  its task ends -- *"OIDC discovery: IdP did not answer in time"* (with the
+  number `queued`) or *"BFF IdP outbound watchdog fired"* -- with its
+  `cause`, `connected` and `tcp_state` (what the outbound to the IdP was
+  then). Each answer it causes adds the ERROR of that answer (*"BFF server
+  error"*): one for the `504`, or one for each request queued behind the
+  discovery, after an INFO with how many. A
   failed discovery is retried at the next request, not by a timer.
 - **Stable error_code for GUI i18n.** Every error response carries a
   stable `error_code` (snake_case, for example `session_expired`,

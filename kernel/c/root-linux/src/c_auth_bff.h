@@ -82,12 +82,14 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  auth_service_unavailable  502  IdP unreachable or 5xx
  *  auth_config_error         500  BFF misconfigured (bad client_id, ...)
  *  auth_unexpected_error     502  IdP returned something unexpected
+ *                                 (also a success with no access_token)
  *  auth_empty_response       502  IdP reply had no JSON body
  *  auth_timeout              504  Watchdog fired, no reply in time
- *  token_too_large           500  IdP token does not fit in a cookie
- *                                 (BFF_TOKEN_MAX, 8 KB: a token of 8192
- *                                 bytes or more); the `error` says the
- *                                 sizes
+ *  token_too_large           500  IdP token does not fit in a browser
+ *                                 cookie: its name and value pass 4096
+ *                                 bytes (BFF_COOKIE_MAX; an access_token
+ *                                 over 4084 bytes, a refresh_token over
+ *                                 4083); the `error` says the sizes
  *
  *  ---------------------------------------------------------------------
  *  Codes emitted by request validation (before talking to IdP)

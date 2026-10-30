@@ -1,13 +1,22 @@
 /****************************************************************************
  *          C_TEST21_BIG_TOKEN.C
  *
- *          Driver for test21_big_token (POST /auth/login answered with a
- *          4 KB access_token; same checks as test1_login), then a second
- *          POST /auth/login answered with an access_token over 8 KB, too
- *          large for a cookie: it must be refused by its size, 500
- *          token_too_large, with ONE log for the failure (the ERROR of
- *          the 500 answered) and no WARNING that its payload could not be
- *          read (main_test21 captures the warnings too).
+ *          Driver for test21_big_token: five POST /auth/login on one
+ *          connection, each answered by the mock KC with another token.
+ *          A browser keeps a cookie whose name and value take at most
+ *          4096 bytes, so:
+ *            1. an access_token of 4084 bytes (with "access_token", 4096)
+ *               fits: same checks as test1_login, its claims read;
+ *            2. one of 4085 bytes (4097) is refused by its size, 500
+ *               token_too_large, the error saying its size;
+ *            3. a refresh_token of 4084 bytes (with "refresh_token",
+ *               4097) is refused the same way;
+ *            4. one of 4083 bytes (4096) fits;
+ *            5. a success with no access_token is refused, 502
+ *               auth_unexpected_error.
+ *          Each refusal has ONE log (the ERROR of the answer), and no
+ *          WARNING that a payload could not be read (main_test21 captures
+ *          the warnings too).
  *
  *          Sequence
  *          ========
@@ -24,7 +33,7 @@
  *            EV_ON_OPEN   (TCP/HTTP connected to the BFF)
  *              → POST /auth/login  { "username": ..., "password": ... }
  *
- *            EV_ON_MESSAGE (BFF responded)
+ *            EV_ON_MESSAGE (first answer)
  *              → expect status 200
  *              → expect body.success == true
  *              → expect body.username == "mockuser"  (set on the mock KC)
@@ -35,12 +44,12 @@
  *                  kc_ok          == 1
  *                  kc_errors      == 0
  *                  bff_errors     == 0
- *              → raise the mock KC's access_token_pad to BIG_PAD and POST
- *                /auth/login again on the same connection
+ *              → set the mock KC's next token and POST /auth/login again
+ *                on the same connection
  *
- *            EV_ON_MESSAGE (second answer)
- *              → expect status 500, body.error_code == "token_too_large"
- *              → stop the stacks; set_yuno_must_die 100 ms later
+ *            EV_ON_MESSAGE (answers 2 to 5)
+ *              → check it, set the next token and POST again; after the
+ *                fifth, stop the stacks; set_yuno_must_die 100 ms later
  *
  *          Any deviation fires a gobj_log_error, which the self-contained
  *          test harness (set_expected_results + test_json in main) treats
@@ -58,7 +67,9 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define BIG_PAD     9000    /* an access_token over BFF_TOKEN_MAX (8 KB) */
+#define COOKIE_MAX  4096    /* name + value of a cookie a browser keeps */
+#define AT_FITS     (COOKIE_MAX - (int)sizeof("access_token") + 1)     /* 4084 */
+#define RT_FITS     (COOKIE_MAX - (int)sizeof("refresh_token") + 1)    /* 4083 */
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -316,10 +327,11 @@ PRIVATE void post_login(hgobj gobj)
 }
 
 /***************************************************************************
- *  The mock KC of __idp_side__: its next token carries a pad of `pad`
- *  bytes
+ *  The mock KC of __idp_side__: its next answer has an access_token of
+ *  `at_len` bytes and a refresh_token of `rt_len` (0: as it is made), or
+ *  is `override_body` when not NULL (owned)
  ***************************************************************************/
-PRIVATE void set_mock_token_pad(hgobj gobj, json_int_t pad)
+PRIVATE void set_mock_answer(hgobj gobj, json_int_t at_len, json_int_t rt_len, json_t *override_body)
 {
     hgobj idp_side = gobj_find_service("__idp_side__", FALSE);
     json_t *jn_filter = json_pack("{s:s}",
@@ -331,7 +343,11 @@ PRIVATE void set_mock_token_pad(hgobj gobj, json_int_t pad)
     }
     if(dl && json_array_size(dl) > 0) {
         hgobj mock = (hgobj)(size_t)json_integer_value(json_array_get(dl, 0));
-        gobj_write_integer_attr(mock, "access_token_pad", pad);
+        gobj_write_integer_attr(mock, "access_token_len", at_len);
+        gobj_write_integer_attr(mock, "refresh_token_len", rt_len);
+        if(override_body) {
+            gobj_write_json_attr(mock, "override_body", override_body);
+        }
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
@@ -341,6 +357,7 @@ PRIVATE void set_mock_token_pad(hgobj gobj, json_int_t pad)
         );
     }
     gobj_free_iter(dl);
+    JSON_DECREF(override_body)
 }
 
 /***************************************************************************
@@ -359,21 +376,48 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The second answer: the token over 8 KB is refused by its size
+ *  An answer that refuses: its status, its error_code, and a text its
+ *  error must carry (NULL: not checked)
  ***************************************************************************/
-PRIVATE void check_too_large_answer(hgobj gobj, json_t *kw)
+PRIVATE void check_refusal(hgobj gobj, json_t *kw, int answer,
+    int expected_status, const char *expected_code, const char *expected_text)
 {
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
     const char *error_code = jn_body? kw_get_str(gobj, jn_body, "error_code", "", 0) : "";
+    const char *error = jn_body? kw_get_str(gobj, jn_body, "error", "", 0) : "";
 
-    if(status != 500 || strcmp(error_code, "token_too_large") != 0) {
+    if(status != expected_status || strcmp(error_code, expected_code) != 0 ||
+            (expected_text && !strstr(error, expected_text))) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,
-            "msg",          "%s", "test21_big_token: a token over 8 KB was not refused with token_too_large",
+            "msg",          "%s", "test21_big_token: an answer was not the refusal expected",
+            "answer",       "%d", answer,
             "status",       "%d", status,
             "error_code",   "%s", error_code,
+            "error",        "%s", error,
+            "expected",     "%s", expected_code,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  An answer that must be a success
+ ***************************************************************************/
+PRIVATE void check_success(hgobj gobj, json_t *kw, int answer)
+{
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+
+    if(status != 200 || !jn_body || !json_is_true(json_object_get(jn_body, "success"))) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "test21_big_token: an answer was not a success",
+            "answer",       "%d", answer,
+            "status",       "%d", status,
             NULL
         );
     }
@@ -388,10 +432,34 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     hgobj bff_side = NULL;
 
     priv->answers++;
-    if(priv->answers == 2) {
-        check_too_large_answer(gobj, kw);
-        bff_side = gobj_find_service("__bff_side__", FALSE);
-        goto end;
+    switch(priv->answers) {
+        case 1:
+            break;
+        case 2:
+            check_refusal(gobj, kw, 2, 500, "token_too_large", "access_token 4085 bytes");
+            set_mock_answer(gobj, 0, RT_FITS + 1, NULL);
+            post_login(gobj);
+            KW_DECREF(kw)
+            return 0;
+        case 3:
+            check_refusal(gobj, kw, 3, 500, "token_too_large", "refresh_token 4084 bytes");
+            set_mock_answer(gobj, 0, RT_FITS, NULL);
+            post_login(gobj);
+            KW_DECREF(kw)
+            return 0;
+        case 4:
+            check_success(gobj, kw, 4);
+            set_mock_answer(gobj, 0, 0, json_pack("{s:s, s:i}",
+                "token_type",   "Bearer",
+                "expires_in",   300
+            ));
+            post_login(gobj);
+            KW_DECREF(kw)
+            return 0;
+        default:
+            check_refusal(gobj, kw, priv->answers, 502, "auth_unexpected_error", NULL);
+            bff_side = gobj_find_service("__bff_side__", FALSE);
+            goto end;
     }
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
@@ -496,9 +564,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->test_passed = TRUE;
 
     /*
-     *  The second login, on the same connection: a token over 8 KB
+     *  The second login, on the same connection: an access_token one byte
+     *  over what a browser keeps
      */
-    set_mock_token_pad(gobj, BIG_PAD);
+    set_mock_answer(gobj, AT_FITS + 1, 0, NULL);
     post_login(gobj);
     KW_DECREF(kw)
     return 0;

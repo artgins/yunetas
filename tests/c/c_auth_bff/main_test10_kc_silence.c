@@ -262,7 +262,8 @@ static int register_yuno_and_more(void)
     /*
      *  Two expected errors on the negative path:
      *    1) The task-timeout path in ac_end_task logs
-     *       "BFF IdP outbound watchdog fired".
+     *       "BFF IdP outbound watchdog fired", with its cause and what
+     *       the outbound was then: connected, its C_TCP in ST_CONNECTED.
      *    2) send_error_response then logs "BFF server error" with
      *       error_code="auth_timeout" (see c_auth_bff.c::send_error_response
      *       and the browser error-code catalogue in c_auth_bff.h).
@@ -270,8 +271,11 @@ static int register_yuno_and_more(void)
      */
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s, s:s}]",
+        json_pack("[{s:s, s:s, s:i, s:s}, {s:s, s:s}]",
             "msg",        "👤BFF IdP outbound watchdog fired",
+            "cause",      "idp_timeout_ms: the IdP did not answer",
+            "connected",  1,
+            "tcp_state",  "ST_CONNECTED",
             "msg",        "👤BFF server error",
             "error_code", "auth_timeout"
         ),

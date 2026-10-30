@@ -10,23 +10,25 @@
  *              → set a 500 ms timer (the listen stacks open their sockets)
  *
  *            EV_TIMEOUT (post)
- *              → from a plain socket, two POST /auth/login pipelined: the
- *                first with "Host: app.example.com", the second with no
- *                Host
+ *              → from a plain socket, four POST /auth/login pipelined:
+ *                with "Host: app.example.com", with no Host, with a Host
+ *                of the domain whose name is 254 bytes (longer than a
+ *                host name), and with one whose name is 253 bytes and a
+ *                port
  *              → set a check_delay_ms timer
  *
  *            EV_TIMEOUT (check)
- *              → the first answer: 200, its Set-Cookie lines with
- *                "Domain=example.com"
- *              → the second answer: 200, its Set-Cookie lines with no
- *                Domain
+ *              → each answer: 200, its Set-Cookie lines with
+ *                "Domain=example.com" for the first and the fourth, with
+ *                no Domain for the second and the third
  *              → arm the death-timer (100 ms) so io_uring closes drain
  *
  *            EV_TIMEOUT (death)
  *              → set_yuno_must_die
  *
- *          The WARNING of the login with no Host is asserted by the test
- *          harness via set_expected_results in main_test23.
+ *          The WARNINGs of the login with no Host and of the one with a
+ *          name too long are asserted by the test harness via
+ *          set_expected_results in main_test23.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -169,8 +171,9 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  Two POST /auth/login pipelined on one plain socket: the first with a
- *  Host of the cookie_domain, the second with no Host
+ *  Four POST /auth/login pipelined on one plain socket: with a Host of the
+ *  cookie_domain, with no Host, with a Host of the domain one byte longer
+ *  than a host name (253), and with one of 253 bytes and a port
  ***************************************************************************/
 PRIVATE void post_login(hgobj gobj)
 {
@@ -183,7 +186,10 @@ PRIVATE void post_login(hgobj gobj)
     addr.sin_port = htons((uint16_t)atoi(gobj_read_str_attr(gobj, "bff_port")));
 
     const char body[] = "{\"username\": \"testuser\", \"password\": \"testpass\"}";
-    char request[1024];
+    char long_label[243];
+    memset(long_label, 'a', sizeof(long_label) - 1);
+    long_label[sizeof(long_label) - 1] = '\0';     // 242 + ".example.com": 254
+    char request[4096];
     int len = snprintf(request, sizeof(request),
         "POST /auth/login HTTP/1.1\r\n"
         "Host: app.example.com\r\n"
@@ -197,9 +203,25 @@ PRIVATE void post_login(hgobj gobj)
         "Content-Type: application/json\r\n"
         "Content-Length: %d\r\n"
         "\r\n"
+        "%s"
+        "POST /auth/login HTTP/1.1\r\n"
+        "Host: %s.example.com\r\n"
+        "Origin: http://localhost\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "\r\n"
+        "%s"
+        "POST /auth/login HTTP/1.1\r\n"
+        "Host: %s.example.com:8443\r\n"
+        "Origin: http://localhost\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "\r\n"
         "%s",
         (int)strlen(body), body,
-        (int)strlen(body), body
+        (int)strlen(body), body,
+        long_label, (int)strlen(body), body,
+        long_label + 1, (int)strlen(body), body
     );
 
     priv->fd_browser = socket(AF_INET, SOCK_STREAM, 0);
@@ -241,7 +263,7 @@ PRIVATE void check_cookies(hgobj gobj, const char *what, const char *answer,
 }
 
 /***************************************************************************
- *  The two answers, in order
+ *  The four answers, in order
  ***************************************************************************/
 PRIVATE void check_the_answers(hgobj gobj)
 {
@@ -258,21 +280,28 @@ PRIVATE void check_the_answers(hgobj gobj)
     }
     answer[got] = '\0';
 
-    char *second = got > 0? strstr(answer + 1, "HTTP/1.1 ") : NULL;
-    if(!second) {
+    char *starts[5] = {got > 0? answer : NULL, NULL, NULL, NULL, answer + got};
+    for(int i = 1; i < 4 && starts[i-1]; i++) {
+        starts[i] = strstr(starts[i-1] + 1, "HTTP/1.1 ");
+    }
+    if(!starts[3]) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,
-            "msg",          "%s", "test23_cookie_no_host: the two answers did not come",
+            "msg",          "%s", "test23_cookie_no_host: the four answers did not come",
             "bytes",        "%d", (int)got,
             NULL
         );
         return;
     }
     check_cookies(gobj, "test23_cookie_no_host: the login with a Host of the domain did not get Domain",
-        answer, second, TRUE);
+        starts[0], starts[1], TRUE);
     check_cookies(gobj, "test23_cookie_no_host: the login with no Host got a Domain",
-        second, answer + got, FALSE);
+        starts[1], starts[2], FALSE);
+    check_cookies(gobj, "test23_cookie_no_host: the login with a Host longer than a host name got a Domain",
+        starts[2], starts[3], FALSE);
+    check_cookies(gobj, "test23_cookie_no_host: the login with a Host of 253 bytes and a port did not get Domain",
+        starts[3], starts[4], TRUE);
 }
 
 

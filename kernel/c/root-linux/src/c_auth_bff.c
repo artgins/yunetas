@@ -111,7 +111,7 @@
  *
  *  The compile-time ceiling MAX_PENDING_QUEUE_SIZE is a safety cap so
  *  a misconfigured attr can't silently allocate gigabytes: each
- *  PENDING_AUTH entry is ~8 KB, so 1024 slots ≈ 8 MB per channel.
+ *  PENDING_AUTH entry is ~4 KB, so 1024 slots ≈ 4 MB per channel.
  */
 #define DEFAULT_PENDING_QUEUE_SIZE    16
 #define MAX_PENDING_QUEUE_SIZE      1024
@@ -120,12 +120,27 @@
 
 /*
  *  IdP tokens are JWTs whose size grows with roles/groups (a Keycloak
- *  access_token with many client roles exceeds 4 KB). One max, used for
- *  the stored token, the extraction buffers and the Set-Cookie build, so
- *  a token that fits one always fits the others.
+ *  access_token with many client roles exceeds 4 KB). A token travels in
+ *  a cookie, and a browser keeps a cookie only when its name and value
+ *  take at most 4096 bytes (RFC 6265 §6.1, and what Chrome and Firefox
+ *  keep): a bigger one is dropped with nothing said, and the session
+ *  opens with no token. So the BFF refuses a token whose cookie would
+ *  pass BFF_COOKIE_MAX. One max for the stored token, the extraction
+ *  buffers and the Set-Cookie build, so a token that fits one always
+ *  fits the others.
  */
-#define BFF_TOKEN_MAX       (8*1024)
+#define BFF_COOKIE_MAX      4096    /* name + value of one cookie */
+#define BFF_TOKEN_MAX       BFF_COOKIE_MAX
 #define BFF_SET_COOKIE_MAX  (BFF_TOKEN_MAX + 512)   /* + name/attrs/Domain */
+
+/*
+ *  The longest host name (RFC 1035: 253 bytes in its text form). The
+ *  Host of a request is kept in 255 bytes (PENDING_AUTH.client_host): a
+ *  host name always fits, so what can be cut is the end of its port
+ *  (which the Domain check does not read) or a host name too long to be
+ *  one, which effective_cookie_domain() refuses.
+ */
+#define BFF_HOST_NAME_MAX   253
 
 /*
  *  http-parser method codes (from llhttp / http_parser).
@@ -985,7 +1000,8 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
  *  attribute entirely, letting the cookie bind to the exact request host.
  *  A request with no Host says no host to match, so it gets no Domain
  *  either: Domain is written only when the Host is that domain or one of
- *  its subdomains.
+ *  its subdomains. A Host whose name is longer than a host name
+ *  (BFF_HOST_NAME_MAX) gets no Domain, with a WARNING.
  ***************************************************************************/
 PRIVATE const char *effective_cookie_domain(
     hgobj gobj,
@@ -1006,27 +1022,36 @@ PRIVATE const char *effective_cookie_domain(
         return "";
     }
 
-    /* Strip port from request host (e.g. "localhost:5173" → "localhost") */
-    char hostname[256];
-    snprintf(hostname, sizeof(hostname), "%s", request_host);
-    char *colon = strchr(hostname, ':');
-    if(colon) {
-        *colon = '\0';
-    }
-
     /*
-     *  Check: does the request hostname match the configured cookie_domain?
+     *  The hostname is the Host without its port ("localhost:5173" →
+     *  "localhost"), compared in place: a Host of any length is read whole.
      *  Accept exact match or subdomain match (host ends with "."+domain).
      */
-    size_t host_len = strlen(hostname);
+    const char *hostname = request_host;
+    size_t host_len = strcspn(request_host, ":");
     size_t domain_len = strlen(cookie_domain);
 
-    if(host_len == domain_len && strcmp(hostname, cookie_domain) == 0) {
+    if(host_len > BFF_HOST_NAME_MAX) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PROTOCOL,
+            "msg",              "%s", "request Host longer than a host name, "
+                                      "omitting Domain attribute",
+            "cookie_domain",    "%s", cookie_domain,
+            "host_len",         "%d", (int)host_len,
+            "host_name_max",    "%d", BFF_HOST_NAME_MAX,
+            "request_host",     "%.64s", request_host,
+            NULL
+        );
+        return "";
+    }
+
+    if(host_len == domain_len && strncmp(hostname, cookie_domain, domain_len) == 0) {
         return cookie_domain;  /* exact match */
     }
     if(host_len > domain_len + 1 &&
             hostname[host_len - domain_len - 1] == '.' &&
-            strcmp(hostname + host_len - domain_len, cookie_domain) == 0) {
+            strncmp(hostname + host_len - domain_len, cookie_domain, domain_len) == 0) {
         return cookie_domain;  /* subdomain match */
     }
 
@@ -1574,18 +1599,33 @@ PRIVATE json_t *send_token_to_browser(
     int64_t     ref_exp_in    = kw_get_int(gobj, jn_body, "refresh_expires_in", 1800, 0);
 
     /*
-     *  A token travels in a cookie, and comes back in one: what is read
-     *  back (extract_cookie) holds BFF_TOKEN_MAX - 1 bytes. A bigger token
-     *  is refused here, by its size, before anything reads it.
+     *  A success with no access_token is no session: its cookie would be
+     *  empty, and the browser would be told it logged in.
+     */
+    if(empty_string(access_token)) {
+        send_error_response(gobj, gobj_bottom_gobj(gobj), 502, status_str(502),
+            "auth_unexpected_error",
+            "Authentication service answered success with no access_token", cors_hdrs);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    /*
+     *  A token travels in a cookie, and comes back in one: a browser drops
+     *  a cookie whose name and value pass BFF_COOKIE_MAX. A bigger token is
+     *  refused here, by its size, before anything reads it.
      */
     size_t at_len = strlen(access_token);
     size_t rt_len = strlen(refresh_token);
-    if(at_len >= BFF_TOKEN_MAX || rt_len >= BFF_TOKEN_MAX) {
-        char error_msg[192];
+    size_t at_max = BFF_COOKIE_MAX - strlen(COOKIE_NAME_AT);
+    size_t rt_max = BFF_COOKIE_MAX - strlen(COOKIE_NAME_RT);
+    if(at_len > at_max || rt_len > rt_max) {
+        char error_msg[256];
         snprintf(error_msg, sizeof(error_msg),
-            "Token too large for a cookie: access_token %zu bytes, "
-            "refresh_token %zu bytes, limit %d",
-            at_len, rt_len, BFF_TOKEN_MAX - 1
+            "Token too large for a browser cookie: access_token %zu bytes "
+            "(limit %zu), refresh_token %zu bytes (limit %zu); a cookie name "
+            "and value take at most %d bytes",
+            at_len, at_max, rt_len, rt_max, BFF_COOKIE_MAX
         );
         send_error_response(gobj, gobj_bottom_gobj(gobj), 500, status_str(500),
             "token_too_large", error_msg, cors_hdrs);
@@ -2853,6 +2893,15 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->connect_timed_out = FALSE;
     priv->connect_was_connected = FALSE;
     priv->connect_tcp_state = NULL;
+    if(!connect_timed_out) {
+        /*
+         *  What the outbound is now, as the connect watchdog says what it
+         *  saw: the task ended by itself, the outbound is not stopped yet
+         */
+        hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
+        was_connected = gobj_read_bool_attr(priv->gobj_idprovider, "connected");
+        tcp_state = tcp? gobj_current_state(tcp) : "?";
+    }
     const char *timeout_cause = connect_timed_out?
         "idp_connect_timeout_ms: the IdP could not be reached" :
         "idp_timeout_ms: the IdP did not answer";
@@ -2870,9 +2919,9 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(discovery_result == -2) {
             /*
              *  No result handler ran, so this is the one ERROR of the
-             *  failure: the cause, and the requests it leaves unserved.
-             *  Every other failure was said by the handler that stopped
-             *  the task.
+             *  cause, and the requests it leaves unserved; each of them
+             *  answered says its 502 (send_error_response). Every other
+             *  failure was said by the handler that stopped the task.
              */
             priv->st_idp_timeouts++;
             gobj_log_error(gobj, 0,
@@ -2880,7 +2929,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "👤BFF OIDC discovery: IdP did not answer in time",
                 "cause",        "%s", timeout_cause,
-                "connected",    "%d", connect_timed_out? (was_connected? 1:0) : 1,
+                "connected",    "%d", was_connected? 1:0,
                 "tcp_state",    "%s", tcp_state,
                 "queued",       "%d", (int)dl_size(&priv->dl_pending),
                 "issuer",       "%s", priv->issuer,
@@ -2942,7 +2991,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msgset",     "%s", MSGSET_PROTOCOL,
             "msg",        "%s", "👤BFF IdP outbound watchdog fired",
             "cause",      "%s", timeout_cause,
-            "connected",  "%d", connect_timed_out? (was_connected? 1:0) : 1,
+            "connected",  "%d", was_connected? 1:0,
             "tcp_state",  "%s", tcp_state,
             "task_valid", "%d", priv->task_valid ? 1 : 0,
             NULL

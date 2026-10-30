@@ -2,13 +2,17 @@
  *          MAIN_TEST23_COOKIE_NO_HOST.C
  *
  *          Self-contained auth_bff test: BFF with `cookie_domain`
- *          'example.com'. Two logins pipelined on one connection: the
+ *          'example.com'. Four logins pipelined on one connection: the
  *          first with "Host: app.example.com" must get its cookies with
  *          Domain=example.com; the second, with no Host, must get them
  *          with no Domain, and a WARNING ("request without Host, omitting
  *          Domain attribute"): Domain is written only when the Host is the
  *          domain or one of its subdomains. Up to 7.29.3 a request with no
- *          Host kept the Domain configured.
+ *          Host kept the Domain configured. The third has a Host of the
+ *          domain whose name is 254 bytes, longer than a host name: no
+ *          Domain, and a WARNING ("request Host longer than a host name,
+ *          omitting Domain attribute"); the fourth, a name of 253 bytes
+ *          and a port, gets the Domain.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -276,8 +280,10 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}]",
-            "msg",          "request without Host, omitting Domain attribute"
+        json_pack("[{s:s}, {s:s, s:i}]",
+            "msg",          "request without Host, omitting Domain attribute",
+            "msg",          "request Host longer than a host name, omitting Domain attribute",
+            "host_len",     254
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

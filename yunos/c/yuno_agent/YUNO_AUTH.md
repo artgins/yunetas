@@ -264,15 +264,19 @@ thing twice. On expiry it fails the task through `C_TASK`'s own path
 
 A failed discovery is **not** terminal: `process_next` re-arms it on the next
 request, so recovery rides on a retry — there is nothing to poll for, the
-endpoints are only needed at login. What an operator sees in the log is ONE
-ERROR for the failure: *"OIDC discovery: IdP did not answer in time"*, with
-its `cause` (`idp_connect_timeout_ms: the IdP could not be reached`, or
-`idp_timeout_ms: the IdP did not answer`), `connected`, `tcp_state` and the
-number of requests `queued`; each request queued is then answered 502, and
-its answer logged (*"BFF server error"*, `auth_service_unavailable`). A
-request whose own task times out is the same: ONE ERROR (*"BFF IdP outbound
-watchdog fired"*, with its `cause`) and the line of its 504. `idp_timeouts`
-counts both.
+endpoints are only needed at login. What an operator sees in the log is one
+ERROR for the cause of the failure: *"OIDC discovery: IdP did not answer in
+time"*, with its `cause` (`idp_connect_timeout_ms: the IdP could not be
+reached`, or `idp_timeout_ms: the IdP did not answer`), `connected` and
+`tcp_state` (what the outbound to the IdP was when the timeout fired, or when
+the task ended by `idp_timeout_ms`: connected, and its `C_TCP` in
+`ST_CONNECTED`), and the number of requests `queued`. Then an INFO says how
+many queued requests are answered, and each one answered 502 adds its own
+ERROR (*"BFF server error"*, `auth_service_unavailable`): with three logins
+queued, one ERROR, one INFO and three ERRORs. A request whose own task times
+out is the same: one ERROR for the cause (*"BFF IdP outbound watchdog
+fired"*, with its `cause`, `connected` and `tcp_state`) and the ERROR of its
+504. `idp_timeouts` counts both.
 
 **The SPA side matters as much.** A `502 auth_service_unavailable` on
 `/auth/refresh` is a failure of the TRANSPORT and says nothing about the

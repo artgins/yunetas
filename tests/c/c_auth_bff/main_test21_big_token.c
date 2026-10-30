@@ -2,16 +2,18 @@
  *          MAIN_TEST21_BIG_TOKEN.C
  *
  *          Self-contained auth_bff test: POST /auth/login answered with
- *          a big access_token (the mock pads it with a 3000-byte claim,
- *          as the token of a user with many roles: ~4 KB). The BFF must
- *          still read its claims and answer the username and email; up
- *          to 7.29.3 it read a payload of 2 KB at most and answered them
- *          empty, with nothing logged. Then a second login answered with
- *          an access_token over 8 KB: refused by its size, 500
- *          token_too_large, with ONE log, the ERROR of the 500 answered.
- *          The warnings are captured too: in the fixes after 7.29.3 the
- *          size was found only by the cookie, after a WARNING that the
- *          payload could not be read and an ERROR "Set-Cookie truncated".
+ *          a big access_token (the mock pads it with a 2000-byte claim,
+ *          as the token of a user with many roles, and makes it 4084
+ *          bytes long: with the cookie name, the 4096 bytes a browser
+ *          keeps). The BFF must still read its claims and answer the
+ *          username and email. Then, on the same connection: an
+ *          access_token of 4085 bytes and a refresh_token of 4084 (one
+ *          byte over, with their names) are refused by their size, 500
+ *          token_too_large, each with ONE log, the ERROR of the 500; a
+ *          refresh_token of 4083 bytes fits; and a success with no
+ *          access_token is refused, 502 auth_unexpected_error. The
+ *          warnings are captured too: no WARNING that a payload could not
+ *          be read.
  *
  *          Topology (all on 127.0.0.1):
  *            c_test21_big_token   (driver, default service, autoplay)
@@ -24,7 +26,7 @@
  *            __idp_side__     (C_IOGATE)
  *                └── server (C_TCP_S) :18881
  *                └── idp-1   (C_CHANNEL)
- *                    └── idp-1 (C_MOCK_KEYCLOAK) → 200 + mockuser, access_token_pad 3000
+ *                    └── idp-1 (C_MOCK_KEYCLOAK) → 200 + mockuser, access_token_pad 2000, access_token_len 4084
  *                        └── idp-1 (C_PROT_HTTP_SR)
  *                            └── idp-1 (C_TCP)
  *
@@ -195,7 +197,8 @@ PRIVATE char variable_config[]= "\
                             'name': 'idp-1',                         \n\
                             'gclass': 'C_MOCK_KEYCLOAK',            \n\
                             'kw': {                                 \n\
-                                'access_token_pad': 3000            \n\
+                                'access_token_pad': 2000,           \n\
+                                'access_token_len': 4084            \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -289,14 +292,18 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*------------------------------*
-     *  Captured: errors and warnings (see main()). The one log of the
-     *  token over 8 KB: the ERROR of its 500.
+     *  Captured: errors and warnings (see main()). The one log of each
+     *  refusal: the ERROR of its answer.
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s, s:s}]",
+        json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",
             "msg",          "👤BFF server error",
-            "error_code",   "token_too_large"
+            "error_code",   "token_too_large",
+            "msg",          "👤BFF server error",
+            "error_code",   "token_too_large",
+            "msg",          "👤BFF server error",
+            "error_code",   "auth_unexpected_error"
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

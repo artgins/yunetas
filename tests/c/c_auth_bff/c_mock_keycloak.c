@@ -69,6 +69,8 @@ SDATA (DTP_STRING,      "email",            SDF_RD, "mockuser@example.com", "ema
 SDATA (DTP_INTEGER,     "access_token_ttl", SDF_RD, "300",  "seconds: exp - iat for access_token"),
 SDATA (DTP_INTEGER,     "refresh_token_ttl",SDF_RD, "1800", "seconds: exp - iat for refresh_token"),
 SDATA (DTP_INTEGER,     "access_token_pad", SDF_RD, "0",    "If > 0, the access_token carries a `pad` claim of that many bytes (the token of a user with many roles)"),
+SDATA (DTP_INTEGER,     "access_token_len", SDF_RD, "0",    "If > 0, the access_token is made exactly that long by lengthening its signature (the BFF does not verify it)"),
+SDATA (DTP_INTEGER,     "refresh_token_len",SDF_RD, "0",    "If > 0, the refresh_token is made exactly that long by lengthening its signature"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
 SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, sent verbatim instead of the synthesised /.well-known body (lets a test return a body missing required endpoints — exercises save_oidc_discovery's failure path)"),
 SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
@@ -327,6 +329,41 @@ PRIVATE void respond_or_defer(hgobj gobj, hgobj browser_src, int status,
 }
 
 /***************************************************************************
+ *  A token made exactly `len` bytes long (when len > 0) by lengthening its
+ *  signature: its claims stay readable, and the BFF never verifies it.
+ *  Takes ownership of `token`; returns a gbmem string, or NULL (logged).
+ ***************************************************************************/
+PRIVATE char *stretch_token(hgobj gobj, char *token, int len)
+{
+    if(!token || len <= 0) {
+        return token;   // Error already logged when !token
+    }
+    size_t cur = strlen(token);
+    if(cur > (size_t)len) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", "mock-kc token longer than the length asked",
+            "token_len","%d", (int)cur,
+            "len",      "%d", len,
+            NULL
+        );
+        GBMEM_FREE(token)
+        return NULL;
+    }
+    char *stretched = gbmem_malloc((size_t)len + 1);
+    if(!stretched) {
+        GBMEM_FREE(token)
+        return NULL;    // Error already logged
+    }
+    memcpy(stretched, token, cur);
+    memset(stretched + cur, 'A', (size_t)len - cur);
+    stretched[len] = '\0';
+    GBMEM_FREE(token)
+    return stretched;
+}
+
+/***************************************************************************
  *  Build the synthesised Keycloak token envelope or return the
  *  override_body as-is.  Returns a new json_t owned by the caller.
  ***************************************************************************/
@@ -347,9 +384,11 @@ PRIVATE json_t *build_token_envelope(hgobj gobj)
     int rt_ttl           = (int)gobj_read_integer_attr(gobj, "refresh_token_ttl");
 
     int at_pad           = (int)gobj_read_integer_attr(gobj, "access_token_pad");
+    int at_len           = (int)gobj_read_integer_attr(gobj, "access_token_len");
+    int rt_len           = (int)gobj_read_integer_attr(gobj, "refresh_token_len");
 
-    char *access  = make_signed_token(username, email, at_ttl, at_pad);
-    char *refresh = make_signed_token(username, email, rt_ttl, 0);
+    char *access  = stretch_token(gobj, make_signed_token(username, email, at_ttl, at_pad), at_len);
+    char *refresh = stretch_token(gobj, make_signed_token(username, email, rt_ttl, 0), rt_len);
 
     json_t *jn = json_pack("{s:s, s:s, s:i, s:i, s:s, s:s}",
         "access_token",         access  ? access  : "",
