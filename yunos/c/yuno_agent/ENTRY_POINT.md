@@ -270,7 +270,22 @@ crashed during its orderly stop was relaunched 2 s later.
 relaunched child ends again less than 60 s after its start, the wait doubles:
 2, 4, 8, 16, 32 s, then 60 s, and it stays at 60 s. A child that lived 60 s or
 more sets it back to 2 s. A SIGQUIT (§4.2) cuts a wait short: the watcher
-exits at once and does not relaunch.
+exits at once and does not relaunch. That holds whenever the SIGQUIT comes,
+even just before the wait starts: the watcher blocks SIGQUIT, looks at the
+stop, and waits in `sigtimedwait()`, which takes a SIGQUIT that is pending.
+Up to 7.29.3 it looked at the stop and then called `sleep()`, and a SIGQUIT
+between the two let the whole wait run -- with the wait grown to 60 s, past
+systemd's `TimeoutStopSec=30` or the 10 s of `--stop`, and into a SIGKILL.
+
+```c
+sigprocmask(SIG_BLOCK, {SIGQUIT}, &old);
+while(!stop_requested && !test_msectimer(wait_timer)) {
+    if(sigtimedwait({SIGQUIT}, NULL, &left) == SIGQUIT) {
+        stop_requested = 1;
+    }
+}
+sigprocmask(SIG_SETMASK, &old, NULL);   // a SIGQUIT still pending reaches the handler
+```
 
 Each time the wait grows, the watcher says it on stdout and syslog
 (`ERROR YUNETAS: <process> ended again within 60 s of its start (signal …,

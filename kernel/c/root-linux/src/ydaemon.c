@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <pwd.h>
 #include <signal.h>
+#include <time.h>
 #include "entry_point.h"
 #include "ydaemon.h"
 
@@ -342,6 +343,55 @@ PRIVATE int relauncher(
 }
 
 /***************************************************************************
+ *  The wait before a relaunch, cut short by a SIGQUIT whenever it comes.
+ *  SIGQUIT is blocked BEFORE the stop is looked at, and the wait takes it
+ *  from the pending set (sigtimedwait), so one that arrives after the look
+ *  ends the wait at once. Up to 7.29.3 the look was followed by a sleep(): a
+ *  SIGQUIT between the two found nobody to wake, and the whole wait ran --
+ *  past systemd's TimeoutStopSec, or --stop's own wait, and into a SIGKILL
+ *  once the wait could grow to a minute. One left pending when the wait
+ *  ends is delivered to the handler as the mask is restored.
+ ***************************************************************************/
+PRIVATE void wait_to_relaunch(int seconds)
+{
+    sigset_t quit_set;
+    sigset_t old_set;
+    sigemptyset(&quit_set);
+    sigaddset(&quit_set, SIGQUIT);
+    if(sigprocmask(SIG_BLOCK, &quit_set, &old_set) < 0) {
+        int err = errno;
+        print_error(0, "sigprocmask(SIG_BLOCK) FAILED, errno %d %s", err, strerror(err));
+        if(!stop_requested) {
+            sleep((unsigned)seconds);
+        }
+        return;
+    }
+
+    uint64_t wait_timer = start_msectimer((uint64_t)seconds * 1000);
+    while(!stop_requested && !test_msectimer(wait_timer)) {
+        uint64_t now = time_in_milliseconds_monotonic();
+        uint64_t left_ms = (wait_timer > now)? wait_timer - now : 0;
+        struct timespec ts = {
+            .tv_sec = (time_t)(left_ms / 1000),
+            .tv_nsec = (long)((left_ms % 1000) * 1000000)
+        };
+        int sig = sigtimedwait(&quit_set, NULL, &ts);
+        if(sig == SIGQUIT) {
+            stop_requested = 1;
+        } else if(sig < 0 && errno != EAGAIN && errno != EINTR) {
+            int err = errno;
+            print_error(0, "sigtimedwait() FAILED, errno %d %s", err, strerror(err));
+            break;
+        }
+    }
+
+    if(sigprocmask(SIG_SETMASK, &old_set, NULL) < 0) {
+        int err = errno;
+        print_error(0, "sigprocmask(SIG_SETMASK) FAILED, errno %d %s", err, strerror(err));
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int daemon_run(
@@ -381,9 +431,7 @@ PUBLIC int daemon_run(
                 getpid()
             );
         }
-        if(!stop_requested) {
-            sleep((unsigned)relaunch_wait);  // a SIGQUIT cuts it short
-        }
+        wait_to_relaunch(relaunch_wait);
         if(stop_requested) {
             ret = 1;    // stopped while waiting to relaunch
             break;
