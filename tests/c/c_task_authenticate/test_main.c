@@ -259,21 +259,19 @@ PUBLIC int run_task_authenticate_test(
     char expected_result_str[16];
     snprintf(expected_result_str, sizeof(expected_result_str), "%d", expected_result);
 
-    /* The variable_config is large; allocate once on the heap. */
-    size_t cfg_sz = strlen(variable_config_template)
-                  + strlen(expected_result_str)
-                  + strlen(task_kw_snippet)
-                  + strlen(mock_idp_kw_snippet ? mock_idp_kw_snippet : "{}")
-                  + 64;
-    char *variable_config = gbmem_malloc(cfg_sz);
-    if(!variable_config) {
-        printf("ERROR: out of memory rendering variable_config\n");
-        return -1;
-    }
-    snprintf(variable_config, cfg_sz, variable_config_template,
+    /*
+     *  Static, not on the heap: a block allocated before yuneta_entry_point()
+     *  is still alive when the yuno ends, and the end reports it as a leak
+     */
+    static char variable_config[16*1024];
+    int cfg_len = snprintf(variable_config, sizeof(variable_config), variable_config_template,
         expected_result_str,
         task_kw_snippet,
         mock_idp_kw_snippet ? mock_idp_kw_snippet : "{}");
+    if(cfg_len < 0 || (size_t)cfg_len >= sizeof(variable_config)) {
+        printf("ERROR: variable_config does not fit in %d bytes\n", (int)sizeof(variable_config));
+        return -1;
+    }
 
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
@@ -305,8 +303,6 @@ PUBLIC int run_task_authenticate_test(
         register_yuno_and_more,
         cleaning
     );
-
-    gbmem_free(variable_config);
 
     if(get_cur_system_memory() != 0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);
