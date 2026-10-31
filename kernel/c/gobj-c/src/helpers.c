@@ -9970,8 +9970,10 @@ PUBLIC void list_open_files(void)
  *  no types and a zone already loaded it crashes in tzset(), and it takes
  *  a file shorter than the header says as UTC, in silence. A file of version
  *  2 or later has a second header and block, with 8-byte times, and that
- *  is the one libc reads. The versions after 4 are let through: libc reads
- *  them, and a new tzdata must not turn every zone into UTC.
+ *  is the one libc reads, and a footer after it, a newline, a POSIX TZ and a
+ *  newline: with none libc takes the file as UTC, and with one cut it reads
+ *  another rule, in silence. The versions after 4 are let through: libc
+ *  reads them, and a new tzdata must not turn every zone into UTC.
  *  Not being able to open or read it is the answer, not an error: the
  *  caller logs the zone it could not take. O_NONBLOCK: open() of a FIFO
  *  would wait for a writer, and pread() refuses one.
@@ -10024,9 +10026,11 @@ PRIVATE BOOL is_zone_file(const char *path)
             break;
         }
         if(time_size == 8) {
-            char newline = 0;
+            char first = 0;
+            char last = 0;
             ok = (block_at + 2 <= (uint64_t)st.st_size &&
-                pread(fd, &newline, 1, (off_t)block_at) == 1 && newline == '\n')? TRUE : FALSE;
+                pread(fd, &first, 1, (off_t)block_at) == 1 && first == '\n' &&
+                pread(fd, &last, 1, st.st_size - 1) == 1 && last == '\n')? TRUE : FALSE;
         }
     }
     close(fd);

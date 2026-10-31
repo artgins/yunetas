@@ -2977,13 +2977,15 @@ PRIVATE void test_zones_libc_reads(void)
     write_zone_file("second_no_data", bad, sizeof(tzif) + 44);
     /*
      *  With no footer, or an empty one, libc takes a version 2 file as UTC
-     *  in silence: a truncated zone must be told.
+     *  in silence, and with one cut it reads another rule: a truncated zone
+     *  must be told. A footer ends with a newline, as it starts.
      */
     write_zone_file("no_footer", bad, 2*sizeof(tzif));
     write_zone_file("footer_newline_only", bad, 2*sizeof(tzif) + 1);
     bad[2*sizeof(tzif)] = 'x';
     write_zone_file("footer_no_newline", bad, full_len);
     bad[2*sizeof(tzif)] = '\n';
+    write_zone_file("footer_cut", bad, full_len - 1);
     bad[sizeof(tzif) + 39] = 0;
     write_zone_file("second_no_types", bad, full_len);
     bad[sizeof(tzif) + 39] = 1;
@@ -2993,7 +2995,7 @@ PRIVATE void test_zones_libc_reads(void)
     static const char *bad_headers[] = {
         "all_zero", "all_zero_data", "all_zero_v2", "header_short", "no_data", "data_short", "no_types", "no_chars",
         "version_1", "version_x", "no_magic", "second_no_magic", "no_second", "second_short", "second_no_data",
-        "no_footer", "footer_newline_only", "footer_no_newline", "second_no_types", "second_no_chars",
+        "no_footer", "footer_newline_only", "footer_no_newline", "footer_cut", "second_no_types", "second_no_chars",
     };
     for(size_t i = 0; i < sizeof(bad_headers)/sizeof(bad_headers[0]); i++) {
         check_unknown_zone(bad_headers[i]);

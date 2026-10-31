@@ -723,7 +723,7 @@
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
   1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.8, gui_agent
-  1.2.7 to 1.3.5 and gui_treedb 1.1.3 to 1.2.1. The `yunetas` CLI 1.0.5 and
+  1.2.7 to 1.3.6 and gui_treedb 1.1.3 to 1.2.2. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, a login
@@ -733,7 +733,7 @@
   earlier session, keeps one refresh in flight, and a logout that is its own
   state and says when the server did not end the session.
 - **BREAKING: gui_agent and gui_treedb, the session and the login form**
-  (gui_agent 1.3.5, gui_treedb 1.2.1). In 7.29.3 unless noted; the detail is in
+  (gui_agent 1.3.6, gui_treedb 1.2.2). In 7.29.3 unless noted; the detail is in
   the yunos-js CHANGELOG.
     - A 429 is a 429, even with a json and an `error_code` of its own, which
       read as a denial and ended the session at the first one. Any 429 is now
@@ -758,7 +758,11 @@
       SPAs: a login the BFF did not answer with a code, a 429 of a proxy at the
       login, a refresh `auth_bad_response` and the session it ends, and the second
       refused identity of a gui_treedb connection and of gui_agent's Monitor link
-      were an ERROR. What watches the log for an ERROR no longer sees them.
+      were an ERROR, and so were a node's agent that does not answer
+      `save-schema`, `diff-schema`, the discovery, `saved-schema` or
+      `apply-schema`, a read of the users not answered, and a `get-page`,
+      `list-keys` or `__snaps__` that failed. What watches the log for an ERROR
+      no longer sees them.
     - A code no locale knows is said in the language of the app: the new key
       `auth_unknown_error`, and the English of the BFF stays in the log.
 - **Docs and examples: one set of example ids.** The examples, tests and
@@ -1254,8 +1258,9 @@
   written: `"Europe/Madrid/."` is no file, `"../zoneinfo/Europe/Madrid"` is
   a zone) and with the headers of RFC 9636 (version NUL or `2`-`9`, at least
   one type and one character, and a file as long as they say, in both
-  headers of a version 2 or later, with its footer), a POSIX `TZ` that can
-  be read whole, or empty; with no tzdata the names of UTC (`"UTC"`,
+  headers of a version 2 or later, with a footer that starts and ends with a
+  newline: a file cut there read another rule in silence), a POSIX `TZ` that
+  can be read whole, or empty; with no tzdata the names of UTC (`"UTC"`,
   `"GMT"`, `"Etc/UTC"`, ...) are no error. A FIFO in place of a zone file
   blocked the process in `tzset()`; it never reaches libc now. A TZif with
   no types crashed the process inside `tzset()` when a zone was loaded
