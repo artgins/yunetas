@@ -897,9 +897,11 @@ exits (see the transport gclasses, *Address in use at the start*).
    history, run `cp /var/crash/core.<role>
    /var/crash/core.<role>.$(date +%s)`.
 7. **`gobj_end` belongs to `process()`**. A custom `cleaning_fn` runs
-   **after** `gobj_end`, after `rotatory_end`, and after [`json_decref`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_decref) of the
-   config. At that time the gobj system is gone. Use `cleaning_fn` only to
-   free things that do not depend on it.
+   **after** `gobj_end` and after [`json_decref`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_decref) of the
+   config, and **before** `print_track_mem` and `rotatory_end`, so what it
+   logs reaches the log file and what it frees is out of the leak report. At
+   that time the gobj system is gone. Use `cleaning_fn` only to free things
+   that do not depend on it.
 
 ---
 
