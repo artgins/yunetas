@@ -10023,6 +10023,11 @@ PRIVATE BOOL is_zone_file(const char *path)
         if(!version) {
             break;
         }
+        if(time_size == 8) {
+            char newline = 0;
+            ok = (block_at + 2 <= (uint64_t)st.st_size &&
+                pread(fd, &newline, 1, (off_t)block_at) == 1 && newline == '\n')? TRUE : FALSE;
+        }
     }
     close(fd);
     return ok;
