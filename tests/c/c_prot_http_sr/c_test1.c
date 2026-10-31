@@ -5,8 +5,9 @@
  *
  *          The server is a C_IOGATE whose channels are C_PROT_HTTP_SR over
  *          C_TCP (max_body_size 1024, max_tx_queue 4, timeout_tx_stall 500,
- *          max_rx_held 65536, timeout_linger 500), and step 15 has a second
- *          one (timeout_tx_stall 3000, max_rx_held by default). This gobj is
+ *          max_rx_held 65536, timeout_linger 500), step 15 has a second
+ *          one (timeout_tx_stall 3000, max_rx_held by default) and step 16 a
+ *          third one (max_tx_queue 12000, max_rx_held 8 MB). This gobj is
  *          the application behind them. Steps, each on a connection of its
  *          own:
  *
@@ -62,6 +63,12 @@
  *             one pipeline and never reads: the same bound, and it is dropped
  *             timeout_tx_stall after the last write that moved, and at most
  *             two seconds later. One warning.
+ *          16. A queue longer than the events that can be posted in one turn:
+ *             30000 requests in one write to an application that answers each
+ *             one as it comes. Once the queue is empty one turn parses and
+ *             answers 12000 of those held, and nothing is logged: what resumes
+ *             the parsing is the EV_TX_READY of the transport, and an answer
+ *             posts nothing.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -80,6 +87,7 @@
 #define SERVER_URL          "tcp://127.0.0.1:7766"
 #define SERVER_PORT         7766
 #define SERVER_PORT2        7765        // see main_test1.c
+#define WINDOW_URL          "tcp://127.0.0.1:7769"  // see main_test1.c
 #define PIPELINED           600
 #define DROP_AT             3
 #define BIG_HEADER          (70*1000)
@@ -114,6 +122,7 @@
 #define STALL2_MARGIN       600         // the test looks every 5 ms, on a loaded machine
 #define STALL2_BEFORE       100         // the server may see a write before the test does
 #define STEP_LONG_WATCH     20000       // step 15, milliseconds: its drop is measured, not its watchdog
+#define WINDOW_REQUESTS     30000       // step 16: over the max_tx_queue of its server, and that over MAX_POSTED_EVENTS
 
 enum {
     STEP_DROP = 1,
@@ -131,6 +140,7 @@ enum {
     STEP_LATE_ANSWERS,
     STEP_ASYNC,
     STEP_ASYNC_MUTE,
+    STEP_WINDOW,
     STEP_END
 };
 
@@ -285,6 +295,10 @@ PRIVATE int mt_play(hgobj gobj)
     hgobj gobj_input_side2 = gobj_find_service("__input_side2__", TRUE);
     gobj_subscribe_event(gobj_input_side2, NULL, 0, gobj);
     gobj_start_tree(gobj_input_side2);
+
+    hgobj gobj_input_side3 = gobj_find_service("__input_side3__", TRUE);
+    gobj_subscribe_event(gobj_input_side3, NULL, 0, gobj);
+    gobj_start_tree(gobj_input_side3);
 
     set_timeout(priv->timer, priv->timeout); // then the first step
 
@@ -474,7 +488,7 @@ PRIVATE void start_step(hgobj gobj)
             name,
             C_TCP,
             json_pack("{s:s, s:i}",
-                "url", SERVER_URL,
+                "url", (priv->step == STEP_WINDOW)? WINDOW_URL : SERVER_URL,
                 "timeout_between_connections", 600000
             ),
             gobj
@@ -703,6 +717,23 @@ PRIVATE void answer_request(hgobj gobj, hgobj channel, int n, size_t size)
 }
 
 /***************************************************************************
+ *  The answers of the steps where the peer counts them
+ ***************************************************************************/
+PRIVATE int answers_of_step(int step)
+{
+    switch(step) {
+        case STEP_READS:
+            return READS_TOTAL;
+        case STEP_ASYNC:
+            return ASYNC_TOTAL;
+        case STEP_WINDOW:
+            return WINDOW_REQUESTS;
+        default:
+            return READS_BIG;
+    }
+}
+
+/***************************************************************************
  *  What the peer read: first the status line it is due
  ***************************************************************************/
 PRIVATE void check_answer(hgobj gobj, const char *status_line)
@@ -793,9 +824,9 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     } else if(priv->step == STEP_BODY) {
         check_answer(gobj, "HTTP/1.1 413 Content Too Large\r\n");
-    } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG || priv->step == STEP_ASYNC) {
-        int expected = (priv->step == STEP_READS)? READS_TOTAL :
-            (priv->step == STEP_ASYNC)? ASYNC_TOTAL : READS_BIG;
+    } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG || priv->step == STEP_ASYNC ||
+            priv->step == STEP_WINDOW) {
+        int expected = answers_of_step(priv->step);
         if(priv->answers != expected || priv->requests != expected) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -912,7 +943,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         send_pipelined_requests(gobj, PIPELINED);
 
     } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG || priv->step == STEP_IDLE ||
-            priv->step == STEP_ASYNC) {
+            priv->step == STEP_ASYNC || priv->step == STEP_WINDOW) {
         if(priv->peer_parser) {
             ghttp_parser_destroy(priv->peer_parser);
         }
@@ -922,6 +953,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else if(priv->step == STEP_ASYNC) {
             send_pipelined_requests(gobj, ASYNC_WINDOW);
             set_timeout_periodic0(priv->timer_tick, 5);
+        } else if(priv->step == STEP_WINDOW) {
+            send_pipelined_requests(gobj, WINDOW_REQUESTS);
         } else {
             send_pipelined_requests(gobj, (priv->step == STEP_READS)? READS_FIRST : READS_BIG);
         }
@@ -970,7 +1003,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
     if(gbuf && priv->peer_parser && (priv->step == STEP_READS || priv->step == STEP_READS_BIG ||
-            priv->step == STEP_IDLE || priv->step == STEP_ASYNC)) {
+            priv->step == STEP_IDLE || priv->step == STEP_ASYNC || priv->step == STEP_WINDOW)) {
         ghttp_parser_received(priv->peer_parser, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
 
     } else if(gbuf) {
@@ -1023,9 +1056,7 @@ PRIVATE int ac_peer_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     if(priv->step == STEP_ASYNC && priv->answers % ASYNC_WINDOW == 0 && priv->answers < ASYNC_TOTAL) {
         send_pipelined_requests(gobj, ASYNC_WINDOW);
     }
-    int expected = (priv->step == STEP_READS)? READS_TOTAL :
-        (priv->step == STEP_ASYNC)? ASYNC_TOTAL : READS_BIG;
-    if(priv->answers == expected && !priv->step_done) {
+    if(priv->answers == answers_of_step(priv->step) && !priv->step_done) {
         priv->step_done = TRUE;
         gobj_post_event(gobj, EV_NEXT_STEP, json_object(), gobj);
     }
@@ -1036,7 +1067,8 @@ PRIVATE int ac_peer_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 
 /***************************************************************************
  *  The peer of steps 1 to 3 lost its connection: the step ends. The peer of
- *  step 14 stops once step 15 began: that one ends with its own connection.
+ *  step 14 stops once step 15 began: that one ends with its own connection,
+ *  and the peer of the last step stops when no step is left.
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1044,7 +1076,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     priv->peer_connected = FALSE;
 
-    if(src == priv->gobj_client && !priv->step_done && priv->step != STEP_ASYNC_MUTE) {
+    if(src == priv->gobj_client && !priv->step_done && priv->step != STEP_ASYNC_MUTE &&
+            priv->step < STEP_END) {
         priv->step_done = TRUE;
         if(priv->step == STEP_IDLE && (!priv->idle_timer || test_msectimer(priv->idle_timer))) {
             gobj_log_error(gobj, 0,
@@ -1107,7 +1140,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->held_channel = channel;
         answer_request(gobj, channel, n, ANSWER_SIZE_BIG);
 
-    } else if(priv->step == STEP_READS) {
+    } else if(priv->step == STEP_READS || priv->step == STEP_WINDOW) {
         answer_request(gobj, channel, n, 16);
 
     } else if(priv->step == STEP_IDLE) {

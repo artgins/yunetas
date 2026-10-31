@@ -26,15 +26,17 @@
  *             less than max_tx_queue waiting go; the first that finds them
  *             starts the wait; the one that finds that nothing was written
  *             in timeout_tx_stall is refused, ONE warning, and the
- *             connection dropped.
+ *             connection dropped. The requests sent while it drops are
+ *             refused too: ONE warning more.
  *          5. A server that reads: 100 requests in one turn all go, and all
  *             are answered, with nothing logged.
  *          6. A whole response and then garbage: ONE EV_ON_MESSAGE, the
  *             good one, ONE warning, the connection dropped.
  *          7. Garbage alone: no EV_ON_MESSAGE, no response began. ONE
  *             warning, the connection dropped.
- *          8. A chunked response whose trailers repeat its headers: a
- *             string in each header, and the body read as json.
+ *          8. A chunked text response whose trailers repeat a header and say
+ *             that it is json: a string in the header, its Content-Type stays,
+ *             the body is not read as json, and ONE warning.
  *          9. raw_body_data: two responses on one connection, each with
  *             the headers of its own.
  *         10. raw_body_data and a head over max_header_size: nothing is
@@ -416,6 +418,24 @@ PRIVATE void read_slowly(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A request sent while the connection drops
+ ***************************************************************************/
+PRIVATE void check_request_refused(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(send_post(gobj, "/next", "x") != -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A request was taken while the connection drops",
+            "step",         "%d", priv->step,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  Step 4: one more request to the server that never reads
  ***************************************************************************/
 PRIVATE void send_next_to_mute(hgobj gobj)
@@ -436,8 +456,9 @@ PRIVATE void send_next_to_mute(hgobj gobj)
                 NULL
             );
         }
-        // A request after the drop is no second warning of the server
-        send_post(gobj, "/next", "x");
+        // The requests after the drop are refused: no second warning of the server
+        check_request_refused(gobj);
+        check_request_refused(gobj);
         // The listener goes, its queued connection is reset: the drop ends now
         close(priv->fd_listen_mute);
         priv->fd_listen_mute = -1;
@@ -596,9 +617,9 @@ PRIVATE void answer_bad_response(hgobj gobj, hgobj channel)
         gbuf = str2gbuf("GARBAGE\r\n");
     } else if(priv->step == STEP_TRAILERS) {
         gbuf = str2gbuf(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-A: one\r\n"
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nX-A: one\r\n"
             "Transfer-Encoding: chunked\r\n\r\n"
-            "2\r\n{}\r\n0\r\nContent-Type: text/plain\r\nX-A: two\r\nX-A: three\r\n\r\n"
+            "2\r\n{}\r\n0\r\nContent-Type: application/json\r\nX-A: two\r\nX-A: three\r\n\r\n"
         );
     } else if(priv->step == STEP_RAW) {
         gbuf = str2gbuf(
@@ -880,9 +901,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else if(priv->step == STEP_GARBAGE || priv->step == STEP_RAW_REFUSED) {
             bad = TRUE;
         } else if(priv->step == STEP_TRAILERS) {
-            bad = !json_is_object(json_object_get(kw, "body"));
+            bad = kw_has_key(kw, "body") || !kw_has_key(kw, "gbuffer");
             check_header(gobj, kw, "X-A", "one, two, three");
-            check_header(gobj, kw, "CONTENT-TYPE", "application/json, text/plain");
+            check_header(gobj, kw, "CONTENT-TYPE", "text/plain");
             if(!priv->step_done) {
                 priv->step_done = TRUE;
                 gobj_post_event(gobj, EV_NEXT_STEP, json_object(), gobj);

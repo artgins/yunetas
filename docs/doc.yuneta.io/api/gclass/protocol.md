@@ -34,7 +34,7 @@ message.
 | `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). With `raw_body_data` the body is not held: `0` is no limit. See *A response refused* below. |
 | `max_header_size` | `integer` | Longest head of a response (status text, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). See *A response refused* below. |
 | `max_tx_queue` | `integer` | Requests waiting in the transport from which a server that writes nothing is one that does not read (default `64`; `0`: no limit). See *A server that does not read* below. |
-| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` requests waiting and no write ended (default `5000`; `0`: never). See *A server that does not read* below. |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` requests waiting and no write ended (default `30000`; `0`: never). See *A server that does not read* below. |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
 A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_CL is negative: its default taken"*).
@@ -109,10 +109,23 @@ requests waiting a wait of `timeout_tx_stall` milliseconds starts, any write
 that ends starts it again, and the request that finds it over with nothing
 written is refused (the action answers `-1`), with ONE warning (*"HTTP server
 does not read the requests, request refused and connection dropped"*), and
-the connection is dropped. So a server that reads gets a burst of any length,
-however slowly it reads, and the requests of a turn are never refused. The
+the connection is dropped. So the requests of a turn are never refused. The
 check runs when a request is sent: with none coming, `timeout_inactivity`
-ends the connection.
+ends the connection. While the connection is dropped every request sent is
+refused the same way (`-1`, and one warning per connection, *"HTTP request sent
+while the connection is dropped, refused, the first one of the connection"*): a
+server that never reads can hold the close for as long as the kernel takes to
+give up, and those requests would go nowhere. Up to 7.29.3 the action took them
+with `0`.
+
+A slow server can be taken as one that does not read. A write ends when the
+kernel has taken the last of it, and the kernel wakes a blocked write only when
+a large part of the send buffer is free. So a server that reads, but slower
+than about **send buffer / (2 x `timeout_tx_stall`)**, ends no write in that
+time and is cut. Linux grows the send buffer up to `net.ipv4.tcp_wmem`, 4 MB by
+default, so at the default of 30 s the minimum speed is about
+4 MB / (2 x 30 s) = **68 KB/s**. Raise `timeout_tx_stall` for a server slower
+than that, or set `0`.
 
 ```C
 /*  a client that gives a stuck server one second  */
@@ -182,7 +195,7 @@ structured events for the application.
 | `max_header_size` | `integer` | Longest head of a request (target, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). |
 | `max_body_size` | `integer` | Longest body of a request, in bytes (default `0`: half the max block; a bigger value is capped to that half). |
 | `max_tx_queue` | `integer` | Answers owed (not sent yet by the application, or waiting in the transport) from which what the peer sends is held, not parsed (default `64`; `0`: no limit). See *A peer that does not read* below. |
-| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting in the transport and no write seen to end (default `5000`; `0`: never). |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting in the transport and no write seen to end (default `30000`; `0`: never). See *A peer that does not read* below. |
 | `max_rx_held` | `integer` | Most bytes held behind `max_tx_queue` answers owed (default `1048576`; `0`: no limit). |
 | `timeout_linger` | `integer` | Milliseconds a refused request has to go after its answer (default `2000`; `0`: dropped at once). |
 | `subscriber` | `pointer` | Gobj receiving output events. |
@@ -220,15 +233,31 @@ ONE warning, in two cases:
 
 - no write ended in `timeout_tx_stall` milliseconds with `max_tx_queue` answers
   in the transport (*"HTTP peer does not read its answers, connection
-  dropped"*). Any write that ends starts the wait again, so a peer that reads
-  slowly stays. The timer watches it, so a peer that went silent is dropped
-  too. An application that takes its time says nothing of the peer: answers
-  it has not sent do not count here;
-- what is held passes `max_rx_held` bytes (*"HTTP peer does not read its
-  answers and keeps sending, connection dropped"*). This one looks at the
-  bytes, not at the peer: a peer that pipelines more than `max_rx_held` bytes
-  ahead of its answers is dropped even if it reads them, because the bytes
-  have to be somewhere. Raise it for a client that does that.
+  dropped"*). Any write that ends starts the wait again. The timer watches it,
+  so a peer that went silent is dropped too. An application that takes its
+  time says nothing of the peer: answers it has not sent do not count here;
+- what is held passes `max_rx_held` bytes (*"HTTP requests held behind the
+  answers owed passed max_rx_held, connection dropped"*). This one looks at the
+  bytes, not at the peer, and the warning does not say who is slow: a peer that
+  pipelines more than `max_rx_held` bytes ahead of its answers is dropped even
+  if it reads them, and so is one whose application takes its time, because
+  the bytes have to be somewhere. The warning carries `cur_tx_queue`, the
+  answers waiting in the transport: `0` means that the application is the slow
+  one. Raise it for a client that does that.
+
+**A peer that reads slowly can count as one that does not read.** A write ends
+when the kernel has taken the last of it, and the kernel wakes a blocked write
+only when a large part of the send buffer is free. So a peer that reads, but
+slower than about **send buffer / (2 x `timeout_tx_stall`)**, with
+`max_tx_queue` answers waiting, ends no write in that time and is dropped.
+Linux grows the send buffer up to `net.ipv4.tcp_wmem`, 4 MB by default, so the
+minimum speed is about:
+
+| `timeout_tx_stall` | Minimum speed with a send buffer of 4 MB |
+|---|---|
+| `30000` (default) | 4 MB / (2 x 30 s) = 68 KB/s, about 550 kbit/s |
+| `120000` | 17 KB/s |
+| `0` | no minimum: only `timeout_inactivity` and `max_rx_held` end the connection |
 
 An application that answers later gets at most `max_tx_queue` requests ahead
 of its answers, plus what one read holds: the next requests wait until it has

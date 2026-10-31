@@ -62,7 +62,16 @@ instead of taking the last. Those of `COOKIE` are joined with `"; "`, what a
 cookie parser splits on. `SET-COOKIE` is never joined (its values hold
 commas, RFC 6265): the last one is kept. The chunked trailers enter
 `jn_headers` with the same rules, so `headers` is a dict of strings in every
-kw, a refused response too:
+kw, a refused response too. The fields a trailer must not carry (RFC 9110
+§6.5.1) do not enter: `Host`, `Origin`, `Connection`, `Upgrade`, `Trailer`, the
+authentication and cookie fields, `Content-Type`, `Content-Encoding`,
+`Content-Range`, `Cache-Control`, `Expect`, `Max-Forwards`, `Pragma`, `Range`,
+`TE`, `Location` and `Retry-After`. They are left out with ONE warning per
+message (*"HTTP field that a trailer must not carry left out, the first one of
+the message"*), so a trailer `Content-Type: application/json` never turns a
+`text/plain` body into json. A trailer `Content-Length` or `Transfer-Encoding`
+is a protocol violation of llhttp, and the whole message is refused. Up to
+7.29.3 a trailer replaced the header of its name. Example:
 
 ```text
 POST /x HTTP/1.1
@@ -79,8 +88,8 @@ X-A: three
 
 ```
 
-leaves `{"HOST": "h, evil", "X-A": "one, two, three", ...}`, and a `Host` of
-two values fails any check that compares it.
+leaves `{"HOST": "h", "X-A": "one, two, three", ...}`, with ONE warning for the
+`Host` of the trailers.
 
 Each message starts clean. With `on_message_event` the state is released when
 it is published; without it (`raw_body_data`, the handshake of a websocket)

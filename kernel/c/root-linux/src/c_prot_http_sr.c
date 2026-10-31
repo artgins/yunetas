@@ -21,12 +21,16 @@
  *          the peer. With `max_tx_queue` answers owed, those the application
  *          has not sent yet and those waiting in the transport:
  *          - what the peer sends is held, not parsed, until there is room
- *            (EV_TX_READY, or an answer sent), so a pipeline of any length is
- *            served in pieces and the answers never pile up by more than one
- *            read, however late the application answers;
+ *            (EV_TX_READY, which every answer sent ends in), so a pipeline of
+ *            any length is served in pieces and the answers never pile up by
+ *            more than one read, however late the application answers;
  *          - a peer that passes `max_rx_held` bytes held is dropped;
  *          - with `max_tx_queue` answers in the transport, a peer with no
- *            write ended in `timeout_tx_stall` milliseconds is dropped. An
+ *            write ended in `timeout_tx_stall` milliseconds is dropped. A
+ *            write ends when the kernel takes the last of it, and it wakes a
+ *            blocked write only when a large part of the send buffer is free,
+ *            so a peer that reads slower than about send buffer / (2 x
+ *            `timeout_tx_stall`) is taken as one that does not read. An
  *            application that takes its time says nothing of the peer.
  *          Once the connection is dropped (EV_DROP, or the peer left)
  *          nothing more of what was received is delivered, not even the
@@ -53,7 +57,7 @@
 #define HTTP_REFUSED_HEADERS    "431 Request Header Fields Too Large"
 #define HTTP_REFUSED_BODY       "413 Content Too Large"
 #define DEFAULT_MAX_TX_QUEUE    64
-#define DEFAULT_TIMEOUT_TX_STALL 5000
+#define DEFAULT_TIMEOUT_TX_STALL 30000
 #define DEFAULT_MAX_RX_HELD     1048576
 #define DEFAULT_TIMEOUT_LINGER  2000
 #define TX_STALL_LOOK_EVERY     500     // ms; C_TIMER rounds it up to its tick, the second by default
@@ -91,7 +95,7 @@ SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        "300",          "Tim
 SDATA (DTP_INTEGER,     "max_header_size",  SDF_RD,         "65536",        "Largest head of a request (target, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). Each header counts GHTTP_HEADER_COST bytes more. A longer one is answered 431 and the connection dropped, with ONE warning"),
 SDATA (DTP_INTEGER,     "max_body_size",    SDF_RD,         "0",            "Largest body of a request, in bytes; 0, or more than half the largest memory block (gbmem): that half. A longer one is answered 413 and the connection dropped, with ONE warning"),
 SDATA (DTP_INTEGER,     "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE),         "Answers owed (not sent yet by the application, or waiting in the transport) from which what the peer sends is held, not parsed, until they leave. An application that never answers holds the connection at this many requests. 0: no limit"),
-SDATA (DTP_INTEGER,     "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL),     "Milliseconds with max_tx_queue answers waiting in the transport and no write seen to end: the peer does not read, the connection is dropped, with ONE warning. A minimum, up to two seconds more (the C_TIMER tick, twice). 0: never"),
+SDATA (DTP_INTEGER,     "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL),     "Milliseconds with max_tx_queue answers waiting in the transport and no write seen to end: the peer does not read, the connection is dropped, with ONE warning. So a peer slower than about send buffer / (2 x this) counts as not reading. A minimum, up to two seconds more (the C_TIMER tick, twice). 0: never"),
 SDATA (DTP_INTEGER,     "max_rx_held",      SDF_RD,         TEXT_OF(DEFAULT_MAX_RX_HELD),          "Most bytes held behind max_tx_queue answers; one more drops the connection, with ONE warning. 0: no limit"),
 SDATA (DTP_INTEGER,     "timeout_linger",   SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_LINGER),         "Milliseconds a refused request (431, 413) has to go after its answer, before the connection is dropped"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
@@ -481,7 +485,7 @@ PRIVATE int hold_received_bytes(hgobj gobj, gbuffer_t *gbuf)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "HTTP peer does not read its answers and keeps sending, connection dropped",
+            "msg",          "%s", "HTTP requests held behind the answers owed passed max_rx_held, connection dropped",
             "cur_tx_queue", "%d", (int)gobj_read_integer_attr(bottom, "cur_tx_queue"),
             "max_tx_queue", "%d", (int)priv->max_tx_queue,
             "rx_held",      "%lu", (unsigned long)(priv->rx_held + len),
@@ -679,8 +683,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The queue is empty, the peer read it all; or an answer left room for what
- *  was held, posted by ac_send_message()
+ *  The queue is empty: every answer sent ends here, so there is room for
+ *  what was held
  ***************************************************************************/
 PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -801,16 +805,13 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
 
     /*
-     *  This answer may fill the queue, with nothing else coming to look; or
-     *  it may leave room. Parsing goes on in the next turn: this action may
-     *  be running inside the parser, of a request answered in its event, and
-     *  in the action of an application in the middle of its own work.
+     *  This answer may fill the queue, with nothing else coming to look. If
+     *  it leaves room, what was held goes on at the EV_TX_READY of the
+     *  transport: this action may be running inside the parser.
      */
     if(peer_does_not_read(gobj)) {
         // Warning already logged
         drop_connection(gobj);
-    } else if(dl_size(&priv->dl_held) > 0 && !answers_owed_are_full(gobj)) {
-        gobj_post_event(gobj, EV_TX_READY, json_object(), gobj);
     }
     return ret;
 }
@@ -911,7 +912,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
         {EV_DISCONNECTED,       ac_disconnected,            0},
-        {EV_TX_READY,           ac_tx_ready,                0}, // posted before the disconnection
         {EV_STOPPED,            ac_stopped,                 0},
         {0,0,0}
     };

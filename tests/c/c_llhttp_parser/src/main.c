@@ -585,31 +585,88 @@ PRIVATE void test_ghttp_parser_header_cost(void)
     gbmem_free(req);
 }
 
+PRIVATE json_int_t warnings_logged(void);
+
 /***************************************************************************
  *  The chunked trailers enter the headers with the same rules: a name that
- *  comes again leaves a string, never a list.
+ *  comes again leaves a string, never a list. A field that a trailer must
+ *  not carry (RFC 9110 6.5.1) stays out, in any case, whether the head had
+ *  it or not.
  ***************************************************************************/
 PRIVATE void test_ghttp_parser_trailers(void)
 {
-    fprintf(stderr, "\n== ghttp_parser: trailers that repeat a header ==\n");
+    fprintf(stderr, "\n== ghttp_parser: trailers ==\n");
 
     char req[] = "POST /x HTTP/1.1\r\nHost: h\r\nX-A: one\r\nCookie: a=1\r\nSet-Cookie: s=1\r\n"
-        "Transfer-Encoding: chunked\r\n\r\n"
-        "2\r\nok\r\n0\r\nHost: evil\r\nX-A: two\r\nX-A: three\r\nCookie: b=2\r\nSet-Cookie: s=2\r\n"
-        "X-New: 1\r\nX-New: 2\r\n\r\n";
+        "Content-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n"
+        "2\r\nok\r\n0\r\nHost: evil\r\nhost: evil\r\nX-A: two\r\nX-A: three\r\nCookie: b=2\r\n"
+        "Set-Cookie: s=2\r\nContent-Type: application/json\r\n"
+        "Origin: evil\r\nX-New: 1\r\nX-New: 2\r\n\r\n";
     GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
     int rc = feed_in_chunks(parser, req, strlen(req), 4096);
     EXPECT(rc == (int)strlen(req) && parser->message_completed, "the request with trailers is parsed");
     const char *host = json_string_value(json_object_get(parser->jn_headers, "HOST"));
-    EXPECT(host && strcmp(host, "h, evil") == 0, "a trailer that repeats a header is joined to it");
+    EXPECT(host && strcmp(host, "h") == 0, "a trailer Host is left out");
     const char *a = json_string_value(json_object_get(parser->jn_headers, "X-A"));
     EXPECT(a && strcmp(a, "one, two, three") == 0, "two trailers that repeat a header are joined in order");
     const char *cookie = json_string_value(json_object_get(parser->jn_headers, "COOKIE"));
-    EXPECT(cookie && strcmp(cookie, "a=1; b=2") == 0, "a trailer Cookie is joined with \"; \"");
+    EXPECT(cookie && strcmp(cookie, "a=1") == 0, "a trailer Cookie is left out");
     const char *set_cookie = json_string_value(json_object_get(parser->jn_headers, "SET-COOKIE"));
-    EXPECT(set_cookie && strcmp(set_cookie, "s=2") == 0, "a trailer Set-Cookie is not joined: the last one");
+    EXPECT(set_cookie && strcmp(set_cookie, "s=1") == 0, "a trailer Set-Cookie is left out");
+    const char *content_type = json_string_value(json_object_get(parser->jn_headers, "CONTENT-TYPE"));
+    EXPECT(content_type && strcmp(content_type, "text/plain") == 0, "a trailer Content-Type is left out");
+    EXPECT(json_object_get(parser->jn_headers, "ORIGIN") == NULL,
+        "a trailer Origin the head did not have is left out");
     const char *x_new = json_string_value(json_object_get(parser->jn_headers, "X-NEW"));
     EXPECT(x_new && strcmp(x_new, "1, 2") == 0, "a name that comes only in the trailers is joined too");
+    ghttp_parser_destroy(parser);
+
+    /*
+     *  The framing never gets that far: llhttp refuses it, the whole message
+     */
+    const char *framing[] = {"Content-Length: 2", "Transfer-Encoding: chunked"};
+    for(size_t i = 0; i < sizeof(framing)/sizeof(framing[0]); i++) {
+        char framed[256];
+        int n = snprintf(framed, sizeof(framed),
+            "POST /x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n%s\r\n\r\n", framing[i]);
+        parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+        EXPECT(ghttp_parser_received(parser, framed, (size_t)n) == -1, "a trailer that frames the body is a violation");
+        ghttp_parser_destroy(parser);
+    }
+
+    /*
+     *  With no gobj the reading of its `peername` warns too, so what counts
+     *  is that the figure does not grow with the fields of a message
+     */
+    char one[] = "POST /x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+        "0\r\nHost: evil\r\n\r\n";
+    char many[] = "POST /x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+        "0\r\nHost: evil\r\nCookie: a=1\r\nExpect: 100-continue\r\n\r\n";
+    char two[] = "POST /x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+        "0\r\nHost: evil\r\n\r\n"
+        "POST /y HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+        "0\r\nHost: evil\r\n\r\n";
+    char allowed[] = "POST /x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"
+        "0\r\nX-Checksum: 1\r\n\r\n";
+
+    parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+    json_int_t warnings = warnings_logged();
+    feed_in_chunks(parser, one, strlen(one), 4096);
+    json_int_t said = warnings_logged() - warnings;
+    EXPECT(said > 0, "a field left out of the trailers is said");
+
+    warnings = warnings_logged();
+    feed_in_chunks(parser, many, strlen(many), 4096);
+    EXPECT(warnings_logged() - warnings == said, "three fields left out are said as one");
+
+    warnings = warnings_logged();
+    feed_in_chunks(parser, two, strlen(two), 4096);
+    EXPECT(warnings_logged() - warnings == 2*said, "the next message says it again");
+
+    warnings = warnings_logged();
+    feed_in_chunks(parser, allowed, strlen(allowed), 4096);
+    EXPECT(warnings_logged() - warnings == 0, "another trailer says nothing");
+    EXPECT(json_object_get(parser->jn_headers, "X-CHECKSUM") != NULL, "and it joins the headers");
     ghttp_parser_destroy(parser);
 }
 

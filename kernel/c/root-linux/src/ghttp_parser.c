@@ -45,6 +45,7 @@ PRIVATE size_t header_size_limit(GHTTP_PARSER *parser);
 PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at, size_t length);
 PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, json_t *jn_value);
 PRIVATE int join_repeated_headers(GHTTP_PARSER *parser);
+PRIVATE void say_trailer_left_out(GHTTP_PARSER *parser, const char *key);
 
 /****************************************************************
  *         Data
@@ -55,6 +56,23 @@ PRIVATE int join_repeated_headers(GHTTP_PARSER *parser);
  ****************************************************************/
 PRIVATE BOOL settings_ready = FALSE;
 PRIVATE llhttp_settings_t settings;
+
+/*
+ *  What a trailer must not carry (RFC 9110 6.5.1): what has to be known
+ *  before the body, or says what the body is. A reader of `headers` cannot
+ *  tell a trailer from a header, and a proxy may filter only the headers.
+ *  Content-Length and Transfer-Encoding are not here: llhttp refuses a message
+ *  with them in its trailers.
+ */
+PRIVATE const char *fields_not_in_trailers[] = {
+    "HOST", "ORIGIN", "CONNECTION", "UPGRADE", "TRAILER",
+    "AUTHORIZATION", "PROXY-AUTHORIZATION", "WWW-AUTHENTICATE", "PROXY-AUTHENTICATE",
+    "COOKIE", "SET-COOKIE",
+    "CONTENT-TYPE", "CONTENT-ENCODING", "CONTENT-RANGE",
+    "CACHE-CONTROL", "EXPECT", "MAX-FORWARDS", "PRAGMA", "RANGE", "TE",
+    "LOCATION", "RETRY-AFTER",
+    NULL
+};
 
 PRIVATE void ensure_settings_initialized(void)
 {
@@ -551,8 +569,9 @@ PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at,
  *  their order (RFC 9110 §5.3) with ", ", and those of COOKIE with "; "
  *  (RFC 9113 §8.2.3, what a cookie parser splits on). SET-COOKIE is never
  *  joined (RFC 6265: its values hold commas): the last one is kept.
- *  Called at the end of the head, at the end of the trailers, and before a
- *  refused response is published, so `headers` never holds a list.
+ *  Called at the end of the head, at the end of the trailers (those that
+ *  enter, see on_header_value_complete()), and before a refused response is
+ *  published, so `headers` never holds a list.
  *  Linear: each value is copied once.
  ***************************************************************************/
 PRIVATE int join_repeated_headers(GHTTP_PARSER *parser)
@@ -639,6 +658,7 @@ PRIVATE void reset_message(GHTTP_PARSER *parser)
     parser->message_begun = 0;
     parser->headers_repeated = FALSE;
     parser->bad_header_said = FALSE;
+    parser->bad_trailer_said = FALSE;
     parser->body_size = 0;
     parser->header_size = 0;
     GBMEM_FREE(parser->url);
@@ -824,10 +844,34 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
 }
 
 /***************************************************************************
+ *  A field that a trailer must not carry is left out, with ONE warning per
+ *  message
+ ***************************************************************************/
+PRIVATE void say_trailer_left_out(GHTTP_PARSER *parser, const char *key)
+{
+    hgobj gobj = parser->gobj;
+
+    if(parser->bad_trailer_said) {
+        return;
+    }
+    parser->bad_trailer_said = TRUE;
+    const char *peername = gobj_read_str_attr(gobj, "peername");
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "HTTP field that a trailer must not carry left out, the first one of the message",
+        "peername",     "%s", peername? peername : "",
+        "key",          "%.64s", key,
+        NULL
+    );
+}
+
+/***************************************************************************
  *  A header is whole: its name, in upper case, and its value go into
  *  jn_headers, once (a name that comes again: see join_repeated_headers()).
  *  It pays GHTTP_HEADER_COST: what it holds in memory beyond its text.
- *  A value that is not utf-8 is left out, with ONE warning per message.
+ *  A value that is not utf-8 is left out, with ONE warning per message,
+ *  and a trailer in fields_not_in_trailers too.
  ***************************************************************************/
 PRIVATE int on_header_value_complete(llhttp_t* llhttp)
 {
@@ -856,6 +900,11 @@ PRIVATE int on_header_value_complete(llhttp_t* llhttp)
 
     if(key_len > 0) {
         strntoupper(key, key_len);
+    }
+    if(key_len > 0 && parser->headers_completed && str_in_list(fields_not_in_trailers, key, FALSE)) {
+        say_trailer_left_out(parser, key);
+
+    } else if(key_len > 0) {
         json_t *jn_value = json_stringn(value, value_len);
         json_t *jn_prev = json_object_get(parser->jn_headers, key);
         int ret;

@@ -57,6 +57,7 @@ typedef struct _GHTTP_PARSER {
     BOOL executing;         // inside llhttp_execute()
     BOOL headers_repeated;  // a name came again: its values wait in a list in jn_headers
     BOOL bad_header_said;   // a header left out of this message is already said
+    BOOL bad_trailer_said;  // a trailer left out of this message is already said
 
     gbuffer_t *gbuf_url;    // the target, while it arrives
     gbuffer_t *gbuf_field;  // the name of the header that arrives

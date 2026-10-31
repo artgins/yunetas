@@ -5,9 +5,9 @@ refuses.
 
 `test1` (`main_test1.c` + `c_test1.c`) plays a `C_IOGATE` whose channels are
 `C_PROT_HTTP_SR` over `C_TCP` (`max_body_size` 1024, `max_tx_queue` 4,
-`timeout_tx_stall` 500, `max_rx_held` 65536, `timeout_linger` 500), and a second
-one for step 15. The test gobj is the application behind them. Fifteen steps,
-each on a connection of its own:
+`timeout_tx_stall` 500, `max_rx_held` 65536, `timeout_linger` 500), a second
+one for step 15 and a third one for step 16. The test gobj is the application
+behind them. Sixteen steps, each on a connection of its own:
 
 | Step | The peer | Expected |
 |---|---|---|
@@ -26,6 +26,7 @@ each on a connection of its own:
 | 13 | never reads; the application goes on answering after the drop, which waits for the write in flight | ONE warning for the peer, ONE for those answers |
 | 14 | reads: 10000 requests, 1000 in each write, the next write when it has all the answers of the one before; the application answers later, and halfway it goes silent for 1.5 s, with the queue empty | what is due and what waits in the transport never passes `max_tx_queue` by more than one read; the peer gets every answer, in order, and is not dropped; nothing logged |
 | 15 | on the second server (`timeout_tx_stall` 3000, port 7765): sends 10000 requests in one pipeline and never reads; the application answers later | the same bound; the connection is dropped from 3 to 5 seconds after the last write that moved; ONE warning |
+| 16 | on the third server (`max_tx_queue` 12000, `max_rx_held` 8 MB, port 7769): sends 30000 requests in one write and reads; the application answers each one as it comes | one turn parses and answers 12000 of those held, 30000 answers in order, nothing logged |
 
 Up to 7.29.3 the requests of step 1 after the drop went to the gobj already
 disconnected (red: an ERROR with a stack, *"Event NOT DEFINED in state"*, for
@@ -40,7 +41,10 @@ refused request was not told why"*). With only the transport counted, step 14
 is red (*"The answers of an application that answers later were not bounded"*);
 with the wait of a full queue measured from the look that saw the write, step
 15 is red (*"A peer that does not read was not dropped at timeout_tx_stall"*,
-at about twice the wait).
+at about twice the wait). With an event posted at each answer that leaves room,
+step 16 is red (*"Too many posted events, this is NOT a work queue"*, an ERROR
+with a stack for each one over the limit): what resumes what is held is the
+`EV_TX_READY` of the transport.
 
 ```c
 /*  in a channel tree  */
@@ -51,7 +55,7 @@ at about twice the wait).
         "max_header_size": 16384,
         "max_body_size": 1048576,
         "max_tx_queue": 64,
-        "timeout_tx_stall": 5000,
+        "timeout_tx_stall": 30000,
         "max_rx_held": 1048576
     }
 }

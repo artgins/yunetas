@@ -188,6 +188,52 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side3__',                              \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'children': [                                            \n\
+                {                                                   \n\
+                    'name': 'server_port3',                         \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://0.0.0.0:7769',                \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,               \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'window',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                    \n\
+                        {                                           \n\
+                            'name': 'window',                       \n\
+                            'gclass': 'C_PROT_HTTP_SR',             \n\
+                            'kw': {                                 \n\
+                                'max_tx_queue': 12000,              \n\
+                                'max_rx_held': 8388608              \n\
+                            },                                      \n\
+                            'children': [                            \n\
+                                {                                   \n\
+                                    'name': 'window',               \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -236,7 +282,7 @@ static int register_yuno_and_more(void)
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 4, ONE
         "msg", "HTTP headers larger than their limit, message refused",    // step 8, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 9, ONE
-        "msg", "HTTP peer does not read its answers and keeps sending, connection dropped", // step 10, ONE
+        "msg", "HTTP requests held behind the answers owed passed max_rx_held, connection dropped", // step 10, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 13, ONE
         "msg", "tcp data sent while the connection closes, dropped",       // step 13, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 15, ONE

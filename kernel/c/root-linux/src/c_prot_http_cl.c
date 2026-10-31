@@ -17,9 +17,14 @@
  *            not read: the next request is refused and the connection
  *            dropped. The queue alone says nothing of the server: it moves
  *            only at the end of a write, in the event loop, so a burst sent
- *            in one turn fills it whether the server reads or not.
+ *            in one turn fills it whether the server reads or not. A write
+ *            ends when the kernel takes the last of it, and it wakes a blocked
+ *            write only when a large part of the send buffer is free, so a
+ *            server that reads slower than about send buffer / (2 x
+ *            `timeout_tx_stall`) is taken as one that does not read.
  *          Once the connection is dropped nothing more of what was
- *          received is delivered.
+ *          received is delivered, and a request sent is refused (-1, ONE
+ *          warning per connection) until it closes.
  *
  *          Copyright (c) 2017-2023 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -50,7 +55,7 @@
  *              Constants
  ***************************************************************/
 #define DEFAULT_MAX_TX_QUEUE    64
-#define DEFAULT_TIMEOUT_TX_STALL 5000
+#define DEFAULT_TIMEOUT_TX_STALL 30000
 #define TEXT_OF(x)              TEXT_OF_(x)
 #define TEXT_OF_(x)             #x
 
@@ -81,7 +86,7 @@ SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw
 SDATA (DTP_INTEGER, "max_body_size",    SDF_RD,         "0",        "Largest body of a response, in bytes; 0, or more than half the largest memory block (gbmem): that half (with raw_body_data, 0 is no limit). A longer one is refused with ONE warning: EV_ON_MESSAGE carries `body_too_large` (the limit) and no body (with raw_body_data nothing more is published), and the connection is dropped"),
 SDATA (DTP_INTEGER, "max_header_size",  SDF_RD,         "65536",    "Largest head of a response (status text, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). Each header counts GHTTP_HEADER_COST bytes more. A longer one is refused with ONE warning: EV_ON_MESSAGE carries `headers_too_large` (the limit) and no body (with raw_body_data nothing is published), and the connection is dropped"),
 SDATA (DTP_INTEGER, "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE), "Requests waiting in the transport from which a server that writes nothing is one that does not read. 0: no limit"),
-SDATA (DTP_INTEGER, "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL), "Milliseconds with max_tx_queue requests waiting and no write ended: the server does not read, the next request is refused and drops the connection, with ONE warning. 0: never"),
+SDATA (DTP_INTEGER, "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL), "Milliseconds with max_tx_queue requests waiting and no write ended: the server does not read, the next request is refused and drops the connection, with ONE warning. So a server slower than about send buffer / (2 x this) counts as not reading. 0: never"),
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -116,6 +121,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_tx_stall;
     uint64_t tx_stall_timer;        // max_tx_queue requests wait: no write ended until this, the server does not read
     json_int_t tx_stall_written;    // the bytes written when it started
+    BOOL refused_while_dropping;    // a request sent after the drop is already said
     char schema[64];
     char host[NAME_MAX];
     int port;
@@ -630,6 +636,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     priv->parsing_response = create_response_parser(gobj);
     priv->tx_stall_timer = 0;
+    priv->refused_while_dropping = FALSE;
 
     set_timeout(priv->timer, priv->timeout_inactivity);
 
@@ -692,6 +699,20 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->parsing_response->stopped) {
+        if(!priv->refused_while_dropping) {
+            priv->refused_while_dropping = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "HTTP request sent while the connection is dropped, refused, the first one of the connection",
+                "url",          "%s", priv->url,
+                NULL
+            );
+        }
+        KW_DECREF(kw)
+        return -1;
+    }
     if(server_does_not_read(gobj)) {
         // Warning already logged
         ghttp_parser_stop(priv->parsing_response);
