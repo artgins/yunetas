@@ -11,8 +11,11 @@
  *    POST /auth/callback  — exchange PKCE authorization code for tokens
  *    POST /auth/refresh   — refresh access_token using the httpOnly cookie
  *    POST /auth/logout    — revoke refresh_token and clear cookies (with
- *                           no refresh_token cookie, only clear them, and
- *                           only for a same-site request)
+ *                           no refresh_token cookie, only clear them)
+ *
+ *  Every request that reads or changes the session is served only to the
+ *  SPA's Origin: allowed_origin, or, with it unset, the BFF's own
+ *  (http(s):// and the Host of the request). See c_auth_bff.c.
  *    POST /auth/token     — return the access_token to JS (opt-in; off by
  *                           default; see `expose_access_token` in c_auth_bff.c)
  *
@@ -82,8 +85,12 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  account_disabled          403  Account disabled / not fully set up
  *  auth_rate_limited         429  Too many login attempts (the IdP's
  *                                 Retry-After passed on when it is
- *                                 delay-seconds or an HTTP-date)
- *  auth_service_unavailable  502  IdP unreachable or 5xx
+ *                                 delay-seconds of 1 to 10 digits or a
+ *                                 real HTTP-date, as IMF-fixdate)
+ *  auth_service_unavailable  502  IdP unreachable or 5xx; also an IdP
+ *                                 that closed the connection before
+ *                                 answering (the request is not sent
+ *                                 again)
  *  auth_config_error         500  BFF misconfigured (bad client_id, ...)
  *  auth_unexpected_error     502  IdP returned something unexpected
  *                                 (also a success with no access_token,
@@ -107,13 +114,17 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  method_not_allowed        405  Request was not POST
  *  missing_body              400  POST without JSON body
  *  missing_params            400  Required body fields absent
- *  redirect_uri_not_allowed  400  redirect_uri fails allowlist check
- *  origin_not_allowed        403  /auth/token Origin does not match
- *                                 allowed_origin, or allowed_origin unset
- *                                 (origin-pinned, fail-closed); also
- *                                 /auth/logout whose Origin is not
- *                                 exactly allowed_origin (when it is
- *                                 set), with a cookie
+ *  redirect_uri_not_allowed  400  redirect_uri not allowed by
+ *                                 allowed_redirect_uri (exactly it, or
+ *                                 a path under it ending in "/")
+ *  origin_not_allowed        403  The Origin of /auth/login, callback,
+ *                                 refresh, token, or a logout with a
+ *                                 cookie, is not exactly allowed_origin;
+ *                                 with allowed_origin unset, not
+ *                                 http(s):// and the Host of the request
+ *                                 (/auth/token: always refused then);
+ *                                 the error names the Origin received
+ *                                 and the one allowed
  *  missing_refresh_token     401  /auth/refresh called without RT cookie
  *                                 (/auth/logout without it answers
  *                                 success)

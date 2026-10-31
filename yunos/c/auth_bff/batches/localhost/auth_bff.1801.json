@@ -1,6 +1,6 @@
 {
-    "__version__": "1",
-    "__description__": "auth_bff for localhost development (gui_treedb)",
+    "__version__": "2",
+    "__description__": "allowed_origin is the vite dev server, http://localhost:5173",
     "global": {
         "__bff_side__.__json_config_variables__": {
             "__bff_secure_url__": "https://0.0.0.0:1801"
@@ -56,7 +56,7 @@
                                 "client_id": "treedb.yunetas.com",
                                 "client_secret": "",
                                 "cookie_domain": "",
-                                "allowed_origin": "",
+                                "allowed_origin": "http://localhost:5173",
                                 "allowed_redirect_uri": "",
                                 "crypto": {
                                     "library": "(^^__tls_library__^^)"

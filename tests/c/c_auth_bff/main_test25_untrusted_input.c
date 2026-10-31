@@ -3,25 +3,29 @@
  *
  *          Self-contained auth_bff test of what the BFF takes from others:
  *          the credentials and the refresh_token cookie it puts in the form
- *          to the IdP (each key and value form-urlencoded), the tokens it
- *          puts in a Set-Cookie (refused with a byte a cookie cannot
- *          carry), the Origin of a logout (exactly allowed_origin, with a
- *          refresh_token cookie or without it), the size of a token cookie
- *          (the rule of the cookies the BFF writes, in refresh, logout and
- *          token), the body of an IdP answer (1 MB at most), the
- *          Retry-After of a 429 of the IdP (passed on when well formed,
- *          and exposed to a SPA of another origin), and requests
- *          pipelined on one connection (answered in their order; more
- *          waiting than the queue drop the connection). The
- *          driver (c_test25_untrusted_input.c) says what each step must
- *          get. The logs, in order: the WARNING of each 4xx; for a token
- *          that is not a cookie value, a WARNING naming it and the WARNING
- *          of the 502; for the JSON string "", the WARNING of its 502; for
- *          the body over the limit, the WARNING of the HTTP client and the
- *          WARNING of the 502; for a 429 of the IdP, the WARNING of the
- *          429, after the WARNING of a Retry-After not passed on; for 17
- *          requests pipelined behind a login, the WARNING of each 404 and
- *          the WARNING of the connection dropped. No ERROR.
+ *          to the IdP (each key and value form-urlencoded, and whole), the
+ *          tokens it puts in a Set-Cookie (refused with any byte a cookie
+ *          cannot carry), the Origin of a logout, a refresh, a login, a
+ *          callback and a token (exactly allowed_origin), the size of a
+ *          token cookie (the rule of the cookies the BFF writes, in
+ *          refresh, logout and token), the body of an IdP answer (1 MB at
+ *          most), the Retry-After of a 429 of the IdP (passed on when it is
+ *          delay-seconds or a real HTTP-date, and exposed to a SPA of
+ *          another origin), an IdP that closes the connection before
+ *          answering (the request not sent again), and requests pipelined
+ *          on one connection (answered in their order; more waiting than
+ *          the queue drop the connection). The driver
+ *          (c_test25_untrusted_input.c) says what each step must get. The
+ *          logs, in order: the WARNING of each 4xx; for a token that is not
+ *          a cookie value, a WARNING naming it and its byte, and the
+ *          WARNING of the 502; for the JSON string "", the WARNING of its
+ *          502; for the body over the limit, the WARNING of the HTTP client
+ *          and the WARNING of the 502; for a 429 of the IdP, the WARNING of
+ *          the 429, after the WARNING of a Retry-After not passed on; for
+ *          the IdP that closes the connection, the ERROR of the 502; for
+ *          17, 40 and 600 requests pipelined behind a login, the WARNING of
+ *          each of the first 17 404s and the WARNING of the connection
+ *          dropped.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -35,7 +39,7 @@
  *                      Names
  ***************************************************************************/
 #define APP_NAME        "test_auth_bff_test25_untrusted_input"
-#define APP_DOC         "auth_bff: the form to the IdP, its tokens and bodies, the Origin and size of cookies, pipelined requests"
+#define APP_DOC         "auth_bff: the form to the IdP, its tokens, bodies and Retry-After, the Origin of requests, the size of cookies, pipelined requests"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -282,88 +286,107 @@ static int register_yuno_and_more(void)
     /*------------------------------------------------*
      *  Safety: kill the yuno after 10 s if stuck
      *------------------------------------------------*/
-    set_auto_kill_time(10);
+    set_auto_kill_time(20);
 
     /*------------------------------*
      *  Captured: errors and warnings (see main()), in order.
      *------------------------------*/
-    json_t *jn_expected = json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, "
-                "{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "origin_not_allowed",
+    json_t *jn_expected = json_array();
+    #define EXPECT_REJECTED(code) \
+        json_array_append_new(jn_expected, json_pack("{s:s, s:s}", \
+            "msg", "👤BFF request rejected", "error_code", (code)))
+    #define EXPECT_REFUSED(code) \
+        json_array_append_new(jn_expected, json_pack("{s:s, s:s}", \
+            "msg", "👤BFF IdP answer refused", "error_code", (code)))
+    #define EXPECT_NOT_COOKIE(tok, byte) \
+        json_array_append_new(jn_expected, json_pack("{s:s, s:s, s:s}", \
+            "msg", "👤BFF IdP answered a token that is not a cookie value", \
+            "token", (tok), "byte", (byte)))
+    #define EXPECT_RETRY_AFTER_NOT_PASSED(value) \
+        json_array_append_new(jn_expected, json_pack("{s:s, s:s}", \
+            "msg", "👤BFF IdP answered a Retry-After that is not delay-seconds " \
+                   "(1 to 10 digits) nor an HTTP-date, not passed on", \
+            "value", (value)))
 
-            "msg",          "👤BFF IdP answered a token that is not a cookie value",
-            "token",        "access_token",
-            "msg",          "👤BFF IdP answer refused",
-            "error_code",   "auth_unexpected_error",
-            "msg",          "👤BFF IdP answered a token that is not a cookie value",
-            "token",        "refresh_token",
-            "msg",          "👤BFF IdP answer refused",
-            "error_code",   "auth_unexpected_error",
-
-            "msg",          "👤BFF request rejected",
-            "error_code",   "token_too_large",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "token_too_large",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "token_too_large",
-
-            "msg",          "👤BFF IdP answer refused",
-            "error_code",   "auth_empty_response",
-
-            "msg",          "HTTP body larger than its limit, message refused",
-            "http_parser_type", "response",
-            "msg",          "👤BFF IdP answer refused",
-            "error_code",   "auth_unexpected_error",
-
-            "msg",          "👤BFF request rejected",
-            "error_code",   "auth_rate_limited",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "auth_rate_limited",
-            "msg",          "👤BFF IdP answered a Retry-After that is not delay-seconds "
-                            "nor an HTTP-date, not passed on",
-            "value",        "soon",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "auth_rate_limited",
-            "msg",          "👤BFF IdP answered a Retry-After that is not delay-seconds "
-                            "nor an HTTP-date, not passed on",
-            "value",        "-5",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "auth_rate_limited",
-
-            "msg",          "👤BFF request rejected",
-            "error_code",   "unknown_endpoint",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "method_not_allowed"
-    );
-    for(int i = 0; i < 17; i++) {
-        json_array_append_new(jn_expected, json_pack("{s:s, s:s}",
-            "msg",          "👤BFF request rejected",
-            "error_code",   "unknown_endpoint"
+    /*  4-10: the Origin of a logout  */
+    for(int i = 0; i < 7; i++) {
+        EXPECT_REJECTED("origin_not_allowed");
+    }
+    /*  11-12: a token that is not a cookie value  */
+    EXPECT_NOT_COOKIE("access_token", "0x3B");
+    EXPECT_REFUSED("auth_unexpected_error");
+    EXPECT_NOT_COOKIE("refresh_token", "0x0D");
+    EXPECT_REFUSED("auth_unexpected_error");
+    /*  14, 15, 18: a cookie longer than the BFF writes  */
+    for(int i = 0; i < 3; i++) {
+        EXPECT_REJECTED("token_too_large");
+    }
+    /*  19: the JSON string ""  */
+    EXPECT_REFUSED("auth_empty_response");
+    /*  20: an IdP body over the limit  */
+    json_array_append_new(jn_expected, json_pack("{s:s, s:s}",
+        "msg",              "HTTP body larger than its limit, message refused",
+        "http_parser_type", "response"
+    ));
+    EXPECT_REFUSED("auth_unexpected_error");
+    /*  22-25: a 429 and its Retry-After  */
+    EXPECT_REJECTED("auth_rate_limited");
+    EXPECT_REJECTED("auth_rate_limited");
+    EXPECT_RETRY_AFTER_NOT_PASSED("soon");
+    EXPECT_REJECTED("auth_rate_limited");
+    EXPECT_RETRY_AFTER_NOT_PASSED("-5");
+    EXPECT_REJECTED("auth_rate_limited");
+    /*  26-31: every byte outside cookie-octet  */
+    {
+        const char *bytes[] = {"0xC3", "0x7F", "0x20", "0x22", "0x2C", "0x5C"};
+        for(int i = 0; i < 6; i++) {
+            EXPECT_NOT_COOKIE("access_token", bytes[i]);
+            EXPECT_REFUSED("auth_unexpected_error");
+        }
+    }
+    /*  32-45: Retry-After not passed on, or passed on (NULL)  */
+    {
+        const char *values[] = {
+            "Wed, 99 Oct 2026 07:28:00 GMT",
+            "Wed, 21 Oct 2026 99:99:99 GMT",
+            "Thu, 21 Oct 2026 07:28:00 GMT",
+            "Wed, 21 Foo 2026 07:28:00 GMT",
+            "Xyz, 21 Oct 2026 07:28:00 GMT",
+            "Sun, 29 Feb 2026 07:28:00 GMT",
+            "12345678901",
+            NULL, NULL, NULL, NULL, NULL,
+            "120, 60",
+            NULL
+        };
+        for(size_t i = 0; i < sizeof(values)/sizeof(values[0]); i++) {
+            if(values[i]) {
+                EXPECT_RETRY_AFTER_NOT_PASSED(values[i]);
+            }
+            EXPECT_REJECTED("auth_rate_limited");
+        }
+    }
+    /*  46-51: the Origin of a refresh, a login, a callback, a token, a logout  */
+    for(int i = 0; i < 6; i++) {
+        EXPECT_REJECTED("origin_not_allowed");
+    }
+    /*  53: the IdP closes the connection before answering  */
+    json_array_append_new(jn_expected, json_pack("{s:s, s:s}",
+        "msg",          "👤BFF server error",
+        "error_code",   "auth_service_unavailable"
+    ));
+    /*  55: three requests in one write  */
+    EXPECT_REJECTED("unknown_endpoint");
+    EXPECT_REJECTED("method_not_allowed");
+    /*  56-58: more pipelined requests than the queue, each 404 until the drop  */
+    for(int f = 0; f < 3; f++) {
+        for(int i = 0; i < 17; i++) {
+            EXPECT_REJECTED("unknown_endpoint");
+        }
+        json_array_append_new(jn_expected, json_pack("{s:s}",
+            "msg",          "👤BFF too many pipelined requests waiting for their "
+                            "answer, connection dropped"
         ));
     }
-    json_array_append_new(jn_expected, json_pack("{s:s}",
-        "msg",          "👤BFF too many pipelined requests waiting for their "
-                        "answer, connection dropped"
-    ));
     set_expected_results(
         APP_NAME,
         jn_expected,

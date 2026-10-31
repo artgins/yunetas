@@ -57,6 +57,48 @@ on 1801. To use it with the dev server, set its `__bff_secure_url__` to
 "__bff_secure_url__": "https://0.0.0.0:1808"
 ```
 
+(bff-dev-proxy)=
+### Development behind a proxy
+
+The vite proxy (`changeOrigin: true`) rewrites only the `Host` of the
+request. The `Origin` stays the one of the dev server
+(`http://localhost:5173`), and the BFF serves only the `Origin` of its SPA
+(see [Logout Flow](#bff-logout-flow)): a BFF with the production
+`allowed_origin` answers every login, refresh and logout from the dev server
+`403 origin_not_allowed`, and its `error` names both origins:
+
+```
+{"success": false, "error_code": "origin_not_allowed",
+ "error": "Origin 'http://localhost:5173' not allowed for /auth/logout: allowed_origin is 'https://app.example.com'"}
+```
+
+Do one of the two:
+
+- Give the dev BFF the origin of the dev server (the localhost batch
+  `auth_bff.1801.json` does):
+
+  ```json
+  "allowed_origin": "http://localhost:5173"
+  ```
+
+- Or make the proxy send the `Origin` the BFF allows, in the
+  `vite.config.js` of the SPA:
+
+  ```javascript
+  proxy: {
+      "/auth": {
+          target: "https://localhost:1808",
+          changeOrigin: true,
+          secure: false,
+          headers: {origin: "https://app.example.com"}   // the allowed_origin of the BFF
+      }
+  }
+  ```
+
+A logout refused this way leaves the session: the `HttpOnly` cookies stay,
+and a reload of the SPA restores it. So does a logout that does not reach
+the BFF.
+
 ---
 
 ## The Three Key Concepts
@@ -244,7 +286,8 @@ The PKCE login and the per-request phase.
    }
    ```
 
-4. The BFF checks that `redirect_uri` starts with `allowed_redirect_uri`, and
+4. The BFF checks that `allowed_redirect_uri` allows the `redirect_uri` (see
+   the table of [the attributes](#bff-config-attrs)), and
    calls the token endpoint with `grant_type=authorization_code`, the `code`
    and the `code_verifier`. The IdP checks
    `SHA-256(code_verifier) == code_challenge`.
@@ -371,15 +414,37 @@ other 5xx of the BFF is an ERROR (*"👤BFF server error"*). A lifetime
 the key and the value (*"👤BFF IdP answered a lifetime that is not a number of
 seconds, its default is used"*, `"key": "expires_in"`, `"value": "300.5"`).
 
-**A `429` of the IdP passes on its `Retry-After`.** The BFF answers `429
-auth_rate_limited` with the `Retry-After` of the IdP when it is
-delay-seconds (`Retry-After: 120`) or an HTTP-date (`Retry-After: Wed, 21
-Oct 2026 07:28:00 GMT`). Any other value is not passed on, with a WARNING
-(*"👤BFF IdP answered a Retry-After that is not delay-seconds nor an
-HTTP-date, not passed on"*): a value of the IdP never writes more than that
-one header. The CORS headers of every answer carry
+**A `429` of the IdP passes on its `Retry-After`** (RFC 9110 §10.2.3). The
+BFF answers `429 auth_rate_limited` with the `Retry-After` of the IdP when it
+is one of these, with the blanks around it removed:
+
+| The IdP sends | The browser gets |
+|---|---|
+| delay-seconds of 1 to 10 digits: `120` | `Retry-After: 120` |
+| IMF-fixdate: `Wed, 21 Oct 2026 07:28:00 GMT` | `Retry-After: Wed, 21 Oct 2026 07:28:00 GMT` |
+| RFC 850: `Wednesday, 21-Oct-26 07:28:00 GMT` | `Retry-After: Wed, 21 Oct 2026 07:28:00 GMT` |
+| asctime: `Wed Oct 21 07:28:00 2026` | `Retry-After: Wed, 21 Oct 2026 07:28:00 GMT` |
+
+A date must be a real one: its day exists in its month, the time is
+00:00:00 to 23:59:60, and the day-name is the one of that date. An RFC 850
+year more than 50 years ahead is the same year a century before. The names
+are case-sensitive and the zone is `GMT`. Anything else is not passed on:
+11 digits or more, `Wed, 99 Oct 2026 ...`, `Thu, 21 Oct 2026 ...` (a
+Wednesday), a list (`120, 60`), `soon`, `-5`. It gets a WARNING
+(*"👤BFF IdP answered a Retry-After that is not delay-seconds (1 to 10
+digits) nor an HTTP-date, not passed on"*), so a value of the IdP never
+writes more than that one header. The CORS headers of every answer carry
 `Access-Control-Expose-Headers: Retry-After`, so a SPA on another origin
 than its BFF can read it, and waits what the IdP asks.
+
+**A request is sent to the IdP once.** When the IdP closes the connection
+before it answers (it restarts, or the HTTP client cannot parse its answer),
+the BFF does not send the request again on the next connection: a second
+password grant, or a `refresh_token` used twice, which an IdP that rotates
+them takes for a stolen token. The browser gets `502
+auth_service_unavailable` (*"Authentication service closed the connection
+before answering, the request is not sent again"*), with the ERROR of the
+502.
 
 **A refresh that cannot be made is not a logout.** A network failure, a
 timeout (`gui_treedb` gives each BFF call 15 s) or a 5xx answer such as
@@ -416,22 +481,35 @@ such cookie. The BFF then does not call the IdP (it has no refresh_token to
 end the IdP session with; that session ends on the IdP by its own timeout),
 clears both cookies with `Max-Age=0` at once, and answers
 `200 {"success": true}`. It clears them only for a request that carries the
-`access_token` cookie: the cookies are `SameSite=Strict`, so that cookie
-proves a same-site request, and a cross-site form cannot log the user out.
+`access_token` cookie: a cross-site form carries no cookie, and cannot log
+the user out.
 
-**With `allowed_origin` set, every logout that ends something needs exactly
-that `Origin`**, with the `refresh_token` cookie or without it. `SameSite`
-says same SITE, not same origin: a sibling subdomain sends the cookies too,
-and so does a browser that does not apply `SameSite`. Another origin, no
-`Origin`, `Origin: null`, the allowed origin with more after it
-(`https://app.example.com.evil.com`, `https://app.example.com:8443`) or a
-part of it: `403 origin_not_allowed`, no IdP call, no `Set-Cookie`. A
-browser sends `Origin` with every `POST`, same-origin included.
+**Every request that reads or changes the session needs the `Origin` of the
+SPA**: `/auth/login`, `/auth/callback`, `/auth/refresh`, a `/auth/logout`
+with a cookie (`refresh_token` or `access_token`) and `/auth/token`.
+`SameSite=Strict` says same SITE, not same origin: a sibling subdomain sends
+the cookies too, and a `POST` with no body (a refresh, a logout) needs no
+CORS preflight, so it reaches the BFF.
+
+- With `allowed_origin` set, the `Origin` must be exactly it.
+- With `allowed_origin` empty, the BFF serves its own origin only: the
+  `Origin` must be `http://` or `https://` and the `Host` of the request
+  (`Origin: https://app.example.com` with `Host: app.example.com`). A proxy
+  in front of the BFF must pass the `Host` on (nginx: `proxy_set_header
+  Host $host;`). `/auth/token` is refused: the token is given only to an
+  `allowed_origin` that is set.
+
+Another origin, no `Origin`, `Origin: null`, a sibling subdomain, the
+allowed origin with more after it (`https://app.example.com.evil.com`,
+`https://app.example.com:8443`) or a part of it: `403 origin_not_allowed`,
+no IdP call, no `Set-Cookie`. A browser sends `Origin` with every `POST`,
+same-origin included; a client that is not a browser must send it too. The
+`error` names the `Origin` received and the one allowed.
 
 | Request to `/auth/logout` | Answer |
 |---|---|
-| `refresh_token` cookie, `Origin` = `allowed_origin` (or none configured) | IdP end-session call, both cookies cleared, `200` |
-| `access_token` cookie only, `Origin` = `allowed_origin` (or none configured) | No IdP call, both cookies cleared, `200` |
+| `refresh_token` cookie, the SPA's `Origin` | IdP end-session call, both cookies cleared, `200` |
+| `access_token` cookie only, the SPA's `Origin` | No IdP call, both cookies cleared, `200` |
 | A cookie, another `Origin` or none | `403 origin_not_allowed`, no IdP call, no `Set-Cookie` |
 | No cookie (no session, or a cross-site request) | `200 {"success": true}`, no `Set-Cookie`: nothing to end |
 | `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes) | `400 token_too_large`, no `Set-Cookie` |
@@ -479,7 +557,9 @@ that SPA strict.
 | **JWTs never in JavaScript** | Tokens stored as `HttpOnly` cookies — `document.cookie` cannot read them. Exception: `/auth/token`, opt-in and origin-pinned |
 | **The password goes only to the BFF** | `/auth/login` over HTTPS; the SPA does not keep it, the BFF does not log it (traces redact it) |
 | **Code interception protection** (`/auth/callback`) | PKCE S256 — intercepted authorization codes are useless without `code_verifier` |
-| **CSRF protection** | `SameSite=Strict` cookies; for `/auth/callback`, the `state` nonce checked by the SPA |
+| **CSRF protection** | `SameSite=Strict` cookies, and the `Origin` of the SPA on every request that reads or changes the session (a sibling subdomain is same-site); for `/auth/callback`, the `state` nonce checked by the SPA |
+| **No open redirect of the code** | `allowed_redirect_uri`: exactly it, or a path under it (no dot-segment, no `\`, no `#`); its host cannot be extended |
+| **A request is sent to the IdP once** | Not sent again when the IdP closes the connection before it answers (`502`) |
 | **Token theft protection** | `Secure` flag (HTTPS only). `SameSite=Strict` (no cross-site requests) |
 | **CORS** | The BFF answers only `allowed_origin`; it never reflects an arbitrary `Origin` and never answers `*` |
 | **Server-side JWT validation** | `C_AUTHZ` verifies signature via JWKS, checks expiry, issuer, claims |
@@ -545,6 +625,7 @@ fits is taken whole.
 
 ## Configuration
 
+(bff-config-attrs)=
 ### BFF Server (C_AUTH_BFF attributes)
 
 ```json
@@ -568,8 +649,8 @@ fits is taken whole.
 | `issuer` | — (required) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for a public client). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Written only when the request `Host` is this domain or a subdomain of it; otherwise omitted, with a WARNING. Empty: never written (host-only cookies). |
-| `allowed_origin` | `""` | The CORS origin. Empty: no cross-origin access. Also the origin `/auth/token` is pinned to. |
-| `allowed_redirect_uri` | `""` | The prefix a `/auth/callback` `redirect_uri` must start with. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `allowed_origin` | `""` | The origin of the SPA: the CORS origin, the one `Origin` served for login, callback, refresh, logout and token (else `403`), and the origin `/auth/token` is pinned to. Empty: no cross-origin access, the `Origin` must be the BFF's own (`http(s)://` and the `Host`), and `/auth/token` is refused. |
+| `allowed_redirect_uri` | `""` | The `redirect_uri` a `/auth/callback` may have. Without a `/` at its end, exactly it: `"https://app.example.com/auth/callback"`. Ending with `/` after a scheme and a host, one that starts with it and whose rest is a path and query in it: `"https://app.example.com/app/"` allows `https://app.example.com/app/cb?x=1`, not `https://app.example.com/app/../admin`, `https://app.example.com/app/%2e%2e/x`, `https://app.example.com/app/..\x`, `https://app.example.com/app/x#f`, a space or a byte over 0x7E. Its host cannot be extended: `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `"https://app.example.com/"`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `expose_access_token` | `false` | Enables `/auth/token`. Needs `allowed_origin`. |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store by default. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_idp_keycloak` `kc_crypto` attribute mirrors this for its Keycloak admin calls.) |
 | `pending_queue_size` | `16` (clamped to `[1, 1024]`) | Depth of the per-channel pending IdP request queue. Raised on front-line BFFs under burst. |

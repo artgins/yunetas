@@ -123,7 +123,7 @@ PRIVATE char variable_config[]= "\
                                 'client_id':    'test-client',      \n\
                                 'client_secret': '',                \n\
                                 'cookie_domain': '',                \n\
-                                'allowed_origin': '',               \n\
+                                'allowed_origin': 'http://localhost', \n\
                                 'allowed_redirect_uri': '',         \n\
                                 'crypto': {},                       \n\
                                 'pending_queue_size': 2             \n\

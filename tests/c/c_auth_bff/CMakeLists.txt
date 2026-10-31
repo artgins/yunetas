@@ -81,6 +81,7 @@ SET(TESTS
     test23_cookie_no_host
     test24_no_refresh_token
     test25_untrusted_input
+    test26_same_origin
 )
 
 foreach(test ${TESTS})

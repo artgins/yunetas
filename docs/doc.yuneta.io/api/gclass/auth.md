@@ -94,8 +94,8 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `client_id` | `string` | OAuth 2 client ID. |
 | `client_secret` | `string` | OAuth 2 client secret (empty for a public client). |
 | `cookie_domain` | `string` | `Domain` of the cookies, written only when the request `Host` is that domain or a subdomain. |
-| `allowed_origin` | `string` | CORS allowed origin. |
-| `allowed_redirect_uri` | `string` | Prefix that a `/auth/callback` `redirect_uri` must have. |
+| `allowed_origin` | `string` | The SPA's origin: the CORS origin and the only `Origin` served for login, callback, refresh, logout and token (else `403 origin_not_allowed`). Empty: the `Origin` must be the BFF's own (`http(s)://` and the `Host`), and `/auth/token` is refused. Example: `"allowed_origin": "https://app.example.com"`. |
+| `allowed_redirect_uri` | `string` | The `redirect_uri` a `/auth/callback` may have: exactly it, or, ending with `/` after a scheme and a host, a path under it (no `.` or `..` segment, no `\`, no `#`). Example: `"allowed_redirect_uri": "https://app.example.com/app/"`. |
 | `expose_access_token` | `boolean` | Opt-in `POST /auth/token` (default `false`). |
 | `crypto` | `dict` | TLS configuration of the IdP calls (verifying by default). |
 | `pending_queue_size` | `integer` | Requests queued per channel (default 16). |
@@ -109,8 +109,12 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `POST /auth/login` | Password grant; writes the cookies. |
 | `POST /auth/callback` | PKCE code exchange; writes the cookies. |
 | `POST /auth/refresh` | Refresh with the `refresh_token` cookie; answers the identity too. |
-| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie (and the `allowed_origin` Origin, when set); with no cookie, `200` and no `Set-Cookie`. |
+| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie; with no cookie, `200` and no `Set-Cookie`. |
 | `POST /auth/token` | Opt-in (`expose_access_token`): the access token for another backend host. |
+
+Every endpoint but `OPTIONS` that reads or changes the session (login, callback,
+refresh, a logout with a cookie, token) is served only to the `Origin` of the
+SPA (see `allowed_origin`), else `403 origin_not_allowed` with no IdP call.
 
 A token lifetime of 0 from the IdP is a token with no expiry (Keycloak's
 offline token, `"refresh_expires_in": 0`); its cookie has no `Max-Age`:

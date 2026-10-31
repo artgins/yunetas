@@ -79,6 +79,7 @@ SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, 
 SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
 SDATA (DTP_STRING,      "retry_after",      SDF_RD, "",     "If non-empty, the answers to /token carry a Retry-After header with this value"),
+SDATA (DTP_BOOLEAN,     "drop_token_request", SDF_RD, "0",  "If true, the next /token request is not answered: its connection is dropped (an IdP that restarts, or whose answer the client cannot parse); cleared when used"),
 SDATA (DTP_STRING,      "last_form",        SDF_RD, "",     "The body of the last /token or /logout request, as it arrived (the form of the BFF); a test clears it before a step"),
 SDATA_END()
 };
@@ -765,6 +766,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(strstr(url, "/token")) {
         priv->st_token_requests++;
         save_form(gobj, kw);
+
+        if(gobj_read_bool_attr(gobj, "drop_token_request")) {
+            gobj_write_bool_attr(gobj, "drop_token_request", FALSE);
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj, "mock-kc ← %s: /token dropped, no answer",
+                    gobj_short_name(src));
+            }
+            gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+            KW_DECREF(kw)
+            return 0;
+        }
 
         int status            = (int)gobj_read_integer_attr(gobj, "return_status");
         const char *status_tx = (status == 200) ? "200 OK"

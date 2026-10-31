@@ -101,9 +101,13 @@ auth_unexpected_error` (*"Authentication service answered a body longer than
 1048576 bytes"*).
 
 **A `429` of the IdP** is answered `429 auth_rate_limited`, with the
-`Retry-After` of the IdP when it is delay-seconds (`120`) or an HTTP-date
-(`Wed, 21 Oct 2026 07:28:00 GMT`); any other value is not passed on, with a
-WARNING. The CORS headers of every answer carry
+`Retry-After` of the IdP when it is delay-seconds of 1 to 10 digits (`120`)
+or a real HTTP-date in any of its three forms, passed on as IMF-fixdate
+(`Wednesday, 21-Oct-26 07:28:00 GMT` and `Wed Oct 21 07:28:00 2026` become
+`Wed, 21 Oct 2026 07:28:00 GMT`); the blanks around it are removed. A date
+whose day is not in its month, whose time is past 23:59:60 or whose day-name
+is not the one of the date, 11 digits or more, a list (`120, 60`): not passed
+on, with a WARNING. The CORS headers of every answer carry
 `Access-Control-Expose-Headers: Retry-After`, so a SPA on another origin can
 read it:
 
@@ -116,6 +120,12 @@ Retry-After: 120
 
 {"success": false, "error_code": "auth_rate_limited", "error": "Too many login attempts, please try again later"}
 ```
+
+**A request is sent to the IdP once.** When the IdP closes the connection
+before it answers, the request is not sent again on the next connection (a
+second password grant, a `refresh_token` used twice): `502
+auth_service_unavailable`, *"Authentication service closed the connection
+before answering, the request is not sent again"*.
 
 **Answers leave in the order of their requests.** A client may pipeline
 requests on one connection (RFC 9112 §9.3.2); an answer the BFF knows at
@@ -131,13 +141,28 @@ the browser session, and the answer says 0.
 `refresh_token` cookie, then clears both cookies with `Max-Age=0` and
 answers `200 {"success": true}`. With no `refresh_token` cookie (a session
 opened without one), it does not call the IdP and only clears the cookies,
-with the same answer -- if the request carries the `access_token` cookie
-(`SameSite=Strict`: a same-site request). With or without the
-`refresh_token` cookie, when `allowed_origin` is set the `Origin` must be
-exactly that: another origin, no `Origin`, `null`, or the allowed one with
-more after it is `403 origin_not_allowed`, with no call to the IdP and no
-`Set-Cookie`. A request with no cookie (no session, or a cross-site form)
-gets `200 {"success": true}` with no `Set-Cookie`: there is nothing to end.
+with the same answer -- if the request carries the `access_token` cookie.
+A request with no cookie (no session, or a cross-site form) gets `200
+{"success": true}` with no `Set-Cookie`: there is nothing to end.
+
+**The Origin of a request.** A login, a callback, a refresh, a logout with a
+cookie and a `/auth/token` are served only to the `Origin` of the SPA:
+exactly `allowed_origin` when it is set; with `allowed_origin` empty, the
+BFF's own origin (`http://` or `https://` and the `Host` of the request; a
+proxy in front must pass the `Host` on), and no `/auth/token`. Another
+origin, a sibling subdomain (it sends the `SameSite=Strict` cookies too), no
+`Origin`, `null`, or the allowed one with more after it: `403
+origin_not_allowed`, with no call to the IdP and no `Set-Cookie`. The
+`error` names the `Origin` received and the one allowed.
+
+**In development behind a proxy** (the vite dev server of a SPA, which
+rewrites only the `Host`), the `Origin` is the dev server's: give the dev
+BFF that origin, as `batches/localhost/auth_bff.1801.json` does
+(`"allowed_origin": "http://localhost:5173"`), or make the proxy send the
+allowed one (`headers: {origin: "https://<host>"}` in its `/auth` entry of
+`vite.config.js`). With the production `allowed_origin` every request of
+the dev server is `403`, a logout included, and a refused logout leaves the
+`HttpOnly` cookies: a reload restores the session.
 
 **Token cookies the BFF did not write.** A browser keeps a cookie whose name
 and value take at most 4096 bytes, and the BFF writes no bigger one (an
@@ -175,8 +200,13 @@ The IdP is configured with `issuer` (discovery through
 is that domain or one of its subdomains, the cookies carry `Domain=<cookie_domain>`
 and reach the subdomains too. When it does not match, the cookies are set
 without `Domain` (bound to the exact host) and the BFF logs a WARNING. Empty:
-the cookies never carry `Domain`. `allowed_redirect_uri` is the prefix
-a `/auth/callback` `redirect_uri` must start with (empty: not checked). The full attribute list
+the cookies never carry `Domain`. `allowed_redirect_uri` is the
+`redirect_uri` a `/auth/callback` may have: exactly it, or, when it ends
+with `/` after a scheme and a host (`https://<host>/`,
+`https://<host>/app/`), one that starts with it and whose rest is a path
+and query in it (visible ASCII, no `\`, no `#`, no `.` or `..` segment,
+nor with `%2e`): `https://<host>.evil.com/` and `https://<host>@evil/`
+never pass `https://<host>/`. Empty: not checked. The full attribute list
 (`crypto`, `pending_queue_size`, `idp_timeout_ms`, `idp_connect_timeout_ms`,
 `expose_access_token`) is the `attrs_table` of `c_auth_bff.c`.
 

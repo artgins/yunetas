@@ -66,6 +66,29 @@ gui/
   `<script src="/<name>.js">`.  `eval()` and `new Function()` are
   also forbidden by the policy.
 
+- **Log in through a BFF from the dev server: the `Origin` is the dev
+  server's.**  When `vite.config.js` proxies `/auth` to an `auth_bff`
+  (`server.proxy`, with `changeOrigin: true`), the proxy rewrites only
+  the `Host`. The BFF serves a login, refresh or logout only to the
+  `Origin` of its SPA (its `allowed_origin`), so a BFF with the
+  production `allowed_origin` answers every request of the dev server
+  `403 origin_not_allowed`, and its `error` names both origins. A logout
+  refused this way leaves the `HttpOnly` cookies, and a reload restores
+  the session. Either give the dev BFF the origin of the dev server
+  (`"allowed_origin": "http://localhost:5173"`), or make the proxy send
+  the allowed one:
+
+  ```javascript
+  proxy: {
+      "/auth": {
+          target: "https://localhost:<bff port>",
+          changeOrigin: true,
+          secure: false,
+          headers: {origin: "https://<the allowed_origin of the BFF>"}
+      }
+  }
+  ```
+
 - **Don't restyle gobj-ui internals.**  The shell owns its own DOM
   and CSS (toolbar, drawers, dropdowns, navs).  Before adding a
   selector that targets a framework hook in app CSS, see whether

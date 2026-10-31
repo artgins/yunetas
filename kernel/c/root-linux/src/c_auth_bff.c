@@ -27,9 +27,14 @@
  *    (it goes into a Set-Cookie), is refused (502 auth_unexpected_error, a
  *    WARNING naming it and the WARNING of the 502), a body longer than
  *    BFF_IDP_BODY_MAX is not read (502 auth_unexpected_error), a
- *    Retry-After of a 429 is passed on only as delay-seconds or an
- *    HTTP-date, and a lifetime is a JSON integer or the text of one
+ *    Retry-After of a 429 is passed on only as delay-seconds (1 to 10
+ *    digits) or a real HTTP-date (any of its three forms, passed on as
+ *    IMF-fixdate), and a lifetime is a JSON integer or the text of one
  *    ("300"), else its default is used, with a WARNING naming the value.
+ *    A request is sent to the IdP once: when the IdP closes the connection
+ *    before answering it, the answer is 502 auth_service_unavailable, and
+ *    the request is not sent again on the next connection (a refresh_token
+ *    used twice can end the session at the IdP).
  *    A lifetime of 0 is a token with no expiry (Keycloak's offline
  *    token): its cookie has no Max-Age (a cookie of the browser session),
  *    and the answer says 0.
@@ -58,21 +63,29 @@
  *              With no refresh_token cookie (a session opened without
  *              one) there is nothing to end at the IdP: no IdP call. The
  *              cookies are cleared only when the request carries the
- *              access_token cookie (SameSite=Strict: a same-site request);
- *              with no cookie at all the answer has no Set-Cookie. With a
- *              cookie, and allowed_origin set, the Origin must be exactly
- *              that, with or without the refresh_token cookie (else 403
- *              origin_not_allowed, no IdP call).
+ *              access_token cookie; with no cookie at all the answer has no
+ *              Set-Cookie, whatever its Origin.
+ *      Returns { "success": true }.
+ *
+ *    The Origin of a request: /auth/login, /auth/callback, /auth/refresh
+ *    and a /auth/logout with a cookie read or change the session, so their
+ *    Origin must be the SPA's (else 403 origin_not_allowed, no IdP call):
+ *    exactly allowed_origin when it is set; with allowed_origin unset the
+ *    BFF serves its own origin only, and the Origin must be "http://" or
+ *    "https://" followed by the Host of the request. SameSite=Strict says
+ *    same SITE, not same origin: a sibling subdomain sends the cookies too,
+ *    and a POST with no body needs no CORS preflight. A missing Origin or
+ *    "null" is refused: a browser sends Origin with every POST.
  *
  *    A token cookie longer than any the BFF writes (name and value over
  *    BFF_COOKIE_MAX) is not one of its cookies: 400 token_too_large, in
  *    /auth/refresh, /auth/logout and /auth/token alike.
  *
  *    The values put in the form to the IdP (credentials, code, the
- *    refresh_token of a cookie) are form-urlencoded by C_PROT_HTTP_CL.
+ *    refresh_token of a cookie) are form-urlencoded by C_PROT_HTTP_CL, and
+ *    passed whole: the BFF keeps no copy of them in a buffer of its own.
  *    Answers leave in the order of their requests (pipelining): an answer
  *    known at once waits behind a request still at the IdP.
- *      Returns { "success": true }.
  *
  *    POST /auth/token
  *      Reads the "access_token" httpOnly cookie from the request.
@@ -120,6 +133,7 @@
 #include <strings.h>    /* strcasecmp(), strcasestr() */
 #include <stdio.h>
 #include <limits.h>
+#include <time.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -149,7 +163,8 @@
  *
  *  The compile-time ceiling MAX_PENDING_QUEUE_SIZE is a safety cap so
  *  a misconfigured attr can't silently allocate gigabytes: each
- *  PENDING_AUTH entry is ~4 KB, so 1024 slots ≈ 4 MB per channel.
+ *  PENDING_AUTH entry holds the json of one request (its credentials,
+ *  code or refresh_token, a few KB).
  */
 #define DEFAULT_PENDING_QUEUE_SIZE    16
 #define MAX_PENDING_QUEUE_SIZE      1024
@@ -182,15 +197,17 @@
 #define BFF_IDP_BODY_MAX    (1024*1024)
 
 /*
- *  The longest host name (RFC 1035: 253 bytes in its text form). The
- *  Host of a request is kept in 255 bytes (PENDING_AUTH.client_host), and
- *  the length of its name is measured on the whole Host before that
- *  (client_host_name_len): a host name always fits, so what can be cut
- *  is the end of its port (which the Domain check does not read) or a
- *  host name too long to be one, which effective_cookie_domain() refuses,
- *  naming its real length.
+ *  The longest host name (RFC 1035: 253 bytes in its text form): a Host
+ *  whose name is longer is not one, and effective_cookie_domain() refuses
+ *  it, naming its length.
  */
 #define BFF_HOST_NAME_MAX   253
+
+/*
+ *  The longest delay-seconds of a Retry-After passed on: 10 digits are
+ *  more than 300 years, so a longer one is not a delay of an IdP.
+ */
+#define BFF_RETRY_AFTER_DIGITS_MAX  10
 
 /*
  *  The Max-Age of a cookie whose token has no lifetime from the IdP: the
@@ -230,15 +247,7 @@ typedef enum {
 typedef struct _PENDING_AUTH {
     DL_ITEM_FIELDS
     bff_action_t action;
-    char        code[2048];             /* /auth/callback: authorization code */
-    char        code_verifier[256];     /* /auth/callback: PKCE verifier */
-    char        redirect_uri[1024];     /* /auth/callback: redirect URI */
-    char        username[256];          /* /auth/login: username */
-    char        password[256];          /* /auth/login: password */
-    char        refresh_token[BFF_TOKEN_MAX];   /* /auth/refresh + /auth/logout */
-    char        client_origin[512];     /* Origin header (for CORS) */
-    char        client_host[256];       /* Host header (for cookie domain check) */
-    int         client_host_name_len;   /* length of the Host name, measured before the cut */
+    json_t      *jn_request;            /* a request for the IdP, owned: the output_data of its task (see read_request) */
     json_t      *answer;                /* an answer built, waiting for its turn (see send_json_response); NULL: a request for the IdP */
 } PENDING_AUTH;
 
@@ -259,7 +268,10 @@ PRIVATE void free_pending(void *item);
 PRIVATE void queue_answer(hgobj gobj, hgobj browser, json_t *kw_resp);
 PRIVATE void send_answers_in_turn(hgobj gobj);
 PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src);
-PRIVATE BOOL logout_origin_allowed(hgobj gobj, const char *origin);
+PRIVATE BOOL request_origin_allowed(hgobj gobj, const char *endpoint,
+    const char *origin, const char *host, char *why, size_t why_size
+);
+PRIVATE BOOL redirect_uri_is_prefix(const char *allowed_ruri);
 PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     int status_code, const char *status_text,
     const char *error_code, const char *error_msg,
@@ -329,8 +341,8 @@ SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC e
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
 SDATA (DTP_STRING,      "client_secret",        SDF_RD|SDF_SECRET, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
-SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
-SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
+SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "The origin of the SPA (e.g. https://app.example.com): the CORS Access-Control-Allow-Origin, and the one Origin whose login, callback, refresh, logout and token are served (else 403). Empty: no CORS, and the Origin must be this BFF's own, http(s):// and the Host of the request"),
+SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "The redirect_uri a callback may have: exactly this; or, when it ends with '/' after its scheme and host (e.g. https://app.example.com/app/), a redirect_uri starting with it whose rest is a path and query in it (visible ASCII, no '\\', no '#', no '.' or '..' segment). Empty: not checked"),
 SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in relaxation of the httpOnly-cookie rule: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
 SDATA (DTP_DICT,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
@@ -475,6 +487,21 @@ PRIVATE void mt_create(hgobj gobj)
         requested = MAX_PENDING_QUEUE_SIZE;
     }
     priv->queue_size_max = requested;
+
+    const char *allowed_ruri = gobj_read_str_attr(gobj, "allowed_redirect_uri");
+    size_t allowed_ruri_len = strlen(allowed_ruri? allowed_ruri : "");
+    if(allowed_ruri_len > 0 && allowed_ruri[allowed_ruri_len-1] == '/' &&
+            !redirect_uri_is_prefix(allowed_ruri)) {
+        gobj_log_error(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_PARAMETER,
+            "msg",                  "%s", "👤BFF allowed_redirect_uri ends with '/' with no "
+                                          "scheme and host before it: a redirect_uri must be "
+                                          "exactly it",
+            "allowed_redirect_uri", "%s", allowed_ruri,
+            NULL
+        );
+    }
 
     /*
      *  Name for idp gobjs
@@ -1150,65 +1177,356 @@ PRIVATE int first_non_cookie_octet(const char *value)
 }
 
 /***************************************************************************
- *  A Retry-After of the IdP that the BFF can pass on (RFC 9110 §10.2.3):
- *  delay-seconds (1 to 10 digits) or an HTTP-date in its IMF-fixdate form
- *  ("Sun, 06 Nov 1994 08:49:37 GMT"). Anything else -- another date form,
- *  a sign, a byte that is not of these -- is not passed on, so a value of
- *  the IdP can never write more than this one header.
+ *  Read `n` digits at *p into *v, moving *p past them
  ***************************************************************************/
-PRIVATE BOOL retry_after_is_valid(const char *value)
+PRIVATE BOOL take_digits(const char **p, int n, int *v)
 {
-    size_t len = strlen(value);
-    if(len >= 1 && len <= 10 && strspn(value, "0123456789") == len) {
-        return TRUE;
-    }
-    /*  IMF-fixdate: "Www, DD Mmm YYYY HH:MM:SS GMT", 29 bytes  */
-    static const char *days[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
-    static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-    static const char shape[] = "xxx, 00 xxx 0000 00:00:00 GMT";   /* x: a name, 0: a digit */
-    if(len != sizeof(shape) - 1) {
-        return FALSE;
-    }
-    for(size_t i = 0; i < len; i++) {
-        char c = value[i];
-        if(shape[i] == '0') {
-            if(c < '0' || c > '9') {
-                return FALSE;
-            }
-        } else if(shape[i] != 'x' && c != shape[i]) {
+    int value = 0;
+    for(int i = 0; i < n; i++) {
+        char c = (*p)[i];
+        if(c < '0' || c > '9') {
             return FALSE;
         }
+        value = value*10 + (c - '0');
     }
-    BOOL day_ok = FALSE;
-    for(size_t i = 0; i < sizeof(days)/sizeof(days[0]); i++) {
-        if(strncmp(value, days[i], 3) == 0) {
-            day_ok = TRUE;
-        }
-    }
-    BOOL month_ok = FALSE;
-    for(size_t i = 0; i < sizeof(months)/sizeof(months[0]); i++) {
-        if(strncmp(value + 8, months[i], 3) == 0) {
-            month_ok = TRUE;
-        }
-    }
-    return day_ok && month_ok;
+    *p += n;
+    *v = value;
+    return TRUE;
 }
 
 /***************************************************************************
- *  /auth/logout ends a session, so it is refused to a request from another
- *  origin: with allowed_origin set, the Origin must be exactly it (a
- *  missing Origin, "null", or any other text is not). With allowed_origin
- *  unset, the BFF serves its own origin only (no CORS) and the cookies,
- *  SameSite=Strict, are the check.
+ *  Read the literal `text` at *p, moving *p past it
  ***************************************************************************/
-PRIVATE BOOL logout_origin_allowed(hgobj gobj, const char *origin)
+PRIVATE BOOL take_text(const char **p, const char *text)
 {
-    const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
-    if(empty_string(allowed_origin)) {
+    size_t len = strlen(text);
+    if(strncmp(*p, text, len) != 0) {
+        return FALSE;
+    }
+    *p += len;
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Read one of `count` names at *p (case-sensitive, as RFC 9110 writes
+ *  them), moving *p past it: its index in *idx
+ ***************************************************************************/
+PRIVATE BOOL take_name(const char **p, const char *const *names, int count, int *idx)
+{
+    for(int i = 0; i < count; i++) {
+        if(take_text(p, names[i])) {
+            *idx = i;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  "HH:MM:SS", 00:00:00 to 23:59:60 (a leap second)
+ ***************************************************************************/
+PRIVATE BOOL take_time_of_day(const char **p, int *hour, int *min, int *sec)
+{
+    return take_digits(p, 2, hour) && take_text(p, ":") &&
+        take_digits(p, 2, min) && take_text(p, ":") &&
+        take_digits(p, 2, sec) &&
+        *hour <= 23 && *min <= 59 && *sec <= 60;
+}
+
+/***************************************************************************
+ *  The days from 1970-01-01 to a date of the proleptic Gregorian calendar
+ *  (month 1 to 12): no time zone, no libc
+ ***************************************************************************/
+PRIVATE long days_from_civil(int year, int month, int day)
+{
+    long y = month <= 2? year - 1 : year;
+    long era = (y >= 0? y : y - 399) / 400;
+    long yoe = y - era * 400;
+    long doy = (153 * (month > 2? month - 3 : month + 9) + 2) / 5 + day - 1;
+    long doe = yoe * 365 + yoe/4 - yoe/100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+/***************************************************************************
+ *  A Retry-After of the IdP that the BFF can pass on (RFC 9110 §10.2.3),
+ *  written in `out`:
+ *    - delay-seconds of 1 to BFF_RETRY_AFTER_DIGITS_MAX digits, as it is;
+ *    - an HTTP-date in any of its three forms, IMF-fixdate
+ *      "Sun, 06 Nov 1994 08:49:37 GMT", RFC 850
+ *      "Sunday, 06-Nov-94 08:49:37 GMT" or asctime
+ *      "Sun Nov  6 08:49:37 1994", that is a date (its day in its month,
+ *      00:00:00 to 23:59:60, its day-name the one of that day), written as
+ *      IMF-fixdate, the form a sender must write. A two-digit year more
+ *      than 50 years ahead is the latest such year in the past (§5.6.7).
+ *  The blanks around the value (OWS) are not part of it. Anything else,
+ *  a list of values ("120, 60") among them, is not passed on (FALSE), so
+ *  a value of the IdP can never write more than this one header.
+ ***************************************************************************/
+PRIVATE BOOL read_retry_after(const char *value, char *out, size_t out_size)
+{
+    static const char *const days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    static const char *const days_long[] = {"Sunday", "Monday", "Tuesday", "Wednesday",
+        "Thursday", "Friday", "Saturday"};
+    static const char *const months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+    while(*value == ' ' || *value == '\t') {
+        value++;
+    }
+    size_t len = strlen(value);
+    while(len > 0 && (value[len-1] == ' ' || value[len-1] == '\t')) {
+        len--;
+    }
+    char text[64];
+    if(len == 0 || len >= sizeof(text)) {
+        return FALSE;
+    }
+    memcpy(text, value, len);
+    text[len] = '\0';
+
+    if(strspn(text, "0123456789") == len) {
+        if(len > BFF_RETRY_AFTER_DIGITS_MAX) {
+            return FALSE;
+        }
+        snprintf(out, out_size, "%s", text);
         return TRUE;
     }
-    return strcmp(origin? origin : "", allowed_origin) == 0;
+
+    int wday = 0, day = 0, month = 0, year = 0, hour = 0, min = 0, sec = 0;
+    BOOL read = FALSE;
+    const char *imf = text;
+    const char *rfc850 = text;
+    const char *asctime_ = text;
+    const char *p = text;
+    if(take_name(&imf, days, 7, &wday) && take_text(&imf, ", ")) {
+        /*  IMF-fixdate  */
+        p = imf;
+        read = take_digits(&p, 2, &day) && take_text(&p, " ") &&
+            take_name(&p, months, 12, &month) && take_text(&p, " ") &&
+            take_digits(&p, 4, &year) && take_text(&p, " ") &&
+            take_time_of_day(&p, &hour, &min, &sec) && take_text(&p, " GMT");
+    } else if(take_name(&rfc850, days_long, 7, &wday) && take_text(&rfc850, ", ")) {
+        /*  RFC 850  */
+        int yy = 0;
+        p = rfc850;
+        read = take_digits(&p, 2, &day) && take_text(&p, "-") &&
+            take_name(&p, months, 12, &month) && take_text(&p, "-") &&
+            take_digits(&p, 2, &yy) && take_text(&p, " ") &&
+            take_time_of_day(&p, &hour, &min, &sec) && take_text(&p, " GMT");
+        if(read) {
+            struct tm now;
+            time_t t = time(NULL);
+            gmtime_r(&t, &now);
+            int this_year = now.tm_year + 1900;
+            year = this_year - this_year % 100 + yy;
+            if(year > this_year + 50) {
+                year -= 100;
+            }
+        }
+    } else if(take_name(&asctime_, days, 7, &wday) && take_text(&asctime_, " ")) {
+        /*  asctime: the day is two digits, or a space and one  */
+        p = asctime_;
+        read = take_name(&p, months, 12, &month) && take_text(&p, " ");
+        if(read && *p == ' ') {
+            p++;
+            read = take_digits(&p, 1, &day);
+        } else if(read) {
+            read = take_digits(&p, 2, &day);
+        }
+        read = read && take_text(&p, " ") &&
+            take_time_of_day(&p, &hour, &min, &sec) && take_text(&p, " ") &&
+            take_digits(&p, 4, &year);
+    }
+    if(!read || *p != '\0') {
+        return FALSE;
+    }
+
+    static const int month_days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    BOOL leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    int days_in_month = month_days[month] + (month == 1 && leap? 1 : 0);
+    if(day < 1 || day > days_in_month) {
+        return FALSE;
+    }
+    long days_since_epoch = days_from_civil(year, month + 1, day);
+    int real_wday = (int)(((days_since_epoch % 7) + 11) % 7);   /* 1970-01-01 was a Thursday */
+    if(real_wday != wday) {
+        return FALSE;
+    }
+    snprintf(out, out_size, "%s, %02d %s %04d %02d:%02d:%02d GMT",
+        days[wday], day, months[month], year, hour, min, sec);
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A text of a peer said in a 403: itself, quoted, when it is visible
+ *  ASCII and short (an Origin or a Host are), else its length
+ ***************************************************************************/
+PRIVATE void quote_peer_text(char *buf, size_t size, const char *text)
+{
+    size_t len = strlen(text);
+    if(len == 0) {
+        snprintf(buf, size, "none");
+        return;
+    }
+    BOOL visible = len <= 128;
+    for(size_t i = 0; visible && i < len; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if(c < 0x21 || c > 0x7E) {
+            visible = FALSE;
+        }
+    }
+    if(visible) {
+        snprintf(buf, size, "'%s'", text);
+    } else {
+        snprintf(buf, size, "a text of %zu bytes", len);
+    }
+}
+
+/***************************************************************************
+ *  A request that reads or changes the session (/auth/login,
+ *  /auth/callback, /auth/refresh, a /auth/logout with a cookie) is
+ *  refused to any other origin than the SPA's. The cookies are
+ *  SameSite=Strict, but that says same SITE, not same origin: a sibling
+ *  subdomain sends them too, and a POST with no body (a refresh, a logout)
+ *  needs no CORS preflight, so it reaches the BFF.
+ *    - allowed_origin set: the Origin must be exactly it.
+ *    - allowed_origin unset: the BFF serves its own origin only, and the
+ *      Origin must be "http://" or "https://" followed by the Host of the
+ *      request (a proxy in front must pass the Host on).
+ *  A missing Origin, "null", or any other text is not (a browser sends
+ *  Origin with every POST, same-origin included). On a refusal `why` says
+ *  the Origin received and the one expected, for the 403 and its WARNING.
+ ***************************************************************************/
+PRIVATE BOOL request_origin_allowed(hgobj gobj, const char *endpoint,
+    const char *origin, const char *host, char *why, size_t why_size)
+{
+    const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
+    if(!origin) {
+        origin = "";
+    }
+    if(!host) {
+        host = "";
+    }
+    if(!empty_string(allowed_origin)) {
+        if(strcmp(origin, allowed_origin) == 0) {
+            return TRUE;
+        }
+    } else if(!empty_string(host)) {
+        const char *rest = NULL;
+        if(strncmp(origin, "https://", 8) == 0) {
+            rest = origin + 8;
+        } else if(strncmp(origin, "http://", 7) == 0) {
+            rest = origin + 7;
+        }
+        if(rest && strcasecmp(rest, host) == 0) {
+            return TRUE;
+        }
+    }
+
+    char quoted_origin[160];
+    quote_peer_text(quoted_origin, sizeof(quoted_origin), origin);
+    if(!empty_string(allowed_origin)) {
+        snprintf(why, why_size,
+            "Origin %s not allowed for %s: allowed_origin is '%s'",
+            quoted_origin, endpoint, allowed_origin);
+    } else {
+        char quoted_host[160];
+        quote_peer_text(quoted_host, sizeof(quoted_host), host);
+        snprintf(why, why_size,
+            "Origin %s not allowed for %s: allowed_origin is not set, so the "
+            "Origin must be this BFF's own, http:// or https:// and the Host (%s)",
+            quoted_origin, endpoint, quoted_host);
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  allowed_redirect_uri is a prefix, not a whole redirect_uri, when it
+ *  ends with "/" right after a scheme and a host or after a path
+ *  ("https://app.example.com/", "https://app.example.com/app/"): what
+ *  follows cannot change the host then.
+ ***************************************************************************/
+PRIVATE BOOL redirect_uri_is_prefix(const char *allowed_ruri)
+{
+    size_t len = strlen(allowed_ruri);
+    if(len == 0 || allowed_ruri[len-1] != '/') {
+        return FALSE;
+    }
+    const char *authority = strstr(allowed_ruri, "://");
+    if(!authority || authority == allowed_ruri) {
+        return FALSE;
+    }
+    authority += 3;
+    const char *path = strchr(authority, '/');
+    return path && path > authority;
+}
+
+/***************************************************************************
+ *  A segment of a path that is "." or "..", with each dot as it is or as
+ *  %2e (RFC 3986 §6.2.2.2: a dot-segment, once decoded)
+ ***************************************************************************/
+PRIVATE BOOL is_dot_segment(const char *seg, size_t len)
+{
+    int dots = 0;
+    for(size_t i = 0; i < len; ) {
+        if(seg[i] == '.') {
+            i++;
+        } else if(i + 2 < len && seg[i] == '%' && seg[i+1] == '2' &&
+                (seg[i+2] == 'e' || seg[i+2] == 'E')) {
+            i += 3;
+        } else {
+            return FALSE;
+        }
+        dots++;
+    }
+    return dots == 1 || dots == 2;
+}
+
+/***************************************************************************
+ *  The redirect_uri of a /auth/callback that allowed_redirect_uri lets go
+ *  to the IdP:
+ *    - allowed_redirect_uri empty: any (not checked);
+ *    - a prefix (redirect_uri_is_prefix()): a redirect_uri that starts with
+ *      it and whose rest stays in it: visible ASCII only, no "\" (a
+ *      browser reads it as "/"), no "#" (RFC 6749 §3.1.2: no fragment), no
+ *      "." or ".." segment before its query (nor with a dot as %2e);
+ *    - else: exactly it.
+ *  So "https://app.example.com.evil.com/" and "https://app.example.com@evil/"
+ *  never pass "https://app.example.com/", nor "https://app.example.com/app/../x"
+ *  "https://app.example.com/app/".
+ ***************************************************************************/
+PRIVATE BOOL redirect_uri_allowed(const char *allowed_ruri, const char *ruri)
+{
+    if(empty_string(allowed_ruri)) {
+        return TRUE;
+    }
+    if(!redirect_uri_is_prefix(allowed_ruri)) {
+        return strcmp(ruri, allowed_ruri) == 0;
+    }
+    size_t prefix_len = strlen(allowed_ruri);
+    if(strncmp(ruri, allowed_ruri, prefix_len) != 0) {
+        return FALSE;
+    }
+    const char *rest = ruri + prefix_len;
+    for(const char *c = rest; *c; c++) {
+        unsigned char b = (unsigned char)*c;
+        if(b < 0x21 || b > 0x7E || b == '\\' || b == '#') {
+            return FALSE;
+        }
+    }
+    size_t path_len = strcspn(rest, "?");
+    const char *seg = rest;
+    while(seg <= rest + path_len) {
+        size_t seg_len = strcspn(seg, "/?");
+        if(seg + seg_len > rest + path_len) {
+            seg_len = (size_t)(rest + path_len - seg);
+        }
+        if(is_dot_segment(seg, seg_len)) {
+            return FALSE;
+        }
+        seg += seg_len + 1;
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -1227,9 +1545,7 @@ PRIVATE BOOL logout_origin_allowed(hgobj gobj, const char *origin)
  *  (BFF_HOST_NAME_MAX) gets no Domain, with a WARNING.
  *
  *  `host_name_len` is the length of the name of the Host (without its
- *  port) measured on the whole Host of the request, before it was cut to
- *  fit PENDING_AUTH.client_host: `request_host` holds all of a name that
- *  is not longer than BFF_HOST_NAME_MAX.
+ *  port), the bytes of `request_host` before its ':'.
  ***************************************************************************/
 PRIVATE const char *effective_cookie_domain(
     hgobj gobj,
@@ -1711,6 +2027,7 @@ PRIVATE int enqueue(hgobj gobj, const PENDING_AUTH *pa)
     }
     *entry = *pa;
     entry->answer = NULL;
+    entry->jn_request = json_incref(pa->jn_request);
     dl_add(&priv->dl_pending, entry);
 
     priv->st_requests_total++;
@@ -1782,6 +2099,7 @@ PRIVATE void free_pending(void *item)
 {
     PENDING_AUTH *pa = item;
     JSON_DECREF(pa->answer)
+    JSON_DECREF(pa->jn_request)
     gbmem_free(pa);
 }
 
@@ -1831,12 +2149,12 @@ PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
             continue;
         }
         char cors_hdrs[1024];
-        build_cors_headers(gobj, pa->client_origin,
+        build_cors_headers(gobj, kw_get_str(gobj, pa->jn_request, "_origin", "", 0),
             cors_hdrs, sizeof(cors_hdrs), FALSE);
         send_error_response(gobj, gobj_bottom_gobj(gobj),
             status_code, status_str(status_code),
             error_code, error_msg, cors_hdrs);
-        GBMEM_FREE(pa)
+        free_pending(pa);
     }
 }
 
@@ -2083,16 +2401,18 @@ PRIVATE json_t *send_token_to_browser(
             json_t *jn_idp_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
             const char *retry_after = jn_idp_headers?
                 kw_get_str(gobj, jn_idp_headers, "RETRY-AFTER", "", 0) : "";
-            if(retry_after_is_valid(retry_after)) {
+            char retry_after_out[64];
+            if(read_retry_after(retry_after, retry_after_out, sizeof(retry_after_out))) {
                 size_t n = strlen(extra_hdrs);
                 snprintf(extra_hdrs + n, sizeof(extra_hdrs) - n,
-                    "Retry-After: %s\r\n", retry_after);
+                    "Retry-After: %s\r\n", retry_after_out);
             } else if(!empty_string(retry_after)) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PROTOCOL,
                     "msg",          "%s", "👤BFF IdP answered a Retry-After that is not "
-                                          "delay-seconds nor an HTTP-date, not passed on",
+                                          "delay-seconds (1 to 10 digits) nor an HTTP-date, "
+                                          "not passed on",
                     "action",       "%s", action_name(action),
                     "value",        "%.64s", retry_after,
                     NULL
@@ -2165,6 +2485,8 @@ PRIVATE json_t *send_token_to_browser(
         const char *token = at_bad >= 0? COOKIE_NAME_AT : COOKIE_NAME_RT;
         const char *value = at_bad >= 0? access_token : refresh_token;
         int pos = at_bad >= 0? at_bad : rt_bad;
+        char byte_hex[8];
+        snprintf(byte_hex, sizeof(byte_hex), "0x%02X", (unsigned)(unsigned char)value[pos]);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
@@ -2172,13 +2494,13 @@ PRIVATE json_t *send_token_to_browser(
             "action",       "%s", action_name(action),
             "token",        "%s", token,
             "position",     "%d", pos,
-            "byte",         "0x%02X", (unsigned)(unsigned char)value[pos],
+            "byte",         "%s", byte_hex,
             NULL
         );
         char error_msg[128];
         snprintf(error_msg, sizeof(error_msg),
-            "Authentication service answered a %s with a byte a cookie cannot carry",
-            token);
+            "Authentication service answered %s with a byte a cookie cannot carry",
+            at_bad >= 0? "an access_token" : "a refresh_token");
         send_idp_answer_refused(gobj, gobj_bottom_gobj(gobj),
             "auth_unexpected_error", error_msg, cors_hdrs);
         KW_DECREF(kw)
@@ -2361,6 +2683,36 @@ PRIVATE json_t *send_token_to_browser(
 }
 
 /***************************************************************************
+ *  C_TASK runs the job of a task again each time the connection to the
+ *  IdP opens, so a request whose connection closed before its answer (the
+ *  IdP restarted, an answer the HTTP client could not parse) would be sent
+ *  again on the next one: a second password grant, or a refresh_token
+ *  used twice, which an IdP that rotates them takes for a stolen one. A
+ *  request is sent once: run again, the job answers the browser 502
+ *  auth_service_unavailable (TRUE: the caller ends the task).
+ ***************************************************************************/
+PRIVATE BOOL idp_request_sent_before(hgobj gobj, json_t *output_data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!kw_get_bool(gobj, output_data, "_sent", FALSE, 0)) {
+        json_object_set_new(output_data, "_sent", json_true());
+        return FALSE;
+    }
+    priv->st_idp_errors++;
+    if(priv->task_valid) {
+        char cors_hdrs[1024];
+        build_cors_headers(gobj, kw_get_str(gobj, output_data, "_origin", "", 0),
+            cors_hdrs, sizeof(cors_hdrs), FALSE);
+        send_error_response(gobj, gobj_bottom_gobj(gobj), 502, status_str(502),
+            "auth_service_unavailable",
+            "Authentication service closed the connection before answering, "
+            "the request is not sent again", cors_hdrs);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  Send the authorization_code or refresh_token request to IdP.
  ***************************************************************************/
 PRIVATE json_t *get_token_from_idp(
@@ -2375,6 +2727,12 @@ PRIVATE json_t *get_token_from_idp(
     json_t *output_data = gobj_read_json_attr(src_task, "output_data");
     bff_action_t action = (bff_action_t)kw_get_int(
         gobj, output_data, "_action", 0, KW_REQUIRED);
+
+    if(idp_request_sent_before(gobj, output_data)) {
+        // Error already logged
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     char resource[PATH_MAX];
     {
@@ -2496,6 +2854,12 @@ PRIVATE json_t *get_logout_from_idp(
     const char *client_id = gobj_read_str_attr(gobj, "client_id");
     const char *cs        = gobj_read_str_attr(gobj, "client_secret");
 
+    if(idp_request_sent_before(gobj, output_data)) {
+        // Error already logged
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
     char resource[PATH_MAX];
     {
         char ep_schema[32], ep_host[256], ep_port[16];
@@ -2595,13 +2959,11 @@ PRIVATE void send_logout_success_to_browser(
 
 /***************************************************************************
  *  A logout with no refresh_token cookie: nothing to end at the IdP.
- *  The cookies are SameSite=Strict, so a cross-site request carries none
- *  of them, and its answer must not be able to end the session:
  *    - no access_token cookie either: 200 success with NO Set-Cookie, there
- *      is nothing to end;
- *    - the access_token cookie (it proves a same-site request): when
- *      allowed_origin is configured, the Origin must be exactly it, else
- *      403 origin_not_allowed; then both cookies are cleared, 200 success.
+ *      is nothing to end (a cross-site request carries no cookie);
+ *    - the access_token cookie: the Origin of the SPA
+ *      (request_origin_allowed()), else 403 origin_not_allowed; then both
+ *      cookies are cleared, 200 success.
  ***************************************************************************/
 PRIVATE void answer_logout_without_refresh_token(
     hgobj gobj,
@@ -2623,10 +2985,10 @@ PRIVATE void answer_logout_without_refresh_token(
         return;
     }
 
-    if(!logout_origin_allowed(gobj, origin)) {
+    char why[512];
+    if(!request_origin_allowed(gobj, "/auth/logout", origin, request_host, why, sizeof(why))) {
         send_error_response(gobj, browser, 403, status_str(403),
-            "origin_not_allowed",
-            "Origin not allowed for /auth/logout", cors_hdrs);
+            "origin_not_allowed", why, cors_hdrs);
         return;
     }
 
@@ -2905,26 +3267,15 @@ PRIVATE void process_next(hgobj gobj)
     }
 
     /*
-     *  Build the task output_data.  The browser-identity gate is now
+     *  The task output_data is the request. The browser-identity gate is
      *  a BOOL on priv (task_valid) rather than a per-request generation,
      *  because the queue is flushed on browser disconnect — so at most
      *  one task is in flight and its validity is binary.
      */
-    json_t *kw_output = json_pack("{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:i}",
-        "_action",         (int)pa->action,
-        "_code",           pa->code,
-        "_code_verifier",  pa->code_verifier,
-        "_redirect_uri",   pa->redirect_uri,
-        "_username",       pa->username,
-        "_password",       pa->password,
-        "_refresh_token",  pa->refresh_token,
-        "_origin",         pa->client_origin,
-        "_host",           pa->client_host,
-        "_host_name_len",  pa->client_host_name_len
-    );
-
+    json_t *kw_output = pa->jn_request;
+    pa->jn_request = NULL;
     bff_action_t action = pa->action;
-    GBMEM_FREE(pa)
+    free_pending(pa);
 
     /*
      *  Timeout for the IdP round-trip, applied at two levels because one
@@ -3098,7 +3449,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
         dl_flush(&priv->dl_pending, free_pending);
-    priv->q_answers = 0;
+        priv->q_answers = 0;
 
         if(priv->processing) {
             priv->task_valid = FALSE;
@@ -3117,9 +3468,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  processing=TRUE and block any request from the next
              *  browser for the full timeout window.  Stopped, a task
              *  publishes no end (an end already decided included), and
-             *  nothing destroys it but its owner: up to 7.26.9 the
-             *  comment here said its ac_stopped would, and every task
-             *  abandoned so stayed a stopped child of this BFF.
+             *  nothing destroys it but its owner, here.
              */
             if(priv->gobj_task) {
                 hgobj task = priv->gobj_task;
@@ -3242,14 +3591,24 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         return 0;
     }
 
+    /*
+     *  The request for the IdP is the output_data of its task: the values
+     *  of the browser are kept whole, as json, and form-urlencoded into the
+     *  form to the IdP by C_PROT_HTTP_CL
+     */
     PENDING_AUTH pa;
     memset(&pa, 0, sizeof(pa));
-    snprintf(pa.client_origin, sizeof(pa.client_origin), "%s", origin);
-    snprintf(pa.client_host, sizeof(pa.client_host), "%s", host_hdr);
-    pa.client_host_name_len = (int)strcspn(host_hdr, ":");
+    size_t host_name_len = strcspn(host_hdr, ":");
+    char why[512];
 
     if(strcmp(url, "/auth/callback") == 0) {
         /* POST /auth/callback  { code, code_verifier, redirect_uri } */
+        if(!request_origin_allowed(gobj, url, origin, host_hdr, why, sizeof(why))) {
+            send_error_response(gobj, src, 403, status_str(403),
+                "origin_not_allowed", why, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
         if(!jn_body) {
             send_error_response(gobj, src, 400, status_str(400),
                 "missing_body", "Missing JSON body", cors_hdrs);
@@ -3269,13 +3628,11 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         }
 
         /*
-         *  Validate redirect_uri against the configured allowed prefix.
-         *  This prevents the BFF from forwarding arbitrary redirect URIs to
-         *  IdP, which could be exploited in phishing/open-redirect attacks.
+         *  The BFF does not forward a redirect_uri that allowed_redirect_uri
+         *  does not allow: an open redirect of the code (see
+         *  redirect_uri_allowed()).
          */
-        const char *allowed_ruri = gobj_read_str_attr(gobj, "allowed_redirect_uri");
-        if(!empty_string(allowed_ruri) &&
-                strncmp(ruri, allowed_ruri, strlen(allowed_ruri)) != 0) {
+        if(!redirect_uri_allowed(gobj_read_str_attr(gobj, "allowed_redirect_uri"), ruri)) {
             send_error_response(gobj, src, 400, status_str(400),
                 "redirect_uri_not_allowed", "redirect_uri not allowed", cors_hdrs);
             KW_DECREF(kw)
@@ -3283,9 +3640,11 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         }
 
         pa.action = BFF_CALLBACK;
-        snprintf(pa.code,          sizeof(pa.code),          "%s", code);
-        snprintf(pa.code_verifier, sizeof(pa.code_verifier), "%s", cv);
-        snprintf(pa.redirect_uri,  sizeof(pa.redirect_uri),  "%s", ruri);
+        pa.jn_request = json_pack("{s:s, s:s, s:s}",
+            "_code",            code,
+            "_code_verifier",   cv,
+            "_redirect_uri",    ruri
+        );
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
                 "👤BFF /auth/callback: code_len=%zu cv_len=%zu redirect_uri=%s",
@@ -3295,6 +3654,12 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
 
     } else if(strcmp(url, "/auth/login") == 0) {
         /* POST /auth/login  { username, password } — Direct Access Grant (ROPC) */
+        if(!request_origin_allowed(gobj, url, origin, host_hdr, why, sizeof(why))) {
+            send_error_response(gobj, src, 403, status_str(403),
+                "origin_not_allowed", why, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
         if(!jn_body) {
             send_error_response(gobj, src, 400, status_str(400),
                 "missing_body", "Missing JSON body", cors_hdrs);
@@ -3313,8 +3678,10 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         }
 
         pa.action = BFF_LOGIN;
-        snprintf(pa.username, sizeof(pa.username), "%s", username);
-        snprintf(pa.password, sizeof(pa.password), "%s", password);
+        pa.jn_request = json_pack("{s:s, s:s}",
+            "_username",    username,
+            "_password",    password
+        );
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
                 "👤BFF /auth/login: username=%s password=<%zu chars>",
@@ -3324,6 +3691,12 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
 
     } else if(strcmp(url, "/auth/refresh") == 0) {
         /* POST /auth/refresh  (reads httpOnly cookie) */
+        if(!request_origin_allowed(gobj, url, origin, host_hdr, why, sizeof(why))) {
+            send_error_response(gobj, src, 403, status_str(403),
+                "origin_not_allowed", why, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
         char rt[BFF_TOKEN_MAX];
         size_t rt_len = 0;
         token_cookie_t found = read_token_cookie(cookie_hdr, COOKIE_NAME_RT, rt, &rt_len);
@@ -3340,7 +3713,7 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
             return 0;
         }
         pa.action = BFF_REFRESH;
-        snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
+        pa.jn_request = json_pack("{s:s}", "_refresh_token", rt);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj, "👤BFF /auth/refresh: rt_len=%zu", strlen(rt));
         }
@@ -3357,19 +3730,18 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         }
         if(found == TOKEN_COOKIE_ABSENT) {
             answer_logout_without_refresh_token(gobj, src, cors_hdrs,
-                cookie_hdr, origin, host_hdr, (size_t)pa.client_host_name_len);
+                cookie_hdr, origin, host_hdr, host_name_len);
             KW_DECREF(kw)
             return 0;
         }
-        if(!logout_origin_allowed(gobj, origin)) {
+        if(!request_origin_allowed(gobj, url, origin, host_hdr, why, sizeof(why))) {
             send_error_response(gobj, src, 403, status_str(403),
-                "origin_not_allowed",
-                "Origin not allowed for /auth/logout", cors_hdrs);
+                "origin_not_allowed", why, cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
         pa.action = BFF_LOGOUT;
-        snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
+        pa.jn_request = json_pack("{s:s}", "_refresh_token", rt);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj, "👤BFF /auth/logout: rt_len=%zu", strlen(rt));
         }
@@ -3404,10 +3776,17 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
          *  403, never the token).  A missing or mismatched Origin → 403.
          */
         const char *token_origin = gobj_read_str_attr(gobj, "allowed_origin");
-        if(empty_string(token_origin) || strcmp(origin, token_origin) != 0) {
+        if(empty_string(token_origin)) {
             send_error_response(gobj, src, 403, status_str(403),
                 "origin_not_allowed",
-                "Origin not allowed for /auth/token", cors_hdrs);
+                "Origin not allowed for /auth/token: allowed_origin is not set, "
+                "and the token is given only to it", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(!request_origin_allowed(gobj, url, origin, host_hdr, why, sizeof(why))) {
+            send_error_response(gobj, src, 403, status_str(403),
+                "origin_not_allowed", why, cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -3452,7 +3831,20 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         return 0;
     }
 
-    if(enqueue(gobj, &pa) < 0) {
+    if(!pa.jn_request) {
+        send_error_response(gobj, src, 500, status_str(500),
+            "internal_error", "Cannot keep the request for the IdP", cors_hdrs);
+        KW_DECREF(kw)
+        return 0;
+    }
+    json_object_set_new(pa.jn_request, "_action", json_integer((json_int_t)pa.action));
+    json_object_set_new(pa.jn_request, "_origin", json_string(origin));
+    json_object_set_new(pa.jn_request, "_host", json_string(host_hdr));
+    json_object_set_new(pa.jn_request, "_host_name_len", json_integer((json_int_t)host_name_len));
+
+    int ret = enqueue(gobj, &pa);
+    JSON_DECREF(pa.jn_request)
+    if(ret < 0) {
         send_error_response(gobj, src, 503, "503 Service Unavailable",
             "server_busy", "Server busy, retry in a moment", cors_hdrs);
         KW_DECREF(kw)

@@ -3,7 +3,7 @@
  *
  *          Driver for test25_untrusted_input: what the BFF takes from
  *          others. One plain socket, one request at a time (each answer is
- *          read whole before the next request), but the last two steps,
+ *          read whole before the next request), but the last four steps,
  *          which pipeline theirs. Before each step the mock IdP's `last_form` is
  *          cleared; after it, the form the IdP got is decoded and checked
  *          (each key named once, with its value), or must be empty when the
@@ -52,13 +52,37 @@
  *               429 auth_rate_limited, with Access-Control-Expose-Headers
  *               naming it (the BFF may be on another origin than the
  *               SPA); "soon" and "-5" are not passed on;
- *           26. three requests in one write: a login (the IdP answers it
+ *        26-31. login, the IdP answers an access_token with a byte over
+ *               0x7E (0xC3, of a UTF-8 "é"), a DEL (0x7F), a space, a
+ *               DQUOTE, a comma or a backslash: 502 auth_unexpected_error,
+ *               the WARNING naming the byte in hex;
+ *        32-45. refresh, the IdP answers 429 with a Retry-After that is not
+ *               passed on: a day 99, a time 99:99:99, a day-name that is
+ *               not the one of the date, a month "Foo", a day-name "Xyz",
+ *               29 Feb of a year that is not leap, 11 digits, "120, 60";
+ *               and one that is: 10 digits, an RFC 850 date and two
+ *               asctime dates (passed on as IMF-fixdate), "120" with blanks
+ *               after it (passed on without them), a leap second;
+ *        46-51. a refresh with another Origin, a refresh with none, a login
+ *               from the origin of a dev server ("http://localhost:5173"),
+ *               a callback and a /auth/token with another Origin, a logout
+ *               with a refresh_token cookie from the dev server: 403
+ *               origin_not_allowed, its error naming the Origin received
+ *               and allowed_origin, no call to the IdP;
+ *           52. login with a username of 300 bytes and a password of 600:
+ *               200, the IdP gets both whole;
+ *           53. login, the IdP drops the connection without answering: 502
+ *               auth_service_unavailable, and the login is not sent again
+ *               on the next connection (the IdP would answer it 200);
+ *           54. login: 200;
+ *           55. three requests in one write: a login (the IdP answers it
  *               300 ms later), a POST to an unknown endpoint and a GET:
  *               their answers come in that order, 200, 404, 405;
- *           27. a login and 17 requests to an unknown endpoint in one
- *               write: 16 answers wait behind the login (the
- *               pending_queue_size), the 17th drops the connection, with
- *               no answer sent.
+ *        56-58. a login and 17, 40 and 600 requests to an unknown endpoint
+ *               in one write, each on a new connection: 16 answers wait
+ *               behind the login (the pending_queue_size), the 17th drops
+ *               the connection, with no answer sent, and the requests after
+ *               it are not read.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test25.
@@ -87,6 +111,12 @@
 #define BIG_BODY_LEN    (1024*1024 + 1)     /* one byte over the BFF's limit */
 #define MAX_COOKIE_LEN  5000
 #define MAX_PIPELINED   3
+#define IDP_DROPS       (-1)                /* idp_status: the IdP drops the connection, no answer */
+
+#define TEXT_50     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+#define TEXT_300    TEXT_50 TEXT_50 TEXT_50 TEXT_50 TEXT_50 TEXT_50
+#define TEXT_600    TEXT_300 TEXT_300
+#define DEV_ORIGIN  "http://localhost:5173"     /* the origin of a dev server proxying to the BFF */
 
 /***************************************************************************
  *              Structures
@@ -106,7 +136,7 @@ typedef struct {
     const char *form_has[5];    /* "key=value": the key ONCE in the IdP form, with this decoded value */
     const char *form_not[3];    /* keys the IdP form must not have */
     BOOL        no_idp;         /* the IdP must not be called */
-    int         idp_status;     /* status of the mock's answer to /token, 0: 200 */
+    int         idp_status;     /* status of the mock's answer to /token, 0: 200, IDP_DROPS: none, the connection dropped */
     const char *retry_after;    /* Retry-After of the mock's answer, NULL none */
 } step_t;
 
@@ -227,6 +257,132 @@ PRIVATE const step_t steps[] = {
         NULL, NULL, NULL, NULL, 429,
         {"auth_rate_limited", NULL},
         {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "-5"},
+    /* 26-31 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.e30.sig\\u00e9\"}", NULL, NULL, 502,
+        {"auth_unexpected_error", "an access_token with a byte a cookie cannot carry", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},   /* 0xC3 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.e30.sig\\u007f\"}", NULL, NULL, 502,
+        {"auth_unexpected_error", "an access_token with a byte a cookie cannot carry", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},   /* 0x7F */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.e30.s ig\"}", NULL, NULL, 502,
+        {"auth_unexpected_error", "an access_token with a byte a cookie cannot carry", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},   /* 0x20 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.e30.s\\\"ig\"}", NULL, NULL, 502,
+        {"auth_unexpected_error", "an access_token with a byte a cookie cannot carry", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},   /* 0x22 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.e30.s,ig\"}", NULL, NULL, 502,
+        {"auth_unexpected_error", "an access_token with a byte a cookie cannot carry", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},   /* 0x2C */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.e30.s\\\\ig\"}", NULL, NULL, 502,
+        {"auth_unexpected_error", "an access_token with a byte a cookie cannot carry", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},   /* 0x5C */
+    /* 32-45 */
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "Wed, 99 Oct 2026 07:28:00 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "Wed, 21 Oct 2026 99:99:99 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "Thu, 21 Oct 2026 07:28:00 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "Wed, 21 Foo 2026 07:28:00 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "Xyz, 21 Oct 2026 07:28:00 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "Sun, 29 Feb 2026 07:28:00 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "12345678901"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", "\r\nRetry-After: 1234567890\r\n", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 429, "1234567890"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", "\r\nRetry-After: Wed, 21 Oct 2026 07:28:00 GMT\r\n", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 429, "Wednesday, 21-Oct-26 07:28:00 GMT"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", "\r\nRetry-After: Wed, 21 Oct 2026 07:28:00 GMT\r\n", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 429, "Wed Oct 21 07:28:00 2026"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", "\r\nRetry-After: Thu, 01 Oct 2026 07:28:00 GMT\r\n", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 429, "Thu Oct  1 07:28:00 2026"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", "\r\nRetry-After: 120\r\n", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 429, "120  "},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", NULL},
+        {"\r\nRetry-After:", NULL}, {NULL}, {NULL}, FALSE, 429, "120, 60"},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NULL, NULL, NULL, NULL, 429,
+        {"auth_rate_limited", "\r\nRetry-After: Sat, 31 Dec 2016 23:59:60 GMT\r\n", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 429, "Sat, 31 Dec 2016 23:59:60 GMT"},
+    /* 46-51 */
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        "http://other.example", NULL, NULL, NULL, 403,
+        {"origin_not_allowed", "Origin 'http://other.example' not allowed for /auth/refresh: "
+            "allowed_origin is '" ALLOWED_ORIGIN "'", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {NULL, "/auth/refresh", "refresh_token=RT1", NULL,
+        NO_ORIGIN, NULL, NULL, NULL, 403,
+        {"origin_not_allowed", "Origin none not allowed for /auth/refresh", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {NULL, "/auth/login", NULL, NULL,
+        DEV_ORIGIN, NULL, NULL, NULL, 403,
+        {"origin_not_allowed", "Origin '" DEV_ORIGIN "' not allowed for /auth/login: "
+            "allowed_origin is '" ALLOWED_ORIGIN "'", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {NULL, "/auth/callback", NULL,
+        "{\"code\": \"C\", \"code_verifier\": \"V\", \"redirect_uri\": \"http://localhost/\"}",
+        "http://other.example", NULL, NULL, NULL, 403,
+        {"origin_not_allowed", "not allowed for /auth/callback", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {NULL, "/auth/token", "access_token=AT1", NULL,
+        "http://other.example", NULL, NULL, NULL, 403,
+        {"origin_not_allowed", "not allowed for /auth/token", NULL},
+        {"AT1", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {NULL, "/auth/logout", "refresh_token=RT1", NULL,
+        DEV_ORIGIN, NULL, NULL, NULL, 403,
+        {"origin_not_allowed", "Origin '" DEV_ORIGIN "' not allowed for /auth/logout: "
+            "allowed_origin is '" ALLOWED_ORIGIN "'", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    /* 52 */
+    {NULL, "/auth/login", NULL,
+        "{\"username\": \"" TEXT_300 "\", \"password\": \"" TEXT_600 "\"}",
+        NULL, NULL, NULL, NULL, 200,
+        {"Set-Cookie: access_token=ey", NULL}, {NULL},
+        {"username=" TEXT_300, "password=" TEXT_600, NULL}, {NULL}, FALSE, 0, NULL},
+    /* 53-54 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, NULL, NULL, NULL, 502,
+        {"auth_service_unavailable", "closed the connection before answering", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, IDP_DROPS, NULL},
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, NULL, NULL, NULL, 200,
+        {"Set-Cookie: access_token=ey", NULL}, {NULL},
+        {"grant_type=password", NULL}, {NULL}, FALSE, 0, NULL},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -256,10 +412,13 @@ PRIVATE const int pipelined_statuses[MAX_PIPELINED] = {200, 404, 405};
 #define PIPELINED_LATENCY_MS    300
 
 /*
- *  Step NSTEPS+1, the last: a login and, behind it, one request more than
- *  the BFF lets wait for their answer (its pending_queue_size, main_test25)
+ *  Steps NSTEPS+1 to the last: a login and, behind it, one request more
+ *  than the BFF lets wait for their answer (its pending_queue_size,
+ *  main_test25), and many more: each on a new connection
  */
-#define FLOOD_REQUESTS          17
+PRIVATE const int flood_requests[] = {17, 40, 600};
+#define NFLOODS ((int)(sizeof(flood_requests)/sizeof(flood_requests[0])))
+#define FLOOD_RECONNECT_MS      200     /* the BFF lets its channel go before the next connection */
 PRIVATE const char *flood_request =
     "POST /auth/nowhere HTTP/1.1\r\n"
     "Host: localhost\r\n"
@@ -307,7 +466,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj   timer;
     BOOL    dying;          /* TRUE once a death-timer is armed */
-    int     step;           /* step whose answer is awaited; -1 before the first, NSTEPS the pipelined one */
+    int     step;           /* step whose answer is awaited; -1 before the first, NSTEPS the pipelined one, then the floods */
+    BOOL    reconnecting;   /* the wait between two floods, for a new connection */
     int     fd_browser;     /* the plain socket of the requests */
     int     polls;          /* looks at the socket for the answer in flight */
     BOOL    eof;            /* the BFF closed the connection */
@@ -467,7 +627,8 @@ PRIVATE int set_mock_answer(hgobj gobj, const char *body_patch,
         gobj_write_str_attr(mock, "raw_body", raw_body? raw_body : "");
     }
     gobj_write_integer_attr(mock, "latency_ms", latency_ms);
-    gobj_write_integer_attr(mock, "return_status", idp_status? idp_status : 200);
+    gobj_write_integer_attr(mock, "return_status", idp_status > 0? idp_status : 200);
+    gobj_write_bool_attr(mock, "drop_token_request", idp_status == IDP_DROPS);
     gobj_write_str_attr(mock, "retry_after", retry_after? retry_after : "");
     gobj_write_str_attr(mock, "last_form", "");
     return 0;
@@ -557,19 +718,23 @@ PRIVATE int post_step(hgobj gobj)
         }
         return send_request(gobj, pipelined_requests, strlen(pipelined_requests));
     }
-    if(priv->step == NSTEPS + 1) {
+    if(priv->step > NSTEPS) {
+        if(priv->fd_browser < 0 && connect_browser(gobj) < 0) {
+            return -1;  // Error already logged
+        }
         if(set_mock_answer(gobj, NULL, NULL, NULL, PIPELINED_LATENCY_MS, 0, NULL) < 0) {
             return -1;  // Error already logged
         }
+        int flood = flood_requests[priv->step - NSTEPS - 1];
         size_t login_len = strstr(pipelined_requests, "POST /auth/nowhere") - pipelined_requests;
         size_t one = strlen(flood_request);
-        size_t len = login_len + FLOOD_REQUESTS * one;
+        size_t len = login_len + (size_t)flood * one;
         char *requests = gbmem_malloc(len + 1);
         if(!requests) {
             return -1;  // Error already logged
         }
         memcpy(requests, pipelined_requests, login_len);
-        for(int i = 0; i < FLOOD_REQUESTS; i++) {
+        for(int i = 0; i < flood; i++) {
             memcpy(requests + login_len + i * one, flood_request, one);
         }
         int ret = send_request(gobj, requests, len);
@@ -892,6 +1057,7 @@ PRIVATE void check_flood(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", TEST_NAME ": too many pipelined requests did not drop the connection",
+            "requests",     "%d", flood_requests[priv->step - NSTEPS - 1],
             "eof",          "%d", priv->eof? 1 : 0,
             "answer",       "%.200s", priv->answer,
             NULL
@@ -915,11 +1081,13 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     BOOL failed = FALSE;
-    if(priv->step < 0) {
+    if(priv->reconnecting) {
+        priv->reconnecting = FALSE;
+    } else if(priv->step < 0) {
         failed = connect_browser(gobj) < 0;
     } else {
         const char *starts[MAX_PIPELINED];
-        BOOL flood = priv->step == NSTEPS + 1;
+        BOOL flood = priv->step > NSTEPS;
         int expected = priv->step == NSTEPS? MAX_PIPELINED : 1;
         BOOL done;
         if(flood) {
@@ -942,7 +1110,17 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    if(!failed && priv->step < NSTEPS + 1) {
+    if(!failed && priv->step < NSTEPS + NFLOODS) {
+        if(priv->step > NSTEPS && priv->fd_browser >= 0) {
+            /*  The connection the BFF dropped: the next flood on a new one  */
+            close(priv->fd_browser);
+            priv->fd_browser = -1;
+            priv->eof = FALSE;
+            priv->reconnecting = TRUE;
+            set_timeout0(priv->timer, FLOOD_RECONNECT_MS);
+            JSON_DECREF(kw)
+            return 0;
+        }
         priv->step++;
         priv->polls = 0;
         priv->got = 0;
