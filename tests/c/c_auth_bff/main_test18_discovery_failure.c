@@ -8,7 +8,8 @@
  *          Asserts that
  *
  *            (a) c_auth_bff::save_oidc_discovery rejects the malformed
- *                body and emits the corresponding gobj_log_error, and
+ *                body with a WARNING, not an ERROR: the body is data of a
+ *                peer (test28 asserts the text of the WARNING), and
  *            (b) the BFF's `discovery_done` stat counter stays 0 — so
  *                any subsequent /auth/login request would queue on
  *                dl_pending rather than being routed to a half-resolved
@@ -243,13 +244,10 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*
-     *  Expect exactly one ERROR captured: the BFF's
-     *  save_oidc_discovery rejecting the malformed body.
-     *  kw_match_simple is a subset match — only `msg` is required.
+     *  No ERROR: save_oidc_discovery rejects the malformed body with a
+     *  WARNING, and no browser request is left unserved here.
      */
-    json_t *expected_errors = json_pack("[{s:s}]",
-        "msg", "👤BFF OIDC discovery: missing required endpoints in response"
-    );
+    json_t *expected_errors = json_array();
     set_expected_results(
         APP_NAME,
         expected_errors,

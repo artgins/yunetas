@@ -15,7 +15,8 @@
  *
  *  Every request that reads or changes the session is served only to the
  *  SPA's Origin: allowed_origin, or, with it unset, the BFF's own
- *  (http(s):// and the Host of the request). See c_auth_bff.c.
+ *  (https:// and the Host of the request, http:// too on a connection that
+ *  is not TLS). See c_auth_bff.c.
  *    POST /auth/token     — return the access_token to JS (opt-in; off by
  *                           default; see `expose_access_token` in c_auth_bff.c)
  *
@@ -104,6 +105,11 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *                                 object (empty, not JSON, another JSON
  *                                 type): a WARNING, "IdP answer refused"
  *  auth_timeout              504  Watchdog fired, no reply in time
+ *
+ *  A logout served ends in the browser whatever failed: any of these
+ *  answers to it carries both cookies cleared (server_busy too). The
+ *  error tells the SPA that the session may still be open at the IdP.
+ *
  *  token_too_large           500  IdP token does not fit in a browser
  *                                 cookie: its name and value pass 4096
  *                                 bytes (BFF_COOKIE_MAX; an access_token
@@ -118,13 +124,16 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  missing_params            400  Required body fields absent
  *  redirect_uri_not_allowed  400  redirect_uri not allowed by
  *                                 allowed_redirect_uri (exactly it, or
- *                                 a path under it ending in "/")
+ *                                 a path under it ending in "/", which
+ *                                 no server reads out of it)
  *  origin_not_allowed        403  The Origin of /auth/login, callback,
  *                                 refresh, token, or a logout with a
  *                                 cookie, is not exactly allowed_origin;
  *                                 with allowed_origin unset, not
- *                                 http(s):// and the Host of the request
- *                                 (/auth/token: always refused then);
+ *                                 https:// and the Host of the request,
+ *                                 nor http:// and it on a connection
+ *                                 that is not TLS (/auth/token: always
+ *                                 refused then);
  *                                 the error names the Origin received
  *                                 and the one allowed
  *  missing_refresh_token     401  /auth/refresh called without RT cookie

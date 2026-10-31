@@ -81,6 +81,12 @@ SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each 
 SDATA (DTP_STRING,      "retry_after",      SDF_RD, "",     "If non-empty, the answers to /token carry a Retry-After header with this value"),
 SDATA (DTP_STRING,      "raw_answer",       SDF_RD, "",     "If non-empty, a /token or /logout request is answered with these bytes as they are, status line and headers included (a head too long, a response that breaks the protocol)"),
 SDATA (DTP_BOOLEAN,     "drop_token_request", SDF_RD, "0",  "If true, the next /token request is not answered: its connection is dropped (an IdP that restarts, or whose answer the client cannot parse); cleared when used"),
+SDATA (DTP_INTEGER,     "drop_logout_requests", SDF_RD, "0", "So many /logout requests are not answered: their connection is dropped (an IdP that restarts); counted down when used"),
+SDATA (DTP_BOOLEAN,     "silent_logout",    SDF_RD, "0",    "If true, a /logout request is taken and never answered (an IdP that keeps the connection and stays silent)"),
+SDATA (DTP_INTEGER,     "drop_discovery_requests", SDF_RD, "0", "So many /.well-known requests are not answered: their connection is dropped; counted down when used"),
+SDATA (DTP_INTEGER,     "discoveries_seen", SDF_RD, "0",    "The /.well-known requests that have arrived"),
+SDATA (DTP_STRING,      "raw_discovery",    SDF_RD, "",     "If non-empty, a /.well-known request is answered with these bytes as they are, status line and headers included (an answer that breaks the protocol)"),
+SDATA (DTP_INTEGER,     "logouts_seen",     SDF_RD, "0",    "The /logout requests that have arrived; a test clears it before a step"),
 SDATA (DTP_STRING,      "last_form",        SDF_RD, "",     "The body of the last /token or /logout request, as it arrived (the form of the BFF); a test clears it before a step"),
 SDATA_END()
 };
@@ -718,6 +724,20 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     if(strstr(url, "/.well-known/openid-configuration")) {
         priv->st_discovery_requests++;
+        gobj_write_integer_attr(gobj, "discoveries_seen",
+            gobj_read_integer_attr(gobj, "discoveries_seen") + 1);
+        if(gobj_read_integer_attr(gobj, "drop_discovery_requests") > 0) {
+            gobj_write_integer_attr(gobj, "drop_discovery_requests",
+                gobj_read_integer_attr(gobj, "drop_discovery_requests") - 1);
+            gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(!empty_string(gobj_read_str_attr(gobj, "raw_discovery"))) {
+            mk_send_raw_answer(gobj, src, gobj_read_str_attr(gobj, "raw_discovery"));
+            KW_DECREF(kw)
+            return 0;
+        }
         if(gobj_read_bool_attr(gobj, "silent_discovery")) {
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_trace_msg(gobj,
@@ -834,9 +854,26 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     } else if(strstr(url, "/logout")) {
         priv->st_logout_requests++;
+        gobj_write_integer_attr(gobj, "logouts_seen",
+            gobj_read_integer_attr(gobj, "logouts_seen") + 1);
         save_form(gobj, kw);
         if(!empty_string(gobj_read_str_attr(gobj, "raw_answer"))) {
             mk_send_raw_answer(gobj, src, gobj_read_str_attr(gobj, "raw_answer"));
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(gobj_read_integer_attr(gobj, "drop_logout_requests") > 0) {
+            gobj_write_integer_attr(gobj, "drop_logout_requests",
+                gobj_read_integer_attr(gobj, "drop_logout_requests") - 1);
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj, "mock-kc ← %s: /logout dropped, no answer",
+                    gobj_short_name(src));
+            }
+            gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(gobj_read_bool_attr(gobj, "silent_logout")) {
             KW_DECREF(kw)
             return 0;
         }

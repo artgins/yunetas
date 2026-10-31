@@ -9,8 +9,9 @@
  *          to none. And the redirect_uri of a callback under the
  *          allowed_redirect_uri "http://localhost/app/": one that starts
  *          with it and stays in it, not one that shortens it, extends its
- *          host, leaves it with a dot-segment or a backslash, or carries a
- *          fragment, a space or a byte over 0x7E. The driver
+ *          host, leaves it with a dot-segment or a backslash, carries a
+ *          fragment, a space or a byte over 0x7E, or an escape or a path
+ *          parameter that some server reads out of it. The driver
  *          (c_test26_same_origin.c) says what each step must get. The logs,
  *          in order: the WARNING of each 4xx. No ERROR.
  *
@@ -288,10 +289,12 @@ static int register_yuno_and_more(void)
         EXPECT_REJECTED("origin_not_allowed");
     }
     EXPECT_REJECTED("origin_not_allowed");
-    /*  18-28: the redirect_uri  */
-    for(int i = 0; i < 11; i++) {
+    /*  18-28, 30-48: the redirect_uri  */
+    for(int i = 0; i < 30; i++) {
         EXPECT_REJECTED("redirect_uri_not_allowed");
     }
+    /*  55: a Host that is a list  */
+    EXPECT_REJECTED("origin_not_allowed");
     set_expected_results(
         APP_NAME,
         jn_expected,

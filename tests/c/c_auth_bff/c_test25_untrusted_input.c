@@ -82,10 +82,20 @@
  *               auth_unexpected_error, its error naming which;
  *           57. logout, the IdP answers with that broken response: 200,
  *               both cookies cleared, a WARNING naming it;
- *           58. three requests in one write: a login (the IdP answers it
+ *        58-59. OPTIONS, from the allowed_origin and from another: 204, the
+ *               CORS headers naming the allowed_origin, never the Origin
+ *               received;
+ *        60-64. a login whose username, then password, is a number, a
+ *               callback whose code, code_verifier, then redirect_uri, is
+ *               one: 400 missing_params, a WARNING, no ERROR;
+ *           65. a login, the IdP answers 400 with an "error" that is a number:
+ *               502 auth_unexpected_error;
+ *           66. a login, the IdP answers an access_token whose claims "email"
+ *               and "preferred_username" are not texts: 200, answered empty;
+ *           67. three requests in one write: a login (the IdP answers it
  *               300 ms later), a POST to an unknown endpoint and a GET:
  *               their answers come in that order, 200, 404, 405;
- *        59-61. a login and 17, 40 and 600 requests to an unknown endpoint
+ *        68-70. a login and 17, 40 and 600 requests to an unknown endpoint
  *               in one write, each on a new connection: 16 answers wait
  *               behind the login (the pending_queue_size), the 17th drops
  *               the connection, with no answer sent, and the requests after
@@ -124,6 +134,9 @@
 #define BIG_HEAD_LEN    (70*1024)           /* over the 64 KB of max_header_size */
 #define BROKEN_ANSWER   "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n" \
                         "Bad Header: x\r\nContent-Length: 2\r\n\r\n{}"
+
+#define BAD_ERROR_BODY "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\n" \
+                        "Content-Length: 37\r\n\r\n{\"error\": 5, \"error_description\": []}"
 
 #define TEXT_50     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 #define TEXT_300    TEXT_50 TEXT_50 TEXT_50 TEXT_50 TEXT_50 TEXT_50
@@ -408,6 +421,38 @@ PRIVATE const step_t steps[] = {
         NULL, NULL, RAW_ANSWER, BROKEN_ANSWER, 200,
         {"Set-Cookie: access_token=; Max-Age=0;", "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
         {NULL}, {NULL}, {NULL}, FALSE, 0, NULL},
+    /* 58-59 */
+    {"OPTIONS", "/auth/login", NULL, NULL,
+        NULL, NULL, NULL, NULL, 204,
+        {"Access-Control-Allow-Origin: " ALLOWED_ORIGIN "\r\n",
+            "Access-Control-Allow-Methods: POST, OPTIONS\r\n",
+            "Access-Control-Allow-Credentials: true\r\n", NULL},
+        {"Set-Cookie", "Content-Length", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {"OPTIONS", "/auth/login", NULL, NULL,
+        "http://other.example", NULL, NULL, NULL, 204,
+        {"Access-Control-Allow-Origin: " ALLOWED_ORIGIN "\r\n", NULL},
+        {"other.example", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    /* 60-64 */
+#define NOT_A_TEXT(url, body) \
+    {NULL, url, NULL, body, NULL, NULL, NULL, NULL, 400, \
+        {"missing_params", NULL}, {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL}
+    NOT_A_TEXT("/auth/login", "{\"username\": 5, \"password\": \"x\"}"),
+    NOT_A_TEXT("/auth/login", "{\"username\": \"u\", \"password\": 5}"),
+    NOT_A_TEXT("/auth/callback",
+        "{\"code\": 5, \"code_verifier\": \"V\", \"redirect_uri\": \"http://localhost/\"}"),
+    NOT_A_TEXT("/auth/callback",
+        "{\"code\": \"C\", \"code_verifier\": 5, \"redirect_uri\": \"http://localhost/\"}"),
+    NOT_A_TEXT("/auth/callback",
+        "{\"code\": \"C\", \"code_verifier\": \"V\", \"redirect_uri\": 5}"),
+    /* 65 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, NULL, RAW_ANSWER, BAD_ERROR_BODY, 502,
+        {"auth_unexpected_error", NULL}, {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},
+    /* 66 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, "{\"access_token\": \"eyJ.eyJlbWFpbCI6NSwicHJlZmVycmVkX3VzZXJuYW1lIjpbXX0.sig\"}",
+        NULL, NULL, 200,
+        {"\"username\":\"\"", "\"email\":\"\"", NULL}, {NULL}, {NULL}, {NULL}, FALSE, 0, NULL},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -853,10 +898,12 @@ PRIVATE int read_answers(hgobj gobj, const char **starts, int max)
     while(whole < max && *p) {
         const char *end_of_headers = strstr(p, "\r\n\r\n");
         const char *content_length = strcasestr(p, "Content-Length:");
-        if(!end_of_headers || !content_length || content_length > end_of_headers) {
+        BOOL no_body = strncmp(p, "HTTP/1.1 204 ", 13) == 0;
+        if(!end_of_headers ||
+                (!no_body && (!content_length || content_length > end_of_headers))) {
             break;
         }
-        size_t body_len = (size_t)atoi(content_length + strlen("Content-Length:"));
+        size_t body_len = no_body? 0 : (size_t)atoi(content_length + strlen("Content-Length:"));
         const char *next = end_of_headers + 4 + body_len;
         if(next > priv->answer + priv->got) {
             break;

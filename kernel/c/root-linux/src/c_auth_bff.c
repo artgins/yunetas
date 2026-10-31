@@ -37,7 +37,8 @@
  *    A request is sent to the IdP once: when the IdP closes the connection
  *    before answering it, the answer is 502 auth_service_unavailable, and
  *    the request is not sent again on the next connection (a refresh_token
- *    used twice can end the session at the IdP).
+ *    used twice can end the session at the IdP). A logout is the exception
+ *    (see POST /auth/logout).
  *    A lifetime of 0 is a token with no expiry (Keycloak's offline
  *    token): its cookie has no Max-Age (a cookie of the browser session),
  *    and the answer says 0.
@@ -68,14 +69,25 @@
  *              cookies are cleared only when the request carries the
  *              access_token cookie; with no cookie at all the answer has no
  *              Set-Cookie, whatever its Origin.
+ *      A logout served ends in the browser whatever happens at the IdP:
+ *      every answer to it clears the cookies, its errors too (the IdP cut
+ *      the connection twice or stayed silent, no endpoints, the queue
+ *      full). End-session is idempotent, so it is the one request that may
+ *      go twice: when the IdP closes the connection before answering, it
+ *      is sent once more on the next connection (the IdP closing a
+ *      connection kept open is the commonest cut, and a session left open
+ *      on a shared machine is what a logout is for). A request the Origin
+ *      refuses (403) changes nothing: its answer has no Set-Cookie.
  *      Returns { "success": true }.
  *
  *    The Origin of a request: /auth/login, /auth/callback, /auth/refresh
  *    and a /auth/logout with a cookie read or change the session, so their
  *    Origin must be the SPA's (else 403 origin_not_allowed, no IdP call):
  *    exactly allowed_origin when it is set; with allowed_origin unset the
- *    BFF serves its own origin only, and the Origin must be "http://" or
- *    "https://" followed by the Host of the request. SameSite=Strict says
+ *    BFF serves its own origin only, and the Origin must be "https://"
+ *    followed by the Host of the request, or "http://" too on a connection
+ *    that is not TLS: behind a proxy that ends TLS the BFF cannot know the
+ *    scheme of the browser, and only allowed_origin pins it. SameSite=Strict says
  *    same SITE, not same origin: a sibling subdomain sends the cookies too,
  *    and a POST with no body needs no CORS preflight. A missing Origin or
  *    "null" is refused: a browser sends Origin with every POST.
@@ -213,6 +225,13 @@
 #define BFF_RETRY_AFTER_DIGITS_MAX  10
 
 /*
+ *  The times a logout (see get_logout_from_idp()) or an OIDC discovery (see
+ *  discover_oidc()) goes to the IdP
+ */
+#define BFF_LOGOUT_SENDS_MAX    2
+#define BFF_DISCOVERY_SENDS_MAX 2
+
+/*
  *  The Max-Age of a cookie whose token has no lifetime from the IdP: the
  *  cookie is written with no Max-Age, a cookie of the browser session.
  *  An IdP says "no expiry" with a lifetime of 0 (Keycloak answers
@@ -310,6 +329,9 @@ PRIVATE void answer_logout_without_refresh_token(
     const char *request_host,
     size_t host_name_len
 );
+PRIVATE void answer_request_failed(hgobj gobj, hgobj browser, json_t *request,
+    int status_code, const char *error_code, const char *error_msg
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -345,8 +367,8 @@ SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC e
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
 SDATA (DTP_STRING,      "client_secret",        SDF_RD|SDF_SECRET, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
-SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "The origin of the SPA (e.g. https://app.example.com): the CORS Access-Control-Allow-Origin, and the one Origin whose login, callback, refresh, logout and token are served (else 403). Empty: no CORS, and the Origin must be this BFF's own, http(s):// and the Host of the request"),
-SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "The redirect_uri a callback may have: exactly this; or, when it ends with '/' after its scheme and host (e.g. https://app.example.com/app/), a redirect_uri starting with it whose rest is a path and query in it (visible ASCII, no '\\', no '#', no '.' or '..' segment). Empty: not checked"),
+SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "The origin of the SPA (e.g. https://app.example.com): the CORS Access-Control-Allow-Origin, and the one Origin whose login, callback, refresh, logout and token are served (else 403). It is what pins the scheme. Empty: no CORS, and the Origin must be this BFF's own: https:// and the Host of the request, or http:// and it on a connection that is not TLS (behind a proxy that ends TLS the BFF cannot tell the scheme of the browser)"),
+SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "The redirect_uri a callback may have: exactly this; or, when it ends with '/' after its scheme and host (e.g. https://app.example.com/app/), a redirect_uri starting with it whose rest is a path and query in it (visible ASCII, no '\\', no '#', no '.' or '..' segment, also before a ';', and no %XX in the path of a byte out of visible ASCII or of . / \\ ; ? # %). Empty: not checked"),
 SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in relaxation of the httpOnly-cookie rule: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
 SDATA (DTP_DICT,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
@@ -1252,6 +1274,38 @@ PRIVATE long days_from_civil(int year, int month, int day)
 }
 
 /***************************************************************************
+ *  A date of the proleptic Gregorian calendar (month 1 to 12) in seconds
+ *  from 1970-01-01, to compare two of them
+ ***************************************************************************/
+PRIVATE long long seconds_from_civil(int year, int month, int day, int hour, int min, int sec)
+{
+    return (long long)days_from_civil(year, month, day)*86400 + hour*3600 + min*60 + sec;
+}
+
+/***************************************************************************
+ *  The year of an RFC 850 date, which writes two digits of it (RFC 9110
+ *  §5.6.7: a timestamp that appears to be more than 50 years in the future
+ *  is the most recent year in the past with those digits): the latest year
+ *  with those digits that is not more than 50 years ahead of now, in the
+ *  next century when it fits, so in 2060 "05" is 2105 and "15" is 2015.
+ ***************************************************************************/
+PRIVATE int rfc850_year(int yy, int month, int day, int hour, int min, int sec)
+{
+    struct tm now;
+    time_t t = time(NULL);
+    gmtime_r(&t, &now);
+    int this_year = now.tm_year + 1900;
+    long long latest = seconds_from_civil(this_year + 50, now.tm_mon + 1, now.tm_mday,
+        now.tm_hour, now.tm_min, now.tm_sec);
+
+    int year = this_year - this_year % 100 + 100 + yy;
+    while(seconds_from_civil(year, month, day, hour, min, sec) > latest) {
+        year -= 100;
+    }
+    return year;
+}
+
+/***************************************************************************
  *  A Retry-After of the IdP that the BFF can pass on (RFC 9110 §10.2.3),
  *  written in `out`:
  *    - delay-seconds of 1 to BFF_RETRY_AFTER_DIGITS_MAX digits, as it is;
@@ -1260,8 +1314,8 @@ PRIVATE long days_from_civil(int year, int month, int day)
  *      "Sunday, 06-Nov-94 08:49:37 GMT" or asctime
  *      "Sun Nov  6 08:49:37 1994", that is a date (its day in its month,
  *      00:00:00 to 23:59:60, its day-name the one of that day), written as
- *      IMF-fixdate, the form a sender must write. A two-digit year more
- *      than 50 years ahead is the latest such year in the past (§5.6.7).
+ *      IMF-fixdate, the form a sender must write. The two-digit year of
+ *      RFC 850 is read as rfc850_year() says.
  *  The blanks around the value (OWS) are not part of it. Anything else,
  *  a list of values ("120, 60") among them, is not passed on (FALSE), so
  *  a value of the IdP can never write more than this one header.
@@ -1318,14 +1372,7 @@ PRIVATE BOOL read_retry_after(const char *value, char *out, size_t out_size)
             take_digits(&p, 2, &yy) && take_text(&p, " ") &&
             take_time_of_day(&p, &hour, &min, &sec) && take_text(&p, " GMT");
         if(read) {
-            struct tm now;
-            time_t t = time(NULL);
-            gmtime_r(&t, &now);
-            int this_year = now.tm_year + 1900;
-            year = this_year - this_year % 100 + yy;
-            if(year > this_year + 50) {
-                year -= 100;
-            }
+            year = rfc850_year(yy, month + 1, day, hour, min, sec);
         }
     } else if(take_name(&asctime_, days, 7, &wday) && take_text(&asctime_, " ")) {
         /*  asctime: the day is two digits, or a space and one  */
@@ -1395,8 +1442,15 @@ PRIVATE void quote_peer_text(char *buf, size_t size, const char *text)
  *  needs no CORS preflight, so it reaches the BFF.
  *    - allowed_origin set: the Origin must be exactly it.
  *    - allowed_origin unset: the BFF serves its own origin only, and the
- *      Origin must be "http://" or "https://" followed by the Host of the
- *      request (a proxy in front must pass the Host on).
+ *      Origin must be "https://" followed by the Host of the request (a
+ *      proxy in front must pass the Host on, with its port), or "http://"
+ *      followed by it on a connection that is not TLS. The scheme is tied
+ *      to the connection only when that is TLS: behind a proxy that ends
+ *      TLS the BFF sees http and the browser says https, which is the
+ *      normal way to deploy it, so a plain connection tells nothing about
+ *      the scheme of the browser. Only allowed_origin pins it there.
+ *      A Host that is a list (two Host lines joined, RFC 9110 §7.2: a
+ *      request with more than one is invalid) is no Host.
  *  A missing Origin, "null", or any other text is not (a browser sends
  *  Origin with every POST, same-origin included). On a refusal `why` says
  *  the Origin received and the one expected, for the 403 and its WARNING.
@@ -1405,6 +1459,9 @@ PRIVATE BOOL request_origin_allowed(hgobj gobj, const char *endpoint,
     const char *origin, const char *host, char *why, size_t why_size)
 {
     const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
+    hgobj browser = gobj_bottom_gobj(gobj);
+    BOOL tls = gobj_has_bottom_attr(browser, "use_ssl") &&
+        gobj_read_bool_attr(browser, "use_ssl");
     if(!origin) {
         origin = "";
     }
@@ -1415,11 +1472,11 @@ PRIVATE BOOL request_origin_allowed(hgobj gobj, const char *endpoint,
         if(strcmp(origin, allowed_origin) == 0) {
             return TRUE;
         }
-    } else if(!empty_string(host)) {
+    } else if(!empty_string(host) && !strpbrk(host, ", \t")) {
         const char *rest = NULL;
         if(strncmp(origin, "https://", 8) == 0) {
             rest = origin + 8;
-        } else if(strncmp(origin, "http://", 7) == 0) {
+        } else if(!tls && strncmp(origin, "http://", 7) == 0) {
             rest = origin + 7;
         }
         if(rest && strcasecmp(rest, host) == 0) {
@@ -1438,8 +1495,8 @@ PRIVATE BOOL request_origin_allowed(hgobj gobj, const char *endpoint,
         quote_peer_text(quoted_host, sizeof(quoted_host), host);
         snprintf(why, why_size,
             "Origin %s not allowed for %s: allowed_origin is not set, so the "
-            "Origin must be this BFF's own, http:// or https:// and the Host (%s)",
-            quoted_origin, endpoint, quoted_host);
+            "Origin must be this BFF's own, %s and the Host (%s)",
+            quoted_origin, endpoint, tls? "https://" : "http:// or https://", quoted_host);
     }
     return FALSE;
 }
@@ -1466,24 +1523,71 @@ PRIVATE BOOL redirect_uri_is_prefix(const char *allowed_ruri)
 }
 
 /***************************************************************************
- *  A segment of a path that is "." or "..", with each dot as it is or as
- *  %2e (RFC 3986 §6.2.2.2: a dot-segment, once decoded)
+ *  The value of a hex digit, -1 when it is not one
  ***************************************************************************/
-PRIVATE BOOL is_dot_segment(const char *seg, size_t len)
+PRIVATE int hex_digit(char c)
 {
-    int dots = 0;
-    for(size_t i = 0; i < len; ) {
-        if(seg[i] == '.') {
-            i++;
-        } else if(i + 2 < len && seg[i] == '%' && seg[i+1] == '2' &&
-                (seg[i+2] == 'e' || seg[i+2] == 'E')) {
-            i += 3;
-        } else {
+    if(c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if(c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if(c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  The %XX at `p` in a path under a prefix: well written, and of a visible
+ *  ASCII byte that means nothing to a path. A server may decode the path
+ *  before it reads it, so "." "/" "\" ";" "?" "#" stand for what they
+ *  say, a "%" is a second pass of the same (%252e), and a byte out of
+ *  visible ASCII is a control or an overlong UTF-8 of one of them (%c0%ae).
+ ***************************************************************************/
+PRIVATE BOOL path_escape_allowed(const char *p)
+{
+    int high = hex_digit(p[1]);
+    int low = high >= 0? hex_digit(p[2]) : -1;
+    if(high < 0 || low < 0) {
+        return FALSE;
+    }
+    int byte = high*16 + low;
+    return byte > 0x20 && byte < 0x7F && !strchr("./\\;?#%", byte);
+}
+
+/***************************************************************************
+ *  The path `rest` (up to path_len) of a redirect_uri, under a prefix, stays
+ *  in it: its escapes are allowed (path_escape_allowed()), and no segment
+ *  is "." or "..", counting what a server reads of it: the text before a
+ *  ";" (the path parameters of RFC 3986 §3.3, "..;/" is ".." in Tomcat).
+ ***************************************************************************/
+PRIVATE BOOL path_stays_in_prefix(const char *rest, size_t path_len)
+{
+    for(size_t i = 0; i < path_len; i++) {
+        if(rest[i] == '%' && !path_escape_allowed(rest + i)) {
             return FALSE;
         }
-        dots++;
     }
-    return dots == 1 || dots == 2;
+    const char *seg = rest;
+    const char *end = rest + path_len;
+    while(seg <= end) {
+        size_t seg_len = 0;
+        while(seg + seg_len < end && seg[seg_len] != '/') {
+            seg_len++;
+        }
+        size_t name_len = 0;
+        while(name_len < seg_len && seg[name_len] != ';') {
+            name_len++;
+        }
+        if((name_len == 1 && seg[0] == '.') ||
+                (name_len == 2 && seg[0] == '.' && seg[1] == '.')) {
+            return FALSE;
+        }
+        seg += seg_len + 1;
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -1492,12 +1596,15 @@ PRIVATE BOOL is_dot_segment(const char *seg, size_t len)
  *    - allowed_redirect_uri empty: any (not checked);
  *    - a prefix (redirect_uri_is_prefix()): a redirect_uri that starts with
  *      it and whose rest stays in it: visible ASCII only, no "\" (a
- *      browser reads it as "/"), no "#" (RFC 6749 §3.1.2: no fragment), no
- *      "." or ".." segment before its query (nor with a dot as %2e);
+ *      browser reads it as "/"), no "#" (RFC 6749 §3.1.2: no fragment), and
+ *      a path, up to its query, that stays in the prefix for any server
+ *      that reads it (path_stays_in_prefix());
  *    - else: exactly it.
  *  So "https://app.example.com.evil.com/" and "https://app.example.com@evil/"
- *  never pass "https://app.example.com/", nor "https://app.example.com/app/../x"
- *  "https://app.example.com/app/".
+ *  never pass "https://app.example.com/", nor "https://app.example.com/app/../x",
+ *  ".../app/..%2Fx" or ".../app/..;/x" pass "https://app.example.com/app/". A
+ *  prefix match is a strict rule: what RFC 3986 lets through and some server
+ *  normalizes out of the prefix is refused, though the IdP checks it again.
  ***************************************************************************/
 PRIVATE BOOL redirect_uri_allowed(const char *allowed_ruri, const char *ruri)
 {
@@ -1518,19 +1625,7 @@ PRIVATE BOOL redirect_uri_allowed(const char *allowed_ruri, const char *ruri)
             return FALSE;
         }
     }
-    size_t path_len = strcspn(rest, "?");
-    const char *seg = rest;
-    while(seg <= rest + path_len) {
-        size_t seg_len = strcspn(seg, "/?");
-        if(seg + seg_len > rest + path_len) {
-            seg_len = (size_t)(rest + path_len - seg);
-        }
-        if(is_dot_segment(seg, seg_len)) {
-            return FALSE;
-        }
-        seg += seg_len + 1;
-    }
-    return TRUE;
+    return path_stays_in_prefix(rest, strcspn(rest, "?"));
 }
 
 /***************************************************************************
@@ -1614,6 +1709,19 @@ PRIVATE const char *effective_cookie_domain(
         NULL
     );
     return "";
+}
+
+/***************************************************************************
+ *  A text of a json of a peer (a body of the browser, an answer of the
+ *  IdP): its value, "" when the key is absent or holds another type.
+ *  kw_get_str() is for json of ours: on a value of another type it logs an
+ *  ERROR with a stack, and those bytes are a peer's. The caller answers
+ *  the "" as the text that is missing.
+ ***************************************************************************/
+PRIVATE const char *peer_json_str(json_t *jn, const char *key)
+{
+    const char *value = json_string_value(json_object_get(jn, key));
+    return value? value : "";
 }
 
 /***************************************************************************
@@ -2152,12 +2260,8 @@ PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
             gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_resp, 0);
             continue;
         }
-        char cors_hdrs[1024];
-        build_cors_headers(gobj, kw_get_str(gobj, pa->jn_request, "_origin", "", 0),
-            cors_hdrs, sizeof(cors_hdrs), FALSE);
-        send_error_response(gobj, gobj_bottom_gobj(gobj),
-            status_code, status_str(status_code),
-            error_code, error_msg, cors_hdrs);
+        answer_request_failed(gobj, gobj_bottom_gobj(gobj), pa->jn_request,
+            status_code, error_code, error_msg);
         free_pending(pa);
     }
 }
@@ -2297,10 +2401,8 @@ PRIVATE json_t *send_token_to_browser(
          *  otherwise and the generic auth_unexpected_error mapping applies.
          */
         json_t *jn_err_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-        const char *idp_err  = jn_err_body ?
-            kw_get_str(gobj, jn_err_body, "error", "", 0) : "";
-        const char *idp_desc = jn_err_body ?
-            kw_get_str(gobj, jn_err_body, "error_description", "", 0) : "";
+        const char *idp_err  = peer_json_str(jn_err_body, "error");
+        const char *idp_desc = peer_json_str(jn_err_body, "error_description");
 
         if(strcmp(idp_err, "invalid_grant") == 0 &&
                 (status == 400 || status == 401)) {
@@ -2572,10 +2674,9 @@ PRIVATE json_t *send_token_to_browser(
                         gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), 0, &jerr
                     );
                     if(jn_claims) {
-                        const char *e = kw_get_str(gobj, jn_claims, "email", "", 0);
-                        const char *u = kw_get_str(gobj, jn_claims,
-                            "preferred_username", e, 0);
-                        snprintf(username, sizeof(username), "%s", u);
+                        const char *e = peer_json_str(jn_claims, "email");
+                        const char *u = peer_json_str(jn_claims, "preferred_username");
+                        snprintf(username, sizeof(username), "%s", !empty_string(u)? u : e);
                         snprintf(email,    sizeof(email),    "%s", e);
                         JSON_DECREF(jn_claims)
                         claims_read = TRUE;
@@ -2729,13 +2830,10 @@ PRIVATE BOOL idp_request_sent_before(hgobj gobj, json_t *output_data)
     }
     priv->st_idp_errors++;
     if(priv->task_valid) {
-        char cors_hdrs[1024];
-        build_cors_headers(gobj, kw_get_str(gobj, output_data, "_origin", "", 0),
-            cors_hdrs, sizeof(cors_hdrs), FALSE);
-        send_error_response(gobj, gobj_bottom_gobj(gobj), 502, status_str(502),
+        answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 502,
             "auth_service_unavailable",
             "Authentication service closed the connection before answering, "
-            "the request is not sent again", cors_hdrs);
+            "the request is not sent again");
     }
     return TRUE;
 }
@@ -2780,6 +2878,10 @@ PRIVATE json_t *get_token_from_idp(
                 "token_url", "%s", priv->token_url,
                 NULL
             );
+            if(priv->task_valid) {
+                answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 500,
+                    "auth_config_error", "Authentication configuration error");
+            }
             KW_DECREF(kw)
             STOP_TASK()
         }
@@ -2867,6 +2969,13 @@ PRIVATE json_t *get_token_from_idp(
 
 /***************************************************************************
  *  IdP logout action.
+ *
+ *  C_TASK runs it again each time the connection to the IdP opens. End-
+ *  session is idempotent, so a logout whose connection closed before its
+ *  answer goes once more: not sending it would leave the session open at
+ *  the IdP, on a machine the user may be leaving, for the commonest cut of
+ *  all (the IdP closing a connection kept open as the request left). A
+ *  second cut is an IdP that does not answer: the browser ends its side.
  ***************************************************************************/
 PRIVATE json_t *get_logout_from_idp(
     hgobj gobj,
@@ -2882,11 +2991,28 @@ PRIVATE json_t *get_logout_from_idp(
     const char *client_id = gobj_read_str_attr(gobj, "client_id");
     const char *cs        = gobj_read_str_attr(gobj, "client_secret");
 
-    if(idp_request_sent_before(gobj, output_data)) {
-        // Error already logged
+    int sends = (int)kw_get_int(gobj, output_data, "_sends", 0, 0);
+    if(sends >= BFF_LOGOUT_SENDS_MAX) {
+        priv->st_idp_errors++;
+        if(priv->task_valid) {
+            answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 502,
+                "auth_service_unavailable",
+                "Authentication service closed the connection before answering "
+                "the logout, the cookies are cleared");
+        }
         KW_DECREF(kw)
         STOP_TASK()
     }
+    if(sends > 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF IdP closed the connection before answering a "
+                                  "logout, it is sent again",
+            NULL
+        );
+    }
+    json_object_set_new(output_data, "_sends", json_integer(sends + 1));
 
     char resource[PATH_MAX];
     {
@@ -2906,6 +3032,10 @@ PRIVATE json_t *get_logout_from_idp(
                 "end_session_url", "%s", priv->end_session_url,
                 NULL
             );
+            if(priv->task_valid) {
+                answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 500,
+                    "auth_config_error", "Authentication configuration error");
+            }
             KW_DECREF(kw)
             STOP_TASK()
         }
@@ -2947,13 +3077,13 @@ PRIVATE json_t *get_logout_from_idp(
 }
 
 /***************************************************************************
- *  The end of a logout in the browser: both cookies cleared (Max-Age=0)
- *  and { "success": true }. `request_host` / `host_name_len` as in
+ *  The headers of an answer that ends a session in the browser: the CORS
+ *  ones and both cookies cleared (Max-Age=0). Returns a gbmem string the
+ *  caller frees. `request_host` / `host_name_len` as in
  *  effective_cookie_domain().
  ***************************************************************************/
-PRIVATE void send_logout_success_to_browser(
+PRIVATE char *build_logout_headers(
     hgobj gobj,
-    hgobj browser,
     const char *cors_hdrs,
     const char *request_host,
     size_t host_name_len)
@@ -2972,12 +3102,55 @@ PRIVATE void send_logout_success_to_browser(
     size_t extra_len = strlen(cors_hdrs) + strlen(at_clear) + strlen(rt_clear) + 4;
     char *extra = gbmem_malloc(extra_len);
     snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_clear, rt_clear);
+    GBMEM_FREE(at_clear)
+    GBMEM_FREE(rt_clear)
+    return extra;
+}
+
+/***************************************************************************
+ *  The error answer of a request that was not served, kept in `request`
+ *  (the output_data of its task): a logout ends in the browser whatever
+ *  failed, so its error clears the cookies too (the SPA reads the error:
+ *  the session may still be open at the IdP).
+ ***************************************************************************/
+PRIVATE void answer_request_failed(hgobj gobj, hgobj browser, json_t *request,
+    int status_code, const char *error_code, const char *error_msg)
+{
+    char cors_hdrs[1024];
+    build_cors_headers(gobj, kw_get_str(gobj, request, "_origin", "", 0),
+        cors_hdrs, sizeof(cors_hdrs), FALSE);
+
+    if(kw_get_int(gobj, request, "_action", BFF_CALLBACK, 0) != BFF_LOGOUT) {
+        send_error_response(gobj, browser, status_code, status_str(status_code),
+            error_code, error_msg, cors_hdrs);
+        return;
+    }
+    char *extra = build_logout_headers(gobj, cors_hdrs,
+        kw_get_str(gobj, request, "_host", "", 0),
+        (size_t)kw_get_int(gobj, request, "_host_name_len", 0, 0)
+    );
+    send_error_response(gobj, browser, status_code, status_str(status_code),
+        error_code, error_msg, extra);
+    GBMEM_FREE(extra)
+}
+
+/***************************************************************************
+ *  The end of a logout in the browser: both cookies cleared (Max-Age=0)
+ *  and { "success": true }. `request_host` / `host_name_len` as in
+ *  effective_cookie_domain().
+ ***************************************************************************/
+PRIVATE void send_logout_success_to_browser(
+    hgobj gobj,
+    hgobj browser,
+    const char *cors_hdrs,
+    const char *request_host,
+    size_t host_name_len)
+{
+    char *extra = build_logout_headers(gobj, cors_hdrs, request_host, host_name_len);
 
     json_t *jn_resp = json_pack("{s:b}", "success", 1);
     send_json_response(gobj, browser, 200, status_str(200), jn_resp, extra);
     JSON_DECREF(jn_resp)
-    GBMEM_FREE(at_clear)
-    GBMEM_FREE(rt_clear)
     GBMEM_FREE(extra)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -3123,6 +3296,10 @@ PRIVATE json_t *send_logout_to_browser(
 /***************************************************************************
  *  OIDC discovery: GET <issuer>/.well-known/openid-configuration.
  *  Action job of the discovery task fired in mt_start.
+ *
+ *  A GET goes again when the connection is cut before its answer, but not
+ *  for ever: each run re-arms the exec_timeout of the task, so an IdP that
+ *  always cuts would keep it alive, and the browsers behind it waiting.
  ***************************************************************************/
 PRIVATE json_t *discover_oidc(
     hgobj gobj,
@@ -3132,6 +3309,22 @@ PRIVATE json_t *discover_oidc(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *output_data = gobj_read_json_attr(src_task, "output_data");
+    int sends = (int)kw_get_int(gobj, output_data, "_sends", 0, 0);
+    if(sends >= BFF_DISCOVERY_SENDS_MAX) {
+        gobj_log_warning(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PROTOCOL,
+            "msg",      "%s", "👤BFF IdP closed the connection before answering the OIDC discovery",
+            "sends",    "%d", sends,
+            "issuer",   "%s", priv->issuer,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+    json_object_set_new(output_data, "_sends", json_integer(sends + 1));
 
     char ep_schema[32], ep_host[256], ep_port[16], ep_path[1024];
     if(parse_url(gobj,
@@ -3209,9 +3402,14 @@ PRIVATE json_t *save_oidc_discovery(
         STOP_TASK()
     }
 
+    /*
+     *  What a discovery answers is data of a peer: bad data gives a WARNING,
+     *  as the same answer does at a login. The ERROR of the failure, for
+     *  whoever runs the BFF, is the 502 of each request it leaves unserved.
+     */
     char refused[160];
     if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_PROTOCOL,
             "msg",              "%s", "👤BFF OIDC discovery failed: answer refused",
@@ -3224,18 +3422,35 @@ PRIVATE json_t *save_oidc_discovery(
     }
 
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-    const char *token_ep = jn_body ?
-        kw_get_str(gobj, jn_body, "token_endpoint", "", 0) : "";
-    const char *end_session_ep = jn_body ?
-        kw_get_str(gobj, jn_body, "end_session_endpoint", "", 0) : "";
+    const char *token_ep = peer_json_str(jn_body, "token_endpoint");
+    const char *end_session_ep = peer_json_str(jn_body, "end_session_endpoint");
 
     if(empty_string(token_ep) || empty_string(end_session_ep)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_PROTOCOL,
             "msg",                  "%s", "👤BFF OIDC discovery: missing required endpoints in response",
-            "token_endpoint",       "%s", token_ep,
-            "end_session_endpoint", "%s", end_session_ep,
+            "token_endpoint",       "%.256s", token_ep,
+            "end_session_endpoint", "%.256s", end_session_ep,
+            NULL
+        );
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    /*
+     *  Refused here, or each request would fail at its job: an endpoint is
+     *  kept for the life of the BFF
+     */
+    if(!strstr(token_ep, "://") || !strstr(end_session_ep, "://") ||
+            strlen(token_ep) >= sizeof(priv->token_url) ||
+            strlen(end_session_ep) >= sizeof(priv->end_session_url)) {
+        gobj_log_warning(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_PROTOCOL,
+            "msg",                  "%s", "👤BFF OIDC discovery: an endpoint is not a URL",
+            "token_endpoint",       "%.256s", token_ep,
+            "end_session_endpoint", "%.256s", end_session_ep,
             NULL
         );
         KW_DECREF(kw)
@@ -3659,9 +3874,9 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return 0;
         }
-        const char *code    = kw_get_str(gobj, jn_body, "code",          "", 0);
-        const char *cv      = kw_get_str(gobj, jn_body, "code_verifier", "", 0);
-        const char *ruri    = kw_get_str(gobj, jn_body, "redirect_uri",  "", 0);
+        const char *code    = peer_json_str(jn_body, "code");
+        const char *cv      = peer_json_str(jn_body, "code_verifier");
+        const char *ruri    = peer_json_str(jn_body, "redirect_uri");
 
         if(empty_string(code) || empty_string(cv) || empty_string(ruri)) {
             send_error_response(gobj, src, 400, status_str(400),
@@ -3710,8 +3925,8 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return 0;
         }
-        const char *username = kw_get_str(gobj, jn_body, "username", "", 0);
-        const char *password = kw_get_str(gobj, jn_body, "password", "", 0);
+        const char *username = peer_json_str(jn_body, "username");
+        const char *password = peer_json_str(jn_body, "password");
 
         if(empty_string(username) || empty_string(password)) {
             send_error_response(gobj, src, 400, status_str(400),
@@ -3886,14 +4101,11 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
     json_object_set_new(pa.jn_request, "_host", json_string(host_hdr));
     json_object_set_new(pa.jn_request, "_host_name_len", json_integer((json_int_t)host_name_len));
 
-    int ret = enqueue(gobj, &pa);
-    JSON_DECREF(pa.jn_request)
-    if(ret < 0) {
-        send_error_response(gobj, src, 503, "503 Service Unavailable",
-            "server_busy", "Server busy, retry in a moment", cors_hdrs);
-        KW_DECREF(kw)
-        return 0;
+    if(enqueue(gobj, &pa) < 0) {
+        answer_request_failed(gobj, src, pa.jn_request, 503,
+            "server_busy", "Server busy, retry in a moment");
     }
+    JSON_DECREF(pa.jn_request)
 
     KW_DECREF(kw)
     return 0;
@@ -4148,14 +4360,8 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          */
         if(priv->task_valid) {
             json_t *output_data = kw_get_dict(gobj, kw, "output_data", NULL, 0);
-            const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
-            char cors_hdrs[1024];
-            build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
-            send_error_response(gobj, gobj_bottom_gobj(gobj),
-                504, status_str(504),
-                "auth_timeout",
-                "Authentication service did not respond in time",
-                cors_hdrs);
+            answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 504,
+                "auth_timeout", "Authentication service did not respond in time");
         }
 
         /*

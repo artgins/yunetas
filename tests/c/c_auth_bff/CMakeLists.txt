@@ -82,6 +82,9 @@ SET(TESTS
     test24_no_refresh_token
     test25_untrusted_input
     test26_same_origin
+    test27_rfc850_year
+    test28_logout_idp_cut
+    test29_tls_origin
 )
 
 foreach(test ${TESTS})
@@ -109,5 +112,10 @@ foreach(test ${TESTS})
         ${DEBUG_LIBS}
     )
     add_test("${current_directory_name}/${test}" ${binary})
+
+    if(test STREQUAL "test27_rfc850_year")
+        # The clock of this test is its own: see c_test27_rfc850_year.c
+        set_property(TARGET ${binary} APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=gmtime_r")
+    endif()
 
 endforeach()

@@ -23,9 +23,9 @@
  *            EV_TIMEOUT (death)
  *              → set_yuno_must_die
  *
- *          The discovery error itself is asserted by the test harness
- *          via set_expected_results in main_test18 — it must appear
- *          exactly once in the captured-log FIFO.
+ *          The discovery failure is a WARNING: the test harness
+ *          (set_expected_results in main_test18) asserts that no ERROR
+ *          comes out of it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

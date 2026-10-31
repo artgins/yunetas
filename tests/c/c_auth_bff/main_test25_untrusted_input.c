@@ -393,10 +393,22 @@ static int register_yuno_and_more(void)
     json_array_append_new(jn_expected, json_pack("{s:s}",
         "msg",              "👤BFF IdP answer to a logout refused, the cookies are cleared"
     ));
-    /*  58: three requests in one write  */
+    /*  60-64: a text of the browser that is not one  */
+    for(int i = 0; i < 5; i++) {
+        EXPECT_REJECTED("missing_params");
+    }
+    /*  65: an "error" of the IdP that is not a text  */
+    json_array_append_new(jn_expected, json_pack("{s:s}",
+        "msg",              "👤BFF IdP rejected the request"
+    ));
+    json_array_append_new(jn_expected, json_pack("{s:s, s:s}",
+        "msg",          "👤BFF server error",
+        "error_code",   "auth_unexpected_error"
+    ));
+    /*  67: three requests in one write  */
     EXPECT_REJECTED("unknown_endpoint");
     EXPECT_REJECTED("method_not_allowed");
-    /*  59-61: more pipelined requests than the queue, each 404 until the drop  */
+    /*  68-70: more pipelined requests than the queue, each 404 until the drop  */
     for(int f = 0; f < 3; f++) {
         for(int i = 0; i < 17; i++) {
             EXPECT_REJECTED("unknown_endpoint");
