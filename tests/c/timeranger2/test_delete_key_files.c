@@ -260,6 +260,15 @@ PRIVATE int do_test(void)
 
     build_path(path_database, sizeof(path_database),
         getenv("HOME"), "tests_yuneta", DATABASE, NULL);
+    /*
+     *  A run killed while a directory is at 0550 leaves what no later run
+     *  could remove, and this test would fail for good.
+     */
+    char left_at_0550[PATH_MAX];
+    build_path(left_at_0550, sizeof(left_at_0550), path_database, TOPIC_NAME, "keys", NULL);
+    chmod(left_at_0550, 0770);
+    build_path(left_at_0550, sizeof(left_at_0550), path_database, TOPIC_NAME, "keys", KEY, NULL);
+    chmod(left_at_0550, 0770);
     rmrdir(path_database);
 
     /*-------------------------------------*
