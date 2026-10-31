@@ -181,9 +181,23 @@ PRIVATE int register_yuno_and_more(void)
      *  hand ownership to set_expected_results.  test_json(NULL) in
      *  cleaning() will JSON_DECREF it.
      */
-    json_t *expected_log_messages = s_expected_log_msg
-        ? json_pack("[{s:s}]", "msg", s_expected_log_msg)
-        : json_array();
+    json_t *expected_log_messages;
+    if(!s_expected_log_msg) {
+        expected_log_messages = json_array();
+    } else if(s_expected_log_msg[0] == '[') {
+        // A json list of the msg of each log, in order
+        json_t *jn_msgs = anystring2json(s_expected_log_msg, strlen(s_expected_log_msg), TRUE);
+        expected_log_messages = json_array();
+        size_t idx;
+        json_t *jn_msg;
+        json_array_foreach(jn_msgs, idx, jn_msg) {
+            json_array_append_new(expected_log_messages,
+                json_pack("{s:s}", "msg", json_string_value(jn_msg)));
+        }
+        JSON_DECREF(jn_msgs)
+    } else {
+        expected_log_messages = json_pack("[{s:s}]", "msg", s_expected_log_msg);
+    }
 
     set_expected_results(
         s_app_name,

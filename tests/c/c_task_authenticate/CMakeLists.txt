@@ -62,6 +62,9 @@ SET(TESTS
     test2_explicit_endpoints
     test4_discovery_failure
     test5_form_encoding
+    test6_idp_drops
+    test7_headers_too_large
+    test8_protocol_error
 )
 
 foreach(test ${TESTS})

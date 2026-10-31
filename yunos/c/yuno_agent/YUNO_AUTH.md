@@ -198,7 +198,9 @@ need it.
    (`502 auth_unexpected_error`, a WARNING naming its type and the WARNING
    *"👤BFF IdP answer refused"* of the 502, no ERROR), a body that is not a
    JSON object (empty, not JSON, `[1, 2]`) is refused the same way as
-   `502 auth_empty_response`, and a lifetime that is not a JSON integer
+   `502 auth_empty_response`, an answer the HTTP client refused (a body over
+   1 MB, headers over 64 KB, one that breaks the protocol) is
+   `502 auth_unexpected_error` naming which, and a lifetime that is not a JSON integer
    or the text of one gets its default, with a WARNING naming the value. A lifetime of 0 (Keycloak's offline token) is
    a token with no expiry: its cookie gets no `Max-Age`.
 

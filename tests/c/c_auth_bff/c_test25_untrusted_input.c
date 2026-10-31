@@ -75,10 +75,17 @@
  *               auth_service_unavailable, and the login is not sent again
  *               on the next connection (the IdP would answer it 200);
  *           54. login: 200;
- *           55. three requests in one write: a login (the IdP answers it
+ *        55-56. login, the IdP answers with a header over 64 KB, or with a
+ *               response that breaks the protocol after its status line
+ *               (the HTTP client publishes it with headers_too_large or
+ *               protocol_error, no body, status 200): 502
+ *               auth_unexpected_error, its error naming which;
+ *           57. logout, the IdP answers with that broken response: 200,
+ *               both cookies cleared, a WARNING naming it;
+ *           58. three requests in one write: a login (the IdP answers it
  *               300 ms later), a POST to an unknown endpoint and a GET:
  *               their answers come in that order, 200, 404, 405;
- *        56-58. a login and 17, 40 and 600 requests to an unknown endpoint
+ *        59-61. a login and 17, 40 and 600 requests to an unknown endpoint
  *               in one write, each on a new connection: 16 answers wait
  *               behind the login (the pending_queue_size), the 17th drops
  *               the connection, with no answer sent, and the requests after
@@ -112,6 +119,11 @@
 #define MAX_COOKIE_LEN  5000
 #define MAX_PIPELINED   3
 #define IDP_DROPS       (-1)                /* idp_status: the IdP drops the connection, no answer */
+#define RAW_ANSWER      "@raw"              /* raw_content_type: raw_body is the whole answer of the IdP */
+#define BIG_HEAD        "@bighead"          /* a raw answer with a header longer than the HTTP client takes */
+#define BIG_HEAD_LEN    (70*1024)           /* over the 64 KB of max_header_size */
+#define BROKEN_ANSWER   "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n" \
+                        "Bad Header: x\r\nContent-Length: 2\r\n\r\n{}"
 
 #define TEXT_50     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 #define TEXT_300    TEXT_50 TEXT_50 TEXT_50 TEXT_50 TEXT_50 TEXT_50
@@ -383,6 +395,19 @@ PRIVATE const step_t steps[] = {
         NULL, NULL, NULL, NULL, 200,
         {"Set-Cookie: access_token=ey", NULL}, {NULL},
         {"grant_type=password", NULL}, {NULL}, FALSE, 0, NULL},
+    /* 55-57 */
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, NULL, RAW_ANSWER, BIG_HEAD, 502,
+        {"auth_unexpected_error", "answered headers longer than 65536 bytes", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},
+    {NULL, "/auth/login", NULL, NULL,
+        NULL, NULL, RAW_ANSWER, BROKEN_ANSWER, 502,
+        {"auth_unexpected_error", "answered an answer that breaks the HTTP protocol", NULL},
+        {"Set-Cookie", NULL}, {NULL}, {NULL}, FALSE, 0, NULL},
+    {NULL, "/auth/logout", "refresh_token=RT1", NULL,
+        NULL, NULL, RAW_ANSWER, BROKEN_ANSWER, 200,
+        {"Set-Cookie: access_token=; Max-Age=0;", "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
+        {NULL}, {NULL}, {NULL}, FALSE, 0, NULL},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -613,6 +638,27 @@ PRIVATE int set_mock_answer(hgobj gobj, const char *body_patch,
     json_t *jn_patch = anystring2json(patch, strlen(patch), FALSE);
     gobj_write_json_attr(mock, "body_patch", jn_patch);
     JSON_DECREF(jn_patch)
+    gobj_write_str_attr(mock, "raw_answer", "");
+    if(raw_content_type && strcmp(raw_content_type, RAW_ANSWER) == 0) {
+        raw_content_type = NULL;
+        if(strcmp(raw_body, BIG_HEAD) == 0) {
+            const char *start = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-Big: ";
+            const char *end = "\r\nContent-Length: 2\r\n\r\n{}";
+            size_t len = strlen(start) + BIG_HEAD_LEN + strlen(end);
+            char *big = gbmem_malloc(len + 1);
+            if(!big) {
+                return -1;  // Error already logged
+            }
+            memcpy(big, start, strlen(start));
+            memset(big + strlen(start), 'h', BIG_HEAD_LEN);
+            memcpy(big + strlen(start) + BIG_HEAD_LEN, end, strlen(end) + 1);
+            gobj_write_str_attr(mock, "raw_answer", big);
+            GBMEM_FREE(big)
+        } else {
+            gobj_write_str_attr(mock, "raw_answer", raw_body);
+        }
+        raw_body = NULL;
+    }
     gobj_write_str_attr(mock, "raw_content_type", raw_content_type? raw_content_type : "");
     if(raw_body && strcmp(raw_body, BIG_BODY) == 0) {
         char *big = gbmem_malloc(BIG_BODY_LEN + 1);

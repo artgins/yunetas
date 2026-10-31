@@ -1091,11 +1091,109 @@ PRIVATE BOOL kc_http_failed(hgobj gobj, IDP_PENDING *p, json_t *kw, int expected
 }
 
 /***************************************************************************
+ *  An answer of Keycloak that C_PROT_HTTP_CL refused: published with no
+ *  body (its status may be 200) and one of `body_too_large`,
+ *  `headers_too_large` or `protocol_error`, after the WARNING of the HTTP
+ *  client. TRUE, with ONE warning naming which, and `what` filled.
+ ***************************************************************************/
+PRIVATE BOOL kc_response_refused(hgobj gobj, json_t *kw, char *what, size_t what_size)
+{
+    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
+    json_int_t headers_too_large = kw_get_int(gobj, kw, "headers_too_large", 0, 0);
+    const char *protocol_error = kw_get_str(gobj, kw, "protocol_error", "", 0);
+    if(body_too_large > 0) {
+        snprintf(what, what_size, "a body longer than %d bytes", (int)body_too_large);
+    } else if(headers_too_large > 0) {
+        snprintf(what, what_size, "headers longer than %d bytes", (int)headers_too_large);
+    } else if(!empty_string(protocol_error)) {
+        snprintf(what, what_size, "an answer that breaks the HTTP protocol (%.64s)",
+            protocol_error);
+    } else {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "Keycloak answer refused",
+        "refused",      "%s", what,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The answer of a request whose Keycloak answer was refused
+ *  (kc_response_refused()): TRUE when it answered, so the caller stops
+ *  the task.
+ ***************************************************************************/
+PRIVATE BOOL kc_answer_refused(hgobj gobj, IDP_PENDING *p, json_t *kw)
+{
+    char refused[160];
+    if(!kc_response_refused(gobj, kw, refused, sizeof(refused))) {
+        return FALSE;
+    }
+    if(p) {
+        kc_answer(gobj, p, -1, json_sprintf("Keycloak answered %s", refused),
+            json_pack("{s:s}", "error_code", "kc_unavailable"), NULL);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  C_TASK runs the current job again each time the connection to Keycloak
+ *  opens, so a request whose connection closed before its answer would be
+ *  sent again on the next one: a user created twice (answered "already
+ *  exists"), a second invitation e-mail, a delete or an update applied
+ *  again (RFC 9112 §9.3.1: a client does not retry a non-idempotent
+ *  request by itself). A job is sent once: run again, TRUE, with a
+ *  WARNING, the request answered, and the caller stops the task. The
+ *  invitation is the last job of a registration, whose account exists:
+ *  it is answered as registered, with the warning "email_send_failed".
+ ***************************************************************************/
+PRIVATE BOOL kc_request_sent_before(hgobj gobj, hgobj src_task, const char *job, IDP_PENDING *p)
+{
+    json_t *output_data = gobj_read_json_attr(src_task, "output_data");
+    char key[NAME_MAX];
+    snprintf(key, sizeof(key), "_sent_%s", job);
+    if(!json_is_true(json_object_get(output_data, key))) {
+        json_object_set_new(output_data, key, json_true());
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "Keycloak closed the connection before answering, "
+                              "the request is not sent again",
+        "job",          "%s", job,
+        NULL
+    );
+    if(p && strcmp(job, "kc_send_email") == 0) {
+        const char *email = kw_get_str(gobj, p->params, "email", "", 0);
+        kc_answer(gobj, p, 0,
+            json_sprintf("User registered: %s", email),
+            json_pack("{s:s, s:s}", "id", p->user_id, "email", email),
+            "email_send_failed");
+    } else if(p) {
+        kc_answer(gobj, p, -1,
+            json_sprintf("Keycloak closed the connection before answering %s, "
+                "the request is not sent again", p->op),
+            json_pack("{s:s}", "error_code", "kc_unavailable"), NULL);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  Job 0 action: request an admin access_token (client_credentials).
  ***************************************************************************/
 PRIVATE json_t *kc_get_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kc_request_sent_before(gobj, src_task, lmethod, dl_first(&priv->dl_pending))) {
+        // Warning already logged, the request answered
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     char resource[256];
     snprintf(resource, sizeof(resource),
@@ -1125,6 +1223,11 @@ PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IDP_PENDING *p = dl_first(&priv->dl_pending);
 
+    if(kc_answer_refused(gobj, p, kw)) {
+        // Warning already logged, the request answered
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     if(status != 200) {
         if(p) {
@@ -1166,6 +1269,11 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IDP_PENDING *p = dl_first(&priv->dl_pending);
     if(!p) {
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+    if(kc_request_sent_before(gobj, src_task, lmethod, p)) {
+        // Warning already logged, the request answered
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -1211,6 +1319,11 @@ PRIVATE json_t *kc_create_user_result(hgobj gobj, const char *lmethod, json_t *k
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IDP_PENDING *p = dl_first(&priv->dl_pending);
 
+    if(kc_answer_refused(gobj, p, kw)) {
+        // Warning already logged, the request answered
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     if(status == 409) {
         if(p) {
@@ -1265,6 +1378,11 @@ PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj
         KW_DECREF(kw)
         STOP_TASK()
     }
+    if(kc_request_sent_before(gobj, src_task, lmethod, p)) {
+        // Warning already logged, the request answered
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     /*  Query params go in the resource: C_PROT_HTTP_CL only appends the
      *  `query` field for x-www-form-urlencoded, not for JSON bodies. */
@@ -1302,12 +1420,14 @@ PRIVATE json_t *kc_send_email_result(hgobj gobj, const char *lmethod, json_t *kw
     IDP_PENDING *p = dl_first(&priv->dl_pending);
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+    char refused[160];
+    BOOL answer_refused = kc_response_refused(gobj, kw, refused, sizeof(refused));
     if(p) {
         const char *email = kw_get_str(gobj, p->params, "email", "", 0);
         const char *warning = NULL;
         if(!p->authz_ok) {
             warning = "authz_write_failed";
-        } else if(!(status >= 200 && status < 300)) {
+        } else if(answer_refused || !(status >= 200 && status < 300)) {
             warning = "email_send_failed";
         }
         kc_answer(gobj, p, 0,
@@ -1332,6 +1452,12 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     IDP_PENDING *p = dl_first(&priv->dl_pending);
     if(!p) {
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+    BOOL is_read = strcmp(p->op, IDP_OP_LIST)==0 || strcmp(p->op, IDP_OP_GET)==0;
+    if(!is_read && kc_request_sent_before(gobj, src_task, lmethod, p)) {
+        // Warning already logged, the request answered (a read, a GET, may go again)
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -1452,6 +1578,11 @@ PRIVATE json_t *kc_request_result(hgobj gobj, const char *lmethod, json_t *kw, h
     }
 
     BOOL is_read = p && (strcmp(p->op, IDP_OP_LIST)==0 || strcmp(p->op, IDP_OP_GET)==0);
+    if(kc_answer_refused(gobj, p, kw)) {
+        // Warning already logged, the request answered
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
     if(kc_http_failed(gobj, p, kw, 0)) {
         KW_DECREF(kw)
         STOP_TASK()

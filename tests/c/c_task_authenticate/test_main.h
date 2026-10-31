@@ -35,7 +35,9 @@ extern "C" {
  *  expected_result       expected EV_ON_TOKEN result field passed to
  *                        the C_TEST_DRIVER service.
  *  expected_log_msg      single expected log message string (matched as
- *                        a `msg` field, kw_match_simple subset semantics).
+ *                        a `msg` field, kw_match_simple subset semantics),
+ *                        or, starting with "[", a json list of the `msg`
+ *                        of each log expected, in order.
  *                        May be NULL — no warning/error is expected.
  *                        We accept a string (not json_t) so the json_pack
  *                        can run AFTER yuneta_entry_point has installed

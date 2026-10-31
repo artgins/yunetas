@@ -79,6 +79,7 @@ SDATA (DTP_JSON,        "override_discovery_body", SDF_RD, "{}", "If non-empty, 
 SDATA (DTP_BOOLEAN,     "silent_discovery", SDF_RD, "0",    "If true, the /.well-known GET is taken and never answered (an IdP that accepts the connection and stays silent: exercises the discovery timeout)"),
 SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
 SDATA (DTP_STRING,      "retry_after",      SDF_RD, "",     "If non-empty, the answers to /token carry a Retry-After header with this value"),
+SDATA (DTP_STRING,      "raw_answer",       SDF_RD, "",     "If non-empty, a /token or /logout request is answered with these bytes as they are, status line and headers included (a head too long, a response that breaks the protocol)"),
 SDATA (DTP_BOOLEAN,     "drop_token_request", SDF_RD, "0",  "If true, the next /token request is not answered: its connection is dropped (an IdP that restarts, or whose answer the client cannot parse); cleared when used"),
 SDATA (DTP_STRING,      "last_form",        SDF_RD, "",     "The body of the last /token or /logout request, as it arrived (the form of the BFF); a test clears it before a step"),
 SDATA_END()
@@ -296,6 +297,27 @@ PRIVATE void mk_send_raw(hgobj gobj, hgobj browser_src, const char *content_type
             gobj_short_name(browser_src), content_type, (int)body_len
         );
     }
+}
+
+/***************************************************************************
+ *  The bytes of `raw_answer` written as they are, straight to the
+ *  transport below the http_sr child that delivered the request
+ ***************************************************************************/
+PRIVATE void mk_send_raw_answer(hgobj gobj, hgobj browser_src, const char *raw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t len = strlen(raw);
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    if(!gbuf) {
+        return;  // Error already logged
+    }
+    gbuffer_append(gbuf, (void *)raw, len);
+    json_t *kw_tx = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
+    );
+    gobj_send_event(gobj_bottom_gobj(browser_src), EV_TX_DATA, kw_tx, gobj);
+    priv->st_responses_sent++;
 }
 
 /***************************************************************************
@@ -767,6 +789,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->st_token_requests++;
         save_form(gobj, kw);
 
+        if(!empty_string(gobj_read_str_attr(gobj, "raw_answer"))) {
+            mk_send_raw_answer(gobj, src, gobj_read_str_attr(gobj, "raw_answer"));
+            KW_DECREF(kw)
+            return 0;
+        }
+
         if(gobj_read_bool_attr(gobj, "drop_token_request")) {
             gobj_write_bool_attr(gobj, "drop_token_request", FALSE);
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -807,6 +835,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(strstr(url, "/logout")) {
         priv->st_logout_requests++;
         save_form(gobj, kw);
+        if(!empty_string(gobj_read_str_attr(gobj, "raw_answer"))) {
+            mk_send_raw_answer(gobj, src, gobj_read_str_attr(gobj, "raw_answer"));
+            KW_DECREF(kw)
+            return 0;
+        }
         json_t *jn_empty = json_object();
         respond_or_defer(gobj, src, 204, "204 No Content", jn_empty);
 

@@ -95,9 +95,11 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  auth_unexpected_error     502  IdP returned something unexpected
  *                                 (also a success with no access_token,
  *                                 with a token that is not a string or
- *                                 has a byte a cookie cannot carry, or a
- *                                 body over 1 MB: logged as a WARNING,
- *                                 "IdP answer refused", data of a peer)
+ *                                 has a byte a cookie cannot carry, a
+ *                                 body over 1 MB, headers over 64 KB, or
+ *                                 an answer that breaks the protocol:
+ *                                 logged as a WARNING, "IdP answer
+ *                                 refused", data of a peer)
  *  auth_empty_response       502  IdP success whose body is not a JSON
  *                                 object (empty, not JSON, another JSON
  *                                 type): a WARNING, "IdP answer refused"

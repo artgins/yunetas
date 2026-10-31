@@ -405,7 +405,13 @@ body of an IdP answer: a longer one is not read to the end (one WARNING of
 the HTTP client, *"HTTP body larger than its limit, message refused"*, and
 the connection to the IdP dropped), and the request is answered `502
 auth_unexpected_error` (*"Authentication service answered a body longer than
-1048576 bytes"*). Every
+1048576 bytes"*). So is an answer whose headers pass the 64 KB the HTTP
+client takes (*"... answered headers longer than 65536 bytes"*), or that
+breaks the HTTP protocol once begun (*"... answered an answer that breaks the
+HTTP protocol (...)"*): the WARNING of the HTTP client, then the WARNING of
+the 502. Such an answer to a logout still clears the cookies, with a
+WARNING (*"👤BFF IdP answer to a logout refused, the cookies are
+cleared"*). Every
 other 5xx of the BFF is an ERROR (*"👤BFF server error"*). A lifetime
 (`expires_in`, `refresh_expires_in`) is a JSON integer or the text of one:
 `"expires_in": "300"` is read as 300, as some IdPs send it. Anything else

@@ -26,7 +26,10 @@
  *    peer: a token that is not a string, or has a byte outside cookie-octet
  *    (it goes into a Set-Cookie), is refused (502 auth_unexpected_error, a
  *    WARNING naming it and the WARNING of the 502), a body longer than
- *    BFF_IDP_BODY_MAX is not read (502 auth_unexpected_error), a
+ *    BFF_IDP_BODY_MAX, headers longer than the HTTP client takes, or an
+ *    answer that breaks the protocol, are refused by the HTTP client and
+ *    answered 502 auth_unexpected_error (a logout clears the cookies all
+ *    the same, with a WARNING), a
  *    Retry-After of a 429 is passed on only as delay-seconds (1 to 10
  *    digits) or a real HTTP-date (any of its three forms, passed on as
  *    IMF-fixdate), and a lifetime is a JSON integer or the text of one
@@ -272,6 +275,7 @@ PRIVATE BOOL request_origin_allowed(hgobj gobj, const char *endpoint,
     const char *origin, const char *host, char *why, size_t why_size
 );
 PRIVATE BOOL redirect_uri_is_prefix(const char *allowed_ruri);
+PRIVATE BOOL idp_response_refused(hgobj gobj, json_t *kw, char *what, size_t what_size);
 PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     int status_code, const char *status_text,
     const char *error_code, const char *error_msg,
@@ -2255,13 +2259,12 @@ PRIVATE json_t *send_token_to_browser(
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
-    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
-    if(body_too_large > 0) {
+    char refused[160];
+    if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
         // The HTTP client said it, with a WARNING
-        char error_msg[128];
+        char error_msg[256];
         snprintf(error_msg, sizeof(error_msg),
-            "Authentication service answered a body longer than %d bytes",
-            (int)body_too_large);
+            "Authentication service answered %s", refused);
         send_idp_answer_refused(gobj, gobj_bottom_gobj(gobj),
             "auth_unexpected_error", error_msg, cors_hdrs);
         KW_DECREF(kw)
@@ -2683,6 +2686,31 @@ PRIVATE json_t *send_token_to_browser(
 }
 
 /***************************************************************************
+ *  A response of the IdP that C_PROT_HTTP_CL refused: it is published
+ *  with no body (its status may be 200) and one of `body_too_large`,
+ *  `headers_too_large` (their limit) or `protocol_error` (the reason of
+ *  the parser), after the WARNING of the HTTP client. TRUE, and what was
+ *  refused in `what`, for the one log and the answer of the caller.
+ ***************************************************************************/
+PRIVATE BOOL idp_response_refused(hgobj gobj, json_t *kw, char *what, size_t what_size)
+{
+    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
+    json_int_t headers_too_large = kw_get_int(gobj, kw, "headers_too_large", 0, 0);
+    const char *protocol_error = kw_get_str(gobj, kw, "protocol_error", "", 0);
+    if(body_too_large > 0) {
+        snprintf(what, what_size, "a body longer than %d bytes", (int)body_too_large);
+    } else if(headers_too_large > 0) {
+        snprintf(what, what_size, "headers longer than %d bytes", (int)headers_too_large);
+    } else if(!empty_string(protocol_error)) {
+        snprintf(what, what_size, "an answer that breaks the HTTP protocol (%.64s)",
+            protocol_error);
+    } else {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  C_TASK runs the job of a task again each time the connection to the
  *  IdP opens, so a request whose connection closed before its answer (the
  *  IdP restarted, an answer the HTTP client could not parse) would be sent
@@ -3065,6 +3093,22 @@ PRIVATE json_t *send_logout_to_browser(
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
+    /*
+     *  The logout ends in the browser whatever the IdP answered (its
+     *  session there ends by its own timeout): an answer refused is said,
+     *  and the cookies are cleared all the same
+     */
+    char refused[160];
+    if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF IdP answer to a logout refused, the cookies are cleared",
+            "refused",      "%s", refused,
+            NULL
+        );
+    }
+
     if(browser_src) {
         send_logout_success_to_browser(gobj, browser_src, cors_hdrs,
             kw_get_str(gobj, output_data, "_host", "", 0),
@@ -3165,13 +3209,13 @@ PRIVATE json_t *save_oidc_discovery(
         STOP_TASK()
     }
 
-    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
-    if(body_too_large > 0) {
+    char refused[160];
+    if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_PROTOCOL,
-            "msg",              "%s", "👤BFF OIDC discovery failed: answer body too long",
-            "max_body_size",    "%d", (int)body_too_large,
+            "msg",              "%s", "👤BFF OIDC discovery failed: answer refused",
+            "refused",          "%s", refused,
             "issuer",           "%s", priv->issuer,
             NULL
         );

@@ -23,6 +23,9 @@
  *          and the WARNING of the 502; for a 429 of the IdP, the WARNING of
  *          the 429, after the WARNING of a Retry-After not passed on; for
  *          the IdP that closes the connection, the ERROR of the 502; for
+ *          an answer with a head too long or that breaks the protocol, the
+ *          WARNING of the HTTP client and the WARNING of the 502 (of a
+ *          logout: a WARNING naming it, the cookies cleared); for
  *          17, 40 and 600 requests pipelined behind a login, the WARNING of
  *          each of the first 17 404s and the WARNING of the connection
  *          dropped.
@@ -374,10 +377,26 @@ static int register_yuno_and_more(void)
         "msg",          "👤BFF server error",
         "error_code",   "auth_service_unavailable"
     ));
-    /*  55: three requests in one write  */
+    /*  55-57: an answer the HTTP client refused  */
+    json_array_append_new(jn_expected, json_pack("{s:s, s:s}",
+        "msg",              "HTTP headers larger than their limit, message refused",
+        "http_parser_type", "response"
+    ));
+    EXPECT_REFUSED("auth_unexpected_error");
+    json_array_append_new(jn_expected, json_pack("{s:s}",
+        "msg",              "Protocol violation: non-HTTP data received"
+    ));
+    EXPECT_REFUSED("auth_unexpected_error");
+    json_array_append_new(jn_expected, json_pack("{s:s}",
+        "msg",              "Protocol violation: non-HTTP data received"
+    ));
+    json_array_append_new(jn_expected, json_pack("{s:s}",
+        "msg",              "👤BFF IdP answer to a logout refused, the cookies are cleared"
+    ));
+    /*  58: three requests in one write  */
     EXPECT_REJECTED("unknown_endpoint");
     EXPECT_REJECTED("method_not_allowed");
-    /*  56-58: more pipelined requests than the queue, each 404 until the drop  */
+    /*  59-61: more pipelined requests than the queue, each 404 until the drop  */
     for(int f = 0; f < 3; f++) {
         for(int i = 0; i < 17; i++) {
             EXPECT_REJECTED("unknown_endpoint");

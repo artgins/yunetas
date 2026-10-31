@@ -32,6 +32,8 @@ SDATA (DTP_INTEGER,     "return_status_token",      SDF_RD, "200",    "HTTP stat
 SDATA (DTP_INTEGER,     "return_status_discovery",  SDF_RD, "200",    "HTTP status returned by /.well-known/openid-configuration"),
 SDATA (DTP_JSON,        "override_token_body",      SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /token envelope"),
 SDATA (DTP_JSON,        "override_discovery_body",  SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /.well-known body (e.g. to omit endpoints)"),
+SDATA (DTP_INTEGER,     "drop_token_requests",      SDF_RD, "0",      "So many /token requests are not answered: their connection is dropped (an IdP that restarts)"),
+SDATA (DTP_STRING,      "raw_token_answer",         SDF_RD, "",       "If non-empty, /token is answered with these bytes as they are, status line and headers included; \"@bighead\": a 200 with a header of 70 KB"),
 SDATA (DTP_DICT,        "expected_form",            SDF_RD, "{}",     "If non-empty, each key must be in the /token form ONCE, with this value once decoded; else the mock logs an ERROR and answers 400 invalid_grant"),
 SDATA_END()
 };
@@ -212,6 +214,38 @@ PRIVATE BOOL form_as_expected(hgobj gobj, json_t *kw)
 }
 
 /***************************************************************************
+ *  The bytes of `raw_token_answer` written as they are, straight to the
+ *  transport below the http_sr child that delivered the request
+ ***************************************************************************/
+PRIVATE void send_raw_answer(hgobj gobj, hgobj http_sr, const char *raw)
+{
+    gbuffer_t *gbuf;
+    if(strcmp(raw, "@bighead") == 0) {
+        const char *start = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-Big: ";
+        const char *end = "\r\nContent-Length: 2\r\n\r\n{}";
+        size_t big = 70*1024;
+        gbuf = gbuffer_create(strlen(start) + big + strlen(end), strlen(start) + big + strlen(end));
+        if(!gbuf) {
+            return;  // Error already logged
+        }
+        gbuffer_append(gbuf, (void *)start, strlen(start));
+        for(size_t i = 0; i < big; i++) {
+            gbuffer_append_char(gbuf, 'h');
+        }
+        gbuffer_append(gbuf, (void *)end, strlen(end));
+    } else {
+        size_t len = strlen(raw);
+        gbuf = gbuffer_create(len, len);
+        if(!gbuf) {
+            return;  // Error already logged
+        }
+        gbuffer_append(gbuf, (void *)raw, len);
+    }
+    json_t *kw_tx = json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf);
+    gobj_send_event(gobj_bottom_gobj(http_sr), EV_TX_DATA, kw_tx, gobj);
+}
+
+/***************************************************************************
  *  Send a JSON response back to the http_sr child that delivered `src`.
  ***************************************************************************/
 PRIVATE void send_resp(hgobj gobj, hgobj http_sr, int status,
@@ -288,6 +322,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         send_resp(gobj, src, status, status_tx, jn_body);
+
+    } else if(strstr(url, "/token") && gobj_read_integer_attr(gobj, "drop_token_requests") > 0) {
+        gobj_write_integer_attr(gobj, "drop_token_requests",
+            gobj_read_integer_attr(gobj, "drop_token_requests") - 1);
+        gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+
+    } else if(strstr(url, "/token") && !empty_string(gobj_read_str_attr(gobj, "raw_token_answer"))) {
+        send_raw_answer(gobj, src, gobj_read_str_attr(gobj, "raw_token_answer"));
 
     } else if(strstr(url, "/token")) {
         int status            = (int)gobj_read_integer_attr(gobj, "return_status_token");

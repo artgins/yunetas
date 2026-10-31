@@ -98,7 +98,10 @@ few KB). A longer one is not read to the end: the HTTP client logs one
 WARNING (*"HTTP body larger than its limit, message refused"*), drops the
 connection to the IdP, and the request is answered `502
 auth_unexpected_error` (*"Authentication service answered a body longer than
-1048576 bytes"*).
+1048576 bytes"*). The same for headers over the 64 KB of the HTTP client and
+for an answer that breaks the HTTP protocol once begun, each named in the
+`error`; such an answer to a logout still clears the cookies, with a
+WARNING.
 
 **A `429` of the IdP** is answered `429 auth_rate_limited`, with the
 `Retry-After` of the IdP when it is delay-seconds of 1 to 10 digits (`120`)

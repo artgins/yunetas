@@ -5,6 +5,7 @@
  *          DBA Dba_postgres
  *
  *          Copyright (c) 2021 by Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <grp.h>
@@ -279,6 +280,35 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 /***************************************************************************
+ *  C_TASK runs the current job again each time C_POSTGRES says it is
+ *  connected (EV_ON_OPEN), and C_POSTGRES keeps a query until it is
+ *  answered and sends it again by itself on the new connection: a job
+ *  that pushed its query once must not push it again (the INSERT would
+ *  go twice). TRUE when it was pushed: the job waits for its answer.
+ ***************************************************************************/
+PRIVATE BOOL query_pushed_before(hgobj gobj, hgobj task, const char *job)
+{
+    json_t *output_data = gobj_read_json_attr(task, "output_data");
+    if(!json_is_object(output_data)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "task without output_data dict",
+            "task",         "%s", gobj_short_name(task),
+            NULL
+        );
+        return FALSE;
+    }
+    char key[NAME_MAX];
+    snprintf(key, sizeof(key), "_pushed_%s", job);
+    if(json_is_true(json_object_get(output_data, key))) {
+        return TRUE;
+    }
+    json_object_set_new(output_data, key, json_true());
+    return FALSE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *action_create_table_if_not_exists(
@@ -289,6 +319,12 @@ PRIVATE json_t *action_create_table_if_not_exists(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(query_pushed_before(gobj, src, lmethod)) {
+        // C_POSTGRES sends it again by itself
+        KW_DECREF(kw);
+        CONTINUE_TASK();
+    }
 
     json_t *input_data = gobj_read_json_attr(src, "input_data");
     json_t *schema_ = kw_get_dict(gobj, input_data, "_dba_postgres`schema", 0, KW_REQUIRED);
@@ -349,6 +385,12 @@ PRIVATE json_t *action_add_row(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(query_pushed_before(gobj, src, lmethod)) {
+        // C_POSTGRES sends it again by itself
+        KW_DECREF(kw);
+        CONTINUE_TASK();
+    }
 
     json_t *input_data = gobj_read_json_attr(src, "input_data");
     json_t *schema_ = kw_get_dict(gobj, input_data, "_dba_postgres`schema", 0, KW_REQUIRED);

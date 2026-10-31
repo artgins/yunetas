@@ -469,6 +469,66 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 /***************************************************************************
+ *  A response of the IdP that C_PROT_HTTP_CL refused: it is published
+ *  with no body (its status may be 200) and one of `body_too_large`,
+ *  `headers_too_large` (their limit) or `protocol_error` (the reason of
+ *  the parser), after the WARNING of the HTTP client. TRUE, and what was
+ *  refused in `what`.
+ ***************************************************************************/
+PRIVATE BOOL idp_response_refused(hgobj gobj, json_t *kw, char *what, size_t what_size)
+{
+    json_int_t body_too_large = kw_get_int(gobj, kw, "body_too_large", 0, 0);
+    json_int_t headers_too_large = kw_get_int(gobj, kw, "headers_too_large", 0, 0);
+    const char *protocol_error = kw_get_str(gobj, kw, "protocol_error", "", 0);
+    if(body_too_large > 0) {
+        snprintf(what, what_size, "a body longer than %d bytes", (int)body_too_large);
+    } else if(headers_too_large > 0) {
+        snprintf(what, what_size, "headers longer than %d bytes", (int)headers_too_large);
+    } else if(!empty_string(protocol_error)) {
+        snprintf(what, what_size, "an answer that breaks the HTTP protocol (%.64s)",
+            protocol_error);
+    } else {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "task_authenticate: IdP answer refused",
+        "refused",      "%s", what,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
+ *  C_TASK runs the current job again each time the connection to the IdP
+ *  opens, so a POST whose connection closed before its answer would be
+ *  sent again on the next one: a second password grant, a refresh_token
+ *  used twice (RFC 9112 §9.3.1: a client does not retry a non-idempotent
+ *  request by itself). The job is sent once: run again, TRUE, with a
+ *  WARNING, and the caller ends the task.
+ ***************************************************************************/
+PRIVATE BOOL request_sent_before(hgobj gobj, hgobj task, const char *job)
+{
+    json_t *output_data = gobj_read_json_attr(task, "output_data");
+    char key[NAME_MAX];
+    snprintf(key, sizeof(key), "_sent_%s", job);
+    if(!json_is_true(json_object_get(output_data, key))) {
+        json_object_set_new(output_data, key, json_true());
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "task_authenticate: the IdP closed the connection before "
+                              "answering, the request is not sent again",
+        "job",          "%s", job,
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int publish_token(
@@ -573,6 +633,16 @@ PRIVATE json_t *result_save_discovery(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *output_data_ = gobj_read_json_attr(src, "output_data");
+    char refused[160];
+    if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
+        // Warning already logged
+        json_object_set_new(output_data_, "comment",
+            json_sprintf("OIDC discovery failed: the IdP answered %s", refused)
+        );
+        publish_token(gobj, -1, output_data_);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     if(status != 200) {
         json_object_set_new(output_data_, "comment",
@@ -634,6 +704,17 @@ PRIVATE json_t *action_get_token(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(request_sent_before(gobj, src, lmethod)) {
+        // Warning already logged
+        json_t *output_data_ = gobj_read_json_attr(src, "output_data");
+        json_object_set_new(output_data_, "comment", json_string(
+            "The IdP closed the connection before answering, the login is not sent again"
+        ));
+        publish_token(gobj, -1, output_data_);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
 
     BOOL offline_access = gobj_read_bool_attr(gobj, "offline_access");
     const char *client_id = gobj_read_str_attr(gobj, "client_id");
@@ -704,6 +785,16 @@ PRIVATE json_t *result_get_token(
     /*------------------------------------*
      *  Http level
      *------------------------------------*/
+    char refused[160];
+    if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
+        // Warning already logged
+        json_object_set_new(output_data_, "comment",
+            json_sprintf("The IdP answered %s", refused)
+        );
+        publish_token(gobj, -1, output_data_);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
     int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 200) {
         json_object_set_new(
@@ -823,6 +914,12 @@ PRIVATE json_t *action_logout(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(request_sent_before(gobj, src, lmethod)) {
+        // Warning already logged; the token is already published
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
     const char *client_id = gobj_read_str_attr(gobj, "client_id");
     const char *access_token = gobj_read_str_attr(gobj, "access_token");
     const char *refresh_token = gobj_read_str_attr(gobj, "refresh_token");
@@ -888,6 +985,12 @@ PRIVATE json_t *result_logout(
     /*------------------------------------*
      *  Http level
      *------------------------------------*/
+    char refused[160];
+    if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
+        // Warning already logged; the token is already published
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
     int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 204) {
         gobj_log_error(gobj, 0,
