@@ -363,10 +363,10 @@ are no day (Lord_Howe from 1981-02-28 13:05:59 UTC, 25 hours, ends at
 (`--wrap=gmtime_r`), a year of hours of Madrid takes at most 1400
 `localtime_r()`, an end no calendar holds is the range 0 with one ERROR (7.29.3:
 the year wrapped, some two billion years back), and a range back past the year
-1 is proleptic, with a year 0. The last 1900 years of the calendar: a range is
-right or the range 0 with one ERROR (7.29.3: `tm_year + 1900` passed an int and
-it wrapped with none), in UTC and in Madrid; so is the week of the first second
-of the calendar, whose Monday is before it.
+1 is proleptic, with a year 0. The last 1900 years of the calendar, where
+`tm_year + 1900` passes an int: a range is right or the range 0 with one ERROR,
+in UTC and in Madrid; so is the week of the first second of the calendar, whose
+Monday is before it.
 §28: a run of 12 digits is no date, and after a clock time a minus sign and
 four digits is its offset. §29: the same after anything else an offset can
 follow: `"noon -0500 hours"`, `"yesterday -0500 hours"`, `"2026-10-01 -0500

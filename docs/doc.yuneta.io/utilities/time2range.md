@@ -28,7 +28,7 @@ time2range -t 2026-10-01T10:30:00Z -p days -r -1
 # Start: 2026-10-01T00:00:00+0000, End: 2026-09-30T00:00:00+0000
 ```
 
-A range whose start or end no calendar holds is refused with exit code -1 (*"No range: no calendar holds its start or its end"*): up to 7.29.3 `-p years -r 2147483647` printed an end some two billion years back, and `-t 67768036191676799 -p days -r 1`, the last second of the calendar and a day more, crashed. With `-z`, hours are counted as the zone counts them, so the time grows with the years the range covers: a year takes 0.2 ms and 245146 years, the most `-r` can ask for, take minutes. Without `-z` it is one step.
+A range whose start or end no calendar holds is refused with exit code -1 (*"No range: no calendar holds its start or its end"*): up to 7.29.3 `-p years -r 2147483647` printed an end some two billion years back. `-t 67768036191676799 -p days -r 1`, the last second of the calendar and a day more, is such a range. With `-z`, hours are counted as the zone counts them, so the time grows with the years the range covers: a year takes 0.2 ms and 245146 years, the most `-r` can ask for, take minutes. Without `-z` it is one step.
 
 ## See also
 
