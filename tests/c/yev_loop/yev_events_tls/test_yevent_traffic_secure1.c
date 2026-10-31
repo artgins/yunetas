@@ -17,6 +17,7 @@
  ****************************************************************************/
 #define APP "test_yevent_traffic_secure1"
 
+#include <unistd.h>
 #include <string.h>
 #include <signal.h>
 #include <kwid.h>
@@ -670,6 +671,17 @@ PRIVATE int do_test(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*
+     *  A server that cannot load its certificate exits with 0 at its first
+     *  start (build_ssl_ctx()), and the test would pass having run nothing
+     */
+    if(access("/yuneta/agent/certs/localhost.crt", R_OK) != 0 ||
+            access("/yuneta/agent/certs/localhost.key", R_OK) != 0) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite,
+            "cannot read /yuneta/agent/certs/localhost.{crt,key}", Color_Off);
+        return -1;
+    }
+
     /*----------------------------------*
      *      Startup gobj system
      *----------------------------------*/
