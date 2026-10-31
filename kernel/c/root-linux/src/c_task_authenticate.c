@@ -359,8 +359,15 @@ PRIVATE int mt_start(hgobj gobj)
         ),
         gobj
     );
-    // HACK Don't subscribe events, will do the tasks
+    /*
+     *  C_PROT_HTTP_CL is a CHILD: it subscribes its parent to every event
+     *  it publishes. The open and the messages are the task's (C_TASK
+     *  subscribes to gobj_results by itself); the close is this gclass's
+     *  too: the one of the stop in ac_end_task comes after the task has
+     *  ended and left, and it has no other audience.
+     */
     gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
+    gobj_subscribe_event(priv->gobj_http, EV_ON_CLOSE, NULL, gobj);
 
     gobj_set_bottom_gobj(gobj, priv->gobj_http);
 
@@ -1035,6 +1042,22 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  The connection to the IdP closed. While a task runs, the task has it
+ *  too (it runs its job again when the connection opens again); after the
+ *  task ended, it is the close of the stop of ac_end_task, and the end of
+ *  this run.
+ ***************************************************************************/
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "task_authenticate: connection to the IdP closed (%s)",
+            gobj_short_name(src));
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1110,6 +1133,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_END_TASK,           ac_end_task,        0},
+        {EV_ON_CLOSE,           ac_on_close,        0},
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
@@ -1121,6 +1145,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ON_TOKEN,       EVF_OUTPUT_EVENT},
         {EV_END_TASK,       0},
+        {EV_ON_CLOSE,       0},
         {EV_STOPPED,        0},
         {0, 0}
     };

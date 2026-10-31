@@ -142,6 +142,7 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
 PRIVATE json_t *kc_request_result(hgobj gobj, const char *lmethod, json_t *kw, hgobj src_task);
 
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -939,9 +940,12 @@ PRIVATE BOOL ensure_kc_client(hgobj gobj)
      *  subscribed in C_AUTHZ, the close of this outbound socket entered its
      *  ac_on_close and logged out a user that does not exist, while the
      *  answers of Keycloak were lost in "Event NOT DEFINED in state".
-     *  Same treatment as the IdP client of C_AUTH_BFF.
+     *  Same treatment as the IdP client of C_AUTH_BFF, which keeps the
+     *  close: the one of the stop when idle (ac_end_task) comes after the
+     *  task has ended and left, and it has no other audience.
      */
     gobj_unsubscribe_event(priv->gobj_kc, NULL, NULL, gobj);
+    gobj_subscribe_event(priv->gobj_kc, EV_ON_CLOSE, NULL, gobj);
 
     gobj_set_manual_start(priv->gobj_kc, TRUE);
     gobj_set_bottom_gobj(
@@ -1775,6 +1779,20 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  The connection to Keycloak closed. While a task runs, the task has it
+ *  too (it runs its job again when the connection opens again); with none
+ *  running, it is the close of the stop when idle (ac_end_task).
+ ***************************************************************************/
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "connection to Keycloak closed (%s)", gobj_short_name(src));
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Destroy the volatile KC task once it has stopped.
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1850,6 +1868,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_END_TASK,             ac_end_task,              0},
+        {EV_ON_CLOSE,             ac_on_close,              0},
         {EV_STOPPED,              ac_stopped,               0},
         {0,0,0}
     };
@@ -1863,6 +1882,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
          *  missing subscriber is not a bug. */
         {EV_IDP_USER_CREATED,   EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_END_TASK,           0},
+        {EV_ON_CLOSE,           0},
         {EV_STOPPED,            0},
         {0, 0}
     };

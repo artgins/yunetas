@@ -6,8 +6,8 @@
  *          C_TASK runs its job again when the connection opens again, and
  *          the password grant must not be sent again: EV_ON_TOKEN with
  *          result=-1 and ONE warning (the mock would answer a second
- *          /token 200); then the WARNING of the HTTP client stopped while
- *          connected, whose EV_ON_CLOSE has no subscriber left.
+ *          /token 200), and nothing more: the close of the HTTP client
+ *          stopped while connected goes to its parent.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -40,8 +40,7 @@ int main(int argc, char *argv[])
         task_kw_snippet,
         mock_idp_kw_snippet,
         -1,             // expected_result
-        "[\"task_authenticate: the IdP closed the connection before answering, the request is not sent again\", "
-        "\"Publish event WITHOUT subscribers\"]",
+        "[\"task_authenticate: the IdP closed the connection before answering, the request is not sent again\"]",
         TRUE            // capture warnings too
     );
 }
