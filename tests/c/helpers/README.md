@@ -340,10 +340,46 @@ date), in Apia and in Fakaofo; a date said there is read as any time a change
 skips (`"2011-12-30 12:00"` is the 31st at 12:00). A `TZ` changed with
 `setenv()` alone is seen. And the limit of the reading of a local time, in two
 POSIX zones: exact when two changes are 48 hours apart, an hour late inside a
-summer time of one day. §25: the reader calls `tzset()` only when `TZ` changed since its last
-text (counted with `--wrap=tzset`: 0 calls for 1000 texts with `TZ` set and
-unchanged, 1 for 1000 texts with `TZ` unset, where each call looks at
-`/etc/localtime`), and a `TZ` set or unset with no `tzset()` is seen.
+summer time of one day. §25: the reader calls `tzset()` before the first look
+of each text at the local zone, `TZ` set or unset (counted with `--wrap=tzset`:
+1000 calls for 1000 texts, with `TZ` unset each one a `stat()` of
+`/etc/localtime`), and none for a text that says its zone or counts back from
+now; a `TZ` set or unset with no `tzset()` is seen, after a line of log or a
+`mktime()` in another zone too, also a zone with the names and offsets of the
+local one and other rules. The offset of now is asked of libc once per text
+(`--wrap=localtime_r`). What the test cannot do is change `/etc/localtime`
+under itself: it takes a mount namespace, by hand, with `TZ` unset. In
+`unshare -mr`, `mount --bind /usr/share/zoneinfo/Europe/Athens /etc/localtime`,
+then a process that reads `"2026-04-10 12:00"` (1775811600), binds
+`Africa/Cairo` there, and reads it again (1775815200, an hour later).
+§26: `gmtime2timezone()`: the offset at the time it converts, the `TZ` of the
+process kept and loaded again, a zone libc does not know is UTC with an ERROR,
+a time no calendar holds one ERROR.
+§27: `get_hours_range()` and the rest give the bounds of the zone asked, or of
+UTC, an hour being one of the zone, also across a change of 30 minutes, at
+02:45 or of 28 seconds. 24 hours from an hour that does not start at hh:00:00
+are no day (Lord_Howe from 1981-02-28 13:05:59 UTC, 25 hours, ends at
+352301400, from zoneinfo by the second). Hours of UTC take one step
+(`--wrap=gmtime_r`), a year of hours of Madrid takes at most 1400
+`localtime_r()`, an end no calendar holds is the range 0 with one ERROR, and a
+range back past the year 1 is proleptic, with a year 0 (7.29.3: a day late).
+§28: a run of 12 digits is no date, and after a clock time a minus sign and
+four digits is its offset. §29: the same after anything else an offset can
+follow: `"noon -0500 hours"`, `"yesterday -0500 hours"`, `"2026-10-01 -0500
+hours"` are no date (7.29.3: 500 hours back); `"noon -500 hours"`, `"noon -05
+hours"`, `"2026-10-01 -12345 hours"` and `"-0500 hours"`, with nothing before
+it, are durations.
+§30: what is a zone, on a directory of its own under `TZDIR` holding a TZif
+file built by the test. A file is a zone when it starts with `TZif`
+(`zone.tab`, `tzdata.zi`, `leapseconds`, an empty or short file, a directory,
+`/etc/passwd` are UTC with an ERROR; 7.29.3: UTC in silence); a FIFO in place of
+a zone file does not block the process; a POSIX `TZ` is one when all of it can
+be read, 24 forms that are and 50 that are not (`"ABC0DEF,M13.1.0"`, `"ABC25"`,
+`"ABC5:60"`); with no tzdata the names of UTC are no error and `Europe/Madrid`
+is one.
+§31: a time no calendar holds: `gmtime2timezone()` leaves `*ltm` zeroed,
+`t2timestamp()` and `formatdate()` give an empty text and one ERROR (7.29.3:
+half written, and a crash).
 
 `test_spawn_copy` covers `run_process2()` (root-linux) and `copyfile()`
 (gobj-c), both written again after 7.28.4 (they were the `system()` of TLPI,

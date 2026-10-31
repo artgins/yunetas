@@ -161,10 +161,26 @@
  *              asked, or of UTC (they were built in the zone of the
  *              process, with tm_isdst 0); an hour is one of the zone, also
  *              across a change of 30 minutes, at 02:45, or of 28 seconds;
- *              negative months, several years.
+ *              negative months, several years; hours of UTC take one step,
+ *              an end no calendar holds is the range 0 with an ERROR (the
+ *              end of 2147483647 years went out), and a range back past the
+ *              year 1 is not a day late.
  *          28. a run of 12 digits is no date ("202610011000" was the year
  *              8390), and after a clock time a minus sign and four digits
  *              is its offset ("10:00 -0500 hours" is no date).
+ *          29. the same after anything else an offset can follow: noon, a
+ *              day, a date ("noon -0500 hours", "yesterday -0500 hours",
+ *              "2026-10-01 -0500 hours" were 500 hours back).
+ *          30. the zones libc knows: a file under TZDIR or a path is a zone
+ *              when it is a TZif file (zone.tab, /etc/passwd were UTC in
+ *              silence), a POSIX TZ is one when all of it can be read
+ *              ("ABC0DEF,M13.1.0" was UTC in silence, "ABC25" a day), and
+ *              with no tzdata UTC and GMT are no error; a FIFO in place of
+ *              a zone file does not block the process.
+ *          31. a time no calendar holds: gmtime2timezone() leaves *ltm
+ *              zeroed (it was written by halves), t2timestamp() and
+ *              formatdate() give an empty text and one ERROR (a NULL went
+ *              to strftime()).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -173,11 +189,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <limits.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <yunetas.h>
 
 #define APP     "test_date_text"
 
 #define NOW     1792573200  // Wed 2026-10-21 09:00:00 UTC, 11:00:00 CEST
+
+#define ZONES_DIR   "/tmp/test_date_text_zones"
 
 PRIVATE int global_result = 0;
 
@@ -209,6 +230,30 @@ void __wrap_tzset(void)
 {
     s_tzset_calls++;
     __real_tzset();
+}
+
+/***************************************************************************
+ *  localtime_r() and gmtime_r(), counted: the cost of a text and of a range
+ *  (see CMakeLists.txt)
+ ***************************************************************************/
+PRIVATE unsigned long long s_localtime_r_calls = 0;
+PRIVATE unsigned long long s_gmtime_r_calls = 0;
+
+struct tm *__real_localtime_r(const time_t *t, struct tm *tm);
+struct tm *__wrap_localtime_r(const time_t *t, struct tm *tm);
+struct tm *__real_gmtime_r(const time_t *t, struct tm *tm);
+struct tm *__wrap_gmtime_r(const time_t *t, struct tm *tm);
+
+struct tm *__wrap_localtime_r(const time_t *t, struct tm *tm)
+{
+    s_localtime_r_calls++;
+    return __real_localtime_r(t, tm);
+}
+
+struct tm *__wrap_gmtime_r(const time_t *t, struct tm *tm)
+{
+    s_gmtime_r_calls++;
+    return __real_gmtime_r(t, tm);
 }
 
 /***************************************************************************
@@ -2126,6 +2171,15 @@ PRIVATE void test_tzset_only_when_tz_changes(void)
     }
     check_number("tzset() calls for 1000 texts, TZ set: one per text", (unsigned long long)s_tzset_calls, 1000);
 
+    /*
+     *  The offset of now is asked of libc once per text, however many
+     *  pieces of the text need it
+     */
+    s_localtime_r_calls = 0;
+    read_now("Oct 1");
+    check_number("localtime_r() calls for 'Oct 1', a date with no year: the offset of now once",
+        s_localtime_r_calls, 1);
+
     static const char *zone_free_texts[] = {
         "2026-07-01T10:00:00Z", "Thu, 01 Oct 2026 10:00:00 +0000", "3 hours ago", "now", "@1790000000",
     };
@@ -2521,10 +2575,17 @@ PRIVATE void test_time_ranges(void)
         {"Pacific/Chatham",     1790431500,   1, 1790431200, 1790432100, "03:50 +1345, the hour from 03:45"},
         {"Pacific/Chatham",     1790431500,  -2, 1790431200, 1790424900, "03:50 +1345, 2 hours back to 01:00 +1245"},
         {"Pacific/Chatham",     1790338500,  48, 1790338500, 1790507700, "48 hours over the change"},
+        /*
+         *  A range that goes on from an hour that does not start at
+         *  hh:00:00: 24 of those are not a day
+         */
+        {"Australia/Lord_Howe",  352213559,  25,  352213200,  352301400, "25 hours from before the change of 1981"},
         {"<XAA>-0:19:32<XBB>-0:20,J182/0,J300/0", 1782864605, 1, 1782862828, 1782866400,
             "a change of 28 seconds, the hour from 00:00:28"},
         {"<XAA>-0:19:32<XBB>-0:20,J182/0,J300/0", 1782864605, 2, 1782862828, 1782870000,
             "a change of 28 seconds, 2 hours to 02:00:00"},
+        {"<XAA>-0:19:32<XBB>-0:20,J182/0,J300/0", 1782864605, 24, 1782862828, 1782949200,
+            "a change of 28 seconds, 24 hours from 00:00:28 are no day"},
     };
     for(size_t i = 0; i < sizeof(hours)/sizeof(hours[0]); i++) {
         char label[160];
@@ -2547,6 +2608,55 @@ PRIVATE void test_time_ranges(void)
     s_errors_logged = 0;
     check_range("days of an unknown zone: UTC", get_days_range(t, 1, "Nowhere/Zone"), 1784419200, 1784505600);
     check_errors("days of an unknown zone", 1, "Unknown time zone");
+
+    /*
+     *  The cost: UTC takes hours in one step, a zone a day at a time, an
+     *  hour at a time only around a change of offset
+     */
+    s_errors_logged = 0;
+    s_gmtime_r_calls = 0;
+    check_range("10^7 hours of UTC", get_hours_range(t, 10000000, ""), t, t + 36000000000LL);
+    check_number("10^7 hours of UTC: one step, gmtime_r() at most 3 times",
+        (unsigned long long)(s_gmtime_r_calls <= 3), 1);
+    s_gmtime_r_calls = 0;
+    check_range("10^7 hours back in UTC", get_hours_range(t, -10000000, ""), t, t - 36000000000LL);
+    check_number("10^7 hours back in UTC: one step, gmtime_r() at most 3 times",
+        (unsigned long long)(s_gmtime_r_calls <= 3), 1);
+    s_localtime_r_calls = 0;
+    check_range("a year of hours of Madrid", get_hours_range(1784455200, 8760, "Europe/Madrid"),
+        1784455200, 1815991200);
+    check_number("a year of hours of Madrid: by days, at most 1400 localtime_r()",
+        (unsigned long long)(s_localtime_r_calls <= 1400), 1);
+
+    /*
+     *  An end no calendar holds: the range 0 with one ERROR, in UTC and in
+     *  a zone, whatever the unit (the end of a range of years went out, and
+     *  crashed the gmtime() of whoever showed it)
+     */
+    static const struct {
+        const char *tz;
+        const char *label;
+    } zones[] = {{"", "UTC"}, {"Europe/Madrid", "Madrid"}};
+    for(size_t i = 0; i < sizeof(zones)/sizeof(zones[0]); i++) {
+        char label[160];
+        snprintf(label, sizeof(label), "2147483647 years of %s", zones[i].label);
+        s_errors_logged = 0;
+        check_range(label, get_years_range(t, 2147483647, zones[i].tz), 0, 0);
+        check_errors(label, 1, "no calendar holds the time");
+    }
+    time_t last_hour = 67768036191676799LL - 1800;  // the last second of the calendar of gmtime_r()
+    s_errors_logged = 0;
+    check_range("2 hours from the last hour of the calendar", get_hours_range(last_hour, 2, ""), 0, 0);
+    check_errors("2 hours from the last hour of the calendar", 1, "no calendar holds the time");
+
+    /*
+     *  A range back past the year 1: the year 0 is the one before it (it
+     *  was a day late). From the proleptic calendar of timegm().
+     */
+    check_range("years of UTC back to the year 0", get_years_range(t, -2026, ""), 1767225600, -62167219200LL);
+    check_range("years of UTC back to the year -974", get_years_range(t, -3000, ""), 1767225600, -92903673600LL);
+    check_range("months of UTC back to March of the year -2", get_months_range(t, -24340, ""),
+        1782864000, -62225193600LL);
 
     setenv("TZ", "Europe/Madrid", 1);
     tzset();
@@ -2592,6 +2702,293 @@ PRIVATE void test_twelve_digits_and_four_after_a_clock_time(void)
     check_number("parse_date_basic '100000000-0500' ret",
         (unsigned long long)(parse_date_basic("100000000-0500", &t, &off) + 1), 1);
     check_number("parse_date_basic '100000000-0500' offset", (unsigned long long)(off + 300), 0);
+}
+
+/***************************************************************************
+ *  29. After anything an offset can follow, a minus sign and four digits
+ *  is that offset, a unit after it or not: "noon -0500", "yesterday -0500"
+ *  and "2026-10-01 -0500" are zones, so with a unit after them they are no
+ *  date (they were 500 hours back). Fewer or more digits, or nothing before
+ *  the sign, are a count.
+ ***************************************************************************/
+PRIVATE void test_four_digits_after_what_takes_an_offset(void)
+{
+    static const approxidate_case_t cases[] = {
+        {"noon -0500 hours",                "2026-10-21 11:00:00 +0200", 1},
+        {"midnight -0500 hours",            "2026-10-21 11:00:00 +0200", 1},
+        {"tea -1000 days",                  "2026-10-21 11:00:00 +0200", 1},
+        {"yesterday -0500 hours",           "2026-10-21 11:00:00 +0200", 1},
+        {"now -0500 hours",                 "2026-10-21 11:00:00 +0200", 1},
+        {"today -0500 hours",               "2026-10-21 11:00:00 +0200", 1},
+        {"2 days ago -0500 hours",          "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 -0500 hours",          "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01-0500 hours",           "2026-10-21 11:00:00 +0200", 1},
+        {"Oct 1 2026 -0500 hours",          "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01 -1000 days",           "2026-10-21 11:00:00 +0200", 1},
+
+        /*
+         *  What the sign is there with no unit: the zone
+         */
+        {"noon -0500",                      "2026-10-20 19:00:00 +0200", 0},
+        {"yesterday -0500",                 "2026-10-20 11:00:00 +0200", 0},
+        {"2026-10-01 -0500",                "2026-10-01 11:00:00 +0200", 0},
+
+        /*
+         *  Any other count with its unit is a duration
+         */
+        {"noon -5 hours",                   "2026-10-20 07:00:00 +0200", 0},
+        {"noon -05 hours",                  "2026-10-20 07:00:00 +0200", 0},
+        {"noon -500 hours",                 "2026-09-29 16:00:00 +0200", 0},
+        {"yesterday -5 hours",              "2026-10-20 06:00:00 +0200", 0},
+        {"2026-10-01 -5 hours",             "2026-10-01 06:00:00 +0200", 0},
+        {"2026-10-01 -12345 hours",         "2025-05-05 02:00:00 +0200", 0},
+        {"2026-10-01-1d",                   "2026-09-30 11:00:00 +0200", 0},
+
+        /*
+         *  With nothing before it no offset can stand there: a duration
+         */
+        {"-0500 hours",                     "2026-09-30 15:00:00 +0200", 0},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+}
+
+/***************************************************************************
+ *  A file of the zones test
+ ***************************************************************************/
+PRIVATE void write_zone_file(const char *name, const void *bytes, size_t len)
+{
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", ZONES_DIR, name);
+    FILE *f = fopen(path, "w");
+    if(!f || fwrite(bytes, 1, len, f) != len) {
+        printf("FAIL cannot write %s\n", path);
+        global_result += -1;
+    }
+    if(f) {
+        fclose(f);
+    }
+}
+
+/***************************************************************************
+ *  gmtime2timezone() in a zone: its offset in January, or UTC with an ERROR
+ ***************************************************************************/
+PRIVATE void check_known_zone(const char *tz, long expected_offset)
+{
+    char label[128];
+    struct tm tm;
+    time_t offset = -1;
+    s_errors_logged = 0;
+    s_last_error[0] = 0;
+    gmtime2timezone(1768816800, tz, &tm, &offset);
+    snprintf(label, sizeof(label), "zone '%.90s': its offset", tz);
+    check_number(label, (unsigned long long)(offset + 100000), (unsigned long long)(expected_offset + 100000));
+    snprintf(label, sizeof(label), "zone '%.90s'", tz);
+    check_errors(label, 0, NULL);
+}
+
+PRIVATE void check_unknown_zone(const char *tz)
+{
+    char label[128];
+    struct tm tm;
+    time_t offset = -1;
+    s_errors_logged = 0;
+    s_last_error[0] = 0;
+    time_t local = gmtime2timezone(1768816800, tz, &tm, &offset);
+    snprintf(label, sizeof(label), "zone '%.90s': offset 0", tz);
+    check_number(label, (unsigned long long)offset, 0);
+    snprintf(label, sizeof(label), "zone '%.90s': the time in UTC", tz);
+    check_number(label, (unsigned long long)local, 1768816800ULL);
+    snprintf(label, sizeof(label), "zone '%.90s'", tz);
+    check_errors(label, 1, "Unknown time zone");
+}
+
+/***************************************************************************
+ *  30. A zone is what libc will read as one. A file is a zone when it is a
+ *  TZif file: libc takes any other as UTC, in silence, and with no 'T' in
+ *  its name to tell it the file was no zone. A POSIX TZ is one when all of
+ *  it can be read: libc stops at the first thing it cannot, and what it read
+ *  up to there (a summer time with no rules) gave UTC in silence, or a day
+ *  for an offset of 25 hours. With no tzdata (a container, a minimal node)
+ *  the names of UTC are no error: UTC is what they ask for, and it is what
+ *  libc gives.
+ ***************************************************************************/
+PRIVATE void test_zones_libc_reads(void)
+{
+    char path[PATH_MAX];
+
+    rmrdir(ZONES_DIR);
+    mkrdir(ZONES_DIR "/Test", 02770);
+    mkrdir(ZONES_DIR "/Directory", 02770);
+    mkrdir(ZONES_DIR "/no_tzdata", 02770);
+
+    /*
+     *  A TZif file of version 1 with one type: +01:00, XAA
+     */
+    static const unsigned char tzif[54] = {
+        'T', 'Z', 'i', 'f', 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1,  0, 0, 0, 4,
+        0, 0, 0x0e, 0x10, 0, 0,
+        'X', 'A', 'A', 0
+    };
+    write_zone_file("Test/Zone", tzif, sizeof(tzif));
+    static const char text[] = "# tzdb data, text\nAD\t+4230+00131\tEurope/Andorra\n";
+    write_zone_file("zone.tab", text, sizeof(text) - 1);
+    write_zone_file("tzdata.zi", text, sizeof(text) - 1);
+    write_zone_file("leapseconds", text, sizeof(text) - 1);
+    write_zone_file("empty", text, 0);
+    write_zone_file("short", "TZi", 3);
+    write_zone_file("almost", "TZiX and more", 13);
+    snprintf(path, sizeof(path), "%s/fifo", ZONES_DIR);
+    if(mkfifo(path, 0660) < 0) {
+        printf("FAIL cannot make %s\n", path);
+        global_result += -1;
+    }
+
+    setenv("TZ", "Asia/Tokyo", 1);
+    tzset();
+    setenv("TZDIR", ZONES_DIR, 1);
+
+    check_known_zone("Test/Zone", 3600);
+    check_known_zone(":Test/Zone", 3600);
+    check_known_zone(ZONES_DIR "/Test/Zone", 3600);
+    check_known_zone(":" ZONES_DIR "/Test/Zone", 3600);
+
+    static const char *not_zones[] = {
+        "zone.tab", "tzdata.zi", "leapseconds", "empty", "short", "almost", "fifo", "Directory", "Test", "Test/Zone/",
+        ":zone.tab", ZONES_DIR "/zone.tab", ":" ZONES_DIR "/zone.tab", ZONES_DIR "/fifo", ZONES_DIR "/none",
+        ZONES_DIR, "/etc/passwd", ":/etc/passwd", "/",
+    };
+    alarm(30);  // a FIFO that reaches libc blocks the process for ever
+    for(size_t i = 0; i < sizeof(not_zones)/sizeof(not_zones[0]); i++) {
+        check_unknown_zone(not_zones[i]);
+    }
+    alarm(0);
+
+    /*
+     *  POSIX TZ
+     */
+    static const struct {
+        const char *tz;
+        long offset;
+    } posix_zones[] = {
+        {"UTC0",                                    0},
+        {"<+00>0",                                  0},
+        {":ABC5",                                   -18000},
+        {"ABC5",                                    -18000},
+        {"ABC+5",                                   -18000},
+        {"ABC-5:30",                                19800},
+        {"ABC5:30:15",                              -19815},
+        {"ABC24",                                   -86400},
+        {"ABC-24",                                  86400},
+        {"<+0330>-3:30",                            12600},
+        {"ABC0DEF",                                 0},
+        {"ABC0DEF-2",                               0},
+        {"ABC0DEF,M3.2.0",                          0},
+        {"ABC0DEF,M3.2.0,M11.1.0",                  0},
+        {"ABC0DEF-1,M3.2.0/2,M11.1.0/-1",           0},
+        {"ABC0DEF,J60,J300",                        0},
+        {"ABC0DEF,60,300",                          0},
+        {"ABC0DEF,0,365",                           3600},
+        {"ABC0DEF,J1,J365",                         3600},
+        {"ABC0DEF-1,J60/0,J61/0",                   0},
+        {"ABC0DEF,M3.2.0/167:59:59,M11.1.0/-167",   0},
+        {"ABC0DEF,M12.5.6,M1.1.0",                  0},
+        {"EET-2EEST,M4.5.5/0,M10.5.4/24",           7200},
+        {"<XAA>-0:19:32<XBB>-0:20,J182/0,J300/0",   1172},
+    };
+    for(size_t i = 0; i < sizeof(posix_zones)/sizeof(posix_zones[0]); i++) {
+        check_known_zone(posix_zones[i].tz, posix_zones[i].offset);
+    }
+
+    static const char *not_posix_zones[] = {
+        "ABC0DEF,M13.1.0", "ABC0DEF,M0.1.0", "ABC0DEF,M3.0.0", "ABC0DEF,M3.6.0", "ABC0DEF,M3.1.7",
+        "ABC0DEF,M3.1", "ABC0DEF,M3", "ABC0DEF,Mx", "ABC0DEF,M3-2.0", "ABC0DEF,M3.2-0", "ABC0DEF,J0", "ABC0DEF,J366", "ABC0DEF,366",
+        "ABC0DEF,Jx", "ABC0DEF,x", "ABC0DEF,M3.2.0/x", "ABC0DEF,M3.2.0/", "ABC0DEF,M3.2.0/168",
+        "ABC0DEF,M3.2.0/-168", "ABC0DEF,M3.2.0/1:60", "ABC0DEF,M3.2.0/1:00:60", "ABC0DEF,M3.2.0,M13.1.0",
+        "ABC0DEF,M3.2.0,M11.1.0,J5", "ABC0DEF,M3.2.0,", "ABC0DEF,", "ABC0DEF,M3.2.0 ", "ABC0,M3.2.0",
+        "ABC25", "ABC-25", "ABC5:60", "ABC5:00:60", "ABC5:", "ABC5:30:", "ABC5:30:15:10", "ABC0 ", "ABC0DE",
+        "ABC0DEF1:60", "ABC0DEF5:", "ABC0DEF+", "ABC0DEF,M3.2.0/1:00:00:00",
+        "ABC0DEF25", "<AB>0", "<A B>0", "<ABC>", "<ABC0", "ABC", "ABC+", "AB0", "5ABC", "A0",
+    };
+    for(size_t i = 0; i < sizeof(not_posix_zones)/sizeof(not_posix_zones[0]); i++) {
+        check_unknown_zone(not_posix_zones[i]);
+    }
+
+    /*
+     *  No tzdata: the names of UTC are UTC, the others are not known
+     */
+    setenv("TZDIR", ZONES_DIR "/no_tzdata", 1);
+    static const char *utc_names[] = {
+        "UTC", "GMT", "UCT", "Universal", "Zulu", "Greenwich", "Etc/UTC", "Etc/GMT", ":UTC",
+    };
+    for(size_t i = 0; i < sizeof(utc_names)/sizeof(utc_names[0]); i++) {
+        check_known_zone(utc_names[i], 0);
+    }
+    check_unknown_zone("Europe/Madrid");
+    check_unknown_zone("Etc/GMT+5");
+    check_unknown_zone("utc");
+    check_unknown_zone("Etc/");
+
+    unsetenv("TZDIR");
+    rmrdir(ZONES_DIR);
+    setenv("TZ", "Europe/Madrid", 1);
+    tzset();
+}
+
+/***************************************************************************
+ *  31. A time no calendar holds, in the functions that write one: nothing
+ *  half written, nothing dereferenced. gmtime_r() leaves its struct tm
+ *  written up to where it gave up, and that went to the caller of
+ *  gmtime2timezone(); t2timestamp() and formatdate() handed the NULL of
+ *  localtime() and gmtime() on, and a record with such a time crashed a
+ *  listing.
+ ***************************************************************************/
+PRIVATE void test_time_no_calendar_holds(void)
+{
+    time_t huge = (time_t)0x7fffffffffffffffLL;
+    struct tm tm;
+    struct tm zeroed;
+    memset(&tm, 0x55, sizeof(tm));
+    memset(&zeroed, 0, sizeof(zeroed));
+    time_t offset = -1;
+
+    s_errors_logged = 0;
+    time_t local = gmtime2timezone(huge, "Europe/Madrid", &tm, &offset);
+    check_number("gmtime2timezone() of a time no calendar holds: *ltm zeroed",
+        (unsigned long long)(memcmp(&tm, &zeroed, sizeof(tm)) == 0), 1);
+    check_number("gmtime2timezone() of a time no calendar holds: offset 0", (unsigned long long)offset, 0);
+    check_number("gmtime2timezone() of a time no calendar holds: t returned",
+        (unsigned long long)(local == huge), 1);
+    check_errors("gmtime2timezone() of a time no calendar holds, *ltm", 1, "no calendar holds the time");
+
+    char bf[90];
+    strcpy(bf, "untouched");
+    t2timestamp(bf, sizeof(bf), huge, TRUE);
+    check_text("t2timestamp() local of a time no calendar holds", bf, "");
+    check_errors("t2timestamp() local of a time no calendar holds", 1, "no calendar holds the time");
+    strcpy(bf, "untouched");
+    t2timestamp(bf, sizeof(bf), huge, FALSE);
+    check_text("t2timestamp() UTC of a time no calendar holds", bf, "");
+    check_errors("t2timestamp() UTC of a time no calendar holds", 1, "no calendar holds the time");
+    strcpy(bf, "untouched");
+    t2timestamp(bf, 0, huge, FALSE);
+    check_text("t2timestamp() of a time no calendar holds, no room", bf, "untouched");
+    check_errors("t2timestamp() of a time no calendar holds, no room", 1, "no calendar holds the time");
+    t2timestamp(bf, sizeof(bf), 1768816800, FALSE);
+    check_text("t2timestamp() UTC", bf, "2026-01-19T10:00:00.0+0000");
+    check_errors("t2timestamp() UTC", 0, NULL);
+
+    strcpy(bf, "untouched");
+    formatdate(huge, bf, sizeof(bf), "CCYY-MM-DD");
+    check_text("formatdate() of a time no calendar holds", bf, "");
+    check_errors("formatdate() of a time no calendar holds", 1, "no calendar holds the time");
+    strcpy(bf, "untouched");
+    formatdate(huge, bf, 0, "CCYY-MM-DD");
+    check_text("formatdate() of a time no calendar holds, no room", bf, "untouched");
+    check_errors("formatdate() of a time no calendar holds, no room", 1, "no calendar holds the time");
+    formatdate(1768816800, bf, sizeof(bf), "CCYY-MM-DD");
+    check_text("formatdate()", bf, "2026-01-19");
+    check_errors("formatdate()", 0, NULL);
 }
 
 /***************************************************************************
@@ -2649,6 +3046,9 @@ int main(int argc, char *argv[])
     test_gmtime2timezone();
     test_time_ranges();
     test_twelve_digits_and_four_after_a_clock_time();
+    test_four_digits_after_what_takes_an_offset();
+    test_zones_libc_reads();
+    test_time_no_calendar_holds();
 
     gobj_end();
 

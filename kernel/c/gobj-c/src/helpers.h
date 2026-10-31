@@ -1195,7 +1195,10 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         /etc/localtime: a change of it is seen at the next text). A text
         that says its zone ("2026-10-01T10:00:00Z") or only counts back
         from now ("3 hours ago", "now", epoch seconds) is the same time in
-        any zone: it looks at none and costs no tzset()
+        any zone: it looks at none and costs no tzset(). The price, with
+        TZ unset: one stat() of /etc/localtime per text that reads the
+        local zone, as for a line of log. TZ=:/etc/localtime takes it
+        away, and with it the sight of a change of that file
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
         after "at" comes a time of day or a date: "at yesterday", "at
         now", "at today", "at never" are no date
@@ -1261,9 +1264,11 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         -10:00". A minus sign, a count and its unit is a duration, glued
         or not, after a date or a clock time ("2026-10-01-1d" is Sep 30,
         "10:00 2026-10-01-1d" Sep 30 at 10:00, "10:00 -5 hours" 05:00);
-        but after a clock time a minus sign and four digits is its offset,
-        as ISO 8601 writes it, a unit after it or not: "10:00 -0500
-        hours" is no date
+        but where an offset can stand, after a clock time, noon, a date or
+        a day, a minus sign and four digits is that offset, a unit after
+        it or not: "10:00 -0500 hours", "noon -0500 hours", "yesterday
+        -0500 hours" and "2026-10-01 -0500 hours" are no date. With
+        nothing before it, it is a count ("-0500 hours")
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
         "(CEST)": a zone name in a comment is the zone when no other is
         given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC); an offset in a
@@ -1517,12 +1522,17 @@ PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int 
     whole hour (Australia/Lord_Howe changes by 30 minutes, Pacific/Chatham
     at 02:45), ends one hour and starts the next, which is shorter. A
     negative range counts back. A TZ that libc does not know is UTC, with
-    an ERROR.
+    an ERROR, and an end no calendar holds the range {0, 0}, with an ERROR.
+    In a zone the cost grows with the years the range covers: a year of
+    hours is some 1400 calls of localtime_r(). In UTC it is one step.
 **rst**/
 PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ);
 
 /**rst**
-    Return in gmt time range in days of time t, TZ optional
+    Return in gmt time range in days of time t, TZ optional. Like the
+    weeks, months and years below, a range back past the year 1 is
+    proleptic (the year 0 before it), and an end no calendar holds the
+    range {0, 0}, with an ERROR.
 **rst**/
 PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ);
 

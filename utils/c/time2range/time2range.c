@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <limits.h>
 #include <time.h>
 
 #include <argp-standalone.h>
@@ -135,8 +136,18 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
 
     case 'r':
+        /*
+         *  Up to 7.29.3 atoi(): "abc" was a range of 0, in silence
+         */
         if(arg) {
-            arguments->range = atoi(arg);
+            char *end;
+            errno = 0;
+            long value = strtol(arg, &end, 10);
+            if(end == arg || *end || errno != 0 || value < INT_MIN || value > INT_MAX) {
+                fprintf(stderr, "RANGE refused, it is no integer: '%s'\n\n", arg);
+                exit(-1);
+            }
+            arguments->range = (int)value;
         }
         break;
 
@@ -182,6 +193,26 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
+    /*
+     *  With no log handler the ERROR of a zone libc does not read went
+     *  nowhere, and its range was printed in UTC as if nothing happened
+     */
+    sys_malloc_fn_t malloc_func;
+    sys_free_fn_t free_func;
+    gbmem_get_json_allocators(&malloc_func, &free_func);
+    json_set_alloc_funcs(malloc_func, free_func);
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL  // global_authentication_parser
+    );
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+
     if(!arguments.t) {
         printf("What time_t?\n");
         exit(-1);
@@ -220,6 +251,13 @@ int main(int argc, char *argv[])
             break;
     } SWITCHS_END;
 
+    /*
+     *  The range 0 with a range asked: its error is logged
+     */
+    if(time_range.start == 0 && time_range.end == 0 && arguments.range != 0) {
+        fprintf(stderr, "No range: no calendar holds its end\n\n");
+        exit(-1);
+    }
 
     char start[80];
     char end[80];
@@ -241,5 +279,6 @@ int main(int argc, char *argv[])
     }
 
     printf("Start: %s, End: %s\n", start, end);
+    gobj_end();
     return 0;
 }

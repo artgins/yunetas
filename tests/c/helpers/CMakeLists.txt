@@ -107,8 +107,8 @@ target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,-
 # test_spawn_copy makes a pidfd_open() wait for the end of its process (see its header)
 target_link_options(test_spawn_copy PUBLIC LINKER:--wrap=syscall)
 
-# test_date_text fakes the wall clock (approxidate() and the rest read now with time()) and counts tzset() (see its header)
-target_link_options(test_date_text PUBLIC LINKER:--wrap=time,--wrap=tzset)
+# test_date_text fakes the wall clock (approxidate() and the rest read now with time()) and counts tzset(), localtime_r() and gmtime_r() (see its header)
+target_link_options(test_date_text PUBLIC LINKER:--wrap=time,--wrap=tzset,--wrap=localtime_r,--wrap=gmtime_r)
 
 # test_dir_read_error fails the readdir(), opendir() or lstat() of one path (see its header)
 target_link_options(test_dir_read_error PUBLIC LINKER:--wrap=opendir,--wrap=readdir,--wrap=lstat)

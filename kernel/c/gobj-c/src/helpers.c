@@ -7316,14 +7316,22 @@ PRIVATE int month_days(int64_t year, int mon)
     return days[mon - 1];
 }
 
+PRIVATE int64_t floor_div(int64_t a, int64_t b)
+{
+    return a/b - ((a%b < 0)? 1 : 0);
+}
+
 /***************************************************************************
- *  Days from 1970-01-01 to the first day of `mon` (1..12) of `year` (>= 1)
+ *  Days from 1970-01-01 to the first day of `mon` (1..12) of `year`: the
+ *  year 0 is the one before the year 1, as in ISO 8601. A range that goes
+ *  back past the year 1 needs it; a text says no such year.
  ***************************************************************************/
 PRIVATE int64_t days_to_month(int64_t year, int mon)
 {
     static const int days_before[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
     int64_t whole_years = year - 1;
-    int64_t days = whole_years*365 + whole_years/4 - whole_years/100 + whole_years/400;
+    int64_t days = whole_years*365 + floor_div(whole_years, 4) - floor_div(whole_years, 100) +
+        floor_div(whole_years, 400);
     days -= 719162;     // the same count up to 1970-01-01
     days += days_before[mon - 1];
     if(mon > 2 && leap_year(year)) {
@@ -7364,6 +7372,12 @@ PRIVATE BOOL zone_of_text_loaded = FALSE;
  *  apart). So a TZ set, unset or put back by other code with no tzset()
  *  after it is seen, and so is a change of /etc/localtime while the process
  *  runs.
+ *
+ *  The price, with TZ unset: that stat per text, the one a line of log pays
+ *  in localtime(). It is not saved by looking once per interval: in the
+ *  interval a text would be read in whatever zone other code left in libc,
+ *  and nothing here tells that zone from the local one. TZ=:/etc/localtime
+ *  takes it away, and with it the sight of a change of that file.
  ***************************************************************************/
 PRIVATE void load_zone_of_text(void)
 {
@@ -8831,15 +8845,17 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             p = read_word(rd, p);
         } else if(c == '-' && isdigit((unsigned char)p[1]) && !rd->epoch_said &&
                 ((rd->hour < 0 && rd->special_hour < 0 && !day_said(rd)) ||
-                    (unit_follows_count(p + 1) && !(rd->hour >= 0 && four_digits_at(p + 1))))) {
+                    (unit_follows_count(p + 1) && !four_digits_at(p + 1)))) {
             /*
              *  A minus sign, a count and its unit is a duration, as without
              *  the sign ("-1d", "noon -1d", "Oct 1 -2 days", "10:00 -1d",
              *  "10:00 2026-10-01-1d"); with no unit it is a zone after a
              *  clock time, noon or a day ("10:00 -0500", "yesterday
-             *  -0500"), and no date with nothing before it ("-5"). After a
-             *  clock time four digits are its offset, a unit after them
-             *  or not ("10:00 -0500 hours" is no date)
+             *  -0500"), and no date with nothing before it ("-5"). Where a
+             *  zone can stand four digits are its offset, a unit after them
+             *  or not ("10:00 -0500 hours", "noon -0500 hours", "2026-10-01
+             *  -0500 hours" are no date), and with nothing before them a
+             *  count ("-0500 hours")
              */
             p = read_signed_duration(rd, p);
         } else if(c == '+' || c == '-') {
@@ -9664,7 +9680,8 @@ PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm)
 }
 
 /*****************************************************************
- *  Get timestamp from t (zulu or local)
+ *  Get timestamp from t (zulu or local): an empty text, with the error
+ *  logged, for a `t` no calendar holds
  *****************************************************************/
 PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)
 {
@@ -9674,6 +9691,19 @@ PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local)
         tm = localtime(&t);
     } else {
         tm = gmtime(&t);
+    }
+    if(!tm) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "no calendar holds the time",
+            "t",            "%lld", (long long)t,
+            NULL
+        );
+        if(bfsize > 0) {
+            *bf = 0;
+        }
+        return bf;
     }
 
     strftime(bf, bfsize, "%Y-%m-%dT%H:%M:%S.0%z", tm);
@@ -9934,20 +9964,203 @@ PUBLIC void list_open_files(void)
 }
 
 /*****************************************************************
- *  Is `tz`, loaded by a tzset(), a zone libc knows? libc takes a name it
- *  does not know ("Nowhere/Zone", "Europe") as UTC, in silence. It is
- *  known when libc read an offset or a summer time from it, when it names
- *  a zone file (under TZDIR, else /usr/share/zoneinfo, or absolute), when
- *  it is a POSIX TZ with its offset ("UTC0", "<+00>0"), or when it is
- *  empty (UTC by POSIX).
+ *  Is the file at `path` a zone file? libc reads a zone from a TZif file
+ *  (RFC 9636) only, and takes any other (zone.tab, /etc/passwd) as UTC, in
+ *  silence. Not being able to open or read it is the answer, not an error:
+ *  the caller logs the zone it could not take. O_NONBLOCK: open() of a FIFO
+ *  would wait for a writer.
  *****************************************************************/
-PRIVATE void leave_zone(const char *tz, char *saved_tz);
-
-PRIVATE BOOL zone_is_known(const char *tz)
+PRIVATE BOOL is_zone_file(const char *path)
 {
-    if(timezone != 0 || daylight) {
+    int fd = open(path, O_RDONLY|O_CLOEXEC|O_NONBLOCK);
+    if(fd < 0) {
+        return FALSE;
+    }
+    char magic[4];
+    ssize_t len = read(fd, magic, sizeof(magic));
+    close(fd);
+    return (len == sizeof(magic) && memcmp(magic, "TZif", sizeof(magic)) == 0)? TRUE : FALSE;
+}
+
+/*****************************************************************
+ *  The pieces of a POSIX TZ, `*p` left past each one (see is_posix_tz()).
+ *  A number with no digits, or over `max`, is none.
+ *****************************************************************/
+PRIVATE BOOL take_tz_number(const char **p, unsigned max, unsigned *value)
+{
+    const char *q = *p;
+    if(!isdigit((unsigned char)*q)) {
+        return FALSE;
+    }
+    unsigned number = 0;
+    while(isdigit((unsigned char)*q)) {
+        number = number*10 + (unsigned)(*q - '0');
+        if(number > max) {
+            return FALSE;
+        }
+        q++;
+    }
+    *value = number;
+    *p = q;
+    return TRUE;
+}
+
+/*
+ *  hh[:mm[:ss]]
+ */
+PRIVATE BOOL take_tz_time(const char **p, unsigned max_hours)
+{
+    unsigned value;
+    if(!take_tz_number(p, max_hours, &value)) {
+        return FALSE;
+    }
+    for(int i = 0; i < 2 && **p == ':'; i++) {
+        (*p)++;
+        if(!take_tz_number(p, 59, &value)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/*
+ *  A name of 3 letters or more, or of 3 letters, digits, '+' or '-' or
+ *  more between '<' and '>'
+ */
+PRIVATE BOOL take_tz_name(const char **p)
+{
+    const char *q = *p;
+    BOOL quoted = (*q == '<')? TRUE : FALSE;
+    if(quoted) {
+        q++;
+    }
+    const char *name = q;
+    while(isalpha((unsigned char)*q) ||
+            (quoted && (isdigit((unsigned char)*q) || *q == '+' || *q == '-'))) {
+        q++;
+    }
+    if(q - name < 3 || (quoted && *q++ != '>')) {
+        return FALSE;
+    }
+    *p = q;
+    return TRUE;
+}
+
+/*
+ *  [+-]hh[:mm[:ss]]: libc takes an hour over 24 as 24, and a minute or a
+ *  second over 59 as 59. A text that says 25 hours is no offset.
+ */
+PRIVATE BOOL take_tz_offset(const char **p)
+{
+    if(**p == '+' || **p == '-') {
+        (*p)++;
+    }
+    return take_tz_time(p, 24);
+}
+
+/*
+ *  Mm.w.d, Jn or n, and its [/[+-]hh[:mm[:ss]]]
+ */
+PRIVATE BOOL take_tz_rule(const char **p)
+{
+    const char *q = *p;
+    unsigned value;
+    if(*q == 'M') {
+        q++;
+        if(!take_tz_number(&q, 12, &value) || value < 1 || *q++ != '.') {
+            return FALSE;
+        }
+        if(!take_tz_number(&q, 5, &value) || value < 1 || *q++ != '.') {
+            return FALSE;
+        }
+        if(!take_tz_number(&q, 6, &value)) {
+            return FALSE;
+        }
+    } else if(*q == 'J') {
+        q++;
+        if(!take_tz_number(&q, 365, &value) || value < 1) {
+            return FALSE;
+        }
+    } else if(!take_tz_number(&q, 365, &value)) {
+        return FALSE;
+    }
+    if(*q == '/') {
+        q++;
+        if(*q == '+' || *q == '-') {
+            q++;
+        }
+        if(!take_tz_time(&q, 167)) {
+            return FALSE;
+        }
+    }
+    *p = q;
+    return TRUE;
+}
+
+/*****************************************************************
+ *  Is all of `p` a POSIX TZ: std offset [dst [offset] [,start[,end]]]?
+ *  ("UTC0", "<+00>0", "EET-2EEST,M3.5.0/3,M10.5.0/4"; glibc takes an end
+ *  left out as its default rule.) libc does not refuse one: it stops at the
+ *  first thing it cannot read and goes on with what it has, which is UTC or
+ *  a summer time with no rule ("ABC0DEF,M13.1.0"), in silence.
+ *****************************************************************/
+PRIVATE BOOL is_posix_tz(const char *p)
+{
+    if(!take_tz_name(&p) || !take_tz_offset(&p)) {
+        return FALSE;
+    }
+    if(!*p) {
         return TRUE;
     }
+    if(!take_tz_name(&p)) {
+        return FALSE;
+    }
+    if(*p && *p != ',' && !take_tz_offset(&p)) {
+        return FALSE;
+    }
+    if(!*p) {
+        return TRUE;
+    }
+    if(*p++ != ',' || !take_tz_rule(&p)) {
+        return FALSE;
+    }
+    if(*p == ',') {
+        p++;
+        if(!take_tz_rule(&p)) {
+            return FALSE;
+        }
+    }
+    return *p? FALSE : TRUE;
+}
+
+/*****************************************************************
+ *  A name of UTC in tzdata. With no tzdata (a container, a minimal node)
+ *  there is no file for it and it is no POSIX TZ, and libc takes it as
+ *  UTC: what the name asks for.
+ *****************************************************************/
+PRIVATE BOOL is_utc_name(const char *name)
+{
+    static const char *names[] = {"UTC", "GMT", "UCT", "Universal", "Zulu", "Greenwich"};
+    if(strncmp(name, "Etc/", 4) == 0) {
+        name += 4;
+    }
+    for(size_t i = 0; i < sizeof(names)/sizeof(names[0]); i++) {
+        if(strcmp(name, names[i]) == 0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*****************************************************************
+ *  Will libc read `tz` as the zone it says? It takes any name it cannot
+ *  read ("Nowhere/Zone", "Europe") as UTC, in silence. It reads one that
+ *  names a zone file (under TZDIR, else /usr/share/zoneinfo, or absolute),
+ *  a POSIX TZ, or an empty one (UTC by POSIX); the names of UTC are
+ *  known with no zone file too.
+ *****************************************************************/
+PRIVATE BOOL zone_is_known(const char *tz)
+{
     const char *name = (*tz == ':')? tz + 1 : tz;
     if(!*name) {
         return TRUE;
@@ -9957,38 +10170,20 @@ PRIVATE BOOL zone_is_known(const char *tz)
         dir = "/usr/share/zoneinfo";
     }
     char path[PATH_MAX];
-    if(strlen(dir) + strlen(name) + 2 <= sizeof(path) &&
-            build_path(path, sizeof(path), (*name == '/')? "" : dir, name, NULL)) {
-        struct stat st;
-        if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-            return TRUE;
-        }
+    if(strlen(dir) + strlen(name) + 2 <= sizeof(path) && name[strlen(name) - 1] != '/' &&
+            build_path(path, sizeof(path), (*name == '/')? "" : dir, name, NULL) &&
+            is_zone_file(path)) {
+        return TRUE;
     }
-    const char *p = name;
-    BOOL quoted = (*p == '<')? TRUE : FALSE;
-    if(quoted) {
-        p++;
-    }
-    const char *letters = p;
-    while(isalpha((unsigned char)*p) ||
-            (quoted && (isdigit((unsigned char)*p) || *p == '+' || *p == '-'))) {
-        p++;
-    }
-    if(p - letters < 3 || (quoted && *p++ != '>')) {
-        return FALSE;   // a name of 3 characters or more, as POSIX says
-    }
-    if(*p == '+' || *p == '-') {
-        p++;
-    }
-    return isdigit((unsigned char)*p)? TRUE : FALSE;
+    return (is_posix_tz(name) || is_utc_name(name))? TRUE : FALSE;
 }
 
 /*****************************************************************
  *  Set the TZ of the process to `tz`, with a tzset(), keeping a copy of
  *  the TZ it had in `*saved_tz` (NULL when it was unset) for
  *  leave_zone(). FALSE, with the error logged and TZ left as it was, when
- *  `tz` is NULL, when there is no memory for the copy, when TZ cannot be
- *  set, or when `tz` is a zone libc does not know (see zone_is_known()).
+ *  `tz` is NULL, when it is a zone libc will not read (see zone_is_known()),
+ *  when there is no memory for the copy, or when TZ cannot be set.
  *****************************************************************/
 PRIVATE BOOL enter_zone(const char *tz, char **saved_tz)
 {
@@ -9998,6 +10193,16 @@ PRIVATE BOOL enter_zone(const char *tz, char **saved_tz)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tz NULL",
+            NULL
+        );
+        return FALSE;
+    }
+    if(!zone_is_known(tz)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Unknown time zone: taken as UTC",
+            "tz",           "%s", tz,
             NULL
         );
         return FALSE;
@@ -10030,18 +10235,6 @@ PRIVATE BOOL enter_zone(const char *tz, char **saved_tz)
         return FALSE;
     }
     tzset();
-    if(!zone_is_known(tz)) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Unknown time zone: taken as UTC",
-            "tz",           "%s", tz,
-            NULL
-        );
-        leave_zone(tz, *saved_tz);
-        *saved_tz = NULL;
-        return FALSE;
-    }
     return TRUE;
 }
 
@@ -10082,14 +10275,15 @@ PRIVATE void leave_zone(const char *tz, char *saved_tz)
  *  TZ of the process is set to `tz` for the conversion, and put back
  *  with a tzset() before returning. When it cannot be kept (no memory
  *  for a copy) or `tz` cannot be set, TZ is left as it was: the error is
- *  logged, and `t` is taken in UTC (offset 0).
+ *  logged, and `t` is taken in UTC (offset 0). A `t` no calendar holds is
+ *  logged and returned as it is, with `ltm` zeroed and offset 0.
  *****************************************************************/
 PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)
 {
     struct tm tm_tz;
-    memset(&tm_tz, 0, sizeof(tm_tz));
     char *saved_tz;
     if(!gmtime_r(&t, &tm_tz)) {
+        memset(&tm_tz, 0, sizeof(tm_tz));   // gmtime_r() leaves it written up to where it gave up
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
@@ -10125,7 +10319,8 @@ PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *
 }
 
 /***********************************************************************
- *   Get a string with some now! date formatted
+ *   Get a string with some now! date formatted: an empty text, with the
+ *   error logged, for a `t` no calendar holds
  *   DEPRECATED use strftime()
  ***********************************************************************/
 PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)
@@ -10134,6 +10329,19 @@ PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)
 
     struct tm *tm;
     tm = localtime(&t);
+    if(!tm) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "no calendar holds the time",
+            "t",            "%lld", (long long)t,
+            NULL
+        );
+        if(bfsize > 0) {
+            *bf = 0;
+        }
+        return bf;
+    }
 
     /* Pon en formato DD/MM/CCYY-W-ZZZ */
     snprintf(sfechahora, sizeof(sfechahora), "%02d/%02d/%4d-%d-%03d",
@@ -12552,9 +12760,18 @@ PRIVATE BOOL end_of_hour(time_t t, BOOL in_zone, time_t *end)
  *  step: the zone is taken not to change its offset twice in less than 48
  *  hours (see time_of_local_wall()). FALSE when no calendar holds a time
  *  on the way (logged).
+ *
+ *  UTC has no change of offset: one step. In a zone the steps are a day or
+ *  an hour, so the cost grows with the years the range covers: some 1400
+ *  calls of localtime_r() per year, a year of hours in 0.2 ms.
  ***************************************************************************/
 PRIVATE BOOL hours_from(time_t start, int range, BOOL in_zone, time_t *end)
 {
+    if(!in_zone) {
+        struct tm tm;
+        *end = start + (time_t)range*3600;
+        return range_time_of(*end, FALSE, &tm);
+    }
     time_t x = start;
     int64_t left = range;
     while(left != 0) {
@@ -12592,7 +12809,8 @@ PRIVATE BOOL hours_from(time_t start, int range, BOOL in_zone, time_t *end)
  *  a change of offset that is no whole hour (Australia/Lord_Howe changes
  *  by 30 minutes, Pacific/Chatham at 02:45) ends one and starts the next
  *  (see start_of_hour()). When TZ cannot be set (error logged) the range
- *  is taken in UTC.
+ *  is taken in UTC. An end no calendar holds gives the range {0, 0}
+ *  (logged).
  ***************************************************************************/
 PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_unit_t unit)
 {
@@ -12652,7 +12870,7 @@ PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_u
             break;
     }
 
-    if(unit != RANGE_OF_HOURS) {
+    if(unit != RANGE_OF_HOURS && range_time_of((time_t)end_wall, FALSE, &tm)) {
         if(in_zone) {
             int64_t on_day_before;
             time_range.start = (time_t)time_of_local_wall(start_wall, &on_day_before);
@@ -12662,6 +12880,7 @@ PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_u
             time_range.end = (time_t)end_wall;
         }
     }
+    // Else error already logged: range 0
 
     if(in_zone) {
         leave_zone(TZ, saved_tz);
