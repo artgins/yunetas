@@ -38,8 +38,13 @@ answers `-1`. What then:
 
 The head is put together in linear time: each byte is copied once, into a
 buffer that grows by doubling, and a header goes into `jn_headers` once,
-when its value ends. A header with an empty value is kept as `""`, and a
-name that comes again keeps its last value.
+when its value ends. A header with an empty value is kept as `""`. A name
+that comes again is one field, its values joined in their order with `", "`
+(RFC 9110 §5.3): two `Retry-After: 120` and `Retry-After: 60` are
+`"120, 60"`, which a reader of one value refuses instead of taking the last.
+Those of `COOKIE` are joined with `"; "`, what a cookie parser splits on.
+`SET-COOKIE` is never joined (its values hold commas, RFC 6265): the last one
+is kept.
 
 ```C
 GHTTP_PARSER *parser = ghttp_parser_create(gobj, HTTP_REQUEST, 0, 0, EV_ON_MESSAGE, TRUE);

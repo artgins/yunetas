@@ -491,20 +491,30 @@ PRIVATE void test_ghttp_parser_header_cap(void)
 
 /***************************************************************************
  *  A header with an empty value is kept, as "", and a header split at
- *  every byte comes back whole
+ *  every byte comes back whole. A name that comes again is one field, its
+ *  values joined in order with ", " (RFC 9110 §5.3), a COOKIE with "; ";
+ *  a SET-COOKIE is never joined: the last one is kept.
  ***************************************************************************/
 PRIVATE void test_ghttp_parser_header_pieces(void)
 {
     fprintf(stderr, "\n== ghttp_parser: empty values and headers in pieces ==\n");
 
-    char req[] = "GET /x HTTP/1.1\r\nX-Empty:\r\nX-Two: one two\r\nx-two: three\r\nHost: h\r\n\r\n";
+    char req[] = "GET /x HTTP/1.1\r\nX-Empty:\r\nX-Two: one two\r\nx-two: three\r\nHost: h\r\n"
+        "Retry-After: 120\r\nRetry-After: 60\r\nCookie: a=1\r\nCookie: b=2\r\n"
+        "Set-Cookie: s=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT\r\nSet-Cookie: s=2\r\n\r\n";
     GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
     int rc = feed_in_chunks(parser, req, strlen(req), 1);
     EXPECT(rc == (int)strlen(req) && parser->message_completed, "the request is parsed byte by byte");
     const char *empty = json_string_value(json_object_get(parser->jn_headers, "X-EMPTY"));
     EXPECT(empty && strcmp(empty, "") == 0, "an empty header value is kept as \"\"");
     const char *two = json_string_value(json_object_get(parser->jn_headers, "X-TWO"));
-    EXPECT(two && strcmp(two, "three") == 0, "a name that comes again keeps its last value");
+    EXPECT(two && strcmp(two, "one two, three") == 0, "a name that comes again joins its values with \", \"");
+    const char *ra = json_string_value(json_object_get(parser->jn_headers, "RETRY-AFTER"));
+    EXPECT(ra && strcmp(ra, "120, 60") == 0, "two Retry-After are one field \"120, 60\", not the last one");
+    const char *cookie = json_string_value(json_object_get(parser->jn_headers, "COOKIE"));
+    EXPECT(cookie && strcmp(cookie, "a=1; b=2") == 0, "two Cookie are joined with \"; \"");
+    const char *set_cookie = json_string_value(json_object_get(parser->jn_headers, "SET-COOKIE"));
+    EXPECT(set_cookie && strcmp(set_cookie, "s=2") == 0, "a Set-Cookie is never joined: the last one is kept");
     const char *host = json_string_value(json_object_get(parser->jn_headers, "HOST"));
     EXPECT(host && strcmp(host, "h") == 0, "a header given byte by byte comes back whole");
     ghttp_parser_destroy(parser);

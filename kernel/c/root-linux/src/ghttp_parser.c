@@ -43,6 +43,7 @@ PRIVATE size_t body_size_limit(GHTTP_PARSER *parser);
 PRIVATE size_t header_size_limit(GHTTP_PARSER *parser);
 PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at, size_t length);
 PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, json_t *jn_value);
+PRIVATE int join_repeated_headers(GHTTP_PARSER *parser);
 
 /****************************************************************
  *         Data
@@ -305,6 +306,9 @@ PRIVATE int on_headers_complete(llhttp_t* llhttp)
     if(!parser->jn_headers) {
         parser->jn_headers = json_object();
     }
+    if(join_repeated_headers(parser) < 0) {
+        return -1;  // Error already logged
+    }
     if(parser->on_header_event) {
         json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
             "http_parser_type",     (int)parser->type,
@@ -538,6 +542,56 @@ PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at,
 }
 
 /***************************************************************************
+ *  A name that came more than once is one field, its values joined in
+ *  their order (RFC 9110 §5.3) with ", ", and those of COOKIE with "; "
+ *  (RFC 9113 §8.2.3, what a cookie parser splits on). SET-COOKIE is never
+ *  joined (RFC 6265: its values hold commas): the last one is kept.
+ *  Linear: each value is copied once.
+ ***************************************************************************/
+PRIVATE int join_repeated_headers(GHTTP_PARSER *parser)
+{
+    const char *key;
+    json_t *jn_value;
+
+    json_object_foreach(parser->jn_headers, key, jn_value) {
+        if(!json_is_array(jn_value)) {
+            continue;
+        }
+        size_t n = json_array_size(jn_value);
+        if(strcmp(key, "SET-COOKIE") == 0) {
+            json_object_set(parser->jn_headers, key, json_array_get(jn_value, n - 1));
+            continue;
+        }
+        const char *sep = (strcmp(key, "COOKIE") == 0)? "; " : ", ";
+        size_t len = 0;
+        for(size_t i = 0; i < n; i++) {
+            len += json_string_length(json_array_get(jn_value, i)) + (i? 2 : 0);
+        }
+        gbuffer_t *gbuf = gbuffer_create(len, len + 1);
+        if(!gbuf) {
+            return -1;  // Error already logged
+        }
+        for(size_t i = 0; i < n; i++) {
+            json_t *jn_part = json_array_get(jn_value, i);
+            size_t part_len = json_string_length(jn_part);
+            if(i && gbuffer_append(gbuf, (void *)sep, 2) != 2) {
+                GBUFFER_DECREF(gbuf)
+                return -1;  // Error already logged
+            }
+            if(part_len && gbuffer_append(gbuf, (void *)json_string_value(jn_part), part_len) != part_len) {
+                GBUFFER_DECREF(gbuf)
+                return -1;  // Error already logged
+            }
+        }
+        json_object_set_new(parser->jn_headers, key,
+            json_stringn(gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf))
+        );
+        GBUFFER_DECREF(gbuf)
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  The kw of on_message_event, without its body
  ***************************************************************************/
 PRIVATE json_t *build_message_kw(GHTTP_PARSER *parser)
@@ -736,7 +790,7 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
 
 /***************************************************************************
  *  A header is whole: its name, in upper case, and its value go into
- *  jn_headers, once (a name that comes again keeps its last value)
+ *  jn_headers, once (a name that comes again: see join_repeated_headers())
  ***************************************************************************/
 PRIVATE int on_header_value_complete(llhttp_t* llhttp)
 {
@@ -762,7 +816,17 @@ PRIVATE int on_header_value_complete(llhttp_t* llhttp)
     if(key_len > 0) {
         strntoupper(key, key_len);
         json_t *jn_value = json_stringn(value, value_len);
-        if(!jn_value || json_object_set_new(parser->jn_headers, key, jn_value) < 0) {
+        json_t *jn_prev = json_object_get(parser->jn_headers, key);
+        int ret;
+        if(jn_value && json_is_array(jn_prev)) {
+            ret = json_array_append_new(jn_prev, jn_value);
+        } else if(jn_value && jn_prev) {
+            // A name that comes again: its values wait in a list, joined at the end of the head
+            ret = json_object_set_new(parser->jn_headers, key, json_pack("[O,o]", jn_prev, jn_value));
+        } else {
+            ret = jn_value? json_object_set_new(parser->jn_headers, key, jn_value) : -1;
+        }
+        if(ret < 0) {
             // Not utf-8: the header is left out, and said
             const char *peername = gobj_read_str_attr(gobj, "peername");
             gobj_log_warning(gobj, 0,
