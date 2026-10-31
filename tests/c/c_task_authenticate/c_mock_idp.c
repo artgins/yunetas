@@ -33,6 +33,17 @@ SDATA (DTP_INTEGER,     "return_status_discovery",  SDF_RD, "200",    "HTTP stat
 SDATA (DTP_JSON,        "override_token_body",      SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /token envelope"),
 SDATA (DTP_JSON,        "override_discovery_body",  SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /.well-known body (e.g. to omit endpoints)"),
 SDATA (DTP_INTEGER,     "drop_token_requests",      SDF_RD, "0",      "So many /token requests are not answered: their connection is dropped (an IdP that restarts)"),
+SDATA (DTP_INTEGER,     "drop_logout_requests",     SDF_RD, "0",      "So many /logout requests are not answered: their connection is dropped"),
+SDATA (DTP_INTEGER,     "drop_discovery_requests",  SDF_RD, "0",      "So many /.well-known requests are not answered: their connection is dropped"),
+SDATA (DTP_INTEGER,     "expected_logouts",         SDF_RD, "-1",     "If >= 0, the mock logs an ERROR when it stops with another count of /logout requests"),
+SDATA (DTP_INTEGER,     "expected_bearer_len",      SDF_RD, "0",      "If > 0, a /logout whose Authorization header has not this length logs an ERROR"),
+SDATA (DTP_INTEGER,     "access_token_len",         SDF_RD, "0",      "If > 0, the access_token of the /token envelope has this length"),
+SDATA (DTP_INTEGER,     "logouts_seen",             SDF_RD, "0",      "The /logout requests that have arrived"),
+SDATA (DTP_INTEGER,     "admin_status",             SDF_RD, "200",    "HTTP status of an /admin/ request"),
+SDATA (DTP_INTEGER,     "drop_admin_requests",      SDF_RD, "0",      "So many /admin/ requests are not answered: their connection is dropped"),
+SDATA (DTP_INTEGER,     "admin_seen",               SDF_RD, "0",      "The /admin/ requests that have arrived; a test clears it"),
+SDATA (DTP_STRING,      "last_admin_url",           SDF_RD, "",       "The url of the last /admin/ request"),
+SDATA (DTP_INTEGER,     "token_seen",               SDF_RD, "0",      "The /token requests that have arrived; a test clears it"),
 SDATA (DTP_STRING,      "raw_token_answer",         SDF_RD, "",       "If non-empty, /token is answered with these bytes as they are, status line and headers included; \"@bighead\": a 200 with a header of 70 KB"),
 SDATA (DTP_DICT,        "expected_form",            SDF_RD, "{}",     "If non-empty, each key must be in the /token form ONCE, with this value once decoded; else the mock logs an ERROR and answers 400 invalid_grant"),
 SDATA_END()
@@ -91,6 +102,19 @@ PRIVATE int mt_stop(hgobj gobj)
     if(bottom && gobj_is_running(bottom)) {
         gobj_stop_tree(bottom);
     }
+
+    json_int_t expected = gobj_read_integer_attr(gobj, "expected_logouts");
+    json_int_t seen = gobj_read_integer_attr(gobj, "logouts_seen");
+    if(expected >= 0 && expected != seen) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", "mock-idp: the /logout requests that arrived",
+            "expected", "%d", (int)expected,
+            "seen",     "%d", (int)seen,
+            NULL
+        );
+    }
     return 0;
 }
 
@@ -108,11 +132,17 @@ PRIVATE int mt_stop(hgobj gobj)
  *  Build the synthesised token envelope (all KW_REQUIRED fields that
  *  c_task_authenticate::result_get_token reads must be present).
  ***************************************************************************/
-PRIVATE json_t *build_token_envelope(void)
+PRIVATE json_t *build_token_envelope(hgobj gobj)
 {
+    char access_token[9000] = "mock-access-token";
+    int access_token_len = (int)gobj_read_integer_attr(gobj, "access_token_len");
+    if(access_token_len > 0 && access_token_len < (int)sizeof(access_token)) {
+        memset(access_token, 'a', (size_t)access_token_len);
+        access_token[access_token_len] = '\0';
+    }
     return json_pack(
         "{s:s, s:s, s:i, s:i, s:s, s:s, s:s}",
-        "access_token",         "mock-access-token",
+        "access_token",         access_token,
         "refresh_token",        "mock-refresh-token",
         "expires_in",           300,
         "refresh_expires_in",   1800,
@@ -293,7 +323,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    if(strstr(url, "/.well-known/openid-configuration")) {
+    if(strstr(url, "/.well-known/openid-configuration") &&
+            gobj_read_integer_attr(gobj, "drop_discovery_requests") > 0) {
+        gobj_write_integer_attr(gobj, "drop_discovery_requests",
+            gobj_read_integer_attr(gobj, "drop_discovery_requests") - 1);
+        gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+
+    } else if(strstr(url, "/.well-known/openid-configuration")) {
         int status            = (int)gobj_read_integer_attr(gobj, "return_status_discovery");
         const char *status_tx = (status == 200) ? "200 OK" : "500 Internal Server Error";
 
@@ -323,15 +359,35 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         send_resp(gobj, src, status, status_tx, jn_body);
 
+    } else if(strstr(url, "/admin/")) {
+        gobj_write_integer_attr(gobj, "admin_seen",
+            gobj_read_integer_attr(gobj, "admin_seen") + 1);
+        gobj_write_str_attr(gobj, "last_admin_url", url);
+        if(gobj_read_integer_attr(gobj, "drop_admin_requests") > 0) {
+            gobj_write_integer_attr(gobj, "drop_admin_requests",
+                gobj_read_integer_attr(gobj, "drop_admin_requests") - 1);
+            gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+        } else if(gobj_read_integer_attr(gobj, "admin_status") == 200) {
+            send_resp(gobj, src, 200, "200 OK", json_pack("{s:s}", "id", "abc"));
+        } else {
+            send_resp(gobj, src, 204, "204 No Content", json_object());
+        }
+
     } else if(strstr(url, "/token") && gobj_read_integer_attr(gobj, "drop_token_requests") > 0) {
+        gobj_write_integer_attr(gobj, "token_seen",
+            gobj_read_integer_attr(gobj, "token_seen") + 1);
         gobj_write_integer_attr(gobj, "drop_token_requests",
             gobj_read_integer_attr(gobj, "drop_token_requests") - 1);
         gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
 
     } else if(strstr(url, "/token") && !empty_string(gobj_read_str_attr(gobj, "raw_token_answer"))) {
+        gobj_write_integer_attr(gobj, "token_seen",
+            gobj_read_integer_attr(gobj, "token_seen") + 1);
         send_raw_answer(gobj, src, gobj_read_str_attr(gobj, "raw_token_answer"));
 
     } else if(strstr(url, "/token")) {
+        gobj_write_integer_attr(gobj, "token_seen",
+            gobj_read_integer_attr(gobj, "token_seen") + 1);
         int status            = (int)gobj_read_integer_attr(gobj, "return_status_token");
         const char *status_tx = (status == 200) ? "200 OK"
                               : (status == 400) ? "400 Bad Request"
@@ -350,7 +406,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(form_ok && override && json_object_size(override) > 0) {
             jn_body = json_deep_copy(override);
         } else if(status == 200) {
-            jn_body = build_token_envelope();
+            jn_body = build_token_envelope(gobj);
         } else {
             jn_body = json_pack("{s:s, s:s}",
                 "error",              "invalid_grant",
@@ -360,7 +416,28 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         send_resp(gobj, src, status, status_tx, jn_body);
 
     } else if(strstr(url, "/logout")) {
-        send_resp(gobj, src, 204, "204 No Content", json_object());
+        gobj_write_integer_attr(gobj, "logouts_seen",
+            gobj_read_integer_attr(gobj, "logouts_seen") + 1);
+        json_int_t bearer_len = gobj_read_integer_attr(gobj, "expected_bearer_len");
+        json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
+        const char *authorization = kw_get_str(gobj, jn_headers, "AUTHORIZATION", "", 0);
+        if(bearer_len > 0 && (json_int_t)strlen(authorization) != bearer_len) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_APP,
+                "msg",      "%s", "mock-idp: the Authorization of the /logout is cut",
+                "expected", "%d", (int)bearer_len,
+                "got",      "%d", (int)strlen(authorization),
+                NULL
+            );
+        }
+        if(gobj_read_integer_attr(gobj, "drop_logout_requests") > 0) {
+            gobj_write_integer_attr(gobj, "drop_logout_requests",
+                gobj_read_integer_attr(gobj, "drop_logout_requests") - 1);
+            gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
+        } else {
+            send_resp(gobj, src, 204, "204 No Content", json_object());
+        }
 
     } else {
         gobj_log_error(gobj, 0,

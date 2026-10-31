@@ -19,6 +19,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_INTEGER,   "expected_result", SDF_RD, "0",   "Expected EV_ON_TOKEN result field"),
 SDATA (DTP_INTEGER,   "runs",          SDF_RD, "1",    "Runs of the task: after each EV_ON_TOKEN but the last it is stopped and started again; after the last, none of its HTTP clients (C_PROT_HTTP_CL, C_TCP) may be left"),
 SDATA (DTP_BOOLEAN,   "stop_in_on_token", SDF_RD, "0", "Stop the task inside its EV_ON_TOKEN, as ycli does"),
+SDATA (DTP_INTEGER,   "end_delay_ms",  SDF_RD, "200",  "Time the test goes on after EV_ON_TOKEN: the logout comes after it"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
 SDATA_END()
 };
@@ -282,7 +283,7 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  in the right order.
      */
     priv->dying = TRUE;
-    set_timeout(priv->timer, 200);
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "end_delay_ms"));
     return 0;
 }
 

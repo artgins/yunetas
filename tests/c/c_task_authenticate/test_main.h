@@ -58,6 +58,12 @@ extern "C" {
  */
 PUBLIC void set_task_runs(int runs, BOOL stop_in_on_token);
 
+/*
+ *  Before run_task_authenticate_test(): the test goes on `ms` after
+ *  EV_ON_TOKEN (200 by default), for what comes after it: the logout.
+ */
+PUBLIC void set_task_end_delay(int ms);
+
 PUBLIC int run_task_authenticate_test(
     int argc, char *argv[],
     const char *app_name,

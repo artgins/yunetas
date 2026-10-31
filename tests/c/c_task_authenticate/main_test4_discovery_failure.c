@@ -7,13 +7,12 @@
  *          The mock IdP is configured with override_discovery_body that
  *          omits token_endpoint.  c_task_authenticate's
  *          result_save_discovery detects the missing endpoints, logs a
- *          gobj_log_error and publishes EV_ON_TOKEN with result=-1 (so
- *          the caller does not hang waiting for it).
+ *          WARNING (data of a peer) and publishes EV_ON_TOKEN with result=-1
+ *          (so the caller does not hang waiting for it).
  *
  *          This test asserts:
  *            (a) the EV_ON_TOKEN published has result=-1, and
- *            (b) the matching error log is captured (and consumed) by
- *                the FIFO matcher.
+ *            (b) no ERROR is logged.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -51,7 +50,7 @@ int main(int argc, char *argv[])
         task_kw_snippet,
         mock_idp_kw_snippet,
         -1,             // expected_result: failure
-        "task_authenticate: OIDC discovery missing endpoints",
-        FALSE           // capture errors only — the log is at ERROR level
+        NULL,           // no ERROR
+        FALSE           // capture errors only
     );
 }

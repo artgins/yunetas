@@ -281,10 +281,18 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  C_TASK runs the current job again each time C_POSTGRES says it is
- *  connected (EV_ON_OPEN), and C_POSTGRES keeps a query until it is
- *  answered and sends it again by itself on the new connection: a job
- *  that pushed its query once must not push it again (the INSERT would
- *  go twice). TRUE when it was pushed: the job waits for its answer.
+ *  connected (EV_ON_OPEN). C_POSTGRES keeps a query through a connection
+ *  that breaks and sends it again by itself on the new one, so a job that
+ *  pushed its query once must not push it again (the INSERT would go
+ *  twice). TRUE when it was pushed: the job waits for its answer.
+ *
+ *  C_POSTGRES keeps it only through a break: on a timeout of the query
+ *  (`timeout_response`, ac_timeout_data()) it drops the query and
+ *  reconnects, and nobody sends it again. The job then waits in vain, and
+ *  the task ends by its exec_timeout, 20 s after the query (ac_end_task(),
+ *  "Task End by timeout"): that row is not written and has no ack. Pushing
+ *  it again here is not the answer: the job cannot know whether the query
+ *  of the timeout reached the server.
  ***************************************************************************/
 PRIVATE BOOL query_pushed_before(hgobj gobj, hgobj task, const char *job)
 {
@@ -300,7 +308,16 @@ PRIVATE BOOL query_pushed_before(hgobj gobj, hgobj task, const char *job)
         return FALSE;
     }
     char key[NAME_MAX];
-    snprintf(key, sizeof(key), "_pushed_%s", job);
+    int len = snprintf(key, sizeof(key), "_pushed_%s", job);
+    if(len < 0 || len >= (int)sizeof(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "name of a job too long, its key is truncated",
+            "job",          "%s", job,
+            NULL
+        );
+    }
     if(json_is_true(json_object_get(output_data, key))) {
         return TRUE;
     }
@@ -321,7 +338,7 @@ PRIVATE json_t *action_create_table_if_not_exists(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(query_pushed_before(gobj, src, lmethod)) {
-        // C_POSTGRES sends it again by itself
+        // C_POSTGRES sends it again by itself after a broken connection
         KW_DECREF(kw);
         CONTINUE_TASK();
     }
@@ -387,7 +404,7 @@ PRIVATE json_t *action_add_row(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(query_pushed_before(gobj, src, lmethod)) {
-        // C_POSTGRES sends it again by itself
+        // C_POSTGRES sends it again by itself after a broken connection
         KW_DECREF(kw);
         CONTINUE_TASK();
     }

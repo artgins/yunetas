@@ -67,6 +67,13 @@ SET(TESTS
     test8_protocol_error
     test9_runs
     test10_stop_in_on_token
+    test11_logout_idp_drops
+    test12_logout_idp_gone
+    test13_unknown_status
+    test14_long_bearer
+    test15_endpoint_not_url
+    test16_minimal_answer
+    test17_discovery_cut
 )
 
 foreach(test ${TESTS})
@@ -100,3 +107,31 @@ foreach(test ${TESTS})
     add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
+
+##############################################
+#   C_IDP_KEYCLOAK, against the same mock IdP: its own driver and config
+##############################################
+set(binary "test_task_authenticate_test18_idp_keycloak")
+add_yuno_executable(${binary}
+    "main_test18_idp_keycloak.c"
+    "c_idp_driver.c"
+    "c_mock_idp.c"
+)
+math(EXPR idp_port "18910 + 18")
+target_compile_definitions(${binary} PRIVATE IDP_PORT="${idp_port}")
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${binary} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+target_link_libraries(${binary}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${JWT_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+add_test("${current_directory_name}/test18_idp_keycloak" ${binary})

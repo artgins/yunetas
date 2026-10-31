@@ -30,7 +30,9 @@
  *          ONE REQUEST AT A TIME.  Every command becomes an IDP_PENDING
  *          in a single queue, and one volatile C_TASK at a time drives it
  *          through the one shared HTTP client.  The admin token is job 0
- *          and is skipped while the cached one is fresh.  The queue is
+ *          and is skipped while the cached one is fresh.  What only reads
+ *          (the token, a GET) goes again when a connection is cut before
+ *          its answer; what changes something does not.  The queue is
  *          bounded: a caller beyond IDP_MAX_PENDING is refused, it is
  *          never made to wait without an answer.
  *
@@ -65,6 +67,14 @@
 #define IDP_MAX_PENDING         32      /* refuse a request beyond this queue depth */
 #define IDP_DEFAULT_PAGE        50      /* users per page when the caller gives no max */
 #define IDP_MAX_PAGE            500     /* ceiling, so one call cannot pull a whole realm */
+
+/*
+ *  The times a request goes to Keycloak (see kc_request_sent_before()): what
+ *  changes something once, what only reads (the admin token, a GET) up to
+ *  this many, so an IdP that always cuts does not hold the queue for ever.
+ */
+#define KC_SENDS_ONCE           1
+#define KC_SENDS_OF_A_READ      3
 
 /*
  *  The operations.  Every command becomes one of these; the job list and
@@ -113,7 +123,7 @@ PRIVATE json_t *queue_request(hgobj gobj, const char *op, const char *user_id,
     json_t *params, json_t *kw, hgobj src);
 PRIVATE void free_pending(IDP_PENDING *p);
 PRIVATE BOOL kc_http_failed(hgobj gobj, IDP_PENDING *p, json_t *kw, int expected);
-PRIVATE void url_encode(const char *src, char *bf, int bflen);
+PRIVATE json_t *url_encode(const char *src);
 PRIVATE int param_tribool(hgobj gobj, json_t *kw, const char *name);
 PRIVATE json_t *param_array(hgobj gobj, json_t *kw, const char *name);
 PRIVATE const char *param_user_id(hgobj gobj, json_t *kw);
@@ -747,19 +757,25 @@ PRIVATE void free_pending(IDP_PENDING *p)
 }
 
 /***************************************************************************
- *  Percent-encode one query value.
+ *  Percent-encode one query value, whole: a json string, owned, or NULL
+ *  (no memory, logged).
  *
  *  The search text is typed by an operator: a space in it breaks the
  *  request line, and an `&` adds a query parameter of its own.  The
  *  framework has no encoder yet, so this one is local and minimal —
  *  everything that is not unreserved (RFC 3986) is escaped.
  ***************************************************************************/
-PRIVATE void url_encode(const char *src, char *bf, int bflen)
+PRIVATE json_t *url_encode(const char *src)
 {
     static const char hex[] = "0123456789ABCDEF";
-    int j = 0;
+    size_t len = strlen(src? src : "");
+    char *bf = gbmem_malloc(len*3 + 1);
+    if(!bf) {
+        return NULL;    // Error already logged
+    }
 
-    for(int i = 0; src && src[i] && j < bflen - 4; i++) {
+    size_t j = 0;
+    for(size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)src[i];
         if(isalnum(c) || c=='-' || c=='_' || c=='.' || c=='~') {
             bf[j++] = (char)c;
@@ -770,6 +786,9 @@ PRIVATE void url_encode(const char *src, char *bf, int bflen)
         }
     }
     bf[j] = 0;
+    json_t *jn = json_string(bf);
+    GBMEM_FREE(bf)
+    return jn;
 }
 
 /***************************************************************************
@@ -1032,6 +1051,17 @@ PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
 }
 
 /***************************************************************************
+ *  A text of an answer of Keycloak: its value, "" when the key is absent or
+ *  holds another type. kw_get_str() is for json of ours: on a value of
+ *  another type it logs an ERROR with a stack, and those bytes are a peer's.
+ ***************************************************************************/
+PRIVATE const char *peer_json_str(json_t *jn, const char *key)
+{
+    const char *value = json_string_value(json_object_get(jn, key));
+    return value? value : "";
+}
+
+/***************************************************************************
  *  Map a non-expected HTTP status to a stable error_code and answer.
  *
  *  `expected` 0 accepts any 2xx, which is what the generic operations
@@ -1081,8 +1111,7 @@ PRIVATE BOOL kc_http_failed(hgobj gobj, IDP_PENDING *p, json_t *kw, int expected
         return TRUE;
     }
 
-    json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-    const char *kc_msg = jn_body? kw_get_str(gobj, jn_body, "errorMessage", "", 0) : "";
+    const char *kc_msg = peer_json_str(kw_get_dict(gobj, kw, "body", NULL, 0), "errorMessage");
     const char *code = (status>=400 && status<500)? "kc_validation_error" : "kc_unavailable";
     if(p) {
         kc_answer(gobj, p, -1,
@@ -1149,18 +1178,33 @@ PRIVATE BOOL kc_answer_refused(hgobj gobj, IDP_PENDING *p, json_t *kw)
  *  sent again on the next one: a user created twice (answered "already
  *  exists"), a second invitation e-mail, a delete or an update applied
  *  again (RFC 9112 §9.3.1: a client does not retry a non-idempotent
- *  request by itself). A job is sent once: run again, TRUE, with a
- *  WARNING, the request answered, and the caller stops the task. The
- *  invitation is the last job of a registration, whose account exists:
- *  it is answered as registered, with the warning "email_send_failed".
+ *  request by itself). A job goes `sends_max` times: KC_SENDS_ONCE what
+ *  changes something, KC_SENDS_OF_A_READ the admin token and a GET, which
+ *  have no effect at the IdP and are repeated when a connection is cut (a
+ *  connection kept open that the IdP closed, a restart). Run again after
+ *  that, TRUE, with a WARNING, the request answered, and the caller stops
+ *  the task. The invitation is the last job of a registration, whose
+ *  account exists: it is answered as registered, with the warning
+ *  "email_send_failed".
  ***************************************************************************/
-PRIVATE BOOL kc_request_sent_before(hgobj gobj, hgobj src_task, const char *job, IDP_PENDING *p)
+PRIVATE BOOL kc_request_sent_before(hgobj gobj, hgobj src_task, const char *job,
+    IDP_PENDING *p, int sends_max)
 {
     json_t *output_data = gobj_read_json_attr(src_task, "output_data");
     char key[NAME_MAX];
-    snprintf(key, sizeof(key), "_sent_%s", job);
-    if(!json_is_true(json_object_get(output_data, key))) {
-        json_object_set_new(output_data, key, json_true());
+    int len = snprintf(key, sizeof(key), "_sent_%s", job);
+    if(len < 0 || len >= (int)sizeof(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "name of a job too long, its key is truncated",
+            "job",          "%s", job,
+            NULL
+        );
+    }
+    json_int_t sends = json_integer_value(json_object_get(output_data, key));
+    if(sends < sends_max) {
+        json_object_set_new(output_data, key, json_integer(sends + 1));
         return FALSE;
     }
     gobj_log_warning(gobj, 0,
@@ -1193,15 +1237,14 @@ PRIVATE json_t *kc_get_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(kc_request_sent_before(gobj, src_task, lmethod, dl_first(&priv->dl_pending))) {
+    if(kc_request_sent_before(gobj, src_task, lmethod, dl_first(&priv->dl_pending),
+            KC_SENDS_OF_A_READ)) {
         // Warning already logged, the request answered
         KW_DECREF(kw)
         STOP_TASK()
     }
 
-    char resource[256];
-    snprintf(resource, sizeof(resource),
-        "/realms/%s/protocol/openid-connect/token",
+    json_t *jn_resource = json_sprintf("/realms/%s/protocol/openid-connect/token",
         gobj_read_str_attr(gobj, "kc_realm"));
 
     json_t *jn_headers = json_pack("{s:s}",
@@ -1210,8 +1253,8 @@ PRIVATE json_t *kc_get_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
         "grant_type",    "client_credentials",
         "client_id",     gobj_read_str_attr(gobj, "kc_admin_client_id"),
         "client_secret", gobj_read_str_attr(gobj, "kc_admin_client_secret"));
-    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
-        "method", "POST", "resource", resource, "query", "",
+    json_t *query = json_pack("{s:s, s:o, s:s, s:o, s:o}",
+        "method", "POST", "resource", jn_resource, "query", "",
         "headers", jn_headers, "data", jn_data);
     gobj_send_event(priv->gobj_kc, EV_SEND_MESSAGE, query, gobj);
 
@@ -1246,8 +1289,8 @@ PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj
     }
 
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-    const char *access_token = jn_body? kw_get_str(gobj, jn_body, "access_token", "", 0) : "";
-    int64_t expires_in = jn_body? kw_get_int(gobj, jn_body, "expires_in", 60, 0) : 60;
+    const char *access_token = peer_json_str(jn_body, "access_token");
+    json_t *jn_expires_in = json_object_get(jn_body, "expires_in");
     if(empty_string(access_token)) {
         if(p) {
             kc_answer(gobj, p, -1,
@@ -1256,6 +1299,37 @@ PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj
         }
         KW_DECREF(kw)
         STOP_TASK()
+    }
+    if(strlen(access_token) >= sizeof(priv->kc_token)) {
+        /*
+         *  Cut, it would be refused by Keycloak on every request, with no
+         *  word of why
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Keycloak admin token longer than this gclass keeps",
+            "token_len",    "%d", (int)strlen(access_token),
+            "max",          "%d", (int)sizeof(priv->kc_token) - 1,
+            NULL
+        );
+        if(p) {
+            kc_answer(gobj, p, -1,
+                json_sprintf("Keycloak admin authentication: token too long"),
+                json_pack("{s:s}", "error_code", "kc_unavailable"), NULL);
+        }
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    /*
+     *  A lifetime that is not a positive number of seconds: 60, the
+     *  shortest the token could need asking for again
+     */
+    json_int_t expires_in = json_is_integer(jn_expires_in)?
+        json_integer_value(jn_expires_in) : 60;
+    if(expires_in <= 0 || expires_in > INT_MAX) {
+        expires_in = 60;
     }
 
     snprintf(priv->kc_token, sizeof(priv->kc_token), "%s", access_token);
@@ -1276,15 +1350,14 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
         KW_DECREF(kw)
         STOP_TASK()
     }
-    if(kc_request_sent_before(gobj, src_task, lmethod, p)) {
+    if(kc_request_sent_before(gobj, src_task, lmethod, p, KC_SENDS_ONCE)) {
         // Warning already logged, the request answered
         KW_DECREF(kw)
         STOP_TASK()
     }
     const char *email = kw_get_str(gobj, p->params, "email", "", 0);
 
-    char resource[256];
-    snprintf(resource, sizeof(resource), "/admin/realms/%s/users",
+    json_t *jn_resource = json_sprintf("/admin/realms/%s/users",
         gobj_read_str_attr(gobj, "kc_realm"));
     char bearer[8300];
     snprintf(bearer, sizeof(bearer), "Bearer %s", priv->kc_token);
@@ -1300,8 +1373,8 @@ PRIVATE json_t *kc_create_user(hgobj gobj, const char *lmethod, json_t *kw, hgob
         "lastName",        kw_get_str(gobj, p->params, "last_name", "", 0),
         "emailVerified",   0,
         "requiredActions", "UPDATE_PASSWORD", "VERIFY_EMAIL");
-    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
-        "method", "POST", "resource", resource, "query", "",
+    json_t *query = json_pack("{s:s, s:o, s:s, s:o, s:o}",
+        "method", "POST", "resource", jn_resource, "query", "",
         "headers", jn_headers, "data", jn_data);
     gobj_send_event(priv->gobj_kc, EV_SEND_MESSAGE, query, gobj);
 
@@ -1347,7 +1420,7 @@ PRIVATE json_t *kc_create_user_result(hgobj gobj, const char *lmethod, json_t *k
     /*  201 Created — user id is the last path segment of Location. */
     if(p) {
         json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
-        const char *location = jn_headers? kw_get_str(gobj, jn_headers, "LOCATION", "", 0) : "";
+        const char *location = peer_json_str(jn_headers, "LOCATION");
         const char *slash = !empty_string(location)? strrchr(location, '/') : NULL;
         if(slash && slash[1]) {
             snprintf(p->user_id, sizeof(p->user_id), "%s", slash + 1);
@@ -1382,7 +1455,7 @@ PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj
         KW_DECREF(kw)
         STOP_TASK()
     }
-    if(kc_request_sent_before(gobj, src_task, lmethod, p)) {
+    if(kc_request_sent_before(gobj, src_task, lmethod, p, KC_SENDS_ONCE)) {
         // Warning already logged, the request answered
         KW_DECREF(kw)
         STOP_TASK()
@@ -1390,8 +1463,7 @@ PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj
 
     /*  Query params go in the resource: C_PROT_HTTP_CL only appends the
      *  `query` field for x-www-form-urlencoded, not for JSON bodies. */
-    char resource[768];
-    snprintf(resource, sizeof(resource),
+    json_t *jn_resource = json_sprintf(
         "/admin/realms/%s/users/%s/execute-actions-email"
         "?client_id=%s&redirect_uri=%s&lifespan=43200",
         gobj_read_str_attr(gobj, "kc_realm"),
@@ -1404,8 +1476,8 @@ PRIVATE json_t *kc_send_email(hgobj gobj, const char *lmethod, json_t *kw, hgobj
     json_t *jn_headers = json_pack("{s:s, s:s}",
         "Content-Type", "application/json", "Authorization", bearer);
     json_t *jn_data = json_pack("[s,s]", "UPDATE_PASSWORD", "VERIFY_EMAIL");
-    json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
-        "method", "PUT", "resource", resource, "query", "",
+    json_t *query = json_pack("{s:s, s:o, s:s, s:o, s:o}",
+        "method", "PUT", "resource", jn_resource, "query", "",
         "headers", jn_headers, "data", jn_data);
     gobj_send_event(priv->gobj_kc, EV_SEND_MESSAGE, query, gobj);
 
@@ -1460,8 +1532,9 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
         STOP_TASK()
     }
     BOOL is_read = strcmp(p->op, IDP_OP_LIST)==0 || strcmp(p->op, IDP_OP_GET)==0;
-    if(!is_read && kc_request_sent_before(gobj, src_task, lmethod, p)) {
-        // Warning already logged, the request answered (a read, a GET, may go again)
+    if(kc_request_sent_before(gobj, src_task, lmethod, p,
+            is_read? KC_SENDS_OF_A_READ : KC_SENDS_ONCE)) {
+        // Warning already logged, the request answered
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -1472,7 +1545,7 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
     json_t *jn_headers = json_pack("{s:s, s:s}",
         "Content-Type", "application/json", "Authorization", bearer);
 
-    char resource[1024];
+    json_t *jn_resource = NULL;
     const char *method = "GET";
     json_t *jn_data = NULL;     /* no body: C_PROT_HTTP_CL omits it and its header */
 
@@ -1480,46 +1553,40 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
         /*  Query params go in the resource, like every JSON-bodied call
          *  here: the `query` field is only appended for form-urlencoded. */
         const char *search = kw_get_str(gobj, p->params, "search", "", 0);
-        char escaped[512];
-        escaped[0] = 0;
-        if(!empty_string(search)) {
-            char encoded[384];
-            url_encode(search, encoded, sizeof(encoded));
-            snprintf(escaped, sizeof(escaped), "&search=%s", encoded);
-        }
+        json_t *jn_encoded = url_encode(search);
         /*  userProfileMetadata=false: Keycloak adds the whole user-profile
          *  schema to EVERY row otherwise -- measured against the real
          *  realm, 1.5 kB per account of which 230 bytes are the account,
          *  the same block repeated for each one. briefRepresentation does
          *  not suppress it. */
-        snprintf(resource, sizeof(resource),
+        const char *encoded = json_string_value(jn_encoded);
+        jn_resource = json_sprintf(
             "/admin/realms/%s/users?briefRepresentation=%s"
-            "&userProfileMetadata=false&first=%d&max=%d%s",
+            "&userProfileMetadata=false&first=%d&max=%d%s%s",
             realm,
             kw_get_bool(gobj, p->params, "brief", 1, 0)? "true" : "false",
             (int)kw_get_int(gobj, p->params, "first", 0, 0),
             (int)kw_get_int(gobj, p->params, "max", IDP_DEFAULT_PAGE, 0),
-            escaped);
+            !empty_string(encoded)? "&search=" : "",
+            !empty_string(encoded)? encoded : "");
+        JSON_DECREF(jn_encoded)
 
     } else if(strcmp(p->op, IDP_OP_GET)==0) {
-        snprintf(resource, sizeof(resource),
-            "/admin/realms/%s/users/%s?userProfileMetadata=false",
+        jn_resource = json_sprintf("/admin/realms/%s/users/%s?userProfileMetadata=false",
             realm, p->user_id);
 
     } else if(strcmp(p->op, IDP_OP_UPDATE)==0) {
         method = "PUT";
-        snprintf(resource, sizeof(resource), "/admin/realms/%s/users/%s",
-            realm, p->user_id);
+        jn_resource = json_sprintf("/admin/realms/%s/users/%s", realm, p->user_id);
         jn_data = json_incref(kw_get_dict(gobj, p->params, "body", NULL, 0));
 
     } else if(strcmp(p->op, IDP_OP_DELETE)==0) {
         method = "DELETE";
-        snprintf(resource, sizeof(resource), "/admin/realms/%s/users/%s",
-            realm, p->user_id);
+        jn_resource = json_sprintf("/admin/realms/%s/users/%s", realm, p->user_id);
 
     } else if(strcmp(p->op, IDP_OP_ACTIONS)==0) {
         method = "PUT";
-        snprintf(resource, sizeof(resource),
+        jn_resource = json_sprintf(
             "/admin/realms/%s/users/%s/execute-actions-email"
             "?client_id=%s&redirect_uri=%s&lifespan=43200",
             realm, p->user_id,
@@ -1540,8 +1607,9 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
         STOP_TASK()
     }
 
-    json_t *query = json_pack("{s:s, s:s, s:s, s:o}",
-        "method", method, "resource", resource, "query", "",
+    const char *resource = json_string_value(jn_resource);
+    json_t *query = json_pack("{s:s, s:O, s:s, s:o}",
+        "method", method, "resource", jn_resource, "query", "",
         "headers", jn_headers);
     if(jn_data) {
         json_object_set_new(query, "data", jn_data);
@@ -1554,6 +1622,7 @@ PRIVATE json_t *kc_request(hgobj gobj, const char *lmethod, json_t *kw, hgobj sr
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj, "idp request: %s %s %s", p->op, method, resource);
     }
+    JSON_DECREF(jn_resource)
 
     gobj_send_event(priv->gobj_kc, EV_SEND_MESSAGE, query, gobj);
 

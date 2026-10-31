@@ -235,6 +235,15 @@ PUBLIC void set_task_runs(int runs, BOOL stop_in_on_token)
 }
 
 /***************************************************************************
+ *  Before run_task_authenticate_test(): the test goes on `ms` after
+ *  EV_ON_TOKEN
+ ***************************************************************************/
+PUBLIC void set_task_end_delay(int ms)
+{
+    snprintf(s_driver_kw_extra, sizeof(s_driver_kw_extra), ", 'end_delay_ms': %d", ms);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int run_task_authenticate_test(

@@ -160,6 +160,13 @@ Example of refresh_token
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  The times a request goes to the IdP (see request_sent_before()): a
+ *  password grant once; a GET of the discovery and the end-session, which
+ *  mean the same sent twice, once more.
+ */
+#define SENDS_ONCE      1
+#define SENDS_TWICE     2
 
 /***************************************************************************
  *              Structures
@@ -551,16 +558,39 @@ PRIVATE BOOL idp_response_refused(hgobj gobj, json_t *kw, char *what, size_t wha
  *  opens, so a POST whose connection closed before its answer would be
  *  sent again on the next one: a second password grant, a refresh_token
  *  used twice (RFC 9112 §9.3.1: a client does not retry a non-idempotent
- *  request by itself). The job is sent once: run again, TRUE, with a
- *  WARNING, and the caller ends the task.
+ *  request by itself). A job goes `sends_max` times: a job that means the
+ *  same sent twice (the GET of the discovery; the end-session, or a cut
+ *  would leave the session open at the IdP) once more, with a WARNING, the
+ *  others once. Run again after that, TRUE, with a WARNING, and the caller
+ *  ends the task: an IdP that always cuts does not hold the task for ever.
  ***************************************************************************/
-PRIVATE BOOL request_sent_before(hgobj gobj, hgobj task, const char *job)
+PRIVATE BOOL request_sent_before(hgobj gobj, hgobj task, const char *job, int sends_max)
 {
     json_t *output_data = gobj_read_json_attr(task, "output_data");
     char key[NAME_MAX];
-    snprintf(key, sizeof(key), "_sent_%s", job);
-    if(!json_is_true(json_object_get(output_data, key))) {
-        json_object_set_new(output_data, key, json_true());
+    int len = snprintf(key, sizeof(key), "_sent_%s", job);
+    if(len < 0 || len >= (int)sizeof(key)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "task_authenticate: name of a job too long, its key is truncated",
+            "job",          "%s", job,
+            NULL
+        );
+    }
+    json_int_t sends = json_integer_value(json_object_get(output_data, key));
+    if(sends < sends_max) {
+        json_object_set_new(output_data, key, json_integer(sends + 1));
+        if(sends > 0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "task_authenticate: the IdP closed the connection before "
+                                      "answering, the request is sent again",
+                "job",          "%s", job,
+                NULL
+            );
+        }
         return FALSE;
     }
     gobj_log_warning(gobj, 0,
@@ -572,6 +602,18 @@ PRIVATE BOOL request_sent_before(hgobj gobj, hgobj task, const char *job)
         NULL
     );
     return TRUE;
+}
+
+/***************************************************************************
+ *  A text of an answer of the IdP: its value, "" when the key is absent or
+ *  holds another type. kw_get_str() is for json of ours: on a value of
+ *  another type, or with KW_REQUIRED on an absent key, it logs an ERROR
+ *  with a stack, and those bytes are a peer's.
+ ***************************************************************************/
+PRIVATE const char *peer_json_str(json_t *jn, const char *key)
+{
+    const char *value = json_string_value(json_object_get(jn, key));
+    return value? value : "";
 }
 
 /***************************************************************************
@@ -593,6 +635,17 @@ PRIVATE int publish_token(
 
     gobj_publish_event(gobj, EV_ON_TOKEN, kw_on_token);
     return 0;
+}
+
+/***************************************************************************
+ *  The run ends with no token: EV_ON_TOKEN with result -1 and `comment`
+ *  (owned), so the caller does not wait for ever.
+ ***************************************************************************/
+PRIVATE void publish_no_token(hgobj gobj, hgobj task, json_t *comment)
+{
+    json_t *output_data = gobj_read_json_attr(task, "output_data");
+    json_object_set_new(output_data, "comment", comment);
+    publish_token(gobj, -1, output_data);
 }
 
 
@@ -619,6 +672,15 @@ PRIVATE json_t *action_discover(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(request_sent_before(gobj, src, lmethod, SENDS_TWICE)) {
+        // Warning already logged
+        publish_no_token(gobj, src, json_string(
+            "The IdP closed the connection before answering the OIDC discovery"
+        ));
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
     char ep_schema[32], ep_host[256], ep_port[16], ep_path[1024];
     if(parse_url(gobj,
             priv->issuer,
@@ -635,6 +697,7 @@ PRIVATE json_t *action_discover(
             "issuer",   "%s", priv->issuer,
             NULL
         );
+        publish_no_token(gobj, src, json_string("Invalid issuer URL"));
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -643,6 +706,7 @@ PRIVATE json_t *action_discover(
     if(!build_path(resource, sizeof(resource),
             ep_path, ".well-known", "openid-configuration", NULL)) {
         // Error already logged
+        publish_no_token(gobj, src, json_string("Invalid issuer URL"));
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -707,22 +771,43 @@ PRIVATE json_t *result_save_discovery(
         STOP_TASK()
     }
 
+    /*
+     *  The endpoints are data of a peer: a WARNING when they are not (the
+     *  caller gets the failure in EV_ON_TOKEN)
+     */
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-    const char *token_ep = jn_body ?
-        kw_get_str(gobj, jn_body, "token_endpoint", "", 0) : "";
-    const char *end_session_ep = jn_body ?
-        kw_get_str(gobj, jn_body, "end_session_endpoint", "", 0) : "";
+    const char *token_ep = peer_json_str(jn_body, "token_endpoint");
+    const char *end_session_ep = peer_json_str(jn_body, "end_session_endpoint");
 
     if(empty_string(token_ep) || empty_string(end_session_ep)) {
         json_object_set_new(output_data_, "comment",
             json_string("OIDC discovery: missing required endpoints in response")
         );
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_TASK,
+            "msgset",               "%s", MSGSET_PROTOCOL,
             "msg",                  "%s", "task_authenticate: OIDC discovery missing endpoints",
-            "token_endpoint",       "%s", token_ep,
-            "end_session_endpoint", "%s", end_session_ep,
+            "token_endpoint",       "%.256s", token_ep,
+            "end_session_endpoint", "%.256s", end_session_ep,
+            NULL
+        );
+        publish_token(gobj, -1, output_data_);
+        KW_DECREF(kw)
+        STOP_TASK()
+    }
+
+    if(!strstr(token_ep, "://") || !strstr(end_session_ep, "://") ||
+            strlen(token_ep) >= sizeof(priv->token_url) ||
+            strlen(end_session_ep) >= sizeof(priv->end_session_url)) {
+        json_object_set_new(output_data_, "comment",
+            json_string("OIDC discovery: an endpoint is not a URL")
+        );
+        gobj_log_warning(gobj, 0,
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_PROTOCOL,
+            "msg",                  "%s", "task_authenticate: OIDC discovery with an endpoint that is not a URL",
+            "token_endpoint",       "%.256s", token_ep,
+            "end_session_endpoint", "%.256s", end_session_ep,
             NULL
         );
         publish_token(gobj, -1, output_data_);
@@ -751,13 +836,11 @@ PRIVATE json_t *action_get_token(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(request_sent_before(gobj, src, lmethod)) {
+    if(request_sent_before(gobj, src, lmethod, SENDS_ONCE)) {
         // Warning already logged
-        json_t *output_data_ = gobj_read_json_attr(src, "output_data");
-        json_object_set_new(output_data_, "comment", json_string(
+        publish_no_token(gobj, src, json_string(
             "The IdP closed the connection before answering, the login is not sent again"
         ));
-        publish_token(gobj, -1, output_data_);
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -784,6 +867,7 @@ PRIVATE json_t *action_get_token(
             "token_url", "%s", priv->token_url,
             NULL
         );
+        publish_no_token(gobj, src, json_string("Invalid token_endpoint URL"));
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -842,13 +926,18 @@ PRIVATE json_t *result_get_token(
         STOP_TASK()
     }
     int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
+    json_t *jn_response_ = json_object_get(kw, "body");
     if(response_status_code != 200) {
+        /*
+         *  The number: llhttp_status_name() aborts on a status it has no
+         *  name for, and that number is a peer's
+         */
         json_object_set_new(
             output_data_,
             "comment",
-            json_sprintf("Something went wrong, check your user or password: %s, %s",
-                llhttp_status_name((llhttp_status_t)response_status_code),
-                kw_get_str(gobj, kw, "body`error", "", 0)
+            json_sprintf("Something went wrong, check your user or password: status %d, %s",
+                response_status_code,
+                peer_json_str(jn_response_, "error")
             )
         );
 
@@ -858,26 +947,18 @@ PRIVATE json_t *result_get_token(
         STOP_TASK()
     }
 
-    int request_method = (int)kw_get_int(gobj, kw, "request_method", 0, KW_REQUIRED);
-    if(request_method) {} // to avoid compilation warning
-
-    json_t *jn_header_ = kw_get_dict(gobj, kw, "headers", 0, KW_REQUIRED);
-    if(jn_header_) {} // to avoid compilation warning
-
-    json_t *jn_body_ = kw_get_dict(gobj, kw, "body", 0, KW_REQUIRED);
-    if(!jn_body_) {
+    if(!json_is_object(jn_response_)) {
         json_object_set_new(
             output_data_,
             "comment",
             json_sprintf("http response with no body")
         );
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Oauth2 response without body",
             NULL
         );
-        gobj_trace_json(gobj, kw, "Oauth2 response without body");
 
         publish_token(gobj, -1, output_data_);
 
@@ -886,36 +967,14 @@ PRIVATE json_t *result_get_token(
     }
 
     /*-----------------------------------------------*
-     *  Response level: keycloak response to login
+     *  Response level: the tokens, which is all this
+     *  gclass reads of the answer: the rest of it
+     *  (expires_in, token_type, scope, session_state)
+     *  is the IdP's to send or not
      *-----------------------------------------------*/
-    json_t *jn_response_ = jn_body_;
-
-    const char *access_token = kw_get_str(gobj, jn_response_, "access_token", "", KW_REQUIRED);
-    if(access_token) {} // to avoid compilation warning
-
-    const char *refresh_token = kw_get_str(gobj, jn_response_, "refresh_token", "", KW_REQUIRED);
-    if(refresh_token) {} // to avoid compilation warning
-
-    const char *id_token = kw_get_str(gobj, jn_response_, "id_token", "", 0); // Only in offline requests
-    if(id_token) {} // to avoid compilation warning
-
-    json_int_t expires_in = kw_get_int(gobj, jn_response_, "expires_in", 0, KW_REQUIRED);
-    if(expires_in) {} // to avoid compilation warning
-
-    json_int_t refresh_expires_in = kw_get_int(gobj, jn_response_, "refresh_expires_in", 0, KW_REQUIRED);
-    if(refresh_expires_in) {} // to avoid compilation warning
-
-    const char *token_type = kw_get_str(gobj, jn_response_, "token_type", "", KW_REQUIRED);
-    if(token_type) {} // to avoid compilation warning
-
-    json_int_t not_before_policy = kw_get_int(gobj, jn_response_, "not-before-policy", 0, 0);
-    if(not_before_policy) {} // to avoid compilation warning
-
-    const char *session_state = kw_get_str(gobj, jn_response_, "session_state", "", KW_REQUIRED);
-    if(session_state) {} // to avoid compilation warning
-
-    const char *scope = kw_get_str(gobj, jn_response_, "scope", "", KW_REQUIRED);
-    if(scope) {} // to avoid compilation warning
+    const char *access_token = peer_json_str(jn_response_, "access_token");
+    const char *refresh_token = peer_json_str(jn_response_, "refresh_token");
+    const char *id_token = peer_json_str(jn_response_, "id_token"); // Only in offline requests
 
     if(!empty_string(id_token)) {
         json_object_set_new(output_data_, "comment", json_string("Id Token Ok"));
@@ -925,13 +984,12 @@ PRIVATE json_t *result_get_token(
         json_object_set_new(output_data_, "jwt", json_string(access_token));
     } else {
         json_object_set_new(output_data_, "comment", json_string("No access token in response"));
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Oauth2 response without id_token or access_token",
             NULL
         );
-        gobj_trace_json(gobj, kw, "Oauth2 response without id_token or access_token");
 
         publish_token(gobj, -1, output_data_);
 
@@ -960,7 +1018,7 @@ PRIVATE json_t *action_logout(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(request_sent_before(gobj, src, lmethod)) {
+    if(request_sent_before(gobj, src, lmethod, SENDS_TWICE)) {
         // Warning already logged; the token is already published
         KW_DECREF(kw)
         STOP_TASK()
@@ -991,12 +1049,9 @@ PRIVATE json_t *action_logout(
         STOP_TASK()
     }
 
-    char authorization[1024];
-    snprintf(authorization, sizeof(authorization), "Bearer %s", access_token);
-
-    json_t *jn_headers = json_pack("{s:s, s:s, s:s}",
+    json_t *jn_headers = json_pack("{s:s, s:o, s:s}",
         "Content-Type", "application/x-www-form-urlencoded",
-        "Authorization", authorization,
+        "Authorization", json_sprintf("Bearer %s", access_token),
         "Connection", "close"
     );
 
@@ -1044,7 +1099,6 @@ PRIVATE json_t *result_logout(
             "msgset",       "%s", MSGSET_TASK,
             "msg",          "%s", "Logout has failed",
             "status_code",  "%d", response_status_code,
-            "status",       "%s", llhttp_status_name((llhttp_status_t)response_status_code),
             NULL
         );
         gobj_trace_json(gobj, kw, "Logout has failed");
