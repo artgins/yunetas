@@ -1588,8 +1588,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   `gobj_end()` is reported as a leak under `CONFIG_DEBUG_TRACK_MEMORY` and
   fails ctest. Parse/build per call for rare helpers; for hot paths hand the
   cache lifetime to the caller via incref/decref (see `topic_cols_desc` in
-  `tr_treedb.c`). Trust ctest over a standalone run — ctest captures the
-  `print_track_mem` errors.
+  `tr_treedb.c`). A test leaks if a block is still busy when the end audit
+  runs: a foreground `yuneta_entry_point()` then returns -1 (with
+  `CONFIG_DEBUG_TRACK_MEMORY`), and `main()`'s `get_cur_system_memory()`
+  check covers the blocks never freed. The audit's *"system memory not
+  free"* ERROR is not part of the log a test captures, so the exit code is
+  what fails it.
 
 ## Event Loop & Async I/O
 
