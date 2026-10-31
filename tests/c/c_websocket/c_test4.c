@@ -209,7 +209,7 @@ PRIVATE gbuffer_t *build_upgrade_request(const ws_case_t *ws_case)
     gbuffer_t *gbuf = gbuffer_create(2048, 2048);
     gbuffer_printf(gbuf,
         "GET / HTTP/1.1\r\n"
-        "Host: 127.0.0.1:7749\r\n"
+        "Host: 127.0.0.1:7750\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
         "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"

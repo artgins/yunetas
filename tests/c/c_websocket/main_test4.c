@@ -64,9 +64,9 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcp://0.0.0.0:7749',                 \n\
+            '__input_url__': 'tcp://0.0.0.0:7750',                 \n\
             '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7749'                                \n\
+            '__input_port__': '7750'                                \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
@@ -153,7 +153,7 @@ PRIVATE char variable_config[]= "\
                                     'name': 'case-(^^__range__^^)', \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'url':'tcp://127.0.0.1:7749' \n\
+                                        'url':'tcp://127.0.0.1:7750' \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
