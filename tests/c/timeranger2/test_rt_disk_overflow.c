@@ -313,11 +313,12 @@ PRIVATE int probe_callback(yev_event_h yev_event)
  *  Bounded by TIME, not by turns: the pass after an overflow runs a slice
  *  per turn, and a slow disk needs more turns (a cap of 200000 turns cut
  *  it short on one node, with the records still coming). The flood drains
- *  in ~3.5 s here; two minutes is far beyond any node's. A drain that ends
- *  by time FAILS: a wait for records that never come once ran 10 minutes
- *  and passed.
+ *  in ~3.5 s on a fast disk, and took 134 s on a RAID under ctest -j8, every
+ *  record there: this limit is no measure of speed. A drain that ends by
+ *  time FAILS: a wait for records that never come once ran 10 minutes and
+ *  passed.
  */
-#define DRAIN_MAX_MS    (2*60*1000)
+#define DRAIN_MAX_MS    (5*60*1000)
 PRIVATE int drain(int expected)
 {
     int quiet = 0;
