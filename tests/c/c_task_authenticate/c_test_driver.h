@@ -13,6 +13,10 @@
  *            3. assert that the EV_ON_TOKEN payload's `result` field
  *               equals `expected_result` and die
  *
+ *          When it stops it logs an ERROR unless each run got ONE
+ *          EV_ON_TOKEN with that result: a task that publishes nothing
+ *          reaches the yuno's auto-kill, and must not pass.
+ *
  *          Driver attrs:
  *            expected_result   int   Expected value of EV_ON_TOKEN's
  *                                    result field (0 = success, -1 =

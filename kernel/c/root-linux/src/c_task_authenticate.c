@@ -16,6 +16,11 @@
  *       <issuer>/.well-known/openid-configuration; resolved endpoints
  *       are cached in priv before action_get_token runs.
  *
+ *  A run always ends: the wait for the connection has the time of a job of
+ *  C_TASK, which only starts its first job when the connection opens, and
+ *  a run that ends with no EV_ON_TOKEN published (a mute IdP: the C_TASK
+ *  times out) publishes it in ac_end_task().
+ *
  *  Grant type: Resource Owner Password Credentials (ROPC) — action_get_token
  *  POSTs grant_type=password (username + password + client_id). This is
  *  intentional and Keycloak-only by constraint: every CLI caller (ycli,
@@ -156,6 +161,7 @@ Example of refresh_token
 #include "c_task_authenticate.h"
 
 #include "c_tcp.h"
+#include "c_timer.h"
 
 /***************************************************************************
  *              Constants
@@ -175,6 +181,7 @@ Example of refresh_token
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void retire_task(hgobj gobj);
 PRIVATE void retire_http(hgobj gobj);
 
 /***************************************************************************
@@ -253,6 +260,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_http;                     /* the HTTP client of this run: retired at its end */
     hgobj gobj_task;                     /* the C_TASK of this run, while it runs */
+    hgobj timer;                         /* the wait for the connection */
+    BOOL token_published;                /* this run published its EV_ON_TOKEN */
 } PRIVATE_DATA;
 
 
@@ -271,7 +280,9 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -370,12 +381,14 @@ PRIVATE int mt_start(hgobj gobj)
     );
     /*
      *  C_PROT_HTTP_CL is a CHILD: it subscribes its parent to every event
-     *  it publishes. The open and the messages are the task's (C_TASK
-     *  subscribes to gobj_results by itself); the close is this gclass's
-     *  too: the one of the stop in ac_end_task comes after the task has
-     *  ended and left, and it has no other audience.
+     *  it publishes. The messages are the task's (C_TASK subscribes to
+     *  gobj_results by itself). The open is this gclass's too: it ends the
+     *  wait for the connection. And the close: the one of the stop in
+     *  ac_end_task comes after the task has ended and left, and it has no
+     *  other audience.
      */
     gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
+    gobj_subscribe_event(priv->gobj_http, EV_ON_OPEN, NULL, gobj);
     gobj_subscribe_event(priv->gobj_http, EV_ON_CLOSE, NULL, gobj);
 
     gobj_set_volatil(priv->gobj_http, TRUE);     // retired at the end of its run (retire_http())
@@ -427,10 +440,12 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_subscribe_event(gobj_task, EV_END_TASK, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
     priv->gobj_task = gobj_task;
+    priv->token_published = FALSE;
 
     /*-----------------------*
      *      Start task
      *-----------------------*/
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj_task, "timeout"));
     gobj_start_tree(priv->gobj_http);
     gobj_start(gobj_task);
 
@@ -444,20 +459,8 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  A task stopped in the middle of its run publishes no end, and is
-     *  its owner's to destroy: on the next turn, as the HTTP client, since
-     *  the stop may come inside one of their publications (an owner that
-     *  stops this gclass in its EV_ON_TOKEN)
-     */
-    if(priv->gobj_task) {
-        hgobj task = priv->gobj_task;
-        priv->gobj_task = NULL;
-        if(gobj_is_running(task)) {
-            gobj_stop(task);
-        }
-        gobj_post_event(gobj, EV_STOPPED, 0, task);
-    }
+    clear_timeout(priv->timer);
+    retire_task(gobj);
     retire_http(gobj);
 
     return 0;
@@ -499,6 +502,27 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 
+
+/***************************************************************************
+ *  A task stopped in the middle of its run publishes no end, and is its
+ *  owner's to destroy: on the next turn, as the HTTP client, since the stop
+ *  may come inside one of their publications (an owner that stops this
+ *  gclass in its EV_ON_TOKEN)
+ ***************************************************************************/
+PRIVATE void retire_task(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj task = priv->gobj_task;
+    if(!task) {
+        return;
+    }
+    priv->gobj_task = NULL;
+    if(gobj_is_running(task)) {
+        gobj_stop(task);
+    }
+    gobj_post_event(gobj, EV_STOPPED, 0, task);
+}
 
 /***************************************************************************
  *  The HTTP client of a run is over: stopped now, and destroyed on the next
@@ -624,6 +648,8 @@ PRIVATE int publish_token(
     int result,
     json_t *kw_)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *comment = kw_get_str(gobj, kw_, "comment", "", 0);
     const char *jwt = kw_get_str(gobj, kw_, "jwt", "", 0);
 
@@ -633,6 +659,7 @@ PRIVATE int publish_token(
         "jwt", jwt
     );
 
+    priv->token_published = TRUE;   // before: the owner may start a run in it
     gobj_publish_event(gobj, EV_ON_TOKEN, kw_on_token);
     return 0;
 }
@@ -1122,16 +1149,74 @@ PRIVATE json_t *result_logout(
 
 
 /***************************************************************************
- *  The token already was published, here only close task.
+ *  The end of a run. The token was published already, except when the run
+ *  failed with no result of a job (the IdP took the request and did not
+ *  answer, C_TASK timed out): then it goes out here, last, since the owner
+ *  may stop this gclass in it.
  ***************************************************************************/
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->gobj_task) {
+    BOOL end_of_this_run = (src == priv->gobj_task);
+    if(end_of_this_run) {
         priv->gobj_task = NULL;     // volatile: it destroys itself after this end
     }
     retire_http(gobj);
+
+    int result = (int)kw_get_int(gobj, kw, "result", 0, KW_REQUIRED);
+    if(end_of_this_run && result < 0 && !priv->token_published) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "task_authenticate: the IdP did not answer",
+            "result",       "%d", result,
+            "last_job",     "%d", (int)kw_get_int(gobj, kw, "last_job", 0, 0),
+            NULL
+        );
+        json_t *kw_no_token = json_pack("{s:s}", "comment", "The IdP did not answer");
+        publish_token(gobj, -1, kw_no_token);
+        JSON_DECREF(kw_no_token)
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The connection to the IdP opened: from here C_TASK times each job.
+ ***************************************************************************/
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->timer);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The connection to the IdP never opened. C_TCP would go on trying for
+ *  ever, and C_TASK has no job to time out: the run ends here. It comes
+ *  inside the publication of this gclass's own C_TIMER, a child that the
+ *  run does not retire.
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "task_authenticate: the IdP cannot be reached",
+        "timeout",      "%d", (int)gobj_read_integer_attr(src, "msec"),
+        NULL
+    );
+    retire_task(gobj);
+    retire_http(gobj);
+
+    json_t *kw_no_token = json_pack("{s:s}", "comment", "The IdP cannot be reached");
+    publish_token(gobj, -1, kw_no_token);
+    JSON_DECREF(kw_no_token)
 
     KW_DECREF(kw)
     return 0;
@@ -1155,7 +1240,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  A volatile child stopped: destroyed. Also the HTTP client and the task
- *  of a run that is over, posted to itself (retire_http(), mt_stop()); the
+ *  of a run that is over, posted to itself (retire_http(), retire_task()); the
  *  src of a post is NULL when it was destroyed in between.
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1231,7 +1316,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_idle[] = {
         {EV_END_TASK,           ac_end_task,        0},
+        {EV_ON_OPEN,            ac_on_open,         0},
         {EV_ON_CLOSE,           ac_on_close,        0},
+        {EV_TIMEOUT,            ac_timeout,         0},
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
@@ -1243,7 +1330,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ON_TOKEN,       EVF_OUTPUT_EVENT},
         {EV_END_TASK,       0},
+        {EV_ON_OPEN,        0},
         {EV_ON_CLOSE,       0},
+        {EV_TIMEOUT,        0},
         {EV_STOPPED,        0},
         {0, 0}
     };

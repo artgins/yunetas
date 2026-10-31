@@ -33,6 +33,7 @@ SDATA (DTP_INTEGER,     "return_status_discovery",  SDF_RD, "200",    "HTTP stat
 SDATA (DTP_JSON,        "override_token_body",      SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /token envelope"),
 SDATA (DTP_JSON,        "override_discovery_body",  SDF_RD, "{}",     "If non-empty, sent verbatim instead of the synthesised /.well-known body (e.g. to omit endpoints)"),
 SDATA (DTP_INTEGER,     "drop_token_requests",      SDF_RD, "0",      "So many /token requests are not answered: their connection is dropped (an IdP that restarts)"),
+SDATA (DTP_BOOLEAN,     "mute_token_requests",      SDF_RD, "0",      "A /token request gets no answer, and its connection stays open"),
 SDATA (DTP_INTEGER,     "drop_logout_requests",     SDF_RD, "0",      "So many /logout requests are not answered: their connection is dropped"),
 SDATA (DTP_INTEGER,     "drop_discovery_requests",  SDF_RD, "0",      "So many /.well-known requests are not answered: their connection is dropped"),
 SDATA (DTP_INTEGER,     "discovery_endpoint_len",   SDF_RD, "0",      "If > 0, the token_endpoint of the discovery has this length"),
@@ -384,6 +385,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else {
             send_resp(gobj, src, 204, "204 No Content", json_object());
         }
+
+    } else if(strstr(url, "/token") && gobj_read_bool_attr(gobj, "mute_token_requests")) {
+        gobj_write_integer_attr(gobj, "token_seen",
+            gobj_read_integer_attr(gobj, "token_seen") + 1);
 
     } else if(strstr(url, "/token") && gobj_read_integer_attr(gobj, "drop_token_requests") > 0) {
         gobj_write_integer_attr(gobj, "token_seen",

@@ -276,6 +276,31 @@ waits for that event and for nothing else. Only the tokens are read of an
 answer of the IdP; the rest of the envelope is the IdP's to send or not. A
 peer's bad answer is a WARNING, a status other than 200 the `comment`.
 
+**Every run ends**, with the same wait at both places, the `timeout` of
+`C_TASK` (10 s by default). Each ends in a WARNING and in `EV_ON_TOKEN`:
+
+| The IdP | `comment` | WARNING |
+|---------|-----------|---------|
+| does not accept the connection, or nothing answers at its address | `The IdP cannot be reached` | `task_authenticate: the IdP cannot be reached` |
+| takes a request and does not answer it | `The IdP did not answer` | `task_authenticate: the IdP did not answer` |
+
+So a caller needs no timer of its own. With nobody at the IdP's address,
+`ycommand` gives up after 10 s, exit code 255 (it prints the `comment` when it
+is verbose or interactive):
+
+```bash
+$ ycommand -l 1 -I https://auth.example.com/realms/foo/ -Z cli -x user -X secret \
+    -u wss://node.example.com:1991 -c 'help'
+
+The IdP cannot be reached
+Abort.
+```
+
+The wait covers the first connection only. An IdP that comes up within it is
+used; one that comes up later is not, and the caller starts another run. A
+token already published ends the wait for good: an end-session with no answer
+ends the run with nothing more to the caller.
+
 **What goes again.** `C_TASK` runs its job again each time the connection opens.
 The password grant goes once: a cut is `result` -1 and a WARNING. The discovery
 (a GET) and the end-session (idempotent, and not sending it leaves the session

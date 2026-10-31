@@ -75,6 +75,9 @@ SET(TESTS
     test16_minimal_answer
     test17_discovery_cut
     test19_endpoint_too_long
+    test20_idp_mute
+    test21_idp_unreachable
+    test22_unreachable_stop
 )
 
 foreach(test ${TESTS})

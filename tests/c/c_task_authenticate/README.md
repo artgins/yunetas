@@ -33,6 +33,13 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 | `test17_discovery_cut` | The mock (`drop_discovery_requests`) drops every discovery: 2 go, `result=-1`, a WARNING for each. |
 | `test18_idp_keycloak` | `C_IDP_KEYCLOAK` on the same mock, with its own driver (`c_idp_driver.c`: the service and the channel a command answers to) and config (`main_test18_idp_keycloak.c`), 12 commands: what goes again when a connection is cut and what does not, a token too long, an `expires_in` that is a text, negative or too big, a search of 600 bytes. |
 | `test19_endpoint_too_long` | The discovery answers a `token_endpoint` of 4096 bytes: `result=-1`, ONE WARNING. |
+| `test20_idp_mute` | The mock (`mute_token_requests`) never answers `/token`: when the `C_TASK` times out, `result=-1` and ONE WARNING per run, twice. |
+| `test21_idp_unreachable` | Nobody listens at the IdP's port: the wait for the connection ends, `result=-1` and ONE WARNING per run, twice, with no `C_TASK` and no client left. |
+| `test22_unreachable_stop` | The same, once, the task stopped inside that `EV_ON_TOKEN`, as `ycli` does. |
+
+`C_TEST_DRIVER` logs an ERROR when it stops unless each run got ONE
+`EV_ON_TOKEN` with the expected result, so a task that publishes nothing fails
+at the yuno's auto-kill instead of passing.
 
 ## Mock IdP (`C_MOCK_IDP`)
 
@@ -53,7 +60,8 @@ substring:
   signature today, so libjwt is intentionally not a dependency here.
 * `/logout` → returns 204.
 * `drop_token_requests` drops the connection of that many `/token`
-  requests with no answer; `raw_token_answer` answers `/token` with its
+  requests with no answer; `mute_token_requests` leaves `/token` with no
+  answer and the connection open; `raw_token_answer` answers `/token` with its
   bytes as they are (`@bighead`: a 200 with a header of 70 KB).
 
 ## Running

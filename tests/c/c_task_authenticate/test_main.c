@@ -42,10 +42,10 @@ PRIVATE char fixed_config_template[]= "\
 ";
 
 /*
- *  variable_config_template is a printf format with three %s slots:
- *    1. expected_result for the test driver
- *    2. task-authenticate kw snippet (single-quoted JSON object)
- *    3. C_MOCK_IDP kw snippet (single-quoted JSON object; "{}" for the
+ *  variable_config_template is a printf format with these %s slots:
+ *    1. expected_result for the test driver, 2. more of its kw
+ *    3. task-authenticate kw snippet (single-quoted JSON object)
+ *    4. C_MOCK_IDP kw snippet (single-quoted JSON object; "{}" for the
  *       default mock that synthesises a normal discovery + token reply)
  *
  *  The task-authenticate service is autostart=false because the driver
@@ -174,8 +174,11 @@ PRIVATE int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER),  "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
-    /* Safety: kill the yuno after 10 s if stuck */
-    set_auto_kill_time(10);
+    /*
+     *  Safety: kill the yuno if stuck, past the longest tests (test20 and
+     *  test21: two waits of 10 s, on top of the start and the end)
+     */
+    set_auto_kill_time(30);
 
     /*
      *  Build expected_log_messages here (now that jansson uses gbmem) and

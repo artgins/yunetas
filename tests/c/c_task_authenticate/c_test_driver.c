@@ -17,7 +17,7 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type----------name-------------flag----default-description*/
 SDATA (DTP_INTEGER,   "expected_result", SDF_RD, "0",   "Expected EV_ON_TOKEN result field"),
-SDATA (DTP_INTEGER,   "runs",          SDF_RD, "1",    "Runs of the task: after each EV_ON_TOKEN but the last it is stopped and started again; after the last, none of its HTTP clients (C_PROT_HTTP_CL, C_TCP) may be left"),
+SDATA (DTP_INTEGER,   "runs",          SDF_RD, "1",    "Runs of the task: after each EV_ON_TOKEN but the last it is stopped and started again; after the last, none of its C_TASK or HTTP clients (C_PROT_HTTP_CL, C_TCP) may be left"),
 SDATA (DTP_BOOLEAN,   "stop_in_on_token", SDF_RD, "0", "Stop the task inside its EV_ON_TOKEN, as ycli does"),
 SDATA (DTP_INTEGER,   "end_delay_ms",  SDF_RD, "200",  "Time the test goes on after EV_ON_TOKEN: the logout comes after it"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
@@ -86,6 +86,23 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  The yuno also ends by its auto-kill: a caller that got no EV_ON_TOKEN
+     *  waits for ever, and that is a failure, not a test that has nothing
+     *  to say
+     */
+    int runs = (int)gobj_read_integer_attr(gobj, "runs");
+    if(!priv->test_passed || priv->runs_done != runs) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", "test_driver: not one EV_ON_TOKEN with the expected result per run",
+            "runs",     "%d", runs,
+            "got",      "%d", priv->runs_done,
+            NULL
+        );
+    }
+
     gobj_stop(priv->timer);
     return 0;
 }
@@ -124,15 +141,15 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  What the runs left under the task: no HTTP client, no C_TCP (each run
- *  retires its own), with an ERROR naming the count
+ *  What the runs left under the task: no C_TASK, no HTTP client, no C_TCP
+ *  (each run retires its own), with an ERROR naming the count
  ***************************************************************************/
 PRIVATE void check_clients_left(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *gclasses[] = {"C_PROT_HTTP_CL", "C_TCP"};
-    for(int i = 0; i < 2; i++) {
+    const char *gclasses[] = {"C_TASK", "C_PROT_HTTP_CL", "C_TCP"};
+    for(int i = 0; i < 3; i++) {
         json_t *jn_filter = json_pack("{s:s}", "__gclass_name__", gclasses[i]);
         json_t *dl = gobj_match_children_tree(priv->gobj_task, jn_filter);
         size_t left = json_array_size(dl);
