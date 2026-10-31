@@ -316,18 +316,24 @@
   memory grew without limit (C_TCP's own `max_tx_queue` drops the oldest
   message, which would break an HTTP stream). New attributes `max_tx_queue`
   (64; 0: no limit) and `timeout_tx_stall` (5000 ms; 0: never), and in the
-  server `max_rx_held` (1 MiB; 0: no limit). The queue of the transport moves
-  only when a write ends, in the event loop, so its length says nothing of the
-  peer: 100 requests pipelined in one send put 100 answers in the queue of a
-  peer that reads them. So the server, with `max_tx_queue` answers waiting,
-  holds what the peer sends, unparsed, and parses it read by read when the
-  queue is empty: a pipeline of any length is served in order, and the answers
-  waiting never pass `max_tx_queue` by more than what one read holds. A peer
+  server `max_rx_held` (1 MiB; 0: no limit). The queue of the transport
+  moves only when a write ends, in the event loop, so its length says
+  nothing of the peer: 100 requests pipelined in one send put 100 answers in
+  the queue of a peer that reads them. So the server, with `max_tx_queue`
+  answers owed (those the application has not sent yet and those waiting in
+  the transport), holds what the peer sends, unparsed, and parses it read by
+  read when there is room: a pipeline of any length is served in order, and
+  the answers owed never pass `max_tx_queue` by more than what one read
+  holds, however late the application answers. So an application must answer
+  every request: one that leaves `max_tx_queue` requests of a connection
+  without an answer holds that connection until `timeout_inactivity`, and a
+  peer that sends more than `max_rx_held` bytes meanwhile is dropped. A peer
   is dropped, with ONE warning, when no write ended in `timeout_tx_stall`
-  milliseconds with the queue full, or when more than `max_rx_held` bytes are
-  held (this one looks at the bytes: a peer that pipelines more than that
-  ahead of its answers is dropped even if it reads them). The client refuses
-  a request (the action returns -1) and drops the connection only when it
+  milliseconds (a minimum, up to about two seconds more) with `max_tx_queue`
+  answers in the transport, or when more than `max_rx_held` bytes are held
+  (this one looks at the bytes: a peer that pipelines more than that ahead
+  of its answers is dropped even if it reads them). The client refuses a
+  request (the action returns -1) and drops the connection only when it
   finds `max_tx_queue` requests waiting and no write ended in
   `timeout_tx_stall`; a burst of one turn is never refused. In 7.29.3.
   `c_prot_http_sr/test1`, `c_prot_http_cl/test2`.
@@ -440,7 +446,20 @@
   it may still be open at the IdP. The end-session is idempotent, so it is the
   one request that goes twice: a cut sends it once more on the next connection,
   with a WARNING, as in C_TASK_AUTHENTICATE. In 7.29.3.
-  `c_auth_bff/test28_logout_idp_cut`, `c_task_authenticate/test11`, `test12`.
+  `c_auth_bff/test28_logout_idp_cut`, `c_task_authenticate/test11`, `test12`. The login
+  form says so: after such an error, that the session may still be open at the
+  identity server, not that a reload may open it (gui_agent 1.3.4, gui_treedb
+  1.2.0).
+- **C_TASK_AUTHENTICATE: a run with no answer of the IdP reaches its caller.**
+  With a mute IdP the `C_TASK` timed out and nothing came out: no `EV_ON_TOKEN`,
+  no log, and `ycommand` and the other CLIs waited for ever. With an IdP that
+  cannot be reached nothing timed the wait at all. Both now end in `EV_ON_TOKEN`
+  with `result` -1 and a WARNING (`comment`: `The IdP did not answer`, `The IdP
+  cannot be reached`). **BREAKING:** the wait for the connection is bounded by
+  the `timeout` of `C_TASK` (10 s by default): an IdP that comes up later used to
+  log in once `C_TCP` reached it, and now the run fails and the caller starts
+  another. In 7.29.3. `c_task_authenticate/test20_idp_mute`,
+  `test21_idp_unreachable`, `test22_unreachable_stop`.
 - **C_TASK_AUTHENTICATE survives a status with no name.**
   `llhttp_status_name()` aborts on one, and it was called with the status of the
   IdP, so a peer answering 298 ended the process. **BREAKING:** the `comment` of
@@ -656,7 +675,7 @@
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
   1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.8, gui_agent
-  1.2.7 to 1.3.3 and gui_treedb 1.1.3 to 1.1.9. The `yunetas` CLI 1.0.5 and
+  1.2.7 to 1.3.4 and gui_treedb 1.1.3 to 1.2.0. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, a login
@@ -666,7 +685,7 @@
   earlier session, keeps one refresh in flight, and a logout that is its own
   state and says when the server did not end the session.
 - **BREAKING: gui_agent and gui_treedb, the session and the login form**
-  (gui_agent 1.3.3, gui_treedb 1.1.9). In 7.29.3 unless noted; the detail is in
+  (gui_agent 1.3.4, gui_treedb 1.2.0). In 7.29.3 unless noted; the detail is in
   the yunos-js CHANGELOG.
     - A 429 is a 429, even with a json and an `error_code` of its own, which
       read as a denial and ended the session at the first one. Any 429 is now
@@ -708,34 +727,42 @@
   checked twice. A count of its work adds a tick in every function, loop and
   expression-bodied arrow of `src/` and a hook wherever the language reads
   with no call (a rope's first read, a long key, two long strings compared),
-  and wraps every native the runtime reaches from its globals: one with no
-  model is charged all it is given, so a native nobody listed counts too,
-  and a regular expression is charged the steps a small backtracking machine
-  takes on the same search, checked against the native answer. The masking
-  counts 1.00000, and a work of a*n + c*n*n fails when c*n*n is 2.7% or more
-  of the counted a*n at 1 MB. 49 rescans made in different ways are kept as
-  tests that must fail the count, and 12 linear works as tests that must
-  pass it. What it cannot see is listed in `tests/count_native_work.js`: the
-  globals of the test machinery, promises and streams, a `node:` module or a
-  package, a native with more than linear work and no model, `arr.length =
-  n`, an object rest, and what a call costs that has nothing to do with its
-  size. For that last one the masking is also timed in thread CPU time, 15 x
-  256 KB against 3.75 MB, the best of up to six rounds, the heap collected
-  before each measure of at least 200 ms, with a young generation fixed at
-  256 MB so that no collection falls inside a call, and a limit of 1.6; it
-  is skipped, with its reason, where `process.threadCpuUsage()` is missing.
-  On the machine it was measured on (named in gobj-js's CHANGELOG), linear
-  works reach 1.14 at most with twelve other suites running. Each of the 19
-  rescans run at 1 MB, at 0.3 and 1 times the masking, fails the count on
-  all 23 shapes, except one shape of one where one pass already costs more
-  than that. On the time, which depends on the machine and on its load, the
-  ten run on it fail at 1 times but a key of a Map or a Set, which takes no
-  time, and at 0.3 times on 2 to 23 shapes of 23. This says what was tried,
-  not that a rescan nobody tried fails. An O(n log n) sort fails the count
-  on purpose when it is about half of the work or more (the masking is
-  linear, as in C). The suite runs in 23 to 24 s on that machine. The treedb
-  fold model's extended-parent, tie-break, double-mark and multivalued-fkey
-  rules are tested, each with a mutant red.
+  and wraps the natives it reaches from its globals, except those it takes
+  for constant and the globals it does not walk: a wrapped native with no
+  model is charged all it is given, so a native nobody listed counts if it
+  is wrapped, and a regular expression is charged the steps a small
+  backtracking machine takes on the same search, checked against the native
+  answer. The masking counts 1.00000, and a work of a*n + c*n*n fails when
+  c*n*n is 2.7% or more of the counted a*n at 1 MB. 50 rescans made in
+  different ways are kept as tests that must fail the count, and 13 linear
+  works as tests that must pass it. What it cannot see is listed in
+  `tests/count_native_work.js`: natives it takes for constant that do read
+  more (`Object.hasOwn()`, `hasOwnProperty()`, `Reflect.has()`,
+  `Reflect.get()` and `getOwnPropertyDescriptor()` with a long key,
+  `Object.is()` of two long strings, `re.toString()`,
+  `RegExp.prototype.compile()`, `Object.create(null, props)`),
+  `Symbol.for()` with a long text, a computed key in an object literal or a
+  pattern, the coercion of a text to a number, the globals of the test
+  machinery, promises and streams, a `node:` module or a package, a native
+  with more than linear work and no model, `arr.length = n`, an object rest,
+  and what a call costs that has nothing to do with its size. For that last
+  one the masking is also timed in thread CPU time, 15 x 256 KB against 3.75
+  MB, the best of up to six rounds, the heap collected before each measure
+  of at least 200 ms, with a young generation fixed at 256 MB so that no
+  collection falls inside a call, and a limit of 1.6; it is skipped, with
+  its reason, where `process.threadCpuUsage()` is missing. On the machine it
+  was measured on (named in gobj-js's CHANGELOG), linear works reach 1.14 at
+  most with twelve other suites running. Each of the 19 rescans run at 1 MB,
+  at 0.3 and 1 times the masking, fails the count on all 23 shapes, except
+  one shape of one where one pass already costs more than that. On the time,
+  which depends on the machine and on its load, the ten run on it fail at 1
+  times but a key of a Map or a Set, which takes no time, and at 0.3 times
+  on 2 to 23 shapes of 23. This says what was tried, not that a rescan
+  nobody tried fails. An O(n log n) sort fails the count on purpose when it
+  is about half of the work or more (the masking is linear, as in C). The
+  suite runs in 23 to 24 s on that machine. The treedb fold model's
+  extended-parent, tie-break, double-mark and multivalued-fkey rules are
+  tested, each with a mutant red.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -1158,21 +1185,32 @@
   nothing before it, are durations. `test_date_text`.
 - **BREAKING: `gmtime2timezone()` and `get_*_range()` take a zone only when
   libc will read it as one**, else UTC with an ERROR *"Unknown time zone:
-  taken as UTC"*, with `TZ` not touched. They took a name of no zone in silence
-  (`"Nowhere/Zone"`, `"Europe"`), any file (`zone.tab`, `/etc/passwd`), and a
-  POSIX `TZ` that libc stops reading or clamps: `"ABC0DEF,M13.1.0"` was UTC,
-  `"ABC25"` an offset of a day, `"ABC5:60"` 5:59. A zone is a file with the
-  TZif magic, a POSIX `TZ` that can be read whole, or empty; with no tzdata
-  the names of UTC (`"UTC"`, `"GMT"`, `"Etc/UTC"`, ...) are no error. A FIFO in
-  place of a zone file blocked the process in `tzset()`; it never reaches libc
-  now. `test_date_text`.
+  taken as UTC"*, with `TZ` not touched. They took a name of no zone in
+  silence (`"Nowhere/Zone"`, `"Europe"`), any file (`zone.tab`,
+  `/etc/passwd`), and a POSIX `TZ` that libc stops reading or clamps:
+  `"ABC0DEF,M13.1.0"` was UTC, `"ABC25"` an offset of a day, `"ABC5:60"`
+  5:59. A zone is a TZif file, looked at where libc opens it (`dir/name` as
+  written: `"Europe/Madrid/."` is no file, `"../zoneinfo/Europe/Madrid"` is
+  a zone) and with the headers of RFC 9636 (version NUL or `2`-`9`, at least
+  one type and one character, and a file as long as they say, in both
+  headers of a version 2 or later), a POSIX `TZ` that can be read whole, or
+  empty; with no tzdata the names of UTC (`"UTC"`, `"GMT"`, `"Etc/UTC"`,
+  ...) are no error. A FIFO in place of a zone file blocked the process in
+  `tzset()`; it never reaches libc now. A TZif with no types crashed the
+  process inside `tzset()` when a zone was loaded (7.29.3 too); it never
+  reaches libc now. `test_date_text`.
 - **A time no calendar holds crashes nothing and leaves nothing half
   written.** `t2timestamp()` and `formatdate()` passed the NULL of
   `localtime()` on and the process crashed (`ycli` with a time column from a
   peer): they give an empty text and one ERROR. `gmtime2timezone()` leaves
-  `*ltm` zeroed. `get_*_range()` with an end no calendar holds answer `{0, 0}`
-  with one ERROR: the year wrapped, and `get_years_range(t, 2147483647, "")`
-  was some two billion years back. `test_date_text`.
+  `*ltm` zeroed. `get_*_range()` with a start or an end no calendar holds
+  answer `{0, 0}` with one ERROR: the year wrapped, and `get_years_range(t,
+  2147483647, "")` was some two billion years back. `time2range` looks at
+  the NULL of `gmtime()`, and its message is *"No range: no calendar holds
+  its start or its end"*. `test_date_text`.
+- **`time2date` at the edge of the calendar says *"timestamp too big"*** with
+  exit code -1: it crashed on the NULL of `localtime()` (`time2date
+  67768036191676799` in a zone east of UTC). In 7.29.3.
 - **`time2range`**: `-r` must be an integer (`-r abc` was a range of 0, in
   silence); the ERROR of an unknown zone reaches stdout (it went nowhere, and
   the range was printed in UTC); a range with no end exits -1.
