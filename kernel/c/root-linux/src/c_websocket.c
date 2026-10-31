@@ -6,6 +6,7 @@
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+#include <limits.h>
 #include <string.h>
 #include <strings.h>
 #include <stdint.h>
@@ -1428,6 +1429,45 @@ PRIVATE BOOL do_request(
 }
 
 /***************************************************************************
+ *  RFC 6455 4.2.2: a server answers ONE of the subprotocols offered, or none.
+ *  Nobody validates them yet, so it is the first one offered. One that is no
+ *  token, or does not fit, is refused whole: a value cut would be a value
+ *  the client never offered, and it would fail the connection.
+ ***************************************************************************/
+PRIVATE BOOL select_subprotocol(hgobj gobj, const char *offered, char *selected, size_t size)
+{
+    static const char tchar[] =
+        "!#$%&'*+-.^_`|~0123456789"
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    const char *p = offered + strspn(offered, ", \t");
+    size_t len = strcspn(p, ",");
+    while(len > 0 && (p[len-1] == ' ' || p[len-1] == '\t')) {
+        len--;
+    }
+    if(len == 0) {
+        return FALSE;
+    }
+
+    if(len >= size || strspn(p, tchar) < len) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "A subprotocol offered is no token, or too long: none selected",
+            "length",       "%d", (int)len,
+            "offered",      "%.64s", offered,
+            NULL
+        );
+        return FALSE;
+    }
+
+    memcpy(selected, p, len);
+    selected[len] = 0;
+    return TRUE;
+}
+
+/***************************************************************************
  *  Got the request: analyze it and send the response.
  ***************************************************************************/
 PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
@@ -1552,29 +1592,21 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
      *  Accept the connection
      *------------------------------*/
     {
-        char subprotocol_header[512] = {0};
-        const char *subprotocol = kw_get_str(
+        char subprotocol_header[NAME_MAX + 64] = {0};
+        char subprotocol[NAME_MAX + 1];
+        const char *offered = kw_get_str(
             gobj,
             request->jn_headers,
             "SEC-WEBSOCKET-PROTOCOL",
             "",
             0
         );
-        if(!empty_string(subprotocol)) {
-            // TODO accept all by now, future: publish to top to validate protocol
+        if(!empty_string(offered) && select_subprotocol(gobj, offered, subprotocol, sizeof(subprotocol))) {
             snprintf(subprotocol_header, sizeof(subprotocol_header), "%s: %s\r\n",
                 "Sec-Websocket-Protocol",
                 subprotocol
             );
         }
-
-//        subprotocols = [s.strip() for s in subprotocols.split(',')]
-//        if subprotocols:
-//         selected = self.select_subprotocol(subprotocols)
-//         if selected:
-//             assert selected in subprotocols
-//             subprotocol_header = "Sec-WebSocket-Protocol: %s\r\n" % (
-//                 selected)
 
         static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
         char concat[100], b64_sha[SHA1_DIGEST_SIZE * 2];

@@ -32,6 +32,14 @@ the Close, and drop at `timeout_close` (the raw server does not drop). Up to
 7.28.9 the code and the reason were read and logged by nobody, so a server saw
 only its own drop (`Local dropping`) for every session a browser closed (red).
 
+`test4` (`main_test4.c` + `c_test4.c`) is the subprotocol a `C_WEBSOCKET`
+server answers. Five raw clients send an upgrade each, by hand: with no
+`Sec-WebSocket-Protocol` the 101 names none; `chat, superchat` answers `chat`;
+` , mqtt ,x` answers `mqtt`, the first value of the list; `bad value, chat` and
+a token of 600 bytes answer none, with a warning. Up to 7.29.3 the 101 echoed
+the whole header, and at 512 bytes it was cut along with the end of the head,
+so the answer never ended (red).
+
 `ws_accept` (`test_ws_accept.c`, no yuno) is the `Sec-WebSocket-Accept` a
 `C_WEBSOCKET` server answers: the SHA-1 of `sha1.c` (root-linux, private,
 written again from FIPS 180-4 after 7.28.4) against the FIPS vectors and

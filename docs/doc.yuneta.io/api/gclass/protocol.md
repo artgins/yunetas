@@ -439,4 +439,15 @@ showed it. A client configured to give a slow peer more time:
 }
 ```
 
-Test: `tests/c/c_websocket` (`test_websocket_test1`).
+A `C_WEBSOCKET` server answers **one** subprotocol, or none (RFC 6455 §4.2.2):
+the first value of `Sec-WebSocket-Protocol`. Nothing validates it yet. A value
+that is no token, or longer than `NAME_MAX`, gets no subprotocol and one
+warning: it is never cut.
+
+```text
+Sec-WebSocket-Protocol: chat, superchat     ->  Sec-Websocket-Protocol: chat
+Sec-WebSocket-Protocol: bad value, chat     ->  (none, and a warning)
+```
+
+Tests: `tests/c/c_websocket` (`test_websocket_test1`, and `test_websocket_test4`
+for the subprotocol).
