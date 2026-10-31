@@ -40,18 +40,20 @@
  *                 "http://localhost/app/é": 400 redirect_uri_not_allowed,
  *                 no call to the IdP;
  *             29. "http://localhost/app/x/...y" (not a dot-segment): 200;
- *          30-48. what some server reads out of the prefix: "/app/..%2Fx",
+ *          30-52. what some server reads out of the prefix: "/app/..%2Fx",
  *                 "/app/%2e%2e%2fx", "/app/%2E/x", "/app/..;/x", "/app/.;a/x",
  *                 "/app/%5c..%5cx", "/app/%2F..%2Fadmin", "/app/%252e%252e/x",
  *                 "/app/%c0%ae%c0%ae/x", "/app/x%00", "/app/x%0a",
  *                 "/app/x%20", "/app/x%7f", "/app/..%3bx", "/app/x%3Fy",
  *                 "/app/x%23y", and an escape that is not one, "/app/x%",
- *                 "/app/x%2", "/app/x%zz": 400 redirect_uri_not_allowed, no
- *                 call to the IdP;
- *          49-54. "/app/x%41y", "/app/x%21%7e", "/app/x%4Ay%4a",
+ *                 "/app/x%2", "/app/x%zz", an empty segment ("/app//evil.com/",
+ *                 "/app//@evil.com", "/app/x//y", "/app/;/evil.com/"): 400
+ *                 redirect_uri_not_allowed, no call to the IdP;
+ *          53-59. "/app/x%41y", "/app/x%21%7e", "/app/x%4Ay%4a",
  *                 "/app/..a/b..", "/app/a;b=1" and, in the query,
- *                 "/app/cb?next=%2e%2e%2f..;/x": 200;
- *             55. a login with two Host lines, and the Origin that is their
+ *                 "/app/cb?next=%2e%2e%2f..;/x", and "/app/x/" (the last
+ *                 segment may be empty): 200;
+ *             60. a login with two Host lines, and the Origin that is their
  *                 join: 403 (a Host that is a list is no Host).
  *
  *          The logs are asserted by the test harness via
@@ -172,7 +174,7 @@ PRIVATE const step_t steps[] = {
     /* 29 */
     {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/x/...y"), 200,
         {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
-    /* 30-48 */
+    /* 30-52 */
 #define RURI_REFUSED(rest) \
     {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/" rest), 400, \
         {"redirect_uri_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE}
@@ -195,7 +197,11 @@ PRIVATE const step_t steps[] = {
     RURI_REFUSED("x%"),
     RURI_REFUSED("x%2"),
     RURI_REFUSED("x%zz"),
-    /* 49-54 */
+    RURI_REFUSED("/evil.com/"),
+    RURI_REFUSED("/@evil.com"),
+    RURI_REFUSED("x//y"),
+    RURI_REFUSED(";/evil.com/"),
+    /* 53-59 */
     {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/x%41y"), 200,
         {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
     {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/x%21%7e"), 200,
@@ -209,7 +215,9 @@ PRIVATE const step_t steps[] = {
     {"/auth/callback", NULL, NULL, NULL,
         CALLBACK_BODY("http://localhost/app/cb?next=%2e%2e%2f..;/x"), 200,
         {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
-    /* 55 */
+    {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/x/"), 200,
+        {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
+    /* 60 */
     {"/auth/login", OWN_HOST "\r\nHost: " OWN_HOST, OWN_ORIGIN ", " OWN_HOST, NULL, NULL, 403,
         {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
 };

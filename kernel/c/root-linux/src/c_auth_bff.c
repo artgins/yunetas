@@ -72,12 +72,17 @@
  *      A logout served ends in the browser whatever happens at the IdP:
  *      every answer to it clears the cookies, its errors too (the IdP cut
  *      the connection twice or stayed silent, no endpoints, the queue
- *      full). End-session is idempotent, so it is the one request that may
- *      go twice: when the IdP closes the connection before answering, it
- *      is sent once more on the next connection (the IdP closing a
- *      connection kept open is the commonest cut, and a session left open
- *      on a shared machine is what a logout is for). A request the Origin
- *      refuses (403) changes nothing: its answer has no Set-Cookie.
+ *      full, a refresh_token cookie the BFF did not write). End-session is
+ *      idempotent, so it is the one request that may go twice: when the IdP
+ *      closes the connection before answering, it is sent once more on the
+ *      next connection (the IdP closing a connection kept open is the
+ *      commonest cut, and a session left open on a shared machine is what a
+ *      logout is for). All of it, the wait for the connection, for the
+ *      discovery and the resend included, ends within
+ *      idp_logout_timeout_ms: a SPA gives up long before idp_timeout_ms,
+ *      and an answer that comes after it clears nothing. A request the
+ *      Origin refuses (403) is not served and changes nothing: its answer
+ *      has no Set-Cookie, whatever the cookie it carries.
  *      Returns { "success": true }.
  *
  *    The Origin of a request: /auth/login, /auth/callback, /auth/refresh
@@ -94,7 +99,8 @@
  *
  *    A token cookie longer than any the BFF writes (name and value over
  *    BFF_COOKIE_MAX) is not one of its cookies: 400 token_too_large, in
- *    /auth/refresh, /auth/logout and /auth/token alike.
+ *    /auth/refresh, /auth/logout and /auth/token alike (a logout clears the
+ *    cookies all the same).
  *
  *    The values put in the form to the IdP (credentials, code, the
  *    refresh_token of a cookie) are form-urlencoded by C_PROT_HTTP_CL, and
@@ -280,6 +286,7 @@ PRIVATE BOOL stats_match(const char *stats, const char *name);
 PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
 PRIVATE void arm_connect_watchdog(hgobj gobj);
+PRIVATE void clear_logout_timeout(hgobj gobj);
 PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
     const char *error_code, const char *error_msg
 );
@@ -368,12 +375,13 @@ SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (
 SDATA (DTP_STRING,      "client_secret",        SDF_RD|SDF_SECRET, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "The origin of the SPA (e.g. https://app.example.com): the CORS Access-Control-Allow-Origin, and the one Origin whose login, callback, refresh, logout and token are served (else 403). It is what pins the scheme. Empty: no CORS, and the Origin must be this BFF's own: https:// and the Host of the request, or http:// and it on a connection that is not TLS (behind a proxy that ends TLS the BFF cannot tell the scheme of the browser)"),
-SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "The redirect_uri a callback may have: exactly this; or, when it ends with '/' after its scheme and host (e.g. https://app.example.com/app/), a redirect_uri starting with it whose rest is a path and query in it (visible ASCII, no '\\', no '#', no '.' or '..' segment, also before a ';', and no %XX in the path of a byte out of visible ASCII or of . / \\ ; ? # %). Empty: not checked"),
+SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "The redirect_uri a callback may have: exactly this; or, when it ends with '/' after its scheme and host (e.g. https://app.example.com/app/), a redirect_uri starting with it whose rest is a path and query in it (visible ASCII, no '\\', no '#', no '.', '..' or empty segment, also before a ';', and no %XX in the path of a byte out of visible ASCII or of . / \\ ; ? # %). Empty: not checked"),
 SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in relaxation of the httpOnly-cookie rule: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
 SDATA (DTP_DICT,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
 SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_INTEGER,     "idp_connect_timeout_ms",SDF_RD,             "30000","How long to wait for the outbound to CONNECT before giving up on the task in flight. Separate from idp_timeout_ms, which times the round-trip once connected: while unconnected C_TASK arms nothing, so without this a task waits forever (see ac_timeout). 0 disables"),
+SDATA (DTP_INTEGER,     "idp_logout_timeout_ms", SDF_RD,            "10000","The whole of a logout, in milliseconds: the wait for the discovery and the connection, the end-session and its resend. When it passes, the BFF answers (504, or 502 behind a discovery) with the cookies cleared. Keep it under the time a SPA waits (15 s). 0: only idp_timeout_ms and idp_connect_timeout_ms bound a logout"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                  0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -420,6 +428,8 @@ typedef struct _PRIVATE_DATA {
     hgobj           gobj_idprovider;    /* C_PROT_HTTP_CL */
     hgobj           gobj_task;          /* C_TASK */
     hgobj           gobj_timer;         /* C_TIMER: watchdog over the task in flight */
+    hgobj           gobj_logout_timer;  /* C_TIMER: the time of the logout at the head, armed once (arm_logout_timeout) */
+    BOOL            logout_timer_armed;
 
     /*
      *  task_valid flags whether the in-flight task's reply (or timeout)
@@ -456,6 +466,7 @@ typedef struct _PRIVATE_DATA {
     BOOL        connect_timed_out;
     BOOL        connect_was_connected;
     const char *connect_tcp_state;
+    BOOL        logout_timed_out;   /* it was the time of a logout that fired */
 
     /*
      *  Statistics — plain counters in PRIVATE_DATA, NOT SDF_*STATS
@@ -611,6 +622,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->gobj_logout_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -791,6 +803,7 @@ PRIVATE int mt_stop(hgobj gobj)
     if(gobj_is_running(priv->gobj_timer)) {
         gobj_stop(priv->gobj_timer);
     }
+    clear_logout_timeout(gobj);
 
     /*
      *  A stopped task is not destroyed by anyone else: the owner does it
@@ -1561,7 +1574,10 @@ PRIVATE BOOL path_escape_allowed(const char *p)
  *  The path `rest` (up to path_len) of a redirect_uri, under a prefix, stays
  *  in it: its escapes are allowed (path_escape_allowed()), and no segment
  *  is "." or "..", counting what a server reads of it: the text before a
- *  ";" (the path parameters of RFC 3986 §3.3, "..;/" is ".." in Tomcat).
+ *  ";" (the path parameters of RFC 3986 §3.3, "..;/" is ".." in Tomcat). No
+ *  segment is empty either, but the last ("/app/", "/app/x/"): under
+ *  "https://app.example.com/" the path "//evil.com/" is a URL with no
+ *  scheme to whoever repeats it in a relative Location.
  ***************************************************************************/
 PRIVATE BOOL path_stays_in_prefix(const char *rest, size_t path_len)
 {
@@ -1582,7 +1598,8 @@ PRIVATE BOOL path_stays_in_prefix(const char *rest, size_t path_len)
             name_len++;
         }
         if((name_len == 1 && seg[0] == '.') ||
-                (name_len == 2 && seg[0] == '.' && seg[1] == '.')) {
+                (name_len == 2 && seg[0] == '.' && seg[1] == '.') ||
+                (name_len == 0 && seg < end)) {
             return FALSE;
         }
         seg += seg_len + 1;
@@ -3472,6 +3489,40 @@ PRIVATE json_t *save_oidc_discovery(
 }
 
 /***************************************************************************
+ *  The time of the logout at the head of the queue: its own C_TIMER, armed
+ *  once when its turn comes, because neither of the other two bounds it. A
+ *  C_TASK arms exec_timeout again with each send, and the connect watchdog
+ *  goes when the connection opens and starts again with the next one. What
+ *  it waits for from there, the discovery included, comes under this time.
+ ***************************************************************************/
+PRIVATE void arm_logout_timeout(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    PENDING_AUTH *pa = dl_first(&priv->dl_pending);
+    if(priv->logout_timer_armed || pa->action != BFF_LOGOUT) {
+        return;
+    }
+    json_int_t timeout_ms = gobj_read_integer_attr(gobj, "idp_logout_timeout_ms");
+    if(timeout_ms <= 0) {
+        return;     /* explicitly disabled */
+    }
+    priv->logout_timer_armed = TRUE;
+    set_timeout(priv->gobj_logout_timer, timeout_ms);
+}
+
+/***************************************************************************
+ *  The logout has its answer, or nobody waits for it
+ ***************************************************************************/
+PRIVATE void clear_logout_timeout(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->logout_timer_armed = FALSE;
+    clear_timeout(priv->gobj_logout_timer);
+}
+
+/***************************************************************************
  *  Start processing the next pending auth request.
  ***************************************************************************/
 PRIVATE void process_next(hgobj gobj)
@@ -3485,6 +3536,7 @@ PRIVATE void process_next(hgobj gobj)
     if(dl_size(&priv->dl_pending) == 0) {
         return;
     }
+    arm_logout_timeout(gobj);
     if(!priv->discovery_done) {
         /*
          *  OIDC endpoints not yet resolved.  Keep the request queued and
@@ -3709,6 +3761,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         dl_flush(&priv->dl_pending, free_pending);
         priv->q_answers = 0;
+        clear_logout_timeout(gobj);
 
         if(priv->processing) {
             priv->task_valid = FALSE;
@@ -3982,11 +4035,6 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         char rt[BFF_TOKEN_MAX];
         size_t rt_len = 0;
         token_cookie_t found = read_token_cookie(cookie_hdr, COOKIE_NAME_RT, rt, &rt_len);
-        if(found == TOKEN_COOKIE_TOO_LARGE) {
-            answer_token_cookie_too_large(gobj, src, COOKIE_NAME_RT, rt_len, cors_hdrs);
-            KW_DECREF(kw)
-            return 0;
-        }
         if(found == TOKEN_COOKIE_ABSENT) {
             answer_logout_without_refresh_token(gobj, src, cors_hdrs,
                 cookie_hdr, origin, host_hdr, host_name_len);
@@ -3996,6 +4044,13 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         if(!request_origin_allowed(gobj, url, origin, host_hdr, why, sizeof(why))) {
             send_error_response(gobj, src, 403, status_str(403),
                 "origin_not_allowed", why, cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        if(found == TOKEN_COOKIE_TOO_LARGE) {
+            char *extra = build_logout_headers(gobj, cors_hdrs, host_hdr, host_name_len);
+            answer_token_cookie_too_large(gobj, src, COOKIE_NAME_RT, rt_len, extra);
+            GBMEM_FREE(extra)
             KW_DECREF(kw)
             return 0;
         }
@@ -4090,18 +4145,19 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         return 0;
     }
 
-    if(!pa.jn_request) {
-        send_error_response(gobj, src, 500, status_str(500),
-            "internal_error", "Cannot keep the request for the IdP", cors_hdrs);
-        KW_DECREF(kw)
-        return 0;
+    BOOL request_kept = pa.jn_request != NULL;
+    if(!request_kept) {
+        pa.jn_request = json_object();
     }
     json_object_set_new(pa.jn_request, "_action", json_integer((json_int_t)pa.action));
     json_object_set_new(pa.jn_request, "_origin", json_string(origin));
     json_object_set_new(pa.jn_request, "_host", json_string(host_hdr));
     json_object_set_new(pa.jn_request, "_host_name_len", json_integer((json_int_t)host_name_len));
 
-    if(enqueue(gobj, &pa) < 0) {
+    if(!request_kept) {
+        answer_request_failed(gobj, src, pa.jn_request, 500,
+            "internal_error", "Cannot keep the request for the IdP");
+    } else if(enqueue(gobj, &pa) < 0) {
         answer_request_failed(gobj, src, pa.jn_request, 503,
             "server_busy", "Server busy, retry in a moment");
     }
@@ -4137,10 +4193,17 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
  *  rather than torn down here, so the existing EV_END_TASK handling
  *  applies unchanged: 504 to the browser for a request, drain-with-502
  *  plus a re-armable discovery for discovery.
+ *
+ *  The time of a logout (arm_logout_timeout) ends here the same way, what
+ *  the logout is waiting for: its task, or the discovery it waits behind.
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_logout_timer) {
+        priv->logout_timer_armed = FALSE;   /* a one-shot, spent */
+    }
 
     hgobj stuck = priv->gobj_discovery_task?
         priv->gobj_discovery_task:
@@ -4161,6 +4224,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Said by the end of the task (ac_end_task), which comes on the next
      *  turn: one ERROR for the failure, with what the watchdog saw.
      */
+    priv->logout_timed_out = src == priv->gobj_logout_timer;
     priv->connect_timed_out = TRUE;
     priv->connect_was_connected = gobj_read_bool_attr(priv->gobj_idprovider, "connected");
     priv->connect_tcp_state = tcp? gobj_current_state(tcp) : "?";
@@ -4260,6 +4324,10 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *timeout_cause = connect_timed_out?
         "idp_connect_timeout_ms: the IdP could not be reached" :
         "idp_timeout_ms: the IdP did not answer";
+    if(priv->logout_timed_out) {
+        timeout_cause = "idp_logout_timeout_ms: the logout did not end in its time";
+        priv->logout_timed_out = FALSE;
+    }
 
     if(src == priv->gobj_discovery_task) {
         priv->gobj_discovery_task = NULL;  /* volatile: it destroys itself after this end */
@@ -4295,6 +4363,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             process_next(gobj);
             return 0;
         }
+        clear_logout_timeout(gobj);     /* the queue is answered below */
 
         /*
          *  Discovery FAILED.  Anything already queued cannot be served —
@@ -4335,6 +4404,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     priv->gobj_task = NULL;  /* volatile: it destroys itself after this end */
     priv->processing = FALSE;
+    clear_logout_timeout(gobj);
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
 

@@ -486,10 +486,12 @@ credentials: "include"
 ```
 
 **A logout ends in the browser whatever fails at the IdP.** Every answer to a
-logout the BFF serves clears both cookies, its errors too: the user is leaving,
-maybe on a shared machine, and the session must not stay in that browser. The
-error tells the SPA that the session may still be open at the IdP (it ends
-there by its own timeout):
+logout the BFF serves clears both cookies, its errors too, with no exception:
+the user is leaving, maybe on a shared machine, and the session must not stay in
+that browser. A logout is served when it carries a cookie and its `Origin` is
+the SPA's; the two requests that are not served change nothing, because a
+cross-site request must not log a user out. The error tells the SPA that the
+session may still be open at the IdP (it ends there by its own timeout):
 
 ```
 HTTP/1.1 502 Bad Gateway
@@ -564,13 +566,14 @@ same-origin included; a client that is not a browser must send it too. The
 | `refresh_token` cookie, the SPA's `Origin` | IdP end-session call, both cookies cleared, `200` (also when the IdP answers an error, or an answer the HTTP client refuses, with a WARNING) |
 | The same, the IdP cuts the connection once | Sent again on the next connection, both cookies cleared, `200` |
 | The same, the IdP cuts it twice, or the discovery fails | Both cookies cleared, `502 auth_service_unavailable` |
-| The same, the IdP stays silent | Both cookies cleared, `504 auth_timeout` |
+| The same, the IdP stays silent or cannot be reached | Both cookies cleared, `504 auth_timeout`, within `idp_logout_timeout_ms` (10 s) |
+| The same, the discovery has not ended within `idp_logout_timeout_ms` | Both cookies cleared, `502 auth_service_unavailable` |
 | The same, the pending queue is full | Both cookies cleared, `503 server_busy`, no IdP call |
 | The same, `end_session_endpoint` is not a URL | Both cookies cleared, `500 auth_config_error` |
+| `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes), the SPA's `Origin` | Both cookies cleared, `400 token_too_large`, no IdP call |
 | `access_token` cookie only, the SPA's `Origin` | No IdP call, both cookies cleared, `200` |
 | A cookie, another `Origin` or none | `403 origin_not_allowed`, no IdP call, no `Set-Cookie` |
 | No cookie (no session, or a cross-site request) | `200 {"success": true}`, no `Set-Cookie`: nothing to end |
-| `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes) | `400 token_too_large`, no `Set-Cookie`: it is not one of its cookies, and no session it opened |
 
 ---
 
@@ -676,8 +679,9 @@ The same rule reads the cookies that come back. A `refresh_token` cookie
 `access_token` cookie (`/auth/token`) of more than 4084 (name and value over
 4096 bytes), is none the BFF wrote: `400 token_too_large`, *"refresh_token
 cookie of 4084 bytes: the BFF writes none longer than 4083 (a cookie name
-and value take at most 4096 bytes)"*, and it goes nowhere. A cookie that
-fits is taken whole.
+and value take at most 4096 bytes)"*, and it goes nowhere. At `/auth/logout`
+that answer clears both cookies, as every answer to a logout served. A cookie
+that fits is taken whole.
 
 ---
 
@@ -698,7 +702,8 @@ fits is taken whole.
   "crypto":               {"ssl_use_system_ca": true, "ssl_verify_mode": "required"},
   "pending_queue_size":   16,
   "idp_timeout_ms":       30000,
-  "idp_connect_timeout_ms": 30000
+  "idp_connect_timeout_ms": 30000,
+  "idp_logout_timeout_ms": 10000
 }
 ```
 
@@ -708,12 +713,13 @@ fits is taken whole.
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for a public client). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Written only when the request `Host` is this domain or a subdomain of it; otherwise omitted, with a WARNING. Empty: never written (host-only cookies). |
 | `allowed_origin` | `""` | The origin of the SPA: the CORS origin, the one `Origin` served for login, callback, refresh, logout and token (else `403`), and the origin `/auth/token` is pinned to. It is what pins the scheme. Empty: no cross-origin access, the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS), and `/auth/token` is refused. |
-| `allowed_redirect_uri` | `""` | The `redirect_uri` a `/auth/callback` may have. Without a `/` at its end, exactly it: `"https://app.example.com/auth/callback"`. Ending with `/` after a scheme and a host, one that starts with it and whose rest is a path and query in it: `"https://app.example.com/app/"` allows `https://app.example.com/app/cb?x=1`, `.../app/a%41;v=1` and any query, not `https://app.example.com/app/../admin`, `.../app/%2e%2e/x`, `.../app/..\x`, `.../app/x#f`, a space or a byte over 0x7E. A prefix is a strict rule: what RFC 3986 allows and some server normalizes out of the prefix is refused too, so a `.` or `..` segment before a `;` (`.../app/..;/x`, which Tomcat reads as `..`), and in the path a `%XX` of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII (`.../app/..%2Fx`, `.../app/%5c..%5cx`, `.../app/%252e%252e/x`, `.../app/%c0%ae/x`), or one badly written (`.../app/x%zz`). Its host cannot be extended: `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `"https://app.example.com/"`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `allowed_redirect_uri` | `""` | The `redirect_uri` a `/auth/callback` may have. Without a `/` at its end, exactly it: `"https://app.example.com/auth/callback"`. Ending with `/` after a scheme and a host, one that starts with it and whose rest is a path and query in it: `"https://app.example.com/app/"` allows `https://app.example.com/app/cb?x=1`, `.../app/a%41;v=1` and any query, not `https://app.example.com/app/../admin`, `.../app/%2e%2e/x`, `.../app/..\x`, `.../app/x#f`, a space or a byte over 0x7E. A prefix is a strict rule: what RFC 3986 allows and some server normalizes out of the prefix is refused too, so an empty segment but the last (under `"https://app.example.com/"`, `https://app.example.com//evil.com/`, whose path is a URL with no scheme to whoever repeats it in a relative `Location`; `.../app/x/` passes), a `.` or `..` segment before a `;` (`.../app/..;/x`, which Tomcat reads as `..`), and in the path a `%XX` of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII (`.../app/..%2Fx`, `.../app/%5c..%5cx`, `.../app/%252e%252e/x`, `.../app/%c0%ae/x`), or one badly written (`.../app/x%zz`). Its host cannot be extended: `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `"https://app.example.com/"`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `expose_access_token` | `false` | Enables `/auth/token`. Needs `allowed_origin`. |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store by default. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_idp_keycloak` `kc_crypto` attribute mirrors this for its Keycloak admin calls.) |
 | `pending_queue_size` | `16` (clamped to `[1, 1024]`) | Depth of the per-channel pending IdP request queue. Raised on front-line BFFs under burst. |
 | `idp_timeout_ms` | `30000` (0 disables) | Bounds the IdP round-trip once connected. On expiry the browser gets `504`. |
 | `idp_connect_timeout_ms` | `30000` (0 disables) | Bounds the wait to connect to the IdP. See [`YUNO_AUTH.md` §2.6](../../../yunos/c/yuno_agent/YUNO_AUTH.md). |
+| `idp_logout_timeout_ms` | `10000` (0: only the two above bound a logout) | Bounds the whole of a logout: the wait for the discovery and the connection, the end-session and its resend. When it passes the logout is answered with both cookies cleared. Keep it under the time the SPA waits (15 s), or the answer comes to nobody and the cookies stay. Accuracy of a second (`C_TIMER`). |
 
 ### BFF internals (operator knobs)
 
@@ -730,12 +736,14 @@ in production:
   arrives for a disconnected client, drops it (`responses_dropped`
   counter). No cross-user token leak can occur: each task carries a
   per-browser generation which the reply path re-checks.
-- **Two IdP watchdogs.** The round-trip once connected is `C_TASK`'s
+- **Three IdP watchdogs.** The round-trip once connected is `C_TASK`'s
   `exec_timeout` (`idp_timeout_ms`, answered `504 auth_timeout`). The wait to
   connect is a `C_TIMER` child of the BFF (`idp_connect_timeout_ms`), armed
   only while the outbound is disconnected; when discovery never completed the
-  answer is `502 auth_service_unavailable`. `idp_timeouts` counts every IdP
-  task that ends by one of the two watchdogs: a login, callback, refresh or
+  answer is `502 auth_service_unavailable`. A logout has one more, a `C_TIMER`
+  armed once when its turn comes (`idp_logout_timeout_ms`), over all of it.
+  `idp_timeouts` counts every IdP
+  task that ends by one of the watchdogs: a login, callback, refresh or
   logout (answered `504 auth_timeout`, a logout with both cookies cleared) and
   the discovery (each request queued behind it is answered `502`). A timeout logs one ERROR for its cause, when
   its task ends -- *"OIDC discovery: IdP did not answer in time"* (with the

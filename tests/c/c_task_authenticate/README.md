@@ -31,11 +31,13 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 | `test15_endpoint_not_url` | The discovery answers a `token_endpoint` that is not a URL: `result=-1`, ONE WARNING. The caller is told: the job used to end with no `EV_ON_TOKEN`. |
 | `test16_minimal_answer` | `/token` answers only its tokens: `result=0`, no log. |
 | `test17_discovery_cut` | The mock (`drop_discovery_requests`) drops every discovery: 2 go, `result=-1`, a WARNING for each. |
-| `test18_idp_keycloak` | `C_IDP_KEYCLOAK` on the same mock, with its own driver (`c_idp_driver.c`: the service and the channel a command answers to) and config (`main_test18_idp_keycloak.c`), 12 commands: what goes again when a connection is cut and what does not, a token too long, an `expires_in` that is a text, negative or too big, a search of 600 bytes. |
+| `test18_idp_keycloak` | `C_IDP_KEYCLOAK` on the same mock (and a `user_id` of `.` or `..` refused at once), with its own driver (`c_idp_driver.c`: the service and the channel a command answers to) and config (`main_test18_idp_keycloak.c`), 12 commands: what goes again when a connection is cut and what does not, a token too long, an `expires_in` that is a text, negative or too big, a search of 600 bytes. |
 | `test19_endpoint_too_long` | The discovery answers a `token_endpoint` of 4096 bytes: `result=-1`, ONE WARNING. |
 | `test20_idp_mute` | The mock (`mute_token_requests`) never answers `/token`: when the `C_TASK` times out, `result=-1` and ONE WARNING per run, twice. |
 | `test21_idp_unreachable` | Nobody listens at the IdP's port: the wait for the connection ends, `result=-1` and ONE WARNING per run, twice, with no `C_TASK` and no client left. |
 | `test22_unreachable_stop` | The same, once, the task stopped inside that `EV_ON_TOKEN`, as `ycli` does. |
+| `test23_no_end_session` | A `token_endpoint` with no `end_session_endpoint` and no `issuer`: the run does not start, its ERROR, and `EV_ON_TOKEN` with `result=-1`, in each of two runs. |
+| `test24_no_token_endpoint` | The same, an `end_session_endpoint` with no `token_endpoint`. |
 
 `C_TEST_DRIVER` logs an ERROR when it stops unless each run got ONE
 `EV_ON_TOKEN` with the expected result, so a task that publishes nothing fails

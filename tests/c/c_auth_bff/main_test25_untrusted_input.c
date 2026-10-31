@@ -320,10 +320,11 @@ static int register_yuno_and_more(void)
     EXPECT_REFUSED("auth_unexpected_error");
     EXPECT_NOT_COOKIE("refresh_token", "0x0D");
     EXPECT_REFUSED("auth_unexpected_error");
-    /*  14, 15, 18: a cookie longer than the BFF writes  */
-    for(int i = 0; i < 3; i++) {
-        EXPECT_REJECTED("token_too_large");
-    }
+    /*  14, 15, 18: a cookie longer than the BFF writes, the Origin first in a logout  */
+    EXPECT_REJECTED("token_too_large");
+    EXPECT_REJECTED("token_too_large");
+    EXPECT_REJECTED("origin_not_allowed");
+    EXPECT_REJECTED("token_too_large");
     /*  19: the JSON string ""  */
     EXPECT_REFUSED("auth_empty_response");
     /*  20: an IdP body over the limit  */

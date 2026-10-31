@@ -19,7 +19,8 @@
  *  A run always ends: the wait for the connection has the time of a job of
  *  C_TASK, which only starts its first job when the connection opens, and
  *  a run that ends with no EV_ON_TOKEN published (a mute IdP: the C_TASK
- *  times out) publishes it in ac_end_task().
+ *  times out) publishes it in ac_end_task(). A run that cannot start (no
+ *  IdP configured) publishes it in mt_start().
  *
  *  Grant type: Resource Owner Password Credentials (ROPC) — action_get_token
  *  POSTs grant_type=password (username + password + client_id). This is
@@ -183,6 +184,7 @@ Example of refresh_token
  ***************************************************************************/
 PRIVATE void retire_task(hgobj gobj);
 PRIVATE void retire_http(hgobj gobj);
+PRIVATE int publish_token(hgobj gobj, int result, json_t *kw_);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -362,6 +364,9 @@ PRIVATE int mt_start(hgobj gobj)
             "msg",      "%s", "task_authenticate: no IdP configured: set 'issuer' or 'token_endpoint'+'end_session_endpoint'",
             NULL
         );
+        json_t *kw_no_token = json_pack("{s:s}", "comment", "No IdP configured");
+        publish_token(gobj, -1, kw_no_token);
+        JSON_DECREF(kw_no_token)
         return -1;
     }
 

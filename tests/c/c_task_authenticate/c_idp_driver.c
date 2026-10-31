@@ -234,12 +234,43 @@ PRIVATE json_t *build_command_kw(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A user_id that is a dot-segment is a walk in the path of the admin API
+ *  (DELETE .../users/.. may be .../realms/R to the server that normalizes
+ *  it): the command refuses it at once, and nothing goes to the IdP
+ ***************************************************************************/
+PRIVATE void check_dot_user_id(hgobj gobj, const char *user_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = build_command_kw(gobj);
+    json_object_set_new(kw, "user_id", json_string(user_id));
+    json_t *jn_resp = gobj_command(priv->gobj_idp, "delete-idp-user", kw, gobj);
+    const char *error_code = json_string_value(
+        json_object_get(json_object_get(jn_resp, "data"), "error_code"));
+    if(!error_code || strcmp(error_code, "invalid_user_id") != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", TEST_NAME ": a dot-segment taken as a user_id",
+            "user_id",  "%s", user_id,
+            NULL
+        );
+    }
+    JSON_DECREF(jn_resp)
+}
+
+/***************************************************************************
  *  The command of the current step
  ***************************************************************************/
 PRIVATE void post_step(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const step_t *st = &steps[priv->step];
+
+    if(priv->step == 0) {
+        check_dot_user_id(gobj, ".");
+        check_dot_user_id(gobj, "..");
+    }
 
     gobj_write_integer_attr(priv->gobj_mock, "access_token_len", st->access_token_len);
     gobj_write_integer_attr(priv->gobj_mock, "drop_token_requests", st->drop_token);

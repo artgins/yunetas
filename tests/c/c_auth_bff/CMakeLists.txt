@@ -85,6 +85,7 @@ SET(TESTS
     test27_rfc850_year
     test28_logout_idp_cut
     test29_tls_origin
+    test30_logout_bound
 )
 
 foreach(test ${TESTS})

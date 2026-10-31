@@ -289,11 +289,11 @@ static int register_yuno_and_more(void)
         EXPECT_REJECTED("origin_not_allowed");
     }
     EXPECT_REJECTED("origin_not_allowed");
-    /*  18-28, 30-48: the redirect_uri  */
-    for(int i = 0; i < 30; i++) {
+    /*  18-28, 30-52: the redirect_uri  */
+    for(int i = 0; i < 34; i++) {
         EXPECT_REJECTED("redirect_uri_not_allowed");
     }
-    /*  55: a Host that is a list  */
+    /*  60: a Host that is a list  */
     EXPECT_REJECTED("origin_not_allowed");
     set_expected_results(
         APP_NAME,

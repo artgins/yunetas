@@ -823,6 +823,9 @@ PRIVATE const char *param_user_id(hgobj gobj, json_t *kw)
             return "";
         }
     }
+    if(strcmp(user_id, ".") == 0 || strcmp(user_id, "..") == 0) {
+        return "";
+    }
     return user_id;
 }
 

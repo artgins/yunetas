@@ -34,7 +34,8 @@
  *               with its name, the longest the BFF writes): 200;
  *           14. the same of 4084 bytes: 400 token_too_large, its error
  *               saying "none longer than 4083", no call to the IdP;
- *           15. logout with that cookie of 4084 bytes: the same;
+ *           15. logout with that cookie of 4084 bytes: the same, and both
+ *               cookies cleared; another Origin: 403, no Set-Cookie;
  *           16. logout with it of 4083 bytes: 200, the IdP called;
  *           17. /auth/token with an access_token cookie of 4084 bytes
  *               (4096 with its name): 200, the token in the answer;
@@ -235,8 +236,12 @@ PRIVATE const step_t steps[] = {
         {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
     {NULL, "/auth/logout", "@rt4084", NULL,
         NULL, NULL, NULL, NULL, 400,
-        {"token_too_large", "refresh_token cookie of 4084 bytes", "none longer than 4083", NULL},
-        {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+        {"token_too_large", "Set-Cookie: access_token=; Max-Age=0;",
+            "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
+        {NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
+    {NULL, "/auth/logout", "@rt4084", NULL,
+        "https://evil.example.com", NULL, NULL, NULL, 403,
+        {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, {NULL}, {NULL}, TRUE, 0, NULL},
     {NULL, "/auth/logout", "@rt4083", NULL,
         NULL, NULL, NULL, NULL, 200,
         {"Set-Cookie: refresh_token=; Max-Age=0;", NULL}, {NULL},

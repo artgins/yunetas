@@ -120,7 +120,7 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 | `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant). An IdP answer with no refresh_token clears the refresh_token cookie and answers no `refresh_expires_in`: the session cannot be refreshed (a WARNING says it, once per process). A `429` of the IdP is `429 auth_rate_limited` with the IdP's `Retry-After` when it is delay-seconds (1 to 10 digits) or a real HTTP-date (passed on as IMF-fixdate) | yes              |
 | `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant); no refresh_token in the answer: as `/auth/login`. The `redirect_uri` must be one that `allowed_redirect_uri` allows (§2.5), else `400 redirect_uri_not_allowed` | yes                 |
 | `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is. An IdP answer with no new refresh_token sends no `Set-Cookie` for it: the browser keeps its own (RFC 6749 §6), and the answer has no `refresh_expires_in`. A refresh_token cookie whose name and value pass 4096 bytes (4084 bytes of value or more): `400 token_too_large` | yes |
-| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie; with no cookie at all it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A logout served ends in the browser whatever fails: its errors (`502`, `503`, `504`, `500`) clear the cookies too, and a cut connection sends the end-session once more (idempotent, and not sending it leaves the session open at the IdP). A refresh_token cookie of 4084 bytes of value or more: `400 token_too_large` | yes (Max-Age=0)     |
+| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie; with no cookie at all it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A logout served (a cookie, and the SPA's `Origin`) ends in the browser whatever fails: every answer to it clears the cookies, its errors too (`400 token_too_large` for a refresh_token cookie of 4084 bytes of value or more, `500`, `502`, `503`, `504`), a cut connection sends the end-session once more (idempotent, and not sending it leaves the session open at the IdP), and all of it ends within `idp_logout_timeout_ms` (§2.6) | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding). An access_token cookie whose name and value pass 4096 bytes: `400 token_too_large` | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
 
@@ -253,10 +253,11 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the I
 | `client_secret`        | optional            | Empty for public clients with PKCE.                  |
 | `redirect_uri`         | per-request         | From the callback request body.                      |
 | `allowed_origin`       | recommended         | The SPA's origin (`https://app.example.com`): the CORS origin, and the only `Origin` served (see §2.2). It is what pins the scheme. Empty: no CORS, and the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS); `/auth/token` refused. |
-| `allowed_redirect_uri` | optional            | The `redirect_uri` a `/auth/callback` may have: exactly it, or, when it ends with `/` after a scheme and a host (`https://app.example.com/app/`), one that starts with it and whose rest is a path and query in it (visible ASCII, no `\`, no `#`, no `.` or `..` segment, also before a `;`, and no `%XX` in the path of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII: `.../app/..;/x` and `.../app/..%2Fx` are refused, `.../app/a%41;v=1` is not). `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `https://app.example.com/`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `allowed_redirect_uri` | optional            | The `redirect_uri` a `/auth/callback` may have: exactly it, or, when it ends with `/` after a scheme and a host (`https://app.example.com/app/`), one that starts with it and whose rest is a path and query in it (visible ASCII, no `\`, no `#`, no `.`, `..` or empty segment, also before a `;`, the last may be empty, and no `%XX` in the path of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII: `.../app/..;/x` and `.../app/..%2Fx` are refused, `.../app/a%41;v=1` is not). `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `https://app.example.com/`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `cookie_domain`        | optional            | Domain attribute for cookies (no port). Empty: host-only cookies. See §2.4. |
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
+| `idp_logout_timeout_ms` | default `10000`    | Bounds the **whole of a logout**. See §2.6.           |
 
 Discovery requires BOTH endpoints in the issuer's document: without
 `end_session_endpoint` it fails. Auth0 does not publish one (it has its own
@@ -282,7 +283,7 @@ The yuno starts before the network is usable, so the first OIDC discovery
 fails. Since 7.9.1 that failure is bounded and recoverable. Before 7.9.1 the
 login hung forever and wrote nothing to the log.
 
-Two different things are timed, and conflating them is a bug:
+Three different things are timed, and conflating them is a bug:
 
 - **`idp_timeout_ms`** — the round-trip once connected. This is `C_TASK`'s
   `exec_timeout`, and it only covers the action: it is armed inside
@@ -292,6 +293,21 @@ Two different things are timed, and conflating them is a bug:
   it: while the IdP is unreachable the task sits waiting for a connection that
   never arrives, unarmed and unbounded, so it never publishes `EV_END_TASK`,
   `discovery_done` stays FALSE, and every browser request queues behind it.
+- **`idp_logout_timeout_ms`** — the whole of a logout. A SPA waits 15 s
+  (`BFF_TIMEOUT_MS`), and the two above are 30 s each, so with the IdP down an
+  answer that clears the cookies would reach nobody. This one is a second
+  `C_TIMER`, armed once when the turn of the logout comes (a logout behind
+  an earlier request of its connection waits for that request first, which a
+  browser never does): it goes on across the connection opening, the resend
+  of the end-session and the discovery the logout waits behind. On expiry it
+  ends what the logout is waiting for, by the same path as the connect
+  watchdog: its task (504), or the discovery (502, and every request queued).
+  Its `cause` in the ERROR is `idp_logout_timeout_ms: the logout did not end
+  in its time`.
+
+```json
+{"idp_logout_timeout_ms": 10000}
+```
 
 `C_AUTH_BFF` arms its own `C_TIMER` for the connect gap and disarms it in
 `ac_on_open` the moment the outbound connects, so the two never time the same
@@ -1504,7 +1520,7 @@ with permission `*` on service `*` passes all three.
 |-----------------------|-----------------------------------------------------------------------------------|
 | `no_permission`       | The caller does not hold the permission the command needs                          |
 | `invalid_email`       | The `email` parameter is empty, or it has no `@`                                   |
-| `invalid_user_id`     | The command needs `user_id` and it is empty                                        |
+| `invalid_user_id`     | The command needs `user_id`, and it is empty or not one (see below)                |
 | `nothing_to_update`   | `update-idp-user` was called with no field to change                               |
 | `unknown_role`        | The `role` of `register-idp-user` is not in `treedb_authzs`                        |
 | `kc_unavailable`      | No configuration, or Keycloak is unreachable, or Keycloak answered 5xx             |
@@ -1549,8 +1565,10 @@ the yuno filter.
 The value is validated before it is used, and not only read: it goes into the
 path of the admin API, where a space breaks the request line and a `/` or a
 `..` walks to another endpoint of the realm. Only the unreserved characters of
-RFC 3986 are accepted, which is all a uuid needs; anything else answers
-`invalid_user_id`. The `search` of `list-idp-users` is percent-encoded for the
+RFC 3986 are accepted, which is all a uuid needs, and `.` and `..` are refused:
+they are made of those characters and they are a walk in the path
+(`DELETE .../users/..` is `.../realms/R` to a server that normalizes it).
+Anything else answers `invalid_user_id`. The `search` of `list-idp-users` is percent-encoded for the
 same reason.
 
 **`list-idp-users` pages, and the page is bounded.** `first` and `max` are the

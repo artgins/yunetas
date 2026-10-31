@@ -50,8 +50,8 @@
  *               that is not the allowed_origin: 403 origin_not_allowed,
  *               no Set-Cookie;
  *           20. logout with a refresh_token cookie of 5000 bytes (the BFF
- *               never writes one over 4096): 400 token_too_large, no
- *               Set-Cookie.
+ *               never writes one over 4096): 400 token_too_large, both
+ *               cookies cleared: every answer to a logout served clears them.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test24.
@@ -179,8 +179,9 @@ PRIVATE const step_t steps[] = {
         {"Set-Cookie", NULL},
         NULL, NULL, "http://other.example"},
     {"/auth/logout", BIG_REFRESH_COOKIE, "{}", 400, -1,
-        {"token_too_large", NULL},
-        {"Set-Cookie", NULL},
+        {"token_too_large", "Set-Cookie: access_token=; Max-Age=0;",
+            "Set-Cookie: refresh_token=; Max-Age=0;", NULL},
+        {NULL},
         NULL, NULL, NULL},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))

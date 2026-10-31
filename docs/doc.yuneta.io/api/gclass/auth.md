@@ -95,12 +95,13 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `client_secret` | `string` | OAuth 2 client secret (empty for a public client). |
 | `cookie_domain` | `string` | `Domain` of the cookies, written only when the request `Host` is that domain or a subdomain. |
 | `allowed_origin` | `string` | The SPA's origin: the CORS origin and the only `Origin` served for login, callback, refresh, logout and token (else `403 origin_not_allowed`). It is what pins the scheme. Empty: the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS), and `/auth/token` is refused. Example: `"allowed_origin": "https://app.example.com"`. |
-| `allowed_redirect_uri` | `string` | The `redirect_uri` a `/auth/callback` may have: exactly it, or, ending with `/` after a scheme and a host, a path under it (no `.` or `..` segment, no `\`, no `#`). Example: `"allowed_redirect_uri": "https://app.example.com/app/"`. |
+| `allowed_redirect_uri` | `string` | The `redirect_uri` a `/auth/callback` may have: exactly it, or, ending with `/` after a scheme and a host, a path under it (no `.`, `..` or empty segment but the last, no `\`, no `#`). Example: `"allowed_redirect_uri": "https://app.example.com/app/"`. |
 | `expose_access_token` | `boolean` | Opt-in `POST /auth/token` (default `false`). |
 | `crypto` | `dict` | TLS configuration of the IdP calls (verifying by default). |
 | `pending_queue_size` | `integer` | Requests queued per channel (default 16). |
 | `idp_timeout_ms` | `integer` | Round-trip limit of an IdP call (default 30000). |
 | `idp_connect_timeout_ms` | `integer` | Connect limit of an IdP call (default 30000). |
+| `idp_logout_timeout_ms` | `integer` | Limit of a whole logout, the wait for the discovery and the connection and the resend included (default 10000; 0: only the two above). A logout answers within it, cookies cleared, so the answer reaches a SPA that waits 15 s. |
 
 ### Endpoints
 
@@ -109,7 +110,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `POST /auth/login` | Password grant; writes the cookies. |
 | `POST /auth/callback` | PKCE code exchange; writes the cookies. |
 | `POST /auth/refresh` | Refresh with the `refresh_token` cookie; answers the identity too. |
-| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie; with no cookie, `200` and no `Set-Cookie`. A logout served clears the cookies whatever fails at the IdP, its `502`, `503`, `504` and `500` too; a cut connection sends the end-session once more. |
+| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie; with no cookie, `200` and no `Set-Cookie`. A logout served (a cookie, and the SPA's `Origin`) clears the cookies with every answer, its `400`, `500`, `502`, `503` and `504` too, within `idp_logout_timeout_ms`; a cut connection sends the end-session once more. |
 | `POST /auth/token` | Opt-in (`expose_access_token`): the access token for another backend host. |
 
 Every endpoint but `OPTIONS` that reads or changes the session (login, callback,
@@ -277,12 +278,16 @@ answer of the IdP; the rest of the envelope is the IdP's to send or not. A
 peer's bad answer is a WARNING, a status other than 200 the `comment`.
 
 **Every run ends**, with the same wait at both places, the `timeout` of
-`C_TASK` (10 s by default). Each ends in a WARNING and in `EV_ON_TOKEN`:
+`C_TASK` (10 s by default). Each ends in a log and in `EV_ON_TOKEN` with `result`
+-1. A run with no IdP configured (no `issuer`, and only one of `token_endpoint`
+and `end_session_endpoint`) does not start: `gobj_start()` answers -1, after
+the same `EV_ON_TOKEN`, so subscribe before starting it:
 
-| The IdP | `comment` | WARNING |
-|---------|-----------|---------|
-| does not accept the connection, or nothing answers at its address | `The IdP cannot be reached` | `task_authenticate: the IdP cannot be reached` |
-| takes a request and does not answer it | `The IdP did not answer` | `task_authenticate: the IdP did not answer` |
+| The IdP | `comment` | Log |
+|---------|-----------|-----|
+| is not configured | `No IdP configured` | ERROR `task_authenticate: no IdP configured: set 'issuer' or 'token_endpoint'+'end_session_endpoint'` |
+| does not accept the connection, or nothing answers at its address | `The IdP cannot be reached` | WARNING `task_authenticate: the IdP cannot be reached` |
+| takes a request and does not answer it | `The IdP did not answer` | WARNING `task_authenticate: the IdP did not answer` |
 
 So a caller needs no timer of its own. With nobody at the IdP's address,
 `ycommand` gives up after 10 s, exit code 255 (it prints the `comment` when it

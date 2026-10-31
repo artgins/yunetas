@@ -78,6 +78,8 @@ SET(TESTS
     test20_idp_mute
     test21_idp_unreachable
     test22_unreachable_stop
+    test23_no_end_session
+    test24_no_token_endpoint
 )
 
 foreach(test ${TESTS})
