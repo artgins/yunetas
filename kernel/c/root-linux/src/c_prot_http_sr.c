@@ -4,7 +4,21 @@
  *
  *          Protocol http as server
  *
+ *          Limits, said to the peer before the connection is dropped:
+ *          - a head (target and headers) over `max_header_size`: 431;
+ *          - a body over `max_body_size`: 413;
+ *          - more than `max_tx_queue` answers waiting for a peer that does
+ *            not read them: dropped.
+ *          A refused request gets its answer and then `timeout_linger`
+ *          milliseconds to go (the bytes it still sends are read and
+ *          thrown away): a socket closed with unread bytes resets the
+ *          connection, and the peer could lose the answer.
+ *          Once the connection is dropped (EV_DROP, or the peer left)
+ *          nothing more of what was received is delivered, not even the
+ *          rest of the requests pipelined in the same read.
+ *
  *          Copyright (c) 2018-2021 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -21,6 +35,12 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define HTTP_REFUSED_HEADERS    "431 Request Header Fields Too Large"
+#define HTTP_REFUSED_BODY       "413 Content Too Large"
+#define DEFAULT_MAX_TX_QUEUE    64
+#define DEFAULT_TIMEOUT_LINGER  2000
+#define TEXT_OF(x)              TEXT_OF_(x)
+#define TEXT_OF_(x)             #x
 
 /***************************************************************************
  *              Structures
@@ -29,7 +49,9 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-
+PRIVATE GHTTP_PARSER *create_request_parser(hgobj gobj);
+PRIVATE int answer_refused_request(hgobj gobj, GHTTP_PARSER *parser);
+PRIVATE BOOL tx_queue_is_full(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -41,6 +63,10 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        "300",          "Timeout inactivity, in seconds"),
+SDATA (DTP_INTEGER,     "max_header_size",  SDF_RD,         "65536",        "Largest head of a request (target, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). A longer one is answered 431 and the connection dropped, with ONE warning"),
+SDATA (DTP_INTEGER,     "max_body_size",    SDF_RD,         "0",            "Largest body of a request, in bytes; 0, or more than half the largest memory block (gbmem): that half. A longer one is answered 413 and the connection dropped, with ONE warning"),
+SDATA (DTP_INTEGER,     "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE),         "Most answers waiting in the transport for a peer that does not read them; one more drops the connection, with ONE warning. 0: no limit"),
+SDATA (DTP_INTEGER,     "timeout_linger",   SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_LINGER),         "Milliseconds a refused request (431, 413) has to go after its answer, before the connection is dropped"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -66,6 +92,11 @@ typedef struct _PRIVATE_DATA {
     GHTTP_PARSER *parsing_request;      // A request parser instance
 
     int timeout_inactivity;
+    json_int_t max_header_size;
+    json_int_t max_body_size;
+    json_int_t max_tx_queue;
+    json_int_t timeout_linger;
+    BOOL lingering;                     // a refused request was answered: its bytes are thrown away
 } PRIVATE_DATA;
 
 
@@ -87,14 +118,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->parsing_request = ghttp_parser_create(
-        gobj,
-        HTTP_REQUEST,
-        NULL,                   // on_header_event
-        NULL,                   // on_body_event
-        EV_ON_MESSAGE,
-        gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
-    );
 
     /*
      *  CHILD subscription model
@@ -110,6 +133,38 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timeout_inactivity,    gobj_read_integer_attr)
+    SET_PRIV(max_header_size,       gobj_read_integer_attr)
+    SET_PRIV(max_body_size,         gobj_read_integer_attr)
+    SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
+    SET_PRIV(timeout_linger,        gobj_read_integer_attr)
+
+    if(priv->max_header_size < 0 || priv->max_body_size < 0 || priv->max_tx_queue < 0 ||
+            priv->timeout_linger < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PARAMETER,
+            "msg",              "%s", "A limit of C_PROT_HTTP_SR is negative: its default taken",
+            "max_header_size",  "%d", (int)priv->max_header_size,
+            "max_body_size",    "%d", (int)priv->max_body_size,
+            "max_tx_queue",     "%d", (int)priv->max_tx_queue,
+            "timeout_linger",   "%d", (int)priv->timeout_linger,
+            NULL
+        );
+        if(priv->max_header_size < 0) {
+            priv->max_header_size = 0;
+        }
+        if(priv->max_body_size < 0) {
+            priv->max_body_size = 0;
+        }
+        if(priv->max_tx_queue < 0) {
+            priv->max_tx_queue = DEFAULT_MAX_TX_QUEUE;
+        }
+        if(priv->timeout_linger < 0) {
+            priv->timeout_linger = DEFAULT_TIMEOUT_LINGER;
+        }
+    }
+
+    priv->parsing_request = create_request_parser(gobj);
 }
 
 /***************************************************************************
@@ -171,6 +226,105 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 /***************************************************************************
+ *  The parser of the requests of a connection
+ ***************************************************************************/
+PRIVATE GHTTP_PARSER *create_request_parser(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    GHTTP_PARSER *parser = ghttp_parser_create(
+        gobj,
+        HTTP_REQUEST,
+        NULL,                   // on_header_event
+        NULL,                   // on_body_event
+        EV_ON_MESSAGE,
+        gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+    );
+    if(parser) {
+        parser->max_header_size = (size_t)priv->max_header_size;
+        parser->max_body_size = (size_t)priv->max_body_size;
+    }
+    return parser;
+}
+
+/***************************************************************************
+ *  A request refused by the parser (its head or its body over the limit)
+ *  is answered, and the connection lingers: what the peer still sends is
+ *  thrown away until it goes, or `timeout_linger` ends.
+ *  Returns -1 when the connection must be dropped now: a protocol
+ *  violation (not a refusal), or no `timeout_linger`.
+ ***************************************************************************/
+PRIVATE int answer_refused_request(hgobj gobj, GHTTP_PARSER *parser)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *code = NULL;
+    if(parser->headers_refused) {
+        code = HTTP_REFUSED_HEADERS;
+    } else if(parser->body_refused) {
+        code = HTTP_REFUSED_BODY;
+    }
+    if(!code) {
+        return -1;  // Warning already logged (a protocol violation)
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(256, 256);
+    if(!gbuf) {
+        return -1;  // Error already logged
+    }
+    gbuffer_printf(gbuf,
+        "HTTP/1.1 %s\r\n"
+        "Connection: close\r\n"
+        "Content-Length: 0\r\n"
+        "\r\n",
+        code
+    );
+    if(gobj_trace_level(gobj) & TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s", gobj_short_name(gobj_bottom_gobj(gobj)));
+    }
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),
+        gobj
+    );
+
+    if(priv->timeout_linger == 0) {
+        return -1;
+    }
+    priv->lingering = TRUE;
+    set_timeout(priv->timer, priv->timeout_linger);
+    return 0;
+}
+
+/***************************************************************************
+ *  The transport holds `max_tx_queue` answers for a peer that does not
+ *  read them
+ ***************************************************************************/
+PRIVATE BOOL tx_queue_is_full(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(priv->max_tx_queue <= 0 || !bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
+        return FALSE;
+    }
+    json_int_t queued = gobj_read_integer_attr(bottom, "cur_tx_queue");
+    if(queued < priv->max_tx_queue) {
+        return FALSE;
+    }
+    const char *peername = gobj_read_str_attr(bottom, "peername");
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "HTTP peer does not read its answers, connection dropped",
+        "cur_tx_queue", "%d", (int)queued,
+        "max_tx_queue", "%d", (int)priv->max_tx_queue,
+        "peername",     "%s", peername? peername : "",
+        NULL
+    );
+    return TRUE;
+}
+
+/***************************************************************************
  *  Parse a http message
  *  Return -1 if error: you must close the socket.
  *  Return 0 if no new request.
@@ -221,14 +375,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->parsing_request) {
         ghttp_parser_destroy(priv->parsing_request);
     }
-    priv->parsing_request = ghttp_parser_create(
-        gobj,
-        HTTP_REQUEST,
-        NULL,                   // on_header_event
-        NULL,                   // on_body_event
-        EV_ON_MESSAGE,
-        gobj_is_service(gobj)?FALSE:TRUE
-    );
+    priv->parsing_request = create_request_parser(gobj);
+    priv->lingering = FALSE;
 
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
@@ -246,11 +394,13 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    priv->lingering = FALSE;
 
     /*
      *  Let llhttp complete any message whose terminator is the
      *  connection close.  Errors here are non-fatal (they simply mean
-     *  the peer hung up mid-request).
+     *  the peer hung up mid-request). Inside an event of the parser it
+     *  stops it: nothing more of the bytes in hand is delivered.
      */
     if(priv->parsing_request) {
         (void)ghttp_parser_finish(priv->parsing_request);
@@ -287,11 +437,18 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_trace_dump_gbuf(gobj, gbuf, "%s", gobj_short_name(gobj));
     }
 
+    if(priv->lingering) {
+        KW_DECREF(kw)
+        return 0;   // the bytes of a refused request, thrown away
+    }
+
     set_timeout(priv->timer, priv->timeout_inactivity*1000);
 
     int result = parse_http_message(gobj, gbuf, priv->parsing_request);
     if (result < 0) {
-        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        if(answer_refused_request(gobj, priv->parsing_request) < 0) {
+            gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        }
     }
 
     KW_DECREF(kw)
@@ -303,17 +460,34 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ********************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = 0;
+
+    if(tx_queue_is_full(gobj)) {
+        // Warning already logged
+        ghttp_parser_stop(priv->parsing_request);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        KW_DECREF(kw)
+        return -1;
+    }
 
     if(kw_has_key(kw, "body")) {
         // New method
         const char *code = kw_get_str(gobj, kw, "code", "200 OK", 0);
         const char *headers = kw_get_str(gobj, kw, "headers", "", 0);
-        json_t *jn_body = kw_duplicate(gobj, kw_get_dict_value(gobj, kw, "body", json_object(), KW_REQUIRED));
-        char *resp = json2uglystr(jn_body);
+        char *resp = json2uglystr(kw_get_dict_value(gobj, kw, "body", 0, 0));
+        if(!resp) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "The body of an answer cannot be dumped",
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
         int body_len = strlen(resp);
         int headers_len = strlen(headers);
-        kw_decref(jn_body);
 
         /*
          *  RFC 7230 §3.3.2/§3.3.3: 1xx, 204 and 304 responses MUST NOT
@@ -387,6 +561,9 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    ghttp_parser_stop(priv->parsing_request);
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
@@ -398,6 +575,9 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    ghttp_parser_stop(priv->parsing_request);
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     KW_DECREF(kw)
     return 0;

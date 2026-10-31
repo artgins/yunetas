@@ -4,6 +4,7 @@
  *          Migrated from http_parser (Joyent) to llhttp (nodejs/llhttp)
  *
  *          Copyright (c) 2013 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -28,14 +29,20 @@ PRIVATE int on_message_begin(llhttp_t* llhttp);
 PRIVATE int on_headers_complete(llhttp_t* llhttp);
 PRIVATE int on_message_complete(llhttp_t* llhttp);
 PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE int on_url_complete(llhttp_t* llhttp);
+PRIVATE int on_status(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE int on_header_value_complete(llhttp_t* llhttp);
 PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE json_t *build_message_kw(GHTTP_PARSER *parser);
 PRIVATE void reset_message(GHTTP_PARSER *parser);
 PRIVATE void publish_message(GHTTP_PARSER *parser, json_t *kw_http);
 PRIVATE int refuse_body(GHTTP_PARSER *parser, size_t length, size_t limit);
 PRIVATE size_t body_size_limit(GHTTP_PARSER *parser);
+PRIVATE size_t header_size_limit(GHTTP_PARSER *parser);
+PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at, size_t length);
+PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, json_t *jn_value);
 
 /****************************************************************
  *         Data
@@ -53,8 +60,11 @@ PRIVATE void ensure_settings_initialized(void)
         llhttp_settings_init(&settings);
         settings.on_message_begin    = on_message_begin;
         settings.on_url              = on_url;
+        settings.on_url_complete     = on_url_complete;
+        settings.on_status           = on_status;
         settings.on_header_field     = on_header_field;
         settings.on_header_value     = on_header_value;
+        settings.on_header_value_complete = on_header_value_complete;
         settings.on_headers_complete = on_headers_complete;
         settings.on_body             = on_body;
         settings.on_message_complete = on_message_complete;
@@ -117,9 +127,21 @@ PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)
     GBMEM_FREE(parser->url);
     GBUFFER_DECREF(parser->gbuf_body)
     JSON_DECREF(parser->jn_headers);
-    GBMEM_FREE(parser->cur_key);
-    GBMEM_FREE(parser->last_key);
+    GBUFFER_DECREF(parser->gbuf_url)
+    GBUFFER_DECREF(parser->gbuf_field)
+    GBUFFER_DECREF(parser->gbuf_value)
     GBMEM_FREE(parser);
+}
+
+/***************************************************************************
+ *  The connection ends: nothing more is delivered
+ ***************************************************************************/
+PUBLIC void ghttp_parser_stop(GHTTP_PARSER *parser)
+{
+    if(!parser) {
+        return;
+    }
+    parser->stopped = TRUE;
 }
 
 /***************************************************************************
@@ -136,7 +158,11 @@ PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)
  *                                     caller to the next handler (e.g. the
  *                                     first WebSocket frame piggybacked on
  *                                     the handshake TCP segment).
- *     -1   Protocol error.  The caller should close the connection.
+ *              - stopped           : equals `received`, none parsed: the
+ *                                     connection ends (ghttp_parser_stop()).
+ *     -1   Protocol error, or a head or a body over its limit
+ *          (`headers_refused`, `body_refused`).  The caller should close
+ *          the connection.
  ***************************************************************************/
 PUBLIC int ghttp_parser_received(
     GHTTP_PARSER *parser,
@@ -145,7 +171,17 @@ PUBLIC int ghttp_parser_received(
 ) {
     hgobj gobj = parser->gobj;
 
+    if(parser->stopped) {
+        return (int)received;
+    }
+
+    parser->executing = TRUE;
     llhttp_errno_t err = llhttp_execute(&parser->llhttp, buf, received);
+    parser->executing = FALSE;
+
+    if(parser->stopped) {
+        return (int)received;   // what is left of the bytes is not of anybody any more
+    }
     if (err == HPE_PAUSED_UPGRADE) {
         /*
          *  Handle new protocol (upgrade).
@@ -162,8 +198,8 @@ PUBLIC int ghttp_parser_received(
         llhttp_resume_after_upgrade(&parser->llhttp);
         return (int)consumed;
     } else if (err != HPE_OK) {
-        if(parser->body_refused) {
-            return -1;  // Warning already logged (refuse_body)
+        if(parser->body_refused || parser->headers_refused) {
+            return -1;  // Warning already logged (refuse_body, add_to_head)
         }
         /* Handle error. Usually just close the connection. */
         const char *peername = gobj_read_str_attr(gobj, "peername");
@@ -181,6 +217,16 @@ PUBLIC int ghttp_parser_received(
         gobj_trace_dump(gobj, buf, MIN(received, MAX_LOG_DUMP_SIZE),
             "Protocol violation: non-HTTP data received"
         );
+        if(parser->type == HTTP_RESPONSE && parser->message_begun) {
+            /*
+             *  The request waiting for this response is answered: it never
+             *  goes again by itself on the next connection
+             */
+            const char *reason = llhttp_get_error_reason(&parser->llhttp);
+            publish_refused_response(parser, "protocol_error",
+                json_string(reason? reason : llhttp_errno_name(err))
+            );
+        }
         return -1;
     }
     return (int)received;
@@ -208,6 +254,13 @@ PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser)
     if(!parser) {
         return 0;
     }
+    if(parser->executing) {
+        ghttp_parser_stop(parser);  // the close came inside an event of the parser
+        return 0;
+    }
+    if(parser->stopped) {
+        return 0;
+    }
 
     llhttp_errno_t err = llhttp_finish(&parser->llhttp);
     if (err != HPE_OK) {
@@ -224,6 +277,14 @@ PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser)
  ***************************************************************************/
 PRIVATE int on_message_begin(llhttp_t* llhttp)
 {
+    GHTTP_PARSER *parser = llhttp->data;
+
+    if(parser->stopped) {
+        return -1;
+    }
+    parser->message_begun = 1;
+    parser->header_size = 0;
+    parser->body_size = 0;
     return 0;
 }
 
@@ -237,6 +298,9 @@ PRIVATE int on_headers_complete(llhttp_t* llhttp)
     GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
+    if(parser->stopped) {
+        return -1;
+    }
     parser->headers_completed = 1;
     if(!parser->jn_headers) {
         parser->jn_headers = json_object();
@@ -255,7 +319,7 @@ PRIVATE int on_headers_complete(llhttp_t* llhttp)
             gobj_publish_event(gobj, parser->on_header_event, kw_http);
         }
     }
-    return 0;
+    return parser->stopped? -1 : 0;
 }
 
 /***************************************************************************
@@ -268,6 +332,15 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
     GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
+    if(parser->stopped) {
+        return -1;
+    }
+
+    size_t limit = body_size_limit(parser);
+    if(limit > 0 && parser->body_size + length > limit) {
+        return refuse_body(parser, length, limit);
+    }
+
     if(parser->on_body_event) {
         json_t *kw_http = json_pack("{s:i, s:I, s:I}",
             "response_status_code", (int)llhttp_get_status_code(&parser->llhttp),
@@ -279,22 +352,19 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
         } else {
             gobj_publish_event(gobj, parser->on_body_event, kw_http);
         }
+        if(parser->stopped) {
+            return -1;
+        }
     }
 
     if(parser->on_message_event) {
         /*
          *  If on_message_event is defined, then accumulate data in body variable
          */
-        size_t limit = body_size_limit(parser);
-        if(parser->body_size + length > limit) {
-            return refuse_body(parser, length, limit);
-        }
         if(!parser->gbuf_body) {
             /*
              *  Of the size of the first part of the body, up to
-             *  RX_GBUFFER_SIZE (it grows, as it did, with the rest): up to
-             *  7.27.7 every body took 4 KB, zeroed, and a body that is not
-             *  json is handed up in it
+             *  RX_GBUFFER_SIZE: it grows with the rest
              */
             size_t initial_size = (length < RX_GBUFFER_SIZE)? length : RX_GBUFFER_SIZE;
             parser->gbuf_body = gbuffer_create(initial_size, limit + 1);
@@ -314,24 +384,62 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
             // Error already logged (gbuffer)
             return refuse_body(parser, length, limit);
         }
-        parser->body_size += length;
     }
+    parser->body_size += length;
 
     return 0;
 }
 
 /***************************************************************************
- *  The longest body kept: `max_body_size`, and never more than half the
- *  largest memory block, so the buffer that holds it, grown by doubling,
- *  is always one block that can be allocated.
+ *  The longest body: `max_body_size`. With on_message_event, that holds
+ *  the whole body, never more than half the largest memory block, so the
+ *  buffer that holds it, grown by doubling, is always one block that can
+ *  be allocated; with the body only streamed (on_body_event), 0 is no
+ *  limit, because the parser holds none of it.
  ***************************************************************************/
 PRIVATE size_t body_size_limit(GHTTP_PARSER *parser)
 {
+    if(!parser->on_message_event) {
+        return parser->max_body_size;
+    }
     size_t limit = gbmem_get_maximum_block() / 2;
     if(parser->max_body_size > 0 && parser->max_body_size < limit) {
         limit = parser->max_body_size;
     }
     return limit;
+}
+
+/***************************************************************************
+ *  The longest head: `max_header_size`, 0 is GHTTP_MAX_HEADER_SIZE, and
+ *  never more than half the largest memory block
+ ***************************************************************************/
+PRIVATE size_t header_size_limit(GHTTP_PARSER *parser)
+{
+    size_t limit = parser->max_header_size? parser->max_header_size : GHTTP_MAX_HEADER_SIZE;
+    size_t max_limit = gbmem_get_maximum_block() / 2;
+    if(limit > max_limit) {
+        limit = max_limit;
+    }
+    return limit;
+}
+
+/***************************************************************************
+ *  A RESPONSE refused, published without its body, so the request waiting
+ *  for it is answered. Owns jn_value.
+ ***************************************************************************/
+PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, json_t *jn_value)
+{
+    if(!parser->on_message_event) {
+        JSON_DECREF(jn_value)
+        return;
+    }
+    if(!parser->jn_headers) {
+        parser->jn_headers = json_object();
+    }
+    json_t *kw_http = build_message_kw(parser);
+    json_object_set_new(kw_http, key, jn_value);
+    reset_message(parser);
+    publish_message(parser, kw_http);
 }
 
 /***************************************************************************
@@ -361,17 +469,72 @@ PRIVATE int refuse_body(GHTTP_PARSER *parser, size_t length, size_t limit)
     parser->body_size += length;
 
     if(parser->type == HTTP_RESPONSE) {
-        if(!parser->jn_headers) {
-            parser->jn_headers = json_object();
-        }
-        json_t *kw_http = build_message_kw(parser);
-        json_object_set_new(kw_http, "body_too_large", json_integer((json_int_t)limit));
-        reset_message(parser);
-        publish_message(parser, kw_http);
+        publish_refused_response(parser, "body_too_large", json_integer((json_int_t)limit));
     } else {
         reset_message(parser);
     }
     return -1;
+}
+
+/***************************************************************************
+ *  Append a piece of the head (the target, a name, a value) to its buffer.
+ *  A head that passes its limit: ONE warning, the message of a RESPONSE
+ *  published without its body (`headers_too_large`), the parser stopped.
+ *  Linear: each byte is copied once, into a buffer that grows by doubling.
+ ***************************************************************************/
+PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at, size_t length)
+{
+    hgobj gobj = parser->gobj;
+
+    if(parser->stopped) {
+        return -1;
+    }
+    if(length == 0) {
+        return 0;
+    }
+
+    size_t limit = header_size_limit(parser);
+    if(parser->header_size + length > limit) {
+        const char *peername = gobj_read_str_attr(gobj, "peername");
+        const char *sockname = gobj_read_str_attr(gobj, "sockname");
+        const char *field = parser->gbuf_field? gbuffer_cur_rd_pointer(parser->gbuf_field) : "";
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PROTOCOL,
+            "msg",              "%s", "HTTP headers larger than their limit, message refused",
+            "http_parser_type", "%s", parser->type == HTTP_RESPONSE? "response" : "request",
+            "header_received",  "%lu", (unsigned long)(parser->header_size + length),
+            "max_header_size",  "%lu", (unsigned long)limit,
+            "header",           "%.64s", (pgbuf == &parser->gbuf_url)? "" : field,
+            "peername",         "%s", peername? peername : "",
+            "sockname",         "%s", sockname? sockname : "",
+            NULL
+        );
+        parser->headers_refused = TRUE;
+        if(parser->type == HTTP_RESPONSE) {
+            publish_refused_response(parser, "headers_too_large", json_integer((json_int_t)limit));
+        } else {
+            reset_message(parser);
+        }
+        return -1;
+    }
+    parser->header_size += length;
+
+    if(!pgbuf) {
+        return 0;   // counted only
+    }
+    if(!*pgbuf) {
+        *pgbuf = gbuffer_create(MIN(length, (size_t)256), limit + 1);
+        if(!*pgbuf) {
+            // Error already logged
+            return -1;
+        }
+    }
+    if(gbuffer_append(*pgbuf, (void *)at, length) != length) {
+        // Error already logged
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -407,12 +570,15 @@ PRIVATE void reset_message(GHTTP_PARSER *parser)
 {
     parser->headers_completed = 0;
     parser->message_completed = 0;
+    parser->message_begun = 0;
     parser->body_size = 0;
+    parser->header_size = 0;
     GBMEM_FREE(parser->url);
     GBUFFER_DECREF(parser->gbuf_body)
     JSON_DECREF(parser->jn_headers);
-    GBMEM_FREE(parser->cur_key);
-    GBMEM_FREE(parser->last_key);
+    GBUFFER_DECREF(parser->gbuf_url)
+    GBUFFER_DECREF(parser->gbuf_field)
+    GBUFFER_DECREF(parser->gbuf_value)
 }
 
 /***************************************************************************
@@ -426,6 +592,7 @@ PRIVATE void publish_message(GHTTP_PARSER *parser, json_t *kw_http)
         gobj_publish_event(parser->gobj, parser->on_message_event, kw_http);
     }
 }
+
 /***************************************************************************
  *  Callbacks must return 0 on success.
  *  Returning a non-zero value indicates error to the parser,
@@ -436,7 +603,11 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
     GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
+    if(parser->stopped) {
+        return -1;
+    }
     parser->message_completed = 1;
+    parser->message_begun = 0;
     if(!parser->jn_headers) {
         parser->jn_headers = json_object();
     }
@@ -452,6 +623,9 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
             gobj_send_event(gobj, parser->on_body_event, kw_http, gobj);
         } else {
             gobj_publish_event(gobj, parser->on_body_event, kw_http);
+        }
+        if(parser->stopped) {
+            return -1;
         }
     }
 
@@ -488,7 +662,7 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
         reset_message(parser);
         publish_message(parser, kw_http);
     }
-    return 0;
+    return parser->stopped? -1 : 0;
 }
 
 /***************************************************************************
@@ -499,32 +673,43 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
 PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length)
 {
     GHTTP_PARSER *parser = llhttp->data;
-    hgobj gobj = parser->gobj;
+    return add_to_head(parser, &parser->gbuf_url, at, length);
+}
 
-    size_t pos = 0;
-    if(parser->url) {
-        pos = strlen(parser->url);
-        parser->url = gbmem_realloc(
-            parser->url,
-            pos + length + 1
-        );
-    } else {
-        parser->url = gbmem_malloc(length+1);
-    }
+/***************************************************************************
+ *  The target is whole: it is the url of the message
+ ***************************************************************************/
+PRIVATE int on_url_complete(llhttp_t* llhttp)
+{
+    GHTTP_PARSER *parser = llhttp->data;
 
-    if(!parser->url) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "no memory for url",
-            "length",       "%d", length,
-            NULL
-        );
+    if(parser->stopped) {
         return -1;
     }
-    memcpy(parser->url + pos, at, length);
-    parser->url[pos + length] = 0;
+    GBMEM_FREE(parser->url);
+    if(parser->gbuf_url) {
+        parser->url = gbmem_strndup(
+            gbuffer_cur_rd_pointer(parser->gbuf_url),
+            gbuffer_leftbytes(parser->gbuf_url)
+        );
+        GBUFFER_DECREF(parser->gbuf_url)
+    } else {
+        parser->url = gbmem_strdup("");
+    }
+    if(!parser->url) {
+        // Error already logged
+        return -1;
+    }
     return 0;
+}
+
+/***************************************************************************
+ *  The status text of a response is not kept, but it is part of the head
+ ***************************************************************************/
+PRIVATE int on_status(llhttp_t* llhttp, const char* at, size_t length)
+{
+    GHTTP_PARSER *parser = llhttp->data;
+    return add_to_head(parser, NULL, at, length);
 }
 
 /***************************************************************************
@@ -535,45 +720,7 @@ PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length)
 PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length)
 {
     GHTTP_PARSER *parser = llhttp->data;
-    hgobj gobj = parser->gobj;
-
-    if(!parser->jn_headers) {
-        parser->jn_headers = json_object();
-    }
-    if(!parser->jn_headers) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "no memory for url",
-            "length",       "%d", length,
-            NULL
-        );
-        return -1;
-    }
-
-    size_t pos=0;
-    if(parser->cur_key) {
-        pos = strlen(parser->cur_key);
-        parser->cur_key = gbmem_realloc(
-            parser->cur_key,
-            pos + length + 1
-        );
-    } else {
-        parser->cur_key = gbmem_malloc(length+1);
-    }
-    if(!parser->cur_key) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "no memory for header field",
-            "length",       "%d", length,
-            NULL);
-        return -1;
-    }
-    memcpy(parser->cur_key + pos, at, length);
-    parser->cur_key[pos + length] = 0;
-    strntoupper(parser->cur_key + pos, length);
-    return 0;
+    return add_to_head(parser, &parser->gbuf_field, at, length);
 }
 
 /***************************************************************************
@@ -584,91 +731,59 @@ PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length)
 PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
 {
     GHTTP_PARSER *parser = llhttp->data;
+    return add_to_head(parser, &parser->gbuf_value, at, length);
+}
+
+/***************************************************************************
+ *  A header is whole: its name, in upper case, and its value go into
+ *  jn_headers, once (a name that comes again keeps its last value)
+ ***************************************************************************/
+PRIVATE int on_header_value_complete(llhttp_t* llhttp)
+{
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
-    if(!parser->jn_headers) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "jn_headers NULL",
-            "length",       "%d", length,
-            NULL);
+    if(parser->stopped) {
         return -1;
     }
-    char add_value = 0;
-    if(!parser->cur_key) {
-        if(parser->last_key) {
-            parser->cur_key = parser->last_key;
-            parser->last_key = 0;
-            add_value = 1;
-        }
-        if(!parser->cur_key) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", "cur_key NULL",
-                NULL);
+    if(!parser->jn_headers) {
+        parser->jn_headers = json_object();
+        if(!parser->jn_headers) {
+            // Error already logged
             return -1;
         }
     }
 
-    char *value;
-    size_t pos = 0;
-    if(add_value) {
-        json_t *jn_partial_value = json_object_get(
-            parser->jn_headers,
-            parser->cur_key
-        );
-        const char *partial_value = json_string_value(jn_partial_value);
-        // The previous chunk's json_string() store can fail (e.g. invalid
-        // UTF-8), leaving no string under cur_key; then json_object_get returns
-        // NULL and json_string_value(NULL) returns NULL. Guard before strlen()
-        // so a continuation chunk can't deref NULL (attacker-controlled bytes +
-        // TCP segmentation). Restart the accumulator from this chunk instead.
-        pos = partial_value? strlen(partial_value) : 0;
-        value = gbmem_malloc(pos + length + 1);
-        if(value && pos) {
-            memcpy(value, partial_value, pos);
-        }
-    } else {
-        value = gbmem_malloc(length + 1);
-    }
-    if(!value) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "no memory for header value",
-            "length",       "%d", length,
-            NULL
-        );
-        return -1;
-    }
-    memcpy(value+pos, at, length);
-    value[pos + length] = 0;    // NUL-terminate before json_string() strlen's it (matches on_url/on_header_field)
-    // json_string() returns NULL on invalid UTF-8; json_object_set_new then
-    // stores nothing. Don't ignore that: log it so the accumulator desync
-    // (next continuation chunk re-reads a missing value) is visible rather
-    // than silently truncating the header.
-    if(json_object_set_new(parser->jn_headers, parser->cur_key, json_string(value)) < 0) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "cannot store header value (invalid utf-8?)",
-            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-            "key",          "%s", parser->cur_key,
-            NULL
-        );
-        gobj_trace_dump(gobj, value, MIN(pos + length, MAX_LOG_DUMP_SIZE),
-            "cannot store header value (invalid utf-8?)"
-        );
-    }
-    GBMEM_FREE(value);
+    char *key = parser->gbuf_field? gbuffer_cur_rd_pointer(parser->gbuf_field) : "";
+    size_t key_len = parser->gbuf_field? gbuffer_leftbytes(parser->gbuf_field) : 0;
+    const char *value = parser->gbuf_value? gbuffer_cur_rd_pointer(parser->gbuf_value) : "";
+    size_t value_len = parser->gbuf_value? gbuffer_leftbytes(parser->gbuf_value) : 0;
 
-    if(parser->last_key) {
-        GBMEM_FREE(parser->last_key);
-        parser->last_key = 0;
+    if(key_len > 0) {
+        strntoupper(key, key_len);
+        json_t *jn_value = json_stringn(value, value_len);
+        if(!jn_value || json_object_set_new(parser->jn_headers, key, jn_value) < 0) {
+            // Not utf-8: the header is left out, and said
+            const char *peername = gobj_read_str_attr(gobj, "peername");
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "cannot store header value (invalid utf-8?)",
+                "peername",     "%s", peername? peername : "",
+                "key",          "%.64s", key,
+                NULL
+            );
+            gobj_trace_dump(gobj, value, MIN(value_len, MAX_LOG_DUMP_SIZE),
+                "cannot store header value (invalid utf-8?)"
+            );
+        }
     }
-    parser->last_key = parser->cur_key;
-    parser->cur_key = 0;
+
+    if(parser->gbuf_field) {
+        gbuffer_reset_wr(parser->gbuf_field);
+    }
+    if(parser->gbuf_value) {
+        gbuffer_reset_wr(parser->gbuf_value);
+    }
     return 0;
 }

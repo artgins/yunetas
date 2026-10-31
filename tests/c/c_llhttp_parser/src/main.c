@@ -368,6 +368,166 @@ PRIVATE void test_ghttp_parser_fragmented_url(void) {
     ghttp_parser_destroy(parser);
 }
 
+/***************************************************************************
+ *  Feed `len` bytes to the parser in pieces of `chunk` bytes, as a socket
+ *  hands them. Returns the bytes consumed, or -1 at the first refusal.
+ ***************************************************************************/
+PRIVATE int feed_in_chunks(GHTTP_PARSER *parser, char *bf, size_t len, size_t chunk)
+{
+    size_t consumed = 0;
+    while(consumed < len) {
+        size_t n = MIN(chunk, len - consumed);
+        int rc = ghttp_parser_received(parser, bf + consumed, n);
+        if(rc < 0) {
+            return -1;
+        }
+        consumed += (size_t)rc;
+    }
+    return (int)consumed;
+}
+
+/***************************************************************************
+ *  A request whose one header holds `value_len` bytes
+ ***************************************************************************/
+PRIVATE char *build_big_header_request(size_t value_len, size_t *len)
+{
+    const char *head = "GET / HTTP/1.1\r\nX-Big: ";
+    const char *tail = "\r\n\r\n";
+    *len = strlen(head) + value_len + strlen(tail);
+    char *req = gbmem_malloc(*len + 1);
+    if(!req) {
+        return NULL;
+    }
+    memcpy(req, head, strlen(head));
+    memset(req + strlen(head), 'a', value_len);
+    memcpy(req + strlen(head) + value_len, tail, strlen(tail) + 1);
+    return req;
+}
+
+/***************************************************************************
+ *  The best of three times, in ns, of parsing a header of `value_len`
+ *  bytes that arrives in pieces of 4 KB (the rx buffer of C_TCP)
+ ***************************************************************************/
+PRIVATE uint64_t time_big_header(size_t value_len, BOOL *whole)
+{
+    size_t len;
+    char *req = build_big_header_request(value_len, &len);
+    if(!req) {
+        *whole = FALSE;
+        return 0;
+    }
+    uint64_t best = 0;
+    *whole = TRUE;
+    for(int i = 0; i < 3; i++) {
+        GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+        parser->max_header_size = 16*1024*1024;    // capped to half the max block: 8 MB
+        time_measure_t tm;
+        MT_START_TIME(tm)
+        int rc = feed_in_chunks(parser, req, len, 4096);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &tm.end);
+        uint64_t ns = mt_get_time_ns(&tm);
+        const char *v = json_string_value(json_object_get(parser->jn_headers, "X-BIG"));
+        if(rc != (int)len || !parser->message_completed || !v || strlen(v) != value_len) {
+            *whole = FALSE;
+        }
+        if(best == 0 || ns < best) {
+            best = ns;
+        }
+        ghttp_parser_destroy(parser);
+    }
+    gbmem_free(req);
+    return best;
+}
+
+/***************************************************************************
+ *  A header that arrives in many pieces is put together in linear time:
+ *  each byte copied once. Eight times the bytes must cost about eight
+ *  times the time; a header copied whole again for each piece costs
+ *  about sixty-four times.
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_header_time_linear(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: a big header costs linear time ==\n");
+
+    BOOL whole1, whole8;
+    uint64_t t1 = time_big_header(512*1024, &whole1);
+    uint64_t t8 = time_big_header(4*1024*1024, &whole8);
+    double ratio = t1? (double)t8 / (double)t1 : 0;
+    fprintf(stderr, "  512 KB: %.3f ms, 4 MB: %.3f ms, ratio %.1f (linear 8, quadratic 64)\n",
+        (double)t1/1e6, (double)t8/1e6, ratio);
+    EXPECT(whole1 && whole8, "the big header arrives whole into jn_headers");
+    EXPECT(t1 > 0 && ratio < 24.0, "eight times the bytes cost less than 24 times the time");
+}
+
+/***************************************************************************
+ *  The head of a request is refused past max_header_size (the target, the
+ *  names and the values count): at the limit it passes, one byte more it
+ *  is refused (headers_refused, -1), and nothing more is parsed.
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_header_cap(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: the head is refused past its limit ==\n");
+
+    /*  "/" + "X-Big" + value  */
+    size_t at_limit = GHTTP_MAX_HEADER_SIZE - 1 - 5;
+    for(int extra = 0; extra < 2; extra++) {
+        size_t len;
+        char *req = build_big_header_request(at_limit + (size_t)extra, &len);
+        GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+        int rc = feed_in_chunks(parser, req, len, 4096);
+        if(extra == 0) {
+            EXPECT(rc == (int)len && parser->message_completed && !parser->headers_refused,
+                "a head of exactly max_header_size is parsed");
+        } else {
+            EXPECT(rc == -1 && parser->headers_refused && !parser->message_completed,
+                "a head one byte over max_header_size is refused");
+            EXPECT(ghttp_parser_received(parser, "GET", 3) == -1,
+                "a refused parser parses nothing more");
+        }
+        ghttp_parser_destroy(parser);
+        gbmem_free(req);
+    }
+}
+
+/***************************************************************************
+ *  A header with an empty value is kept, as "", and a header split at
+ *  every byte comes back whole
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_header_pieces(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: empty values and headers in pieces ==\n");
+
+    char req[] = "GET /x HTTP/1.1\r\nX-Empty:\r\nX-Two: one two\r\nx-two: three\r\nHost: h\r\n\r\n";
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+    int rc = feed_in_chunks(parser, req, strlen(req), 1);
+    EXPECT(rc == (int)strlen(req) && parser->message_completed, "the request is parsed byte by byte");
+    const char *empty = json_string_value(json_object_get(parser->jn_headers, "X-EMPTY"));
+    EXPECT(empty && strcmp(empty, "") == 0, "an empty header value is kept as \"\"");
+    const char *two = json_string_value(json_object_get(parser->jn_headers, "X-TWO"));
+    EXPECT(two && strcmp(two, "three") == 0, "a name that comes again keeps its last value");
+    const char *host = json_string_value(json_object_get(parser->jn_headers, "HOST"));
+    EXPECT(host && strcmp(host, "h") == 0, "a header given byte by byte comes back whole");
+    ghttp_parser_destroy(parser);
+}
+
+/***************************************************************************
+ *  A stopped parser takes every byte and parses none
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_stop(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: a stopped parser parses nothing ==\n");
+
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+    ghttp_parser_stop(parser);
+    char buf[256];
+    size_t n = (size_t)snprintf(buf, sizeof(buf), "%s", RESP_204);
+    int rc = ghttp_parser_received(parser, buf, n);
+    EXPECT(rc == (int)n, "a stopped parser takes every byte");
+    EXPECT(parser->message_completed == 0, "a stopped parser completes no message");
+    EXPECT(ghttp_parser_finish(parser) == 0, "finish on a stopped parser is quiet");
+    ghttp_parser_destroy(parser);
+}
+
 int main(int argc, char *argv[])
 {
     setlocale(LC_ALL, "");
@@ -411,6 +571,10 @@ int main(int argc, char *argv[])
     test_ghttp_parser_pipelined();
     test_ghttp_parser_finish_eof();
     test_ghttp_parser_fragmented_url();
+    test_ghttp_parser_header_pieces();
+    test_ghttp_parser_header_cap();
+    test_ghttp_parser_stop();
+    test_ghttp_parser_header_time_linear();
 
     gobj_end();
 

@@ -2265,7 +2265,7 @@ it by hand, run the script.
 
 5. [**`yuneta_json_config`**](runtime/runtime_entry_point.md#yuneta_json_config) — `PUBLIC json_t *yuneta_json_config(void)`
 
-### `ghttp_parser.h` — 4 functions
+### `ghttp_parser.h` — 5 functions
 
 **Source:** `kernel/c/root-linux/src/ghttp_parser.h`
 
@@ -2275,7 +2275,9 @@ it by hand, run the script.
 
 3. [**`ghttp_parser_finish`**](helpers/http_parser.md#ghttp_parser_finish) — `PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser)`
 
-4. [**`ghttp_parser_destroy`**](helpers/http_parser.md#ghttp_parser_destroy) — `PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)`
+4. [**`ghttp_parser_stop`**](helpers/http_parser.md#ghttp_parser_stop) — `PUBLIC void ghttp_parser_stop(GHTTP_PARSER *parser)`
+
+5. [**`ghttp_parser_destroy`**](helpers/http_parser.md#ghttp_parser_destroy) — `PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)`
 
 ### `istream.h` — 15 functions
 
@@ -2425,12 +2427,12 @@ it by hand, run the script.
 
 1. [**`yunetas_register_c_core`**](runtime/runtime_entry_point.md#yunetas_register_c_core) — `PUBLIC int yunetas_register_c_core(void)`
 
-**Total: 120 functions**
+**Total: 121 functions**
 
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1057 functions** sorted alphabetically with their source header.
+All **1058 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2610,6 +2612,7 @@ All **1057 functions** sorted alphabetically with their source header.
 | [**`ghttp_parser_destroy`**](helpers/http_parser.md#ghttp_parser_destroy) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
 | [**`ghttp_parser_finish`**](helpers/http_parser.md#ghttp_parser_finish) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
 | [**`ghttp_parser_received`**](helpers/http_parser.md#ghttp_parser_received) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
+| [**`ghttp_parser_stop`**](helpers/http_parser.md#ghttp_parser_stop) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
 | [**`glog_end`**](logging/log.md#glog_end) | `glogger.h` | gobj-c (Core Framework) |
 | [**`glog_init`**](logging/log.md#glog_init) | `glogger.h` | gobj-c (Core Framework) |
 | [**`gmtime2timezone`**](helpers/time_date.md#gmtime2timezone) | `helpers.h` | gobj-c (Core Framework) |

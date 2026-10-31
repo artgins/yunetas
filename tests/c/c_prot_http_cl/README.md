@@ -43,6 +43,38 @@ json_t *kw = json_pack("{s:s, s:s, s:{s:s}, s:{s:s, s:s}}",
 gobj_send_event(gobj_http_cl, EV_SEND_MESSAGE, kw, gobj);   // GET /path?a=1&b=xyz
 ```
 
+`test2` (`main_test2.c` + `c_test2.c`) is about forms and the responses the
+client refuses. The raw server answers with bytes the test writes. Four steps,
+a client each:
+
+| Step | The client | Expected |
+|---|---|---|
+| 1 | POSTs `data` `{"empty": "", "n": 5, "r": 1.5, "t": true, "nul": "a\0b", "big": <6 MB>}` | the body `empty=&n=5&r=1.5&t=true&nul=a%00b&big=xx...`, its `Content-Length` exact |
+| 1 | POSTs `data` `{}` | `Content-Length: 0`, no error |
+| 1 | POSTs `data` `{"bad": null}` | not sent, the action answers `-1`, ONE error |
+| 2 | gets a response whose head is 70 KB | `EV_ON_MESSAGE` with `headers_too_large` 65536 and no body, ONE warning, the connection dropped |
+| 3 | gets a response with a CR alone in a header | `EV_ON_MESSAGE` with `protocol_error`, ONE warning, the connection dropped, the request sent once |
+| 4 | sends 8 POSTs of 1 MB to a socket that listens and never accepts, `max_tx_queue` 2 | the 4th refused (`-1`), ONE warning, the connection dropped |
+
+Up to 7.29.3 an empty value was left out with an ERROR (an empty password
+could not be sent), a NUL cut its value, a value of 6 MB was refused (the form
+was sized for three times its bytes), a form with no fields logged *"len is
+ZERO"* with a stack, a head had no limit, a broken response answered nothing,
+and the requests waiting for a server that does not read had no limit.
+
+```c
+json_t *kw = json_pack("{s:s, s:s, s:{s:s}, s:{s:s, s:i}}",
+    "method", "POST",
+    "resource", "/token",
+    "headers",
+        "Content-Type", "application/x-www-form-urlencoded",
+    "data",
+        "password", "",     // goes as password=
+        "n", 5              // goes as n=5
+);
+gobj_send_event(gobj_http_cl, EV_SEND_MESSAGE, kw, gobj);
+```
+
 ## Run
 
 ```bash

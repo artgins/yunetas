@@ -31,7 +31,11 @@ message.
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `crypto` | `json` | TLS config forwarded to the bottom C_TCP for `https://` URLs. Default `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — verifies the server cert against the system CA. Override with `ssl_trusted_certificate` for a private CA, or `ssl_allow_insecure_client: true` to skip verification (MITM risk). |
 | `raw_body_data` | `bool` | `TRUE` to deliver body chunks incrementally. |
-| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). See *A response too long* below. |
+| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). With `raw_body_data` the body is not held: `0` is no limit, and a body over a limit set ends with no last `EV_ON_MESSAGE`, only the drop. See *A response refused* below. |
+| `max_header_size` | `integer` | Longest head of a response (status text, header names and values), in bytes (default `65536`; `0` is that too; never more than half the max block). See *A response refused* below. |
+| `max_tx_queue` | `integer` | Most requests waiting in the transport for a server that does not read them (default `64`; `0`: no limit). One more is refused (the action answers `-1`), with ONE warning (*"HTTP server does not read the requests, request refused and connection dropped"*), and the connection is dropped. |
+
+A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_CL is negative: its default taken"*).
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
 ### Sending a request: `EV_SEND_MESSAGE`
@@ -54,7 +58,16 @@ as they are, a space as `+`, any other byte as `%XX`. So a `+`, `%`, `&` or
 `=` of a value is that byte for the server, never a space, an escape or the
 start of another field: pass the values as they are, never encoded.
 `{"user": "user+1@x.com", "pass": "p a%41&b=c"}` goes as
-`user=user%2B1%40x.com&pass=p+a%2541%26b%3Dc`. Up to 7.29.3 the values were
+`user=user%2B1%40x.com&pass=p+a%2541%26b%3Dc`. Every byte of a string goes,
+a NUL too (`%00`); an empty string goes as `key=` (an empty password is a
+password); a number or a boolean goes as its json text (`{"n": 5, "r": 1.5,
+"t": true}` is `n=5&r=1.5&t=true`). A `null`, an object or an array has no
+text in a form: the request is not sent, with ONE error (*"A value of a form
+must be a string, a number or a boolean"*), and the action answers `-1`; so
+is a `data` that is not a dict. The form is built in a buffer of its exact
+size, so a value as long as the max block allows goes (6 MB with the default
+max block of 16 MB). A form with no fields (`"data": {}`) goes with
+`Content-Length: 0`. Up to 7.29.3 the values were
 written as they are, so a value with `&` added fields to the form. A `query`
 text is the caller's, and goes as it is. Up to 7.26.9 a GET lost the last
 character of its query.
@@ -95,18 +108,27 @@ case: `RETRY-AFTER`), `body_size` (the bytes of the body), and the body: a
 `"body": ""` with `body_size` 0, which tells it apart from the JSON string
 `""` (`body_size` 2).
 
-**A response too long.** A body longer than `max_body_size` is not read to
-its end. The client logs ONE warning (*"HTTP body larger than its limit,
-message refused"*, with `body_received` and `max_body_size`), publishes
-`EV_ON_MESSAGE` with `"body_too_large": <max_body_size>` and no `body` nor
-`gbuffer` (the request waiting for it is answered), and drops the
-connection. Up to 7.29.3 a body over the max block logged an ERROR with a
-stack for every piece that arrived, and was handed up cut.
+**A response refused.** A response whose body passes `max_body_size`, or
+whose head passes `max_header_size`, is not read to its end; nor is one that
+breaks the protocol once begun (a CR alone in a header, for one). The client
+logs ONE warning (*"HTTP body larger than its limit, message refused"*,
+*"HTTP headers larger than their limit, message refused"*, or *"Protocol
+violation: non-HTTP data received"*), publishes `EV_ON_MESSAGE` with no
+`body` nor `gbuffer` and one of `"body_too_large": <limit>`,
+`"headers_too_large": <limit>`, `"protocol_error": "<reason>"` (the request
+waiting for it is answered), and drops the connection. The client never
+sends a request again by itself. Once the connection is dropped (`EV_DROP`,
+the inactivity timeout) nothing more of what was received is published. Up
+to 7.29.3 a body over the max block logged an ERROR with a stack for every
+piece that arrived, and was handed up cut; a head had no limit, and took a
+time that grew with the square of its size (an 8 MB header, seconds); a
+broken response answered nothing.
 
 ```C
-json_int_t limit = kw_get_int(gobj, kw, "body_too_large", 0, 0);
-if(limit > 0) {
-    /* refuse the answer: its body passed `limit` bytes and was not read */
+if(kw_get_int(gobj, kw, "body_too_large", 0, 0) > 0 ||
+        kw_get_int(gobj, kw, "headers_too_large", 0, 0) > 0 ||
+        kw_has_key(kw, "protocol_error")) {
+    /* refuse the answer: it was not read */
 }
 ```
 
@@ -129,11 +151,52 @@ structured events for the application.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `timeout_inactivity` | `integer` | Inactivity timeout in seconds. |
+| `max_header_size` | `integer` | Longest head of a request (target, header names and values), in bytes (default `65536`; `0` is that too; never more than half the max block). |
+| `max_body_size` | `integer` | Longest body of a request, in bytes (default `0`: half the max block; a bigger value is capped to that half). |
+| `max_tx_queue` | `integer` | Most answers waiting in the transport for a peer that does not read them (default `64`; `0`: no limit). |
+| `timeout_linger` | `integer` | Milliseconds a refused request has to go after its answer (default `2000`; `0`: dropped at once). |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
-A request whose body is longer than half the max block of the yuno is not
-read to its end: one warning (*"HTTP body larger than its limit, message
-refused"*), no `EV_ON_MESSAGE`, and the connection is dropped.
+A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*).
+
+**A request refused.** A request whose head passes `max_header_size` is
+answered `431 Request Header Fields Too Large`, one whose body passes
+`max_body_size` `413 Content Too Large` (both with `Connection: close` and no
+body), with ONE warning (*"HTTP headers larger than their limit, message
+refused"*, *"HTTP body larger than its limit, message refused"*), and no
+`EV_ON_MESSAGE`. The connection lingers `timeout_linger` milliseconds, the
+bytes the peer still sends read and thrown away, and is dropped: a socket
+closed with bytes unread resets the connection, and the peer could lose the
+answer. A peer that breaks the protocol is dropped at once, with ONE warning.
+An answer to a peer that does not read, with `max_tx_queue` answers already
+waiting, is not sent: ONE warning (*"HTTP peer does not read its answers,
+connection dropped"*), and the connection is dropped. Up to 7.29.3 a head had
+no limit (an 8 MB header took seconds, the time growing with the square of
+its size), and a refused body was dropped with no answer.
+
+**A connection dropped.** Once the application drops the connection
+(`EV_DROP`), or it closes, nothing more of what was received is delivered,
+not even the requests pipelined in the same read after the one it dropped
+at. Up to 7.29.3 they were delivered to the gobj already disconnected: an
+ERROR with a stack (*"Event NOT DEFINED in state"*) for each one.
+
+```C
+/*  a server of 16 KB heads, 1 MB bodies  */
+{
+    "name": "http-1",
+    "gclass": "C_PROT_HTTP_SR",
+    "kw": {
+        "max_header_size": 16384,
+        "max_body_size": 1048576
+    },
+    "children": [{"name": "http-1", "gclass": "C_TCP"}]
+}
+```
+
+`tests/c/c_prot_http_sr` (`test1`): 600 requests in one write to an
+application that drops at the 3rd deliver 3; a head over the limit gets 431,
+a body over it 413, each with one warning; a peer that never reads its
+answers is dropped at `max_tx_queue`.
 
 ---
 
@@ -230,6 +293,12 @@ to what the frame needs (a frame of exactly `max_payload_size` included: up to
 7.25.21 it never ended, a gbuffer holding one byte less than its max); up to
 7.25.21 the whole length was reserved at the header, so a few connections that
 each announced the max block reserved it each with a few bytes sent.
+
+The head of the handshake (request or response) is limited to 64 KB, its
+target or status text and its header names and values
+([`ghttp_parser`](#ghttp_parser_create)): a longer one is refused with ONE
+warning (*"HTTP headers larger than their limit, message refused"*) and the
+connection is dropped. Up to 7.29.3 it had no limit.
 
 ```json
 {

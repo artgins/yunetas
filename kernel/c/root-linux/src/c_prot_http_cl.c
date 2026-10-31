@@ -4,6 +4,20 @@
  *
  *          Protocol http as client
  *
+ *          Limits, each said with ONE warning:
+ *          - a response whose head (status text, header names and values)
+ *            passes `max_header_size`, or whose body passes
+ *            `max_body_size`, is published without its body
+ *            (`headers_too_large`, `body_too_large`) and the connection
+ *            dropped; so is a response that breaks the protocol once begun
+ *            (`protocol_error`): the request waiting for it is answered,
+ *            and it is never sent again by this gclass;
+ *          - more than `max_tx_queue` requests waiting in the transport
+ *            for a server that does not read them: the request is refused
+ *            and the connection dropped.
+ *          Once the connection is dropped nothing more of what was
+ *          received is delivered.
+ *
  *          Copyright (c) 2017-2023 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
@@ -32,14 +46,20 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define DEFAULT_MAX_TX_QUEUE    64
+#define TEXT_OF(x)              TEXT_OF_(x)
+#define TEXT_OF_(x)             #x
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
 PRIVATE int check_url(hgobj gobj);
 PRIVATE GHTTP_PARSER *create_response_parser(hgobj gobj);
-PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text);
-PRIVATE size_t form_text_max_size(const char *text);
+PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text, size_t len);
+PRIVATE size_t form_text_size(const char *text, size_t len);
+PRIVATE const char *form_value_text(json_t *v, size_t *len, char **to_free);
+PRIVATE gbuffer_t *build_form(hgobj gobj, json_t *jn_data);
+PRIVATE BOOL tx_queue_is_full(hgobj gobj);
 
 /***************************************************************
  *              Data
@@ -54,7 +74,9 @@ SDATA (DTP_INTEGER, "timeout_inactivity",SDF_WR,        "60000",    "Timeout ina
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_DICT,    "crypto",           SDF_RD,         "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto forwarded to the bottom C_TCP for https:// urls. Verifies the server cert against the system CA by default; override with ssl_trusted_certificate for a private CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),
-SDATA (DTP_INTEGER, "max_body_size",    SDF_RD,         "0",        "Largest body of a response kept, in bytes; 0, or more than half the largest memory block (gbmem): that half. A longer one is refused with ONE warning: EV_ON_MESSAGE carries `body_too_large` (this limit) and no body, and the connection is dropped"),
+SDATA (DTP_INTEGER, "max_body_size",    SDF_RD,         "0",        "Largest body of a response, in bytes; 0, or more than half the largest memory block (gbmem): that half (with raw_body_data, 0 is no limit). A longer one is refused with ONE warning: EV_ON_MESSAGE carries `body_too_large` (the limit) and no body (with raw_body_data nothing more is published), and the connection is dropped"),
+SDATA (DTP_INTEGER, "max_header_size",  SDF_RD,         "65536",    "Largest head of a response (status text, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). A longer one is refused with ONE warning: EV_ON_MESSAGE carries `headers_too_large` (the limit) and no body, and the connection is dropped"),
+SDATA (DTP_INTEGER, "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE), "Most requests waiting in the transport for a server that does not read them; one more is refused and drops the connection, with ONE warning. 0: no limit"),
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -83,6 +105,9 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     GHTTP_PARSER *parsing_response;
     const char *url;
+    json_int_t max_body_size;
+    json_int_t max_header_size;
+    json_int_t max_tx_queue;
     char schema[64];
     char host[NAME_MAX];
     int port;
@@ -105,6 +130,31 @@ typedef struct _PRIVATE_DATA {
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SET_PRIV(max_body_size,         gobj_read_integer_attr)
+    SET_PRIV(max_header_size,       gobj_read_integer_attr)
+    SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
+    if(priv->max_body_size < 0 || priv->max_header_size < 0 || priv->max_tx_queue < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PARAMETER,
+            "msg",              "%s", "A limit of C_PROT_HTTP_CL is negative: its default taken",
+            "max_body_size",    "%d", (int)priv->max_body_size,
+            "max_header_size",  "%d", (int)priv->max_header_size,
+            "max_tx_queue",     "%d", (int)priv->max_tx_queue,
+            "url",              "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+        if(priv->max_body_size < 0) {
+            priv->max_body_size = 0;
+        }
+        if(priv->max_header_size < 0) {
+            priv->max_header_size = 0;
+        }
+        if(priv->max_tx_queue < 0) {
+            priv->max_tx_queue = DEFAULT_MAX_TX_QUEUE;
+        }
+    }
 
     priv->parsing_response = create_response_parser(gobj);
 
@@ -280,6 +330,7 @@ PRIVATE int check_url(hgobj gobj)
  ***************************************************************************/
 PRIVATE GHTTP_PARSER *create_response_parser(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     GHTTP_PARSER *parser;
     BOOL raw_body_data = gobj_read_bool_attr(gobj, "raw_body_data");
     if(!raw_body_data) {
@@ -301,33 +352,43 @@ PRIVATE GHTTP_PARSER *create_response_parser(hgobj gobj)
             FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     }
-    json_int_t max_body_size = gobj_read_integer_attr(gobj, "max_body_size");
-    if(parser && max_body_size > 0) {
-        parser->max_body_size = (size_t)max_body_size;
+    if(parser) {
+        parser->max_body_size = (size_t)priv->max_body_size;
+        parser->max_header_size = (size_t)priv->max_header_size;
     }
     return parser;
 }
 
 /***************************************************************************
- *  The bytes a text takes at most once encoded (each byte as %XX)
+ *  The bytes a text takes once encoded
  ***************************************************************************/
-PRIVATE size_t form_text_max_size(const char *text)
+PRIVATE size_t form_text_size(const char *text, size_t len)
 {
-    return 3 * strlen(text);
+    size_t size = 0;
+    for(size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                c == '-' || c == '.' || c == '_' || c == '~' || c == ' ') {
+            size += 1;
+        } else {
+            size += 3;
+        }
+    }
+    return size;
 }
 
 /***************************************************************************
  *  Append a key or a value of a form, application/x-www-form-urlencoded:
  *  the unreserved bytes of RFC 3986 (ALPHA, DIGIT, "-", ".", "_", "~")
- *  as they are, a space as "+", every other byte as %XX. So a "+", a "%",
- *  a "&" or a "=" of a value is that byte for the server, never a space,
- *  an escape, or the start of another field.
+ *  as they are, a space as "+", every other byte (a NUL too) as %XX. So
+ *  a "+", a "%", a "&" or a "=" of a value is that byte for the server,
+ *  never a space, an escape, or the start of another field.
  ***************************************************************************/
-PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text)
+PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text, size_t len)
 {
     static const char hex[] = "0123456789ABCDEF";
-    for(const unsigned char *p = (const unsigned char *)text; *p; p++) {
-        unsigned char c = *p;
+    for(size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)text[i];
         char enc[3];
         size_t n = 1;
         if((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
@@ -346,6 +407,131 @@ PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text)
         }
     }
     return 0;
+}
+
+/***************************************************************************
+ *  The text of a value of a form: a string as it is (all its bytes), a
+ *  number or a boolean as its json text (made here: free *to_free).
+ *  NULL for a null, an object or an array, which have no text in a form.
+ ***************************************************************************/
+PRIVATE const char *form_value_text(json_t *v, size_t *len, char **to_free)
+{
+    *to_free = NULL;
+    *len = 0;
+    if(json_is_string(v)) {
+        *len = json_string_length(v);
+        return json_string_value(v);
+    }
+    if(json_is_number(v) || json_is_boolean(v)) {
+        *to_free = json_dumps(v, JSON_ENCODE_ANY|JSON_COMPACT);
+        if(*to_free) {
+            *len = strlen(*to_free);
+        }
+        return *to_free;
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  The form of a dict `data`, k1=v1&k2=v2, each key and value encoded, in
+ *  a buffer of its exact size. An empty value is sent as `key=`.
+ *  NULL if a value has no text (a null, an object, an array): the request
+ *  cannot be built, and it is said.
+ ***************************************************************************/
+PRIVATE gbuffer_t *build_form(hgobj gobj, json_t *jn_data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *key;
+    json_t *v;
+
+    if(jn_data && !json_is_object(jn_data)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The data of a form must be a dict",
+            "url",          "%s", priv->url,
+            NULL
+        );
+        return NULL;
+    }
+
+    size_t size = 0;
+    json_object_foreach(jn_data, key, v) {
+        size_t len;
+        char *to_free;
+        const char *text = form_value_text(v, &len, &to_free);
+        if(!text) {
+            /*  The `url` and not a `peername`: this is an OUTBOUND client,
+             *  and what an operator needs of a bad request is WHICH one */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "A value of a form must be a string, a number or a boolean",
+                "key",          "%s", key,
+                "type",         "%s", json_is_null(v)? "null" : json_is_object(v)? "object" : "array",
+                "url",          "%s", priv->url,
+                NULL
+            );
+            return NULL;
+        }
+        size += (size? 1 : 0) + form_text_size(key, strlen(key)) + 1 + form_text_size(text, len);
+        GBMEM_FREE(to_free)
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(size, size + 1);
+    if(!gbuf) {
+        return NULL;    // Error already logged
+    }
+    int fields = 0;
+    json_object_foreach(jn_data, key, v) {
+        size_t len;
+        char *to_free;
+        const char *text = form_value_text(v, &len, &to_free);
+        int ret = 0;
+        if(fields > 0 && gbuffer_append(gbuf, "&", 1) != 1) {
+            ret = -1;
+        }
+        if(ret == 0 && (append_form_text(gbuf, key, strlen(key)) < 0 ||
+                gbuffer_append(gbuf, "=", 1) != 1 ||
+                append_form_text(gbuf, text, len) < 0)) {
+            ret = -1;
+        }
+        GBMEM_FREE(to_free)
+        if(ret < 0) {
+            GBUFFER_DECREF(gbuf)
+            return NULL;    // Error already logged
+        }
+        fields++;
+    }
+    return gbuf;
+}
+
+/***************************************************************************
+ *  The transport holds `max_tx_queue` requests for a server that does not
+ *  read them
+ ***************************************************************************/
+PRIVATE BOOL tx_queue_is_full(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(priv->max_tx_queue <= 0 || !bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
+        return FALSE;
+    }
+    json_int_t queued = gobj_read_integer_attr(bottom, "cur_tx_queue");
+    if(queued < priv->max_tx_queue) {
+        return FALSE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "HTTP server does not read the requests, request refused and connection dropped",
+        "cur_tx_queue", "%d", (int)queued,
+        "max_tx_queue", "%d", (int)priv->max_tx_queue,
+        "url",          "%s", priv->url,
+        NULL
+    );
+    return TRUE;
 }
 
 /***************************************************************************
@@ -475,6 +661,14 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(tx_queue_is_full(gobj)) {
+        // Warning already logged
+        ghttp_parser_stop(priv->parsing_response);
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+        KW_DECREF(kw)
+        return -1;
+    }
+
     const char *method = kw_get_str(gobj, kw, "method", "GET", 0);
     char *resource = gbmem_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
     if(!resource) {
@@ -526,54 +720,11 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(!empty_string(query)) {
             content = gbmem_strdup(query);
         } else {
-            size_t ln = 1;
-            json_object_foreach(jn_data_, key, v) {
-                const char *value = json_string_value(v);
-                ln += form_text_max_size(key) + 1 + form_text_max_size(value? value : "") + 1;
+            gbuffer_t *gbuf_form = build_form(gobj, jn_data_);
+            if(gbuf_form) {
+                content = gbmem_strndup(gbuffer_cur_rd_pointer(gbuf_form), gbuffer_leftbytes(gbuf_form));
+                GBUFFER_DECREF(gbuf_form)
             }
-            gbuffer_t *gbuf = gbuffer_create(ln, ln);
-            if(!gbuf) {
-                // Error already logged
-                GBMEM_FREE(resource)
-                JSON_DECREF(jn_headers)
-                KW_DECREF(kw)
-                return -1;
-            }
-            int more = 0;
-            json_object_foreach(jn_data_, key, v) {
-                const char *value = json_string_value(v);
-                if(empty_string(value)) {
-                    /*  The `url` and not a `peername`: this is an
-                     *  OUTBOUND client, so the peer is the server we
-                     *  chose, and what an operator needs of a bad
-                     *  request is WHICH request it was. A yuno talking
-                     *  to several endpoints has one of these per
-                     *  endpoint.  */
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "http header key without value",
-                        "key",          "%s", key,
-                        "url",          "%s", priv->url,
-                        NULL
-                    );
-                    continue;
-                }
-                if((more && gbuffer_append_string(gbuf, "&") != 1) ||
-                        append_form_text(gbuf, key) < 0 ||
-                        gbuffer_append_string(gbuf, "=") != 1 ||
-                        append_form_text(gbuf, value) < 0) {
-                    // Error already logged
-                    more = -1;
-                    break;
-                }
-                more++;
-            }
-            if(more >= 0) {
-                char *p = gbuffer_cur_rd_pointer(gbuf);
-                content = gbmem_strdup(p);
-            }
-            GBUFFER_DECREF(gbuf)
         }
         if(!content) {
             // Error already logged
@@ -648,7 +799,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         gbuffer_printf(gbuf, "Content-Length: %d\r\n", (int)content_length);
     }
     gbuffer_printf(gbuf, "\r\n");
-    if(content) {
+    if(content && content_length > 0) {
         gbuffer_append(gbuf, content, content_length);
     }
 
@@ -675,6 +826,9 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    ghttp_parser_stop(priv->parsing_response);
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     JSON_DECREF(kw)
@@ -686,6 +840,9 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    ghttp_parser_stop(priv->parsing_response);
     /*
      *  EV_DROP, the interned symbol — NOT the string literal "EV_DROP".
      *  Events are matched by POINTER identity (_find_event_action), so a
