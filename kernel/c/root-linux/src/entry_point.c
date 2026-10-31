@@ -78,6 +78,7 @@ PRIVATE char __process_name__[2*NAME_MAX] = {0};
 PRIVATE json_t *__jn_config__ = 0;
 
 PRIVATE int __auto_kill_time__ = 0;
+PRIVATE BOOL __memory_not_freed__ = FALSE;  // the end audit (print_track_mem) found blocks still busy
 PRIVATE const char *__cli_global_traces__[MAX_CLI_GLOBAL_TRACES]; // argv strings, never freed
 PRIVATE int __cli_global_traces_count__ = 0;
 PRIVATE int __as_daemon__ = 0;
@@ -885,6 +886,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             alarm(__auto_kill_time__);
         }
         process(get_process_name(), work_dir, domain_dir, cleaning_fn);
+        if(__memory_not_freed__) {
+            // The audit logged it: a process run in the foreground (a test) ends with an error
+            return -1;
+        }
         return result;
     }
 }
@@ -1078,6 +1083,7 @@ PRIVATE void process(
         cleaning_fn();
     }
     print_track_mem();
+    __memory_not_freed__ = get_cur_system_memory() != 0;
 
     /*
      *  The file log handlers write through the rotatory handles: close

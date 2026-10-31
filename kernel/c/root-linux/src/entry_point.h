@@ -34,6 +34,14 @@ PUBLIC int yuneta_setup(
     size_t                      mem_superblock
 );
 
+/*
+ *  Run the yuno. In the foreground (not --start) it returns, at the end:
+ *  -1 when the end audit of the memory (print_track_mem(), with
+ *  CONFIG_DEBUG_TRACK_MEMORY) finds blocks still busy after gobj_end()
+ *  and cleaning_fn(), so a test whose yuno leaks, or that holds a block
+ *  across the end, fails even when it frees it later; else the result of
+ *  its start up (0).
+ */
 PUBLIC int yuneta_entry_point(int argc, char *argv[],
     const char *APP_NAME,
     const char *APP_VERSION,

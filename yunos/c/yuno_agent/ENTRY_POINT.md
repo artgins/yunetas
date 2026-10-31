@@ -588,14 +588,31 @@ ceremony is complete.
 6. [`stop_services()`](#stop_services) → graceful shutdown in reverse order.
 7. [`gobj_end()`](#gobj_end) → destroy yuno, free baseline allocations.
 8. [`yev_loop_stop()`](#yev_loop_stop) + [`yuno_event_destroy()`](#yuno_event_destroy).
-9. [`rotatory_end()`](#rotatory_end), `json_decref(__jn_config__)`, optional `cleaning_fn()`.
+9. `json_decref(__jn_config__)`, optional `cleaning_fn()`.
 10. [`print_track_mem()`](#print_track_mem) — under `CONFIG_DEBUG_TRACK_MEMORY`, dumps any
     surviving blocks. **`gobj_end()` must run before any
     [`get_cur_system_memory()`](#get_cur_system_memory) check**, per the test rule in `CLAUDE.md`.
+11. [`rotatory_end()`](#rotatory_end) — last, so the report reaches the log file.
 
 When `process()` returns, the daemon child reaches the bottom of
 `relauncher()` and exits with [`gobj_get_exit_code()`](#gobj_get_exit_code) — which determines
 whether the watcher exits cleanly (§4.3).
+
+In the foreground (a test, a utility, a yuno run by hand), `yuneta_entry_point()`
+returns **-1 when that audit found blocks still busy**, so the process ends with
+an error. It catches what a `get_cur_system_memory()` check in `main()` after
+`yuneta_entry_point()` cannot: a block held across the end and freed after it,
+which the audit logs (*"print_track_mem(): system memory not free"*) and the
+later check sees as gone. Without `CONFIG_DEBUG_TRACK_MEMORY` there is no audit,
+and nothing changes:
+
+```c
+int result = yuneta_entry_point(argc, argv, ..., register_yuno_and_more, cleaning);
+if(get_cur_system_memory() != 0) {      // still the check of what is never freed
+    result += -1;
+}
+return result < 0? -1 : 0;
+```
 
 ---
 
