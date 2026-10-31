@@ -569,14 +569,17 @@ PRIVATE void test_ghttp_parser_header_cost(void)
     size_t mem0 = get_cur_system_memory();
     GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
     size_t most = 0;
-    for(size_t i = 0; i < len; i += 4096) {
-        if(ghttp_parser_received(parser, req + i, MIN((size_t)4096, len - i)) < 0) {
+    for(size_t i = 0; i < len; i += 512) {  // small pieces: the most is seen before the refusal frees it
+        if(ghttp_parser_received(parser, req + i, MIN((size_t)512, len - i)) < 0) {
             break;
         }
         most = MAX(most, get_cur_system_memory() - mem0);
     }
     fprintf(stderr, "  240 KB of empty repeated headers held %lu bytes at most\n", (unsigned long)most);
     EXPECT(parser->headers_refused, "60000 empty headers are refused");
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
+    EXPECT(most > 0, "the memory of the headers is seen");
+#endif
     EXPECT(most < 512*1024, "they never held more than 512 KB of memory");
     ghttp_parser_destroy(parser);
     gbmem_free(req);
