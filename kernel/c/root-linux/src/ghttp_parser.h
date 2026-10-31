@@ -22,6 +22,14 @@ extern "C"{
  */
 #define GHTTP_MAX_HEADER_SIZE   (64*1024)
 
+/*
+ *  What a header costs against `max_header_size` beyond its name and its
+ *  value: what it holds in memory (its entry in the json of the headers),
+ *  which an empty header holds too. So the bytes of the limit also bound
+ *  the headers: 1008 empty ones of one byte names in 64 KB.
+ */
+#define GHTTP_HEADER_COST       64
+
 typedef struct _GHTTP_PARSER {
     llhttp_t llhttp;
     hgobj gobj;
@@ -33,19 +41,22 @@ typedef struct _GHTTP_PARSER {
     llhttp_type_t type;
     char message_completed;
     char headers_completed;
-    char message_begun;     // a message is being parsed: its first byte came, it did not end
+    char message_begun;     // a response is being parsed: its status line came, it did not end
 
     char *url;
     json_t *jn_headers;
     size_t body_size;
     gbuffer_t *gbuf_body;
     size_t max_body_size;   // largest body; 0: half the largest memory block (on_message_event) or no limit (on_body_event alone); never more than that half with on_message_event
-    size_t max_header_size; // largest head (target or status text, names, values); 0: GHTTP_MAX_HEADER_SIZE; never more than half the largest memory block
+    size_t max_header_size; // largest head (target or status text, names, values, GHTTP_HEADER_COST for each header); 0: GHTTP_MAX_HEADER_SIZE; never more than half the largest memory block
     size_t header_size;     // bytes of the head of the message so far
+    size_t messages_published; // on_message_event published since the parser was created
     BOOL body_refused;      // a body passed its limit: the parser is stopped, already said
     BOOL headers_refused;   // a head passed its limit: the parser is stopped, already said
     BOOL stopped;           // ghttp_parser_stop(): nothing more is delivered
     BOOL executing;         // inside llhttp_execute()
+    BOOL headers_repeated;  // a name came again: its values wait in a list in jn_headers
+    BOOL bad_header_said;   // a header left out of this message is already said
 
     gbuffer_t *gbuf_url;    // the target, while it arrives
     gbuffer_t *gbuf_field;  // the name of the header that arrives
@@ -100,8 +111,12 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
             (int) the limit that was passed, so the request waiting for it
             is answered; a REQUEST parser publishes nothing (the server
             answers 413 or 431). A response that breaks the protocol once
-            begun is published the same way, with "protocol_error":
-            (string) the reason of llhttp.
+            its status line came is published the same way, with
+            "protocol_error": (string) the reason of llhttp; bytes that are
+            not a response are published as nothing.
+            Without on_message_event nothing of this is published: an
+            on_body_event without "__pbf__" says the body is whole. The
+            message without its last on_body_event is the refusal.
         */
 
     BOOL send_event  // TRUE: use gobj_send_event() to parent, FALSE: use gobj_publish_event()

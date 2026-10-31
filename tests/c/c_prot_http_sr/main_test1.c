@@ -8,7 +8,10 @@
  *          - Requests pipelined past a drop: none delivered after it
  *          - A head too long: 431; a body too long: 413; each with ONE
  *            warning, and the connection dropped after timeout_linger
- *          - A peer that never reads its answers: dropped at max_tx_queue
+ *          - A peer that reads gets every answer of a long pipeline, in order
+ *          - A refusal never overtakes the answer of the request before it
+ *          - A peer that never reads its answers: the requests held at
+ *            max_tx_queue, dropped after timeout_tx_stall or past max_rx_held
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -119,6 +122,8 @@ PRIVATE char variable_config[]= "\
                             'kw': {                                 \n\
                                 'max_body_size': 1024,              \n\
                                 'max_tx_queue': 4,                  \n\
+                                'timeout_tx_stall': 500,            \n\
+                                'max_rx_held': 65536,               \n\
                                 'timeout_linger': 500               \n\
                             },                                      \n\
                             'children': [                            \n\
@@ -126,7 +131,7 @@ PRIVATE char variable_config[]= "\
                                     'name': '__input_port__-(^^__range__^^)', \n\
                                     'gclass': 'C_TCP',              \n\
                                     'kw': {                         \n\
-                                        'timeout_stop_tx': 500      \n\
+                                        'timeout_stop_tx': 1500     \n\
                                     }                               \n\
                                 }                                   \n\
                             ]                                       \n\
@@ -174,12 +179,17 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "HTTP headers larger than their limit, message refused",    // step 2, ONE
         "msg", "HTTP body larger than its limit, message refused",         // step 3, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 4, ONE
+        "msg", "HTTP headers larger than their limit, message refused",    // step 8, ONE
+        "msg", "HTTP peer does not read its answers, connection dropped",  // step 9, ONE
+        "msg", "HTTP peer does not read its answers and keeps sending, connection dropped", // step 10, ONE
+        "msg", "HTTP peer does not read its answers, connection dropped",  // step 13, ONE
+        "msg", "tcp data sent while the connection closes, dropped",       // step 13, ONE
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

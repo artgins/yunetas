@@ -30,13 +30,14 @@ message.
 | `timeout_inactivity` | `integer` | Inactivity timeout in milliseconds (`60000`). |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `crypto` | `json` | TLS config forwarded to the bottom C_TCP for `https://` URLs. Default `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — verifies the server cert against the system CA. Override with `ssl_trusted_certificate` for a private CA, or `ssl_allow_insecure_client: true` to skip verification (MITM risk). |
-| `raw_body_data` | `bool` | `TRUE` to deliver body chunks incrementally. |
-| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). With `raw_body_data` the body is not held: `0` is no limit, and a body over a limit set ends with no last `EV_ON_MESSAGE`, only the drop. See *A response refused* below. |
-| `max_header_size` | `integer` | Longest head of a response (status text, header names and values), in bytes (default `65536`; `0` is that too; never more than half the max block). See *A response refused* below. |
-| `max_tx_queue` | `integer` | Most requests waiting in the transport for a server that does not read them (default `64`; `0`: no limit). One more is refused (the action answers `-1`), with ONE warning (*"HTTP server does not read the requests, request refused and connection dropped"*), and the connection is dropped. |
+| `raw_body_data` | `bool` | `TRUE` to deliver the head in `EV_ON_HEADER` and the body in pieces in `EV_ON_MESSAGE` (`__pbf__`, `__pbf_size__`); the last `EV_ON_MESSAGE`, without `__pbf__`, says the body is whole. Each response of a connection has the headers of its own. |
+| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). With `raw_body_data` the body is not held: `0` is no limit. See *A response refused* below. |
+| `max_header_size` | `integer` | Longest head of a response (status text, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). See *A response refused* below. |
+| `max_tx_queue` | `integer` | Requests waiting in the transport from which a server that writes nothing is one that does not read (default `64`; `0`: no limit). See *A server that does not read* below. |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` requests waiting and no write ended (default `5000`; `0`: never). See *A server that does not read* below. |
+| `subscriber` | `pointer` | Gobj receiving output events. |
 
 A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_CL is negative: its default taken"*).
-| `subscriber` | `pointer` | Gobj receiving output events. |
 
 ### Sending a request: `EV_SEND_MESSAGE`
 
@@ -100,6 +101,28 @@ gobj_send_event(gobj_http, EV_SEND_MESSAGE, json_pack("{s:s, s:s, s:[s]}",
 A request that cannot be built (a part over the maximum block, a `data` that
 cannot be dumped) is not sent: the action logs an ERROR and answers `-1`.
 
+**A server that does not read.** The queue of the transport moves only when a
+write ends, in the event loop, so a burst of requests sent in one turn fills
+it whether the server reads or not: its length says nothing of the server.
+What says it is that no write ends. Each request looks: with `max_tx_queue`
+requests waiting a wait of `timeout_tx_stall` milliseconds starts, any write
+that ends starts it again, and the request that finds it over with nothing
+written is refused (the action answers `-1`), with ONE warning (*"HTTP server
+does not read the requests, request refused and connection dropped"*), and
+the connection is dropped. So a server that reads gets a burst of any length,
+however slowly it reads, and the requests of a turn are never refused. The
+check runs when a request is sent: with none coming, `timeout_inactivity`
+ends the connection.
+
+```C
+/*  a client that gives a stuck server one second  */
+hgobj http = gobj_create("idp", C_PROT_HTTP_CL, json_pack("{s:s, s:i, s:i}",
+    "url", "https://idp.example.com:8443",
+    "max_tx_queue", 16,
+    "timeout_tx_stall", 1000
+), gobj);
+```
+
 ### A response: `EV_ON_MESSAGE`
 
 The kw carries `response_status_code`, `headers` (a dict, the names in upper
@@ -110,16 +133,21 @@ case: `RETRY-AFTER`), `body_size` (the bytes of the body), and the body: a
 
 **A response refused.** A response whose body passes `max_body_size`, or
 whose head passes `max_header_size`, is not read to its end; nor is one that
-breaks the protocol once begun (a CR alone in a header, for one). The client
-logs ONE warning (*"HTTP body larger than its limit, message refused"*,
+breaks the protocol after its status line (a CR alone in a header, for one).
+The client logs ONE warning (*"HTTP body larger than its limit, message refused"*,
 *"HTTP headers larger than their limit, message refused"*, or *"Protocol
 violation: non-HTTP data received"*), publishes `EV_ON_MESSAGE` with no
 `body` nor `gbuffer` and one of `"body_too_large": <limit>`,
 `"headers_too_large": <limit>`, `"protocol_error": "<reason>"` (the request
 waiting for it is answered), and drops the connection. The client never
-sends a request again by itself. Once the connection is dropped (`EV_DROP`,
-the inactivity timeout) nothing more of what was received is published. Up
-to 7.29.3 a body over the max block logged an ERROR with a stack for every
+sends a request again by itself. Its `headers` hold what came, each a string.
+Bytes that are not a response (garbage alone, or after a whole response) give
+the same warning and drop, and **no** `EV_ON_MESSAGE`: nothing answers, and
+the request waiting has `EV_ON_CLOSE`. With `raw_body_data` nothing is
+published either, in any of these cases: a last `EV_ON_MESSAGE` would say the
+body is whole, so the subscriber takes `EV_ON_CLOSE` without it for the
+failure. Once the connection is dropped (`EV_DROP`, the inactivity timeout)
+nothing more of what was received is published. Up to 7.29.3 a body over the max block logged an ERROR with a stack for every
 piece that arrived, and was handed up cut; a head had no limit, and took a
 time that grew with the square of its size (an 8 MB header, seconds); a
 broken response answered nothing.
@@ -151,34 +179,77 @@ structured events for the application.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `timeout_inactivity` | `integer` | Inactivity timeout in seconds. |
-| `max_header_size` | `integer` | Longest head of a request (target, header names and values), in bytes (default `65536`; `0` is that too; never more than half the max block). |
+| `max_header_size` | `integer` | Longest head of a request (target, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). |
 | `max_body_size` | `integer` | Longest body of a request, in bytes (default `0`: half the max block; a bigger value is capped to that half). |
-| `max_tx_queue` | `integer` | Most answers waiting in the transport for a peer that does not read them (default `64`; `0`: no limit). |
+| `max_tx_queue` | `integer` | Answers waiting in the transport from which what the peer sends is held, not parsed (default `64`; `0`: no limit). See *A peer that does not read* below. |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting and no write ended (default `5000`; `0`: never). |
+| `max_rx_held` | `integer` | Most bytes held behind `max_tx_queue` answers (default `1048576`; `0`: no limit). |
 | `timeout_linger` | `integer` | Milliseconds a refused request has to go after its answer (default `2000`; `0`: dropped at once). |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
-A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*).
+A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*). The timers of this gclass are `C_TIMER`s, accurate to the second: `timeout_linger` and `timeout_tx_stall` are a minimum, and may last one second more.
 
 **A request refused.** A request whose head passes `max_header_size` is
 answered `431 Request Header Fields Too Large`, one whose body passes
 `max_body_size` `413 Content Too Large` (both with `Connection: close` and no
 body), with ONE warning (*"HTTP headers larger than their limit, message
 refused"*, *"HTTP body larger than its limit, message refused"*), and no
-`EV_ON_MESSAGE`. The connection lingers `timeout_linger` milliseconds, the
-bytes the peer still sends read and thrown away, and is dropped: a socket
-closed with bytes unread resets the connection, and the peer could lose the
-answer. A peer that breaks the protocol is dropped at once, with ONE warning.
-An answer to a peer that does not read, with `max_tx_queue` answers already
-waiting, is not sent: ONE warning (*"HTTP peer does not read its answers,
-connection dropped"*), and the connection is dropped. Up to 7.29.3 a head had
-no limit (an 8 MB header took seconds, the time growing with the square of
-its size), and a refused body was dropped with no answer.
+`EV_ON_MESSAGE`. HTTP answers go in the order of the requests, so with an
+application that answers later the refusal waits for the answers of the
+requests before it (it goes behind the last one; an application that never
+answers leaves it to `timeout_inactivity`). The connection then lingers
+`timeout_linger` milliseconds from the refusal, the bytes the peer still
+sends read and thrown away, and is dropped: a socket closed with bytes unread
+resets the connection, and the peer could lose the answer. A peer that keeps
+sending does not lengthen the wait. A peer that breaks the protocol is dropped
+at once, with ONE warning. Up to 7.29.3 a head had no limit (an 8 MB header
+took seconds, the time growing with the square of its size), and a refused
+body was dropped with no answer.
+
+**A peer that does not read.** The queue of the transport moves only when a
+write ends, in the event loop, so while one read is parsed no answer leaves,
+whether the peer reads or not: 100 requests pipelined in one send put 100
+answers in the queue of a peer that is reading them. Its length says nothing
+of the peer, and it decides only this: with `max_tx_queue` answers waiting,
+what the peer sends is **held**, not parsed, and it is parsed read by read
+when the queue is empty again. So a pipeline of any length is served, in its
+order, in pieces, and the answers waiting never pass `max_tx_queue` by more
+than what one read holds. A peer is dropped, with ONE warning, in two cases:
+
+- no write ended in `timeout_tx_stall` milliseconds with the queue full
+  (*"HTTP peer does not read its answers, connection dropped"*). Any write
+  that ends starts the wait again, so a peer that reads slowly stays. The
+  timer watches it, so a peer that went silent is dropped too;
+- what is held passes `max_rx_held` bytes (*"HTTP peer does not read its
+  answers and keeps sending, connection dropped"*). This one looks at the
+  bytes, not at the peer: a peer that pipelines more than `max_rx_held` bytes
+  ahead of its answers is dropped even if it reads them, because the bytes
+  have to be somewhere. Raise it for a client that does that.
+
+An application that answers later is not held back by this: its requests are
+parsed while the queue has room. The answer it sends to a peer that stopped
+reading looks at the same wait.
+
+```C
+/*  a server for peers that may pipeline up to 8 MB of requests  */
+{
+    "name": "http-1",
+    "gclass": "C_PROT_HTTP_SR",
+    "kw": {
+        "max_tx_queue": 64,
+        "timeout_tx_stall": 10000,
+        "max_rx_held": 8388608
+    },
+    "children": [{"name": "http-1", "gclass": "C_TCP"}]
+}
+```
 
 **A connection dropped.** Once the application drops the connection
 (`EV_DROP`), or it closes, nothing more of what was received is delivered,
 not even the requests pipelined in the same read after the one it dropped
-at. Up to 7.29.3 they were delivered to the gobj already disconnected: an
-ERROR with a stack (*"Event NOT DEFINED in state"*) for each one.
+at, even with a write in flight, which makes the disconnection come later.
+Up to 7.29.3 they were delivered to the gobj already disconnected: an ERROR
+with a stack (*"Event NOT DEFINED in state"*) for each one.
 
 ```C
 /*  a server of 16 KB heads, 1 MB bodies  */
@@ -194,9 +265,11 @@ ERROR with a stack (*"Event NOT DEFINED in state"*) for each one.
 ```
 
 `tests/c/c_prot_http_sr` (`test1`): 600 requests in one write to an
-application that drops at the 3rd deliver 3; a head over the limit gets 431,
-a body over it 413, each with one warning; a peer that never reads its
-answers is dropped at `max_tx_queue`.
+application that drops at the 3rd deliver 3, with a write in flight too; a
+head over the limit gets 431, a body over it 413, each with one warning, also
+behind an answer that comes later; a peer that reads gets 2000 pipelined
+answers in order, and a slow one is not dropped; a peer that never reads is
+held at `max_tx_queue` and dropped.
 
 ---
 

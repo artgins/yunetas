@@ -47,6 +47,7 @@
 #define TEST_OK   0
 #define TEST_FAIL 1
 
+
 PRIVATE int s_failures = 0;
 
 #define EXPECT(cond, msg) do { \
@@ -405,8 +406,10 @@ PRIVATE char *build_big_header_request(size_t value_len, size_t *len)
 }
 
 /***************************************************************************
- *  The best of three times, in ns, of parsing a header of `value_len`
- *  bytes that arrives in pieces of 4 KB (the rx buffer of C_TCP)
+ *  The best of three times, in ns of CPU of this process, of parsing a header
+ *  of `value_len` bytes that arrives in pieces of 4 KB (the rx buffer of
+ *  C_TCP). CPU time: a wall clock also counts the other processes of a busy
+ *  machine, and then the ratio below says nothing.
  ***************************************************************************/
 PRIVATE uint64_t time_big_header(size_t value_len, BOOL *whole)
 {
@@ -421,11 +424,12 @@ PRIVATE uint64_t time_big_header(size_t value_len, BOOL *whole)
     for(int i = 0; i < 3; i++) {
         GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
         parser->max_header_size = 16*1024*1024;    // capped to half the max block: 8 MB
-        time_measure_t tm;
-        MT_START_TIME(tm)
+        struct timespec cpu0, cpu1;
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu0);
         int rc = feed_in_chunks(parser, req, len, 4096);
-        clock_gettime(CLOCK_MONOTONIC_RAW, &tm.end);
-        uint64_t ns = mt_get_time_ns(&tm);
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu1);
+        uint64_t ns = (uint64_t)(cpu1.tv_sec - cpu0.tv_sec)*1000000000ULL +
+            (uint64_t)cpu1.tv_nsec - (uint64_t)cpu0.tv_nsec;
         const char *v = json_string_value(json_object_get(parser->jn_headers, "X-BIG"));
         if(rc != (int)len || !parser->message_completed || !v || strlen(v) != value_len) {
             *whole = FALSE;
@@ -468,8 +472,8 @@ PRIVATE void test_ghttp_parser_header_cap(void)
 {
     fprintf(stderr, "\n== ghttp_parser: the head is refused past its limit ==\n");
 
-    /*  "/" + "X-Big" + value  */
-    size_t at_limit = GHTTP_MAX_HEADER_SIZE - 1 - 5;
+    /*  "/" + "X-Big" + value + the cost of the one header  */
+    size_t at_limit = GHTTP_MAX_HEADER_SIZE - 1 - 5 - GHTTP_HEADER_COST;
     for(int extra = 0; extra < 2; extra++) {
         size_t len;
         char *req = build_big_header_request(at_limit + (size_t)extra, &len);
@@ -518,6 +522,208 @@ PRIVATE void test_ghttp_parser_header_pieces(void)
     const char *host = json_string_value(json_object_get(parser->jn_headers, "HOST"));
     EXPECT(host && strcmp(host, "h") == 0, "a header given byte by byte comes back whole");
     ghttp_parser_destroy(parser);
+}
+
+/***************************************************************************
+ *  Each header costs GHTTP_HEADER_COST bytes against max_header_size, what
+ *  it holds in memory beyond its text: many empty headers of a repeated
+ *  name are refused like one huge one. At the limit they pass, one more is
+ *  refused, and a head that never ends cannot hold more than that.
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_header_cost(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: a header costs memory, and is charged for it ==\n");
+
+    const char *head = "GET / HTTP/1.1\r\n";
+    size_t at_limit = (GHTTP_MAX_HEADER_SIZE - 1) / (1 + GHTTP_HEADER_COST);
+    for(int extra = 0; extra < 2; extra++) {
+        size_t n = at_limit + (size_t)extra;
+        size_t len = strlen(head) + n*4 + 2;
+        char *req = gbmem_malloc(len + 1);
+        size_t pos = (size_t)snprintf(req, len + 1, "%s", head);
+        for(size_t i = 0; i < n; i++) {
+            memcpy(req + pos, "a:\r\n", 4);
+            pos += 4;
+        }
+        memcpy(req + pos, "\r\n", 3);
+        GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+        int rc = feed_in_chunks(parser, req, len, 4096);
+        if(extra == 0) {
+            EXPECT(rc == (int)len && parser->message_completed && !parser->headers_refused,
+                "as many headers as fit in max_header_size are parsed");
+        } else {
+            EXPECT(rc == -1 && parser->headers_refused, "one header more is refused");
+        }
+        ghttp_parser_destroy(parser);
+        gbmem_free(req);
+    }
+
+    size_t n = 60000;
+    size_t len = strlen(head) + n*4;
+    char *req = gbmem_malloc(len + 1);
+    size_t pos = (size_t)snprintf(req, len + 1, "%s", head);
+    for(size_t i = 0; i < n; i++) {
+        memcpy(req + pos, "a:\r\n", 4);
+        pos += 4;
+    }
+    size_t mem0 = get_cur_system_memory();
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+    size_t most = 0;
+    for(size_t i = 0; i < len; i += 4096) {
+        if(ghttp_parser_received(parser, req + i, MIN((size_t)4096, len - i)) < 0) {
+            break;
+        }
+        most = MAX(most, get_cur_system_memory() - mem0);
+    }
+    fprintf(stderr, "  240 KB of empty repeated headers held %lu bytes at most\n", (unsigned long)most);
+    EXPECT(parser->headers_refused, "60000 empty headers are refused");
+    EXPECT(most < 512*1024, "they never held more than 512 KB of memory");
+    ghttp_parser_destroy(parser);
+    gbmem_free(req);
+}
+
+/***************************************************************************
+ *  The chunked trailers enter the headers with the same rules: a name that
+ *  comes again leaves a string, never a list.
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_trailers(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: trailers that repeat a header ==\n");
+
+    char req[] = "POST /x HTTP/1.1\r\nHost: h\r\nX-A: one\r\nCookie: a=1\r\nSet-Cookie: s=1\r\n"
+        "Transfer-Encoding: chunked\r\n\r\n"
+        "2\r\nok\r\n0\r\nHost: evil\r\nX-A: two\r\nX-A: three\r\nCookie: b=2\r\nSet-Cookie: s=2\r\n"
+        "X-New: 1\r\nX-New: 2\r\n\r\n";
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+    int rc = feed_in_chunks(parser, req, strlen(req), 4096);
+    EXPECT(rc == (int)strlen(req) && parser->message_completed, "the request with trailers is parsed");
+    const char *host = json_string_value(json_object_get(parser->jn_headers, "HOST"));
+    EXPECT(host && strcmp(host, "h, evil") == 0, "a trailer that repeats a header is joined to it");
+    const char *a = json_string_value(json_object_get(parser->jn_headers, "X-A"));
+    EXPECT(a && strcmp(a, "one, two, three") == 0, "two trailers that repeat a header are joined in order");
+    const char *cookie = json_string_value(json_object_get(parser->jn_headers, "COOKIE"));
+    EXPECT(cookie && strcmp(cookie, "a=1; b=2") == 0, "a trailer Cookie is joined with \"; \"");
+    const char *set_cookie = json_string_value(json_object_get(parser->jn_headers, "SET-COOKIE"));
+    EXPECT(set_cookie && strcmp(set_cookie, "s=2") == 0, "a trailer Set-Cookie is not joined: the last one");
+    const char *x_new = json_string_value(json_object_get(parser->jn_headers, "X-NEW"));
+    EXPECT(x_new && strcmp(x_new, "1, 2") == 0, "a name that comes only in the trailers is joined too");
+    ghttp_parser_destroy(parser);
+}
+
+/***************************************************************************
+ *  Without on_message_event (raw_body_data, a websocket handshake) a
+ *  message is kept until the next one begins, which starts clean: on a
+ *  keep-alive connection the headers of one are not joined to the next.
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_state_between_messages(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: a message starts clean on a keep-alive connection ==\n");
+
+    char resp[] = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+        "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nokok";
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+    int rc = feed_in_chunks(parser, resp, strlen(resp), 4096);
+    EXPECT(rc == (int)strlen(resp), "two responses are parsed");
+    const char *cl = json_string_value(json_object_get(parser->jn_headers, "CONTENT-LENGTH"));
+    EXPECT(cl && strcmp(cl, "4") == 0, "the second response has only its own headers");
+    EXPECT(parser->message_completed == 1, "the last message stays there until the next one");
+    ghttp_parser_destroy(parser);
+}
+
+/***************************************************************************
+ *  max_header_size is per message: two heads of 40 KB on one connection
+ *  pass, however their bytes add up
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_head_size_per_message(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: the limit of the head is per message ==\n");
+
+    for(int with_message_event = 0; with_message_event < 2; with_message_event++) {
+        size_t len;
+        char *req = build_big_header_request(40*1024, &len);
+        GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+        for(int i = 0; i < 2; i++) {
+            int rc = feed_in_chunks(parser, req, len, 4096);
+            EXPECT(rc == (int)len && !parser->headers_refused,
+                i == 0? "a head of 40 KB is parsed" : "a second head of 40 KB is parsed");
+        }
+        ghttp_parser_destroy(parser);
+        gbmem_free(req);
+    }
+}
+
+/***************************************************************************
+ *  A header value that is not utf-8 is left out, and said: ONE warning for
+ *  the message, however many it has.
+ ***************************************************************************/
+PRIVATE json_int_t warnings_logged(void)
+{
+    json_t *jn_logs = gobj_get_log_data();
+    json_int_t warnings = json_integer_value(json_object_get(jn_logs, "warning"));
+    JSON_DECREF(jn_logs)
+    return warnings;
+}
+
+/***************************************************************************
+ *  The warnings of parsing `bad` headers that are not utf-8, in one message.
+ *  With no gobj the reading of its `peername` warns too, so what counts is
+ *  that the figure does not grow with `bad`.
+ ***************************************************************************/
+PRIVATE json_int_t warnings_of_bad_headers(GHTTP_PARSER *parser, int bad)
+{
+    gbuffer_t *gbuf = gbuffer_create(64*1024, 64*1024);
+    gbuffer_printf(gbuf, "GET / HTTP/1.1\r\nHost: h\r\n");
+    for(int i = 0; i < bad; i++) {
+        gbuffer_printf(gbuf, "X-%d: \xff\r\n", i);
+    }
+    gbuffer_printf(gbuf, "\r\n");
+    json_int_t warnings = warnings_logged();
+    size_t len = gbuffer_leftbytes(gbuf);
+    int rc = feed_in_chunks(parser, gbuffer_cur_rd_pointer(gbuf), len, 4096);
+    EXPECT(rc == (int)len, "the message is parsed, its bad headers left out");
+    GBUFFER_DECREF(gbuf)
+    return warnings_logged() - warnings;
+}
+
+PRIVATE void test_ghttp_parser_invalid_utf8_warns_once(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: ONE warning per message for invalid utf-8 ==\n");
+
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_REQUEST, NULL, NULL, NULL, FALSE);
+    json_int_t one = warnings_of_bad_headers(parser, 1);
+    EXPECT(one > 0, "a bad header is said");
+    EXPECT(warnings_of_bad_headers(parser, 100) == one, "100 bad headers are said as one, in a message of their own");
+    EXPECT(json_object_get(parser->jn_headers, "X-1") == NULL, "a bad header is left out");
+    ghttp_parser_destroy(parser);
+}
+
+/***************************************************************************
+ *  A response has begun when its status line came, not at its first byte:
+ *  garbage is no response, and is not published as one
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_response_begun(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: what is a response begun ==\n");
+
+    struct {
+        const char *bytes;
+        char begun;
+        const char *what;
+    } cases[] = {
+        {"GARBAGE\r\n",                         0, "garbage is no response begun"},
+        {"HTTP/1.1 ",                             0, "a status line not ended is no response begun"},
+        {"HTTP/1.1 200 OK\r\n",                 1, "a status line begins a response"},
+        {"HTTP/1.1 200\r\n",                    1, "a status line with no text begins a response"},
+        {"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok", 0, "a whole response is no response begun"},
+    };
+    for(size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+        GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+        char buf[256];
+        size_t n = (size_t)snprintf(buf, sizeof(buf), "%s", cases[i].bytes);
+        (void)ghttp_parser_received(parser, buf, n);
+        EXPECT(parser->message_begun == cases[i].begun, cases[i].what);
+        ghttp_parser_destroy(parser);
+    }
 }
 
 /***************************************************************************
@@ -584,6 +790,12 @@ int main(int argc, char *argv[])
     test_ghttp_parser_header_pieces();
     test_ghttp_parser_header_cap();
     test_ghttp_parser_stop();
+    test_ghttp_parser_header_cost();
+    test_ghttp_parser_trailers();
+    test_ghttp_parser_state_between_messages();
+    test_ghttp_parser_head_size_per_message();
+    test_ghttp_parser_invalid_utf8_warns_once();
+    test_ghttp_parser_response_begun();
     test_ghttp_parser_header_time_linear();
 
     gobj_end();

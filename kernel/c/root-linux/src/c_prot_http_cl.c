@@ -12,9 +12,12 @@
  *            dropped; so is a response that breaks the protocol once begun
  *            (`protocol_error`): the request waiting for it is answered,
  *            and it is never sent again by this gclass;
- *          - more than `max_tx_queue` requests waiting in the transport
- *            for a server that does not read them: the request is refused
- *            and the connection dropped.
+ *          - `max_tx_queue` requests waiting in the transport and no write
+ *            ended in `timeout_tx_stall` milliseconds, a server that does
+ *            not read: the next request is refused and the connection
+ *            dropped. The queue alone says nothing of the server: it moves
+ *            only at the end of a write, in the event loop, so a burst sent
+ *            in one turn fills it whether the server reads or not.
  *          Once the connection is dropped nothing more of what was
  *          received is delivered.
  *
@@ -47,6 +50,7 @@
  *              Constants
  ***************************************************************/
 #define DEFAULT_MAX_TX_QUEUE    64
+#define DEFAULT_TIMEOUT_TX_STALL 5000
 #define TEXT_OF(x)              TEXT_OF_(x)
 #define TEXT_OF_(x)             #x
 
@@ -59,7 +63,7 @@ PRIVATE int append_form_text(gbuffer_t *gbuf, const char *text, size_t len);
 PRIVATE size_t form_text_size(const char *text, size_t len);
 PRIVATE const char *form_value_text(json_t *v, size_t *len, char **to_free);
 PRIVATE gbuffer_t *build_form(hgobj gobj, json_t *jn_data);
-PRIVATE BOOL tx_queue_is_full(hgobj gobj);
+PRIVATE BOOL server_does_not_read(hgobj gobj);
 
 /***************************************************************
  *              Data
@@ -75,8 +79,9 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server 
 SDATA (DTP_DICT,    "crypto",           SDF_RD,         "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS crypto forwarded to the bottom C_TCP for https:// urls. Verifies the server cert against the system CA by default; override with ssl_trusted_certificate for a private CA, or ssl_allow_insecure_client=true to skip (MITM risk)."),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),
 SDATA (DTP_INTEGER, "max_body_size",    SDF_RD,         "0",        "Largest body of a response, in bytes; 0, or more than half the largest memory block (gbmem): that half (with raw_body_data, 0 is no limit). A longer one is refused with ONE warning: EV_ON_MESSAGE carries `body_too_large` (the limit) and no body (with raw_body_data nothing more is published), and the connection is dropped"),
-SDATA (DTP_INTEGER, "max_header_size",  SDF_RD,         "65536",    "Largest head of a response (status text, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). A longer one is refused with ONE warning: EV_ON_MESSAGE carries `headers_too_large` (the limit) and no body, and the connection is dropped"),
-SDATA (DTP_INTEGER, "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE), "Most requests waiting in the transport for a server that does not read them; one more is refused and drops the connection, with ONE warning. 0: no limit"),
+SDATA (DTP_INTEGER, "max_header_size",  SDF_RD,         "65536",    "Largest head of a response (status text, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). Each header counts GHTTP_HEADER_COST bytes more. A longer one is refused with ONE warning: EV_ON_MESSAGE carries `headers_too_large` (the limit) and no body (with raw_body_data nothing is published), and the connection is dropped"),
+SDATA (DTP_INTEGER, "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE), "Requests waiting in the transport from which a server that writes nothing is one that does not read. 0: no limit"),
+SDATA (DTP_INTEGER, "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL), "Milliseconds with max_tx_queue requests waiting and no write ended: the server does not read, the next request is refused and drops the connection, with ONE warning. 0: never"),
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -108,6 +113,9 @@ typedef struct _PRIVATE_DATA {
     json_int_t max_body_size;
     json_int_t max_header_size;
     json_int_t max_tx_queue;
+    json_int_t timeout_tx_stall;
+    uint64_t tx_stall_timer;        // max_tx_queue requests wait: no write ended until this, the server does not read
+    json_int_t tx_stall_written;    // the bytes written when it started
     char schema[64];
     char host[NAME_MAX];
     int port;
@@ -134,7 +142,9 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(max_body_size,         gobj_read_integer_attr)
     SET_PRIV(max_header_size,       gobj_read_integer_attr)
     SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
-    if(priv->max_body_size < 0 || priv->max_header_size < 0 || priv->max_tx_queue < 0) {
+    SET_PRIV(timeout_tx_stall,      gobj_read_integer_attr)
+    if(priv->max_body_size < 0 || priv->max_header_size < 0 || priv->max_tx_queue < 0 ||
+            priv->timeout_tx_stall < 0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_PARAMETER,
@@ -142,6 +152,7 @@ PRIVATE void mt_create(hgobj gobj)
             "max_body_size",    "%d", (int)priv->max_body_size,
             "max_header_size",  "%d", (int)priv->max_header_size,
             "max_tx_queue",     "%d", (int)priv->max_tx_queue,
+            "timeout_tx_stall", "%d", (int)priv->timeout_tx_stall,
             "url",              "%s", gobj_read_str_attr(gobj, "url"),
             NULL
         );
@@ -153,6 +164,9 @@ PRIVATE void mt_create(hgobj gobj)
         }
         if(priv->max_tx_queue < 0) {
             priv->max_tx_queue = DEFAULT_MAX_TX_QUEUE;
+        }
+        if(priv->timeout_tx_stall < 0) {
+            priv->timeout_tx_stall = DEFAULT_TIMEOUT_TX_STALL;
         }
     }
 
@@ -507,28 +521,44 @@ PRIVATE gbuffer_t *build_form(hgobj gobj, json_t *jn_data)
 }
 
 /***************************************************************************
- *  The transport holds `max_tx_queue` requests for a server that does not
- *  read them
+ *  The transport holds `max_tx_queue` requests and no write ended in
+ *  `timeout_tx_stall` milliseconds: the only thing that says the server does
+ *  not read, because the queue moves only at the end of a write, out of
+ *  this turn of the loop. Asked at each request: the wait starts at the
+ *  first time it finds the queue full, and any write that ends starts it
+ *  again. ONE warning: after it the parser is stopped.
  ***************************************************************************/
-PRIVATE BOOL tx_queue_is_full(hgobj gobj)
+PRIVATE BOOL server_does_not_read(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj bottom = gobj_bottom_gobj(gobj);
-    if(priv->max_tx_queue <= 0 || !bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
+    if(priv->max_tx_queue <= 0 || priv->timeout_tx_stall == 0 ||
+            priv->parsing_response->stopped ||
+            !bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
         return FALSE;
     }
     json_int_t queued = gobj_read_integer_attr(bottom, "cur_tx_queue");
     if(queued < priv->max_tx_queue) {
+        return FALSE;   // a queue that shrank is a write that ended: the wait starts again below
+    }
+    json_int_t written = gobj_read_integer_attr(bottom, "txBytes");
+    if(priv->tx_stall_timer == 0 || written != priv->tx_stall_written) {
+        priv->tx_stall_written = written;
+        priv->tx_stall_timer = start_msectimer((uint64_t)priv->timeout_tx_stall);
+        return FALSE;
+    }
+    if(!test_msectimer(priv->tx_stall_timer)) {
         return FALSE;
     }
     gobj_log_warning(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL,
-        "msg",          "%s", "HTTP server does not read the requests, request refused and connection dropped",
-        "cur_tx_queue", "%d", (int)queued,
-        "max_tx_queue", "%d", (int)priv->max_tx_queue,
-        "url",          "%s", priv->url,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_PROTOCOL,
+        "msg",              "%s", "HTTP server does not read the requests, request refused and connection dropped",
+        "cur_tx_queue",     "%d", (int)queued,
+        "max_tx_queue",     "%d", (int)priv->max_tx_queue,
+        "timeout_tx_stall", "%d", (int)priv->timeout_tx_stall,
+        "url",              "%s", priv->url,
         NULL
     );
     return TRUE;
@@ -599,6 +629,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->parsing_response = 0;
     }
     priv->parsing_response = create_response_parser(gobj);
+    priv->tx_stall_timer = 0;
 
     set_timeout(priv->timer, priv->timeout_inactivity);
 
@@ -661,7 +692,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(tx_queue_is_full(gobj)) {
+    if(server_does_not_read(gobj)) {
         // Warning already logged
         ghttp_parser_stop(priv->parsing_response);
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);

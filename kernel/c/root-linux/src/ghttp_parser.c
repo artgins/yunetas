@@ -31,6 +31,7 @@ PRIVATE int on_message_complete(llhttp_t* llhttp);
 PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_url_complete(llhttp_t* llhttp);
 PRIVATE int on_status(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE int on_status_complete(llhttp_t* llhttp);
 PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length);
 PRIVATE int on_header_value_complete(llhttp_t* llhttp);
@@ -63,6 +64,7 @@ PRIVATE void ensure_settings_initialized(void)
         settings.on_url              = on_url;
         settings.on_url_complete     = on_url_complete;
         settings.on_status           = on_status;
+        settings.on_status_complete  = on_status_complete;
         settings.on_header_field     = on_header_field;
         settings.on_header_value     = on_header_value;
         settings.on_header_value_complete = on_header_value_complete;
@@ -283,9 +285,7 @@ PRIVATE int on_message_begin(llhttp_t* llhttp)
     if(parser->stopped) {
         return -1;
     }
-    parser->message_begun = 1;
-    parser->header_size = 0;
-    parser->body_size = 0;
+    reset_message(parser);  // with no on_message_event the last one stayed until now
     return 0;
 }
 
@@ -307,7 +307,8 @@ PRIVATE int on_headers_complete(llhttp_t* llhttp)
         parser->jn_headers = json_object();
     }
     if(join_repeated_headers(parser) < 0) {
-        return -1;  // Error already logged
+        // Error already logged
+        return -1;
     }
     if(parser->on_header_event) {
         json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
@@ -429,7 +430,9 @@ PRIVATE size_t header_size_limit(GHTTP_PARSER *parser)
 
 /***************************************************************************
  *  A RESPONSE refused, published without its body, so the request waiting
- *  for it is answered. Owns jn_value.
+ *  for it is answered. Owns jn_value. With no on_message_event nothing:
+ *  on_body_event has no way to say it, its last event says the body is
+ *  whole.
  ***************************************************************************/
 PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, json_t *jn_value)
 {
@@ -440,6 +443,7 @@ PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, jso
     if(!parser->jn_headers) {
         parser->jn_headers = json_object();
     }
+    (void)join_repeated_headers(parser);    // Error already logged: published as it is
     json_t *kw_http = build_message_kw(parser);
     json_object_set_new(kw_http, key, jn_value);
     reset_message(parser);
@@ -481,7 +485,8 @@ PRIVATE int refuse_body(GHTTP_PARSER *parser, size_t length, size_t limit)
 }
 
 /***************************************************************************
- *  Append a piece of the head (the target, a name, a value) to its buffer.
+ *  Append a piece of the head (the target, a name, a value) to its buffer,
+ *  or only count it (no pgbuf: the status text, the cost of a header).
  *  A head that passes its limit: ONE warning, the message of a RESPONSE
  *  published without its body (`headers_too_large`), the parser stopped.
  *  Linear: each byte is copied once, into a buffer that grows by doubling.
@@ -546,12 +551,19 @@ PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at,
  *  their order (RFC 9110 §5.3) with ", ", and those of COOKIE with "; "
  *  (RFC 9113 §8.2.3, what a cookie parser splits on). SET-COOKIE is never
  *  joined (RFC 6265: its values hold commas): the last one is kept.
+ *  Called at the end of the head, at the end of the trailers, and before a
+ *  refused response is published, so `headers` never holds a list.
  *  Linear: each value is copied once.
  ***************************************************************************/
 PRIVATE int join_repeated_headers(GHTTP_PARSER *parser)
 {
     const char *key;
     json_t *jn_value;
+
+    if(!parser->headers_repeated) {
+        return 0;
+    }
+    parser->headers_repeated = FALSE;
 
     json_object_foreach(parser->jn_headers, key, jn_value) {
         if(!json_is_array(jn_value)) {
@@ -625,6 +637,8 @@ PRIVATE void reset_message(GHTTP_PARSER *parser)
     parser->headers_completed = 0;
     parser->message_completed = 0;
     parser->message_begun = 0;
+    parser->headers_repeated = FALSE;
+    parser->bad_header_said = FALSE;
     parser->body_size = 0;
     parser->header_size = 0;
     GBMEM_FREE(parser->url);
@@ -640,6 +654,7 @@ PRIVATE void reset_message(GHTTP_PARSER *parser)
  ***************************************************************************/
 PRIVATE void publish_message(GHTTP_PARSER *parser, json_t *kw_http)
 {
+    parser->messages_published++;
     if(parser->send_event) {
         gobj_send_event(parser->gobj, parser->on_message_event, kw_http, parser->gobj);
     } else {
@@ -664,6 +679,10 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
     parser->message_begun = 0;
     if(!parser->jn_headers) {
         parser->jn_headers = json_object();
+    }
+    if(join_repeated_headers(parser) < 0) {
+        // Error already logged
+        return -1;
     }
 
     if(parser->on_body_event) {
@@ -767,6 +786,22 @@ PRIVATE int on_status(llhttp_t* llhttp, const char* at, size_t length)
 }
 
 /***************************************************************************
+ *  The status line ended: a response has begun, and what breaks it from
+ *  now on is told to the request waiting for it. Bytes before this are not
+ *  a response.
+ ***************************************************************************/
+PRIVATE int on_status_complete(llhttp_t* llhttp)
+{
+    GHTTP_PARSER *parser = llhttp->data;
+
+    if(parser->stopped) {
+        return -1;
+    }
+    parser->message_begun = 1;
+    return 0;
+}
+
+/***************************************************************************
  *  Callbacks must return 0 on success.
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
@@ -790,7 +825,9 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
 
 /***************************************************************************
  *  A header is whole: its name, in upper case, and its value go into
- *  jn_headers, once (a name that comes again: see join_repeated_headers())
+ *  jn_headers, once (a name that comes again: see join_repeated_headers()).
+ *  It pays GHTTP_HEADER_COST: what it holds in memory beyond its text.
+ *  A value that is not utf-8 is left out, with ONE warning per message.
  ***************************************************************************/
 PRIVATE int on_header_value_complete(llhttp_t* llhttp)
 {
@@ -798,6 +835,10 @@ PRIVATE int on_header_value_complete(llhttp_t* llhttp)
     hgobj gobj = parser->gobj;
 
     if(parser->stopped) {
+        return -1;
+    }
+    if(add_to_head(parser, NULL, NULL, GHTTP_HEADER_COST) < 0) {
+        // Warning already logged
         return -1;
     }
     if(!parser->jn_headers) {
@@ -823,16 +864,18 @@ PRIVATE int on_header_value_complete(llhttp_t* llhttp)
         } else if(jn_value && jn_prev) {
             // A name that comes again: its values wait in a list, joined at the end of the head
             ret = json_object_set_new(parser->jn_headers, key, json_pack("[O,o]", jn_prev, jn_value));
+            parser->headers_repeated = TRUE;
         } else {
             ret = jn_value? json_object_set_new(parser->jn_headers, key, jn_value) : -1;
         }
-        if(ret < 0) {
+        if(ret < 0 && !parser->bad_header_said) {
             // Not utf-8: the header is left out, and said
+            parser->bad_header_said = TRUE;
             const char *peername = gobj_read_str_attr(gobj, "peername");
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "cannot store header value (invalid utf-8?)",
+                "msg",          "%s", "cannot store header value (invalid utf-8?), the first one of the message",
                 "peername",     "%s", peername? peername : "",
                 "key",          "%.64s", key,
                 NULL

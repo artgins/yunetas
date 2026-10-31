@@ -16,8 +16,15 @@ body. Both have a limit, set in the struct after
 
 | Field | Default (`0`) | What it limits |
 |---|---|---|
-| `max_header_size` | `GHTTP_MAX_HEADER_SIZE`, 64 KB | The bytes of the target or status text, the header names and the values of one message. Never more than half the max block. |
+| `max_header_size` | `GHTTP_MAX_HEADER_SIZE`, 64 KB | The bytes of the target or status text, the header names and the values of one message, trailers too, plus `GHTTP_HEADER_COST` (64) for each header. Never more than half the max block. |
 | `max_body_size` | half the max block (with `on_message_event`); no limit (with `on_body_event` alone, which holds nothing) | The bytes of the body of one message. Never more than half the max block with `on_message_event`. |
+
+The cost of a header is what it holds in memory beyond its text, which an
+empty header holds too: without it, 240 KB of `a:\r\n` on the wire held 9 MB
+for as long as the head stayed unfinished. With the default limit a message
+carries at most 1008 headers of a one byte name and no value:
+`(65536 - 1) / (1 + 64)`, the `1` being the target `/`. A real head is not
+near it: 30 headers cost 1920 bytes.
 
 A message over a limit is refused: ONE warning (*"HTTP headers larger than
 their limit, message refused"* with `header_received`, `max_header_size` and
@@ -33,18 +40,53 @@ answers `-1`. What then:
   `gbuffer`, with `"headers_too_large"` or `"body_too_large"`: the limit
   passed, so the request waiting for it is answered
   ([`C_PROT_HTTP_CL`](#gclass-c-prot-http-cl)). A response that breaks the
-  protocol once begun is published the same way, with `"protocol_error"`:
-  the reason of llhttp.
+  protocol once its status line came is published the same way, with
+  `"protocol_error"`: the reason of llhttp. Bytes that are not a response
+  (garbage alone, garbage after a whole response) are published as nothing:
+  ONE warning and `-1`, as a request parser does. `message_begun` says which:
+  it is set when the status line ends, not at the first byte.
+- with **no `on_message_event`** (`on_body_event` alone) nothing of this is
+  published: an `on_body_event` without `__pbf__` says the body is whole, so
+  a refusal cannot go by there. The caller sees `-1`, and the subscriber a
+  close with no last event, which is what it must take for a failure.
 
 The head is put together in linear time: each byte is copied once, into a
 buffer that grows by doubling, and a header goes into `jn_headers` once,
-when its value ends. A header with an empty value is kept as `""`. A name
-that comes again is one field, its values joined in their order with `", "`
-(RFC 9110 §5.3): two `Retry-After: 120` and `Retry-After: 60` are
-`"120, 60"`, which a reader of one value refuses instead of taking the last.
-Those of `COOKIE` are joined with `"; "`, what a cookie parser splits on.
-`SET-COOKIE` is never joined (its values hold commas, RFC 6265): the last one
-is kept.
+when its value ends. A header with an empty value is kept as `""`. A value
+that is not utf-8 is left out, with ONE warning per message however many
+there are (*"cannot store header value (invalid utf-8?), the first one of the
+message"*). A name that comes again is one field, its values joined in their
+order with `", "` (RFC 9110 §5.3): two `Retry-After: 120` and
+`Retry-After: 60` are `"120, 60"`, which a reader of one value refuses
+instead of taking the last. Those of `COOKIE` are joined with `"; "`, what a
+cookie parser splits on. `SET-COOKIE` is never joined (its values hold
+commas, RFC 6265): the last one is kept. The chunked trailers enter
+`jn_headers` with the same rules, so `headers` is a dict of strings in every
+kw, a refused response too:
+
+```text
+POST /x HTTP/1.1
+Host: h
+X-A: one
+Transfer-Encoding: chunked
+
+2
+ok
+0
+Host: evil
+X-A: two
+X-A: three
+
+```
+
+leaves `{"HOST": "h, evil", "X-A": "one, two, three", ...}`, and a `Host` of
+two values fails any check that compares it.
+
+Each message starts clean. With `on_message_event` the state is released when
+it is published; without it (`raw_body_data`, the handshake of a websocket)
+`url`, `jn_headers` and `message_completed` stay readable until the next
+message begins. The limits are per message: two heads of 40 KB on one
+keep-alive connection pass.
 
 ```C
 GHTTP_PARSER *parser = ghttp_parser_create(gobj, HTTP_REQUEST, 0, 0, EV_ON_MESSAGE, TRUE);
@@ -75,7 +117,7 @@ The kw of `on_message_event`:
 | `body` | json | The body, for `application/json`; `""` when there is no body. |
 | `gbuffer` | `int` | The body in a `gbuffer_t *`, for any other type. |
 | `body_too_large`, `headers_too_large` | `int` | A refused response: the limit it passed (no `body` nor `gbuffer`). |
-| `protocol_error` | `str` | A response that broke the protocol (no `body` nor `gbuffer`). |
+| `protocol_error` | `str` | A response that broke the protocol after its status line (no `body` nor `gbuffer`). |
 
 (ghttp_parser_create)=
 ## [`ghttp_parser_create()`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/ghttp_parser.c#L63)
