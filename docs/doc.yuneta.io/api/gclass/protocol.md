@@ -181,13 +181,13 @@ structured events for the application.
 | `timeout_inactivity` | `integer` | Inactivity timeout in seconds. |
 | `max_header_size` | `integer` | Longest head of a request (target, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). |
 | `max_body_size` | `integer` | Longest body of a request, in bytes (default `0`: half the max block; a bigger value is capped to that half). |
-| `max_tx_queue` | `integer` | Answers waiting in the transport from which what the peer sends is held, not parsed (default `64`; `0`: no limit). See *A peer that does not read* below. |
-| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting and no write ended (default `5000`; `0`: never). |
-| `max_rx_held` | `integer` | Most bytes held behind `max_tx_queue` answers (default `1048576`; `0`: no limit). |
+| `max_tx_queue` | `integer` | Answers owed (not sent yet by the application, or waiting in the transport) from which what the peer sends is held, not parsed (default `64`; `0`: no limit). See *A peer that does not read* below. |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting in the transport and no write seen to end (default `5000`; `0`: never). |
+| `max_rx_held` | `integer` | Most bytes held behind `max_tx_queue` answers owed (default `1048576`; `0`: no limit). |
 | `timeout_linger` | `integer` | Milliseconds a refused request has to go after its answer (default `2000`; `0`: dropped at once). |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
-A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*). The timers of this gclass are `C_TIMER`s, accurate to the second: `timeout_linger` and `timeout_tx_stall` are a minimum, and may last one second more.
+A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*). The timers of this gclass are `C_TIMER`s, accurate to the second: `timeout_linger` is a minimum, and may last one second more. `timeout_tx_stall` is a minimum too, and may last about two seconds more: a write ends with no event, so the wait looks at the bytes written every second, and it can see the last write one second late and end one second late. With `timeout_tx_stall` 3000 the connection is dropped from 3 to 5 seconds after the last write.
 
 **A request refused.** A request whose head passes `max_header_size` is
 answered `431 Request Header Fields Too Large`, one whose body passes
@@ -210,28 +210,38 @@ body was dropped with no answer.
 write ends, in the event loop, so while one read is parsed no answer leaves,
 whether the peer reads or not: 100 requests pipelined in one send put 100
 answers in the queue of a peer that is reading them. Its length says nothing
-of the peer, and it decides only this: with `max_tx_queue` answers waiting,
+of the peer, and it decides only this: with `max_tx_queue` answers **owed**,
+those waiting in the transport and those the application has not sent yet,
 what the peer sends is **held**, not parsed, and it is parsed read by read
-when the queue is empty again. So a pipeline of any length is served, in its
-order, in pieces, and the answers waiting never pass `max_tx_queue` by more
-than what one read holds. A peer is dropped, with ONE warning, in two cases:
+when there is room again. So a pipeline of any length is served, in its order,
+in pieces, and the answers owed never pass `max_tx_queue` by more than what
+one read holds, however late the application answers. A peer is dropped, with
+ONE warning, in two cases:
 
-- no write ended in `timeout_tx_stall` milliseconds with the queue full
-  (*"HTTP peer does not read its answers, connection dropped"*). Any write
-  that ends starts the wait again, so a peer that reads slowly stays. The
-  timer watches it, so a peer that went silent is dropped too;
+- no write ended in `timeout_tx_stall` milliseconds with `max_tx_queue` answers
+  in the transport (*"HTTP peer does not read its answers, connection
+  dropped"*). Any write that ends starts the wait again, so a peer that reads
+  slowly stays. The timer watches it, so a peer that went silent is dropped
+  too. An application that takes its time says nothing of the peer: answers
+  it has not sent do not count here;
 - what is held passes `max_rx_held` bytes (*"HTTP peer does not read its
   answers and keeps sending, connection dropped"*). This one looks at the
   bytes, not at the peer: a peer that pipelines more than `max_rx_held` bytes
   ahead of its answers is dropped even if it reads them, because the bytes
   have to be somewhere. Raise it for a client that does that.
 
-An application that answers later is not held back by this: its requests are
-parsed while the queue has room. The answer it sends to a peer that stopped
-reading looks at the same wait.
+An application that answers later gets at most `max_tx_queue` requests ahead
+of its answers, plus what one read holds: the next requests wait until it has
+answered. So it must answer every request it gets, with `EV_SEND_MESSAGE`: one
+that leaves `max_tx_queue` requests of a connection without an answer holds that
+connection until `timeout_inactivity`. Up to 7.29.3 nothing was held. And if
+the requests held pass `max_rx_held` while it takes its time, the peer is
+dropped: size `max_rx_held` for that as well. The answer it sends to a peer
+that stopped reading looks at the same wait.
 
 ```C
-/*  a server for peers that may pipeline up to 8 MB of requests  */
+/*  a server for peers that may pipeline up to 8 MB of requests, and an
+    application that answers at most 64 of them at a time  */
 {
     "name": "http-1",
     "gclass": "C_PROT_HTTP_SR",
@@ -269,7 +279,10 @@ application that drops at the 3rd deliver 3, with a write in flight too; a
 head over the limit gets 431, a body over it 413, each with one warning, also
 behind an answer that comes later; a peer that reads gets 2000 pipelined
 answers in order, and a slow one is not dropped; a peer that never reads is
-held at `max_tx_queue` and dropped.
+held at `max_tx_queue` and dropped. With an application that answers later,
+10000 pipelined requests stay under `max_tx_queue` plus one read, a peer that
+reads gets every answer in order, and one that does not is dropped from 3 to 5
+seconds after its last write with `timeout_tx_stall` 3000.
 
 ---
 

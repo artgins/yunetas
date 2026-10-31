@@ -5,8 +5,10 @@
  *
  *          The server is a C_IOGATE whose channels are C_PROT_HTTP_SR over
  *          C_TCP (max_body_size 1024, max_tx_queue 4, timeout_tx_stall 500,
- *          max_rx_held 65536, timeout_linger 500). This gobj is the
- *          application behind it. Steps, each on a connection of its own:
+ *          max_rx_held 65536, timeout_linger 500), and step 15 has a second
+ *          one (timeout_tx_stall 3000, max_rx_held by default). This gobj is
+ *          the application behind them. Steps, each on a connection of its
+ *          own:
  *
  *          1. 600 requests pipelined in one write; the application drops
  *             the connection at the 3rd. It gets 3 requests, no more, and
@@ -31,9 +33,9 @@
  *          7. As step 1, but the application answers the first two: a write
  *             is in flight, so the disconnection comes later, out of the
  *             drop: it still gets 3 requests, no more.
- *          8. Six requests and, behind them in the same write, a head over
+ *          8. Three requests and, behind them in the same write, a head over
  *             the limit, with an application that answers them later, all
- *             in one turn: the peer reads the six 200 and then the 431, and
+ *             in one turn: the peer reads the three 200 and then the 431, and
  *             the connection is dropped after timeout_linger.
  *          9. A peer that sends one request at a time and never reads: the
  *             application never sees more than max_tx_queue answers in the
@@ -49,6 +51,17 @@
  *          13. A peer that never reads, and an application that goes on
  *             answering later, after the drop that waits for the write in
  *             flight: ONE warning for the peer, and ONE for those answers.
+ *          14. An application that answers later, and a peer that reads:
+ *             10000 requests, 1000 in each write, the next write when it has
+ *             all the answers of the one before. What is due and what waits
+ *             in the transport never passes max_tx_queue by more than one
+ *             read; halfway the application goes silent for longer than
+ *             timeout_tx_stall, and the peer is not dropped for that. It gets
+ *             every answer, in order, and nothing is logged.
+ *          15. The same application, and a peer that sends 10000 requests in
+ *             one pipeline and never reads: the same bound, and it is dropped
+ *             timeout_tx_stall after the last write that moved, and at most
+ *             two seconds later. One warning.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -66,6 +79,7 @@
  ***************************************************************************/
 #define SERVER_URL          "tcp://127.0.0.1:7766"
 #define SERVER_PORT         7766
+#define SERVER_PORT2        7765        // see main_test1.c
 #define PIPELINED           600
 #define DROP_AT             3
 #define BIG_HEADER          (70*1000)
@@ -81,13 +95,25 @@
 #define MAX_RX_HELD         65536       // see main_test1.c
 #define SLOW_ANSWERS        30
 #define SLOW_PIECE          (64*1024)
-#define ORDER_REQUESTS      6
+#define ORDER_REQUESTS      3           // under MAX_TX_QUEUE: the head behind them is parsed, not held
 #define IDLE_REQUESTS       10
 #define LATE_REQUESTS       30
 #define IDLE_INACTIVITY     3           // seconds, in step 12
 #define IDLE_NOT_AFTER      8000        // milliseconds: timeout_tx_stall + that, in seconds of accuracy
 #define TIMEOUT_LINGER      500         // see main_test1.c
 #define LINGER_MARGIN       100         // the peer reads the answer after it was sent
+#define ASYNC_TOTAL         10000
+#define ASYNC_WINDOW        1000        // requests of one write, under max_rx_held
+#define ASYNC_ONE_READ      120         // requests of the shortest kind in the 4096 bytes of a read
+#define ASYNC_BOUND         (MAX_TX_QUEUE + ASYNC_ONE_READ)
+#define ASYNC_SILENCE       1500        // milliseconds, over timeout_tx_stall and the timer's accuracy
+#define ASYNC_SILENCE_AT    5500        // in the middle of a window: nothing the peer sends comes in the silence
+#define ASYNC_REQUEST_ROOM  48
+#define STALL2              3000        // timeout_tx_stall of the second server, see main_test1.c
+#define STALL2_NOT_AFTER    (STALL2 + 2000)
+#define STALL2_MARGIN       600         // the test looks every 5 ms, on a loaded machine
+#define STALL2_BEFORE       100         // the server may see a write before the test does
+#define STEP_LONG_WATCH     20000       // step 15, milliseconds: its drop is measured, not its watchdog
 
 enum {
     STEP_DROP = 1,
@@ -103,6 +129,8 @@ enum {
     STEP_SLOW,
     STEP_IDLE,
     STEP_LATE_ANSWERS,
+    STEP_ASYNC,
+    STEP_ASYNC_MUTE,
     STEP_END
 };
 
@@ -171,6 +199,13 @@ typedef struct _PRIVATE_DATA {
     size_t slow_read;           // step 11: the bytes the slow peer read
     uint64_t idle_timer;        // step 12: the drop before this
     int max_queue_seen;         // step 9: the most answers the transport held at a request
+    int next_answer;            // steps 14, 15: the first request not answered yet
+    int max_owed_seen;          // steps 14, 15: the most answers due or waiting in the transport
+    uint64_t silence_timer;     // step 14: the application says nothing until this
+    gbuffer_t *pipeline;        // step 15: what the peer still has to send
+    json_int_t last_written;    // step 15: txBytes of the transport
+    uint64_t last_write_moved;  // step 15: when it changed
+    json_int_t cut_after;       // step 15: milliseconds from then to the drop, -1: no drop yet
 } PRIVATE_DATA;
 
 
@@ -247,6 +282,10 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
 
+    hgobj gobj_input_side2 = gobj_find_service("__input_side2__", TRUE);
+    gobj_subscribe_event(gobj_input_side2, NULL, 0, gobj);
+    gobj_start_tree(gobj_input_side2);
+
     set_timeout(priv->timer, priv->timeout); // then the first step
 
     return 0;
@@ -273,6 +312,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     GBUFFER_DECREF(priv->answer)
+    GBUFFER_DECREF(priv->pipeline)
     if(priv->peer_parser) {
         ghttp_parser_destroy(priv->peer_parser);
         priv->peer_parser = 0;
@@ -323,7 +363,7 @@ PRIVATE int connect_mute_peer(hgobj gobj)
     priv->fd_mute = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(SERVER_PORT);
+    addr.sin_port = htons((priv->step == STEP_ASYNC_MUTE)? SERVER_PORT2 : SERVER_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if(priv->fd_mute < 0 || connect(priv->fd_mute, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         gobj_log_error(gobj, 0,
@@ -357,6 +397,13 @@ PRIVATE void start_step(hgobj gobj)
     priv->mute_sent = 0;
     priv->slow_read = 0;
     priv->max_queue_seen = 0;
+    priv->held_channel = 0;
+    priv->next_answer = 0;
+    priv->max_owed_seen = 0;
+    priv->silence_timer = 0;
+    priv->last_written = 0;
+    priv->last_write_moved = 0;
+    priv->cut_after = -1;
     gbuffer_reset_wr(priv->answer);
     gbuffer_reset_rd(priv->answer);
 
@@ -408,6 +455,18 @@ PRIVATE void start_step(hgobj gobj)
         }
         set_timeout_periodic0(priv->timer_tick, (priv->step == STEP_SLOW)? 10 : 100);
 
+    } else if(priv->step == STEP_ASYNC_MUTE) {
+        if(connect_mute_peer(gobj) < 0) {
+            return; // Error already logged
+        }
+        size_t size = ASYNC_TOTAL * ASYNC_REQUEST_ROOM;
+        priv->pipeline = gbuffer_create(size, size);
+        for(int i = 0; i < ASYNC_TOTAL; i++) {
+            gbuffer_printf(priv->pipeline, "GET /async/%d HTTP/1.1\r\nHost: x\r\n\r\n", i);
+        }
+        set_timeout(priv->timer, STEP_LONG_WATCH);
+        set_timeout_periodic0(priv->timer_tick, 5);
+
     } else {
         char name[32];
         snprintf(name, sizeof(name), "client-%d", priv->step);
@@ -446,6 +505,107 @@ PRIVATE void send_pipelined_requests(hgobj gobj, int n)
 }
 
 /***************************************************************************
+ *  The application that answers later answers what it has, or `most`
+ ***************************************************************************/
+PRIVATE void answer_late_requests(hgobj gobj, size_t size, int most)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj bottom = gobj_last_bottom_gobj(priv->held_channel);
+    int owed = (priv->requests - priv->next_answer) + (int)gobj_read_integer_attr(bottom, "cur_tx_queue");
+    if(owed > priv->max_owed_seen) {
+        priv->max_owed_seen = owed;
+    }
+    if(owed > ASYNC_BOUND) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The answers of an application that answers later were not bounded",
+            "owed",         "%d", owed,
+            "bound",        "%d", ASYNC_BOUND,
+            NULL
+        );
+        clear_timeout0(priv->timer_tick);
+        return;
+    }
+    for(int i = 0; i < most && priv->next_answer < priv->requests; i++) {
+        answer_request(gobj, priv->held_channel, priv->next_answer, size);
+        priv->next_answer++;
+    }
+}
+
+/***************************************************************************
+ *  What the peer that never reads still has to send, as it fits
+ ***************************************************************************/
+PRIVATE void send_pipeline(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t left = priv->pipeline? gbuffer_leftbytes(priv->pipeline) : 0;
+    if(left > 0) {
+        ssize_t sent = send(priv->fd_mute, gbuffer_cur_rd_pointer(priv->pipeline), left, MSG_NOSIGNAL|MSG_DONTWAIT);
+        if(sent > 0) {
+            gbuffer_get(priv->pipeline, (size_t)sent);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Step 14: the application answers later, and once, halfway, it has answered
+ *  one with the queue empty and goes silent.
+ ***************************************************************************/
+PRIVATE void do_async_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->held_channel || (priv->silence_timer && !test_msectimer(priv->silence_timer))) {
+        return;
+    }
+    if(!priv->silence_timer && priv->next_answer >= ASYNC_SILENCE_AT) {
+        hgobj bottom = gobj_last_bottom_gobj(priv->held_channel);
+        if(priv->next_answer < priv->requests && gobj_read_integer_attr(bottom, "cur_tx_queue") == 0) {
+            answer_late_requests(gobj, 16, 1);
+            priv->silence_timer = start_msectimer(ASYNC_SILENCE);
+        }
+        return;
+    }
+    answer_late_requests(gobj, 16, ASYNC_TOTAL);
+}
+
+/***************************************************************************
+ *  Step 15: the peer sends, the application answers, and the test sees the
+ *  last write that moved and when the server dropped the connection
+ ***************************************************************************/
+PRIVATE void do_async_mute_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->fd_mute >= 0) {
+        send_pipeline(gobj);
+    }
+    if(!priv->held_channel || priv->step_done) {
+        return;
+    }
+    hgobj bottom = gobj_last_bottom_gobj(priv->held_channel);
+    if(!bottom) {
+        return;
+    }
+    if(gobj_current_state(bottom) != ST_CONNECTED) {
+        if(priv->cut_after < 0) {
+            priv->cut_after = (json_int_t)(time_in_milliseconds_monotonic() - priv->last_write_moved);
+        }
+        return;
+    }
+    answer_late_requests(gobj, ANSWER_SIZE, ASYNC_TOTAL);
+
+    json_int_t written = gobj_read_integer_attr(bottom, "txBytes");
+    if(written != priv->last_written || !priv->last_write_moved) {
+        priv->last_written = written;
+        priv->last_write_moved = time_in_milliseconds_monotonic();
+    }
+}
+
+/***************************************************************************
  *  The peer that reads, or the application, or the peer that never reads
  *  acts again
  ***************************************************************************/
@@ -459,6 +619,12 @@ PRIVATE void do_tick(hgobj gobj)
             memset(bytes, 'z', sizeof(bytes));
             send_raw(gobj, bytes, sizeof(bytes));
         }
+
+    } else if(priv->step == STEP_ASYNC) {
+        do_async_tick(gobj);
+
+    } else if(priv->step == STEP_ASYNC_MUTE) {
+        do_async_mute_tick(gobj);
 
     } else if(priv->step == STEP_ORDER) {
         clear_timeout0(priv->timer_tick);
@@ -627,8 +793,9 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     } else if(priv->step == STEP_BODY) {
         check_answer(gobj, "HTTP/1.1 413 Content Too Large\r\n");
-    } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG) {
-        int expected = (priv->step == STEP_READS)? READS_TOTAL : READS_BIG;
+    } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG || priv->step == STEP_ASYNC) {
+        int expected = (priv->step == STEP_READS)? READS_TOTAL :
+            (priv->step == STEP_ASYNC)? ASYNC_TOTAL : READS_BIG;
         if(priv->answers != expected || priv->requests != expected) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -676,6 +843,23 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(priv->fd_mute >= 0) {
             close(priv->fd_mute);
             priv->fd_mute = -1;
+        }
+    } else if(priv->step == STEP_ASYNC_MUTE) {
+        if(priv->fd_mute >= 0) {
+            close(priv->fd_mute);
+            priv->fd_mute = -1;
+        }
+        GBUFFER_DECREF(priv->pipeline)
+        if(priv->cut_after < STALL2 - STALL2_BEFORE || priv->cut_after > STALL2_NOT_AFTER + STALL2_MARGIN) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A peer that does not read was not dropped at timeout_tx_stall",
+                "cut_after",    "%d", (int)priv->cut_after,
+                "not_before",   "%d", STALL2,
+                "not_after",    "%d", STALL2_NOT_AFTER,
+                NULL
+            );
         }
     } else if(priv->step == STEP_MUTE || priv->step == STEP_QUEUE || priv->step == STEP_HELD ||
             priv->step == STEP_LATE_ANSWERS) {
@@ -727,13 +911,17 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->step == STEP_DROP || priv->step == STEP_DROP_IN_FLIGHT) {
         send_pipelined_requests(gobj, PIPELINED);
 
-    } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG || priv->step == STEP_IDLE) {
+    } else if(priv->step == STEP_READS || priv->step == STEP_READS_BIG || priv->step == STEP_IDLE ||
+            priv->step == STEP_ASYNC) {
         if(priv->peer_parser) {
             ghttp_parser_destroy(priv->peer_parser);
         }
         priv->peer_parser = ghttp_parser_create(gobj, HTTP_RESPONSE, 0, 0, EV_PEER_ANSWER, TRUE);
         if(priv->step == STEP_IDLE) {
             send_pipelined_requests(gobj, IDLE_REQUESTS);
+        } else if(priv->step == STEP_ASYNC) {
+            send_pipelined_requests(gobj, ASYNC_WINDOW);
+            set_timeout_periodic0(priv->timer_tick, 5);
         } else {
             send_pipelined_requests(gobj, (priv->step == STEP_READS)? READS_FIRST : READS_BIG);
         }
@@ -741,8 +929,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(priv->step == STEP_HEAD || priv->step == STEP_ORDER) {
         const char *first = (priv->step == STEP_ORDER)?
             "GET /1 HTTP/1.1\r\nHost: x\r\n\r\nGET /2 HTTP/1.1\r\nHost: x\r\n\r\n"
-            "GET /3 HTTP/1.1\r\nHost: x\r\n\r\nGET /4 HTTP/1.1\r\nHost: x\r\n\r\n"
-            "GET /5 HTTP/1.1\r\nHost: x\r\n\r\nGET /6 HTTP/1.1\r\nHost: x\r\n\r\n" : "";
+            "GET /3 HTTP/1.1\r\nHost: x\r\n\r\n" : "";
         const char *head = "GET / HTTP/1.1\r\nX-Big: ";
         size_t first_len = strlen(first);
         size_t head_len = strlen(head);
@@ -783,7 +970,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
     if(gbuf && priv->peer_parser && (priv->step == STEP_READS || priv->step == STEP_READS_BIG ||
-            priv->step == STEP_IDLE)) {
+            priv->step == STEP_IDLE || priv->step == STEP_ASYNC)) {
         ghttp_parser_received(priv->peer_parser, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf));
 
     } else if(gbuf) {
@@ -833,7 +1020,11 @@ PRIVATE int ac_peer_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             send_pipelined_requests(gobj, READS_LAST);
         }
     }
-    int expected = (priv->step == STEP_READS)? READS_TOTAL : READS_BIG;
+    if(priv->step == STEP_ASYNC && priv->answers % ASYNC_WINDOW == 0 && priv->answers < ASYNC_TOTAL) {
+        send_pipelined_requests(gobj, ASYNC_WINDOW);
+    }
+    int expected = (priv->step == STEP_READS)? READS_TOTAL :
+        (priv->step == STEP_ASYNC)? ASYNC_TOTAL : READS_BIG;
     if(priv->answers == expected && !priv->step_done) {
         priv->step_done = TRUE;
         gobj_post_event(gobj, EV_NEXT_STEP, json_object(), gobj);
@@ -844,7 +1035,8 @@ PRIVATE int ac_peer_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 }
 
 /***************************************************************************
- *  The peer of steps 1 to 3 lost its connection: the step ends
+ *  The peer of steps 1 to 3 lost its connection: the step ends. The peer of
+ *  step 14 stops once step 15 began: that one ends with its own connection.
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -852,7 +1044,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     priv->peer_connected = FALSE;
 
-    if(src == priv->gobj_client && !priv->step_done) {
+    if(src == priv->gobj_client && !priv->step_done && priv->step != STEP_ASYNC_MUTE) {
         priv->step_done = TRUE;
         if(priv->step == STEP_IDLE && (!priv->idle_timer || test_msectimer(priv->idle_timer))) {
             gobj_log_error(gobj, 0,
@@ -901,6 +1093,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else {
             answer_request(gobj, channel, n, 16);
         }
+
+    } else if(priv->step == STEP_ASYNC || priv->step == STEP_ASYNC_MUTE) {
+        priv->held_channel = channel;
 
     } else if(priv->step == STEP_ORDER) {
         priv->held_channel = channel;
@@ -966,8 +1161,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_write_integer_attr(gobj_bottom_gobj(channel), "timeout_inactivity", 300);
     }
 
-    if((priv->step == STEP_MUTE || priv->step == STEP_QUEUE || priv->step == STEP_HELD ||
-            priv->step == STEP_SLOW || priv->step == STEP_LATE_ANSWERS) && !priv->step_done) {
+    /*
+     *  What closes in step 15 before its request is the peer of step 14
+     */
+    BOOL of_this_step = (priv->step != STEP_ASYNC_MUTE || (channel && channel == priv->held_channel));
+    if(of_this_step && (priv->step == STEP_MUTE || priv->step == STEP_QUEUE || priv->step == STEP_HELD ||
+            priv->step == STEP_SLOW || priv->step == STEP_LATE_ANSWERS ||
+            priv->step == STEP_ASYNC_MUTE) && !priv->step_done) {
         priv->step_done = TRUE;
         gobj_post_event(gobj, EV_NEXT_STEP, json_object(), gobj);
     }

@@ -12,6 +12,8 @@
  *          - A refusal never overtakes the answer of the request before it
  *          - A peer that never reads its answers: the requests held at
  *            max_tx_queue, dropped after timeout_tx_stall or past max_rx_held
+ *          - An application that answers later: the answers due count, and a
+ *            peer that reads gets all of 10000, in order
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -139,6 +141,53 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__input_side2__',                              \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'children': [                                            \n\
+                {                                                   \n\
+                    'name': 'server_port2',                         \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://0.0.0.0:7765',                \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,               \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'stall2',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                    \n\
+                        {                                           \n\
+                            'name': 'stall2',                       \n\
+                            'gclass': 'C_PROT_HTTP_SR',             \n\
+                            'kw': {                                 \n\
+                                'max_tx_queue': 4,                  \n\
+                                'timeout_tx_stall': 3000            \n\
+                            },                                      \n\
+                            'children': [                            \n\
+                                {                                   \n\
+                                    'name': 'stall2',               \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                        'timeout_stop_tx': 200      \n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -179,7 +228,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "HTTP headers larger than their limit, message refused",    // step 2, ONE
@@ -190,6 +239,7 @@ static int register_yuno_and_more(void)
         "msg", "HTTP peer does not read its answers and keeps sending, connection dropped", // step 10, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 13, ONE
         "msg", "tcp data sent while the connection closes, dropped",       // step 13, ONE
+        "msg", "HTTP peer does not read its answers, connection dropped",  // step 15, ONE
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
@@ -253,7 +303,7 @@ int main(int argc, char *argv[])
     /*
      *  A request that never arrives must fail the test, not hang it
      */
-    set_auto_kill_time(30);
+    set_auto_kill_time(50);
 
     /*------------------------------------------------*
      *          Start yuneta

@@ -5,9 +5,9 @@ refuses.
 
 `test1` (`main_test1.c` + `c_test1.c`) plays a `C_IOGATE` whose channels are
 `C_PROT_HTTP_SR` over `C_TCP` (`max_body_size` 1024, `max_tx_queue` 4,
-`timeout_tx_stall` 500, `max_rx_held` 65536, `timeout_linger` 500). The test
-gobj is the application behind it. Thirteen steps, each on a connection of its
-own:
+`timeout_tx_stall` 500, `max_rx_held` 65536, `timeout_linger` 500), and a second
+one for step 15. The test gobj is the application behind them. Fifteen steps,
+each on a connection of its own:
 
 | Step | The peer | Expected |
 |---|---|---|
@@ -18,12 +18,14 @@ own:
 | 5 | reads: sends 500 requests in one write, one more with each of their answers (they find those before them held, and the queue at any length), and 1000 more when it has all those answers | 2000 answers, in the order of the requests, nothing logged |
 | 6 | sends 100 requests whose answers have 100 KB, and reads | 100 answers, in their order, nothing logged |
 | 7 | as step 1, but the application answers the first two, so the disconnection comes after the write in flight | the application gets 3 requests, and nothing is logged |
-| 8 | sends six requests and a head over the limit in one write; the application answers them later, all in one turn | it reads the six `200` and then the `431`, and the connection is dropped after `timeout_linger`; ONE warning |
+| 8 | sends three requests and a head over the limit in one write; the application answers them later, all in one turn | it reads the three `200` and then the `431`, and the connection is dropped after `timeout_linger`; ONE warning |
 | 9 | sends one request at a time, each when the one before reached the application, and never reads; answers of 1 MB | the transport never holds more than `max_tx_queue` answers; the connection is dropped; ONE warning |
 | 10 | does not read and sends 128 KB of requests | past `max_rx_held` bytes held the connection is dropped; ONE warning |
 | 11 | sends 30 requests whose answers have 1 MB, and reads 6 MB/s | it reads them all in more than `timeout_tx_stall`, nothing logged |
 | 12 | fills the queue with 10 requests, reads the answers and goes silent; `timeout_inactivity` 3 | it is dropped: the timer that watched the queue is back on the inactivity |
 | 13 | never reads; the application goes on answering after the drop, which waits for the write in flight | ONE warning for the peer, ONE for those answers |
+| 14 | reads: 10000 requests, 1000 in each write, the next write when it has all the answers of the one before; the application answers later, and halfway it goes silent for 1.5 s, with the queue empty | what is due and what waits in the transport never passes `max_tx_queue` by more than one read; the peer gets every answer, in order, and is not dropped; nothing logged |
+| 15 | on the second server (`timeout_tx_stall` 3000, port 7765): sends 10000 requests in one pipeline and never reads; the application answers later | the same bound; the connection is dropped from 3 to 5 seconds after the last write that moved; ONE warning |
 
 Up to 7.29.3 the requests of step 1 after the drop went to the gobj already
 disconnected (red: an ERROR with a stack, *"Event NOT DEFINED in state"*, for
@@ -34,7 +36,11 @@ with no answer. With a limit of the queue that counted the answers of the read
 being parsed, steps 5 and 6 are red (*"HTTP peer does not read its answers,
 connection dropped"* for a peer that reads, *"A peer that reads did not get
 all its answers"*), and with the refusal sent at once step 8 is red (*"The
-refused request was not told why"*).
+refused request was not told why"*). With only the transport counted, step 14
+is red (*"The answers of an application that answers later were not bounded"*);
+with the wait of a full queue measured from the look that saw the write, step
+15 is red (*"A peer that does not read was not dropped at timeout_tx_stall"*,
+at about twice the wait).
 
 ```c
 /*  in a channel tree  */

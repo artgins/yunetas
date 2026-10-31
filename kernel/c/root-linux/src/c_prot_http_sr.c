@@ -18,13 +18,16 @@
  *          the transport moves only at the end of a write, in the event
  *          loop, so while one read is parsed no answer leaves, whether the
  *          peer reads or not: the length of the queue alone says nothing of
- *          the peer. With `max_tx_queue` answers waiting:
- *          - what the peer sends is held, not parsed, until the queue is
- *            empty (EV_TX_READY), so a pipeline of any length is served in
- *            pieces and the answers never pile up by more than one read;
+ *          the peer. With `max_tx_queue` answers owed, those the application
+ *          has not sent yet and those waiting in the transport:
+ *          - what the peer sends is held, not parsed, until there is room
+ *            (EV_TX_READY, or an answer sent), so a pipeline of any length is
+ *            served in pieces and the answers never pile up by more than one
+ *            read, however late the application answers;
  *          - a peer that passes `max_rx_held` bytes held is dropped;
- *          - a peer with no write ended in `timeout_tx_stall` milliseconds
- *            is dropped.
+ *          - with `max_tx_queue` answers in the transport, a peer with no
+ *            write ended in `timeout_tx_stall` milliseconds is dropped. An
+ *            application that takes its time says nothing of the peer.
  *          Once the connection is dropped (EV_DROP, or the peer left)
  *          nothing more of what was received is delivered, not even the
  *          rest of the requests pipelined in the same read.
@@ -53,6 +56,7 @@
 #define DEFAULT_TIMEOUT_TX_STALL 5000
 #define DEFAULT_MAX_RX_HELD     1048576
 #define DEFAULT_TIMEOUT_LINGER  2000
+#define TX_STALL_LOOK_EVERY     500     // ms; C_TIMER rounds it up to its tick, the second by default
 #define TEXT_OF(x)              TEXT_OF_(x)
 #define TEXT_OF_(x)             #x
 
@@ -68,6 +72,7 @@ PRIVATE int answer_refused_request(hgobj gobj, GHTTP_PARSER *parser);
 PRIVATE int send_refusal(hgobj gobj, const char *code);
 PRIVATE void drop_connection(hgobj gobj);
 PRIVATE BOOL tx_queue_is_full(hgobj gobj);
+PRIVATE BOOL answers_owed_are_full(hgobj gobj);
 PRIVATE BOOL peer_does_not_read(hgobj gobj);
 PRIVATE int hold_received_bytes(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void parse_held_requests(hgobj gobj);
@@ -85,8 +90,8 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        "300",          "Timeout inactivity, in seconds"),
 SDATA (DTP_INTEGER,     "max_header_size",  SDF_RD,         "65536",        "Largest head of a request (target, header names and values), in bytes; 0: 65536; never more than half the largest memory block (gbmem). Each header counts GHTTP_HEADER_COST bytes more. A longer one is answered 431 and the connection dropped, with ONE warning"),
 SDATA (DTP_INTEGER,     "max_body_size",    SDF_RD,         "0",            "Largest body of a request, in bytes; 0, or more than half the largest memory block (gbmem): that half. A longer one is answered 413 and the connection dropped, with ONE warning"),
-SDATA (DTP_INTEGER,     "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE),         "Answers waiting in the transport from which what the peer sends is held, not parsed, until they leave. 0: no limit"),
-SDATA (DTP_INTEGER,     "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL),     "Milliseconds with max_tx_queue answers waiting and no write ended: the peer does not read, the connection is dropped, with ONE warning. 0: never"),
+SDATA (DTP_INTEGER,     "max_tx_queue",     SDF_RD,         TEXT_OF(DEFAULT_MAX_TX_QUEUE),         "Answers owed (not sent yet by the application, or waiting in the transport) from which what the peer sends is held, not parsed, until they leave. An application that never answers holds the connection at this many requests. 0: no limit"),
+SDATA (DTP_INTEGER,     "timeout_tx_stall", SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_TX_STALL),     "Milliseconds with max_tx_queue answers waiting in the transport and no write seen to end: the peer does not read, the connection is dropped, with ONE warning. A minimum, up to two seconds more (the C_TIMER tick, twice). 0: never"),
 SDATA (DTP_INTEGER,     "max_rx_held",      SDF_RD,         TEXT_OF(DEFAULT_MAX_RX_HELD),          "Most bytes held behind max_tx_queue answers; one more drops the connection, with ONE warning. 0: no limit"),
 SDATA (DTP_INTEGER,     "timeout_linger",   SDF_RD,         TEXT_OF(DEFAULT_TIMEOUT_LINGER),         "Milliseconds a refused request (431, 413) has to go after its answer, before the connection is dropped"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
@@ -320,6 +325,7 @@ PRIVATE int answer_refused_request(hgobj gobj, GHTTP_PARSER *parser)
 
     if(priv->answers_sent < parser->messages_published) {
         priv->refusal = code;
+        set_timeout(priv->timer, priv->timeout_inactivity*1000);
         return 0;
     }
     return send_refusal(gobj, code);
@@ -389,12 +395,33 @@ PRIVATE BOOL tx_queue_is_full(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The answers owed: those the application has not sent yet, and those
+ *  waiting in the transport. With an application that answers later the
+ *  transport is empty while the requests are parsed.
+ ***************************************************************************/
+PRIVATE BOOL answers_owed_are_full(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(priv->max_tx_queue <= 0 || !bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
+        return FALSE;
+    }
+    size_t due = priv->parsing_request->messages_published - priv->answers_sent;
+    json_int_t queued = gobj_read_integer_attr(bottom, "cur_tx_queue");
+    return (queued + (json_int_t)due >= priv->max_tx_queue)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  The queue is full and no write ended in `timeout_tx_stall` milliseconds:
  *  the only thing that says the peer does not read. Asked at each answer
  *  and at each read, and by the timer when the peer goes silent. No write
  *  can end inside a turn of the loop, so the first time it is asked only
- *  starts the wait, and any write that ends starts it again. ONE warning:
- *  after it the parser is stopped.
+ *  starts the wait, and any write that ends starts it again. Writes end
+ *  with no event, so the timer looks every TX_STALL_LOOK_EVERY while the
+ *  queue is full, and a write is seen at most one tick late: waiting a whole
+ *  `timeout_tx_stall` to look doubled the wait. ONE warning: after it the
+ *  parser is stopped.
  ***************************************************************************/
 PRIVATE BOOL peer_does_not_read(hgobj gobj)
 {
@@ -404,7 +431,10 @@ PRIVATE BOOL peer_does_not_read(hgobj gobj)
         return FALSE;
     }
     if(!tx_queue_is_full(gobj)) {
-        priv->tx_stall_timer = 0;
+        if(priv->tx_stall_timer) {
+            priv->tx_stall_timer = 0;
+            set_timeout(priv->timer, priv->timeout_inactivity*1000);
+        }
         return FALSE;
     }
 
@@ -413,11 +443,11 @@ PRIVATE BOOL peer_does_not_read(hgobj gobj)
     if(priv->tx_stall_timer == 0 || written != priv->tx_stall_written) {
         priv->tx_stall_written = written;
         priv->tx_stall_timer = start_msectimer((uint64_t)priv->timeout_tx_stall);
-        set_timeout(priv->timer, priv->timeout_tx_stall);
+        set_timeout(priv->timer, MIN(priv->timeout_tx_stall, TX_STALL_LOOK_EVERY));
         return FALSE;
     }
     if(!test_msectimer(priv->tx_stall_timer)) {
-        set_timeout(priv->timer, priv->timeout_tx_stall);
+        set_timeout(priv->timer, MIN(priv->timeout_tx_stall, TX_STALL_LOOK_EVERY));
         return FALSE;
     }
 
@@ -516,7 +546,7 @@ PRIVATE void parse_requests(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
- *  Parse what was held, while the queue has room. A drop inside the parse
+ *  Parse what was held, while there is room. A drop inside the parse
  *  flushes the list, so each piece is out of it first.
  ***************************************************************************/
 PRIVATE void parse_held_requests(hgobj gobj)
@@ -524,7 +554,7 @@ PRIVATE void parse_held_requests(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf;
-    while(!tx_queue_is_full(gobj) && (gbuf = dl_first(&priv->dl_held))) {
+    while(!answers_owed_are_full(gobj) && (gbuf = dl_first(&priv->dl_held))) {
         dl_delete(&priv->dl_held, gbuf, 0);
         priv->rx_held -= gbuffer_leftbytes(gbuf);
         parse_requests(gobj, gbuf);
@@ -636,7 +666,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     set_timeout(priv->timer, priv->timeout_inactivity*1000);
 
-    if(dl_size(&priv->dl_held) > 0 || tx_queue_is_full(gobj)) {
+    if(dl_size(&priv->dl_held) > 0 || answers_owed_are_full(gobj)) {
         if(hold_received_bytes(gobj, gbuf) < 0 || peer_does_not_read(gobj)) {
             drop_connection(gobj);  // Warning already logged
         }
@@ -649,7 +679,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The queue is empty: the peer read it all
+ *  The queue is empty, the peer read it all; or an answer left room for what
+ *  was held, posted by ac_send_message()
  ***************************************************************************/
 PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -768,6 +799,19 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             drop_connection(gobj);
         }
     }
+
+    /*
+     *  This answer may fill the queue, with nothing else coming to look; or
+     *  it may leave room. Parsing goes on in the next turn: this action may
+     *  be running inside the parser, of a request answered in its event, and
+     *  in the action of an application in the middle of its own work.
+     */
+    if(peer_does_not_read(gobj)) {
+        // Warning already logged
+        drop_connection(gobj);
+    } else if(dl_size(&priv->dl_held) > 0 && !answers_owed_are_full(gobj)) {
+        gobj_post_event(gobj, EV_TX_READY, json_object(), gobj);
+    }
     return ret;
 }
 
@@ -793,7 +837,6 @@ PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hg
 
     if(priv->tx_stall_timer && !peer_does_not_read(gobj)) {
         if(!priv->tx_stall_timer) {
-            set_timeout(priv->timer, priv->timeout_inactivity*1000);
             parse_held_requests(gobj);
         }
         KW_DECREF(kw)
@@ -868,6 +911,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
         {EV_DISCONNECTED,       ac_disconnected,            0},
+        {EV_TX_READY,           ac_tx_ready,                0}, // posted before the disconnection
         {EV_STOPPED,            ac_stopped,                 0},
         {0,0,0}
     };
