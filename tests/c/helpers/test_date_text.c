@@ -163,8 +163,8 @@
  *              across a change of 30 minutes, at 02:45, or of 28 seconds;
  *              negative months, several years; hours of UTC take one step,
  *              an end no calendar holds is the range 0 with an ERROR (the
- *              end of 2147483647 years went out), and a range back past the
- *              year 1 is not a day late.
+ *              year of 2147483647 years wrapped, some two billion years
+ *              back), and a range back past the year 1 is proleptic.
  *          28. a run of 12 digits is no date ("202610011000" was the year
  *              8390), and after a clock time a minus sign and four digits
  *              is its offset ("10:00 -0500 hours" is no date).
@@ -2630,8 +2630,7 @@ PRIVATE void test_time_ranges(void)
 
     /*
      *  An end no calendar holds: the range 0 with one ERROR, in UTC and in
-     *  a zone, whatever the unit (the end of a range of years went out, and
-     *  crashed the gmtime() of whoever showed it)
+     *  a zone, whatever the unit (a gmtime() of it answers NULL)
      */
     static const struct {
         const char *tz;
@@ -2650,8 +2649,8 @@ PRIVATE void test_time_ranges(void)
     check_errors("2 hours from the last hour of the calendar", 1, "no calendar holds the time");
 
     /*
-     *  A range back past the year 1: the year 0 is the one before it (it
-     *  was a day late). From the proleptic calendar of timegm().
+     *  A range back past the year 1: the year 0 is the one before it. From
+     *  the proleptic calendar of timegm().
      */
     check_range("years of UTC back to the year 0", get_years_range(t, -2026, ""), 1767225600, -62167219200LL);
     check_range("years of UTC back to the year -974", get_years_range(t, -3000, ""), 1767225600, -92903673600LL);

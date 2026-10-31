@@ -543,7 +543,7 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Day boundaries are computed in the specified timezone so that the range aligns to local midnight: `range` days later is local midnight too, so the day of a change of hour has 23 or 25 hours. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it (up to 7.29.3 it was a day late), and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 `get_years_range(t, 2147483647, "")` answered an `end` that crashes `gmtime()`.
+Day boundaries are computed in the specified timezone so that the range aligns to local midnight: `range` days later is local midnight too, so the day of a change of hour has 23 or 25 hours. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it, and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 the year wrapped, and `get_years_range(t, 2147483647, "")` answered an `end` some two billion years back.
 
 **Example**
 
@@ -627,7 +627,7 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Month boundaries are computed in the specified timezone so that the range aligns to the first day of each month at local midnight; a negative `range` counts back, into the years before too. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it (up to 7.29.3 it was a day late), and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 `get_years_range(t, 2147483647, "")` answered an `end` that crashes `gmtime()`.
+Month boundaries are computed in the specified timezone so that the range aligns to the first day of each month at local midnight; a negative `range` counts back, into the years before too. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it, and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 the year wrapped, and `get_years_range(t, 2147483647, "")` answered an `end` some two billion years back.
 
 **Example**
 
@@ -667,7 +667,7 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Week boundaries are computed in the specified timezone with weeks starting on Monday at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it (up to 7.29.3 it was a day late), and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 `get_years_range(t, 2147483647, "")` answered an `end` that crashes `gmtime()`.
+Week boundaries are computed in the specified timezone with weeks starting on Monday at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it, and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 the year wrapped, and `get_years_range(t, 2147483647, "")` answered an `end` some two billion years back.
 
 **Example**
 
@@ -705,7 +705,7 @@ A `time_range_t` structure containing the `start` and `end` timestamps of the co
 
 **Notes**
 
-Year boundaries are computed in the specified timezone so that the range aligns to January 1st at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it (up to 7.29.3 it was a day late), and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 `get_years_range(t, 2147483647, "")` answered an `end` that crashes `gmtime()`.
+Year boundaries are computed in the specified timezone so that the range aligns to January 1st at local midnight. With an empty `TZ` the boundaries are those of UTC. The zone of the process does not matter: up to 7.29.3 the boundaries were built with `mktime()` in the zone of the process and `tm_isdst` 0, so with the process in `Asia/Tokyo` a day of `Europe/Madrid` started at 00:00 in Tokyo, and with an empty `TZ` a day of UTC started at the midnight of the process (an hour later in summer). A range back past the year 1 is proleptic, with a year 0 before it, and an `end` no calendar holds gives the range `{0, 0}` and an ERROR: up to 7.29.3 the year wrapped, and `get_years_range(t, 2147483647, "")` answered an `end` some two billion years back.
 
 **Example**
 
