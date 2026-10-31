@@ -26,7 +26,10 @@
  *            7. a token whose "expires_in" is a text: 0, no ERROR, and it
  *               lives 60 seconds;
  *            8. a list with a search of 600 bytes, with the token of step 7:
- *               the url carries it whole (it used to be cut, with no word).
+ *               the url carries it whole (it used to be cut, with no word);
+ *         9-12. each after a set-kc-config, which forgets the token: a token
+ *               whose "expires_in" is negative, then one too big for a date:
+ *               they live 60 seconds too, so the next command asks for none.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -57,6 +60,7 @@ typedef struct {
     int         token_seen;         /* /token requests that must arrive */
     int         admin_seen;         /* /admin/ requests that must arrive */
     const char *token_body;         /* json of the /token answer, NULL: one that lives 1 s */
+    BOOL        forget_token;       /* set-kc-config before the command */
 } step_t;
 
 /***************************************************************************
@@ -65,21 +69,28 @@ typedef struct {
 #define SHORT_TOKEN "{\"access_token\": \"AT\", \"expires_in\": 1}"
 PRIVATE const step_t steps[] = {
     /* 1 */
-    {"get-idp-user", 8192, 0, 0, -1, "kc_unavailable", 1, 0, "{}"},
+    {"get-idp-user", 8192, 0, 0, -1, "kc_unavailable", 1, 0, "{}", FALSE},
     /* 2 */
-    {"get-idp-user", 0, 1, 0, 0, NULL, 2, 1, NULL},
+    {"get-idp-user", 0, 1, 0, 0, NULL, 2, 1, NULL, FALSE},
     /* 3 */
-    {"get-idp-user", 0, 9, 0, -1, "kc_unavailable", 3, 0, NULL},
+    {"get-idp-user", 0, 9, 0, -1, "kc_unavailable", 3, 0, NULL, FALSE},
     /* 4 */
-    {"get-idp-user", 0, 0, 1, 0, NULL, 1, 2, NULL},
+    {"get-idp-user", 0, 0, 1, 0, NULL, 1, 2, NULL, FALSE},
     /* 5 */
-    {"get-idp-user", 0, 0, 9, -1, "kc_unavailable", 1, 3, NULL},
+    {"get-idp-user", 0, 0, 9, -1, "kc_unavailable", 1, 3, NULL, FALSE},
     /* 6 */
-    {"delete-idp-user", 0, 0, 1, -1, "kc_unavailable", 1, 1, NULL},
+    {"delete-idp-user", 0, 0, 1, -1, "kc_unavailable", 1, 1, NULL, FALSE},
     /* 7 */
-    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": \"1\"}"},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": \"1\"}", FALSE},
     /* 8 */
-    {"list-idp-users", 0, 0, 0, 0, NULL, 0, 1, NULL},
+    {"list-idp-users", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+    /* 9-10 */
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": -5}", TRUE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+    /* 11-12 */
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1,
+        "{\"access_token\": \"AT\", \"expires_in\": 9223372036854775807}", TRUE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -241,6 +252,12 @@ PRIVATE void post_step(hgobj gobj)
     json_t *jn_token = anystring2json(token_body, strlen(token_body), FALSE);
     gobj_write_json_attr(priv->gobj_mock, "override_token_body", jn_token);
     JSON_DECREF(jn_token)
+
+    if(st->forget_token) {
+        json_t *jn_set = gobj_command(priv->gobj_idp, "set-kc-config",
+            json_pack("{s:s}", "kc_realm", "test"), gobj);
+        JSON_DECREF(jn_set)
+    }
 
     json_t *jn_resp = gobj_command(priv->gobj_idp, st->command, build_command_kw(gobj), gobj);
     if(jn_resp) {

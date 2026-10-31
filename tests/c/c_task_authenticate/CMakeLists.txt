@@ -74,6 +74,7 @@ SET(TESTS
     test15_endpoint_not_url
     test16_minimal_answer
     test17_discovery_cut
+    test19_endpoint_too_long
 )
 
 foreach(test ${TESTS})

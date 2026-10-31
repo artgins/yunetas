@@ -35,6 +35,7 @@ SDATA (DTP_JSON,        "override_discovery_body",  SDF_RD, "{}",     "If non-em
 SDATA (DTP_INTEGER,     "drop_token_requests",      SDF_RD, "0",      "So many /token requests are not answered: their connection is dropped (an IdP that restarts)"),
 SDATA (DTP_INTEGER,     "drop_logout_requests",     SDF_RD, "0",      "So many /logout requests are not answered: their connection is dropped"),
 SDATA (DTP_INTEGER,     "drop_discovery_requests",  SDF_RD, "0",      "So many /.well-known requests are not answered: their connection is dropped"),
+SDATA (DTP_INTEGER,     "discovery_endpoint_len",   SDF_RD, "0",      "If > 0, the token_endpoint of the discovery has this length"),
 SDATA (DTP_INTEGER,     "expected_logouts",         SDF_RD, "-1",     "If >= 0, the mock logs an ERROR when it stops with another count of /logout requests"),
 SDATA (DTP_INTEGER,     "expected_bearer_len",      SDF_RD, "0",      "If > 0, a /logout whose Authorization header has not this length logs an ERROR"),
 SDATA (DTP_INTEGER,     "access_token_len",         SDF_RD, "0",      "If > 0, the access_token of the /token envelope has this length"),
@@ -356,6 +357,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "token_endpoint",       token_url,
                 "end_session_endpoint", logout_url
             );
+            int endpoint_len = (int)gobj_read_integer_attr(gobj, "discovery_endpoint_len");
+            if(endpoint_len > 0) {
+                char *endpoint = gbmem_malloc((size_t)endpoint_len + 1);
+                if(endpoint) {
+                    memset(endpoint, 'a', (size_t)endpoint_len);
+                    memcpy(endpoint, "http://", 7);
+                    endpoint[endpoint_len] = '\0';
+                    json_object_set_new(jn_body, "token_endpoint", json_string(endpoint));
+                    GBMEM_FREE(endpoint)
+                }
+            }
         }
         send_resp(gobj, src, status, status_tx, jn_body);
 

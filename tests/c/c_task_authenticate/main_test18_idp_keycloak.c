@@ -183,6 +183,10 @@ static int register_yuno_and_more(void)
     for(int i = 0; i < 3; i++) {
         EXPECT_MSG("Keycloak closed the connection before answering, the request is not sent again");
     }
+    /*  9, 11: the set-kc-config of the test, with no store  */
+    for(int i = 0; i < 2; i++) {
+        EXPECT_MSG("No path for the persistent attrs file: not saved");
+    }
     set_expected_results(
         APP_NAME,
         jn_expected,
