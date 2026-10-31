@@ -144,18 +144,27 @@
  *              10:00); a TZ changed with no tzset() is seen; and the limit
  *              of a zone that changes its offset twice in less than 48
  *              hours.
- *          25. with TZ unset the reader calls tzset() only when the zone
- *              libc holds may not be the local one (1000 texts called it
- *              1000 times, and each looked at /etc/localtime); a TZ set or
- *              unset with no tzset() is seen, and so is one put back with
- *              no tzset() after other code loaded another zone in libc (a
- *              line of log, a mktime()).
+ *          25. the reader calls tzset() before the first look of a text
+ *              at the local zone, TZ set or unset, and a text that says its
+ *              zone or counts back from now costs none; a TZ set or unset
+ *              with no tzset() is seen, and so is one put back with no
+ *              tzset() after other code loaded another zone in libc (a
+ *              line of log, a mktime()), also one with the names and
+ *              offsets of the local zone and other rules; a month or a
+ *              weekday back moves the date in the frame of now.
  *          26. gmtime2timezone() gives the offset at the time it converts
- *              (it gave the offset of now), and keeps the TZ of the process
- *              when it cannot copy it (a failed copy unset TZ).
+ *              (it gave the offset of now), keeps the TZ of the process
+ *              when it cannot copy it (a failed copy unset TZ) and loads it
+ *              again; a zone libc does not know is UTC with an ERROR (it
+ *              was UTC in silence), a time no calendar holds one ERROR.
  *          27. get_hours_range() and the rest give the bounds of the zone
  *              asked, or of UTC (they were built in the zone of the
- *              process, with tm_isdst 0).
+ *              process, with tm_isdst 0); an hour is one of the zone, also
+ *              across a change of 30 minutes, at 02:45, or of 28 seconds;
+ *              negative months, several years.
+ *          28. a run of 12 digits is no date ("202610011000" was the year
+ *              8390), and after a clock time a minus sign and four digits
+ *              is its offset ("10:00 -0500 hours" is no date).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -856,8 +865,10 @@ PRIVATE void test_more_forms_of_the_port(void)
     check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
 
     int error = 0;
-    check_number("approxidate '253402300799'", approxidate_careful("253402300799", &error), 253402300799ULL);
-    check_number("approxidate '253402300799' error", (unsigned long long)error, 0);
+    check_number("approxidate '@253402300799'", approxidate_careful("@253402300799", &error), 253402300799ULL);
+    check_number("approxidate '@253402300799' error", (unsigned long long)error, 0);
+    approxidate_careful("253402300799", &error);
+    check_number("approxidate '253402300799' (12 digits, see 28) error", (unsigned long long)error, 1);
     check_number("approxidate '@1761000000000 +0000'",
         approxidate_careful("@1761000000000 +0000", &error), 1761000000000ULL);
     check_number("approxidate '@1761000000000 +0000' error", (unsigned long long)error, 0);
@@ -2078,15 +2089,28 @@ PRIVATE unsigned long long read_now(const char *text)
 }
 
 /***************************************************************************
+ *  A text of the local date of `t` at 12:00
+ ***************************************************************************/
+PRIVATE void noon_of_day(time_t t, char *text, size_t size)
+{
+    struct tm tm;
+    localtime_r(&t, &tm);
+    snprintf(text, size, "%04d-%02d-%02d 12:00", (tm.tm_year + 1900)%10000, (tm.tm_mon + 1)%100, tm.tm_mday%100);
+}
+
+/***************************************************************************
  *  25. The zone of a text is the TZ of now, whatever other code did before
- *  it. With TZ set the reader calls tzset() at every text: glibc compares
- *  TZ with the text of its last load, so a TZ set back with setenv() alone
- *  is seen after a localtime() of other code with another TZ (a line of
- *  log: current_timestamp()), or a mktime(), which call tzset() inside
- *  libc. With TZ unset tzset() looks at /etc/localtime, and a text tkey is
- *  read at every append: the reader calls it only when the last text was
- *  read with TZ set, or the zone libc holds is not the one it held at the
- *  end of the last text.
+ *  it. The reader calls tzset() before the first look of a text at the
+ *  local zone, TZ set or unset: glibc compares TZ with the text of its last
+ *  load, or with TZ unset looks at /etc/localtime, so a TZ set, unset or
+ *  put back with no tzset() is seen after a localtime() of other code in
+ *  another zone (a line of log: current_timestamp()), or a mktime(), which
+ *  call tzset() inside libc. A snapshot of the zone libc holds (tzname[],
+ *  timezone, daylight) could not tell such a zone from the local one when
+ *  both have the same names and offsets (Africa/Cairo and Europe/Athens):
+ *  with TZ unset a text was read with the other one's rules. A text that
+ *  says its zone, or counts back from now, looks at no zone and costs no
+ *  tzset().
  ***************************************************************************/
 PRIVATE void test_tzset_only_when_tz_changes(void)
 {
@@ -2102,8 +2126,42 @@ PRIVATE void test_tzset_only_when_tz_changes(void)
     }
     check_number("tzset() calls for 1000 texts, TZ set: one per text", (unsigned long long)s_tzset_calls, 1000);
 
+    static const char *zone_free_texts[] = {
+        "2026-07-01T10:00:00Z", "Thu, 01 Oct 2026 10:00:00 +0000", "3 hours ago", "now", "@1790000000",
+    };
+    for(size_t i = 0; i < sizeof(zone_free_texts)/sizeof(zone_free_texts[0]); i++) {
+        s_tzset_calls = 0;
+        for(int j = 0; j < 1000; j++) {
+            read_now(zone_free_texts[i]);
+        }
+        snprintf(bf, sizeof(bf), "tzset() calls for 1000 texts '%s', no zone looked at", zone_free_texts[i]);
+        check_number(bf, (unsigned long long)s_tzset_calls, 0);
+    }
+
     /*
-     *  TZ unset: one tzset(), at the first text after TZ set
+     *  A month or a weekday back moves the date in the frame of now, the
+     *  UTC offset of now: on 2026-03-30 at 23:30 UTC, 01:30 CEST of the
+     *  31st, a month back is February 28 (the 31st has none), and on
+     *  Wednesday 2026-10-21 at 23:30 UTC, 01:30 CEST of Thursday, the last
+     *  Friday is October 16
+     */
+    setenv("TZ", "Europe/Madrid", 1);
+    s_fake_now = 1774913400;
+    static const approxidate_case_t frame_of_now_march[] = {
+        {"1 month ago",                     "2026-02-28 00:30:00 +0100", 0},
+        {"2 days ago",                      "2026-03-29 00:30:00 +0100", 0},
+    };
+    check_approxidate(frame_of_now_march, sizeof(frame_of_now_march)/sizeof(frame_of_now_march[0]));
+    s_fake_now = 1792625400;
+    static const approxidate_case_t frame_of_now_october[] = {
+        {"last friday",                     "2026-10-16 01:30:00 +0200", 0},
+        {"yesterday Wed",                   "2026-10-21 01:30:00 +0200", 0},
+    };
+    check_approxidate(frame_of_now_october, sizeof(frame_of_now_october)/sizeof(frame_of_now_october[0]));
+    s_fake_now = NOW;
+
+    /*
+     *  TZ unset: a tzset() at every text too
      */
     unsetenv("TZ");
     s_tzset_calls = 0;
@@ -2111,11 +2169,61 @@ PRIVATE void test_tzset_only_when_tz_changes(void)
     for(int i = 0; i < 999; i++) {
         read_now("2026-07-01 10:00");
     }
-    check_number("tzset() calls for 1000 texts, TZ unset", (unsigned long long)s_tzset_calls, 1);
+    check_number("tzset() calls for 1000 texts, TZ unset: one per text", (unsigned long long)s_tzset_calls, 1000);
     tzset();
     unsigned long long t_after_tzset = read_now("2026-07-01 10:00");
     check_number("TZ unset with no tzset(): the time of /etc/localtime", t_unset, t_after_tzset);
     printf("     (Los Angeles %llu, /etc/localtime %llu)\n", t_los_angeles, t_after_tzset);
+
+    /*
+     *  Other code loads a zone with the names and offsets of the local one
+     *  and other rules (a POSIX TZ whose summer time is one hour of December
+     *  31), and unsets TZ with no tzset(): a day of local summer time is
+     *  read with the local rules
+     */
+    unsetenv("TZ");
+    tzset();
+    if(!daylight) {
+        printf("     (the local zone has no summer time: a zone with its names and offsets"
+            " and other rules is not built)\n");
+    } else {
+        time_t day = 1767268800;    // 2026-01-01 12:00 UTC
+        struct tm lt;
+        for(int i = 0; i < 360; i++, day += 86400) {
+            localtime_r(&day, &lt);
+            if(lt.tm_isdst > 0) {
+                break;
+            }
+        }
+        char text[32];
+        noon_of_day(day, text, sizeof(text));
+        unsigned long long t_local = read_now(text);
+        char twin[128];
+        snprintf(twin, sizeof(twin), "<%s>%ld:%02ld<%s>,J365/0,J365/1",
+            tzname[0], timezone/3600, (labs(timezone)%3600)/60, tzname[1]);
+        setenv("TZ", twin, 1);
+        current_timestamp(bf, sizeof(bf));
+        unsetenv("TZ");
+        snprintf(bf, sizeof(bf), "'%s', TZ unset after a log line in a twin of the local zone", text);
+        check_number(bf, read_now(text), t_local);
+        printf("     (twin %s)\n", twin);
+    }
+
+    /*
+     *  And with TZ set: two zones with the same names and offsets, the
+     *  rules of Europe/Athens and of Africa/Cairo in 2026
+     */
+    static const char *athens = "EET-2EEST,M3.5.0/3,M10.5.0/4";
+    static const char *cairo = "EET-2EEST,M4.5.5/0,M10.5.4/24";
+    setenv("TZ", athens, 1);
+    unsigned long long t_athens = read_now("2026-04-10 12:00");
+    check_number("2026-04-10 12:00 in Athens", t_athens, 1775811600ULL);
+    setenv("TZ", cairo, 1);
+    check_number("2026-04-10 12:00 in Cairo", read_now("2026-04-10 12:00"), 1775815200ULL);
+    current_timestamp(bf, sizeof(bf));
+    setenv("TZ", athens, 1);
+    check_number("Athens after a log line in Cairo, TZ put back with no tzset()",
+        read_now("2026-04-10 12:00"), t_athens);
 
     setenv("TZ", "Europe/Madrid", 1);
     s_tzset_calls = 0;
@@ -2187,6 +2295,34 @@ PRIVATE void test_tzset_only_when_tz_changes(void)
 }
 
 /***************************************************************************
+ *  The errors logged, counted, and the last one kept
+ ***************************************************************************/
+PRIVATE int s_errors_logged = 0;
+PRIVATE char s_last_error[512] = "";
+
+PRIVATE int count_errors(void *h, int priority, const char *bf, size_t len)
+{
+    if(priority <= LOG_ERR) {
+        s_errors_logged++;
+        snprintf(s_last_error, sizeof(s_last_error), "%.*s", (int)len, bf);
+    }
+    return 0;
+}
+
+PRIVATE void check_errors(const char *label, int expected, const char *msg)
+{
+    char bf[256];
+    snprintf(bf, sizeof(bf), "%s: errors logged", label);
+    check_number(bf, (unsigned long long)s_errors_logged, (unsigned long long)expected);
+    if(msg) {
+        snprintf(bf, sizeof(bf), "%s: the error says '%s'", label, msg);
+        check_number(bf, (unsigned long long)(strstr(s_last_error, msg) != NULL), 1);
+    }
+    s_errors_logged = 0;
+    s_last_error[0] = 0;
+}
+
+/***************************************************************************
  *  An allocator that fails once, on demand
  ***************************************************************************/
 PRIVATE sys_malloc_fn_t s_real_malloc = 0;
@@ -2204,8 +2340,10 @@ PRIVATE void *malloc_that_fails_once(size_t size)
 /***************************************************************************
  *  26. gmtime2timezone() gives the offset of the zone at the time it
  *  converts, not now (in Madrid a time of January got +7200 in October),
- *  and leaves the TZ of the process as it found it, also when it cannot
- *  keep a copy of it (a failed copy unset TZ, in silence).
+ *  and leaves the TZ of the process as it found it, loaded in libc, also
+ *  when it cannot keep a copy of it (a failed copy unset TZ, in silence).
+ *  A zone libc does not know is taken as UTC with an ERROR (it was UTC in
+ *  silence), and a time no calendar holds logs one ERROR (it logged two).
  ***************************************************************************/
 PRIVATE void test_gmtime2timezone(void)
 {
@@ -2229,6 +2367,44 @@ PRIVATE void test_gmtime2timezone(void)
     const char *tz = getenv("TZ");
     check_number("gmtime2timezone(): the TZ of the process put back",
         (unsigned long long)(tz && strcmp(tz, "Asia/Tokyo") == 0), 1);
+    time_t t_july = 1784455200;
+    localtime_r(&t_july, &tm);
+    check_number("gmtime2timezone(): the zone of the process loaded again, a localtime_r() after it in Tokyo",
+        (unsigned long long)tm.tm_hour, 19);
+
+    /*
+     *  A zone libc does not know: UTC, with an ERROR
+     */
+    static const char *unknown_zones[] = {"Nowhere/Zone", "Europe", "Foo", ":Nowhere", "<XA>0", "<XAAA0"};
+    for(size_t i = 0; i < sizeof(unknown_zones)/sizeof(unknown_zones[0]); i++) {
+        char label[128];
+        s_errors_logged = 0;
+        offset = -1;
+        local = gmtime2timezone(1768816800, unknown_zones[i], &tm, &offset);
+        snprintf(label, sizeof(label), "gmtime2timezone() in '%s': offset 0", unknown_zones[i]);
+        check_number(label, (unsigned long long)offset, 0);
+        snprintf(label, sizeof(label), "gmtime2timezone() in '%s'", unknown_zones[i]);
+        check_errors(label, 1, "Unknown time zone");
+    }
+    tz = getenv("TZ");
+    check_number("gmtime2timezone() in an unknown zone: TZ of the process put back",
+        (unsigned long long)(tz && strcmp(tz, "Asia/Tokyo") == 0), 1);
+    static const char *utc_zones[] = {"UTC", "Etc/UTC", "Africa/Abidjan", "UTC0", "<+00>0", ""};
+    for(size_t i = 0; i < sizeof(utc_zones)/sizeof(utc_zones[0]); i++) {
+        char label[128];
+        s_errors_logged = 0;
+        offset = -1;
+        gmtime2timezone(1768816800, utc_zones[i], &tm, &offset);
+        snprintf(label, sizeof(label), "gmtime2timezone() in '%s'", utc_zones[i]);
+        check_errors(label, 0, NULL);
+    }
+
+    /*
+     *  A time no calendar holds: one ERROR
+     */
+    s_errors_logged = 0;
+    gmtime2timezone((time_t)0x7fffffffffffffffLL, "Europe/Madrid", &tm, &offset);
+    check_errors("gmtime2timezone() of a time no calendar holds", 1, "no calendar holds the time");
 
     unsetenv("TZ");
     gmtime2timezone(1768816800, "Europe/Madrid", &tm, &offset);
@@ -2279,6 +2455,10 @@ PRIVATE void check_range(const char *label, time_range_t range, time_t start, ti
  *  built with mktime() in the zone of the process and tm_isdst 0: with
  *  the process in Tokyo, the day of Madrid started at 00:00 of Tokyo, and
  *  with no zone the day of UTC started at the midnight of the process.
+ *  An hour is one of the zone: a change of offset of 30 minutes
+ *  (Australia/Lord_Howe), or at 02:45 (Pacific/Chatham), ends one and
+ *  starts the next (hours of 3600 seconds from the start of the hour of
+ *  `t` ended at 02:30 or 03:00 of the clock).
  ***************************************************************************/
 PRIVATE void test_time_ranges(void)
 {
@@ -2307,12 +2487,111 @@ PRIVATE void test_time_ranges(void)
     check_range("the second of a repeated hour in Madrid", get_hours_range(1792891800, 1, "Europe/Madrid"),
         1792890000, 1792893600);
 
+    /*
+     *  Seconds in `t`, a negative count of months back into the year
+     *  before, and more than one year
+     */
+    check_range("hours of Madrid, t with seconds", get_hours_range(t + 1800 + 17, 2, "Europe/Madrid"),
+        t, t + 7200);
+    check_range("months of Madrid, 8 back", get_months_range(t, -8, "Europe/Madrid"), 1782856800, 1761951600);
+    check_range("years of Madrid, 3", get_years_range(t, 3, "Europe/Madrid"), 1767222000, 1861916400);
+
+    /*
+     *  Hours of a zone whose changes are not whole hours, or not at a
+     *  whole hour (the bounds of zoneinfo, by the minute)
+     */
+    static const struct {
+        const char *tz;
+        time_t t;
+        int range;
+        time_t start;
+        time_t end;
+        const char *label;
+    } hours[] = {
+        {"Australia/Lord_Howe", 1791038717,   1, 1791037800, 1791041400, "01:15 +1030 before 02:00 -> 02:30 +1100"},
+        {"Australia/Lord_Howe", 1791038717,   2, 1791037800, 1791043200, "01:15 +1030, 2 hours to 03:00 +1100"},
+        {"Australia/Lord_Howe", 1791042005,   1, 1791041400, 1791043200, "02:40 +1100, the hour from 02:30"},
+        {"Australia/Lord_Howe", 1775312109,   1, 1775311200, 1775314800, "01:15 +1100 before 02:00 -> 01:30 +1030"},
+        {"Australia/Lord_Howe", 1775312109,   2, 1775311200, 1775316600, "01:15 +1100, 2 hours to 02:00 +1030"},
+        {"Australia/Lord_Howe", 1775315709,   1, 1775314800, 1775316600, "01:45 +1030, the second 01, from 01:30"},
+        {"Australia/Lord_Howe", 1790946000,  48, 1790944200, 1791115200, "48 hours over the change"},
+        {"Australia/Lord_Howe", 1791205200, -48, 1791205200, 1791034200, "48 hours back over the change"},
+        {"Pacific/Chatham",     1790430330,   1, 1790428500, 1790431200, "02:30 +1245 before 02:45 -> 03:45 +1345"},
+        {"Pacific/Chatham",     1790430330,   2, 1790428500, 1790432100, "02:30 +1245, 2 hours to 04:00 +1345"},
+        {"Pacific/Chatham",     1790431500,   1, 1790431200, 1790432100, "03:50 +1345, the hour from 03:45"},
+        {"Pacific/Chatham",     1790431500,  -2, 1790431200, 1790424900, "03:50 +1345, 2 hours back to 01:00 +1245"},
+        {"Pacific/Chatham",     1790338500,  48, 1790338500, 1790507700, "48 hours over the change"},
+        {"<XAA>-0:19:32<XBB>-0:20,J182/0,J300/0", 1782864605, 1, 1782862828, 1782866400,
+            "a change of 28 seconds, the hour from 00:00:28"},
+        {"<XAA>-0:19:32<XBB>-0:20,J182/0,J300/0", 1782864605, 2, 1782862828, 1782870000,
+            "a change of 28 seconds, 2 hours to 02:00:00"},
+    };
+    for(size_t i = 0; i < sizeof(hours)/sizeof(hours[0]); i++) {
+        char label[160];
+        snprintf(label, sizeof(label), "hours of %s, %s", hours[i].tz, hours[i].label);
+        check_range(label, get_hours_range(hours[i].t, hours[i].range, hours[i].tz),
+            hours[i].start, hours[i].end);
+    }
+
     const char *tz = getenv("TZ");
     check_number("ranges: the TZ of the process put back",
         (unsigned long long)(tz && strcmp(tz, "Asia/Tokyo") == 0), 1);
+    struct tm tm;
+    localtime_r(&t, &tm);
+    check_number("ranges: the zone of the process loaded again, a localtime_r() after them in Tokyo",
+        (unsigned long long)tm.tm_hour, 19);
+
+    /*
+     *  A zone libc does not know: UTC, with an ERROR
+     */
+    s_errors_logged = 0;
+    check_range("days of an unknown zone: UTC", get_days_range(t, 1, "Nowhere/Zone"), 1784419200, 1784505600);
+    check_errors("days of an unknown zone", 1, "Unknown time zone");
 
     setenv("TZ", "Europe/Madrid", 1);
     tzset();
+}
+
+/***************************************************************************
+ *  28. A run of 12 digits is a date and a time written with no 'T'
+ *  ("202610011000"), not epoch seconds: no date (it was the year 8390,
+ *  "202610011000-0500" too); bare epoch seconds have 11 digits at most,
+ *  and with '@' up to the year 9999. After a clock time a minus sign and
+ *  four digits is its offset, a unit after it or not: "10:00 -0500 hours"
+ *  is no date (it was 500 hours back). From 100000000 on, a number is epoch
+ *  seconds, and a minus sign glued to it is its offset.
+ ***************************************************************************/
+PRIVATE void test_twelve_digits_and_four_after_a_clock_time(void)
+{
+    static const approxidate_case_t cases[] = {
+        {"202610011000",                    "2026-10-21 11:00:00 +0200", 1},
+        {"202610011000-0500",               "2026-10-21 11:00:00 +0200", 1},
+        {"202610011000+0500",               "2026-10-21 11:00:00 +0200", 1},
+        {"100000000000",                    "2026-10-21 11:00:00 +0200", 1},
+        {"99999999999",                     "5138-11-16 10:46:39 +0100", 0},
+        {"@202610011000",                   "8390-06-16 08:36:40 +0200", 0},
+        {"20261001T1000-0500",              "2026-10-01 17:00:00 +0200", 0},
+        {"10:00 -0500 hours",               "2026-10-21 11:00:00 +0200", 1},
+        {"10:00:00 -1000 hours",            "2026-10-21 11:00:00 +0200", 1},
+        {"2026-10-01T10:00-0500 hours",     "2026-10-21 11:00:00 +0200", 1},
+        {"10:00 -0500",                     "2026-10-21 17:00:00 +0200", 0},
+        {"10:00 -5 hours",                  "2026-10-21 05:00:00 +0200", 0},
+        {"10:00 -05 hours",                 "2026-10-21 05:00:00 +0200", 0},
+        {"10:00 -10 days",                  "2026-10-11 10:00:00 +0200", 0},
+        {"10:00 -12345 hours",              "2025-05-25 01:00:00 +0200", 0},
+        {"-0500 hours",                     "2026-09-30 15:00:00 +0200", 0},
+        {"100000000-0500",                  "1973-03-03 10:46:40 +0100", 0},
+        {"99999999-0500",                   "2026-10-21 11:00:00 +0200", 1},
+    };
+    check_approxidate(cases, sizeof(cases)/sizeof(cases[0]));
+
+    timestamp_t t = 0;
+    int off = 0;
+    check_number("parse_date_basic '202610011000' ret",
+        (unsigned long long)(parse_date_basic("202610011000", &t, &off) + 1), 0);
+    check_number("parse_date_basic '100000000-0500' ret",
+        (unsigned long long)(parse_date_basic("100000000-0500", &t, &off) + 1), 1);
+    check_number("parse_date_basic '100000000-0500' offset", (unsigned long long)(off + 300), 0);
 }
 
 /***************************************************************************
@@ -2339,6 +2618,8 @@ int main(int argc, char *argv[])
         NULL    // global_authentication_parser
     );
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_register_handler("count_errors", 0, count_errors, 0);
+    gobj_log_add_handler("count_errors", "count_errors", LOG_OPT_ALL, 0);
 
     test_approxidate_durations_and_times();
     test_approxidate_absolute_forms();
@@ -2367,6 +2648,7 @@ int main(int argc, char *argv[])
     test_tzset_only_when_tz_changes();
     test_gmtime2timezone();
     test_time_ranges();
+    test_twelve_digits_and_four_after_a_clock_time();
 
     gobj_end();
 

@@ -7164,6 +7164,8 @@ PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of file
 #define DATE_EPOCH_MIN      100000000   // a bare number from here on is epoch seconds
 #define DATE_EPOCH_MAX      253402300799LL  // 9999-12-31 23:59:59 UTC: epoch seconds past it are
                                             // no date, but for "@<seconds> <offset>"
+#define DATE_BARE_EPOCH_MAX 99999999999LL   // 5138-11-16: a bare number of 12 digits is a date and
+                                            // a time with no 'T' ("202610011000"), not seconds
 
 PRIVATE const char *month_full_names[12] = {
     "january", "february", "march", "april", "may", "june",
@@ -7233,7 +7235,8 @@ typedef enum {
  */
 typedef struct {
     time_t now;
-    long now_offset;        // seconds east of UTC at now
+    long now_offset;        // seconds east of UTC at now (see offset_of_now())
+    BOOL now_offset_known;
 
     int64_t year;
     int mon;                // 1..12
@@ -7339,10 +7342,43 @@ PRIVATE int64_t utc_seconds(int64_t year, int mon, int64_t mday, int64_t hour, i
 }
 
 /***************************************************************************
+ *  The text being read has had its tzset() (see load_zone_of_text())
+ ***************************************************************************/
+PRIVATE BOOL zone_of_text_loaded = FALSE;
+
+/***************************************************************************
+ *  Before the first look of a text at the local zone: tzset(), TZ set or
+ *  unset, so the text is read in the TZ of now. A text that says its zone
+ *  and needs no other ("2026-10-01T10:00:00Z") looks at none and costs
+ *  none.
+ *
+ *  localtime_r() does not look at TZ again, and libc changes its zone only
+ *  at a tzset(), explicit or implicit (localtime(), mktime() and ctime()
+ *  call it): the zone it holds is the TZ of its last tzset(), which is not
+ *  always the TZ of now. With TZ set, glibc compares TZ with the text of
+ *  its last load; with TZ unset, it looks at /etc/localtime (a stat) and
+ *  loads it again only when it is not the file it holds. No cheaper test
+ *  tells the zone libc holds from the local one: tzname[], timezone and
+ *  daylight are the same for two zones with the same names and offsets and
+ *  other rules (Africa/Cairo and Europe/Athens give dates of 2026 one hour
+ *  apart). So a TZ set, unset or put back by other code with no tzset()
+ *  after it is seen, and so is a change of /etc/localtime while the process
+ *  runs.
+ ***************************************************************************/
+PRIVATE void load_zone_of_text(void)
+{
+    if(!zone_of_text_loaded) {
+        tzset();
+        zone_of_text_loaded = TRUE;
+    }
+}
+
+/***************************************************************************
  *  The offset of the local zone at `t`, in seconds east of UTC
  ***************************************************************************/
 PRIVATE long local_offset_at(time_t t)
 {
+    load_zone_of_text();
     struct tm lt;
     if(!localtime_r(&t, &lt)) {
         gobj_log_error(0, 0,
@@ -7564,15 +7600,29 @@ PRIVATE BOOL valid_date(int64_t year, int64_t mon, int64_t mday)
 }
 
 /***************************************************************************
+ *  The offset of the local zone at now, looked at only by a text that
+ *  needs it
+ ***************************************************************************/
+PRIVATE long offset_of_now(date_reading_t *rd)
+{
+    if(!rd->now_offset_known) {
+        rd->now_offset = local_offset_at(rd->now);
+        rd->now_offset_known = TRUE;
+    }
+    return rd->now_offset;
+}
+
+/***************************************************************************
  *  TRUE when a date, at the time of day of now, is more than
  *  DATE_FUTURE_SLACK ahead of now
  ***************************************************************************/
 PRIVATE BOOL far_ahead(date_reading_t *rd, int64_t year, int mon, int mday)
 {
-    time_t shifted = rd->now + rd->now_offset;
+    long now_offset = offset_of_now(rd);
+    time_t shifted = rd->now + now_offset;
     struct tm nf;
     gmtime_r(&shifted, &nf);
-    int64_t t = utc_seconds(year, mon, mday, nf.tm_hour, nf.tm_min, nf.tm_sec) - rd->now_offset;
+    int64_t t = utc_seconds(year, mon, mday, nf.tm_hour, nf.tm_min, nf.tm_sec) - now_offset;
     return (t > (int64_t)rd->now + DATE_FUTURE_SLACK)? TRUE : FALSE;
 }
 
@@ -7976,7 +8026,7 @@ PRIVATE const char *read_numeric_date(date_reading_t *rd, const char *p)
 
     int64_t check_year = year;
     if(!check_year) {
-        time_t shifted = rd->now + rd->now_offset;
+        time_t shifted = rd->now + offset_of_now(rd);
         struct tm nf;
         gmtime_r(&shifted, &nf);
         check_year = nf.tm_year + 1900;
@@ -8473,6 +8523,19 @@ PRIVATE BOOL unit_follows_count(const char *p)
 }
 
 /***************************************************************************
+ *  Four digits, and no fifth: the "hhmm" of an offset
+ ***************************************************************************/
+PRIVATE BOOL four_digits_at(const char *p)
+{
+    for(int i = 0; i < 4; i++) {
+        if(!isdigit((unsigned char)p[i])) {
+            return FALSE;
+        }
+    }
+    return isdigit((unsigned char)p[4])? FALSE : TRUE;
+}
+
+/***************************************************************************
  *  A duration with a minus sign: "-1d", "-2 hours", "-1w ago". The port of
  *  git's date.c skipped the sign, so a count back from now was typed that
  *  way for years. Only a count with its unit: "-5" or "-2 friday" is no
@@ -8738,77 +8801,13 @@ PRIVATE const char *read_comment(date_reading_t *rd, const char *p)
 }
 
 /***************************************************************************
- *  The zone libc held when the reader ended its last text read with TZ
- *  unset (see see_tz_change())
- ***************************************************************************/
-typedef struct {
-    BOOL kept;          // the last text was read with TZ unset, and the fields below say how libc ended it
-    char *std_name;     // tzname[0]
-    char *dst_name;     // tzname[1]
-    long std_offset;    // timezone
-    int has_dst;        // daylight
-} libc_zone_t;
-
-PRIVATE libc_zone_t libc_zone_of_last_text = {0};
-
-/***************************************************************************
- *  Before a text: tzset() unless TZ is unset, the last text was read with
- *  TZ unset, and libc holds the zone it held at the end of that text.
- *
- *  localtime_r() does not look at TZ again, and libc changes its zone only
- *  at a tzset(), explicit or implicit (localtime(), mktime() and ctime()
- *  call it): the zone it holds is the TZ of its last tzset(), which is not
- *  always the TZ of now. With TZ set, a tzset() costs glibc a compare of
- *  TZ with the text of its last load, so the reader calls it at every text,
- *  and reads in the TZ of now whatever other code did before. With TZ unset
- *  a tzset() looks at /etc/localtime (a stat or an open per call), so it
- *  is called only when the zone libc holds may not be the local one: the
- *  last text was read with TZ set, or the names and offsets of the zone
- *  libc holds (tzname[], timezone, daylight) are not the ones it held at
- *  the end of the last text, because other code loaded another zone (TZ
- *  set, then a tzset(), then TZ unset with no tzset() after it). A zone
- *  loaded that way with the same names and offsets as the local one
- *  (Europe/Paris in a process of Europe/Madrid) is not seen, and the text
- *  is read with its rules; and a change of /etc/localtime while the
- *  process runs is seen at the next tzset() of the process, not per text.
- ***************************************************************************/
-PRIVATE void see_tz_change(void)
-{
-    BOOL tz_unset = getenv("TZ")? FALSE : TRUE;
-    BOOL kept = libc_zone_of_last_text.kept;
-    libc_zone_of_last_text.kept = tz_unset;
-    if(tz_unset && kept &&
-            tzname[0] == libc_zone_of_last_text.std_name &&
-            tzname[1] == libc_zone_of_last_text.dst_name &&
-            timezone == libc_zone_of_last_text.std_offset &&
-            daylight == libc_zone_of_last_text.has_dst) {
-        return;
-    }
-    tzset();
-}
-
-/***************************************************************************
- *  After a text: the zone libc holds now, for see_tz_change() at the next
- *  one. localtime_r() rewrites tzname[] with the names of the time it
- *  converts, so it is kept at the end of the text, not after the tzset().
- ***************************************************************************/
-PRIVATE void keep_tz_of_text(void)
-{
-    libc_zone_of_last_text.std_name = tzname[0];
-    libc_zone_of_last_text.dst_name = tzname[1];
-    libc_zone_of_last_text.std_offset = timezone;
-    libc_zone_of_last_text.has_dst = daylight;
-}
-
-/***************************************************************************
  *  Note what each piece of `text` says
  ***************************************************************************/
 PRIVATE void read_date_text(date_reading_t *rd, const char *text)
 {
-    see_tz_change();
+    zone_of_text_loaded = FALSE;
     memset(rd, 0, sizeof(*rd));
     rd->now = time(NULL);
-    rd->now_offset = local_offset_at(rd->now);
     rd->hour = -1;
     rd->special_hour = -1;
     rd->weekday_target = -1;
@@ -8832,13 +8831,15 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
             p = read_word(rd, p);
         } else if(c == '-' && isdigit((unsigned char)p[1]) && !rd->epoch_said &&
                 ((rd->hour < 0 && rd->special_hour < 0 && !day_said(rd)) ||
-                    unit_follows_count(p + 1))) {
+                    (unit_follows_count(p + 1) && !(rd->hour >= 0 && four_digits_at(p + 1))))) {
             /*
              *  A minus sign, a count and its unit is a duration, as without
              *  the sign ("-1d", "noon -1d", "Oct 1 -2 days", "10:00 -1d",
              *  "10:00 2026-10-01-1d"); with no unit it is a zone after a
              *  clock time, noon or a day ("10:00 -0500", "yesterday
-             *  -0500"), and no date with nothing before it ("-5")
+             *  -0500"), and no date with nothing before it ("-5"). After a
+             *  clock time four digits are its offset, a unit after them
+             *  or not ("10:00 -0500 hours" is no date)
              */
             p = read_signed_duration(rd, p);
         } else if(c == '+' || c == '-') {
@@ -8884,8 +8885,13 @@ PRIVATE void read_date_text(date_reading_t *rd, const char *text)
 
 /***************************************************************************
  *  The time that a reading says, and the offset to show it with (the one
- *  given, else the local one at that time), in minutes. Return -1 when
- *  the text says no time.
+ *  given, else the local one at that time), in minutes, when
+ *  `offset_minutes` is not NULL. Return -1 when the text says no time.
+ *
+ *  The local zone is looked at only where the time depends on it: a text
+ *  that says its zone, or only a count back from now ("3 hours ago",
+ *  "now", epoch seconds), is the same time in any frame, and costs no
+ *  tzset() (see load_zone_of_text()).
  *
  *  Without a clock time the date moves in the offset of the zone said,
  *  else in the UTC offset of now: whole days are 24 hours, and a date
@@ -8918,7 +8924,9 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
             return -1;
         }
         *result = 0;
-        *offset_minutes = 0;
+        if(offset_minutes) {
+            *offset_minutes = 0;
+        }
         return 0;
     }
     if(rd->epoch_said) {
@@ -8928,22 +8936,35 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         if(rd->epoch > (uintmax_t)DATE_EPOCH_MAX && !(rd->epoch_at && rd->zone_numeric)) {
             return -1;  // past the year 9999: no date ("1761000000000" is milliseconds)
         }
+        if(rd->epoch > (uintmax_t)DATE_BARE_EPOCH_MAX && !rd->epoch_at) {
+            return -1;  // "202610011000" is 2026-10-01 10:00 with no 'T', not the year 8390
+        }
         time_t epoch = (time_t)rd->epoch;
         struct tm epoch_tm;
-        if(!gmtime_r(&epoch, &epoch_tm) || !localtime_r(&epoch, &epoch_tm)) {
+        if(!gmtime_r(&epoch, &epoch_tm)) {
             return -1;  // no calendar holds it: no date
         }
+        if(rd->epoch > (uintmax_t)DATE_EPOCH_MAX) {
+            load_zone_of_text();    // up to the year 9999 any local calendar holds it
+            if(!localtime_r(&epoch, &epoch_tm)) {
+                return -1;
+            }
+        }
         *result = rd->epoch;
-        *offset_minutes = (int)((rd->zone_said? rd->zone_offset : local_offset_at((time_t)rd->epoch))/60);
+        if(offset_minutes) {
+            *offset_minutes = (int)((rd->zone_said? rd->zone_offset : local_offset_at((time_t)rd->epoch))/60);
+        }
         return 0;
     }
 
-    long frame_offset = rd->zone_said? rd->zone_offset : rd->now_offset;
+    BOOL date_said = (rd->year || rd->mon || rd->mday)? TRUE : FALSE;
+    BOOL frame_matters = (date_said || rd->hour >= 0 || rd->special_hour >= 0 ||
+        rd->weekday_target >= 0 || weekday_of_counted_day || rd->back_months)? TRUE : FALSE;
+    long frame_offset = rd->zone_said? rd->zone_offset : (frame_matters? offset_of_now(rd) : 0);
     time_t shifted = rd->now + frame_offset;
     struct tm nf;
     gmtime_r(&shifted, &nf);
     int64_t now_clock = nf.tm_hour*3600 + nf.tm_min*60 + nf.tm_sec;
-    BOOL date_said = (rd->year || rd->mon || rd->mday)? TRUE : FALSE;
     BOOL day_named = (date_said || rd->today_said || rd->day_counted)? TRUE : FALSE;
 
     int64_t year = rd->year? rd->year : nf.tm_year + 1900;
@@ -9043,7 +9064,6 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
         return -1;
     }
 
-    long offset = rd->zone_said? rd->zone_offset : local_offset_at((time_t)t);
     if(weekday_of_counted_day) {
         /*
          *  A day counted from today ("now", "today", a count back) is
@@ -9066,7 +9086,9 @@ PRIVATE int resolve_reading(date_reading_t *rd, timestamp_t *result, int *offset
     }
 
     *result = (timestamp_t)t;
-    *offset_minutes = (int)(offset/60);
+    if(offset_minutes) {
+        *offset_minutes = (int)((rd->zone_said? rd->zone_offset : local_offset_at((time_t)t))/60);
+    }
     return 0;
 }
 
@@ -9138,9 +9160,11 @@ PUBLIC void show_date_relative(timestamp_t t, char *timebuf, int timebufsize)
 }
 
 /***************************************************************************
- *  The reading of parse_date_basic()
+ *  Only a whole date and time, or epoch seconds: the time and the
+ *  offset it was written in (the local one at that time when none), in
+ *  minutes. Return -1 for anything else.
  ***************************************************************************/
-PRIVATE int read_whole_date(const char *date, timestamp_t *timestamp, int *offset)
+PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
 {
     date_reading_t rd;
     read_date_text(&rd, date);
@@ -9161,18 +9185,6 @@ PRIVATE int read_whole_date(const char *date, timestamp_t *timestamp, int *offse
 }
 
 /***************************************************************************
- *  Only a whole date and time, or epoch seconds: the time and the
- *  offset it was written in (the local one at that time when none), in
- *  minutes. Return -1 for anything else.
- ***************************************************************************/
-PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
-{
-    int ret = read_whole_date(date, timestamp, offset);
-    keep_tz_of_text();
-    return ret;
-}
-
-/***************************************************************************
  *  A date as a person types it; NOW, with *error_ret set, when the text
  *  says no date
  ***************************************************************************/
@@ -9180,11 +9192,8 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret)
 {
     date_reading_t rd;
     timestamp_t t;
-    int offset;
     read_date_text(&rd, date);
-    int ret = resolve_reading(&rd, &t, &offset);
-    keep_tz_of_text();
-    if(ret < 0) {
+    if(resolve_reading(&rd, &t, NULL) < 0) {
         if(error_ret) {
             *error_ret = 1;
         }
@@ -9925,11 +9934,61 @@ PUBLIC void list_open_files(void)
 }
 
 /*****************************************************************
+ *  Is `tz`, loaded by a tzset(), a zone libc knows? libc takes a name it
+ *  does not know ("Nowhere/Zone", "Europe") as UTC, in silence. It is
+ *  known when libc read an offset or a summer time from it, when it names
+ *  a zone file (under TZDIR, else /usr/share/zoneinfo, or absolute), when
+ *  it is a POSIX TZ with its offset ("UTC0", "<+00>0"), or when it is
+ *  empty (UTC by POSIX).
+ *****************************************************************/
+PRIVATE void leave_zone(const char *tz, char *saved_tz);
+
+PRIVATE BOOL zone_is_known(const char *tz)
+{
+    if(timezone != 0 || daylight) {
+        return TRUE;
+    }
+    const char *name = (*tz == ':')? tz + 1 : tz;
+    if(!*name) {
+        return TRUE;
+    }
+    const char *dir = getenv("TZDIR");
+    if(empty_string(dir)) {
+        dir = "/usr/share/zoneinfo";
+    }
+    char path[PATH_MAX];
+    if(strlen(dir) + strlen(name) + 2 <= sizeof(path) &&
+            build_path(path, sizeof(path), (*name == '/')? "" : dir, name, NULL)) {
+        struct stat st;
+        if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            return TRUE;
+        }
+    }
+    const char *p = name;
+    BOOL quoted = (*p == '<')? TRUE : FALSE;
+    if(quoted) {
+        p++;
+    }
+    const char *letters = p;
+    while(isalpha((unsigned char)*p) ||
+            (quoted && (isdigit((unsigned char)*p) || *p == '+' || *p == '-'))) {
+        p++;
+    }
+    if(p - letters < 3 || (quoted && *p++ != '>')) {
+        return FALSE;   // a name of 3 characters or more, as POSIX says
+    }
+    if(*p == '+' || *p == '-') {
+        p++;
+    }
+    return isdigit((unsigned char)*p)? TRUE : FALSE;
+}
+
+/*****************************************************************
  *  Set the TZ of the process to `tz`, with a tzset(), keeping a copy of
  *  the TZ it had in `*saved_tz` (NULL when it was unset) for
  *  leave_zone(). FALSE, with the error logged and TZ left as it was, when
- *  `tz` is NULL, when there is no memory for the copy, or when TZ cannot
- *  be set.
+ *  `tz` is NULL, when there is no memory for the copy, when TZ cannot be
+ *  set, or when `tz` is a zone libc does not know (see zone_is_known()).
  *****************************************************************/
 PRIVATE BOOL enter_zone(const char *tz, char **saved_tz)
 {
@@ -9971,6 +10030,18 @@ PRIVATE BOOL enter_zone(const char *tz, char **saved_tz)
         return FALSE;
     }
     tzset();
+    if(!zone_is_known(tz)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Unknown time zone: taken as UTC",
+            "tz",           "%s", tz,
+            NULL
+        );
+        leave_zone(tz, *saved_tz);
+        *saved_tz = NULL;
+        return FALSE;
+    }
     return TRUE;
 }
 
@@ -10017,6 +10088,7 @@ PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *
 {
     struct tm tm_tz;
     memset(&tm_tz, 0, sizeof(tm_tz));
+    char *saved_tz;
     if(!gmtime_r(&t, &tm_tz)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -10025,10 +10097,7 @@ PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *
             "t",            "%lld", (long long)t,
             NULL
         );
-    }
-
-    char *saved_tz;
-    if(enter_zone(tz, &saved_tz)) {
+    } else if(enter_zone(tz, &saved_tz)) {
         struct tm tm_local;
         if(localtime_r(&t, &tm_local)) {
             tm_tz = tm_local;
@@ -12392,12 +12461,138 @@ typedef enum {
 } range_unit_t;
 
 /***************************************************************************
+ *  The offset at `t` of the zone of a range: the local one (TZ was set to
+ *  it), or UTC
+ ***************************************************************************/
+PRIVATE long range_offset_at(time_t t, BOOL in_zone)
+{
+    return in_zone? local_offset_at(t) : 0;
+}
+
+/***************************************************************************
+ *  The change of offset in (from, to]: the first moment there with an
+ *  offset that is not the one of `from`. There is one, and only one: they
+ *  are less than an hour apart.
+ ***************************************************************************/
+PRIVATE time_t change_of_offset(time_t from, time_t to, BOOL in_zone)
+{
+    long offset_from = range_offset_at(from, in_zone);
+    while(to - from > 1) {
+        time_t mid = from + (to - from)/2;
+        if(range_offset_at(mid, in_zone) == offset_from) {
+            from = mid;
+        } else {
+            to = mid;
+        }
+    }
+    return to;
+}
+
+/***************************************************************************
+ *  The local time of `t` in the zone of a range, logged when no calendar
+ *  holds it
+ ***************************************************************************/
+PRIVATE BOOL range_time_of(time_t t, BOOL in_zone, struct tm *tm)
+{
+    memset(tm, 0, sizeof(*tm));
+    if(!(in_zone? localtime_r(&t, tm) : gmtime_r(&t, tm))) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "no calendar holds the time: range 0",
+            "t",            "%lld", (long long)t,
+            NULL
+        );
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The start of the hour that holds `t`: its local hh:00:00, or the change
+ *  of offset after it, when one comes between them (a change of 30 or 45
+ *  minutes, or at a time that is no whole hour, starts an hour that does
+ *  not start at hh:00:00). FALSE when no calendar holds `t` (logged).
+ ***************************************************************************/
+PRIVATE BOOL start_of_hour(time_t t, BOOL in_zone, time_t *start)
+{
+    struct tm tm;
+    if(!range_time_of(t, in_zone, &tm)) {
+        return FALSE;
+    }
+    *start = t - (tm.tm_min*60 + tm.tm_sec);
+    if(range_offset_at(*start, in_zone) != range_offset_at(t, in_zone)) {
+        *start = change_of_offset(*start, t, in_zone);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The end of the hour that holds `t`: the next local hh:00:00, or the
+ *  change of offset before it. FALSE when no calendar holds `t` (logged).
+ ***************************************************************************/
+PRIVATE BOOL end_of_hour(time_t t, BOOL in_zone, time_t *end)
+{
+    struct tm tm;
+    if(!range_time_of(t, in_zone, &tm)) {
+        return FALSE;
+    }
+    *end = t + 3600 - (tm.tm_min*60 + tm.tm_sec);
+    if(range_offset_at(*end - 1, in_zone) != range_offset_at(t, in_zone)) {
+        *end = change_of_offset(t, *end - 1, in_zone);
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  `range` hours after (before, when negative) `start`, the start of an
+ *  hour, counted as the hours of the zone are: an hour that a change of
+ *  offset makes shorter counts one. A day with the same offset at both
+ *  ends and a start at hh:00:00 is 24 hours of 3600 seconds, taken in one
+ *  step: the zone is taken not to change its offset twice in less than 48
+ *  hours (see time_of_local_wall()). FALSE when no calendar holds a time
+ *  on the way (logged).
+ ***************************************************************************/
+PRIVATE BOOL hours_from(time_t start, int range, BOOL in_zone, time_t *end)
+{
+    time_t x = start;
+    int64_t left = range;
+    while(left != 0) {
+        struct tm tm;
+        if(!range_time_of(x, in_zone, &tm)) {
+            return FALSE;
+        }
+        time_t day = (left > 0)? 86400 : -86400;
+        if(tm.tm_min == 0 && tm.tm_sec == 0 && (left >= 24 || left <= -24) &&
+                range_offset_at(x + day, in_zone) == range_offset_at(x, in_zone)) {
+            x += day;
+            left += (left > 0)? -24 : 24;
+        } else if(left > 0) {
+            if(!end_of_hour(x, in_zone, &x)) {
+                return FALSE;
+            }
+            left--;
+        } else {
+            if(!start_of_hour(x - 1, in_zone, &x)) {
+                return FALSE;
+            }
+            left++;
+        }
+    }
+    *end = x;
+    return TRUE;
+}
+
+/***************************************************************************
  *  From the start of the hour (day, week from Monday, month, year) that
  *  holds `t` in the zone `TZ` (UTC when empty), to `range` of them later.
  *  A local start that a change of hour skips is the first moment after
  *  the change, one it repeats the first one (see time_of_local_wall());
- *  an hour is the one of `t`, the second one in a repeated hour too.
- *  When TZ cannot be set (error logged) the range is taken in UTC.
+ *  an hour is the one of `t`, the second one in a repeated hour too, and
+ *  a change of offset that is no whole hour (Australia/Lord_Howe changes
+ *  by 30 minutes, Pacific/Chatham at 02:45) ends one and starts the next
+ *  (see start_of_hour()). When TZ cannot be set (error logged) the range
+ *  is taken in UTC.
  ***************************************************************************/
 PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_unit_t unit)
 {
@@ -12410,19 +12605,11 @@ PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_u
     }
 
     struct tm tm;
-    memset(&tm, 0, sizeof(tm));
-    if(!(in_zone? localtime_r(&t, &tm) : gmtime_r(&t, &tm))) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "no calendar holds the time: range 0",
-            "t",            "%lld", (long long)t,
-            NULL
-        );
+    if(!range_time_of(t, in_zone, &tm)) {
         if(in_zone) {
             leave_zone(TZ, saved_tz);
         }
-        return time_range;
+        return time_range;  // Error already logged
     }
 
     int64_t year = tm.tm_year + 1900;
@@ -12432,8 +12619,15 @@ PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_u
     int64_t end_wall = 0;
     switch(unit) {
         case RANGE_OF_HOURS:
-            time_range.start = t - (tm.tm_min*60 + tm.tm_sec);
-            time_range.end = time_range.start + (time_t)range*3600;
+            {
+                time_t start;
+                time_t end;
+                if(start_of_hour(t, in_zone, &start) && hours_from(start, range, in_zone, &end)) {
+                    time_range.start = start;
+                    time_range.end = end;
+                }
+                // Else error already logged: range 0
+            }
             break;
         case RANGE_OF_DAYS:
             start_wall = utc_seconds(year, mon, mday, 0, 0, 0);

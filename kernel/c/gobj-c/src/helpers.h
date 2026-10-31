@@ -1188,16 +1188,14 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         before it: a TZ set, changed or unset with setenv() or unsetenv()
         alone is seen, also after other code made libc load another zone
         (localtime(), mktime() and ctime() call tzset(): a line of log
-        does). With TZ set tzset() is called at every text (glibc compares
-        TZ with the text of its last load); with TZ unset, only when the
-        last text was read with TZ set or the zone libc holds (tzname[],
-        timezone, daylight) is not the one it held at the end of the last
-        text, because tzset() then looks at /etc/localtime. So a zone that
-        other code loaded with TZ set and then unset with no tzset() is
-        not seen when its names and offsets are those of the local zone
-        (Europe/Paris in a process of Europe/Madrid): the text is read
-        with its rules. A change of /etc/localtime while the process runs
-        is seen at the next tzset() of the process, not per text
+        does), and also when that zone has the names and offsets of the
+        local one and other rules (Africa/Cairo and Europe/Athens). So
+        tzset() is called before the first look of each text at the local
+        zone, TZ set or unset (with TZ unset glibc then looks at
+        /etc/localtime: a change of it is seen at the next text). A text
+        that says its zone ("2026-10-01T10:00:00Z") or only counts back
+        from now ("3 hours ago", "now", epoch seconds) is the same time in
+        any zone: it looks at none and costs no tzset()
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
         after "at" comes a time of day or a date: "at yesterday", "at
         now", "at today", "at never" are no date
@@ -1262,15 +1260,22 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         "1.10.2026-23": the -10:00 may be a clock time): write "2026-10-01
         -10:00". A minus sign, a count and its unit is a duration, glued
         or not, after a date or a clock time ("2026-10-01-1d" is Sep 30,
-        "10:00 2026-10-01-1d" Sep 30 at 10:00)
+        "10:00 2026-10-01-1d" Sep 30 at 10:00, "10:00 -5 hours" 05:00);
+        but after a clock time a minus sign and four digits is its offset,
+        as ISO 8601 writes it, a unit after it or not: "10:00 -0500
+        hours" is no date
         "GMT+0200"  "UTC-03:00": an offset after GMT or UTC says the zone
         "(CEST)": a zone name in a comment is the zone when no other is
         given ("2026-10-01 10:00:00 (UTC)" is 10:00 UTC); an offset in a
         comment comes first ("(UTC+02:00)", "(GMT-0500)", "(+0200)")
 
     Epoch seconds:
-        "@1700000000"  "1700000000" (9 digits or more), up to the year 9999:
-        "1761000000000" (milliseconds) is no date
+        "@1700000000"  "1700000000" (9 to 11 digits): a bare number of 12
+        digits is a date and a time with no 'T' ("202610011000", write
+        "20261001T1000"), no date, and so is one with an offset glued
+        ("202610011000-0500"); with "@" up to the year 9999
+        ("@202610011000" is the year 8390): "1761000000000" (milliseconds)
+        is no date
         "@99999999999999 +0000": with "@" and an offset, no year limit
         (but a value no calendar holds, "@9223372036854775807", is no date)
 
@@ -1507,7 +1512,12 @@ PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char
 PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number);
 
 /**rst**
-    Return in gmt time range in hours of time t, TZ optional
+    Return in gmt time range in hours of time t, TZ optional. An hour is
+    one of the zone: a change of offset that is no whole hour, or not at a
+    whole hour (Australia/Lord_Howe changes by 30 minutes, Pacific/Chatham
+    at 02:45), ends one hour and starts the next, which is shorter. A
+    negative range counts back. A TZ that libc does not know is UTC, with
+    an ERROR.
 **rst**/
 PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ);
 

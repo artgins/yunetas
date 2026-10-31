@@ -778,8 +778,12 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         time ("2026-10-01T10:00-05:00") or after a clock time, noon or
         epoch seconds said before it ("10:00 2026-10-01-0500",
         "1790000000-0500"), where a minus sign, a count and its unit is a
-        duration ("10:00 2026-10-01-1d" is September 30 at 10:00); nor,
-        with no clock time, one outside -12:00..+14:00 ("now-2026"). A
+        duration ("10:00 2026-10-01-1d" is September 30 at 10:00) but
+        four digits after a clock time are its offset ("10:00 -0500
+        hours" is no date); nor, with no clock time, one outside
+        -12:00..+14:00 ("now-2026"). A run of 12 digits with a sign after
+        it is no date ("202610011000-0500": a date and a time with no 'T',
+        epoch seconds have 11 digits at most). A
         count right after a month name, with no day in the text, is no
         date ("Oct 1 pm", "Jan 1 pm", "Oct 5 days ago"), and nor is a day
         counted back that the zone skipped whole ("yesterday noon" in Apia

@@ -96,7 +96,10 @@
  *  2026-10-01-0500", "noon 2026-10-01-0500", "@1790000000-0500",
  *  "1790000000-0500", refused while "1790000000+0200" was read); a minus
  *  sign, a count and its unit is a duration there too ("10:00
- *  2026-10-01-1d" was refused, the -1 read as a zone); with no clock time
+ *  2026-10-01-1d" was refused, the -1 read as a zone), but four digits
+ *  after a clock time are its offset ("10:00 -0500 hours" was 500 hours
+ *  back); 12 digits with a sign after them are no date
+ *  ("202610011000-0500" was the year 8390); with no clock time
  *  an offset outside -12:00..+14:00 is no date ("now-2026" was read); a
  *  count right after a month name, with no day, is no date ("Jan 1 pm"
  *  was January 21 at 13:00). An offset or a zone name with a clock time
@@ -1044,6 +1047,14 @@ PRIVATE int do_test(void)
             {"@1790000000-0500",            FALSE,  FALSE,   0, 1790000000},
             {"1790000000-0500",             FALSE,  FALSE,   0, 1790000000},
             {"1790000000+0200",             FALSE,  FALSE,   0, 1790000000},
+            /*  12 digits are a date and a time with no 'T', not epoch seconds  */
+            {"202610011000-0500",           FALSE,  FALSE,  -1, 0},
+            {"202610011000+0500",           FALSE,  FALSE,  -1, 0},
+            {"202610011000",                FALSE,  FALSE,   0, 202610011000LL},
+            {"20261001T1000-0500",          FALSE,  FALSE,   0, 1790866800},
+            /*  After a clock time four digits are its offset, a unit after them or not  */
+            {"10:00 -0500 hours",           FALSE,  FALSE,  -1, 0},
+            {"2026-10-01 10:00 -5 hours +0000", FALSE, FALSE, 0, 1790830800},
             /*  A minus sign, a count and its unit is a duration, there too  */
             {"10:00 2026-10-01-1d +0000",   FALSE,  FALSE,   0, 1790762400},
             {"2026-10-01 10:00 -1d +0000",  FALSE,  FALSE,   0, 1790762400},

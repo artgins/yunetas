@@ -706,9 +706,14 @@ the digits of a clock time (`"2026-10-01T10:00-05:00"`) or after a clock time,
 noon or epoch seconds said before it, where no clock time can follow
 (`"10:00 2026-10-01-0500"`, `"noon 2026-10-01-0500"`, `"@1790000000-0500"`,
 `"1790000000-0500"`); a minus sign, a count and its unit is a duration there,
-as anywhere (`"10:00 2026-10-01-1d"` is September 30 at 10:00). With no clock
-time an offset outside -12:00..+14:00 is no date (`"now-2026"`, `"yesterday
--2300"`). A count right after a
+as anywhere (`"10:00 2026-10-01-1d"` is September 30 at 10:00), but after a
+clock time four digits are its offset, as ISO 8601 writes it: `"10:00 -0500
+hours"` is no date. With no clock time an offset outside -12:00..+14:00 is no
+date (`"now-2026"`, `"yesterday -2300"`). A run of 12 digits with a sign
+after it is no date (`"202610011000-0500"`): it is a date and a time written
+with no `T` (`"20261001T1000-0500"`), and epoch seconds have 11 digits at
+most there; the same 12 digits with nothing else are the text of an integer,
+read as that integer. A count right after a
 month name, with no day in the text, is no date (`"Oct 1 pm"`, `"Jan 1 pm"`,
 `"Oct 5 days ago"`; up to 7.29.3 they took the day of today), and nor is a day
 counted back that the zone skipped whole (`"yesterday noon"` in Apia on
