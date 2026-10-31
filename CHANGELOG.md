@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v7.30.0 (2026-10-31)
+
+A large release: everything since 7.29.3, reviewed until a review found nothing
+above a low. HTTP gets a parser in linear time with limits, and a server that holds
+what a peer pipelines instead of cutting it. The auth BFF serves a session only to
+its `Origin`, and a logout ends in the browser whatever fails at the IdP. A path that
+does not fit is never used cut. The date reader is rewritten by its rules. Several
+changes are **BREAKING**: read those marked. The kernel changes (`gobj-c`,
+`timeranger2`, `root-linux`, `yev_loop`), so every yuno is rebuilt. The external
+libraries do not change (linux-ext-libs 1.28; OpenSSL 3.6.5, PCRE2 10.49, nginx
+1.31.8, liburing 2.15). gobj-js and gobj-ui 7.30.0, gui_agent 1.3.7, gui_treedb 1.2.3.
+
 - **A path that does not fit is never used cut.** Since 7.29.3 `build_path()`
   answers NULL on overflow, but most callers did not look and went on with
   the ancestor left in the buffer. Every caller is checked now:
@@ -722,8 +734,8 @@
 - **The JS packages of this cycle** (`kernel/js/*`, `yunos/js`; npm and the
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
-  1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.8, gui_agent
-  1.2.7 to 1.3.6 and gui_treedb 1.1.3 to 1.2.2. The `yunetas` CLI 1.0.5 and
+  1.1.2; then gobj-js 7.29.3, 7.29.4 and 7.30.0, gobj-ui 7.29.5 to 7.29.8 and 7.30.0, gui_agent
+  1.2.7 to 1.3.7 and gui_treedb 1.1.3 to 1.2.3. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, a login
@@ -733,7 +745,7 @@
   earlier session, keeps one refresh in flight, and a logout that is its own
   state and says when the server did not end the session.
 - **BREAKING: gui_agent and gui_treedb, the session and the login form**
-  (gui_agent 1.3.6, gui_treedb 1.2.2). In 7.29.3 unless noted; the detail is in
+  (gui_agent 1.3.7, gui_treedb 1.2.3). In 7.29.3 unless noted; the detail is in
   the yunos-js CHANGELOG.
     - A 429 is a 429, even with a json and an `error_code` of its own, which
       read as a denial and ended the session at the first one. Any 429 is now
