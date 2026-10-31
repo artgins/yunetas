@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
     /*
      *  A batch that never ends must fail the test, not hang it
      */
-    set_auto_kill_time(30);
+    set_auto_kill_time(180);    // no measure of speed: see main_test1.c
 
     /*------------------------------------------------*
      *          Start yuneta

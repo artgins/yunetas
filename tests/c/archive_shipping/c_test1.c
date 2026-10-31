@@ -54,7 +54,7 @@
 #define DAY2            (DAY1 + 86400)
 #define DAY3            (DAY2 + 86400)
 #define POLL_MS         100
-#define STEP_TIMEOUT_MS 10000
+#define STEP_TIMEOUT_MS 30000     // no measure of speed: hard disks under ctest -j8 take over 10 s
 #define POISONED        DATABASE "/" TOPIC_NAME "/key9/2000-01-01@1"
 #define NOT_BOUND       DATABASE "/" TOPIC_NAME "/key8/2000-01-01@1"
 

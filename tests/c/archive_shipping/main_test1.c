@@ -403,7 +403,11 @@ int main(int argc, char *argv[])
     /*
      *  A batch that never ends must fail the test, not hang it
      */
-    set_auto_kill_time(30);
+    /*
+     *  prepare() makes the PKI and the stores before the loop runs: 62 s on
+     *  hard disks with the other tests of a ctest -j8 flooding them.
+     */
+    set_auto_kill_time(180);
 
     /*------------------------------------------------*
      *          Start yuneta
