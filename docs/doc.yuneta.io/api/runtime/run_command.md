@@ -10,13 +10,13 @@ every program a yuno ran inherited them (`SigBlk: 0x7a06`), so a `timeout`
 it ran could not stop its child with SIGTERM. Check it on a running
 program:
 
-glibc 2.36 (Debian 12) leaves ignored its two own signals, 32 and 33, in a program
-started with `posix_spawn()`: `SigIgn: 0000000180000000` in `/proc/<pid>/status`. No
-call can ask for them, and no program uses them. glibc 2.41 leaves `SigIgn` at 0.
-
 ```bash
 grep -E 'SigIgn|SigBlk' /proc/<pid>/status   # both 0
 ```
+
+glibc 2.36 (Debian 12) leaves ignored its two own signals, 32 and 33, in a program
+started with `posix_spawn()`: `SigIgn: 0000000180000000` in `/proc/<pid>/status`. No
+call can ask for them, and no program uses them. glibc 2.41 leaves `SigIgn` at 0.
 
 Every program run by them also starts with **no fd of the caller but
 stdin, stdout and stderr**. An fd without `O_CLOEXEC` stays open across
