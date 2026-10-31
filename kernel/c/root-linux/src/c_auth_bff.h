@@ -73,6 +73,10 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  fallback, mirrored into the server logs; the GUI must NOT display it
  *  as-is (end users never want to read "IdP token exchange failed").
  *
+ *  A logout served ends in the browser whatever failed: any of these
+ *  answers to it carries both cookies cleared (server_busy too). The
+ *  error tells the SPA that the session may still be open at the IdP.
+ *
  *  ---------------------------------------------------------------------
  *  Codes emitted by the login/token path (after talking to IdP)
  *  ---------------------------------------------------------------------
@@ -105,10 +109,6 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *                                 object (empty, not JSON, another JSON
  *                                 type): a WARNING, "IdP answer refused"
  *  auth_timeout              504  Watchdog fired, no reply in time
- *
- *  A logout served ends in the browser whatever failed: any of these
- *  answers to it carries both cookies cleared (server_busy too). The
- *  error tells the SPA that the session may still be open at the IdP.
  *
  *  token_too_large           500  IdP token does not fit in a browser
  *                                 cookie: its name and value pass 4096
