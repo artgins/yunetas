@@ -2940,8 +2940,8 @@ PRIVATE void test_zones_libc_reads(void)
  *  half written, nothing dereferenced. gmtime_r() leaves its struct tm
  *  written up to where it gave up, and that went to the caller of
  *  gmtime2timezone(); t2timestamp() and formatdate() handed the NULL of
- *  localtime() and gmtime() on, and a record with such a time crashed a
- *  listing.
+ *  localtime() and gmtime() on, and a column of time with such a value,
+ *  from a peer, crashed ycli.
  ***************************************************************************/
 PRIVATE void test_time_no_calendar_holds(void)
 {
