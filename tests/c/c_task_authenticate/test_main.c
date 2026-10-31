@@ -78,7 +78,7 @@ PRIVATE char variable_config_template[]= "\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
-                'expected_result': %s                               \n\
+                'expected_result': %s%s                             \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -152,6 +152,7 @@ PRIVATE BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj
 }
 
 PRIVATE time_measure_t s_time_measure;
+PRIVATE char s_driver_kw_extra[128] = "";
 PRIVATE int s_extra_result = 0;
 PRIVATE const char *s_app_name = "";
 PRIVATE const char *s_expected_log_msg = NULL;
@@ -224,6 +225,16 @@ PRIVATE void cleaning(void)
 }
 
 /***************************************************************************
+ *  Before run_task_authenticate_test(): the task is run `runs` times, and
+ *  stopped inside its EV_ON_TOKEN when `stop_in_on_token`
+ ***************************************************************************/
+PUBLIC void set_task_runs(int runs, BOOL stop_in_on_token)
+{
+    snprintf(s_driver_kw_extra, sizeof(s_driver_kw_extra),
+        ", 'runs': %d, 'stop_in_on_token': %s", runs, stop_in_on_token? "true" : "false");
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int run_task_authenticate_test(
@@ -280,6 +291,7 @@ PUBLIC int run_task_authenticate_test(
     static char variable_config[16*1024];
     int cfg_len = snprintf(variable_config, sizeof(variable_config), variable_config_template,
         expected_result_str,
+        s_driver_kw_extra,
         task_kw_snippet,
         mock_idp_kw_snippet ? mock_idp_kw_snippet : "{}");
     if(cfg_len < 0 || (size_t)cfg_len >= sizeof(variable_config)) {

@@ -82,6 +82,9 @@
  *  over, and it is ignored. Up to 7.26.9 the task ended at once, and C_TIMER,
  *  execute_action() and the kernel read the freed memory afterwards.
  *
+ *  A task stopped inside one of its results (its owner stops it in what
+ *  the result published) runs no next job: the run is over there.
+ *
  *  While its end waits its turn the owner can still act: a task it STOPS
  *  publishes no EV_END_TASK (a volatile one is destroyed all the same), and
  *  a task it STARTS again drops the end of the previous run (each end names
@@ -691,6 +694,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
+    if(!gobj_is_running(gobj)) {
+        /*
+         *  Stopped inside its result (its owner stopped it in what the
+         *  result published): the run is over, no next job
+         */
+        KW_DECREF(kw)
+        return 0;
+    }
     if(ret < 0) {
         end_task(gobj, -1);
     } else {

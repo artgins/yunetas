@@ -377,6 +377,8 @@ crash or leak cannot mask neighbours.
 | **`test6_idp_drops`** | The mock IdP drops the connection of the first `/token` with no answer. `C_TASK` runs the job again when the connection opens again, and the password grant is not sent again: `EV_ON_TOKEN` with `result=-1` and ONE WARNING (*"task_authenticate: the IdP closed the connection before answering, the request is not sent again"*); before, the second `/token` got `200` and the result was 0. |
 | **`test7_headers_too_large`** | The mock IdP answers `/token` 200 with a header of 70 KB: the HTTP client refuses it (`headers_too_large`, no body), and the task answers `result=-1` with ONE WARNING naming it (*"task_authenticate: IdP answer refused"*), after the WARNING of the HTTP client; before, an ERROR *"Oauth2 response without body"*. |
 | **`test8_protocol_error`** | The same with `HTTP/1.1 200 OK` and then a header name with a space (`protocol_error`). |
+| **`test9_runs`** | The task run three times in one yuno, stopped and started again after each `EV_ON_TOKEN`: each run retires its own HTTP client, and after the third no `C_PROT_HTTP_CL` and no `C_TCP` is left under it. Before, each run left its client stopped, a child for good (three of each). |
+| **`test10_stop_in_on_token`** | The same, the task stopped inside its `EV_ON_TOKEN`, as `ycli` does: the run ends there (its `C_TASK` runs no logout with no client) and leaves no client. |
 
 **Source:** `tests/c/c_task_authenticate/`.
 

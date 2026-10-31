@@ -17,6 +17,8 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type----------name-------------flag----default-description*/
 SDATA (DTP_INTEGER,   "expected_result", SDF_RD, "0",   "Expected EV_ON_TOKEN result field"),
+SDATA (DTP_INTEGER,   "runs",          SDF_RD, "1",    "Runs of the task: after each EV_ON_TOKEN but the last it is stopped and started again; after the last, none of its HTTP clients (C_PROT_HTTP_CL, C_TCP) may be left"),
+SDATA (DTP_BOOLEAN,   "stop_in_on_token", SDF_RD, "0", "Stop the task inside its EV_ON_TOKEN, as ycli does"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
 SDATA_END()
 };
@@ -40,6 +42,9 @@ typedef struct _PRIVATE_DATA {
     hgobj   gobj_task;      /* C_TASK_AUTHENTICATE service we drive */
     BOOL    test_passed;
     BOOL    dying;          /* TRUE once a death-timer is armed */
+    int     runs_done;      /* EV_ON_TOKEN received */
+    BOOL    restarting;     /* the timer starts the task again */
+    BOOL    checking;       /* the timer counts what the runs left */
 } PRIVATE_DATA;
 
 
@@ -111,6 +116,44 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
             /***************************
+             *      Local Methods
+             ***************************/
+
+
+
+
+/***************************************************************************
+ *  What the runs left under the task: no HTTP client, no C_TCP (each run
+ *  retires its own), with an ERROR naming the count
+ ***************************************************************************/
+PRIVATE void check_clients_left(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *gclasses[] = {"C_PROT_HTTP_CL", "C_TCP"};
+    for(int i = 0; i < 2; i++) {
+        json_t *jn_filter = json_pack("{s:s}", "__gclass_name__", gclasses[i]);
+        json_t *dl = gobj_match_children_tree(priv->gobj_task, jn_filter);
+        size_t left = json_array_size(dl);
+        gobj_free_iter(dl);
+        if(left != 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_APP,
+                "msg",      "%s", "test_driver: the runs of the task left clients",
+                "gclass",   "%s", gclasses[i],
+                "left",     "%d", (int)left,
+                "runs",     "%d", priv->runs_done,
+                NULL
+            );
+        }
+    }
+}
+
+
+
+
+            /***************************
              *      Actions
              ***************************/
 
@@ -135,6 +178,22 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->dying) {
         JSON_DECREF(kw)
         set_yuno_must_die();
+        return 0;
+    }
+    if(priv->restarting) {
+        priv->restarting = FALSE;
+        if(gobj_is_running(priv->gobj_task)) {
+            gobj_stop(priv->gobj_task);
+        }
+        gobj_start(priv->gobj_task);
+        JSON_DECREF(kw)
+        return 0;
+    }
+    if(priv->checking) {
+        check_clients_left(gobj);
+        priv->dying = TRUE;
+        set_timeout(priv->timer, 100);
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -193,6 +252,21 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     KW_DECREF(kw)
+
+    priv->runs_done++;
+    if(gobj_read_bool_attr(gobj, "stop_in_on_token")) {
+        gobj_stop(src);
+    }
+    if(priv->runs_done < (int)gobj_read_integer_attr(gobj, "runs")) {
+        priv->restarting = TRUE;
+        set_timeout(priv->timer, 300);
+        return 0;
+    }
+    if(gobj_read_integer_attr(gobj, "runs") > 1) {
+        priv->checking = TRUE;
+        set_timeout(priv->timer, 300);
+        return 0;
+    }
 
     /*
      *  EV_ON_TOKEN is fired from inside C_TASK::ac_on_message, which is

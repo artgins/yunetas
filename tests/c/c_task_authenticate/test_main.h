@@ -50,6 +50,14 @@ extern "C" {
  *  Returns the same int that yuneta_entry_point returns, plus any
  *  test-level errors detected by test_json().
  ***************************************************************************/
+/*
+ *  Before run_task_authenticate_test(): run the task `runs` times (stopped
+ *  and started again after each EV_ON_TOKEN but the last), stopping it
+ *  inside its EV_ON_TOKEN when `stop_in_on_token`, as ycli does. After the
+ *  last run the driver logs an ERROR for any C_PROT_HTTP_CL or C_TCP left.
+ */
+PUBLIC void set_task_runs(int runs, BOOL stop_in_on_token);
+
 PUBLIC int run_task_authenticate_test(
     int argc, char *argv[],
     const char *app_name,

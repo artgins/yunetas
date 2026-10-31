@@ -22,6 +22,8 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 | `test6_idp_drops` | The mock (`drop_token_requests`) drops the connection of the first `/token` with no answer: `C_TASK` runs the job again on the new connection, and the task does not send the password grant again: `result=-1`, ONE WARNING. |
 | `test7_headers_too_large` | The mock (`raw_token_answer` `@bighead`) answers a header of 70 KB: refused by the HTTP client, `result=-1`, ONE WARNING of the task naming it. |
 | `test8_protocol_error` | The mock (`raw_token_answer`) answers `HTTP/1.1 200 OK` and a header name with a space: refused (`protocol_error`), `result=-1`, ONE WARNING. |
+| `test9_runs` | The task run three times in one yuno (`set_task_runs(3, FALSE)`): after the third, no `C_PROT_HTTP_CL` and no `C_TCP` left under it (each run retires its client). |
+| `test10_stop_in_on_token` | The same, the task stopped inside its `EV_ON_TOKEN` (`set_task_runs(3, TRUE)`), as `ycli` does. |
 
 ## Mock IdP (`C_MOCK_IDP`)
 

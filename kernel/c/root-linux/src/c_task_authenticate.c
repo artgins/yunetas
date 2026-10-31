@@ -168,6 +168,7 @@ Example of refresh_token
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void retire_http(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -243,7 +244,8 @@ typedef struct _PRIVATE_DATA {
     char    end_session_url[PATH_MAX];   /* full URL — empty until discovery resolves it */
     BOOL    discovery_done;              /* TRUE once endpoints are usable */
 
-    hgobj gobj_http;
+    hgobj gobj_http;                     /* the HTTP client of this run: retired at its end */
+    hgobj gobj_task;                     /* the C_TASK of this run, while it runs */
 } PRIVATE_DATA;
 
 
@@ -369,6 +371,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
     gobj_subscribe_event(priv->gobj_http, EV_ON_CLOSE, NULL, gobj);
 
+    gobj_set_volatil(priv->gobj_http, TRUE);     // retired at the end of its run (retire_http())
     gobj_set_bottom_gobj(gobj, priv->gobj_http);
 
     gobj_set_bottom_gobj(
@@ -416,6 +419,7 @@ PRIVATE int mt_start(hgobj gobj)
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, EV_END_TASK, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
+    priv->gobj_task = gobj_task;
 
     /*-----------------------*
      *      Start task
@@ -433,7 +437,21 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_http)
+    /*
+     *  A task stopped in the middle of its run publishes no end, and is
+     *  its owner's to destroy: on the next turn, as the HTTP client, since
+     *  the stop may come inside one of their publications (an owner that
+     *  stops this gclass in its EV_ON_TOKEN)
+     */
+    if(priv->gobj_task) {
+        hgobj task = priv->gobj_task;
+        priv->gobj_task = NULL;
+        if(gobj_is_running(task)) {
+            gobj_stop(task);
+        }
+        gobj_post_event(gobj, EV_STOPPED, 0, task);
+    }
+    retire_http(gobj);
 
     return 0;
 }
@@ -474,6 +492,27 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 
+
+/***************************************************************************
+ *  The HTTP client of a run is over: stopped now, and destroyed on the next
+ *  turn (ac_stopped()), never here, since the end of a run may come inside
+ *  one of its publications. Each run creates its own client (mt_start), so
+ *  one left stopped would stay a child of this gclass for good, one more
+ *  for each run.
+ ***************************************************************************/
+PRIVATE void retire_http(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj http = priv->gobj_http;
+    if(!http) {
+        return;
+    }
+    priv->gobj_http = NULL;
+    gobj_set_bottom_gobj(gobj, NULL);   // the next run sets its own
+    gobj_stop_tree(http);
+    gobj_post_event(gobj, EV_STOPPED, 0, http);
+}
 
 /***************************************************************************
  *  A response of the IdP that C_PROT_HTTP_CL refused: it is published
@@ -1035,7 +1074,10 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_http)
+    if(src == priv->gobj_task) {
+        priv->gobj_task = NULL;     // volatile: it destroys itself after this end
+    }
+    retire_http(gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -1058,11 +1100,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  A volatile child stopped: destroyed. Also the HTTP client and the task
+ *  of a run that is over, posted to itself (retire_http(), mt_stop()); the
+ *  src of a post is NULL when it was destroyed in between.
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_volatil(src)) {
+    if(src && gobj_is_volatil(src) && !gobj_is_destroying(src)) {
         gobj_destroy(src);
     }
     KW_DECREF(kw)

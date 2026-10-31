@@ -65,6 +65,8 @@ SET(TESTS
     test6_idp_drops
     test7_headers_too_large
     test8_protocol_error
+    test9_runs
+    test10_stop_in_on_token
 )
 
 foreach(test ${TESTS})
