@@ -120,7 +120,7 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 | `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant). An IdP answer with no refresh_token clears the refresh_token cookie and answers no `refresh_expires_in`: the session cannot be refreshed (a WARNING says it, once per process). A `429` of the IdP is `429 auth_rate_limited` with the IdP's `Retry-After` when it is delay-seconds (1 to 10 digits) or a real HTTP-date (passed on as IMF-fixdate) | yes              |
 | `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant); no refresh_token in the answer: as `/auth/login`. The `redirect_uri` must be one that `allowed_redirect_uri` allows (§2.5), else `400 redirect_uri_not_allowed` | yes                 |
 | `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is. An IdP answer with no new refresh_token sends no `Set-Cookie` for it: the browser keeps its own (RFC 6749 §6), and the answer has no `refresh_expires_in`. A refresh_token cookie whose name and value pass 4096 bytes (4084 bytes of value or more): `400 token_too_large` | yes |
-| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie; with no cookie at all it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A refresh_token cookie of 4084 bytes of value or more: `400 token_too_large` | yes (Max-Age=0)     |
+| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie; with no cookie at all it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A logout served ends in the browser whatever fails: its errors (`502`, `503`, `504`, `500`) clear the cookies too, and a cut connection sends the end-session once more (idempotent, and not sending it leaves the session open at the IdP). A refresh_token cookie of 4084 bytes of value or more: `400 token_too_large` | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding). An access_token cookie whose name and value pass 4096 bytes: `400 token_too_large` | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
 
@@ -129,10 +129,13 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 change the session, so they are served only to the SPA's origin, else
 `403 origin_not_allowed` with no call to the IdP. With `allowed_origin` set,
 the `Origin` must be exactly it. With `allowed_origin` empty, the BFF
-serves its own origin only: the `Origin` must be `http://` or `https://`
-and the `Host` of the request (a proxy in front must pass the `Host` on),
-and `/auth/token` is refused. A missing `Origin`, `null`, a sibling
-subdomain, another port or a prefix of the allowed one: `403`. The cookies
+serves its own origin only: the `Origin` must be `https://` and the `Host`
+of the request, or `http://` and it on a connection that is not TLS (behind a
+proxy that ends TLS the BFF cannot tell the scheme of the browser, so only
+`allowed_origin` pins it there), and `/auth/token` is refused. A proxy in
+front must pass the `Host` on with its port (nginx: `proxy_set_header Host
+$http_host;`, not `$host`). A missing `Origin`, `null`, a sibling subdomain,
+another port, a prefix of the allowed one or a `Host` that is a list: `403`. The cookies
 are `SameSite=Strict`, but that says same SITE, not same origin: a sibling
 subdomain sends them too, and a `POST` with no body needs no CORS
 preflight. The error says the `Origin` received and the one allowed:
@@ -235,7 +238,7 @@ Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
   (`"refresh_expires_in": 0`):
   `Set-Cookie: refresh_token=<jwt>; Path=/; HttpOnly; Secure; SameSite=Strict`.
 
-Logout clears both with `Max-Age=0`, with a refresh_token cookie or, without one, with the access_token cookie of a same-site request ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
+Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the IdP does, its errors included) or, without one, with the access_token cookie of a same-site request ([`c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.29.3/kernel/c/root-linux/src/c_auth_bff.c)).
 
 ### 2.5 The OIDC config: `issuer` + (optional) explicit endpoints
 
@@ -249,8 +252,8 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie or, without one
 | `client_id`            | required            | OAuth2 client id. Also the value the JWT's `azp` claim must match. |
 | `client_secret`        | optional            | Empty for public clients with PKCE.                  |
 | `redirect_uri`         | per-request         | From the callback request body.                      |
-| `allowed_origin`       | recommended         | The SPA's origin (`https://app.example.com`): the CORS origin, and the only `Origin` served (see §2.2). Empty: no CORS, and the `Origin` must be the BFF's own (`http(s)://` and the `Host`); `/auth/token` refused. |
-| `allowed_redirect_uri` | optional            | The `redirect_uri` a `/auth/callback` may have: exactly it, or, when it ends with `/` after a scheme and a host (`https://app.example.com/app/`), one that starts with it and whose rest is a path and query in it (visible ASCII, no `\`, no `#`, no `.` or `..` segment, nor `%2e`). `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `https://app.example.com/`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `allowed_origin`       | recommended         | The SPA's origin (`https://app.example.com`): the CORS origin, and the only `Origin` served (see §2.2). It is what pins the scheme. Empty: no CORS, and the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS); `/auth/token` refused. |
+| `allowed_redirect_uri` | optional            | The `redirect_uri` a `/auth/callback` may have: exactly it, or, when it ends with `/` after a scheme and a host (`https://app.example.com/app/`), one that starts with it and whose rest is a path and query in it (visible ASCII, no `\`, no `#`, no `.` or `..` segment, also before a `;`, and no `%XX` in the path of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII: `.../app/..;/x` and `.../app/..%2Fx` are refused, `.../app/a%41;v=1` is not). `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `https://app.example.com/`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `cookie_domain`        | optional            | Domain attribute for cookies (no port). Empty: host-only cookies. See §2.4. |
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |

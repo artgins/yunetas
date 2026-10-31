@@ -94,7 +94,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `client_id` | `string` | OAuth 2 client ID. |
 | `client_secret` | `string` | OAuth 2 client secret (empty for a public client). |
 | `cookie_domain` | `string` | `Domain` of the cookies, written only when the request `Host` is that domain or a subdomain. |
-| `allowed_origin` | `string` | The SPA's origin: the CORS origin and the only `Origin` served for login, callback, refresh, logout and token (else `403 origin_not_allowed`). Empty: the `Origin` must be the BFF's own (`http(s)://` and the `Host`), and `/auth/token` is refused. Example: `"allowed_origin": "https://app.example.com"`. |
+| `allowed_origin` | `string` | The SPA's origin: the CORS origin and the only `Origin` served for login, callback, refresh, logout and token (else `403 origin_not_allowed`). It is what pins the scheme. Empty: the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS), and `/auth/token` is refused. Example: `"allowed_origin": "https://app.example.com"`. |
 | `allowed_redirect_uri` | `string` | The `redirect_uri` a `/auth/callback` may have: exactly it, or, ending with `/` after a scheme and a host, a path under it (no `.` or `..` segment, no `\`, no `#`). Example: `"allowed_redirect_uri": "https://app.example.com/app/"`. |
 | `expose_access_token` | `boolean` | Opt-in `POST /auth/token` (default `false`). |
 | `crypto` | `dict` | TLS configuration of the IdP calls (verifying by default). |
@@ -109,7 +109,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `POST /auth/login` | Password grant; writes the cookies. |
 | `POST /auth/callback` | PKCE code exchange; writes the cookies. |
 | `POST /auth/refresh` | Refresh with the `refresh_token` cookie; answers the identity too. |
-| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie; with no cookie, `200` and no `Set-Cookie`. |
+| `POST /auth/logout` | Ends the session at the IdP and clears the cookies. With no `refresh_token` cookie, no IdP call: it only clears them, for a request with the `access_token` cookie; with no cookie, `200` and no `Set-Cookie`. A logout served clears the cookies whatever fails at the IdP, its `502`, `503`, `504` and `500` too; a cut connection sends the end-session once more. |
 | `POST /auth/token` | Opt-in (`expose_access_token`): the access token for another backend host. |
 
 Every endpoint but `OPTIONS` that reads or changes the session (login, callback,
@@ -146,6 +146,16 @@ authorization node. `delete-idp-user` does NOT touch the local authz record.
 `C_TASK` drives it through the shared HTTP client; the admin token is job 0
 and is skipped while the cached one is fresh. The queue holds 32: a caller
 beyond that is refused, never left waiting.
+
+**What goes again.** `C_TASK` runs its job again each time the connection
+opens. What only reads (the admin token, a list, a read) goes up to 3 times
+when the connection is cut before its answer: a restart of the IdP costs
+nothing. What changes something (create, update, delete, actions, the
+invitation email) goes once, and a cut answers `kc_unavailable` (the invitation:
+registered, with the warning `email_send_failed`). An IdP that always cuts
+ends in `kc_unavailable` too, with a WARNING, not in a queue held for ever. A
+token longer than the 8191 bytes the gclass keeps is `kc_unavailable` with a
+WARNING, not a token cut. Tests: `c_task_authenticate/test18_idp_keycloak`.
 
 | Property | Value |
 |----------|-------|
@@ -230,16 +240,43 @@ Details of the provisioning flow: [`YUNO_AUTH.md`](../../../../yunos/c/yuno_agen
 (gclass-c-task-authenticate)=
 ## C_TASK_AUTHENTICATE
 
-OAuth 2 authentication task — handles the Keycloak authentication flow
-and caches tokens.
+OAuth 2 login of a program with no browser (`ycommand`, `ycli`, `ystats`, ...):
+a `C_TASK` that runs the OIDC discovery (when only `issuer` is given), a password
+grant and an end-session over its own `C_PROT_HTTP_CL`, and publishes the token
+in `EV_ON_TOKEN` (`result`, `comment`, `jwt`). Each `gobj_start()` is a run: it
+creates its client, and retires it at its end.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_WAIT_CONNECTED`, `ST_WAIT_RESPONSE`, `ST_AUTHENTICATED` |
+| **States** | `ST_IDLE` |
+| **Output event** | `EV_ON_TOKEN`: `result` 0 and `jwt`, or -1 and `comment` |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Keycloak token endpoint URL. |
-| `jwt` | `string` | Cached JWT token (read-only). |
+| `issuer` | `string` | OIDC issuer: its `/.well-known/openid-configuration` gives the endpoints. |
+| `token_endpoint`, `end_session_endpoint` | `string` | Both given: no discovery. |
+| `client_id`, `user_id`, `user_passw` | `string` | The client and the credentials of the password grant. |
+| `offline_access` | `boolean` | Ask for an offline token. |
+| `crypto` | `dict` | TLS configuration of the calls to the IdP. |
+
+```json
+{
+    "token_endpoint":       "https://auth.example.com/realms/foo/protocol/openid-connect/token",
+    "end_session_endpoint": "https://auth.example.com/realms/foo/protocol/openid-connect/logout",
+    "client_id":  "cli",
+    "user_id":    "user@example.com",
+    "user_passw": "secret"
+}
+```
+
+**Every failure reaches the caller** as `EV_ON_TOKEN` with `result` -1: a caller
+waits for that event and for nothing else. Only the tokens are read of an
+answer of the IdP; the rest of the envelope is the IdP's to send or not. A
+peer's bad answer is a WARNING, a status other than 200 the `comment`.
+
+**What goes again.** `C_TASK` runs its job again each time the connection opens.
+The password grant goes once: a cut is `result` -1 and a WARNING. The discovery
+(a GET) and the end-session (idempotent, and not sending it leaves the session
+open at the IdP) go twice at most, the second with a WARNING.

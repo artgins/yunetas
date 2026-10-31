@@ -97,7 +97,8 @@ Do one of the two:
 
 A logout refused this way leaves the session: the `HttpOnly` cookies stay,
 and a reload of the SPA restores it. So does a logout that does not reach
-the BFF.
+the BFF. A logout the BFF serves clears the cookies whatever happens at the
+IdP (see [Logout Flow](#bff-logout-flow)).
 
 ---
 
@@ -481,6 +482,31 @@ credentials: "include"
 └── Browser: closes the WebSocket, shows the login screen
 ```
 
+**A logout ends in the browser whatever fails at the IdP.** Every answer to a
+logout the BFF serves clears both cookies, its errors too: the user is leaving,
+maybe on a shared machine, and the session must not stay in that browser. The
+error tells the SPA that the session may still be open at the IdP (it ends
+there by its own timeout):
+
+```
+HTTP/1.1 502 Bad Gateway
+Set-Cookie: access_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict
+Set-Cookie: refresh_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict
+
+{"success": false, "error_code": "auth_service_unavailable",
+ "error": "Authentication service closed the connection before answering the logout, the cookies are cleared"}
+```
+
+**The end-session is the one request that goes twice.** Every other request
+to the IdP is sent once: a refresh_token used twice can end the session, a
+password grant must not be repeated by a client. Sending an end-session twice
+means the same as sending it once, and not sending it leaves the session open
+at the IdP. So when the IdP closes the connection before answering (the
+commonest cut is a connection kept open that it closed as the request left),
+the logout goes once more on the next connection, with a WARNING (*"👤BFF IdP
+closed the connection before answering a logout, it is sent again"*). A
+second cut is the `502` above.
+
 **A logout with no refresh_token cookie still ends the session in the
 browser.** A session opened by a login answered with no refresh_token has no
 such cookie. The BFF then does not call the IdP (it has no refresh_token to
@@ -497,28 +523,51 @@ with a cookie (`refresh_token` or `access_token`) and `/auth/token`.
 the cookies too, and a `POST` with no body (a refresh, a logout) needs no
 CORS preflight, so it reaches the BFF.
 
-- With `allowed_origin` set, the `Origin` must be exactly it.
+- With `allowed_origin` set, the `Origin` must be exactly it: its scheme, host
+  and port. **`allowed_origin` is what pins the scheme.**
 - With `allowed_origin` empty, the BFF serves its own origin only: the
-  `Origin` must be `http://` or `https://` and the `Host` of the request
-  (`Origin: https://app.example.com` with `Host: app.example.com`). A proxy
-  in front of the BFF must pass the `Host` on (nginx: `proxy_set_header
-  Host $host;`). `/auth/token` is refused: the token is given only to an
-  `allowed_origin` that is set.
+  `Origin` must be `https://` and the `Host` of the request
+  (`Origin: https://app.example.com` with `Host: app.example.com`), or
+  `http://` and the `Host` on a connection that is not TLS. A BFF that ends TLS
+  itself (the deployment of the `auth_bff` batches, `https://0.0.0.0:1808`)
+  knows the scheme, and refuses `Origin: http://...`. A plain connection tells
+  nothing: behind a proxy that ends TLS the BFF sees http while the browser
+  says `https://`, so it takes both. Set `allowed_origin` to pin it there.
+
+  A proxy in front of the BFF must pass the `Host` on **with its port**. In
+  nginx that is `$http_host`, not `$host`, which drops the port and turns every
+  request on a non-standard port into a `403`:
+
+  ```nginx
+  location /auth/ {
+      proxy_pass http://127.0.0.1:1801;
+      proxy_set_header Host $http_host;
+  }
+  ```
+
+  `/auth/token` is refused: the token is given only to an `allowed_origin` that
+  is set.
 
 Another origin, no `Origin`, `Origin: null`, a sibling subdomain, the
 allowed origin with more after it (`https://app.example.com.evil.com`,
-`https://app.example.com:8443`) or a part of it: `403 origin_not_allowed`,
+`https://app.example.com:8443`) or a part of it, a `Host` that is a list (two
+`Host` lines, which RFC 9110 §7.2 makes invalid): `403 origin_not_allowed`,
 no IdP call, no `Set-Cookie`. A browser sends `Origin` with every `POST`,
 same-origin included; a client that is not a browser must send it too. The
 `error` names the `Origin` received and the one allowed.
 
 | Request to `/auth/logout` | Answer |
 |---|---|
-| `refresh_token` cookie, the SPA's `Origin` | IdP end-session call, both cookies cleared, `200` |
+| `refresh_token` cookie, the SPA's `Origin` | IdP end-session call, both cookies cleared, `200` (also when the IdP answers an error, or an answer the HTTP client refuses, with a WARNING) |
+| The same, the IdP cuts the connection once | Sent again on the next connection, both cookies cleared, `200` |
+| The same, the IdP cuts it twice, or the discovery fails | Both cookies cleared, `502 auth_service_unavailable` |
+| The same, the IdP stays silent | Both cookies cleared, `504 auth_timeout` |
+| The same, the pending queue is full | Both cookies cleared, `503 server_busy`, no IdP call |
+| The same, `end_session_endpoint` is not a URL | Both cookies cleared, `500 auth_config_error` |
 | `access_token` cookie only, the SPA's `Origin` | No IdP call, both cookies cleared, `200` |
 | A cookie, another `Origin` or none | `403 origin_not_allowed`, no IdP call, no `Set-Cookie` |
 | No cookie (no session, or a cross-site request) | `200 {"success": true}`, no `Set-Cookie`: nothing to end |
-| `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes) | `400 token_too_large`, no `Set-Cookie` |
+| `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes) | `400 token_too_large`, no `Set-Cookie`: it is not one of its cookies, and no session it opened |
 
 ---
 
@@ -564,7 +613,7 @@ that SPA strict.
 | **The password goes only to the BFF** | `/auth/login` over HTTPS; the SPA does not keep it, the BFF does not log it (traces redact it) |
 | **Code interception protection** (`/auth/callback`) | PKCE S256 — intercepted authorization codes are useless without `code_verifier` |
 | **CSRF protection** | `SameSite=Strict` cookies, and the `Origin` of the SPA on every request that reads or changes the session (a sibling subdomain is same-site); for `/auth/callback`, the `state` nonce checked by the SPA |
-| **No open redirect of the code** | `allowed_redirect_uri`: exactly it, or a path under it (no dot-segment, no `\`, no `#`); its host cannot be extended |
+| **No open redirect of the code** | `allowed_redirect_uri`: exactly it, or a path under it that no server reads out of it (no dot-segment, also before a `;`, no `\`, no `#`, no `%XX` of a dot, a slash or a byte out of visible ASCII); its host cannot be extended |
 | **A request is sent to the IdP once** | Not sent again when the IdP closes the connection before it answers (`502`) |
 | **Token theft protection** | `Secure` flag (HTTPS only). `SameSite=Strict` (no cross-site requests) |
 | **CORS** | The BFF answers only `allowed_origin`; it never reflects an arbitrary `Origin` and never answers `*` |
@@ -655,8 +704,8 @@ fits is taken whole.
 | `issuer` | — (required) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for a public client). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Written only when the request `Host` is this domain or a subdomain of it; otherwise omitted, with a WARNING. Empty: never written (host-only cookies). |
-| `allowed_origin` | `""` | The origin of the SPA: the CORS origin, the one `Origin` served for login, callback, refresh, logout and token (else `403`), and the origin `/auth/token` is pinned to. Empty: no cross-origin access, the `Origin` must be the BFF's own (`http(s)://` and the `Host`), and `/auth/token` is refused. |
-| `allowed_redirect_uri` | `""` | The `redirect_uri` a `/auth/callback` may have. Without a `/` at its end, exactly it: `"https://app.example.com/auth/callback"`. Ending with `/` after a scheme and a host, one that starts with it and whose rest is a path and query in it: `"https://app.example.com/app/"` allows `https://app.example.com/app/cb?x=1`, not `https://app.example.com/app/../admin`, `https://app.example.com/app/%2e%2e/x`, `https://app.example.com/app/..\x`, `https://app.example.com/app/x#f`, a space or a byte over 0x7E. Its host cannot be extended: `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `"https://app.example.com/"`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `allowed_origin` | `""` | The origin of the SPA: the CORS origin, the one `Origin` served for login, callback, refresh, logout and token (else `403`), and the origin `/auth/token` is pinned to. It is what pins the scheme. Empty: no cross-origin access, the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS), and `/auth/token` is refused. |
+| `allowed_redirect_uri` | `""` | The `redirect_uri` a `/auth/callback` may have. Without a `/` at its end, exactly it: `"https://app.example.com/auth/callback"`. Ending with `/` after a scheme and a host, one that starts with it and whose rest is a path and query in it: `"https://app.example.com/app/"` allows `https://app.example.com/app/cb?x=1`, `.../app/a%41;v=1` and any query, not `https://app.example.com/app/../admin`, `.../app/%2e%2e/x`, `.../app/..\x`, `.../app/x#f`, a space or a byte over 0x7E. A prefix is a strict rule: what RFC 3986 allows and some server normalizes out of the prefix is refused too, so a `.` or `..` segment before a `;` (`.../app/..;/x`, which Tomcat reads as `..`), and in the path a `%XX` of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII (`.../app/..%2Fx`, `.../app/%5c..%5cx`, `.../app/%252e%252e/x`, `.../app/%c0%ae/x`), or one badly written (`.../app/x%zz`). Its host cannot be extended: `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `"https://app.example.com/"`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `expose_access_token` | `false` | Enables `/auth/token`. Needs `allowed_origin`. |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store by default. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_idp_keycloak` `kc_crypto` attribute mirrors this for its Keycloak admin calls.) |
 | `pending_queue_size` | `16` (clamped to `[1, 1024]`) | Depth of the per-channel pending IdP request queue. Raised on front-line BFFs under burst. |
@@ -684,15 +733,21 @@ in production:
   only while the outbound is disconnected; when discovery never completed the
   answer is `502 auth_service_unavailable`. `idp_timeouts` counts every IdP
   task that ends by one of the two watchdogs: a login, callback, refresh or
-  logout (answered `504 auth_timeout`) and the discovery (each request queued
-  behind it is answered `502`). A timeout logs one ERROR for its cause, when
+  logout (answered `504 auth_timeout`, a logout with both cookies cleared) and
+  the discovery (each request queued behind it is answered `502`). A timeout logs one ERROR for its cause, when
   its task ends -- *"OIDC discovery: IdP did not answer in time"* (with the
   number `queued`) or *"BFF IdP outbound watchdog fired"* -- with its
   `cause`, `connected` and `tcp_state` (what the outbound to the IdP was
   then). Each answer it causes adds the ERROR of that answer (*"BFF server
   error"*): one for the `504`, or one for each request queued behind the
   discovery, after an INFO with how many. A
-  failed discovery is retried at the next request, not by a timer.
+  failed discovery is retried at the next request, not by a timer. A
+  discovery goes twice at most when the IdP cuts its connection, or an IdP
+  that always cuts would re-arm its timeout for ever. What a discovery
+  answers is data of a peer: a broken answer, no endpoints, or an endpoint
+  that is not a URL or is longer than a path are a WARNING (*"👤BFF OIDC
+  discovery: an endpoint is not a URL"*), and refused there, so a bad endpoint
+  is never kept. A status other than 200 is the IdP saying no, an ERROR.
 - **Stable error_code for GUI i18n.** Every error response carries a
   stable `error_code` (snake_case, for example `session_expired`,
   `auth_service_unavailable`, `server_busy`; the catalog is in
