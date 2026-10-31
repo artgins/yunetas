@@ -7404,7 +7404,7 @@ PRIVATE long local_offset_at(time_t t)
         );
         return 0;
     }
-    return (long)(utc_seconds(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+    return (long)(utc_seconds((int64_t)lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
         lt.tm_hour, lt.tm_min, lt.tm_sec) - t);
 }
 
@@ -9966,9 +9966,15 @@ PUBLIC void list_open_files(void)
 /*****************************************************************
  *  Is the file at `path` a zone file? libc reads a zone from a TZif file
  *  (RFC 9636) only, and takes any other (zone.tab, /etc/passwd) as UTC, in
- *  silence. Not being able to open or read it is the answer, not an error:
- *  the caller logs the zone it could not take. O_NONBLOCK: open() of a FIFO
- *  would wait for a writer.
+ *  silence. Its header says what the file holds, and libc believes it: with
+ *  no types and a zone already loaded it crashes in tzset(), and it takes
+ *  a file shorter than the header says as UTC, in silence. A file of version
+ *  2 or later has a second header and block, with 8-byte times, and that
+ *  is the one libc reads. The versions after 4 are let through: libc reads
+ *  them, and a new tzdata must not turn every zone into UTC.
+ *  Not being able to open or read it is the answer, not an error: the
+ *  caller logs the zone it could not take. O_NONBLOCK: open() of a FIFO
+ *  would wait for a writer, and pread() refuses one.
  *****************************************************************/
 PRIVATE BOOL is_zone_file(const char *path)
 {
@@ -9976,10 +9982,50 @@ PRIVATE BOOL is_zone_file(const char *path)
     if(fd < 0) {
         return FALSE;
     }
-    char magic[4];
-    ssize_t len = read(fd, magic, sizeof(magic));
+    struct stat st;
+    BOOL ok = (fstat(fd, &st) == 0)? TRUE : FALSE;
+    uint64_t block_at = 0;
+    for(int time_size = 4; ok && time_size <= 8; time_size += 4) {
+        struct {
+            char magic[4];
+            char version;
+            char reserved[15];
+            uint32_t isutcnt;
+            uint32_t isstdcnt;
+            uint32_t leapcnt;
+            uint32_t timecnt;
+            uint32_t typecnt;
+            uint32_t charcnt;
+        } header;
+        ok = FALSE;
+        if(pread(fd, &header, sizeof(header), (off_t)block_at) != (ssize_t)sizeof(header)) {
+            break;
+        }
+        char version = header.version;
+        if(memcmp(header.magic, "TZif", sizeof(header.magic)) != 0 ||
+                (version && (version < '2' || version > '9'))) {
+            break;
+        }
+        if(ntohl(header.typecnt) < 1 || ntohl(header.charcnt) < 1) {
+            break;
+        }
+        block_at += sizeof(header)
+            + (uint64_t)ntohl(header.timecnt)*(uint64_t)(time_size + 1)
+            + (uint64_t)ntohl(header.typecnt)*6
+            + (uint64_t)ntohl(header.charcnt)
+            + (uint64_t)ntohl(header.leapcnt)*(uint64_t)(time_size + 4)
+            + (uint64_t)ntohl(header.isstdcnt)
+            + (uint64_t)ntohl(header.isutcnt);
+        if(block_at > (uint64_t)st.st_size) {
+            break;
+        }
+        ok = TRUE;
+        if(!version) {
+            break;
+        }
+    }
     close(fd);
-    return (len == sizeof(magic) && memcmp(magic, "TZif", sizeof(magic)) == 0)? TRUE : FALSE;
+    return ok;
 }
 
 /*****************************************************************
@@ -10155,7 +10201,8 @@ PRIVATE BOOL is_utc_name(const char *name)
 /*****************************************************************
  *  Will libc read `tz` as the zone it says? It takes any name it cannot
  *  read ("Nowhere/Zone", "Europe") as UTC, in silence. It reads one that
- *  names a zone file (under TZDIR, else /usr/share/zoneinfo, or absolute),
+ *  names a zone file (under TZDIR, else /usr/share/zoneinfo, or absolute;
+ *  opened as it is written: "Europe/Madrid/." is no file),
  *  a POSIX TZ, or an empty one (UTC by POSIX); the names of UTC are
  *  known with no zone file too.
  *****************************************************************/
@@ -10169,10 +10216,14 @@ PRIVATE BOOL zone_is_known(const char *tz)
     if(empty_string(dir)) {
         dir = "/usr/share/zoneinfo";
     }
+    /*
+     *  Not build_path(): it resolves `.` and `..` by text, the kernel walks
+     *  them, and this has to be the file libc opens: dir/name as it is
+     */
     char path[PATH_MAX];
-    if(strlen(dir) + strlen(name) + 2 <= sizeof(path) && name[strlen(name) - 1] != '/' &&
-            build_path(path, sizeof(path), (*name == '/')? "" : dir, name, NULL) &&
-            is_zone_file(path)) {
+    int len = snprintf(path, sizeof(path), "%s/%s", dir, name);
+    const char *file = (*name == '/')? name : path;
+    if((file == name || (len > 0 && (size_t)len < sizeof(path))) && is_zone_file(file)) {
         return TRUE;
     }
     return (is_posix_tz(name) || is_utc_name(name))? TRUE : FALSE;
@@ -12809,8 +12860,8 @@ PRIVATE BOOL hours_from(time_t start, int range, BOOL in_zone, time_t *end)
  *  a change of offset that is no whole hour (Australia/Lord_Howe changes
  *  by 30 minutes, Pacific/Chatham at 02:45) ends one and starts the next
  *  (see start_of_hour()). When TZ cannot be set (error logged) the range
- *  is taken in UTC. An end no calendar holds gives the range {0, 0}
- *  (logged).
+ *  is taken in UTC. A start or an end no calendar holds gives the range
+ *  {0, 0} (logged).
  ***************************************************************************/
 PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_unit_t unit)
 {
@@ -12830,7 +12881,7 @@ PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_u
         return time_range;  // Error already logged
     }
 
-    int64_t year = tm.tm_year + 1900;
+    int64_t year = (int64_t)tm.tm_year + 1900;
     int mon = tm.tm_mon + 1;
     int64_t mday = tm.tm_mday;
     int64_t start_wall = 0;
@@ -12870,7 +12921,8 @@ PRIVATE time_range_t get_time_range(time_t t, int range, const char *TZ, range_u
             break;
     }
 
-    if(unit != RANGE_OF_HOURS && range_time_of((time_t)end_wall, FALSE, &tm)) {
+    if(unit != RANGE_OF_HOURS && range_time_of((time_t)start_wall, FALSE, &tm) &&
+            range_time_of((time_t)end_wall, FALSE, &tm)) {
         if(in_zone) {
             int64_t on_day_before;
             time_range.start = (time_t)time_of_local_wall(start_wall, &on_day_before);

@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
      *  The range 0 with a range asked: its error is logged
      */
     if(time_range.start == 0 && time_range.end == 0 && arguments.range != 0) {
-        fprintf(stderr, "No range: no calendar holds its end\n\n");
+        fprintf(stderr, "No range: no calendar holds its start or its end\n\n");
         exit(-1);
     }
 
@@ -265,9 +265,17 @@ int main(int argc, char *argv[])
     time_t offset;
     if(empty_string(arguments.TZ)) {
         struct tm *tm = gmtime(&time_range.start);
+        if(!tm) {
+            fprintf(stderr, "No range: no calendar holds its start\n\n");
+            exit(-1);
+        }
         strftime(start, sizeof(start), "%FT%T%z", tm);
 
         tm = gmtime(&time_range.end);
+        if(!tm) {
+            fprintf(stderr, "No range: no calendar holds its end\n\n");
+            exit(-1);
+        }
         strftime(end, sizeof(end), "%FT%T%z", tm);
     } else {
         struct tm tm;

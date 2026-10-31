@@ -173,7 +173,10 @@
  *              "2026-10-01 -0500 hours" were 500 hours back).
  *          30. the zones libc knows: a file under TZDIR or a path is a zone
  *              when it is a TZif file (zone.tab, /etc/passwd were UTC in
- *              silence), a POSIX TZ is one when all of it can be read
+ *              silence), looked at where libc opens it ("Test/Zone/." was
+ *              UTC in silence, "../zones/Test/Zone" a false ERROR) and with
+ *              the headers of RFC 9636 (no types crashed libc in tzset()),
+ *              a POSIX TZ is one when all of it can be read
  *              ("ABC0DEF,M13.1.0" was UTC in silence, "ABC25" a day), and
  *              with no tzdata UTC and GMT are no error; a FIFO in place of
  *              a zone file does not block the process.
@@ -2649,6 +2652,36 @@ PRIVATE void test_time_ranges(void)
     check_errors("2 hours from the last hour of the calendar", 1, "no calendar holds the time");
 
     /*
+     *  The last 1900 years of the calendar: tm_year + 1900 passes an int.
+     *  The ranges wrapped some 2^31 years back with no error, and that gave
+     *  time2range a time gmtime() does not hold. The first second is a
+     *  Thursday: the Monday of its week is before the calendar.
+     */
+    time_t last_second = 67768036191676799LL;
+    time_t first_second = -67768040609740800LL;
+    time_t last_year = last_second + 1 - 365*86400LL;
+    s_errors_logged = 0;
+    check_range("the last day of the calendar and one more", get_days_range(last_second, 1, ""), 0, 0);
+    check_errors("the last day of the calendar and one more", 1, "no calendar holds the time");
+    s_errors_logged = 0;
+    check_range("the last month of the calendar and one more", get_months_range(last_second, 1, ""), 0, 0);
+    check_errors("the last month of the calendar and one more", 1, "no calendar holds the time");
+    s_errors_logged = 0;
+    check_range("the last day of the calendar", get_days_range(last_second, 0, ""),
+        last_second - 86399, last_second - 86399);
+    check_range("the last year of the calendar, back one", get_years_range(last_second, -1, ""),
+        last_year, last_year - 365*86400LL);
+    check_range("a day of Madrid in the last month of the calendar",
+        get_days_range(last_second - 30*86400LL, 1, "Europe/Madrid"),
+        last_second - 30*86400LL - 3599, last_second - 30*86400LL - 3599 + 86400);
+    check_range("the first day of the calendar", get_days_range(first_second, 1, ""),
+        first_second, first_second + 86400);
+    check_errors("ranges the calendar holds", 0, NULL);
+    s_errors_logged = 0;
+    check_range("the week of the first second of the calendar", get_weeks_range(first_second, 1, ""), 0, 0);
+    check_errors("the week of the first second of the calendar", 1, "no calendar holds the time");
+
+    /*
      *  A range back past the year 1: the year 0 is the one before it. From
      *  the proleptic calendar of timegm().
      */
@@ -2819,6 +2852,7 @@ PRIVATE void test_zones_libc_reads(void)
     mkrdir(ZONES_DIR "/Test", 02770);
     mkrdir(ZONES_DIR "/Directory", 02770);
     mkrdir(ZONES_DIR "/no_tzdata", 02770);
+    mkrdir(ZONES_DIR "/Deep/Inner", 02770);
 
     /*
      *  A TZif file of version 1 with one type: +01:00, XAA
@@ -2862,6 +2896,98 @@ PRIVATE void test_zones_libc_reads(void)
         check_unknown_zone(not_zones[i]);
     }
     alarm(0);
+
+    /*
+     *  The file libc opens is dir/name as it is written, and the kernel
+     *  walks it: `lnk/..` is the parent of where lnk goes, and `Zone/.` is no
+     *  file. Read by text they were UTC in silence, or a false ERROR.
+     */
+    write_zone_file("Deep/Good", tzif, sizeof(tzif));
+    write_zone_file("Other", tzif, sizeof(tzif));
+    snprintf(path, sizeof(path), "%s/lnk", ZONES_DIR);
+    if(symlink("Deep/Inner", path) < 0) {
+        printf("FAIL cannot make %s\n", path);
+        global_result += -1;
+    }
+    static const char *literal_zones[] = {
+        "../test_date_text_zones/Test/Zone", "./Test/Zone", "Test/./Zone", "Test//Zone", "Test/../Test/Zone",
+        ":../test_date_text_zones/Test/Zone", ZONES_DIR "/Test/../Test/Zone", "lnk/../Good", ":lnk/../Good",
+    };
+    for(size_t i = 0; i < sizeof(literal_zones)/sizeof(literal_zones[0]); i++) {
+        check_known_zone(literal_zones[i], 3600);
+    }
+    static const char *literal_not_zones[] = {
+        "Test/Zone/.", ":Test/Zone/.", "Test/Zone/./.", "Test/Zone/x/..", "Test/Zone/..", "Test/none/../Zone",
+        "lnk/../Other", ":lnk/../Other", ZONES_DIR "/Test/Zone/.", ZONES_DIR "/Test/Zone/x/..", ".", "..", "Test/..",
+    };
+    for(size_t i = 0; i < sizeof(literal_not_zones)/sizeof(literal_not_zones[0]); i++) {
+        check_unknown_zone(literal_not_zones[i]);
+    }
+
+    /*
+     *  A file with the magic and no header of RFC 9636. Asia/Tokyo is loaded:
+     *  with a zone loaded, no types in a header of version 1 crash libc
+     *  inside tzset(). A version 2 or later has two headers and libc reads
+     *  the second, with 8-byte times; a later version than 4 is still read.
+     */
+    unsigned char bad[2*sizeof(tzif) + 16];
+    memset(bad, 0, sizeof(bad));
+    memcpy(bad, "TZif", 4);
+    write_zone_file("all_zero", bad, 44);
+    write_zone_file("all_zero_data", bad, sizeof(tzif));
+    bad[4] = '2';
+    write_zone_file("all_zero_v2", bad, 44);
+
+    memcpy(bad, tzif, sizeof(tzif));
+    write_zone_file("header_short", bad, 43);
+    write_zone_file("no_data", bad, 44);
+    write_zone_file("data_short", bad, sizeof(tzif) - 1);
+    bad[39] = 0;    // typecnt
+    write_zone_file("no_types", bad, sizeof(tzif));
+    bad[39] = 1;
+    bad[43] = 0;    // charcnt
+    write_zone_file("no_chars", bad, sizeof(tzif));
+    bad[43] = 4;
+
+    static const char footer[] = "\n<+01>-1\n";
+    static const char versions[] = {'2', '3', '4', '5'};
+    for(size_t i = 0; i < sizeof(versions); i++) {
+        memcpy(bad + sizeof(tzif), tzif, sizeof(tzif));
+        memcpy(bad + 2*sizeof(tzif), footer, sizeof(footer) - 1);
+        bad[4] = bad[sizeof(tzif) + 4] = (unsigned char)versions[i];
+        char name[32];
+        snprintf(name, sizeof(name), "version_%c", versions[i]);
+        write_zone_file(name, bad, 2*sizeof(tzif) + sizeof(footer) - 1);
+        check_known_zone(name, 3600);
+    }
+    size_t full_len = 2*sizeof(tzif) + sizeof(footer) - 1;
+    bad[4] = bad[sizeof(tzif) + 4] = '1';
+    write_zone_file("version_1", bad, full_len);
+    bad[4] = bad[sizeof(tzif) + 4] = 'x';
+    write_zone_file("version_x", bad, full_len);
+    bad[4] = bad[sizeof(tzif) + 4] = '2';
+    bad[3] = 'X';
+    write_zone_file("no_magic", bad, full_len);
+    bad[3] = 'f';
+    bad[sizeof(tzif) + 3] = 'X';
+    write_zone_file("second_no_magic", bad, full_len);
+    bad[sizeof(tzif) + 3] = 'f';
+    write_zone_file("no_second", bad, sizeof(tzif));
+    write_zone_file("second_short", bad, sizeof(tzif) + 43);
+    write_zone_file("second_no_data", bad, sizeof(tzif) + 44);
+    bad[sizeof(tzif) + 39] = 0;
+    write_zone_file("second_no_types", bad, full_len);
+    bad[sizeof(tzif) + 39] = 1;
+    bad[sizeof(tzif) + 43] = 0;
+    write_zone_file("second_no_chars", bad, full_len);
+
+    static const char *bad_headers[] = {
+        "all_zero", "all_zero_data", "all_zero_v2", "header_short", "no_data", "data_short", "no_types", "no_chars",
+        "version_1", "version_x", "no_magic", "second_no_magic", "no_second", "second_short", "second_no_data", "second_no_types", "second_no_chars",
+    };
+    for(size_t i = 0; i < sizeof(bad_headers)/sizeof(bad_headers[0]); i++) {
+        check_unknown_zone(bad_headers[i]);
+    }
 
     /*
      *  POSIX TZ

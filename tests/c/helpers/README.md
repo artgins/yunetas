@@ -363,7 +363,10 @@ are no day (Lord_Howe from 1981-02-28 13:05:59 UTC, 25 hours, ends at
 (`--wrap=gmtime_r`), a year of hours of Madrid takes at most 1400
 `localtime_r()`, an end no calendar holds is the range 0 with one ERROR (7.29.3:
 the year wrapped, some two billion years back), and a range back past the year
-1 is proleptic, with a year 0.
+1 is proleptic, with a year 0. The last 1900 years of the calendar: a range is
+right or the range 0 with one ERROR (7.29.3: `tm_year + 1900` passed an int and
+it wrapped with none), in UTC and in Madrid; so is the week of the first second
+of the calendar, whose Monday is before it.
 §28: a run of 12 digits is no date, and after a clock time a minus sign and
 four digits is its offset. §29: the same after anything else an offset can
 follow: `"noon -0500 hours"`, `"yesterday -0500 hours"`, `"2026-10-01 -0500
@@ -374,7 +377,11 @@ it, are durations.
 file built by the test. A file is a zone when it starts with `TZif`
 (`zone.tab`, `tzdata.zi`, `leapseconds`, an empty or short file, a directory,
 `/etc/passwd` are UTC with an ERROR; 7.29.3: UTC in silence); a FIFO in place of
-a zone file does not block the process; a POSIX `TZ` is one when all of it can
+a zone file does not block the process; the file is the one libc opens, `dir/name`
+as it is written, so `Test/Zone/.` and `lnk/../Other` are UTC with an ERROR and
+`../test_date_text_zones/Test/Zone` and `lnk/../Good` are zones; a file with the
+magic and no header of RFC 9636 is no zone (counts at zero, no types or characters,
+shorter than it says, version `1` or `x`, in either header; versions 2 to 5 pass); a POSIX `TZ` is one when all of it can
 be read, 24 forms that are and 50 that are not (`"ABC0DEF,M13.1.0"`, `"ABC25"`,
 `"ABC5:60"`); with no tzdata the names of UTC are no error and `Europe/Madrid`
 is one.

@@ -198,6 +198,10 @@ int main(int argc, char *argv[])
     if(empty_string(arguments.TZ)) {
         char local_stamp[164];
         tm = localtime((time_t *)&timestamp);
+        if(!tm) {
+            printf("timestamp too big\n");
+            exit(-1);
+        }
         strftime(local_stamp, sizeof(local_stamp), "%Y-%m-%dT%H:%M:%S%z", tm);
 
         char hexString[1264];  // Buffer to store the resulting string
@@ -211,6 +215,10 @@ int main(int argc, char *argv[])
     } else {
         char local_stamp[164];
         tm = localtime((time_t *)&timestamp);
+        if(!tm) {
+            printf("timestamp too big\n");
+            exit(-1);
+        }
         strftime(local_stamp, sizeof(local_stamp), "%Y-%m-%dT%H:%M:%S%z", tm);
 
         char tz_stamp[164];
