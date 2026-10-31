@@ -676,7 +676,7 @@ def build_html(rep, reports):
                  (cur_label or version, e['current']['mean'], 'bar-cur')]
         if extra_rows:
             rows_ += extra_rows
-        cards.append(paired_card(title, rows_, e['unit'], e.get('reason', ''), ratio_text(e)))
+        cards.append(paired_card(title, rows_, e['unit'], e.get('reason', ''), e.get('change_text') or ratio_text(e)))
 
     if 'prices' in story:
         for i, title in story['prices']:
@@ -754,7 +754,7 @@ def build_html(rep, reports):
         H.append('<tr><td>%s<br><span class="small">%s%s</span></td><td>%s</td><td class="n">%s</td><td class="n">%s</td>'
                  '<td class="n">%s</td><td class="n">%s</td><td>%s</td><td class="%s">%s</td></tr>' % (
                      esc(e['label']), esc(e['bench']), (' &middot; ' + esc(e['commit'])) if e.get('commit') else '',
-                     esc(e['unit']), mean_sd(e['previous']), mean_sd(e['current']), esc(pct(e['change_pct'])),
+                     esc(e['unit']), mean_sd(e['previous']), mean_sd(e['current']), esc(e.get('change_text') or pct(e['change_pct'])),
                      esc(e['n']), esc(e['scope']), VERDICT[e['verdict']][1], esc(VERDICT[e['verdict']][0])))
     H.append('</table></div></details>')
     H.append('<details><summary>Every absolute figure of %s (%d)</summary><div class="tablewrap"><table>'

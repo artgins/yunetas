@@ -14,6 +14,14 @@ changes are **BREAKING**: read those marked. The kernel changes (`gobj-c`,
 libraries do not change (linux-ext-libs 1.28; OpenSSL 3.6.5, PCRE2 10.49, nginx
 1.31.8, liburing 2.15). gobj-js and gobj-ui 7.30.0, gui_agent 1.3.7, gui_treedb 1.2.3.
 
+The price of the new HTTP limits, against 7.29.3 (10 alternated rounds on one CPU): an
+HTTP round trip through `C_PROT_HTTP_SR` costs 0.7 µs more (-5.1%), mostly because it
+reads `cur_tx_queue` of the transport by name at each request and answer, and a BFF
+login 6.8 µs more (-8.2%), while a header of 7.8 MB holds the event loop 8.9 ms instead
+of 5.3 s. A conversion with a zone makes seven more system calls (+2.1 µs). A date text
+that reads the local zone with `TZ` unset pays one `stat()`, about 0.5 µs. The report is
+[`performance/reports/7.30.0.html`](performance/reports/7.30.0.html).
+
 - **A path that does not fit is never used cut.** Since 7.29.3 `build_path()`
   answers NULL on overflow, but most callers did not look and went on with
   the ancestor left in the buffer. Every caller is checked now:

@@ -340,6 +340,13 @@ application's gate (one application).
 
 ## 5. Future features and improvements
 
+- **A read pause in `C_TCP`.** `C_PROT_HTTP_SR` cannot stop reading a peer, so it holds
+  what the peer pipelines, up to `max_rx_held`, and drops a peer that passes it even if it
+  reads. A pause would let TCP slow the peer and remove that limit.
+- **`C_PROT_HTTP_SR` reads `cur_tx_queue` of the transport by name** at each request and
+  answer, about 0.35 µs of a round trip. A way to read it with no walk over the attributes
+  would recover part of the price of 7.30.0.
+
 ### timeranger2 and C_TRANGER
 
 - **Bound the size of an archive batch at its cause**

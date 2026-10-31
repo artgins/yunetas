@@ -105,6 +105,17 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.30.0** (against 7.29.3): an HTTP parser in linear time with limits, a
+  server that holds a pipeline, a BFF that serves a session only to its
+  `Origin`, and a rewritten date reader. One header of 7.8 MB holds the event
+  loop 603 times less (5.3 s -> 8.9 ms), and 64 KB is the limit by default.
+  Prices, each with its reason: an HTTP round trip +0.7 us (-5.1%), a BFF login
+  +6.8 us (-8.2%), one `stat()` per date text with `TZ` unset, and seven system
+  calls per conversion to a named zone. Of the other 49 benchmarks, 39 stay
+  inside their noise and 10 move by placement, five each way.
+  [Report](performance/reports/7.30.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.30.0/performance/reports/7.30.0.html) ·
+  [raw figures](performance/reports/7.30.0.json)
 - **7.29.0** (against 7.28.8, the last release with a study; 7.28.9 to
   7.28.11 inside it): retention that keeps what it takes, shipped to a backup
   by two new yunos, with the content of each file checked and mutual TLS. The
