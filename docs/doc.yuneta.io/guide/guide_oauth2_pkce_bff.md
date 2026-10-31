@@ -457,8 +457,11 @@ before answering, the request is not sent again"*), with the ERROR of the
 timeout (`gui_treedb` gives each BFF call 15 s) or a 5xx answer such as
 `502 auth_service_unavailable` (the IdP is unreachable, for example on a node
 just after a reboot) says nothing about the user's credentials. The SPA keeps
-the session and retries with backoff (5 s, doubling up to 60 s). Only a 4xx
-answer (`session_expired`, `missing_refresh_token`) ends the session.
+the session and retries with backoff (5 s, doubling up to 60 s). A 4xx answer
+of the BFF (`session_expired`, `missing_refresh_token`) ends the session,
+except a 429, which is retried after its `Retry-After`. So does a code a retry
+would only give again (`token_too_large`, `auth_unexpected_error`,
+`auth_config_error`, `internal_error`).
 
 ---
 

@@ -283,7 +283,9 @@
   linear time** (security fix). The target or status text, the header names
   and their values are limited to `max_header_size` (new attribute of
   `C_PROT_HTTP_SR` and `C_PROT_HTTP_CL`, 64 KB by default, never more than
-  half the max block). Each byte is copied once, and a header is stored once,
+  half the max block). Each header counts `GHTTP_HEADER_COST` (64) bytes more,
+  what it holds in memory beyond its text, so the same limit bounds the
+  headers: 1008 empty ones in 64 KB. Each byte is copied once, and a header is stored once,
   when its value ends: each piece of a header was copied again whole and
   validated again, so an 8 MB header held a yuno for 15 s, and 16 MB for a
   minute, ending in an ERROR, for every client of that yuno. A request over
@@ -296,34 +298,73 @@
   413 go with `Connection: close`, and the connection lingers for
   `timeout_linger` (new attribute, 2000 ms), reading and dropping what the
   peer still sends, so that the answer is not lost to a reset; then it is
-  dropped. An answer whose body is not a dict or a list is sent; it logged
+  dropped. A refusal goes after the answers of the requests before it: with
+  an application that answers later, it waits for the last of them, and an
+  application that never answers leaves it to `timeout_inactivity`. An
+  answer whose body is not a dict or a list is sent; it logged
   an ERROR in `kw_duplicate()`. In 7.29.3. `c_prot_http_sr/test1`.
 - **`ghttp_parser_stop()`: once a connection is dropped, nothing more of
   what was received is delivered.** Requests pipelined in the same read
   after an application's `EV_DROP` reached the gobj already disconnected,
   with an ERROR and a stack each (*"Event NOT DEFINED in state"*, 110 for
   600 requests). `C_PROT_HTTP_SR` and `C_PROT_HTTP_CL` stop their parser on
-  `EV_DROP`, on the inactivity timeout and on a full transmit queue, and
+  `EV_DROP`, on the inactivity timeout and on a peer that does not read, and
   `ghttp_parser_finish()` inside an event of the parser stops it too. In
   7.29.3. `c_prot_http_sr/test1`, `c_auth_bff/test25`.
 - **BREAKING: `C_PROT_HTTP_CL` and `C_PROT_HTTP_SR` bound the messages
-  waiting for a peer that does not read.** New attribute `max_tx_queue`
-  (64; 0: no limit). When that many wait in the transport, the next request
-  or answer is refused (the action returns -1), ONE warning is logged and
-  the connection is dropped. The memory grew without limit (C_TCP's own
-  `max_tx_queue` drops the oldest message, which would break an HTTP
-  stream). In 7.29.3. `c_prot_http_sr/test1`, `c_prot_http_cl/test2`.
-- **`C_PROT_HTTP_CL` answers the request waiting for a response it cannot
-  read.** A response that breaks the protocol after it began is published
-  with `protocol_error` (the reason llhttp gives) and no body, and the
-  connection is dropped; nothing answered the request. In 7.29.3.
+  waiting for a peer that does not read, and only that peer is cut.** The
+  memory grew without limit (C_TCP's own `max_tx_queue` drops the oldest
+  message, which would break an HTTP stream). New attributes `max_tx_queue`
+  (64; 0: no limit) and `timeout_tx_stall` (5000 ms; 0: never), and in the
+  server `max_rx_held` (1 MiB; 0: no limit). The queue of the transport moves
+  only when a write ends, in the event loop, so its length says nothing of the
+  peer: 100 requests pipelined in one send put 100 answers in the queue of a
+  peer that reads them. So the server, with `max_tx_queue` answers waiting,
+  holds what the peer sends, unparsed, and parses it read by read when the
+  queue is empty: a pipeline of any length is served in order, and the answers
+  waiting never pass `max_tx_queue` by more than what one read holds. A peer
+  is dropped, with ONE warning, when no write ended in `timeout_tx_stall`
+  milliseconds with the queue full, or when more than `max_rx_held` bytes are
+  held (this one looks at the bytes: a peer that pipelines more than that
+  ahead of its answers is dropped even if it reads them). The client refuses
+  a request (the action returns -1) and drops the connection only when it
+  finds `max_tx_queue` requests waiting and no write ended in
+  `timeout_tx_stall`; a burst of one turn is never refused. In 7.29.3.
+  `c_prot_http_sr/test1`, `c_prot_http_cl/test2`.
+- **BREAKING: `C_PROT_HTTP_CL` answers the request waiting for a response it
+  cannot read.** A subscriber gets one `EV_ON_MESSAGE` it never got: a response
+  that breaks the protocol after its status line is published with
+  `protocol_error` (the reason llhttp gives), no body and maybe a status 200,
+  and the connection is dropped; nothing answered the request. Bytes that are
+  not a response (garbage alone, or after a whole response) are published as
+  nothing: ONE warning and the drop, and the request waiting has `EV_ON_CLOSE`.
+  With `raw_body_data` nothing is published, because a last `EV_ON_MESSAGE`
+  would say the body is whole. In 7.29.3. `c_prot_http_cl/test2`.
+- **BREAKING: `ghttp_parser` joins a header that comes twice.** Whoever reads
+  headers sees it: a name that comes again is now `"a, b"`, not its last value.
+  Its values are joined in order with `", "` (RFC 9110 §5.3), Cookie with
+  `"; "`, and Set-Cookie is never joined (the last one is kept). The chunked
+  trailers enter the headers with the same rules, and a refused response too,
+  so `headers` is always a dict of strings. Two Retry-After are `"120, 60"`
+  and are refused, and a repeated Host or Origin fails the BFF's checks. An
+  empty header value is kept as `""`. In 7.29.3. `c_llhttp_parser`,
   `c_prot_http_cl/test2`.
-- **`ghttp_parser` joins a header that comes twice.** Its values are joined
-  in order with `", "` (RFC 9110 §5.3), Cookie with `"; "`, and Set-Cookie is
-  never joined (the last one is kept); the last value replaced the others.
-  Two Retry-After are `"120, 60"` and are refused, and a repeated Host or
-  Origin fails the BFF's checks. An empty header value is kept as `""`. In
-  7.29.3. `c_llhttp_parser`.
+- **`ghttp_parser`: without `on_message_event` a message starts clean on a
+  keep-alive connection.** With `raw_body_data` the state of a response stayed
+  for the next one: a header of the first was still in the second. The state
+  is released when the next message begins, and until then `url`, `jn_headers`
+  and `message_completed` stay readable, as the websocket handshake needs. In
+  7.29.3. `c_llhttp_parser`, `c_prot_http_cl/test2`.
+- **`ghttp_parser`: ONE warning per message for header values that are not
+  utf-8.** It was one warning with a dump per header: 20000 headers gave 20000
+  warnings. The text of the warning now says it is the first of the message.
+  In 7.29.3. `c_llhttp_parser`.
+- **C_WEBSOCKET answers one subprotocol, the first offered, or none** (RFC
+  6455 §4.2.2). A server echoed the whole `Sec-WebSocket-Protocol`, so a list
+  came back as a list, which a browser refuses, and at 512 bytes the end of
+  the head was cut with it and the 101 never ended. A value that is no token
+  or is longer than `NAME_MAX` gets no subprotocol and ONE warning. In 7.29.3.
+  `c_websocket/test4`.
 - **C_AUTH_BFF refuses an IdP token with a byte a cookie value cannot
   carry** (outside RFC 6265 cookie-octet): `502 auth_unexpected_error`, with
   a WARNING naming the token, the position and the byte (in hex, `"0x3B"`). The tokens were
@@ -334,7 +375,10 @@
   (security fix). `/auth/login`, `/auth/callback`, `/auth/refresh`, a
   `/auth/logout` with a cookie and `/auth/token` need exactly
   `allowed_origin`. With `allowed_origin` empty the Origin must be
-  `http(s)://` and the Host of the request, and `/auth/token` is refused.
+  `https://` and the Host, or `http://` and the Host on a connection that is
+  not TLS (behind a proxy that ends TLS the BFF cannot tell the scheme of the
+  browser, so `allowed_origin` is what pins it there), and `/auth/token` is
+  refused. A Host that is a list is no Host.
   Another origin, none, `null` or a prefix gets `403 origin_not_allowed`,
   with no IdP call and no `Set-Cookie`, and the error names the Origin
   received and the one allowed. SameSite=Strict says same site, not same
@@ -353,14 +397,18 @@
   prefix, so `https://ok.com` let `https://ok.com.evil.com` and
   `https://ok.com@evil` through. It is exact now, unless it ends with `/`
   after a scheme and a host; then the rest of the redirect_uri must be
-  visible ASCII with no `\`, `#` or `.`/`..` segment (`%2e` included). A
+  visible ASCII with no `\`, `#` or `.`/`..` segment (`%2e` included; before a
+  `;` too, `..;/`), and in the path no `%XX` of `.`, `/`, `\`, `;`, `?`, `#`,
+  `%` or a byte out of visible ASCII, nor a badly written one. So `/app/x%20y`
+  is refused under a prefix; an exact value is not affected. A
   value ending in `/` with no host is matched exactly, with an ERROR at
   create. In 7.29.3. `c_auth_bff/test26`.
 - **C_AUTH_BFF does not send a request to the IdP twice.** C_TASK runs its
   job again at each reconnection, so an IdP connection dropped before the
   answer (a restart, an answer the HTTP client cannot parse) sent the
-  password grant, the refresh (a refresh_token used twice) or the logout
-  again. Now the answer is `502 auth_service_unavailable`, with one ERROR.
+  password grant or the refresh (a refresh_token used twice) again. Now the
+  answer is `502 auth_service_unavailable`, with one ERROR. The logout is the
+  exception: see below.
   In 7.29.3. `c_auth_bff/test25`.
 - **An IdP answer the HTTP client refused is said and answered as a
   failure**: `body_too_large`, `headers_too_large` and `protocol_error`,
@@ -374,15 +422,61 @@
 - **A POST is not sent again when the connection to the IdP or the database
   closes before its answer.** C_TASK runs its current job again at every
   reconnection, as it should for a read, but C_TASK_AUTHENTICATE sent its
-  password grant and logout again, C_IDP_KEYCLOAK its token request, user
+  password grant again, C_IDP_KEYCLOAK its user
   creation (answered *"already exists"* for the user it had just created),
   invitation email, update, delete and actions, and `dba_postgres` pushed
   its INSERT again while C_POSTGRES re-sent it too (the row went in twice).
   Now C_TASK_AUTHENTICATE gives -1 with a WARNING, C_IDP_KEYCLOAK answers
   `kc_unavailable` (an invitation answers registered, with
   `email_send_failed`), and `dba_postgres` waits for the answer of the query
-  it pushed; reads may still go again. In 7.29.3.
+  it pushed; reads may still go again, the admin token of C_IDP_KEYCLOAK
+  among them (it has no effect at the IdP), at most 3 times. In 7.29.3.
   `c_task_authenticate/test6_idp_drops`.
+- **BREAKING: a logout of C_AUTH_BFF ends in the browser whatever fails at the
+  IdP.** Every answer to a logout it serves clears both cookies, its errors
+  too: `502` (the IdP cut the connection twice, or the discovery failed), `504`
+  (silent), `503 server_busy`, `500 auth_config_error`. They kept the session
+  in the browser, on a machine the user may be leaving; the error tells the SPA
+  it may still be open at the IdP. The end-session is idempotent, so it is the
+  one request that goes twice: a cut sends it once more on the next connection,
+  with a WARNING, as in C_TASK_AUTHENTICATE. In 7.29.3.
+  `c_auth_bff/test28_logout_idp_cut`, `c_task_authenticate/test11`, `test12`.
+- **C_TASK_AUTHENTICATE survives a status with no name.**
+  `llhttp_status_name()` aborts on one, and it was called with the status of the
+  IdP, so a peer answering 298 ended the process. **BREAKING:** the `comment` of
+  `EV_ON_TOKEN` says the number, not the name. In 7.29.3.
+  `c_task_authenticate/test13_unknown_status`.
+- **A job with nothing to call answers its caller.** A logout whose
+  `end_session_endpoint` is not a URL left the browser with no answer (now `500
+  auth_config_error`, the cookies cleared), and in C_TASK_AUTHENTICATE an invalid
+  issuer or endpoint ended with no `EV_ON_TOKEN`, so the caller waited for ever
+  (now `result` -1). A discovery whose endpoint is not a URL, or does not fit, is
+  refused there: it was kept for the life of the BFF. In 7.29.3.
+  `c_auth_bff/test28`, `test29_tls_origin`,
+  `c_task_authenticate/test15_endpoint_not_url`, `test19_endpoint_too_long`.
+- **An IdP that always cuts holds nothing for ever.** Each run of a job re-arms
+  the timeout of its task, so a read or a discovery cut on every connection never
+  ended, with the requests behind it waiting. A discovery goes twice at most (BFF,
+  task), a read of C_IDP_KEYCLOAK 3 times, then the failure. In 7.29.3.
+  `c_auth_bff/test28`, `c_task_authenticate/test17_discovery_cut`,
+  `test18_idp_keycloak`.
+- **BREAKING: a peer's bad data gives a WARNING, not an ERROR with a stack**
+  (`kw_get_str()` is for json of ours). A value of another type in a body of the
+  browser (`400 missing_params`), in an answer of the IdP (`error`, a claim, an
+  endpoint), and in C_TASK_AUTHENTICATE every key of the envelope it read with
+  `KW_REQUIRED` and did not use (an IdP omitting `session_state` logged an ERROR
+  per login). A discovery refused or with no endpoints, an answer with no body or
+  no token, are WARNINGs: a log watcher on those ERRORs must look at the WARNING,
+  or at the ERROR of the 502 of each request left unserved. In 7.29.3.
+  `c_auth_bff/test18`, `test25`, `test28`,
+  `c_task_authenticate/test4`, `test16_minimal_answer`.
+- **Nothing an IdP sends or a caller asks is cut with no word.** The
+  `Authorization` of the logout of C_TASK_AUTHENTICATE stopped at 1024 bytes;
+  C_IDP_KEYCLOAK cut a token over 8191 bytes (now `kc_unavailable` and a WARNING),
+  a resource at its buffer and a search at 384 bytes; an `expires_in` of it that
+  is not a positive integer is 60, not a date in the past. `dba_postgres` says a
+  key too long. In 7.29.3. `c_task_authenticate/test14_long_bearer`,
+  `test18_idp_keycloak`.
 - **C_TASK_AUTHENTICATE and C_IDP_KEYCLOAK hear the close of their HTTP
   client.** They removed every subscription the client makes to its
   parent, so the stop at the end of the work closed the connection after
@@ -417,12 +511,14 @@
 - **C_AUTH_BFF passes on a well-formed `Retry-After` of an IdP 429, and
   exposes it to CORS.** It is read as RFC 9110 says: delay-seconds of 1 to
   10 digits, passed on as received, or a real HTTP-date in any of its three
-  forms (IMF-fixdate, rfc850, asctime; GMT, the day in its month, the time
+  forms (IMF-fixdate, rfc850, asctime; the two-digit year of rfc850 by RFC 9110
+  §5.6.7, the latest with those digits that is not more than 50 years ahead,
+  both ways; GMT, the day in its month, the time
   up to 23:59:60, the day name that of the date), passed on as IMF-fixdate,
   with the blanks around it trimmed. A list, an impossible date or 11 digits
   is dropped with a WARNING. Every CORS answer carries
   `Access-Control-Expose-Headers: Retry-After`, so an SPA on another origin
-  can read it. In 7.29.3. `c_auth_bff/test25`.
+  can read it. In 7.29.3. `c_auth_bff/test25`, `test27_rfc850_year`.
 - **C_AUTH_BFF answers pipelined requests in their order** (RFC 9112
   §9.3.2). An answer known at once waits behind a request still at the IdP;
   more than `pending_queue_size` waiting answers drop the connection with a
@@ -560,7 +656,7 @@
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
   1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.8, gui_agent
-  1.2.7 to 1.3.2 and gui_treedb 1.1.3 to 1.1.8. The `yunetas` CLI 1.0.5 and
+  1.2.7 to 1.3.3 and gui_treedb 1.1.3 to 1.1.9. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, a login
@@ -569,6 +665,28 @@
   BFF's, retries a 429 as its `Retry-After` says, drops an answer of an
   earlier session, keeps one refresh in flight, and a logout that is its own
   state and says when the server did not end the session.
+- **BREAKING: gui_agent and gui_treedb, the session and the login form**
+  (gui_agent 1.3.3, gui_treedb 1.1.9). In 7.29.3 unless noted; the detail is in
+  the yunos-js CHANGELOG.
+    - A 429 is a 429, even with a json and an `error_code` of its own, which
+      read as a denial and ended the session at the first one. Any 429 is now
+      `auth_rate_limited`, retried after its `Retry-After`.
+    - **BREAKING:** gui_agent says an identity the control center refuses again
+      in the language of the app. The comment of the control center is no
+      longer on the form: it goes to the log as a WARNING.
+    - **BREAKING:** gui_agent's form, shown when the first open of the link
+      fails, takes a login that replaces the session: the logout first, then
+      the login. It was "Event NOT DEFINED" with the form busy for ever.
+    - **BREAKING:** a `Retry-After` of any number of digits is a delay, in both
+      SPAs. On a 429, 11 or more digits now end the session as 10 did; a value
+      with leading zeros is its value.
+    - gui_agent: the form goes when the link opens at last, a session denied
+      before the link opened stops the link, a failed logout is a WARNING, and a
+      Monitor link refused twice stops hearing the login and its transport at
+      once.
+    - gui_treedb: the refresh timer of a login starts when its token has come,
+      and the note of a connection adds no English of ours.
+    - Both: what the login form says of an empty field changes language.
 - **Docs and examples: one set of example ids.** The examples, tests and
   docs of the SDK, gobj-js, gobj-ui and yunos-js take their ids from one
   set: `db_history^7301`/`7302`, `gate_b^7401`, `gate_probe^7701`,
@@ -588,23 +706,34 @@
   dict keyed by a yuno id N came back as an array of N+1 elements.
 - **gobj-js and gobj-ui tests**: the linearity of the secret masking is
   checked twice. A count of its work adds a tick in every function, loop and
-  expression-bodied arrow of `src/`, and a model of what the native functions
-  it lists read or make: String and RegExp, the searches, copies, sorts and
-  callbacks of Array and the typed arrays, the iterators, the constructors
-  that fill what they make, `Object.keys()` and kin, URI, base64, JSON and
-  text encoding. The masking counts 1.00000, and a work of a*n + c*n*n fails
-  when c*n*n is 2.7% or more of the counted a*n at 1 MB. What the model does
-  not see is left to a timing in thread CPU time: a regex that backtracks
-  within one attempt or reads far where it fails, a `+=` string flattened
-  later, a native with no model. The timing masks 15 x 256 KB against
-  3.75 MB, keeps the best of up to six rounds, collects the heap before each
-  measure, and has a limit of 2.0; it is skipped, with its reason, where
-  `process.threadCpuUsage()` is missing. On the machine it was measured on
-  (named in gobj-js's CHANGELOG), linear works reach 1.58 at most with eleven
-  other suites running. Every rescan tried at 0.3 and 1 times the masking at
-  1 MB makes the test fail, except where one pass of it already costs that
-  much. An O(n log n) sort fails the count on purpose (the masking is
-  linear, as in C). The suite runs in about 15 s on that machine. The treedb
+  expression-bodied arrow of `src/` and a hook wherever the language reads
+  with no call (a rope's first read, a long key, two long strings compared),
+  and wraps every native the runtime reaches from its globals: one with no
+  model is charged all it is given, so a native nobody listed counts too,
+  and a regular expression is charged the steps a small backtracking machine
+  takes on the same search, checked against the native answer. The masking
+  counts 1.00000, and a work of a*n + c*n*n fails when c*n*n is 2.7% or more
+  of the counted a*n at 1 MB. 49 rescans made in different ways are kept as
+  tests that must fail the count, and 12 linear works as tests that must
+  pass it. What it cannot see is listed in `tests/count_native_work.js`: the
+  globals of the test machinery, promises and streams, a `node:` module or a
+  package, a native with more than linear work and no model, `arr.length =
+  n`, an object rest, and what a call costs that has nothing to do with its
+  size. For that last one the masking is also timed in thread CPU time, 15 x
+  256 KB against 3.75 MB, the best of up to six rounds, the heap collected
+  before each measure of at least 200 ms, with a young generation fixed at
+  256 MB so that no collection falls inside a call, and a limit of 1.6; it
+  is skipped, with its reason, where `process.threadCpuUsage()` is missing.
+  On the machine it was measured on (named in gobj-js's CHANGELOG), linear
+  works reach 1.14 at most with twelve other suites running. Each of the 19
+  rescans run at 1 MB, at 0.3 and 1 times the masking, fails the count on
+  all 23 shapes, except one shape of one where one pass already costs more
+  than that. On the time, which depends on the machine and on its load, the
+  ten run on it fail at 1 times but a key of a Map or a Set, which takes no
+  time, and at 0.3 times on 2 to 23 shapes of 23. This says what was tried,
+  not that a rescan nobody tried fails. An O(n log n) sort fails the count
+  on purpose when it is about half of the work or more (the masking is
+  linear, as in C). The suite runs in 23 to 24 s on that machine. The treedb
   fold model's extended-parent, tie-break, double-mark and multivalued-fkey
   rules are tested, each with a mutant red.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
@@ -957,11 +1086,16 @@
   (`"Z"`, `"+0000"`, `"3 hours ago"`, `"now"`, `"@N"`) looks at no zone and
   calls no `tzset()`. With `TZ` unset `tzset()` costs a `stat()` of
   `/etc/localtime`, and a change of that file while the process runs is seen
-  at the next text. Over 300k texts of 20 forms (20 alternated rounds on one
-  CPU, medians): with `TZ` unset 154 ms in 7.29.3 and 171 ms now (+8 to
-  +11%: 7.29.3 called `tzset()` only for the forms that went through
-  `mktime()`, and read `"2026-10-01"` or `"last friday"` in whatever zone
-  libc held); with `TZ` set 97 and 82 ms (16 to 19% faster). The reading is
+  at the next text. The price, with `TZ` unset, is one `stat()` of
+  `/etc/localtime` per text that reads the local zone, about 0.5 µs (474 ns on the machine
+  measured, the one a line of log pays), and nothing with `TZ` set: a text
+  that does nothing else, `"2026-10-01"`, goes from 167 to 721 ns with `TZ`
+  unset, and from 167 to 139 ns with it set. 7.29.3 paid it only for the
+  forms that went through `mktime()`, and read `"2026-10-01"` or `"last
+  friday"` in whatever zone libc held. It is not saved by looking once per
+  interval: for that interval a text would be read in the zone other code left
+  in libc. `TZ=:/etc/localtime` takes it away, and with it the sight of a
+  change of that file. The reading is
   exact for a zone that never changes its offset twice in less than 48
   hours (no tzdata zone since 1970). A clock time with a zone and no date is
   of the day of now in that zone (`"02:30 CET"` at 00:30 CEST on 2026-10-25
@@ -988,7 +1122,7 @@
   and `"2026-10-01 10:00 -1d"` and `"10:00 2026-10-01-1d"` September 30 at
   10:00, as `"10:00 1d"` is. 7.29.3 refused them, the `-1` read as a zone.
   With no unit it is still a zone (`"10:00 -0500"`), and four digits are an
-  offset with a unit after them too: `"10:00 -0500 hours"` is no date, while
+  offset with a unit after them too: `"10:00 -0500 hours"` is no date (see below), while
   `"10:00 -5 hours"` and `"10:00 -05 hours"` are durations. `test_date_text`,
   `test_date_bound_units`.
 - **`gmtime2timezone()` gives the offset of the zone at the time it
@@ -998,9 +1132,7 @@
   was a `strdup()`, and when that failed the `unsetenv()` at the end lost
   the `TZ` of the process in silence. The copy is a `gbmem_strdup()` now;
   when it fails, `TZ` is left as it was, the error is logged and the time is
-  taken in UTC. A zone libc does not know (`"Nowhere/Zone"`, `"Europe"`)
-  was UTC in silence; it is still UTC, with an ERROR *"Unknown time zone:
-  taken as UTC"*, here and in every `get_*_range()`. No caller in the SDK
+  taken in UTC. No caller in the SDK
   reads the offset or the return. In 7.29.3. `test_date_text`.
 - **`get_hours_range()`, `get_days_range()`, `get_weeks_range()`,
   `get_months_range()` and `get_years_range()` give the bounds of the zone
@@ -1013,8 +1145,37 @@
   25 hours), and an hour is of the zone: a change of offset ends one hour
   and starts the next, so in `Australia/Lord_Howe` (30 minutes) and
   `Pacific/Chatham` (at 02:45) the hours follow the clock of the zone. A
-  negative range counts back. `time2range` shows it. In 7.29.3.
+  negative range counts back. In UTC hours take one step; in a zone the cost
+  grows with the years the range covers, some 1400 `localtime_r()` per year.
+  `time2range` shows it. In 7.29.3.
   `test_date_text`.
+- **BREAKING: where an offset can stand, four digits are that offset**
+  (`approxidate_careful()`, `tranger2_time_of_text()`). After noon, a date or
+  a day a minus sign, four digits and a unit was a duration: `"noon -0500
+  hours"`, `"yesterday -0500 hours"` and `"2026-10-01 -0500 hours"` were 500
+  hours back, while `"10:00 -0500 hours"` was no date. They are no date now.
+  `"noon -500 hours"`, `"2026-10-01 -12345 hours"` and `"-0500 hours"`, with
+  nothing before it, are durations. `test_date_text`.
+- **BREAKING: `gmtime2timezone()` and `get_*_range()` take a zone only when
+  libc will read it as one**, else UTC with an ERROR *"Unknown time zone:
+  taken as UTC"*, with `TZ` not touched. They took a name of no zone in silence
+  (`"Nowhere/Zone"`, `"Europe"`), any file (`zone.tab`, `/etc/passwd`), and a
+  POSIX `TZ` that libc stops reading or clamps: `"ABC0DEF,M13.1.0"` was UTC,
+  `"ABC25"` an offset of a day, `"ABC5:60"` 5:59. A zone is a file with the
+  TZif magic, a POSIX `TZ` that can be read whole, or empty; with no tzdata
+  the names of UTC (`"UTC"`, `"GMT"`, `"Etc/UTC"`, ...) are no error. A FIFO in
+  place of a zone file blocked the process in `tzset()`; it never reaches libc
+  now. `test_date_text`.
+- **A time no calendar holds crashes nothing and leaves nothing half
+  written.** `t2timestamp()` and `formatdate()` passed the NULL of
+  `localtime()` on and the process crashed (`ycli` with a time column from a
+  peer): they give an empty text and one ERROR. `gmtime2timezone()` leaves
+  `*ltm` zeroed. `get_*_range()` with an end no calendar holds answer `{0, 0}`
+  with one ERROR: the year wrapped, and `get_years_range(t, 2147483647, "")`
+  was some two billion years back. `test_date_text`.
+- **`time2range`**: `-r` must be an integer (`-r abc` was a range of 0, in
+  silence); the ERROR of an unknown zone reaches stdout (it went nowhere, and
+  the range was printed in UTC); a range with no end exits -1.
 - **A time text longer than 256 bytes is refused**
   (`tranger2_time_of_text()`, `tranger2_time_of_json_text()`: text time
   bounds and tkeys), with *"a time text longer than 256 bytes"*, as a C text

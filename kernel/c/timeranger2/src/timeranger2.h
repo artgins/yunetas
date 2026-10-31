@@ -779,8 +779,9 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
         epoch seconds said before it ("10:00 2026-10-01-0500",
         "1790000000-0500"), where a minus sign, a count and its unit is a
         duration ("10:00 2026-10-01-1d" is September 30 at 10:00) but
-        four digits after a clock time are its offset ("10:00 -0500
-        hours" is no date); nor, with no clock time, one outside
+        where an offset can stand four digits are that offset ("10:00
+        -0500 hours", "noon -0500 hours", "2026-10-01 -0500 hours" are
+        no date); nor, with no clock time, one outside
         -12:00..+14:00 ("now-2026"). A run of 12 digits with a sign after
         it is no date ("202610011000-0500": a date and a time with no 'T',
         epoch seconds have 11 digits at most). A
