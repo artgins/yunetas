@@ -315,7 +315,7 @@
   waiting for a peer that does not read, and only that peer is cut.** The
   memory grew without limit (C_TCP's own `max_tx_queue` drops the oldest
   message, which would break an HTTP stream). New attributes `max_tx_queue`
-  (64; 0: no limit) and `timeout_tx_stall` (5000 ms; 0: never), and in the
+  (64; 0: no limit) and `timeout_tx_stall` (30000 ms; 0: never), and in the
   server `max_rx_held` (1 MiB; 0: no limit). The queue of the transport
   moves only when a write ends, in the event loop, so its length says
   nothing of the peer: 100 requests pipelined in one send put 100 answers in
@@ -335,8 +335,12 @@
   of its answers is dropped even if it reads them). The client refuses a
   request (the action returns -1) and drops the connection only when it
   finds `max_tx_queue` requests waiting and no write ended in
-  `timeout_tx_stall`; a burst of one turn is never refused. In 7.29.3.
-  `c_prot_http_sr/test1`, `c_prot_http_cl/test2`.
+  `timeout_tx_stall`; a burst of one turn is never refused. A write ends
+  when the kernel takes the last of it, and it wakes a blocked write only
+  when a large part of the send buffer is free: a peer slower than about
+  send buffer / (2 x `timeout_tx_stall`) counts as not reading, 68 KB/s at
+  the default with a send buffer of 4 MB. In 7.29.3. `c_prot_http_sr/test1`,
+  `c_prot_http_cl/test2`.
 - **BREAKING: `C_PROT_HTTP_CL` answers the request waiting for a response it
   cannot read.** A subscriber gets one `EV_ON_MESSAGE` it never got: a response
   that breaks the protocol after its status line is published with
@@ -346,14 +350,27 @@
   nothing: ONE warning and the drop, and the request waiting has `EV_ON_CLOSE`.
   With `raw_body_data` nothing is published, because a last `EV_ON_MESSAGE`
   would say the body is whole. In 7.29.3. `c_prot_http_cl/test2`.
-- **BREAKING: `ghttp_parser` joins a header that comes twice.** Whoever reads
-  headers sees it: a name that comes again is now `"a, b"`, not its last value.
-  Its values are joined in order with `", "` (RFC 9110 §5.3), Cookie with
-  `"; "`, and Set-Cookie is never joined (the last one is kept). The chunked
-  trailers enter the headers with the same rules, and a refused response too,
+- **BREAKING: `ghttp_parser` joins a header that comes twice.** Whoever
+  reads headers sees it: a name that comes again is now `"a, b"`, not its
+  last value. Its values are joined in order with `", "` (RFC 9110 §5.3),
+  Cookie with `"; "`, and Set-Cookie is never joined (the last one is kept).
+  The chunked trailers enter the headers with the same rules, except the
+  fields RFC 9110 §6.5.1 keeps out of a trailer, and a refused response too,
   so `headers` is always a dict of strings. Two Retry-After are `"120, 60"`
   and are refused, and a repeated Host or Origin fails the BFF's checks. An
   empty header value is kept as `""`. In 7.29.3. `c_llhttp_parser`,
+  `c_prot_http_cl/test2`.
+- **BREAKING: `ghttp_parser` leaves out of `headers` the fields a trailer must
+  not carry** (RFC 9110 §6.5.1): Host, Origin, Connection, Upgrade, Trailer, the
+  authentication and cookie fields, Content-Type, Content-Encoding, Content-Range,
+  Cache-Control, Expect, Max-Forwards, Pragma, Range, TE, Location and Retry-After,
+  with ONE warning per message. A trailer `Content-Type: application/json` turned a
+  `text/plain` body into json, and a trailer could stand in for a header a proxy
+  filters. Other trailers still join. In 7.29.3 (there a trailer replaced the header
+  of its name). `c_llhttp_parser`, `c_prot_http_cl/test2`.
+- **BREAKING: `C_PROT_HTTP_CL` refuses a request sent while the connection is
+  dropped.** The action answers -1 with ONE warning per connection; it answered 0 and
+  the transport threw the request away, for as long as the close took. In 7.29.3.
   `c_prot_http_cl/test2`.
 - **`ghttp_parser`: without `on_message_event` a message starts clean on a
   keep-alive connection.** With `raw_body_data` the state of a response stayed
@@ -438,18 +455,20 @@
   it pushed; reads may still go again, the admin token of C_IDP_KEYCLOAK
   among them (it has no effect at the IdP), at most 3 times. In 7.29.3.
   `c_task_authenticate/test6_idp_drops`.
-- **BREAKING: a logout of C_AUTH_BFF ends in the browser whatever fails at the
-  IdP.** Every answer to a logout it serves clears both cookies, its errors
-  too: `502` (the IdP cut the connection twice, or the discovery failed), `504`
-  (silent), `503 server_busy`, `500 auth_config_error`. They kept the session
-  in the browser, on a machine the user may be leaving; the error tells the SPA
-  it may still be open at the IdP. The end-session is idempotent, so it is the
-  one request that goes twice: a cut sends it once more on the next connection,
-  with a WARNING, as in C_TASK_AUTHENTICATE. In 7.29.3.
-  `c_auth_bff/test28_logout_idp_cut`, `c_task_authenticate/test11`, `test12`. The login
-  form says so: after such an error, that the session may still be open at the
-  identity server, not that a reload may open it (gui_agent 1.3.4, gui_treedb
-  1.2.0).
+- **BREAKING: a logout of C_AUTH_BFF ends in the browser whatever fails at
+  the IdP.** Every answer to a logout it serves clears both cookies, its
+  errors too: `502` (the IdP cut the connection twice, or the discovery
+  failed), `504` (silent), `503 server_busy`, `500 auth_config_error`, `500
+  internal_error`, `400 token_too_large`. They kept the session in the
+  browser, on a machine the user may be leaving; the error tells the SPA it
+  may still be open at the IdP. The end-session is idempotent, so it is the
+  one request that goes twice: a cut sends it once more on the next
+  connection, with a WARNING, as in C_TASK_AUTHENTICATE. In 7.29.3.
+  `c_auth_bff/test28_logout_idp_cut`, `c_task_authenticate/test11`,
+  `test12`. The login form says so: after any error of the BFF to a logout,
+  except the 403 of a refused Origin, that the session may still be open at
+  the identity server, not that a reload may open it (gui_agent 1.3.5,
+  gui_treedb 1.2.1).
 - **C_TASK_AUTHENTICATE: a run with no answer of the IdP reaches its caller.**
   With a mute IdP the `C_TASK` timed out and nothing came out: no `EV_ON_TOKEN`,
   no log, and `ycommand` and the other CLIs waited for ever. With an IdP that
@@ -460,6 +479,35 @@
   log in once `C_TCP` reached it, and now the run fails and the caller starts
   another. In 7.29.3. `c_task_authenticate/test20_idp_mute`,
   `test21_idp_unreachable`, `test22_unreachable_stop`.
+- **C_AUTH_BFF: a logout answers within `idp_logout_timeout_ms`, cookies cleared.**
+  New attribute, 10000 by default, 0 turns it off. It bounds the whole logout: the
+  wait for the discovery and the connection, the end-session and its resend. With
+  an IdP mute or down the answer left at 30 s (`idp_timeout_ms`,
+  `idp_connect_timeout_ms`) and a SPA gives up at 15 s, so the cookies were never
+  cleared. **BREAKING:** a logout to an IdP slower than 10 s now ends in `504` where
+  it used to wait, and one behind a discovery that takes more than 10 s ends in
+  `502`, and with it every request queued behind that discovery. In 7.29.3.
+  `c_auth_bff/test30_logout_bound`.
+- **BREAKING: a logout of C_AUTH_BFF with a `refresh_token` cookie longer than the
+  BFF writes clears the cookies**, and the `Origin` is checked first: from another
+  `Origin` the answer is `403`, no `Set-Cookie`, where it was `400`. A logout refused
+  by its `Origin` and one with no cookie still clear nothing: they are not served,
+  and clearing there would let any site log a user out. In 7.29.3.
+  `c_auth_bff/test24`, `test25`.
+- **C_AUTH_BFF: `allowed_redirect_uri` as a prefix refuses an empty segment but the
+  last.** `https://app.example.com/` + `/evil.com/` gave the path `//evil.com/`, a URL
+  with no scheme to whoever repeats it in a relative `Location`. Also before a `;`.
+  **BREAKING** for a `redirect_uri` with `//` in its path. In 7.29.3.
+  `c_auth_bff/test26`.
+- **C_IDP_KEYCLOAK: a `user_id` of `.` or `..` is refused** (`invalid_user_id`):
+  `DELETE .../users/..` is `.../realms/R` to a server that normalizes the path. In
+  7.29.3. `c_task_authenticate/test18_idp_keycloak`.
+- **C_TASK_AUTHENTICATE: a run that cannot start reaches its caller.** With no
+  `issuer` and only one of `token_endpoint` and `end_session_endpoint`, `mt_start`
+  logged its ERROR and published nothing, and `ycommand` waited for ever. It publishes
+  `EV_ON_TOKEN` -1, `comment` `No IdP configured`, inside `gobj_start()`, which still
+  answers -1: subscribe before starting it. In 7.29.3.
+  `c_task_authenticate/test23_no_end_session`, `test24_no_token_endpoint`.
 - **C_TASK_AUTHENTICATE survives a status with no name.**
   `llhttp_status_name()` aborts on one, and it was called with the status of the
   IdP, so a peer answering 298 ended the process. **BREAKING:** the `comment` of
@@ -675,7 +723,7 @@
   SPAs): gobj-js 7.29.1 and 7.29.2, gobj-ui 7.29.0 to 7.29.4 (each one
   superseded is deprecated), gui_agent 1.2.3 to 1.2.6 and gui_treedb 1.1.1 and
   1.1.2; then gobj-js 7.29.3 and 7.29.4, gobj-ui 7.29.5 to 7.29.8, gui_agent
-  1.2.7 to 1.3.4 and gui_treedb 1.1.3 to 1.2.0. The `yunetas` CLI 1.0.5 and
+  1.2.7 to 1.3.5 and gui_treedb 1.1.3 to 1.2.1. The `yunetas` CLI 1.0.5 and
   1.0.6 on PyPI. What each carries is in its own
   CHANGELOG: generic names and ids in comments, docs and examples; the SPAs on
   the current libraries, a deadline on every call to the auth BFF, a login
@@ -685,7 +733,7 @@
   earlier session, keeps one refresh in flight, and a logout that is its own
   state and says when the server did not end the session.
 - **BREAKING: gui_agent and gui_treedb, the session and the login form**
-  (gui_agent 1.3.4, gui_treedb 1.2.0). In 7.29.3 unless noted; the detail is in
+  (gui_agent 1.3.5, gui_treedb 1.2.1). In 7.29.3 unless noted; the detail is in
   the yunos-js CHANGELOG.
     - A 429 is a 429, even with a json and an `error_code` of its own, which
       read as a denial and ended the session at the first one. Any 429 is now
@@ -706,6 +754,13 @@
     - gui_treedb: the refresh timer of a login starts when its token has come,
       and the note of a connection adds no English of ours.
     - Both: what the login form says of an empty field changes language.
+    - **BREAKING:** every failure the peer caused is a WARNING, one rule in both
+      SPAs: a login the BFF did not answer with a code, a 429 of a proxy at the
+      login, a refresh `auth_bad_response` and the session it ends, and the second
+      refused identity of a gui_treedb connection and of gui_agent's Monitor link
+      were an ERROR. What watches the log for an ERROR no longer sees them.
+    - A code no locale knows is said in the language of the app: the new key
+      `auth_unknown_error`, and the English of the BFF stays in the log.
 - **Docs and examples: one set of example ids.** The examples, tests and
   docs of the SDK, gobj-js, gobj-ui and yunos-js take their ids from one
   set: `db_history^7301`/`7302`, `gate_b^7401`, `gate_probe^7701`,
@@ -723,21 +778,26 @@
   without example ids or node labels, and the `json_flatten_dict()` history
   (here, in `CLAUDE.md`, `kwid.c`/`kwid.h` and the kwid guide) says that a
   dict keyed by a yuno id N came back as an array of N+1 elements.
+- **Tests**: the TLS tests fail when `/yuneta/agent/certs/localhost.{crt,key}` cannot
+  be read. A server that cannot load its certificate exits with 0, and they passed
+  having run nothing. `perf_auth_bff` allows the `Origin` it sends: since C_AUTH_BFF
+  serves a session only to its Origin it got a 403 per request, and ended by filling
+  the max memory with the ERRORs its log capture keeps.
 - **gobj-js and gobj-ui tests**: the linearity of the secret masking is
   checked twice. A count of its work adds a tick in every function, loop and
-  expression-bodied arrow of `src/` and a hook wherever the language reads
-  with no call (a rope's first read, a long key, two long strings compared),
-  and wraps the natives it reaches from its globals, except those it takes
-  for constant and the globals it does not walk: a wrapped native with no
-  model is charged all it is given, so a native nobody listed counts if it
-  is wrapped, and a regular expression is charged the steps a small
-  backtracking machine takes on the same search, checked against the native
-  answer. The masking counts 1.00000, and a work of a*n + c*n*n fails when
-  c*n*n is 2.7% or more of the counted a*n at 1 MB. 50 rescans made in
-  different ways are kept as tests that must fail the count, and 13 linear
-  works as tests that must pass it. What it cannot see is listed in
-  `tests/count_native_work.js`: natives it takes for constant that do read
-  more (`Object.hasOwn()`, `hasOwnProperty()`, `Reflect.has()`,
+  expression-bodied arrow of `src/` and a hook where the language reads with
+  no call in the cases it knows (a rope's first read, a long key, two long
+  strings compared), and wraps the natives it reaches from its globals,
+  except those it takes for constant and the globals it does not walk: a
+  wrapped native with no model is charged all it is given, so a native
+  nobody listed counts if it is wrapped, and a regular expression is charged
+  the steps a small backtracking machine takes on the same search, checked
+  against the native answer. The masking counts 1.00000, and a work of a*n +
+  c*n*n fails when c*n*n is 2.7% or more of the counted a*n at 1 MB. 50
+  rescans made in different ways are kept as tests that must fail the count,
+  and 13 linear works as tests that must pass it. What it cannot see is
+  listed in `tests/count_native_work.js`: natives it takes for constant that
+  do read more (`Object.hasOwn()`, `hasOwnProperty()`, `Reflect.has()`,
   `Reflect.get()` and `getOwnPropertyDescriptor()` with a long key,
   `Object.is()` of two long strings, `re.toString()`,
   `RegExp.prototype.compile()`, `Object.create(null, props)`),
@@ -760,9 +820,10 @@
   on 2 to 23 shapes of 23. This says what was tried, not that a rescan
   nobody tried fails. An O(n log n) sort fails the count on purpose when it
   is about half of the work or more (the masking is linear, as in C). The
-  suite runs in 23 to 24 s on that machine. The treedb fold model's
-  extended-parent, tie-break, double-mark and multivalued-fkey rules are
-  tested, each with a mutant red.
+  suite runs in 23 to 24 s on that machine, and on Node 22 too, where three
+  expressions of a test are skipped with their reason. What one count leaves
+  changes no other. The treedb fold model's extended-parent, tie-break,
+  double-mark and multivalued-fkey rules are tested, each with a mutant red.
 - **Docs: the OAuth2 / BFF guide describes the login the SPAs actually
   make** (stale in 7.29.3). It described gui_treedb as doing PKCE, cited a
   `conf/backend_config.js` that does not exist, required Direct Access
@@ -1193,12 +1254,12 @@
   written: `"Europe/Madrid/."` is no file, `"../zoneinfo/Europe/Madrid"` is
   a zone) and with the headers of RFC 9636 (version NUL or `2`-`9`, at least
   one type and one character, and a file as long as they say, in both
-  headers of a version 2 or later), a POSIX `TZ` that can be read whole, or
-  empty; with no tzdata the names of UTC (`"UTC"`, `"GMT"`, `"Etc/UTC"`,
-  ...) are no error. A FIFO in place of a zone file blocked the process in
-  `tzset()`; it never reaches libc now. A TZif with no types crashed the
-  process inside `tzset()` when a zone was loaded (7.29.3 too); it never
-  reaches libc now. `test_date_text`.
+  headers of a version 2 or later, with its footer), a POSIX `TZ` that can
+  be read whole, or empty; with no tzdata the names of UTC (`"UTC"`,
+  `"GMT"`, `"Etc/UTC"`, ...) are no error. A FIFO in place of a zone file
+  blocked the process in `tzset()`; it never reaches libc now. A TZif with
+  no types crashed the process inside `tzset()` when a zone was loaded
+  (7.29.3 too); it never reaches libc now. `test_date_text`.
 - **A time no calendar holds crashes nothing and leaves nothing half
   written.** `t2timestamp()` and `formatdate()` passed the NULL of
   `localtime()` on and the process crashed (`ycli` with a time column from a
