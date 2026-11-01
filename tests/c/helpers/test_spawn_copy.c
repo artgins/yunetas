@@ -367,22 +367,29 @@ PRIVATE void test_launch_daemon(void)
 }
 
 /***************************************************************************
- *  A file read whole, or "" (at most size - 1 bytes), waiting up to 2 s
- *  for it to appear
+ *  A file read whole, or "" (at most size - 1 bytes)
+ ***************************************************************************/
+PRIVATE void read_whole(const char *file, char *text, size_t size)
+{
+    text[0] = 0;
+    FILE *f = fopen(file, "r");
+    if(f) {
+        size_t r = fread(text, 1, size - 1, f);
+        text[r] = 0;
+        fclose(f);
+    }
+}
+
+/***************************************************************************
+ *  read_whole(), waiting up to 30 s for the file to have something
  ***************************************************************************/
 PRIVATE void wait_and_read(const char *file, char *text, size_t size)
 {
-    text[0] = 0;
     uint64_t limit_text = start_msectimer(30*1000);
+    read_whole(file, text, size);
     while(!text[0] && !test_msectimer(limit_text)) {
-        FILE *f = fopen(file, "r");
-        if(f) {
-            size_t r = fread(text, 1, size - 1, f);
-            text[r] = 0;
-            fclose(f);
-        } else {
-            usleep(10*1000);
-        }
+        usleep(10*1000);
+        read_whole(file, text, size);
     }
 }
 
@@ -733,7 +740,7 @@ PRIVATE void test_pty_sync_spawn(void)
     }
     if(ftruncate(out, 0) == 0 && lseek(out, 0, SEEK_SET) == 0) {
         r = run_in_child(pty_sigchld_ignored, devnull, out, 10);
-        wait_and_read(file, text, sizeof(text));
+        read_whole(file, text, sizeof(text));   // the child ended: empty is the good answer
         if(r != 0 || strstr(text, "FAILED")) {
             printf("     the child answered %d, said: %s\n", r, text);
         }
