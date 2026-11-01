@@ -62,7 +62,7 @@
 #define BATCH_DIR       "db/topic/%s/2000-01-01@1"
 #define FILE_DATA       "2000-01-01.json"
 #define FILE_MANIFEST   "manifest.json"
-#define TEST_TIMEOUT_MS 45000
+#define TEST_TIMEOUT_MS 150000  // of all the scenarios, for a test that hangs: below the auto kill
 #define STALE_WAIT_MS   2500    // more than the stale_session_timeout of main_test2.c
 
 /***************************************************************************

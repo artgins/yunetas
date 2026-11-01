@@ -262,7 +262,12 @@ PRIVATE void test_clean_signals(void)
         file, file, file);
     launch_daemon(TRUE, "/bin/sh", "-c", cmd, NULL);
     char daemon_text[256] = "";
-    for(int i = 0; i < 200 && !daemon_text[0]; i++) {
+    /*
+     *  A limit for a daemon that does not come, no measure of speed: under
+     *  ctest -j8 on hard disks the rename of its output waited over 2 s
+     */
+    uint64_t limit_daemon_text = start_msectimer(30*1000);
+    while(!daemon_text[0] && !test_msectimer(limit_daemon_text)) {
         FILE *f = fopen(file, "r");
         if(f) {
             size_t r = fread(daemon_text, 1, sizeof(daemon_text) - 1, f);
@@ -332,7 +337,8 @@ PRIVATE void test_launch_daemon(void)
 
     BOOL gone = FALSE;
     if(pid > 0 && kill(pid, SIGKILL) == 0) {
-        for(int i = 0; i < 200 && !gone; i++) {
+        uint64_t limit_gone = start_msectimer(30*1000);
+        while(!gone && !test_msectimer(limit_gone)) {
             char st[512] = "";
             snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
             f = fopen(path, "r");
@@ -367,7 +373,8 @@ PRIVATE void test_launch_daemon(void)
 PRIVATE void wait_and_read(const char *file, char *text, size_t size)
 {
     text[0] = 0;
-    for(int i = 0; i < 200 && !text[0]; i++) {
+    uint64_t limit_text = start_msectimer(30*1000);
+    while(!text[0] && !test_msectimer(limit_text)) {
         FILE *f = fopen(file, "r");
         if(f) {
             size_t r = fread(text, 1, size - 1, f);

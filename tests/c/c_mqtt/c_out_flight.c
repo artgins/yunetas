@@ -45,6 +45,7 @@
 #define BROKER_SERVICE  "mqtt_broker"
 #define OUT_QUEUE       "oflight_cl-OUT"
 #define MAX_MIDS        16
+#define FIRST_PUBLISH_LIMIT_MS  30000   // a limit for a hang, no measure of speed
 
 /***************************************************************************
  *              Prototypes
@@ -76,6 +77,7 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_tcp;
     int phase;
+    uint64_t first_publish_limit;
     gbuffer_t *rx;          // what the broker sent, not parsed yet
 
     uint16_t mids[MAX_MIDS];    // packet ids of the PUBLISH of the broker
@@ -313,10 +315,26 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     switch(priv->phase) {
         case 1:
             gobj_start(priv->gobj_tcp);     // CONNECT goes at EV_CONNECTED
-            set_timeout(priv->timer, 500);
+            priv->first_publish_limit = start_msectimer(FIRST_PUBLISH_LIMIT_MS);
+            set_timeout(priv->timer, 100);
             break;
 
         case 2:
+            /*
+             *  The broker runs in this loop: on a loaded disk the topics of
+             *  the new session hold it for seconds, so the window that counts
+             *  what is in flight opens with the first PUBLISH, not at a time
+             */
+            parse_rx(gobj);
+            if(priv->n_mids == 0 && !test_msectimer(priv->first_publish_limit)) {
+                priv->phase--;
+                set_timeout(priv->timer, 100);
+                break;
+            }
+            set_timeout(priv->timer, 500);
+            break;
+
+        case 3:
             /*
              *  1. Only the client's Receive Maximum in flight
              */
@@ -333,7 +351,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 500);
             break;
 
-        case 3:
+        case 4:
             /*
              *  2. The other two came: one acked, one pending
              */
@@ -350,7 +368,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 300);
             break;
 
-        case 4:
+        case 5:
             {
                 int n = list_pending_qos1(gobj);
                 if(n != 1) {
