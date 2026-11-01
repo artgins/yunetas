@@ -261,7 +261,7 @@ json_t *gobj_build_cmds_doc(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance whose commands are to be documented. |
-| `kw` | `json_t *` | A JSON object containing optional parameters such as `level` (integer) to control the depth of command retrieval and `cmd` (string) to filter a specific command. |
+| `kw` | `json_t *` | A JSON object containing optional parameters such as `level` (integer) to control the depth of command retrieval and `cmd` (string) to ask for a specific command, or to search if no command has that name. |
 
 **Returns**
 
@@ -270,6 +270,24 @@ A JSON string containing the formatted documentation of available commands. If a
 **Notes**
 
 If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also include commands from child objects of the given `hgobj`.
+
+A `cmd` that is no command is searched: the answer lists the commands that have that text, in any case, in their name, an alias or their description. `level` searches the same gobjs that it lists. If no command has the text, the answer is *"command 'x' not available"*.
+
+```bash
+ycommand -c 'help cmd=snap'
+```
+
+```text
+Commands that mention 'snap'
+===========================
+
+> C_AGENT^agent
+- snaps                        List snaps
+- snap-content                 [snap_id='?'] [id='?'] [name='?'] [topic_name='?']. Show snap content
+- shoot-snap                   [name='?'] [description='?']. Shoot snap
+- activate-snap                [name='?'] [all='0']. Activate snap; restarts the yunos whose launch changes (all=1: every yuno)
+- deactivate-snap              [all='0']. De-Activate snap; restarts the yunos whose launch changes (all=1: every yuno)
+```
 
 ---
 

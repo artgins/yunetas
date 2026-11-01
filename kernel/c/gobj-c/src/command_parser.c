@@ -7,6 +7,9 @@
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE  /* strcasestr() */
+#endif
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -1667,37 +1670,81 @@ PUBLIC const sdata_desc_t *search_command_desc(
 }
 
 /***************************************************************************
+ *  Does the command say `search`, in any case, in its name, in one of its
+ *  aliases or in its description?
+ ***************************************************************************/
+PRIVATE BOOL command_mentions(const sdata_desc_t *pcmd, const char *search)
+{
+    if(strcasestr(pcmd->name, search)) {
+        return TRUE;
+    }
+    if(pcmd->description && strcasestr(pcmd->description, search)) {
+        return TRUE;
+    }
+    const char **alias = pcmd->alias;
+    while(alias && *alias) {
+        if(strcasestr(*alias, search)) {
+            return TRUE;
+        }
+        alias++;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  With `search` only the commands that mention it, and the gobj's title
+ *  only if there is one. An empty command (not null) is a blank line, or a
+ *  title if its description is not empty: no command, it mentions nothing.
+ *  Return the commands added.
+ ***************************************************************************/
+PRIVATE int list_commands_of_gobj(
+    hgobj gobj,
+    gbuffer_t *gbuf,
+    const char *mark,
+    const char *search
+) {
+    const sdata_desc_t *pcmds = gobj_command_desc(gobj, NULL, FALSE);
+    if(!pcmds) {
+        return 0;
+    }
+
+    int added = 0;
+    if(!search) {
+        gbuffer_printf(gbuf, "\n%s %s\n", mark, gobj_short_name(gobj));
+    }
+    for(; pcmds->name; pcmds++) {
+        if(empty_string(pcmds->name)) {
+            if(!search) {
+                gbuffer_printf(gbuf, "%s\n", pcmds->description? pcmds->description : "");
+            }
+            continue;
+        }
+        if(search) {
+            if(!command_mentions(pcmds, search)) {
+                continue;
+            }
+            if(!added) {
+                gbuffer_printf(gbuf, "\n%s %s\n", mark, gobj_short_name(gobj));
+            }
+        }
+        add_command_help(gbuf, pcmds, FALSE);
+        added++;
+    }
+    return added;
+}
+
+/***************************************************************************
  *  level == 1 search in bottom_gobjs
  *  level == 2 search in all children
+ *  Return the commands added.
  ***************************************************************************/
 PRIVATE int list_commands(
     hgobj gobj,
     gbuffer_t *gbuf,
-    int level
+    int level,
+    const char *search
 ) {
-    /*
-     *  GObj commands
-     */
-    const sdata_desc_t *command_desc = gobj_command_desc(gobj, NULL, FALSE);
-    if(command_desc) {
-        gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(gobj));
-        const sdata_desc_t *pcmds = command_desc;
-        while(pcmds->name) {
-            if(!empty_string(pcmds->name)) {
-                add_command_help(gbuf, pcmds, FALSE);
-            } else {
-                /*
-                *  Empty command (not null) is for print a blank line or a title is desc is not empty
-                */
-                if(!empty_string(pcmds->description)) {
-                    gbuffer_printf(gbuf, "%s\n", pcmds->description);
-                } else {
-                    gbuffer_printf(gbuf, "\n");
-                }
-            }
-            pcmds++;
-        }
-    }
+    int added = list_commands_of_gobj(gobj, gbuf, ">", search);
 
     /*
      *  Search in bottoms
@@ -1705,26 +1752,7 @@ PRIVATE int list_commands(
     if(level == 1) {
         hgobj bottom = gobj_bottom_gobj(gobj);
         while(bottom) {
-            command_desc = gobj_command_desc(bottom, NULL, FALSE);
-            if(command_desc) {
-                gbuffer_printf(gbuf, "\n>> %s\n", gobj_short_name(bottom));
-                const sdata_desc_t *pcmds = command_desc;
-                while(pcmds->name) {
-                    if(!empty_string(pcmds->name)) {
-                        add_command_help(gbuf, pcmds, FALSE);
-                    } else {
-                        /*
-                        *  Empty command (not null) is for print a blank line or a title is desc is not empty
-                        */
-                        if(!empty_string(pcmds->description)) {
-                            gbuffer_printf(gbuf, "%s\n", pcmds->description);
-                        } else {
-                            gbuffer_printf(gbuf, "\n");
-                        }
-                    }
-                    pcmds++;
-                }
-            }
+            added += list_commands_of_gobj(bottom, gbuf, ">>", search);
             bottom = gobj_bottom_gobj(bottom);
         }
     }
@@ -1735,37 +1763,19 @@ PRIVATE int list_commands(
     if(level == 2) {
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            command_desc = gobj_command_desc(child, NULL, FALSE);
-            if(command_desc) {
-                gbuffer_printf(gbuf, "\n>> %s\n", gobj_short_name(child));
-                const sdata_desc_t *pcmds = command_desc;
-                while(pcmds->name) {
-                    if(!empty_string(pcmds->name)) {
-                        add_command_help(gbuf, pcmds, FALSE);
-                    } else {
-                        /*
-                        *  Empty command (not null) is for print a blank line or a title is desc is not empty
-                        */
-                        if(!empty_string(pcmds->description)) {
-                            gbuffer_printf(gbuf, "%s\n", pcmds->description);
-                        } else {
-                            gbuffer_printf(gbuf, "\n");
-                        }
-                    }
-                    pcmds++;
-                }
-            }
+            added += list_commands_of_gobj(child, gbuf, ">>", search);
             child = gobj_next_child(child);
         }
     }
 
-    return 0;
+    return added;
 }
 
 /***************************************************************************
  *  Return a string json
  *  level == 1 search in bottom_gobjs
  *  level == 2 search in all children
+ *  A `cmd` that is no command is searched: the commands that mention it.
  ***************************************************************************/
 PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 {
@@ -1798,6 +1808,18 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         }
 
         char *cmd_masked = mask_secrets_inline(cmd);  // the caller's word, see find_command_desc()
+        gbuffer_t *gbuf = gbuffer_create(4*1024, 64*1024);
+        gbuffer_printf(gbuf, "Commands that mention '%s'\n", cmd_masked? cmd_masked : cmd);
+        gbuffer_printf(gbuf, "===========================\n");
+        if(list_commands(gobj, gbuf, level, cmd) > 0) {
+            json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
+            gbuffer_decref(gbuf);
+            GBMEM_FREE(cmd_masked)
+            KW_DECREF(kw)   // after: `cmd` is a text of kw
+            return jn_resp;
+        }
+        gbuffer_decref(gbuf);
+
         json_t *jn_resp = json_sprintf(
             "%s: command '%s' not available.\n",
             gobj_short_name(gobj),
@@ -1815,7 +1837,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
     gbuffer_printf(gbuf, "Available commands\n");
     gbuffer_printf(gbuf, "==================\n");
 
-    list_commands(gobj, gbuf, level);
+    list_commands(gobj, gbuf, level, NULL);
     json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
     gbuffer_decref(gbuf);
     KW_DECREF(kw)

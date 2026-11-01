@@ -96,10 +96,12 @@ SDATAPM (DTP_STRING,    "rs",           SDF_REQUIRED,   0,          "A required 
 SDATA_END()
 };
 
+PRIVATE const char *a_required[] = {"must", 0};
+
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------flag----------alias---items-------json_fn-----description--*/
 SDATACM2(DTP_SCHEMA,    "typed",        0,            0,      pm_typed,   cmd_probe,  "A parameter of each type"),
-SDATACM2(DTP_SCHEMA,    "required",     0,            0,      pm_required,cmd_probe,  "Required parameters"),
+SDATACM2(DTP_SCHEMA,    "required",     0,            a_required, pm_required,cmd_probe,  "Required parameters"),
 SDATA_END()
 };
 
@@ -228,6 +230,20 @@ PRIVATE void expect_value(hgobj yuno, const char *case_name, const char *command
 /***************************************************************************
  *              Main
  ***************************************************************************/
+/***************************************************************
+ *  help: what gobj_build_cmds_doc() answers to a `cmd`
+ ***************************************************************/
+PRIVATE void expect_help(hgobj yuno, const char *cmd, const char *has, const char *has_not)
+{
+    json_t *jn_doc = gobj_build_cmds_doc(yuno, json_pack("{s:s}", "cmd", cmd));
+    const char *doc = json_string_value(jn_doc);
+    check(cmd, has, doc && strstr(doc, has));
+    if(has_not) {
+        check(cmd, has_not, doc && !strstr(doc, has_not));
+    }
+    JSON_DECREF(jn_doc)
+}
+
 int main(int argc, char *argv[])
 {
     sys_malloc_fn_t malloc_func;
@@ -531,6 +547,15 @@ int main(int argc, char *argv[])
         check("from_text real 1e999", "refused: out of its range",
             jn == NULL && why && strcmp(why, "a number out of its range")==0);
     }
+
+    /*
+     *  help: a `cmd` that is no command is searched
+     */
+    expect_help(yuno, "typed", "A parameter of each type", "Commands that mention");
+    expect_help(yuno, "TYP", "- typed", "- required");
+    expect_help(yuno, "parameters", "- required", "- typed");
+    expect_help(yuno, "must", "- required", "- typed");
+    expect_help(yuno, "nosuch", "not available", "Commands that mention");
 
     JSON_DECREF(g_seen)
     gobj_end();

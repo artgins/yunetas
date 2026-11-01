@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`help` searches.** A `cmd` that is no command lists the commands that mention
+  it, in any case, in their name, an alias or their description: `help cmd=snap`
+  in the agent gives its five snap commands. `level` searches bottoms or children as
+  it lists them. The answer *"command 'x' not available"* stays for a word nothing
+  mentions. It is in `gobj_build_cmds_doc()`, so every `help` of every yuno has it,
+  with no new parameter.
+
 ## v7.30.0 (2026-10-31)
 
 A large release: everything since 7.29.3, reviewed until a review found nothing

@@ -70,6 +70,11 @@ Up to 7.26.9 a value of another shape went to the handler as it came: its
 as something else (`"treedb_name": 5` saved every treedb in C_TREEDB's
 `save-schema`, `dry_run=yes` was `atoi()`'d to FALSE).
 
+`help`, through `gobj_build_cmds_doc()`: a `cmd` that is a command gives its
+page; one that is not lists the commands that mention it in any case, in their
+name (`TYP`), description (`parameters`) or an alias (`must`), and only those;
+one that nothing mentions is *"not available"*.
+
 Run it:
 
 ```bash
