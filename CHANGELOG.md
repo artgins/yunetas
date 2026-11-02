@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v7.30.1 (2026-11-02)
+
+A light release: the commands of the snaps and `help`. Only the agents are deployed;
+a yuno takes it when it is next built. The suite ran on the dev machine, 390/390, and
+no performance study was made: nothing here is on a hot path, and the next study,
+against 7.30.0, covers it.
+
 - **`remove-snap name=<tag>` (new, in `C_NODE` and the agent).** A snap could be shot
   and never removed, and what it held could not be deleted without forcing. The row
   of `__snaps__` goes, so a binary or a config it held can be deleted. Its records stay
@@ -22,7 +29,7 @@
   file that holds each record, where `offset` and `size` are.
 - **`help` searches.** A `cmd` that is no command lists the commands that mention
   it, in any case, in their name, an alias or their description: `help cmd=snap`
-  in the agent gives its five snap commands. `level` searches bottoms or children as
+  in the agent gives its six snap commands. `level` searches bottoms or children as
   it lists them. The answer *"command 'x' not available"* stays for a word nothing
   mentions. It is in `gobj_build_cmds_doc()`, so every `help` of every yuno has it,
   with no new parameter.

@@ -287,6 +287,7 @@ Commands that mention 'snap'
 - shoot-snap                   [name='?'] [description='?']. Shoot snap
 - activate-snap                [name='?'] [all='0']. Activate snap; restarts the yunos whose launch changes (all=1: every yuno)
 - deactivate-snap              [all='0']. De-Activate snap; restarts the yunos whose launch changes (all=1: every yuno)
+- remove-snap                  [name='?']. Remove a snap: what it held can be deleted, its records stay on disk
 ```
 
 ---
