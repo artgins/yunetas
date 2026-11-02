@@ -328,7 +328,6 @@ SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id (nu
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Snap id (alias of snap_id)"),
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name (resolved to its id)"),
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for which records, every topic)"),
-SDATAPM (DTP_BOOLEAN,   "with_metadata",0,              0,          "With topic_name: keep the __md_tranger__ of each record"),
 SDATAPM (DTP_BOOLEAN,   "with_file",    0,              0,          "Without topic_name: add the file of each record"),
 SDATA_END()
 };
@@ -5012,9 +5011,6 @@ PRIVATE int snap_content_load_cb(
         JSON_DECREF(jn_record)
         return 0;
     }
-    if(!json_is_true(json_object_get(list, "snap_with_metadata"))) {
-        json_object_del(jn_record, "__md_tranger__");
-    }
     json_object_set_new(jn_record, "__key__", json_string(key));
     json_object_set_new(jn_record, "__rowid__", json_integer((json_int_t)rowid));
     json_array_append_new(jn_data, jn_record);
@@ -5324,11 +5320,9 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    BOOL with_metadata = kw_get_bool(gobj, kw, "with_metadata", 0, 0);
     json_t *jn_data = json_array();
-    json_t *jn_extra = json_pack("{s:O, s:b}",
-        "snap_data", jn_data,
-        "snap_with_metadata", with_metadata
+    json_t *jn_extra = json_pack("{s:O}",
+        "snap_data", jn_data
     );
     if(walk_snap_of_topic(gobj, topic_name, snap_id, FALSE, snap_content_load_cb, jn_extra) < 0) {
         // Error already logged
@@ -5349,7 +5343,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         json_sprintf("%s: snap %lld content for topic '%s' (%zu records)", gobj_yuno_role_plus_name(),
             (long long)snap_id, topic_name, json_array_size(jn_data)),
-        with_metadata? 0 : tranger2_list_topic_desc_cols(priv->tranger, topic_name), // a table hides them
+        tranger2_list_topic_desc_cols(priv->tranger, topic_name),
         jn_data,
         kw  // owned
     );

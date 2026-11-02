@@ -7,8 +7,7 @@
   of the topic's pkey2s, joined with `^`, which a key alone does not say) and its metadata (`g_rowid`, `i_rowid`, `t`,
   `tm`, `offset`, `size`, `system_flag`, `user_flag`), not its content. It answered a
   count per topic. The comment says *"spans 5 of 9 topic(s), 44 record(s)"*.
-  `topic_name=<topic>` still gives the content, and `with_metadata=1` (new) adds
-  each record's `__md_tranger__` to it, as json, because a table would hide it.
+  `topic_name=<topic>` still gives the content.
   `with_file=1` (new, with no `topic_name`) adds a column `file`, the path of the
   file that holds each record, where `offset` and `size` are.
 - **`help` searches.** A `cmd` that is no command lists the commands that mention

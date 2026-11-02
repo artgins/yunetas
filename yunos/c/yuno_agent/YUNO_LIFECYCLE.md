@@ -1260,9 +1260,6 @@ ycommand -c 'snap-content name=<tag> with_file=1'
 
 # The content of one topic, as a table
 ycommand -c 'snap-content name=<tag> topic_name=yunos'
-
-# The same with each record's __md_tranger__, as json
-ycommand -c 'snap-content name=<tag> topic_name=yunos with_metadata=1'
 ```
 
 `snap-content` selects the snap by any of:
