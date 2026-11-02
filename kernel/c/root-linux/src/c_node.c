@@ -5024,7 +5024,9 @@ PRIVATE int snap_content_load_cb(
  *  Callback of the walk of snap-content with no topic_name: one row with
  *  what the record IS and its metadata, not its content. jn_record is NULL
  *  in a topic with no pkey2 (only_md); with one, the key alone does not say
- *  which instance it is, so its pkey2 values go in "instance".
+ *  which instance it is, so its pkey2 values go in "instance", joined with
+ *  ^. A value that is no string is shown too: the treedb logs it as a fault
+ *  of the data and keeps the record.
  */
 PRIVATE int snap_row_load_cb(
     json_t *tranger,
@@ -5046,10 +5048,11 @@ PRIVATE int snap_row_load_cb(
     int idx; json_t *jn_pkey2;
     json_array_foreach(json_object_get(list, "snap_pkey2s"), idx, jn_pkey2) {
         const char *pkey2 = json_string_value(jn_pkey2);
-        const char *value = json_string_value(json_object_get(jn_record, pkey2? pkey2 : ""));
+        char *value = jn2string(json_object_get(jn_record, pkey2? pkey2 : ""));
         if(!empty_string(value)) {
             gbuffer_printf(gbuf, "%s%s", gbuffer_leftbytes(gbuf)? "^" : "", value);
         }
+        GBMEM_FREE(value)
     }
     const char *instance = gbuffer_leftbytes(gbuf)? gbuffer_cur_rd_pointer(gbuf) : "";
 

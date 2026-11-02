@@ -245,6 +245,29 @@ PRIVATE char schema_pkey2_test[] = "\
                     'flag': ['fkey']                                \n\
                 }                                                   \n\
             }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'builds',                                 \n\
+            'pkey': 'id',                                           \n\
+            'pkey2s': ['release', 'build'],                         \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'release': {                                        \n\
+                    'header': 'Release',                            \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'build': {                                          \n\
+                    'header': 'Build',                              \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                }                                                   \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -638,6 +661,56 @@ PRIVATE int test_delete_node_of_primary_instance(hgobj gobj)
     );
     a = treedb_get_node(tranger, PKEY2_TREEDB, "kids", "a");
     result += pkey2_check(gobj, pkey2_kids_holds(P, a), "after delete-node {P, v1} P does not hold a");
+
+    /*
+     *  snap-content with no topic_name: "instance" is the value of the
+     *  topic's pkey2s, whatever they are named: none, one, or two joined.
+     *  A value that is no string is shown: the treedb says it is a fault
+     *  of the data and does not refuse it, so it is written here on the
+     *  topic, and a row with it empty would hide the record to look at.
+     */
+    result += pkey2_check(gobj,
+        treedb_create_node(tranger, PKEY2_TREEDB, "builds",
+            json_pack("{s:s, s:s, s:s}", "id", "M", "release", "r1", "build", "b1")) != NULL,
+        "the node M of two pkey2s was not created"
+    );
+    json_t *jn_resp = gobj_command(gobj_node, "shoot-snap", json_pack("{s:s}", "name", "rows"), gobj);
+    JSON_DECREF(jn_resp)
+    json_t *jn_snaps = gobj_list_snaps(gobj_node, json_pack("{s:s}", "name", "rows"), gobj);
+    json_int_t snap_id = kw_get_int(gobj, json_array_get(jn_snaps, 0), "id", 0, KW_WILD_NUMBER);
+    JSON_DECREF(jn_snaps)
+    md2_record_ex_t md = {0};
+    result += pkey2_check(gobj,
+        snap_id > 0 && tranger2_append_record(tranger, "builds", 0, (uint16_t)snap_id, &md,
+            json_pack("{s:s, s:s, s:i}", "id", "N", "release", "r2", "build", 7)) >= 0,
+        "the record N with a number in a pkey2 was not written"
+    );
+    jn_resp = gobj_command(gobj_node, "snap-content", json_pack("{s:s}", "name", "rows"), gobj);
+    const char *instance_a = 0;
+    const char *instance_p = 0;
+    const char *instance_m = 0;
+    const char *instance_n = 0;
+    int idx; json_t *row;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+        const char *key = kw_get_str(gobj, row, "key", "", 0);
+        const char *instance = kw_get_str(gobj, row, "instance", "", 0);
+        if(strcmp(key, "a")==0) {
+            instance_a = instance;
+        } else if(strcmp(key, "P")==0) {
+            instance_p = instance;
+        } else if(strcmp(key, "M")==0) {
+            instance_m = instance;
+        } else if(strcmp(key, "N")==0) {
+            instance_n = instance;
+        }
+    }
+    result += pkey2_check(gobj, instance_a && !*instance_a, "a topic with no pkey2 has an instance");
+    result += pkey2_check(gobj, instance_p && strcmp(instance_p, "v2")==0, "the instance of one pkey2");
+    result += pkey2_check(gobj, instance_m && strcmp(instance_m, "r1^b1")==0, "the instance of two pkey2s");
+    result += pkey2_check(gobj, instance_n && strcmp(instance_n, "r2^7")==0,
+        "the instance with a number in a pkey2"
+    );
+    JSON_DECREF(jn_resp)
 
     gobj_stop(gobj_node);
     gobj_destroy(gobj_node);

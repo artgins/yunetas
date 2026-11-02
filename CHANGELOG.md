@@ -3,8 +3,8 @@
 ## Unreleased
 
 - **`snap-content` with no `topic_name` says WHICH records the snap tags**: one row
-  per record of every topic of the treedb, with its `key`, its `instance` (its pkey2
-  values, which a key alone does not say) and its metadata (`g_rowid`, `i_rowid`, `t`,
+  per record of every topic of the treedb, with its `key`, its `instance` (the values
+  of the topic's pkey2s, joined with `^`, which a key alone does not say) and its metadata (`g_rowid`, `i_rowid`, `t`,
   `tm`, `offset`, `size`, `system_flag`, `user_flag`), not its content. It answered a
   count per topic. The comment says *"spans 5 of 9 topic(s), 44 record(s)"*.
   `topic_name=<topic>` still gives the content, and `with_metadata=1` (new) adds
