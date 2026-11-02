@@ -515,7 +515,7 @@ application's gate (one application).
 
 - **Backend features with no UI** (the SPA uses 15 of ~45 C_NODE / C_TRANGER
   commands). Highest operator value, in order: **snapshots** (`snaps`,
-  `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap`: tag a
+  `snap-content`, `shoot-snap`, `activate-snap`, `deactivate-snap`, `remove-snap`: tag a
   version, browse it read-only, roll back); **backup / restore** (`export-db`
   / `import-db`, a base64 payload maps to a browser download / file input);
   and the relationship inspector (`parents` / `children` / `links`, plus

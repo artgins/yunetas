@@ -954,6 +954,7 @@ with an authz checker (`C_AUTHZ`). Without one, every permission is granted.
 | `update` | `update-node`, `link-nodes`, `unlink-nodes`, `set-link-events` (changed), `trace`, `activate-snap`, `deactivate-snap` |
 | `delete` | `delete-node`, `gc-assets` |
 | `create` and `update` | `import-db` |
+| `delete` and `create` | `remove-snap` |
 | none | `help`, `authzs` |
 
 **`descs` and `schema-file` are two different documents, and the difference

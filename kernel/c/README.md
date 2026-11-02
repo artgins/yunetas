@@ -533,7 +533,6 @@ hgobj gobj_last_bottom_gobj(hgobj gobj);
 BOOL  gobj_is_bottom_gobj(hgobj gobj);
 
 // Re-parent
-int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent);     // [JS] declared, not implemented in C
 
 // Introspection
 json_t *gobj2json(hgobj gobj, json_t *jn_filter);
