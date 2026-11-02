@@ -27,7 +27,8 @@
  *                READ-ONLY and changes nothing, and so does a
  *                gobj_update_node() with autolink that no command guards;
  *              - delete-node with ignore_snaps asks `create` besides
- *                `delete`: it erases what shoot-snap made;
+ *                `delete`: it erases what shoot-snap made, and so does
+ *                remove-snap, which asks the same two;
  *              - an update nested in the events of another (a subscriber
  *                updating the same service) does not reset the "links
  *                refused" answer of the outer one;
@@ -415,6 +416,10 @@ PRIVATE int check_comments_name_their_yuno(hgobj gobj)
         json_pack("{s:s}", "name", "snap-msg"), 0, "shot");
     result += expect_comment(gobj, "shoot-snap",
         json_pack("{s:s}", "name", "snap-msg"), -1, "cannot shoot snap");
+    result += expect_comment(gobj, "remove-snap",
+        json_pack("{s:s}", "name", "snap-msg"), 0, "removed");
+    result += expect_comment(gobj, "remove-snap",
+        json_pack("{s:s}", "name", "snap-msg"), -1, "snap not found");
     result += expect_comment(gobj, "desc",
         json_pack("{s:s}", "topic_name", "no_such_topic"), -1, "Topic not found");
     result += expect_comment(gobj, "nodes",
@@ -631,6 +636,11 @@ PRIVATE int run_tests(hgobj gobj)
     }
     result += expect(gobj, "reader", "deactivate-snap", json_object(), TRUE);
     result += expect(gobj, "editor", "deactivate-snap", json_object(), FALSE);
+    result += expect(gobj, "creator", "shoot-snap", json_pack("{s:s}", "name", "s-rm"), FALSE);
+    result += expect(gobj, "reader", "remove-snap", json_pack("{s:s}", "name", "s-rm"), TRUE);
+    result += expect(gobj, "creator", "remove-snap", json_pack("{s:s}", "name", "s-rm"), TRUE);
+    result += expect(gobj, "deleter", "remove-snap", json_pack("{s:s}", "name", "s-rm"), TRUE);
+    result += expect(gobj, "keeper", "remove-snap", json_pack("{s:s}", "name", "s-rm"), FALSE);
 
     /*-----------------------------------------------*
      *  import-db creates AND overwrites

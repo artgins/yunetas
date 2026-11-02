@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`remove-snap name=<tag>` (new, in `C_NODE` and the agent).** A snap could be shot
+  and never removed, and what it held could not be deleted without forcing. The row
+  of `__snaps__` goes, so a binary or a config it held can be deleted. Its records stay
+  on disk with their tag, which nothing honours any more, and no disk is freed; a
+  snap id is never reused, so no later snap inherits them. It is refused while the
+  snap is active or the treedb is loaded from it, on a replica, and without `delete`
+  and `create`, as `delete-node` with `ignore_snaps`. It restarts no yuno.
 - **`snap-content` with no `topic_name` says WHICH records the snap tags**: one row
   per record of every topic of the treedb, with its `key`, its `instance` (the values
   of the topic's pkey2s, joined with `^`, which a key alone does not say) and its metadata (`g_rowid`, `i_rowid`, `t`,

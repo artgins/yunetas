@@ -186,6 +186,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_remove_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_export_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -342,6 +343,11 @@ PRIVATE sdata_desc_t pm_activate_snap[] = {
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_remove_snap[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_import_db[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content in base64"),
@@ -415,6 +421,7 @@ SDATACM2 (DTP_SCHEMA,   "snap-content", SDF_AUTHZ_X,    0,  pm_snap_content,cmd_
 SDATACM2 (DTP_SCHEMA,   "shoot-snap",   SDF_AUTHZ_X,    0,  pm_shoot_snap,  cmd_shoot_snap,     "Shoot snap"),
 SDATACM2 (DTP_SCHEMA,   "activate-snap",SDF_AUTHZ_X,    0,  pm_activate_snap,cmd_activate_snap, "Activate snap"),
 SDATACM2 (DTP_SCHEMA,   "deactivate-snap",SDF_AUTHZ_X,  0,  0,              cmd_deactivate_snap,"De-Activate snap"),
+SDATACM2 (DTP_SCHEMA,   "remove-snap",  SDF_AUTHZ_X,    0,  pm_remove_snap, cmd_remove_snap,    "Remove a snap: what it held can be deleted, its records stay on disk"),
 SDATACM2 (DTP_SCHEMA,   "import-db",    SDF_AUTHZ_X,    0,  pm_import_db,   cmd_import_db, "Import db"),
 SDATACM2 (DTP_SCHEMA,   "export-db",    SDF_AUTHZ_X,    0,  pm_export_db,   cmd_export_db, "Export db"),
 SDATACM2 (DTP_SCHEMA,   "print-tranger",SDF_AUTHZ_X,    0,  pm_print_tranger,cmd_print_tranger,"Print internal tranger json (pass path= to lazily drill into a subtree)"),
@@ -5540,6 +5547,88 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
                 gobj_yuno_role_plus_name(), gobj_read_str_attr(gobj, "treedb_name"))
             : json_sprintf("%s: Snap deactivated, treedb '%s'",
                 gobj_yuno_role_plus_name(), gobj_read_str_attr(gobj, "treedb_name")),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  The row of __snaps__ goes; the records it tagged stay on disk with their
+ *  tag, which nothing honours any more (a snap that is gone holds nothing)
+ *  and no new snap inherits (a snap id is never reused). It asks `create`
+ *  besides `delete`, as delete-node with ignore_snaps: it erases what
+ *  shoot-snap made.
+ ***************************************************************************/
+PRIVATE json_t *cmd_remove_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    if(!treedb_is_master(gobj)) {
+        return build_readonly_response(gobj, kw);
+    }
+
+    json_t *refused = refuse_without_authz(gobj, "delete", kw, src);
+    if(refused) {
+        return refused;
+    }
+    refused = refuse_without_authz(gobj, "create", kw, src);
+    if(refused) {
+        return refused;
+    }
+
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *name = kw_get_str(gobj, kw, "name", 0, 0);
+    if(empty_string(name)) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: What snap name?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *snaps = gobj_list_snaps(gobj, json_pack("{s:s}", "name", name), src);
+    json_t *snap = json_array_get(snaps, 0);
+    json_int_t snap_id = snap? kw_get_int(gobj, snap, "id", 0, KW_WILD_NUMBER) : 0;
+    BOOL active = snap? kw_get_bool(gobj, snap, "active", 0, 0) : FALSE;
+    JSON_DECREF(snaps)
+    if(snap_id <= 0) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: snap not found: '%s'", gobj_yuno_role_plus_name(), name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  What the nodes in memory were loaded from cannot go under them
+     */
+    if(active || current_snap_tag(priv->tranger, priv->treedb_name) == snap_id) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: cannot remove snap '%s': it is active, deactivate it first",
+                gobj_yuno_role_plus_name(), name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    char id[32];
+    snprintf(id, sizeof(id), "%lld", (long long)snap_id);
+    json_t *node = treedb_get_node(priv->tranger, priv->treedb_name, "__snaps__", id);
+    int ret = node? treedb_delete_node(priv->tranger, node, 0) : -1;
+
+    return msg_iev_build_response(gobj,
+        ret,
+        ret==0
+            ? json_sprintf("%s: Snap '%s' removed, its records stay on disk",
+                gobj_yuno_role_plus_name(), name)
+            : json_sprintf("%s: cannot remove snap '%s' (see the log)",
+                gobj_yuno_role_plus_name(), name),
         0,
         0,
         kw  // owned

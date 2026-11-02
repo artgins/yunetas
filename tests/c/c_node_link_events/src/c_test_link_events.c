@@ -553,6 +553,14 @@ PRIVATE BOOL pkey2_kids_holds(json_t *parent, json_t *kid)
  *  and the link are there. delete-node {P, v1}, an instance that is not the
  *  primary, deletes that instance alone.
  ***************************************************************************/
+PRIVATE int snap_answer(hgobj gobj, hgobj gobj_node, const char *command, const char *name)
+{
+    json_t *jn_resp = gobj_command(gobj_node, command, json_pack("{s:s}", "name", name), gobj);
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, 0);
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
 PRIVATE int test_delete_node_of_primary_instance(hgobj gobj)
 {
     int result = 0;
@@ -735,6 +743,58 @@ PRIVATE int test_delete_node_of_primary_instance(hgobj gobj)
     }
     result += pkey2_check(gobj, files_ok, "with_file does not name the file of each record");
     JSON_DECREF(jn_resp)
+
+    /*
+     *  remove-snap: refused while active; what the snap held can go; its
+     *  id is not handed out again, and that lasts after a reopen
+     */
+    result += pkey2_check(gobj,
+        snap_answer(gobj, gobj_node, "activate-snap", "rows") == 0,
+        "activate-snap failed"
+    );
+    result += pkey2_check(gobj,
+        snap_answer(gobj, gobj_node, "remove-snap", "rows") < 0,
+        "remove-snap removed the active snap"
+    );
+    jn_resp = gobj_command(gobj_node, "deactivate-snap", json_object(), gobj);
+    JSON_DECREF(jn_resp)
+    json_t *M = treedb_get_node(tranger, PKEY2_TREEDB, "builds", "M");
+    result += pkey2_check(gobj,
+        M && gobj_delete_node(gobj_node, "builds",
+            json_pack("{s:s}", "id", "M"), json_object(), gobj) < 0,
+        "the snap did not hold M"
+    );
+    result += pkey2_check(gobj,
+        snap_answer(gobj, gobj_node, "remove-snap", "no_such_snap") < 0,
+        "remove-snap of a snap that does not exist"
+    );
+    result += pkey2_check(gobj,
+        snap_answer(gobj, gobj_node, "remove-snap", "rows") == 0,
+        "remove-snap failed"
+    );
+    jn_snaps = gobj_list_snaps(gobj_node, json_pack("{s:s}", "name", "rows"), gobj);
+    result += pkey2_check(gobj, json_array_size(jn_snaps) == 0, "the removed snap is listed");
+    JSON_DECREF(jn_snaps)
+    result += pkey2_check(gobj,
+        gobj_delete_node(gobj_node, "builds",
+            json_pack("{s:s}", "id", "M"), json_object(), gobj) == 0,
+        "a removed snap still holds M"
+    );
+
+    tranger = pkey2_reopen(gobj_node, tranger);
+    jn_snaps = gobj_list_snaps(gobj_node, json_pack("{s:s}", "name", "rows"), gobj);
+    result += pkey2_check(gobj, json_array_size(jn_snaps) == 0, "the removed snap is back after a reopen");
+    JSON_DECREF(jn_snaps)
+    result += pkey2_check(gobj,
+        snap_answer(gobj, gobj_node, "shoot-snap", "after_rows") == 0,
+        "the shot after remove-snap failed"
+    );
+    jn_snaps = gobj_list_snaps(gobj_node, json_pack("{s:s}", "name", "after_rows"), gobj);
+    result += pkey2_check(gobj,
+        kw_get_int(gobj, json_array_get(jn_snaps, 0), "id", 0, KW_WILD_NUMBER) > snap_id,
+        "a new snap took the id of the removed one"
+    );
+    JSON_DECREF(jn_snaps)
 
     gobj_stop(gobj_node);
     gobj_destroy(gobj_node);

@@ -341,6 +341,7 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_remove_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_realms_instances(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_yunos_instances(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -815,6 +816,11 @@ SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name 
 SDATAPM (DTP_BOOLEAN,   "with_file",    0,              0,          "Without topic_name: add the file of each record"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_remove_snap[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name"),
@@ -961,6 +967,7 @@ SDATACM2 (DTP_SCHEMA,   "snap-content",     0,                  0,              
 SDATACM2 (DTP_SCHEMA,   "shoot-snap",       0,                  0,                  pm_shoot_snap,  cmd_shoot_snap, "Shoot snap"),
 SDATACM2 (DTP_SCHEMA,   "activate-snap",    0,                  0,                  pm_activate_snap,cmd_activate_snap,"Activate snap; restarts the yunos whose launch changes (all=1: every yuno)"),
 SDATACM2 (DTP_SCHEMA,   "deactivate-snap",  0,                  0,                  pm_deactivate_snap,cmd_deactivate_snap,"De-Activate snap; restarts the yunos whose launch changes (all=1: every yuno)"),
+SDATACM2 (DTP_SCHEMA,   "remove-snap",      0,                  0,                  pm_remove_snap, cmd_remove_snap,"Remove a snap: what it held can be deleted, its records stay on disk"),
 SDATACM2 (DTP_SCHEMA,   "run-yuno",         0,                  0,                  pm_run_yuno,    cmd_run_yuno,   "Run yuno"),
 SDATACM2 (DTP_SCHEMA,   "kill-yuno",        0,                  0,                  pm_kill_yuno,   cmd_kill_yuno,  "Kill yuno"),
 SDATACM2 (DTP_SCHEMA,   "play-yuno",        0,                  0,                  pm_play_yuno,   cmd_play_yuno,  "Play yuno"),
@@ -7602,6 +7609,16 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return gobj_command(priv->resource, cmd, kw, src);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_remove_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

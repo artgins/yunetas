@@ -1285,6 +1285,24 @@ ycommand -c 'snap-content name=<tag> topic_name=not_a_topic_of_it'
 (In 7.25.4 and before the command did not ask, and read a topic of the tranger that
 was not of its treedb; the overview counted every topic of the tranger.)
 
+### 6.8 Removing a snap (`remove-snap`)
+
+```bash
+ycommand -c 'remove-snap name=<tag>'
+#   → "<role^name>: Snap '<tag>' removed, its records stay on disk"
+```
+
+A snap protects what it tagged: `delete-binary` and `delete-config` refuse a
+record it holds. `remove-snap` removes the snap, so those deletes work without
+`force=1`, and its rollback point is gone: it cannot be activated any more. No
+yuno is restarted.
+
+- It frees no disk. The records it tagged stay in the store with their tag,
+  and nothing honours it. To reclaim the space of a binary, delete the binary.
+- A snap id is never reused, so a later snap does not inherit those records.
+- It is refused while the snap is active (*"it is active, deactivate it
+  first"*) and on a replica.
+
 ---
 
 ## 7. Code pointers (one-pager)
