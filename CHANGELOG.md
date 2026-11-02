@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v7.30.2 (2026-11-02)
+
+The fix of one defect a peer could trigger from the internet, so it goes out at once.
+Only the gates with `C_PROT_MQTT` are deployed: a yuno takes it when it is next built.
+The suite ran on the dev machine, 391/391, and no performance study was made: an accept
+is no hot path, and the next study, against 7.30.0, covers it.
+
 - **`C_TCP_S` with `child_tree_filter` never takes a channel whose `C_TCP` is running.**
   A peer could end a yuno. The filter says nothing of the transport:
   `{"connected": false}` reads the first `connected` of the chain, and `C_PROT_MQTT`
