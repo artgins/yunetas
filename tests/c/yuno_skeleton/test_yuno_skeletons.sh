@@ -93,18 +93,9 @@ sed -i 's|^\(\s*\)src/c_sktstd.c$|\1src/c_sktstd.c\n\1src/c_sktchild.c\n\1src/c_
 grep -q "src/c_sktsvc.c" "$WORK/sktstd/CMakeLists.txt" || fail "the gclass sources were not added to the standalone yuno"
 
 if build "$WORK/sktstd"; then
-    # A limit for a yuno that hangs, no measure of speed: under ctest -j8 it can
-    # take seconds to start, and 3 s fixed failed with nothing wrong
-    "$WORK/sktstd/build/sktstd" -l 1 > "$WORK/run.log" 2>&1 &
-    sktstd_pid=$!
-    for _ in $(seq 1 150); do
-        if grep -q "^Timeout" "$WORK/run.log"; then
-            break
-        fi
-        sleep 0.1
-    done
-    kill -INT "$sktstd_pid" 2>/dev/null || true
-    wait "$sktstd_pid" || true
+    # 8 s and not 3: under ctest -j8 a yuno can take seconds to start. Its output
+    # is buffered until it exits, so the log cannot be watched for the Timeout.
+    timeout -s INT 8 "$WORK/sktstd/build/sktstd" -l 1 > "$WORK/run.log" 2>&1
     grep -q "^Timeout" "$WORK/run.log" || { fail "the standalone yuno's timer did not fire"; head -20 "$WORK/run.log"; }
 fi
 
@@ -139,7 +130,7 @@ sed -i 's|printf("Timeout\\n");|printf("Timeout child\\n");|' "$WORK/sktstd/src/
 grep -q "register_c_sktsvc();" "$MAIN" && grep -q "'gclass': 'C_SKTSVC'" "$MAIN" && grep -q "C_SKTCHILD" "$MAIN" \
     || fail "the service and the child were not put in the standalone yuno"
 if build "$WORK/sktstd"; then
-    timeout -s INT 3 "$WORK/sktstd/build/sktstd" -l 1 > "$WORK/run2.log" 2>&1
+    timeout -s INT 8 "$WORK/sktstd/build/sktstd" -l 1 > "$WORK/run2.log" 2>&1
     grep -q "^Timeout$" "$WORK/run2.log" || { fail "the gclass_service's timer did not reach its ac_timeout"; head -20 "$WORK/run2.log"; }
     grep -q "^Timeout child$" "$WORK/run2.log" || { fail "the gclass_child's timer did not reach its ac_timeout"; head -20 "$WORK/run2.log"; }
 fi
