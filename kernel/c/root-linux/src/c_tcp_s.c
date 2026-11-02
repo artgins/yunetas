@@ -61,6 +61,7 @@ typedef enum {
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE hgobj find_free_channel(hgobj gobj, json_t *jn_filter);
 GOBJ_DECLARE_EVENT(EV_LISTEN_AGAIN);
 PRIVATE int start_listening(hgobj gobj);
 PRIVATE BOOL listen_again_later(hgobj gobj);
@@ -1088,6 +1089,33 @@ PRIVATE void note_refused_connection(
 }
 
 /***************************************************************************
+ *  The first channel of the filter whose C_TCP is not running. The filter
+ *  cannot tell: {"connected": false} reads the first `connected` of the
+ *  chain, and C_PROT_MQTT has its own, true only at its session, while its
+ *  C_TCP already holds a socket and maybe a secure filter. An accept on it
+ *  rewrote its fd and its ytls: with a second server with no TLS, a peer
+ *  with a socket on each port ended the yuno in ytls_free_secure_filter()
+ *  (up to 7.30.1).
+ ***************************************************************************/
+PRIVATE hgobj find_free_channel(hgobj gobj, json_t *jn_filter)
+{
+    hgobj channel = NULL;
+    json_t *iter = gobj_match_children(gobj_parent(gobj), json_incref(jn_filter));
+    int idx; json_t *jn_child;
+    json_array_foreach(iter, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        hgobj bottom = gobj_last_bottom_gobj(child);
+        if(bottom && gobj_gclass_name(bottom) == C_TCP && gobj_is_running(bottom)) {
+            continue;
+        }
+        channel = child;
+        break;
+    }
+    gobj_free_iter(iter);
+    return channel;
+}
+
+/***************************************************************************
  *  Accept cb
  *  WARNING yev_callback() return -1 will break the loop of yevent
  ***************************************************************************/
@@ -1219,7 +1247,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
         json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", json_object(), 0);
-        gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
+        gobj_top = find_free_channel(gobj, jn_filter);
         if(!gobj_top) {
             note_refused_connection(gobj, REFUSAL_NO_FREE_CHANNEL, peername);
             close(fd_clisrv);
@@ -1295,11 +1323,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         } else {
             clisrv = gobj_bottom;
         }
-
-        // TODO repon when found the error gobj is running
-        // if(gobj_is_running(clisrv)) {
-        //     gobj_stop(clisrv);
-        // }
 
         gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);

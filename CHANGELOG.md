@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`C_TCP_S` with `child_tree_filter` never takes a channel whose `C_TCP` is running.**
+  A peer could end a yuno. The filter says nothing of the transport:
+  `{"connected": false}` reads the first `connected` of the chain, and `C_PROT_MQTT`
+  has its own, true only at its session. So a channel with a peer in its TLS handshake,
+  or with no `CONNECT` yet, was free for the next accept, which rewrote the fd and the
+  `ytls` of the running `C_TCP` (*"GObj ALREADY RUNNING"*, the first socket leaked). With
+  a second server with no TLS the `ytls` became NULL, and the end of the connection a
+  SIGSEGV in `ytls_free_secure_filter()`: a core of a gate on the internet, from a
+  scanner. The accept now asks the `C_TCP` of each channel the filter matches. With none
+  free the peer is refused, as with no channel at all (`noChannelConnxs`). In 7.30.1 and
+  older (`test_c_tcp_s_busy_channel`).
 ## v7.30.1 (2026-11-02)
 
 A light release: the commands of the snaps and `help`. Only the agents are deployed;
