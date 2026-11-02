@@ -556,6 +556,7 @@ int main(int argc, char *argv[])
     expect_help(yuno, "parameters", "- required", "- typed");
     expect_help(yuno, "must", "- required", "- typed");
     expect_help(yuno, "nosuch", "not available", "Commands that mention");
+    expect_help(yuno, "typed password=hunter2-help", "A parameter of each type", "hunter2-help");
 
     JSON_DECREF(g_seen)
     gobj_end();

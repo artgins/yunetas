@@ -8,7 +8,10 @@
   on disk with their tag, which nothing honours any more, and no disk is freed; a
   snap id is never reused, so no later snap inherits them. It is refused while the
   snap is active or the treedb is loaded from it, on a replica, and without `delete`
-  and `create`, as `delete-node` with `ignore_snaps`. It restarts no yuno.
+  and `create`, as `delete-node` with `ignore_snaps`. It restarts no yuno. `delete-binary`
+  refused any tagged record, a removed snap's too: it asks now if the snap exists.
+- **`help cmd=<a command> <secret>` masks what it echoes**, as the answer *"not
+  available"* did.
 - **`snap-content` with no `topic_name` says WHICH records the snap tags**: one row
   per record of every topic of the treedb, with its `key`, its `instance` (the values
   of the topic's pkey2s, joined with `^`, which a key alone does not say) and its metadata (`g_rowid`, `i_rowid`, `t`,

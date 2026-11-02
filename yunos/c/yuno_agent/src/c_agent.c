@@ -4076,6 +4076,27 @@ PRIVATE json_t *instances_taken_by_delete(
 }
 
 /***************************************************************************
+ *  Is `snap_id` a snap that exists? The tag of a record is not: it stays on
+ *  the record when its snap is removed.
+ ***************************************************************************/
+PRIVATE BOOL snap_exists(hgobj gobj, json_int_t snap_id, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL exists = FALSE;
+    json_t *snaps = gobj_list_snaps(priv->resource, json_object(), src);
+    int idx; json_t *snap;
+    json_array_foreach(snaps, idx, snap) {
+        if(kw_get_int(gobj, snap, "id", 0, KW_WILD_NUMBER) == snap_id) {
+            exists = TRUE;
+            break;
+        }
+    }
+    JSON_DECREF(snaps)
+    return exists;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -4192,12 +4213,13 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
          *  already refuses a tagged node, but check here too for a clear
          *  reason and so no binary FILE is ever rmrdir'd. force=1 overrides
          *  (operator accepts breaking the snap), matching the kernel's
-         *  force semantics.
+         *  force semantics. The tag outlives a snap that remove-snap took
+         *  away, and a snap that is gone holds nothing, as for the kernel.
          */
         int i; json_t *instance;
         json_array_foreach(taken, i, instance) {
             json_int_t snap_tag = kw_get_int(gobj, instance, "__md_treedb__`tag", 0, 0);
-            if(snap_tag != 0 && !force) {
+            if(snap_tag != 0 && !force && snap_exists(gobj, snap_tag, src)) {
                 jn_comment = json_sprintf(
                     "%s: cannot delete binary '%s' %s: referenced by snap %d (rollback)%s. "
                     "Use force=1 to delete anyway (breaks that snap's rollback)",

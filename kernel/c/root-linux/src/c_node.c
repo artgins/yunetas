@@ -5048,23 +5048,25 @@ PRIVATE int snap_row_load_cb(
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
+    json_t *jn_instance = json_string("");
     int idx; json_t *jn_pkey2;
     json_array_foreach(json_object_get(list, "snap_pkey2s"), idx, jn_pkey2) {
         const char *pkey2 = json_string_value(jn_pkey2);
         char *value = jn2string(json_object_get(jn_record, pkey2? pkey2 : ""));
         if(!empty_string(value)) {
-            gbuffer_printf(gbuf, "%s%s", gbuffer_leftbytes(gbuf)? "^" : "", value);
+            const char *instance = json_string_value(jn_instance);
+            json_t *jn_joined = json_sprintf("%s%s%s", instance, *instance? "^" : "", value);
+            JSON_DECREF(jn_instance)
+            jn_instance = jn_joined? jn_joined : json_string("");
         }
         GBMEM_FREE(value)
     }
-    const char *instance = gbuffer_leftbytes(gbuf)? gbuffer_cur_rd_pointer(gbuf) : "";
 
     json_t *jn_row = json_pack(
         "{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I, s:I, s:i, s:i}",
         "topic_name", json_string_value(json_object_get(topic, "topic_name")),
         "key", key,
-        "instance", instance,
+        "instance", json_string_value(jn_instance),
         "g_rowid", (json_int_t)md_record_ex->g_rowid,
         "i_rowid", (json_int_t)md_record_ex->rowid,
         "t", (json_int_t)md_record_ex->__t__,
@@ -5074,6 +5076,18 @@ PRIVATE int snap_row_load_cb(
         "system_flag", (int)md_record_ex->system_flag,
         "user_flag", (int)md_record_ex->user_flag
     );
+    JSON_DECREF(jn_instance)
+    if(!jn_row) {
+        gobj_log_error((hgobj)(uintptr_t)json_integer_value(json_object_get(tranger, "gobj")), 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "A record of the snap cannot be listed: a key that is no utf-8",
+            "topic_name",   "%s", kw_get_str(0, topic, "topic_name", "", 0),
+            NULL
+        );
+        JSON_DECREF(jn_record)
+        return 0;
+    }
     if(json_is_true(json_object_get(list, "snap_with_file"))) {
         char filename[NAME_MAX];
         char path[PATH_MAX];
@@ -5087,7 +5101,6 @@ PRIVATE int snap_row_load_cb(
         json_object_set_new(jn_row, "file", json_string(path));
     }
     json_array_append_new(jn_rows, jn_row);
-    gbuffer_decref(gbuf);
     JSON_DECREF(jn_record)
     return 0;
 }

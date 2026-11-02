@@ -349,6 +349,10 @@ application's gate (one application).
 
 ### timeranger2 and C_TRANGER
 
+- **`remove-snap` asks if the snap is active in this treedb's copy of `__snaps__`.**
+  Two treedbs open on ONE tranger share the topic and not the copy: one can remove a
+  snap the other activated. `C_TREEDB` makes a `C_TRANGER` per treedb, so no yuno has
+  that shape today.
 - **Bound the size of an archive batch at its cause**
   (`tranger2_archive_key_files()`). A first archive of a long history makes a
   batch of unbounded file count, and `archive_keeper` refuses anything above
