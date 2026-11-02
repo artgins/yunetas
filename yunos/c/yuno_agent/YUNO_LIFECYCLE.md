@@ -1254,6 +1254,10 @@ ycommand -c 'snap-content name=<tag>'
 #   yunos       1620  2.22.6-7.29.1-12  ...
 #   "snap 17 spans 5 of 9 topic(s), 44 record(s); add topic_name=<topic> to see their content"
 
+# The same rows with the path of the file of each record, a column "file":
+# offset and size are in that file
+ycommand -c 'snap-content name=<tag> with_file=1'
+
 # The content of one topic, as a table
 ycommand -c 'snap-content name=<tag> topic_name=yunos'
 

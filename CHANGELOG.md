@@ -9,6 +9,8 @@
   count per topic. The comment says *"spans 5 of 9 topic(s), 44 record(s)"*.
   `topic_name=<topic>` still gives the content, and `with_metadata=1` (new) adds
   each record's `__md_tranger__` to it, as json, because a table would hide it.
+  `with_file=1` (new, with no `topic_name`) adds a column `file`, the path of the
+  file that holds each record, where `offset` and `size` are.
 - **`help` searches.** A `cmd` that is no command lists the commands that mention
   it, in any case, in their name, an alias or their description: `help cmd=snap`
   in the agent gives its five snap commands. `level` searches bottoms or children as

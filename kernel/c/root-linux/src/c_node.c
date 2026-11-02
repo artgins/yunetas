@@ -329,6 +329,7 @@ SDATAPM (DTP_STRING,    "id",           0,              0,          "Snap id (al
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name (resolved to its id)"),
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for which records, every topic)"),
 SDATAPM (DTP_BOOLEAN,   "with_metadata",0,              0,          "With topic_name: keep the __md_tranger__ of each record"),
+SDATAPM (DTP_BOOLEAN,   "with_file",    0,              0,          "Without topic_name: add the file of each record"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
@@ -5056,7 +5057,7 @@ PRIVATE int snap_row_load_cb(
     }
     const char *instance = gbuffer_leftbytes(gbuf)? gbuffer_cur_rd_pointer(gbuf) : "";
 
-    json_array_append_new(jn_rows, json_pack(
+    json_t *jn_row = json_pack(
         "{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I, s:I, s:i, s:i}",
         "topic_name", json_string_value(json_object_get(topic, "topic_name")),
         "key", key,
@@ -5069,7 +5070,20 @@ PRIVATE int snap_row_load_cb(
         "size", (json_int_t)md_record_ex->__size__,
         "system_flag", (int)md_record_ex->system_flag,
         "user_flag", (int)md_record_ex->user_flag
-    ));
+    );
+    if(json_is_true(json_object_get(list, "snap_with_file"))) {
+        char filename[NAME_MAX];
+        char path[PATH_MAX];
+        tranger2_print_record_filename(
+            filename, sizeof(filename), tranger, topic, md_record_ex, FALSE
+        );
+        const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
+        if(!build_path(path, sizeof(path), topic_dir? topic_dir : "", "keys", key, filename, NULL)) {
+            *path = 0;  // Error already logged
+        }
+        json_object_set_new(jn_row, "file", json_string(path));
+    }
+    json_array_append_new(jn_rows, jn_row);
     gbuffer_decref(gbuf);
     JSON_DECREF(jn_record)
     return 0;
@@ -5078,7 +5092,7 @@ PRIVATE int snap_row_load_cb(
 /***************************************************************************
  *  The columns of the rows of snap_row_load_cb()
  ***************************************************************************/
-PRIVATE json_t *snap_rows_schema(void)
+PRIVATE json_t *snap_rows_schema(BOOL with_file)
 {
     static const struct {
         const char *id;
@@ -5104,6 +5118,13 @@ PRIVATE json_t *snap_rows_schema(void)
             "id", cols[i].id,
             "header", cols[i].id,
             "fillspace", cols[i].fillspace
+        ));
+    }
+    if(with_file) {
+        json_array_append_new(jn_schema, json_pack("{s:s, s:s, s:i}",
+            "id", "file",
+            "header", "file",
+            "fillspace", 120
         ));
     }
     return jn_schema;
@@ -5223,6 +5244,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  snaps from 1), and they are not this snap's.
      */
     if(empty_string(topic_name)) {
+        BOOL with_file = kw_get_bool(gobj, kw, "with_file", 0, 0);
         json_t *jn_rows = json_array();
         json_t *topics = treedb_topics(priv->tranger, priv->treedb_name, NULL);
         size_t tagged_topics = 0;
@@ -5231,9 +5253,10 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             const char *t_name = json_string_value(jn_t_name);
             size_t rows_before = json_array_size(jn_rows);
             json_t *jn_pkey2s = treedb_topic_pkey2s(priv->tranger, t_name);
-            json_t *jn_extra = json_pack("{s:O, s:O?}",
+            json_t *jn_extra = json_pack("{s:O, s:O?, s:b}",
                 "snap_rows", jn_rows,
-                "snap_pkey2s", jn_pkey2s
+                "snap_pkey2s", jn_pkey2s,
+                "snap_with_file", with_file
             );
             BOOL no_pkey2 = TRUE;
             int p_idx; json_t *jn_pkey2;
@@ -5268,7 +5291,7 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 gobj_yuno_role_plus_name(), (long long)snap_id,
                 tagged_topics, n_topics, json_array_size(jn_rows)
             ),
-            snap_rows_schema(),
+            snap_rows_schema(with_file),
             jn_rows,
             kw  // owned
         );

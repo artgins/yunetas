@@ -23,6 +23,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <sys/stat.h>
 
 #include "c_test_link_events.h"
 
@@ -710,6 +711,29 @@ PRIVATE int test_delete_node_of_primary_instance(hgobj gobj)
     result += pkey2_check(gobj, instance_n && strcmp(instance_n, "r2^7")==0,
         "the instance with a number in a pkey2"
     );
+    result += pkey2_check(gobj,
+        !json_object_get(json_array_get(kw_get_list(gobj, jn_resp, "data", 0, 0), 0), "file"),
+        "a row has the file without with_file"
+    );
+    JSON_DECREF(jn_resp)
+
+    /*
+     *  with_file: the file of each record, the one that holds its bytes
+     */
+    jn_resp = gobj_command(gobj_node, "snap-content",
+        json_pack("{s:s, s:b}", "name", "rows", "with_file", 1), gobj
+    );
+    BOOL files_ok = json_array_size(kw_get_list(gobj, jn_resp, "data", 0, 0)) > 0;
+    json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+        const char *file = kw_get_str(gobj, row, "file", "", 0);
+        struct stat st;
+        if(stat(file, &st) != 0 ||
+                (uint64_t)st.st_size < (uint64_t)kw_get_int(gobj, row, "offset", 0, 0) +
+                    (uint64_t)kw_get_int(gobj, row, "size", 0, 0)) {
+            files_ok = FALSE;
+        }
+    }
+    result += pkey2_check(gobj, files_ok, "with_file does not name the file of each record");
     JSON_DECREF(jn_resp)
 
     gobj_stop(gobj_node);
