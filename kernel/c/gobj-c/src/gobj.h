@@ -1191,8 +1191,6 @@ PUBLIC int gobj_pause(hgobj gobj);
 PUBLIC int gobj_enable(hgobj gobj); // exec own mt_enable() or gobj_start_tree()
 PUBLIC int gobj_disable(hgobj gobj); // exec own mt_disable() or gobj_stop_tree()
 
-PUBLIC int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent); // TODO already implemented in js
-
 /*
  *  mt_command must return a webix json or 0 on asynchronous responses.
  */

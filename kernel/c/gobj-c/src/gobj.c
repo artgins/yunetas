@@ -239,8 +239,8 @@ typedef struct dispatch_frame_s {
  *  refuses it), and those of a live one live on.
  *
  *  gobj_destroy() is the one place a child leaves a list, so it is the one
- *  caller of move_walk_frames_off(). A gobj_change_parent() (declared, not
- *  implemented in C) would be a second: it must call move_walk_frames_off()
+ *  caller of move_walk_frames_off(). A change of parent, which only gobj-js
+ *  has, would be a second: it must call move_walk_frames_off()
  *  before its dl_delete(), and give the child a new `__id__` in its new list
  *  (dl_add() does), or a walk of the new parent that began before the move
  *  would take it for a child it had when it began.

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **`gobj_change_parent()` leaves `gobj.h`.** It was declared in C and never implemented:
+  a caller did not link, and nobody called it. The one in gobj-js stays.
+
 ## v7.30.2 (2026-11-02)
 
 The fix of one defect a peer could trigger from the internet, so it goes out at once.
