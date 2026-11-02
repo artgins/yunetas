@@ -1245,14 +1245,20 @@ rollback snap (§6.6) restores *before* you `activate-snap` it.
 # List the snaps (id, name, date, active, description)
 ycommand -c 'snaps'
 
-# Overview: WHERE the snap points — every topic it tags and how many
-# records each. Select the snap by name, id, or the legacy snap_id.
+# WHICH records the snap tags: one row per record of every topic, with its
+# key, its instance (pkey2) and its metadata, not its content. Select the snap
+# by name, id, or the legacy snap_id.
 ycommand -c 'snap-content name=<tag>'
-#   → realms:3  yunos:16  binaries:15  configurations:16  public_services:2
-#     "snap 2 spans 5 topic(s); add topic_name=<topic> to see the records"
+#   topic_name  key   instance          g_rowid i_rowid t          ... user_flag
+#   realms      artgins.utilities.all   ""      17      17 ...         17
+#   yunos       1620  2.22.6-7.29.1-12  ...
+#   "snap 17 spans 5 of 9 topic(s), 44 record(s); add topic_name=<topic> to see their content"
 
-# Drill into one topic's foto (the records as captured in that snap)
+# The content of one topic, as a table
 ycommand -c 'snap-content name=<tag> topic_name=yunos'
+
+# The same with each record's __md_tranger__, as json
+ycommand -c 'snap-content name=<tag> topic_name=yunos with_metadata=1'
 ```
 
 `snap-content` selects the snap by any of:
@@ -1261,9 +1267,8 @@ ycommand -c 'snap-content name=<tag> topic_name=yunos'
 - `id=<n>` / `snap_id=<n>` — the numeric id shown by `snaps` (`snap_id` is
   the legacy form, kept for backward compatibility).
 
-`topic_name` is optional: omit it for the per-topic overview (a cheap
-count-only walk that does not load records), or pass `topic_name=<topic>`
-for the full record foto of that topic. With neither a valid snap nor a
+`topic_name` is optional: omit it for which records, or pass
+`topic_name=<topic>` for the content of one topic. With neither a valid snap nor a
 name it answers `What snap? give snap_id/id (1..65534) or name`.
 
 Both read only the topics of the treedb the command is sent to. A tranger

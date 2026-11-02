@@ -1376,10 +1376,13 @@ PRIVATE int run_tests(hgobj gobj)
      *  ITS treedb. A plain topic of the same tranger
      *  holds a record tagged with the number of a snap
      *  (7): asked by name it is refused, and the
-     *  overview (no topic_name) does not list it. Both
+     *  whole answer (no topic_name) does not list it. Both
      *  read it (up to 7.25.4 and after): the command
      *  did not ask treedb_is_treedbs_topic(), as every
-     *  other one of C_NODE does.
+     *  other one of C_NODE does. With no topic_name it
+     *  is one row per record the snap tags, its key and
+     *  metadata and not its content; with a topic_name
+     *  the content, and with_metadata adds the metadata.
      *-----------------------------------------------*/
     {
         md2_record_ex_t md = {0};
@@ -1435,6 +1438,55 @@ PRIVATE int run_tests(hgobj gobj)
             result += -1;
         }
         JSON_DECREF(jn_resp)
+
+        json_t *jn_shot = gobj_command(priv->gobj_node, "shoot-snap",
+            json_pack("{s:s}", "name", "all_topics"), gobj
+        );
+        JSON_DECREF(jn_shot)
+        jn_resp = gobj_command(priv->gobj_node, "snap-content",
+            json_pack("{s:s}", "name", "all_topics"), gobj
+        );
+        BOOL rows_ok = json_array_size(kw_get_list(gobj, jn_resp, "data", 0, 0)) > 0;
+        json_array_foreach(kw_get_list(gobj, jn_resp, "data", 0, 0), idx, row) {
+            if(empty_string(kw_get_str(gobj, row, "topic_name", "", 0)) ||
+                    empty_string(kw_get_str(gobj, row, "key", "", 0)) ||
+                    !json_object_get(row, "g_rowid") ||
+                    json_object_get(row, "__md_tranger__")) {
+                rows_ok = FALSE;
+            }
+        }
+        if(kw_get_int(gobj, jn_resp, "result", -1, 0) != 0 || !rows_ok) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset", "%s", MSGSET_INTERNAL,
+                "msg", "%s", "TEST FAIL: snap-content with no topic_name did not give one row per record",
+                "got", "%j", jn_resp,
+                NULL
+            );
+            result += -1;
+        }
+        JSON_DECREF(jn_resp)
+
+        for(int with_md = 0; with_md <= 1; with_md++) {
+            jn_resp = gobj_command(priv->gobj_node, "snap-content",
+                json_pack("{s:s, s:s, s:b}",
+                    "name", "all_topics", "topic_name", "departments", "with_metadata", with_md
+                ), gobj
+            );
+            json_t *jn_first = json_array_get(kw_get_list(gobj, jn_resp, "data", 0, 0), 0);
+            BOOL has_md = json_object_get(jn_first, "__md_tranger__")? TRUE : FALSE;
+            if(!jn_first || has_md != (BOOL)with_md) {
+                gobj_log_error(gobj, 0,
+                    "function", "%s", __FUNCTION__,
+                    "msgset", "%s", MSGSET_INTERNAL,
+                    "msg", "%s", "TEST FAIL: with_metadata of snap-content",
+                    "got", "%j", jn_resp,
+                    NULL
+                );
+                result += -1;
+            }
+            JSON_DECREF(jn_resp)
+        }
     }
 
     /*-----------------------------------------------*

@@ -812,6 +812,7 @@ SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id (nu
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Snap id (alias of snap_id)"),
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name (resolved to its id)"),
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for the per-topic overview)"),
+SDATAPM (DTP_BOOLEAN,   "with_metadata",0,              0,          "With topic_name: keep the __md_tranger__ of each record"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {

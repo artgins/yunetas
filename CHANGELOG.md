@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`snap-content` with no `topic_name` says WHICH records the snap tags**: one row
+  per record of every topic of the treedb, with its `key`, its `instance` (its pkey2
+  values, which a key alone does not say) and its metadata (`g_rowid`, `i_rowid`, `t`,
+  `tm`, `offset`, `size`, `system_flag`, `user_flag`), not its content. It answered a
+  count per topic. The comment says *"spans 5 of 9 topic(s), 44 record(s)"*.
+  `topic_name=<topic>` still gives the content, and `with_metadata=1` (new) adds
+  each record's `__md_tranger__` to it, as json, because a table would hide it.
 - **`help` searches.** A `cmd` that is no command lists the commands that mention
   it, in any case, in their name, an alias or their description: `help cmd=snap`
   in the agent gives its five snap commands. `level` searches bottoms or children as

@@ -327,7 +327,8 @@ PRIVATE sdata_desc_t pm_snap_content[] = {
 SDATAPM (DTP_STRING,    "snap_id",      0,              0,          "Snap id (numeric, as listed by `snaps`)"),
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Snap id (alias of snap_id)"),
 SDATAPM (DTP_STRING,    "name",         0,              0,          "Snap name (resolved to its id)"),
-SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for the per-topic overview)"),
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name (optional: omit for which records, every topic)"),
+SDATAPM (DTP_BOOLEAN,   "with_metadata",0,              0,          "With topic_name: keep the __md_tranger__ of each record"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_shoot_snap[] = {
@@ -5010,6 +5011,9 @@ PRIVATE int snap_content_load_cb(
         JSON_DECREF(jn_record)
         return 0;
     }
+    if(!json_is_true(json_object_get(list, "snap_with_metadata"))) {
+        json_object_del(jn_record, "__md_tranger__");
+    }
     json_object_set_new(jn_record, "__key__", json_string(key));
     json_object_set_new(jn_record, "__rowid__", json_integer((json_int_t)rowid));
     json_array_append_new(jn_data, jn_record);
@@ -5017,11 +5021,12 @@ PRIVATE int snap_content_load_cb(
 }
 
 /*
- *  Overview callback for cmd_snap_content's tranger2_open_list walk:
- *  it does NOT load records, it only bumps the running total carried in
- *  the rt's nested "snap_counter" object (cheap for large topics).
+ *  Callback of the walk of snap-content with no topic_name: one row with
+ *  what the record IS and its metadata, not its content. jn_record is NULL
+ *  in a topic with no pkey2 (only_md); with one, the key alone does not say
+ *  which instance it is, so its pkey2 values go in "instance".
  */
-PRIVATE int snap_count_cb(
+PRIVATE int snap_row_load_cb(
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -5031,12 +5036,120 @@ PRIVATE int snap_count_cb(
     json_t *jn_record  // owned
 )
 {
-    json_t *counter = json_object_get(list, "snap_counter");
-    if(counter) {
-        json_int_t n = json_integer_value(json_object_get(counter, "n"));
-        json_object_set_new(counter, "n", json_integer(n + 1));
+    json_t *jn_rows = json_object_get(list, "snap_rows");
+    if(!jn_rows || !json_is_array(jn_rows)) {
+        JSON_DECREF(jn_record)
+        return 0;
     }
+
+    gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
+    int idx; json_t *jn_pkey2;
+    json_array_foreach(json_object_get(list, "snap_pkey2s"), idx, jn_pkey2) {
+        const char *pkey2 = json_string_value(jn_pkey2);
+        const char *value = json_string_value(json_object_get(jn_record, pkey2? pkey2 : ""));
+        if(!empty_string(value)) {
+            gbuffer_printf(gbuf, "%s%s", gbuffer_leftbytes(gbuf)? "^" : "", value);
+        }
+    }
+    const char *instance = gbuffer_leftbytes(gbuf)? gbuffer_cur_rd_pointer(gbuf) : "";
+
+    json_array_append_new(jn_rows, json_pack(
+        "{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I, s:I, s:i, s:i}",
+        "topic_name", json_string_value(json_object_get(topic, "topic_name")),
+        "key", key,
+        "instance", instance,
+        "g_rowid", (json_int_t)md_record_ex->g_rowid,
+        "i_rowid", (json_int_t)md_record_ex->rowid,
+        "t", (json_int_t)md_record_ex->__t__,
+        "tm", (json_int_t)md_record_ex->__tm__,
+        "offset", (json_int_t)md_record_ex->__offset__,
+        "size", (json_int_t)md_record_ex->__size__,
+        "system_flag", (int)md_record_ex->system_flag,
+        "user_flag", (int)md_record_ex->user_flag
+    ));
+    gbuffer_decref(gbuf);
     JSON_DECREF(jn_record)
+    return 0;
+}
+
+/***************************************************************************
+ *  The columns of the rows of snap_row_load_cb()
+ ***************************************************************************/
+PRIVATE json_t *snap_rows_schema(void)
+{
+    static const struct {
+        const char *id;
+        int fillspace;
+    } cols[] = {
+        {"topic_name",  16},
+        {"key",         32},
+        {"instance",    20},
+        {"g_rowid",     8},
+        {"i_rowid",     8},
+        {"t",           11},
+        {"tm",          11},
+        {"offset",      9},
+        {"size",        8},
+        {"system_flag", 11},
+        {"user_flag",   9},
+        {0, 0}
+    };
+
+    json_t *jn_schema = json_array();
+    for(int i = 0; cols[i].id; i++) {
+        json_array_append_new(jn_schema, json_pack("{s:s, s:s, s:i}",
+            "id", cols[i].id,
+            "header", cols[i].id,
+            "fillspace", cols[i].fillspace
+        ));
+    }
+    return jn_schema;
+}
+
+/***************************************************************************
+ *  Walk the records of `topic_name` that the snap tags, newest first per
+ *  key, a filter by user_flag=snap_id. -1 if it cannot be read.
+ ***************************************************************************/
+PRIVATE int walk_snap_of_topic(
+    hgobj gobj,
+    const char *topic_name,
+    json_int_t snap_id,
+    BOOL only_md,
+    tranger2_load_record_callback_t load_cb,
+    json_t *jn_extra    // owned
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *match_cond = json_pack(
+        "{s:b, s:I, s:I, s:b, s:I}",
+        "backward", 1,
+        "user_flag", (json_int_t)snap_id,
+        "to_rowid", (json_int_t)-1,   // non-zero → not realtime
+        "only_md", only_md,
+        "load_record_callback", (json_int_t)(uintptr_t)load_cb
+    );
+
+    char rt_id[NAME_MAX];
+    snprintf(rt_id, sizeof(rt_id),
+        "snap-content-%lld-%s",
+        (long long)snap_id, topic_name
+    );
+
+    json_t *rt = tranger2_open_list(
+        priv->tranger,
+        topic_name,
+        match_cond,         // owned
+        jn_extra,           // owned
+        rt_id,
+        FALSE,              // rt_by_disk
+        gobj_short_name(gobj)
+    );
+    if(!rt) {
+        // Error already logged
+        return -1;
+    }
+    tranger2_close_list(priv->tranger, rt);
+
     return 0;
 }
 
@@ -5099,64 +5212,61 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
 
     /*
-     *  No topic_name: show WHERE the snap points, i.e. every topic OF THIS
-     *  TREEDB that has records tagged with this snap, and how many. Drill
-     *  into one topic by passing topic_name=<topic>. A tranger can hold
-     *  other treedbs and plain topics, and a snap id is this treedb's: the
-     *  same number tags records of others (every treedb counts its snaps
-     *  from 1), and they are not this snap's.
+     *  No topic_name: WHICH records the snap tags, one row per record of
+     *  every topic OF THIS TREEDB, with its metadata and not its content.
+     *  Drill into one topic by passing topic_name=<topic>. A tranger can
+     *  hold other treedbs and plain topics, and a snap id is this treedb's:
+     *  the same number tags records of others (every treedb counts its
+     *  snaps from 1), and they are not this snap's.
      */
     if(empty_string(topic_name)) {
-        json_t *jn_data = json_array();
+        json_t *jn_rows = json_array();
         json_t *topics = treedb_topics(priv->tranger, priv->treedb_name, NULL);
+        size_t tagged_topics = 0;
         int t_idx; json_t *jn_t_name;
         json_array_foreach(topics, t_idx, jn_t_name) {
             const char *t_name = json_string_value(jn_t_name);
-            json_t *match_cond = json_pack(
-                "{s:b, s:I, s:I, s:I}",
-                "backward", 1,
-                "user_flag", (json_int_t)snap_id,
-                "to_rowid", (json_int_t)-1,   // non-zero → not realtime
-                "load_record_callback", (json_int_t)(uintptr_t)snap_count_cb
+            size_t rows_before = json_array_size(jn_rows);
+            json_t *jn_pkey2s = treedb_topic_pkey2s(priv->tranger, t_name);
+            json_t *jn_extra = json_pack("{s:O, s:O?}",
+                "snap_rows", jn_rows,
+                "snap_pkey2s", jn_pkey2s
             );
-            json_t *jn_extra = json_pack("{s:{s:I}}",
-                "snap_counter", "n", (json_int_t)0
-            );
-            char rt_id[NAME_MAX];
-            snprintf(rt_id, sizeof(rt_id),
-                "snap-overview-%lld-%s", (long long)snap_id, t_name
-            );
-            json_t *rt = tranger2_open_list(
-                priv->tranger,
-                t_name,
-                match_cond,         // owned
-                jn_extra,           // owned
-                rt_id,
-                FALSE,              // rt_by_disk
-                gobj_short_name(gobj)
-            );
-            if(!rt) {
-                // Error already logged
-                continue;
+            BOOL no_pkey2 = TRUE;
+            int p_idx; json_t *jn_pkey2;
+            json_array_foreach(jn_pkey2s, p_idx, jn_pkey2) {
+                if(!empty_string(json_string_value(jn_pkey2))) {
+                    no_pkey2 = FALSE;
+                }
             }
-            json_int_t records = kw_get_int(gobj, rt, "snap_counter`n", 0, 0);
-            tranger2_close_list(priv->tranger, rt);
-            if(records > 0) {
-                json_array_append_new(jn_data,
-                    json_pack("{s:s, s:I}", "topic_name", t_name, "records", records)
+            JSON_DECREF(jn_pkey2s)
+            if(walk_snap_of_topic(gobj, t_name, snap_id, no_pkey2, snap_row_load_cb, jn_extra) < 0) {
+                // Error already logged
+                json_t *jn_comment = json_sprintf(
+                    "%s: cannot read the content of snap %lld in topic '%s' (see the log)",
+                    gobj_yuno_role_plus_name(), (long long)snap_id, t_name
                 );
+                JSON_DECREF(topics)
+                JSON_DECREF(jn_rows)
+                return msg_iev_build_response(gobj, -1, jn_comment, 0, 0, kw);
+            }
+            if(json_array_size(jn_rows) > rows_before) {
+                tagged_topics++;
             }
         }
+        size_t n_topics = json_array_size(topics);
         JSON_DECREF(topics)
         return msg_iev_build_response(
             gobj,
             0,
             json_sprintf(
-                "%s: snap %lld spans %zu topic(s); add topic_name=<topic> to see the records",
-                gobj_yuno_role_plus_name(), (long long)snap_id, json_array_size(jn_data)
+                "%s: snap %lld spans %zu of %zu topic(s), %zu record(s); "
+                "add topic_name=<topic> to see their content",
+                gobj_yuno_role_plus_name(), (long long)snap_id,
+                tagged_topics, n_topics, json_array_size(jn_rows)
             ),
-            0,
-            jn_data,
+            snap_rows_schema(),
+            jn_rows,
             kw  // owned
         );
     }
@@ -5188,40 +5298,13 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
+    BOOL with_metadata = kw_get_bool(gobj, kw, "with_metadata", 0, 0);
     json_t *jn_data = json_array();
-
-    /*
-     *  Walk this topic's records filtered by user_flag=snap_id, backward
-     *  (newest first per key). The callback drains matches into jn_data,
-     *  which is carried into the rt via "extra".
-     */
-    json_t *match_cond = json_pack(
-        "{s:b, s:I, s:I, s:I}",
-        "backward", 1,
-        "user_flag", (json_int_t)snap_id,
-        "to_rowid", (json_int_t)-1,   // non-zero → not realtime
-        "load_record_callback", (json_int_t)(uintptr_t)snap_content_load_cb
+    json_t *jn_extra = json_pack("{s:O, s:b}",
+        "snap_data", jn_data,
+        "snap_with_metadata", with_metadata
     );
-    json_t *jn_extra = json_pack("{s:O}",
-        "snap_data", jn_data
-    );
-
-    char rt_id[NAME_MAX];
-    snprintf(rt_id, sizeof(rt_id),
-        "snap-content-%lld-%s",
-        (long long)snap_id, topic_name
-    );
-
-    json_t *rt = tranger2_open_list(
-        priv->tranger,
-        topic_name,
-        match_cond,         // owned
-        jn_extra,           // owned
-        rt_id,
-        FALSE,              // rt_by_disk
-        gobj_short_name(gobj)
-    );
-    if(!rt) {
+    if(walk_snap_of_topic(gobj, topic_name, snap_id, FALSE, snap_content_load_cb, jn_extra) < 0) {
         // Error already logged
         JSON_DECREF(jn_data)
         return msg_iev_build_response(
@@ -5234,14 +5317,13 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             kw  // owned
         );
     }
-    tranger2_close_list(priv->tranger, rt);
 
     return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("%s: snap %lld content for topic '%s' (%zu records)", gobj_yuno_role_plus_name(),
             (long long)snap_id, topic_name, json_array_size(jn_data)),
-        tranger2_list_topic_desc_cols(priv->tranger, topic_name),
+        with_metadata? 0 : tranger2_list_topic_desc_cols(priv->tranger, topic_name), // a table hides them
         jn_data,
         kw  // owned
     );
