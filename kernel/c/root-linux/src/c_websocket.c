@@ -1469,6 +1469,8 @@ PRIVATE BOOL select_subprotocol(hgobj gobj, const char *offered, char *selected,
 
 /***************************************************************************
  *  Got the request: analyze it and send the response.
+ *  TODO why don't return a negative error internal code?
+ *      So the caller can log the reason
  ***************************************************************************/
 PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
 {
@@ -1833,6 +1835,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 /*
                  * request refused! Drop connection. The peer was told why
                  * (a 400 with the reason); this side says it too.
+                 * TODO but here the reason is not logged
                  */
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
