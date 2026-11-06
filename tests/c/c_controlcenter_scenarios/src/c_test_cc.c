@@ -1434,8 +1434,10 @@ PRIVATE int ghost_connects(hgobj gobj)
                 "ievent_gate_stack",
                     "host", GHOST_HOST
     );
+    json_t *identity_card = json_incref(json_object_get(kw_srv, "identity_card"));
     hgobj srv = gobj_create("agent-2", C_IEVENT_SRV, kw_srv, priv->ghost_channel);
     if(!srv) {
+        JSON_DECREF(identity_card)
         return fail(gobj, "ghost_connects", "cannot create the C_IEVENT_SRV");
     }
     gobj_set_bottom_gobj(srv, priv->ghost_wire);
@@ -1443,9 +1445,72 @@ PRIVATE int ghost_connects(hgobj gobj)
     gobj_change_state(srv, ST_SESSION);
 
     gobj_send_event(priv->cc, EV_ON_OPEN,
-        json_pack("{s:{s:I}}", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)priv->ghost_channel),
+        json_pack("{s:{s:I}, s:o}",
+            "__temp__", "channel_gobj", (json_int_t)(uintptr_t)priv->ghost_channel,
+            "identity_card", identity_card
+        ),
         priv->input_side
     );
+    return 0;
+}
+
+/***************************************************************************
+ *  0. Two agents with one uuid. A copy of the agent of AGENT_HOST, on
+ *      another host, opens its session: an ERROR (the expected logs). The
+ *      same uuid from the same host (a link that came back before its old
+ *      session closed) says nothing. Both are gone before the cases below.
+ ***************************************************************************/
+PRIVATE hgobj open_agent_session(hgobj gobj, const char *name, const char *uuid, const char *host)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char wire_name[NAME_MAX];
+    snprintf(wire_name, sizeof(wire_name), "%s-wire", name);
+    hgobj channel = create_peer(name, priv->input_side);
+    hgobj wire = create_peer(wire_name, channel);
+
+    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:{s:s, s:{s:[{s:s}]}}}",
+        "client_yuno_role", "yuneta_agent",
+        "client_yuno_name", host,
+        "client_yuno_service", "agent",
+        "identity_card",
+            "id", uuid,
+            "__md_iev__",
+                "ievent_gate_stack",
+                    "host", host
+    );
+    json_t *identity_card = json_incref(json_object_get(kw_srv, "identity_card"));
+    hgobj srv = gobj_create(name, C_IEVENT_SRV, kw_srv, channel);
+    if(!srv) {
+        JSON_DECREF(identity_card)
+        fail(gobj, "open_agent_session", "cannot create the C_IEVENT_SRV");
+        return 0;
+    }
+    gobj_set_bottom_gobj(srv, wire);
+    gobj_start(srv);
+    gobj_change_state(srv, ST_SESSION);
+
+    gobj_send_event(priv->cc, EV_ON_OPEN,
+        json_pack("{s:{s:I}, s:o}",
+            "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel,
+            "identity_card", identity_card
+        ),
+        priv->input_side
+    );
+    return channel;
+}
+
+PRIVATE int test_twin_agents(hgobj gobj)
+{
+    hgobj again = open_agent_session(gobj, "agent-again", "uuid-" AGENT_HOST, AGENT_HOST);
+    hgobj copy = open_agent_session(gobj, "agent-copy", "uuid-" AGENT_HOST, AGENT_HOST "-copy");
+    if(!copy || !again) {
+        return -1;  // Error already logged
+    }
+    gobj_stop_tree(copy);
+    gobj_destroy(copy);
+    gobj_stop_tree(again);
+    gobj_destroy(again);
     return 0;
 }
 
@@ -2593,6 +2658,7 @@ PRIVATE int run_tests(hgobj gobj)
         return -1;
     }
 
+    result += test_twin_agents(gobj);
     result += test_save_scenario_as_string(gobj, client1);
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);

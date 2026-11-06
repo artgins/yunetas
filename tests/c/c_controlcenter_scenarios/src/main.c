@@ -252,6 +252,7 @@ PRIVATE const char *expected_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)",   // 0: the copy, not the same host
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer for a web client that is gone, dropped: its channel holds another connection now",
