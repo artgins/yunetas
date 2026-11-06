@@ -135,7 +135,11 @@ application's gate (one application).
   portable form of the matrix option. Not urgent while every node is ours.
 
 - **The node uuid when its recorded source disappears** (`yuneta-node-uuid`,
-  after 7.29.1). Seven cases left as they are:
+  after 7.29.1). The cases left as they are:
+    - a box whose only identifier is a placeholder (7.30.3: a uuid made from
+      one is replaced when the box has a real identifier) keeps the uuid of
+      the placeholder, with a warning at each `ensure`: every box of its
+      model with no other identifier claims the same one, until `set`;
     - a node whose recorded source is missing while another is present (an
       ethernet-mac node that sees no NIC at one boot but has DMI or a
       devicetree; a disk imaged from a box with real DMI onto one whose DMI

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v7.30.3 (2026-11-06)
+
+A light release: two nodes with one node uuid. Only the `controlcenter` is deployed;
+`yuneta-node-uuid` reaches a packaged node with its package, and was installed by hand
+on the two boards that had the problem. The tests of the change ran on the dev machine
+(`test-yuneta-node-uuid.sh`, 165 checks, and `test_c_controlcenter_scenarios`), not the
+whole suite, and no performance study was made: nothing here is on a hot path, and the
+next study, against 7.30.0, covers it.
+
 - **`yuneta-node-uuid` no longer takes the devicetree serial `0123456789ABCDEF` for an
   identity.** It is a placeholder that every Orange Pi RV2 gives, so every board of the
   model got the same node uuid, installed apart or written from a copied SD card, and
@@ -18,7 +27,7 @@
   (*"Two agents with the same node uuid on other hosts"*): `command-agent` and the
   scenarios reach a node by its uuid, so they reached the first of the two in silence.
   The same host is not reported (a link that came back before the old session closed).
-
+  `test_c_controlcenter_scenarios` checks both.
 - **`gobj_change_parent()` leaves `gobj.h`.** It was declared in C and never implemented:
   a caller did not link, and nobody called it. The one in gobj-js stays.
 
