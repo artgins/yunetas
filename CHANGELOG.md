@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`yuneta-node-uuid` no longer takes the devicetree serial `0123456789ABCDEF` for an
+  identity.** It is a placeholder that every Orange Pi RV2 gives, so every board of the
+  model got the same node uuid, installed apart or written from a copied SD card, and
+  the central of an application took two controllers for one. And a uuid already made
+  from a placeholder is now replaced when the box has a real identifier (on the RV2 its
+  SoC serial), with a copy of the old file and a warning: up to now it was kept, so that
+  no change of the placeholder list moved a node, but a placeholder is the same on every
+  box of the model. **A node whose uuid came from a placeholder gets a new uuid at the
+  next agent start**: restart both agents and every yuno, and register the node again
+  where its uuid is a key. With no other identifier the uuid is kept, with a warning at
+  each start (`test-yuneta-node-uuid.sh`).
 - **`gobj_change_parent()` leaves `gobj.h`.** It was declared in C and never implemented:
   a caller did not link, and nobody called it. The one in gobj-js stays.
 

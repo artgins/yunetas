@@ -387,6 +387,21 @@ works, but a reinstall gives it a new identity. A uuid already stored is
 kept while the hardware still gives it (a network card added later does not
 move it). See [`node_uuid()`](api/helpers/misc.md#node_uuid).
 
+A value that the script knows as a placeholder is not an identity, because
+all the boxes of the model give it. Example: the devicetree `serial-number`
+of an Orange Pi RV2 is `0123456789ABCDEF` on every board, so up to 7.30.2 two
+of these boards got the same uuid. A uuid made from a placeholder is replaced
+when the box has a real identifier (here the SoC serial): `ensure` keeps a
+copy of the old file and logs a warning. Restart both agents and every yuno
+after that (see below). If the box has no other identifier, the uuid is kept
+and `ensure` logs a warning at each start.
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-node-uuid show
+# hardware: devicetree-serial gives the stored uuid from a placeholder, no identity: ensure replaces it with soc-serial -> 08741cd6-...
+sudo /usr/libexec/yuneta/yuneta-node-uuid ensure
+```
+
 In a container `random` is correct: its `/sys` is the host's, so no hardware
 is read there. The uuid belongs to the container's hostname, which the file
 records: a restart of the container keeps it, and a container with another

@@ -65,6 +65,11 @@ set_dt_serial() {
     printf '%s\000' "$1" > "${YUNETA_NODE_UUID_SYSROOT}/sys/firmware/devicetree/base/serial-number"
 }
 
+set_soc_serial() {
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/sys/devices/soc0"
+    printf '%s\n' "$1" > "${YUNETA_NODE_UUID_SYSROOT}/sys/devices/soc0/serial_number"
+}
+
 add_nic() {    # name mac addr_assign_type [usb]
     local d="${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1"
     local dev="${YUNETA_NODE_UUID_SYSROOT}/devices/platform/$1"
@@ -164,17 +169,57 @@ for ph in 03000200-0400-0500-0006-000700080009 00020003-0004-0005-0006-000700080
 done
 
 #
-#   ... but a uuid a node already derived from it is kept: no change of the
-#   placeholder list moves a node already deployed
+#   A uuid a node already derived from a placeholder is no identity: every
+#   box of the model gives it. Replaced when the box has a real identifier,
+#   with a copy and a warning ...
 #
+derive() {    # source value
+    bash -c 'source <(sed -n "/^derive_uuid()/,/^}/p" "$1"); derive_uuid "$2" "$3"' _ "$SCRIPT" "$1" "$2"
+}
 reset
 set_dmi "00020003-0004-0005-0006-000700080009"
 add_nic eth0 "aa:bb:cc:00:00:01" 0
-old_ph="$(bash -c 'source <(sed -n "/^derive_uuid()/,/^}/p" "$1"); derive_uuid dmi-product-uuid 00020003-0004-0005-0006-000700080009' _ "$SCRIPT")"
+old_ph="$(derive dmi-product-uuid 00020003-0004-0005-0006-000700080009)"
 write_file "$old_ph" "dmi-product-uuid"
+check "placeholder already used: show says ensure replaces it" \
+    "$("$SCRIPT" show 2>&1 | grep -c 'placeholder, no identity: ensure replaces it')" "1"
+out="$("$SCRIPT" ensure 2>&1)"
+check "placeholder already used, a MAC: replaced" "$(field uuid)" "0a0b2a12-f785-832a-99d3-758caac6dfdd"
+check "placeholder already used, a MAC: source" "$(field source)" "ethernet-mac"
+check "placeholder already used, a MAC: old file kept" "$(backups)" "1"
+check "placeholder already used, a MAC: says it" "$(echo "$out" | grep -c 'from a placeholder')" "1"
+
+#
+#   ... and kept, with a warning, when it has none
+#
+reset
+set_dmi "00020003-0004-0005-0006-000700080009"
+write_file "$old_ph" "dmi-product-uuid"
+out="$("$SCRIPT" ensure 2>&1)"
+check "placeholder already used, nothing else: kept" "$(field uuid)" "$old_ph"
+check "placeholder already used, nothing else: no copy" "$(backups)" "0"
+check "placeholder already used, nothing else: warns" "$(echo "$out" | grep -c 'other boxes of this model')" "1"
+
+#
+#   Orange Pi RV2: the devicetree serial-number is "0123456789ABCDEF" on
+#   every board, the SoC serial is the board's. Two boards of an SD copied
+#   from one, both with the uuid of the placeholder, each get their own
+#
+for soc in 005A4666E59CC606 0059D968E58BD119; do
+    reset
+    set_dt_serial "0123456789ABCDEF"
+    set_soc_serial "$soc"
+    add_nic end0 "c0:74:2b:fb:11:76" 0
+    write_file "$(derive devicetree-serial 0123456789abcdef)" "devicetree-serial"
+    run ensure
+    check "rv2 $soc: source" "$(field source)" "soc-serial"
+    check "rv2 $soc: uuid of its soc serial" "$(field uuid)" "$(derive soc-serial "$(echo "$soc" | tr '[:upper:]' '[:lower:]')")"
+done
+reset
+set_dt_serial "0123456789ABCDEF"
+set_soc_serial "005A4666E59CC606"
 run ensure
-check "placeholder already used: uuid kept" "$(field uuid)" "$old_ph"
-check "placeholder already used: source kept" "$(field source)" "dmi-product-uuid"
+check "rv2, first start: source" "$(field source)" "soc-serial"
 
 #
 #   The MAC: the lowest permanent on-board one

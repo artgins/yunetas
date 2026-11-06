@@ -45,8 +45,14 @@
 #
 #   A uuid already stored is KEPT whenever this hardware still gives it:
 #
-#     - the recorded source still gives the value it was made from, even a
-#       value this script now takes for a placeholder;
+#     - the recorded source still gives the value it was made from. A
+#       value this script takes for a placeholder is no identity: every box
+#       of the model gives it (the devicetree serial-number of an Orange Pi
+#       RV2 is "0123456789ABCDEF" on every board), so two boxes, cloned or
+#       installed apart, would claim the same uuid. A uuid made from one is
+#       REPLACED when the box has a real identifier (a copy of the old file
+#       and a warning), and kept, with a warning at each ensure, when it has
+#       none;
 #     - ethernet-mac: ANY interface of the box gives it, not only the lowest
 #       (a card added with a lower MAC does not move the node), and the file
 #       records the uuid each interface of the box gives ("ethernet_ids",
@@ -190,6 +196,7 @@ is_placeholder() {
     case "$v" in
         none|unknown|n/a|na|null|default|defaultstring|notspecified|notapplicable|\
         tobefilledbyo.e.m.|systemserialnumber|0123456789|123456789|1234567890|\
+        0123456789abcdef|\
         03000200-0400-0500-0006-000700080009|00020003-0004-0005-0006-000700080009)
             # The last two: one placeholder uuid, as SMBIOS 2.6+ and older
             # versions store its first three fields (byte order)
@@ -694,6 +701,19 @@ hardware_gives() {
 }
 
 #
+#   The same, from a value that is an identity: a placeholder does not count
+#
+identity_gives() {
+    local uuid="$1" source="$2" v
+    for v in $(hw_values "$source"); do
+        if [ "$(derive_uuid "$source" "$v")" = "$uuid" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+#
 #   Is any interface recorded for this box present now?
 #
 known_interface_present() {
@@ -759,7 +779,7 @@ RESTART_NOTE="the agents and the yunos running keep the old one until they resta
 cmd_ensure() {    # installing(0|1)
     local installing="$1"
     local stored_uuid stored_source stored_ids stored_created stored_host ids_now merged picked src val new ids
-    local container host_now pidns_now replaced="" replaced_container=""
+    local container host_now pidns_now replaced="" replaced_container="" from_placeholder=0
     container="$(hw_values container)"
     host_now="$(hw_values hostname)"
     pidns_now="$(hw_values pidns)"
@@ -804,7 +824,15 @@ cmd_ensure() {    # installing(0|1)
             return 0
         fi
     elif [ -n "$stored_uuid" ] && hardware_gives "$stored_uuid" "$stored_source"; then
-        return 0
+        if identity_gives "$stored_uuid" "$stored_source"; then
+            return 0
+        fi
+        #   Made from a placeholder: every box of the model gives it
+        if ! pick_hardware "$stored_source" >/dev/null; then
+            log_warning "node uuid $stored_uuid kept, but it comes from a placeholder $stored_source that other boxes of this model give too, and this box has no other identifier: if it is a copy of another, give it its own (yuneta-node-uuid set <uuid>)"
+            return 0
+        fi
+        from_placeholder=1
     fi
 
     if picked="$(pick_hardware "$stored_source")"; then
@@ -823,6 +851,8 @@ cmd_ensure() {    # installing(0|1)
         write_uuid_file "$new" "$src" "$ids" "" 1 || return 1
         if [ -z "$stored_uuid" ]; then
             log_info "node uuid $new, from $src"
+        elif [ "$from_placeholder" = "1" ]; then
+            log_warning "node uuid was $stored_uuid, from a placeholder $stored_source that every box of this model gives (no identity: copies and other boxes claim it too): now $new from $src; $RESTART_NOTE"
         elif [ "$stored_source" = "$src" ]; then
             log_warning "node uuid was $stored_uuid, from $src of OTHER hardware (a cloned disk or image): now $new; $RESTART_NOTE"
         else
@@ -893,7 +923,13 @@ cmd_show() {
         return 0
     fi
     if [ -n "$stored_uuid" ] && hardware_gives "$stored_uuid" "$stored_source"; then
-        echo "hardware: $stored_source of this box gives the stored uuid"
+        if identity_gives "$stored_uuid" "$stored_source"; then
+            echo "hardware: $stored_source of this box gives the stored uuid"
+        elif picked="$(pick_hardware "$stored_source")"; then
+            echo "hardware: $stored_source gives the stored uuid from a placeholder, no identity: ensure replaces it with ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
+        else
+            echo "hardware: $stored_source gives the stored uuid from a placeholder, no identity, and there is no other identifier: kept"
+        fi
         return 0
     fi
     if picked="$(pick_hardware "$stored_source")"; then
