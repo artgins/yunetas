@@ -212,6 +212,7 @@ PRIVATE int run_agent_disconnected(hgobj gobj, hgobj channel);
 PRIVATE hgobj channel_of_side(hgobj side, hgobj g);
 PRIVATE json_int_t connection_number(hgobj channel);
 PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
+PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card);
 PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src);
 PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
 PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv);
@@ -2972,6 +2973,53 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
 }
 
 /***************************************************************************
+ *  Two nodes with one uuid: an agent that opens its session with the uuid
+ *  of another agent in session, from another host. A copy of a node's disk
+ *  does it, and so does a board whose hardware gives every board of its
+ *  model the same identifier. command-agent and the scenarios reach a node
+ *  by its uuid, and they would reach the first of the two. The same host
+ *  is not reported: it is a node whose link came back before its old
+ *  session was seen to close.
+ ***************************************************************************/
+PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *id = kw_get_str(gobj, identity_card, "id", "", 0);
+    const char *host = kw_get_str(gobj, identity_card, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+    if(empty_string(id)) {
+        return;
+    }
+
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", C_IEVENT_SRV,
+        "__state__", ST_SESSION
+    );
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
+        const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
+        const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+        if(strcmp(id_, id)==0 && strcmp(host_, host)!=0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)",
+                "uuid",         "%s", id,
+                "hostname",     "%s", host,
+                "hostname2",    "%s", host_,
+                NULL
+            );
+            break;
+        }
+    }
+    gobj_free_iter(dl_children);
+}
+
+/***************************************************************************
  *  Send the step the run is at to its node's agent, marked in __md_iev__
  *  with the run and the step: its answer comes back to this gobj
  *  (ac_command_yuno_answer -> run_step_answered), carrying the user who
@@ -4424,6 +4472,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
     if(src == priv->gobj_input_side) {
+        report_twin_agents(gobj, kw_get_dict(gobj, kw, "identity_card", 0, 0));
         retry_stops_waiting_node(gobj);
     }
 

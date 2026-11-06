@@ -25,6 +25,12 @@ The remote URL is assembled as
 connect so that control-plane access survives even if one of them is down or
 being upgraded (the two agents upgrade each other, never both at once).
 
+A node is known by its node uuid, and `command-agent` reaches the first agent
+with it. An agent that opens its session with the uuid of an agent in session
+from another host (a copy of a node's disk) is logged as an ERROR:
+*"Two agents with the same node uuid on other hosts"*. Give the copy its own
+uuid with `yuneta-node-uuid`.
+
 ## Commands
 
 Registered in the `command_table` of `src/c_controlcenter.c`:

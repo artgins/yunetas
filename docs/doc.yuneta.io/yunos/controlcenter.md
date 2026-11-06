@@ -49,6 +49,26 @@ The secondary [`yuneta_agent22`](yuneta_agent22.md) dials its own endpoint,
 default `yunetacontrol.ovh:1995` (port **1995**), and additionally exposes
 remote PTY consoles that the control center drives with `write-tty`.
 
+### One node, one uuid
+
+A node is known by its node uuid (the `id` of its agent's identity card), and
+`command-agent`, `stats-agent` and the scenarios reach a node by it. Two
+agents with the same uuid are taken for one node: the first one found gets
+the command. A copy of a node's disk gives the same uuid, and so does a board
+whose hardware gives every board of its model the same identifier. When an
+agent opens its session with the uuid of an agent in session from **another**
+host, the control center logs an ERROR (7.30.3+):
+
+```
+Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)
+    uuid: 8d984d10-be71-8950-ad7a-51196f35b774, hostname: board-b, hostname2: board-a
+```
+
+The same host is not reported: that is a node whose link came back before its
+old session was seen to close. To give the copy its own uuid, see
+[`node_uuid()`](../api/helpers/misc.md#node_uuid) (`yuneta-node-uuid show` / `ensure` /
+`set`), then restart both agents and every yuno of the node.
+
 ## Reaching nodes through the control center (ycommand)
 
 The control center exposes two gates (defined in its realm config, not in the

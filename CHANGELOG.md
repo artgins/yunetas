@@ -13,6 +13,12 @@
   next agent start**: restart both agents and every yuno, and register the node again
   where its uuid is a key. With no other identifier the uuid is kept, with a warning at
   each start (`test-yuneta-node-uuid.sh`).
+- **The `controlcenter` says two nodes with one uuid.** An agent that opens its session
+  with the node uuid of an agent in session from another host is logged as an ERROR
+  (*"Two agents with the same node uuid on other hosts"*): `command-agent` and the
+  scenarios reach a node by its uuid, so they reached the first of the two in silence.
+  The same host is not reported (a link that came back before the old session closed).
+
 - **`gobj_change_parent()` leaves `gobj.h`.** It was declared in C and never implemented:
   a caller did not link, and nobody called it. The one in gobj-js stays.
 
