@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v7.30.12 (2026-11-08)
+
+A light release of the control center, after a security review of 7.30.11.
+
 - **Nothing of an unauthenticated agent is written; `accept-node` needs the
   key.** 7.30.11 recorded a node `pending` from the authentication of an
   agent that presented a key not accepted and no token. That agent is not
