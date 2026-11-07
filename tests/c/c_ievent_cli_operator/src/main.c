@@ -135,6 +135,14 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'tranger_path': '" STORE "',                        \n\
                 'master': true,                                     \n\
+                'initial_load': {                                   \n\
+                    'users': [                                      \n\
+                        {                                           \n\
+                            'id': 'bob@example.com',                \n\
+                            'disabled': true                        \n\
+                        }                                           \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'jwks': [                                           \n\
                     {                                               \n\
                         'kid': 'https://idp.test.example/realms/test', \n\
@@ -204,7 +212,7 @@ int token_logged = 0;
 
 static int token_log_write(void *v, int priority, const char *bf, size_t len)
 {
-    for(int i=0; i<6; i++) {
+    for(int i=0; i<7; i++) {
         if(test_tokens[i] && memmem(bf, len, test_tokens[i], strlen(test_tokens[i]))) {
             token_logged++;
         }
@@ -234,11 +242,12 @@ static int register_yuno_and_more(void)
     json_t *errors_list = json_array();
 #else
     /*  Strict FIFO: one warning per request whose operator is refused  */
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Request of the server refused: its operator is not verified",   // another key
         "msg", "Request of the server refused: its operator is not verified",   // expired
         "msg", "Request of the server refused: its operator is not verified",   // email not verified
-        "msg", "Request of the server refused: its operator is not verified"    // not a string
+        "msg", "Request of the server refused: its operator is not verified",   // not a string
+        "msg", "Request of the server refused: its operator is not verified"    // a disabled user
     );
 #endif
     set_expected_results(

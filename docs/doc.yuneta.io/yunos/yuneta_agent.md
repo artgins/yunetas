@@ -146,7 +146,10 @@ its email; a command with no token (a scenario's step) is of the principal
 }
 ```
 
-See [`C_IEVENT_CLI`](#gclass-c-ievent-cli). See [`controlcenter`](controlcenter.md) for the operator side.
+See [`C_IEVENT_CLI`](#gclass-c-ievent-cli). **The control center does not send
+the token yet** (its `send_operator_jwt` is off): a login token handed to an
+agent could be replayed in the control center; it waits for a token bound to
+one agent. See [`controlcenter`](controlcenter.md) for the operator side.
 
 ## Audit files
 

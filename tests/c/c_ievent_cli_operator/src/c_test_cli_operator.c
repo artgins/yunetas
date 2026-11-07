@@ -17,8 +17,8 @@
  *          C_WEBSOCKET -> C_TCP, no C_IEVENT_SRV) whose frames this gclass
  *          writes by hand. Its identity card must say
  *          `knows_operator_identity` (the controlcenter gives the token only
- *          to such an agent). Then the ACK, and six commands `whoami` to
- *          this service, each saying `__username__` liar@example.com:
+ *          to such an agent). Then the ACK, and seven commands `whoami` to
+ *           this service, each saying `__username__` liar@example.com:
  *
  *              0. a good token of alice@example.com
  *              1. a token signed with another key
@@ -26,17 +26,19 @@
  *              3. a token whose email is not verified
  *              4. no token
  *              5. a token that is not a string
+ *              6. a good token of bob@example.com, a user of this yuno's
+ *                 authz that is disabled
  *
  *          With verify_operator (test_c_ievent_cli_operator): 0 is run as
  *          alice@example.com, 4 as the service principal
- *          (the-controlcenter), and 1, 2, 3 and 5 are answered with an
+ *          (the-controlcenter), and 1, 2, 3, 5 and 6 are answered with an
  *          error and never reach the command (ONE warning each). Without it
- *          (OPERATOR_UNVERIFIED): the six are run as liar@example.com, as
+ *          (OPERATOR_UNVERIFIED): the seven are run as liar@example.com, as
  *          up to 7.30.5. In both, no command sees the token, and no log
  *          line carries one (main.c looks for them in every line).
  *
- *          The six answers come back to the raw server, in order; the
- *          sixth ends the test.
+ *          The seven answers come back to the raw server, in order; the
+ *          seventh ends the test.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -49,10 +51,11 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define N_REQUESTS  6
+#define N_REQUESTS  7
 #define TEST_ISS    "https://idp.test.example/realms/test"
 #define LIAR        "liar@example.com"
 #define ALICE       "alice@example.com"
+#define BOB         "bob@example.com"     // a user of the authz, disabled
 #define PRINCIPAL   "the-controlcenter"
 
 /*
@@ -343,7 +346,7 @@ PRIVATE int send_frame(hgobj gobj, hgobj channel, gobj_event_t event, json_t *kw
 }
 
 /***************************************************************************
- *  The ACK, and the six requests
+ *  The ACK, and the seven requests
  ***************************************************************************/
 PRIVATE int send_requests(hgobj gobj, hgobj channel)
 {
@@ -361,13 +364,14 @@ PRIVATE int send_requests(hgobj gobj, hgobj channel)
     test_tokens[1] = make_token(OTHER_JWK, ALICE, TRUE, 3600);
     test_tokens[2] = make_token(GOOD_JWK, ALICE, TRUE, -3600);
     test_tokens[3] = make_token(GOOD_JWK, ALICE, FALSE, 3600);
+    test_tokens[6] = make_token(GOOD_JWK, BOB, TRUE, 3600);
 
     for(int i=0; i<N_REQUESTS; i++) {
         json_t *kw_command = frame_kw("__command__");
         json_object_set_new(kw_command, "service", json_string(gobj_name(gobj)));
         json_object_set_new(kw_command, "__command__", json_string("whoami"));
         json_object_set_new(kw_command, "__username__", json_string(LIAR));
-        if(i < 4 && test_tokens[i]) {
+        if((i < 4 || i == 6) && test_tokens[i]) {
             json_object_set_new(kw_command, "__operator_jwt__", json_string(test_tokens[i]));
         } else if(i == 5) {
             json_object_set_new(kw_command, "__operator_jwt__", json_integer(5));
@@ -410,7 +414,7 @@ PRIVATE void check_answers(hgobj gobj)
     }
 
 #ifdef OPERATOR_UNVERIFIED
-    check(gobj, "unverified: the six requests ran", json_array_size(priv->jn_ran) == N_REQUESTS);
+    check(gobj, "unverified: the seven requests ran", json_array_size(priv->jn_ran) == N_REQUESTS);
     json_array_foreach(priv->jn_ran, idx, jn_ran) {
         check(gobj, "unverified: each as the __username__ the server says",
             strcmp(kw_get_str(gobj, jn_ran, "username", "", 0), LIAR)==0);
@@ -425,7 +429,7 @@ PRIVATE void check_answers(hgobj gobj)
             strcmp(kw_get_str(gobj, json_array_get(priv->jn_ran, 1), "username", "", 0), PRINCIPAL)==0);
     }
 
-    const int refused[N_REQUESTS] = {0, 1, 1, 1, 0, 1};
+    const int refused[N_REQUESTS] = {0, 1, 1, 1, 0, 1, 1};
     json_t *jn_answer;
     json_array_foreach(priv->jn_answers, idx, jn_answer) {
         int result = (int)kw_get_int(gobj, jn_answer, "result", 0, 0);

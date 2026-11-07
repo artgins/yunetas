@@ -16,7 +16,7 @@ One yuno holds a real `C_IEVENT_CLI` (over `C_IOGATE` -> `C_CHANNEL` ->
 `/tmp/test_c_ievent_cli_operator`), and a raw websocket server on
 `ws://127.0.0.1:7891` whose frames the test writes by hand. The client's
 identity card must say `knows_operator_identity`. The server answers it with
-the ACK and six commands `whoami` to the tester, each saying `__username__`
+the ACK and seven commands `whoami` to the tester, each saying `__username__`
 *liar@example.com*:
 
 0. a good token of *alice@example.com*;
@@ -24,19 +24,21 @@ the ACK and six commands `whoami` to the tester, each saying `__username__`
 2. an expired token;
 3. a token whose email is not verified;
 4. no token;
-5. a token that is not a string.
+5. a token that is not a string;
+6. a good token of *bob@example.com*, a user of the `C_AUTHZ` that is
+   disabled (seeded in its `initial_load`).
 
 - `test_c_ievent_cli_operator` (`verify_operator: true`): request 0 runs as
-  *alice@example.com*, request 4 as *the-controlcenter*; 1, 2, 3 and 5 never
+  *alice@example.com*, request 4 as *the-controlcenter*; 1, 2, 3, 5 and 6 never
   reach the command, are answered with an error that names the operator
   (*"Token failed verification"*, *"Token has expired"*, *"Email not
-  verified"*, *"not a string"*), and are ONE warning each, *"Request of the
+  verified"*, *"not a string"*, *"User disabled"*), and are ONE warning each, *"Request of the
   server refused: its operator is not verified"*.
 - `test_c_ievent_cli_operator_unverified` (`OPERATOR_UNVERIFIED`, port 7892,
-  `verify_operator: false`): the six run as *liar@example.com*.
+  `verify_operator: false`): the seven run as *liar@example.com*.
 
 In both, no command sees `__operator_jwt__`, and no log line carries a token
-(`main.c` looks for each of them in every line). The sixth answer ends the
+(`main.c` looks for each of them in every line). The seventh answer ends the
 test.
 
 A `C_AUTHZ` opens its treedb, and loads its `jwks`, only when its

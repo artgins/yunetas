@@ -4923,13 +4923,16 @@ PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
  *  "comment": "<why>"}: the caller says the refusal (it knows who sent the
  *  token); nothing here writes the token anywhere.
  *
- *  The checks of a jwt in mt_authenticate(), without what is of a login
- *  (the session, its count, EV_AUTHZ_USER_LOGIN): for a token that comes
+ *  The checks of a jwt in mt_authenticate() (and a user of this yuno that
+ *  is disabled is refused), without what is of a login (the session, its
+ *  count, EV_AUTHZ_USER_LOGIN, a user it does not hold): for a token that comes
  *  with each request, as the one of the operator of a command that a
  *  controlcenter forwards to an agent (C_IEVENT_CLI `verify_operator`).
  ***************************************************************************/
 PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *jwt = kw_get_str(gobj, kw, "jwt", "", 0);
     if(empty_string(jwt)) {
         KW_DECREF(kw)
@@ -4957,6 +4960,23 @@ PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgob
         refusal = "Email not verified";
     } else if(!strchr(username, '@')) {
         refusal = "Username must be an email address";
+    } else if(priv->gobj_treedb) {
+        /*
+         *  A user of this yuno that is disabled is refused, as at a login.
+         *  A user it does not hold is an identity all the same: what it may
+         *  do is the business of its roles, asked later.
+         */
+        json_t *user = gobj_get_node(
+            priv->gobj_treedb,
+            "users",
+            json_pack("{s:s}", "id", username),
+            0,
+            gobj
+        );
+        if(user && kw_get_bool(gobj, user, "disabled", 0, 0)) {
+            refusal = "User disabled";
+        }
+        JSON_DECREF(user)
     }
 
     json_t *jn_resp;

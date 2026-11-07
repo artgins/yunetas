@@ -633,7 +633,10 @@ carried the operator's `__username__`.
 > the controlcenter sends the operator's own token (`__operator_jwt__`) and
 > the agent verifies it against its `authz.jwks`, taking the token's email as
 > `__username__`; a request with no token is of `service_principal`
-> (`controlcenter` on the agents), a bad token is refused. Off by default.
+> (`controlcenter` on the agents), a bad token is refused. Off by default, and
+> the controlcenter does not send the token yet (`send_operator_jwt` off): a
+> login token handed to an agent could be replayed in the controlcenter, so it
+> waits for a token bound to one agent (an audience per node).
 
 ---
 

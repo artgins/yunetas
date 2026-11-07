@@ -65,6 +65,12 @@ controlcenter, switched on from the agent's json file:
 
 with, in the agent's `main.c`, `'service_principal': 'controlcenter'`.
 
+**The controlcenter does not send the token yet** (`send_operator_jwt`, off):
+the operator's token is a login token, valid in the controlcenter too, so an
+agent that held it -- a node taken, or a peer that only says
+`knows_operator_identity` -- could replay it there as the operator. It waits
+for a token bound to one agent (an audience per node, minted by the IdP).
+
 ### Stopping with remote subscriptions open
 
 `gobj_stop()` closes the transport, but the FSM stays in `ST_SESSION` until

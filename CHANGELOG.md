@@ -16,7 +16,16 @@
   of `service_principal` (`controlcenter` in the agents' `main.c`: a step of a
   scenario, a local client without a jwt), and a bad token is refused: a
   command or a stats is answered with the reason, ONE warning. Switched on per
-  node with `"global": {"controlcenter.verify_operator": true}`.
+  node with `"global": {"controlcenter.verify_operator": true}`. A user of the
+  agent's authz that is disabled is refused too.
+  **The controlcenter does not send the token yet**: its new
+  `send_operator_jwt` is off by default and is not to be switched on. The
+  operator's token is a login token, valid in the controlcenter too, so a
+  node that held it -- one taken, or a peer that only says
+  `knows_operator_identity` -- could replay it there as the operator and
+  reach every node: worse than believing the controlcenter. It waits for a
+  token bound to one agent (an audience per node, minted by the IdP). Found by
+  a security review of the first version, which sent it.
   `test_c_ievent_cli_operator` (+ `_unverified`): red with the old code (the
   token reached the command, the bad tokens ran).
 

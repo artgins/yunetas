@@ -373,6 +373,7 @@ SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second (write 0 to start again)"),
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
+SDATA (DTP_BOOLEAN,     "send_operator_jwt",SDF_RD,         "0",        "Send the operator's token with the commands to the agents that take it (C_IEVENT_CLI verify_operator). OFF: an agent holding the token of an operator can replay it here, where it is valid; not to be switched on before the token is bound to one agent"),
 SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
 SDATA (DTP_BOOLEAN,     "drops_timer_armed",SDF_RD,             "0",        "A capped warning has a count to say when its window ends"),
 
@@ -3437,9 +3438,19 @@ PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src)
  *  given it: it would hand it to its command, and its audit would keep a
  *  credential. A request with no operator's session (a step of a scenario,
  *  a local client without a jwt) goes without one.
+ *
+ *  Only with `send_operator_jwt`, OFF by default and not to be switched on
+ *  yet: the token is the operator's login token, valid in THIS controlcenter
+ *  too, so an agent that holds it (a node taken, or a peer that only says
+ *  `knows_operator_identity`) could replay it here as the operator, and
+ *  reach every node. It needs a token bound to the one agent (an audience
+ *  per node, minted by the IdP) before it is of any use.
  ***************************************************************************/
 PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_channel)
 {
+    if(!gobj_read_bool_attr(gobj, "send_operator_jwt")) {
+        return kw_incref(kw);
+    }
     json_t *jn_agent_card = gobj_read_json_attr(agent_channel, "identity_card");
     if(!kw_get_bool(gobj, jn_agent_card, "knows_operator_identity", FALSE, 0)) {
         return kw_incref(kw);
