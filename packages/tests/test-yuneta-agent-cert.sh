@@ -203,6 +203,16 @@ check "no key: made" "$(echo "$out" | grep -c 'certificate made')" "1"
 check "no key: the certificate kept" "$(copies)" "1"
 
 #
+#   An openssl whose default config file is not there (the packaged SDK's
+#   names the directory of the machine that built it): made all the same
+#
+reset
+out="$(OPENSSL_CONF=/nonexistent/openssl.cnf run ensure)"
+check "no default config: made" "$(echo "$out" | grep -c 'certificate made')" "1"
+check "no default config: nothing left behind" \
+    "$(ls -A "$YUNETA_AGENT_CERT_DIR" | grep -c '\.new\.')" "0"
+
+#
 #   Usage
 #
 check "an unknown command: refused" "$("$SCRIPT" nonsense >/dev/null 2>&1; echo $?)" "2"

@@ -158,6 +158,7 @@ keep_a_copy() {    # file
 make_pair() {
     local tmp_key="${CERT_DIR}/.yuneta_agent.key.new.$$"
     local tmp_crt="${CERT_DIR}/.yuneta_agent.crt.new.$$"
+    local tmp_cnf="${CERT_DIR}/.yuneta_agent.cnf.new.$$"
     local san="DNS:${NAME}"
     local h
     h="$(host_name)"
@@ -169,15 +170,25 @@ make_pair() {
         validity=(-not_before 20000101000000Z -not_after 21261231235959Z)
     fi
 
-    rm -f -- "$tmp_key" "$tmp_crt"
-    if ! ( umask 077 && "$OPENSSL" req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
-            -keyout "$tmp_key" -out "$tmp_crt" \
-            -subj "/O=Yuneta/CN=${NAME}" -addext "subjectAltName=${san}" \
-            "${validity[@]}" >/dev/null 2>&1 ); then
-        rm -f -- "$tmp_key" "$tmp_crt"
-        log_error "$OPENSSL could not make the pair"
+    #   req reads a config file, by default the one of the OPENSSLDIR built
+    #   into the binary: the packaged SDK's names the directory of the machine
+    #   that built it, absent on the node. So it gets its own, all it needs.
+    rm -f -- "$tmp_key" "$tmp_crt" "$tmp_cnf"
+    if ! printf '[req]\ndistinguished_name = req_dn\n[req_dn]\n' > "$tmp_cnf"; then
+        log_error "cannot write $tmp_cnf"
         return 1
     fi
+    local err
+    if ! err="$( umask 077 && "$OPENSSL" req -config "$tmp_cnf" -x509 \
+            -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+            -keyout "$tmp_key" -out "$tmp_crt" \
+            -subj "/O=Yuneta/CN=${NAME}" -addext "subjectAltName=${san}" \
+            "${validity[@]}" 2>&1 >/dev/null )"; then
+        rm -f -- "$tmp_key" "$tmp_crt" "$tmp_cnf"
+        log_error "$OPENSSL could not make the pair: $(printf '%s' "$err" | head -n 3 | tr '\n' ' ')"
+        return 1
+    fi
+    rm -f -- "$tmp_cnf"
     if [ "$("$OPENSSL" x509 -in "$tmp_crt" -noout -pubkey 2>/dev/null)" != \
             "$("$OPENSSL" pkey -in "$tmp_key" -pubout 2>/dev/null)" ]; then
         rm -f -- "$tmp_key" "$tmp_crt"
