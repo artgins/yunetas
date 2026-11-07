@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **A node can point its agents at another controlcenter from their json file.**
+  `__output_url__` moved from the top-level `__json_config_variables__` of the
+  agents' `main.c` -- whose scope is that text, so it was replaced before the
+  json file was merged and no file could change it -- to
+  `"global": {"controlcenter.__json_config_variables__": {"__output_url__": ...}}`,
+  which is replaced when the service is created, after the merge. The input urls
+  stay at the top level: no json file can open 1991 to the network or move
+  1993. The templates `yuneta_agent.json.sample` / `yuneta_agent22.json.sample`
+  carry the new key and no top-level `__json_config_variables__` (the one of a
+  node installed before is dead config, and stays harmless). Checked on the
+  running agent: an override to port 1987 made it dial
+  `tcps://x86-64.artgins.yunetacontrol.com:1987`.
+
 ## v7.30.4 (2026-11-07)
 
 A light release for the link between the agents and the controlcenter. Only the

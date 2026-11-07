@@ -115,7 +115,23 @@ tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)
 that is, `tcps://<machine>.<node_owner>.<output_url>`, where `__output_url__`
 defaults to `yunetacontrol.com:1988` (1994 up to 7.30.3), and the link trusts
 only `/yuneta/agent/certs/controlcenter.crt`. With an empty/`none` owner the
-agent does not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
+agent does not dial out.
+
+A node points its agent at another control center from its json file
+(`/yuneta/agent/yuneta_agent.json`, 7.30.5+), with the same key the agent's
+`main.c` uses for the default:
+
+```json
+"global": {
+    "controlcenter.__json_config_variables__": {
+        "__output_url__": "yunetacontrol.com:1988"
+    }
+}
+```
+
+A top-level `__json_config_variables__` in that file changes nothing: its scope
+is the file itself, and the agent's urls are in `main.c`. The input urls
+(`ws://127.0.0.1:1991`, `wss://0.0.0.0:1993`) cannot be changed from the file. See [`controlcenter`](controlcenter.md) for the operator side.
 
 ## Audit files
 

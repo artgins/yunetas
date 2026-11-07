@@ -8,17 +8,14 @@
             }
         },
         "controlcenter.jwt": "",
+        "controlcenter.__json_config_variables__": {
+            "__output_url__": "yunetacontrol.com:1988"
+        },
         "authz.master": true,
         "authz.authz_service": "agent"
     },
 
     "environment": {
         "node_owner": "none"
-    },
-
-    "__json_config_variables__": {
-        "__input_url__":        "ws://127.0.0.1:1991",
-        "__input_secure_url__": "wss://0.0.0.0:1993",
-        "__output_url__":       "yunetacontrol.com:1988"
     }
 }

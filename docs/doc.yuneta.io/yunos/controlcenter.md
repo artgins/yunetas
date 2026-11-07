@@ -41,7 +41,7 @@ that is, **`tcps://<machine>.<node_owner>.<output_url>`** where:
 |----------|--------|---------|
 | `__sys_machine__` | `uname` machine | `x86_64` |
 | `__node_owner__` | the node's `node_owner` | `artgins` |
-| `__output_url__` | the agent's `main.c` (the `__json_config_variables__` of its json file do not reach it) | `yunetacontrol.com:1988` |
+| `__output_url__` | `"global": {"controlcenter.__json_config_variables__"}` of the agent's `main.c`, which its json file can override (7.30.5+) | `yunetacontrol.com:1988` |
 
 → `tcps://x86_64.artgins.yunetacontrol.com:1988` (TLS, default port **1988**).
 

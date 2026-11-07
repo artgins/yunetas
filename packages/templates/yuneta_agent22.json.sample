@@ -8,15 +8,14 @@
             }
         },
         "controlcenter.jwt": "",
+        "controlcenter.__json_config_variables__": {
+            "__output_url__": "yunetacontrol.ovh:1989"
+        },
         "authz.master": false,
         "authz.authz_service": "agent"
     },
 
     "environment": {
         "node_owner": "none"
-    },
-
-    "__json_config_variables__": {
-        "__output_url__": "yunetacontrol.ovh:1989"
     }
 }

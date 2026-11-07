@@ -54,21 +54,30 @@ PRIVATE char fixed_config[]= "\
  *
  *  A top-level `__json_config_variables__` has the scope of its own json
  *  text: these are replaced in THIS text when it is loaded, before the
- *  agent's json file is merged, so the urls below leave with their values
- *  already in. The json file cannot change them, neither with its own
- *  top-level `__json_config_variables__` (they reach only that file) nor
- *  with `"global": {"<service>.__json_config_variables__": ...}` (applied at
- *  the creation of the service, when no `(^^__output_url__^^)` is left).
- *  Only a variable NOT defined here survives to that second pass, as
- *  `__sys_machine__` and `__node_owner__` do. Change them here.
+ *  agent's json file is merged, so the input urls leave fixed -- no json
+ *  file can open 1991 to the network or move 1993.
+ *
+ *  `__output_url__` is in `"global"`, as
+ *  `controlcenter.__json_config_variables__`: that is replaced when the
+ *  `controlcenter` service is created, AFTER the json file is merged (a deep
+ *  merge, the file wins), so a node can point its agent at another
+ *  controlcenter with the same key in its json file:
+ *
+ *      "global": {
+ *          "controlcenter.__json_config_variables__": {
+ *              "__output_url__": "yunetacontrol.com:1988"
+ *          }
+ *      }
+ *
+ *  A top-level `__json_config_variables__` in the json file reaches only
+ *  that file: it changes nothing here.
  */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     '__json_config_variables__': {                                  \n\
         '__realm_id__': '/yuneta_agent.trdb',                       \n\
         '__input_url__': 'ws://127.0.0.1:1991',                     \n\
-        '__input_secure_url__': 'wss://0.0.0.0:1993',               \n\
-        '__output_url__': 'yunetacontrol.com:1988'                  \n\
+        '__input_secure_url__': 'wss://0.0.0.0:1993'                \n\
     },                                                              \n\
     'environment': {                                                \n\
         'realm_id': '(^^__realm_id__^^)',                           \n\
@@ -111,6 +120,9 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
+        'controlcenter.__json_config_variables__': {               \n\
+            '__output_url__': 'yunetacontrol.com:1988'                  \n\
+        },                                                          \n\
         'Authz.master': true,                                       \n\
         'Authz.authz_service': 'agent',                             \n\
         'Authz.max_sessions_per_user': 4,                           \n\

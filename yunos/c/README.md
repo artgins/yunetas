@@ -359,11 +359,24 @@ Yunos are configured via JSON files passed with `--config-file`. The JSON struct
     },
     "environment": {
         "node_owner": "artgins"
-    },
-    "__json_config_variables__": {
-        "__input_url__": "ws://0.0.0.0:1991"
     }
 }
 ```
 
 Configuration variables use `__double_underscore__` delimiters and are substituted at startup.
+**Their place decides what they reach.** A top-level `__json_config_variables__` has
+the scope of its own json text: in a yuno's `main.c` it is replaced when that
+text is loaded, and in the json file it reaches only that file. A
+`"global": {"<service>.__json_config_variables__": {...}}` is replaced when the
+service is created, after the json file is merged, so it is what a node can
+override. The agent keeps its input urls (`ws://127.0.0.1:1991`,
+`wss://0.0.0.0:1993`) at the top level of its `main.c` -- no json file can move
+them -- and its `__output_url__` in `"global"`:
+
+```json
+"global": {
+    "controlcenter.__json_config_variables__": {
+        "__output_url__": "yunetacontrol.com:1988"
+    }
+}
+```
