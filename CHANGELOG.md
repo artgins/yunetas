@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`packages/install-yuneta-agent-cert.sh` no longer runs the SDK's openssl as
+  root.** It read the agent's fingerprint with
+  `/yuneta/development/yunetas/outputs_ext/bin/openssl`, which belongs to yuneta,
+  while running as root: whoever is yuneta could replace it and run code as
+  root. It now asks the installed `yuneta-agent-cert show`, which drops to
+  yuneta before it runs any openssl. A security review; the script is not in
+  the packages, only in the source (7.30.7 carries the old one).
+
 ## v7.30.7 (2026-11-07)
 
 7.30.6 with one fix, found by a security review of its script the moment it was

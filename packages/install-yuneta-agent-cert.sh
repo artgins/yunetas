@@ -88,13 +88,12 @@ act() {
     return 0
 }
 
+#   The fingerprint, as the installed script says it: it drops to yuneta
+#   before it runs any openssl (the SDK's is yuneta's, and this runs as root:
+#   root must not run it). No script installed yet: nothing to say.
 cert_fpr() {
-    local ossl=/yuneta/development/yunetas/outputs_ext/bin/openssl
-    if [ ! -x "$ossl" ]; then
-        ossl="$(command -v openssl)"
-    fi
-    if [ -r "$CRT" ] && [ -n "$ossl" ]; then
-        "$ossl" x509 -in "$CRT" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//'
+    if [ -x "$DST" ] && [ "$(stat -c '%u' "$DST")" = "0" ]; then
+        "$DST" show 2>/dev/null | sed -n 's/.*sha256 Fingerprint=//p' | head -n1
     fi
 }
 
