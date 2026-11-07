@@ -440,8 +440,8 @@ SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second (write 0 to start again)"),
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
-SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_WR,         "0",        "Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
-SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_WR,   "1",        "Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
+SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
+SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
 SDATA (DTP_INTEGER,     "operator_assertion_lifetime",SDF_RD,"60",      "Seconds an operator assertion lives (the agents refuse one of more than their max_assertion_lifetime)"),

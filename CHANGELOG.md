@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`enforce_node_keys` and `allow_nodes_without_key` are set in the config
+  only** (`SDF_RD`). In 7.30.10 they could be written at run time, and such a
+  write was lost at the next restart: the control center went back to letting
+  in every node, and said nothing. A security review.
+
 ## v7.30.10 (2026-11-07)
 
 A light release: a node is known to its control center by its agent's own
