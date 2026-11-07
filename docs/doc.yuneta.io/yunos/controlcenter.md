@@ -67,6 +67,33 @@ Up to 7.30.3 the agents dialled **1994** / **1995** and trusted
 center keeps a listener on 1994 and 1995, with that certificate, for the
 agents of before.
 
+### The user the agents log in as
+
+An agent opens its session with a JWT of a user of the control center's
+`C_AUTHZ`. That session needs a role in the service `controlcenter`, and
+nothing more: an agent runs no command on the control center, it only sends
+answers and events. Give that user a role whose permission no command asks
+for, never `*`:
+
+```json
+{
+    "id": "agent",
+    "disabled": false,
+    "description": "A node's agent: its session with the controlcenter, and no command",
+    "realm_id": "(^^__realm_id__^^)",
+    "parent_role_id": "",
+    "service": "controlcenter",
+    "permission": "agent-session"
+}
+```
+
+Every command of an operator asks its own permission (`list-agents`,
+`command-agent`, `drop-agent`, `write-tty`, the scenario permissions). So the
+token of that user, which is on every node, opens an agent's session and
+nothing else: from the operators' port it answers *"No permission to
+'list-agents' in service 'controlcenter'"*. A role with `*` there let anybody
+who took the token from one node command every node.
+
 ### Who asks: the operator assertion (7.30.9+)
 
 When the control center forwards a command to an agent, it says who asks in
