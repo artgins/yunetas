@@ -8,9 +8,12 @@
 #   node, and its key was published with the source: whoever has it can play
 #   any node that serves it. This script makes the pair ON the node instead:
 #
-#     - no pair, or the pair of before (its certificate's sha256 is the
-#       public one below), or a key that is not the certificate's: a new
-#       pair is made here, a copy of the old files kept;
+#     - no pair, or a PUBLISHED key (the one of before, or the test key
+#       localhost.key of the source: told by the sha256 of its public key,
+#       SPKI, in the key file or in the certificate -- a certificate signed
+#       anew over a published key is still that key), or a key that is not
+#       the certificate's: a new pair is made here, a copy of the old files
+#       kept;
 #     - any other pair is the node's own: kept, whatever made it (a node
 #       whose agent serves a certificate of its own CA keeps it).
 #
@@ -48,8 +51,9 @@ CRT="${CERT_DIR}/yuneta_agent.crt"
 KEY="${CERT_DIR}/yuneta_agent.key"
 OWNER="yuneta"
 NAME="yuneta_agent.yuneta.io"
-#   sha256 of the certificate that came with the agent up to 7.30.5
-PUBLIC_FPR="47:BE:EA:44:BA:DB:F5:B6:61:57:3C:FD:2B:CE:13:83:54:C2:8F:A9:15:2A:9A:36:85:CA:EF:56:C3:49:35:F4"
+#   sha256 of the public key (SPKI, DER) of the keys published with Yuneta:
+#   the agent's up to 7.30.5, and the test key yunos/c/yuno_agent/certs/localhost.key
+PUBLIC_SPKIS="ba2ee88ae21907f48710e8bcc3b376e7d333774833bdd912c1c6cc3f0c6eeefc 89e7f3e744aa67949802f14616ecd46bdd1af70e0e213342608af8ad289e5d79"
 
 SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
 CMD="${1:-ensure}"
@@ -96,14 +100,18 @@ pair_state() {
         echo missing
         return 0
     fi
-    local fpr
-    fpr="$("$OPENSSL" x509 -in "$CRT" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')"
-    if [ -z "$fpr" ]; then
+    local spki_crt spki_key published
+    spki_crt="$("$OPENSSL" x509 -in "$CRT" -noout -pubkey 2>/dev/null \
+        | "$OPENSSL" pkey -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)"
+    spki_key="$("$OPENSSL" pkey -in "$KEY" -pubout -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)"
+    for published in $PUBLIC_SPKIS; do
+        if [ "$spki_crt" = "$published" ] || [ "$spki_key" = "$published" ]; then
+            echo public
+            return 0
+        fi
+    done
+    if ! "$OPENSSL" x509 -in "$CRT" -noout 2>/dev/null; then
         echo mismatch       # not a certificate
-        return 0
-    fi
-    if [ "$fpr" = "$PUBLIC_FPR" ]; then
-        echo public
         return 0
     fi
     local pub_crt pub_key
@@ -210,7 +218,7 @@ cmd_ensure() {
     fpr="$("$OPENSSL" x509 -in "$CRT" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')"
     case "$state" in
         public)
-            log_warning "the agent's certificate was the one published with Yuneta: replaced by this node's own (sha256 $fpr). Restart the agent, and give the clients of its port 1993 this node's $CRT"
+            log_warning "the agent's certificate was on a key published with Yuneta: replaced by this node's own (sha256 $fpr). Restart the agent, and give the clients of its port 1993 this node's $CRT"
             ;;
         mismatch)
             log_warning "the agent's key did not match its certificate: a new pair (sha256 $fpr), the old files kept"
@@ -232,7 +240,7 @@ cmd_show() {
             | sed 's/^/         /'
     fi
     if [ "$state" = "public" ]; then
-        echo "         the certificate published with Yuneta: run 'ensure'"
+        echo "         a key published with Yuneta: run 'ensure'"
     fi
 }
 

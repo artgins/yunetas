@@ -150,12 +150,27 @@ make_other_pair "${WORK}/x.crt" "$KEY"
 check "public: show says it" "$(run show | grep -c 'state:   public')" "1"
 out="$(run ensure)"
 check "public: replaced" "$( [ "$(fpr "$CRT")" != "47:BE:EA:44:BA:DB:F5:B6:61:57:3C:FD:2B:CE:13:83:54:C2:8F:A9:15:2A:9A:36:85:CA:EF:56:C3:49:35:F4" ] && echo replaced)" "replaced"
-check "public: a WARNING that says it" "$(echo "$out" | grep -c 'WARNING: the agent.s certificate was the one published')" "1"
+check "public: a WARNING that says it" "$(echo "$out" | grep -c 'WARNING: the agent.s certificate was on a key published')" "1"
 check "public: the two old files kept" "$(copies)" "2"
 check "public: the old certificate in its copy" \
     "$(fpr "$(ls "$YUNETA_AGENT_CERT_DIR"/yuneta_agent.crt.replaced-* | head -1)")" \
     "47:BE:EA:44:BA:DB:F5:B6:61:57:3C:FD:2B:CE:13:83:54:C2:8F:A9:15:2A:9A:36:85:CA:EF:56:C3:49:35:F4"
 check "public: show says own now" "$(run show | grep -c 'state:   own')" "1"
+
+#
+#   The published test key (localhost.key) under a certificate of its own:
+#   still a published key, replaced
+#
+reset
+LOCALHOST_KEY="${HERE}/../../yunos/c/yuno_agent/certs/localhost.key"
+if [ -r "$LOCALHOST_KEY" ]; then
+    cp "$LOCALHOST_KEY" "$KEY"
+    "$OPENSSL" req -x509 -new -key "$KEY" -out "$CRT" -subj "/CN=resigned" -days 30 >/dev/null 2>&1
+    check "a published key under a new certificate: show says public" "$(run show | grep -c 'state:   public')" "1"
+    out="$(run ensure)"
+    check "a published key under a new certificate: replaced" \
+        "$( [ "$("$OPENSSL" pkey -in "$KEY" -pubout 2>/dev/null)" != "$("$OPENSSL" pkey -in "$LOCALHOST_KEY" -pubout 2>/dev/null)" ] && echo replaced)" "replaced"
+fi
 
 #
 #   A key that is not the certificate's: replaced
