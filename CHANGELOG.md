@@ -2,6 +2,67 @@
 
 ## Unreleased
 
+## v7.30.9 (2026-11-07)
+
+A light release: an agent verifies who asks a command its control center
+forwards, from an assertion the control center signs for that node. This
+replaces 7.30.6's design, which was never switched on.
+
+- **Operator assertions.**
+  - **What the control center does.** With `operator_assertion_key`, the
+    control center signs an ES256 JWT for each command it forwards
+    (`command-agent`, `stats-agent`, every step of a scenario run). The token
+    goes in `__operator_assertion__`:
+    - `iss` is `controlcenter`;
+    - `sub` is the operator: the user it authenticated, or the user who
+      started the run;
+    - `aud` is the agent's node uuid;
+    - it lives 60 s.
+
+    It gives one only to an agent whose identity card says
+    `knows_operator_assertion`. The key is a private JWK of EC P-256 on the
+    control center's machine. A key that cannot be used is an ERROR, and then
+    no assertion is sent.
+  - **What the agent does.** It verifies the assertion (`C_IEVENT_CLI`
+    `verify_operator`, now ON in both agents' `main.c`) with the control
+    center's public key (`Authz.assertion_jwks`, in `main.c`). It takes the
+    `sub` as `__username__`, whatever the control center wrote there.
+    - A command with no assertion is of the principal `controlcenter`.
+    - A bad assertion is refused, answered with the reason and ONE warning:
+      another key, another node, too long a life, no `sub`, or a login token.
+    - The time is checked with a day of leeway
+      (`Authz.assertion_time_leeway`). A box whose clock drifts must still
+      take its control center's commands: the audience, not the time, binds
+      an assertion.
+  - **Why.** The operator's login token never leaves the control center, and
+    an assertion is good on one node only. 7.30.6 had the control center
+    forward the operator's LOGIN token, which every node and the control
+    center accept, so a taken node could have replayed it anywhere. That
+    design was never switched on: `send_operator_jwt` is removed, and
+    `__operator_jwt__` is still taken out of every request.
+  - **What it does not do.** It does not protect a node from a control center
+    that is taken: such a control center can sign for anyone, as it could
+    write anyone in `__username__`.
+- **`C_AUTHZ`: `assertion_jwks`, `max_assertion_lifetime`,
+  `assertion_time_leeway`.** These keys are a set of their own. Only the local
+  method `verify_jwt` reads them, and only when it is asked with an
+  `audience`. A login never reads them. The `aud` must be the audience, and
+  `exp - iat` must be at most `max_assertion_lifetime` (300 s). The `sub` can
+  be an email or a local user of the signer, such as `yuneta`. Without an
+  `audience`, `verify_jwt` checks a login token, as in 7.30.6.
+- **Tests.**
+  - `test_c_ievent_cli_operator` (+ `_unverified`) now has 13 cases with
+    assertions. Among them: another node, a login token used as an
+    assertion, too long a life, within and past the leeway, a local user,
+    and the old `__operator_jwt__`.
+  - `test_c_controlcenter_scenarios` case 21 verifies the assertions that the
+    control center signs: command-agent, the steps of a run, and none when
+    nobody asks.
+- **Deploy order.** The control center goes first. It signs only for agents
+  that announce the assertion, so the agents of before are not touched.
+  Agents that verify, connected to a control center that does not sign, run
+  every command as `controlcenter`.
+
 ## v7.30.8 (2026-11-07)
 
 A light release: the packages of 7.30.7 made no agent certificate.
