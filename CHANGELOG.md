@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+## v7.30.10 (2026-11-07)
+
+A light release: a node is known to its control center by its agent's own
+key, not by the token that every agent shares.
+
+- **Each agent presents its own pair to the control center.** The link of
+  `yuneta_agent` and `yuneta_agent22` to the control center now carries the
+  node's own pair, `certs/yuneta_agent.{crt,key}`, as its client certificate
+  (mutual TLS). Each node makes that pair since 7.30.6. A node with no pair
+  cannot open the link: the connection fails and says so, and the agent's
+  unit makes the pair again at its next start.
+- **The control center pins each node to its key.** The `nodes` topic of its
+  treedb (schema 5) keeps, per node uuid:
+  - the state (`pending`, `accepted` or `refused`);
+  - the accepted key (`spki_sha256`), and the last key presented that is not
+    it;
+  - the hostname, the address, and the times.
+
+  When an agent opens its session, the control center checks it:
+  - a node never seen is recorded `pending`;
+  - an accepted node must present its key: another key, or none, is a
+    WARNING;
+  - with `enforce_node_keys` (off by default: only recorded), a pending or
+    refused node, or a wrong key, is dropped. A refused agent's channel is
+    skipped by `command-agent`, `stats-agent`, `write-tty` and the scenarios;
+  - a node that presents no key and has none accepted is let in while
+    `allow_nodes_without_key` (on): these are the agents of before.
+
+  The commands are `list-nodes`, `accept-node` (it pins the key presented, or
+  the one given) and `refuse-node`, under the new permission `manage-nodes`.
+  The listeners of the agents ask for the certificate with
+  `"ssl_verify_mode": "request"`. Before this, anyone with the shared token
+  could connect claiming the uuid of any node and receive that node's
+  commands.
+- **ytls: `ssl_verify_mode` `"request"` and `spki_sha256`.**
+  - `"request"` is for a server. It asks the client for its certificate and
+    takes it as it comes, without verifying or reporting its chain, so that
+    the owner can pin a self-signed certificate. `"optional"` logged a
+    WARNING for every such client.
+  - The `peer_cert` of a connection (and `ytls_get_cert_info()`) gives
+    `spki_sha256`: the sha256 of the key's SPKI, the same value in OpenSSL
+    and mbedTLS (`openssl pkey -pubout -outform DER | sha256sum`).
+- **`C_IEVENT_SRV` keeps the client's certificate** from its transport's
+  open (`peer_cert` attribute) and gives it in its `EV_ON_OPEN`.
+- **Tests.**
+  - `c_tcps/test10` (+ `_mbedtls`): the `request` mode and the SPKI, a
+    client with a certificate and a client without one.
+  - `test_c_controlcenter_scenarios` case 22: record, accept, enforce,
+    refuse, and the permission.
+  - The suite ran on the dev machine, which builds OpenSSL only: the mbedTLS
+    path compiles but did not run here.
+
 ## v7.30.9 (2026-11-07)
 
 A light release: an agent verifies who asks a command its control center
