@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v7.30.4 (2026-11-07)
+
+A light release for the link between the agents and the controlcenter. Only the
+agents are deployed (both of each node, one after the other); the controlcenter
+took its new listeners as configuration before. The two kernel changes ride
+along (`C_QIOGATE`, ytls): the other yunos take them at their next rebuild. The
+tests of the changes ran on the dev machine (`test_c_qiogate_alert`,
+`test_c_qiogate_stats`, `c_tcps/*` with the new `test9`, `c_tcp_s*`,
+`test_c_controlcenter_scenarios`), not the whole suite, and no performance study
+was made: the only change on a path a message crosses is the alert test of
+`C_QIOGATE`'s enqueue (a division and a comparison) and its ack (a comparison),
+and the next study, against 7.30.0, covers it.
+
 - **The agents trust only the controlcenter's own certificate, on new ports.**
   `yuno_agent` dials `yunetacontrol.com:1988` and `yuno_agent22`
   `yunetacontrol.ovh:1989` (they were 1994 and 1995), and their link trusts
