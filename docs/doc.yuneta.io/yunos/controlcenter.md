@@ -117,7 +117,7 @@ agent reconnects on its own schedule.
 |-----------|---------|---------|
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
-| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`. |
+| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`; a new one evicts the one that knocked least recently. |
 
 **3 — accept the nodes** (permission `manage-nodes`; `list-nodes` asks
 `list-agents`). Before you accept a node, compare the key it presented with the
@@ -157,10 +157,13 @@ asked for, so a node needs no `controlcenter.jwt` in its agent's json. When an
 agent presents a key that is not accepted and sends no token, the control
 center refuses it. Because that agent is not authenticated, nothing of it goes
 to the store. The control center keeps it in memory (at most
-`max_knocking_nodes`, 256; the first key of a uuid is kept), logs one INFO
-(*"A node knocking"*), and `list-nodes` shows it with the state `knocking`. A
-new box therefore connects with nothing but its key, and an operator accepts it
-with the key read on the box. `accept-node` creates its record. When the key is
+`max_knocking_nodes`, 256: a new one evicts the one that knocked least
+recently; the first key of a uuid is kept), logs one INFO (*"A node
+knocking"*), and `list-nodes` shows it with the state `knocking`. What it says
+there (its hostname) is not authenticated: it is only a hint. A new box
+therefore connects with nothing but its key, and an operator accepts it with
+the key read on the box. `accept-node` creates the record of a node that has
+none, whether it is knocking or not. When the key is
 for an accepted node but is not the accepted key, the control center logs a
 WARNING (*"Agent not authenticated: its node key is not the one accepted"*).
 Everything else goes to `C_AUTHZ` as before: the operators, and the agents of

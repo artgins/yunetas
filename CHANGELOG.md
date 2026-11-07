@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **The knocking table cannot block an onboarding.** `accept-node` creates the
+  record of a node from the operator's `node_id` and `spki_sha256`, whether
+  the node is in the table or not. A full table (`max_knocking_nodes`)
+  evicts the node that knocked least recently. In 7.30.12, 256 false knocks
+  filled the table, and then a real new node could not be accepted. A
+  security review; the test has both cases.
+
 ## v7.30.12 (2026-11-08)
 
 A light release of the control center, after a security review of 7.30.11.

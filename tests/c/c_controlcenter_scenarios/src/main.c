@@ -292,6 +292,10 @@ PRIVATE const char *expected_msgs[] = {
     "Agent not authenticated: its node key is not the one accepted",                // 22: uuid-auth, KEY_B
     "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-new
     "Node key decided",                                                             // 22: accept uuid-new
+    "Node key decided",                                                             // 22: accept uuid-unseen
+    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k1
+    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k2
+    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k3
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)",   // 0: the copy, not the same host
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",

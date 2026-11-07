@@ -1857,6 +1857,35 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     }
     JSON_DECREF(auth)
 
+    /*
+     *  accept-node of a node never seen: the operator's uuid and key. And a
+     *  full knocking table evicts the one knocked least recently
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-unseen"));
+    json_object_set_new(kw, "spki_sha256", json_string(KEY_B));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        0, "node 'uuid-unseen' accepted", "accept-node of a node never seen");
+    ret += check_node_field(gobj, client, "uuid-unseen", "spki_sha256", KEY_B,
+        "accept-node of a node never seen pins the key given");
+
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
+    const char *flood[] = {"uuid-k1", "uuid-k2", "uuid-k3", 0};
+    for(int i=0; flood[i]; i++) {
+        char name[NAME_MAX];
+        snprintf(name, sizeof(name), "knock-%d", i);
+        auth = authenticate_by_key(gobj, name, flood[i], "flood", KEY_B, username, sizeof(username));
+        JSON_DECREF(auth)
+    }
+    json_t *first = node_record(gobj, client, "uuid-k1");
+    json_t *last = node_record(gobj, client, "uuid-k3");
+    if(first || !last) {
+        ret += fail(gobj, "a full knocking table evicts the one knocked least recently", "");
+    }
+    JSON_DECREF(first)
+    JSON_DECREF(last)
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
+
     gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
     close_session(good);
     close_session(old);

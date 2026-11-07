@@ -463,7 +463,7 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
-SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); more are not kept"),
+SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
@@ -559,7 +559,8 @@ typedef struct _PRIVATE_DATA {
     hgobj run_timer;                // deadline of the step of the run in flight
     hgobj stop_timer;               // the next stop a scenario's max_run is due
     json_t *auto_stops;             // scenario id -> {stop_at, scheduled_at: epoch seconds, started_by} (max_run)
-    json_t *knocking;               // node uuid -> {spki_sha256, hostname, peername, first_seen, last_seen}: not authenticated, in memory only
+    json_t *knocking;               // node uuid -> {spki_sha256, hostname, peername, first_seen, last_seen, seq}: not authenticated, in memory only
+    json_int_t knock_seq;           // order of the last knock of each entry, for the eviction
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -1681,7 +1682,7 @@ PRIVATE json_t *decide_node(
         gobj
     );
     json_t *knock = json_object_get(priv->knocking, node_id);
-    if(!node && !(knock && strcmp(state, "accepted")==0)) {
+    if(!node && strcmp(state, "accepted")!=0) {
         *comment = json_sprintf("%s: node not found: '%s' (its agent has never connected)",
             gobj_yuno_role_plus_name(), node_id);
         return NULL;
@@ -1713,10 +1714,16 @@ PRIVATE json_t *decide_node(
         json_object_set_new(update, "spki_sha256", json_string(spki));
         json_object_set_new(update, "presented_spki", json_string(""));
         if(!node) {
+            /*
+             *  A node with no record: the operator's node_id and key are what
+             *  counts. What its agent said while knocking (if it still is in
+             *  the table) is only a hint, unauthenticated.
+             */
+            json_object_set_new(update, "state", json_string("accepted"));
             json_object_set_new(update, "hostname",
-                json_string(kw_get_str(gobj, knock, "hostname", "", 0)));
+                json_string(knock? kw_get_str(gobj, knock, "hostname", "", 0) : ""));
             json_object_set_new(update, "first_seen",
-                json_integer(kw_get_int(gobj, knock, "first_seen", 0, 0)));
+                json_integer(knock? kw_get_int(gobj, knock, "first_seen", 0, 0) : 0));
         }
         json_object_del(priv->knocking, node_id);
     }
@@ -3455,9 +3462,11 @@ PRIVATE BOOL agent_is_refused(hgobj agent_srv)
 /***************************************************************************
  *  An agent that presents a key not accepted and no token: not
  *  authenticated, so nothing of it goes to the store. It is kept in memory
- *  (`knocking`, at most `max_knocking_nodes`, the first one of a uuid kept:
- *  a later one does not replace it), said once per uuid and key (INFO), and
- *  shown by list-nodes. Returns TRUE if the uuid is of a node in the store
+ *  (`knocking`, the first key of a uuid kept: a later one does not replace
+ *  it), said once per uuid (INFO), and shown by list-nodes. At most
+ *  `max_knocking_nodes`: a new one evicts the one knocked least recently, so
+ *  a flood cannot keep the table full of its own (and accept-node does not
+ *  depend on it). Returns TRUE if the uuid is of a node in the store
  *  (an accepted or refused one: another key for it).
  ***************************************************************************/
 PRIVATE BOOL note_knocking_node(
@@ -3492,20 +3501,39 @@ PRIVATE BOOL note_knocking_node(
     if(entry) {
         if(strcmp(kw_get_str(gobj, entry, "spki_sha256", "", 0), spki)==0) {
             json_object_set_new(entry, "last_seen", json_integer(now));
+            json_object_set_new(entry, "seq", json_integer(++priv->knock_seq));
         } else {
             json_object_set_new(entry, "other_keys", json_true());
         }
         return FALSE;
     }
-    if((json_int_t)json_object_size(priv->knocking) >= gobj_read_integer_attr(gobj, "max_knocking_nodes")) {
-        return FALSE;   // full: the ones kept are enough to see something is knocking
+    json_int_t max_knocking = gobj_read_integer_attr(gobj, "max_knocking_nodes");
+    if(max_knocking <= 0) {
+        return FALSE;
     }
-    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I}",
+    while((json_int_t)json_object_size(priv->knocking) >= max_knocking) {
+        const char *oldest = NULL;
+        json_int_t oldest_seq = 0;
+        const char *key; json_t *jn;
+        json_object_foreach(priv->knocking, key, jn) {
+            json_int_t seq = kw_get_int(gobj, jn, "seq", 0, 0);
+            if(!oldest || seq < oldest_seq) {
+                oldest = key;
+                oldest_seq = seq;
+            }
+        }
+        if(!oldest) {
+            break;
+        }
+        json_object_del(priv->knocking, oldest);
+    }
+    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I}",
         "spki_sha256", spki,
         "hostname", hostname? hostname : "",
         "peername", peername? peername : "",
         "first_seen", now,
-        "last_seen", now
+        "last_seen", now,
+        "seq", ++priv->knock_seq
     ));
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
