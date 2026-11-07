@@ -30,46 +30,64 @@ subscription management.
 | `url` | `string` | Connection URL. |
 | `jwt` | `string` | JSON Web Token for authentication. |
 | `timeout_idack` | `integer` | Identity-card ack timeout in seconds. |
-| `verify_operator` | `boolean` | Verify the operator of each request of the server from its own token (default `false`). See below. |
-| `service_principal` | `string` | With `verify_operator`, the `__username__` of a request that carries no operator's token. Empty: such a request is refused. |
+| `verify_operator` | `boolean` | Verify the operator of each request of the server from an operator assertion signed for this node (default `false`). See below. |
+| `service_principal` | `string` | With `verify_operator`, the `__username__` of a request that carries no operator assertion. Empty: such a request is refused. |
 
 ### The operator of a request of the server
 
-A server that forwards a command of somebody else -- a controlcenter
-forwarding an operator's command to an agent -- says who asks in
-`__username__`, and the client's authz reads it. With `verify_operator` the
-client does not believe it (7.30.6+):
+A server that forwards a command of somebody else says who asks in
+`__username__`, and the client's authz reads it. An example is a
+controlcenter that forwards an operator's command to an agent. With
+`verify_operator` the client does not believe the server's word (7.30.9+):
 
-- the request carries the operator's token in `__operator_jwt__`; the client
-  verifies it against the `jwks` of its yuno's `C_AUTHZ` (signature, issuer,
-  expiry, a verified email; local method `verify_jwt`), and the token's email
-  becomes the `__username__`, whatever the request said;
-- a request with no token is of `service_principal` (a command of the server
-  itself, a step of a scheduled scenario);
-- a bad token is refused, never taken as "no token": a command or a stats is
-  answered with the reason (*"The token of the operator is refused: Token has
-  expired"*), any other event is dropped, and each refusal is ONE warning,
-  *"Request of the server refused: its operator is not verified"*.
+- The request carries an **operator assertion** in `__operator_assertion__`.
+  This is a short JWT that the server signs for THIS node: its `aud` is the
+  client's node uuid ([`node_uuid()`](../helpers/misc.md#node_uuid)), and its
+  `sub` is the operator.
+- The client asks its yuno's `C_AUTHZ` to verify it with the keys of
+  `assertion_jwks` (local method `verify_jwt` with an `audience`; see
+  [`C_AUTHZ`](#gclass-c-authz)). The `sub` becomes the `__username__`,
+  whatever the request said.
+- A request with no assertion is of `service_principal`. Examples are a
+  command of the server itself, or a server that has no key.
+- A bad assertion is refused. It is never taken as "no assertion".
+  - A command or a stats is answered with the reason, for example *"The
+    assertion of the operator is refused: The assertion is for another
+    node"*.
+  - Any other event is dropped.
+  - Each refusal is ONE warning, *"Request of the server refused: its
+    operator is not verified"*.
 
-`__operator_jwt__` is taken out of every request, verified or not: no command
-and no audit sees it. The identity card says `knows_operator_identity: true`,
-and a server gives the token only to a client that says so (an older one
-would hand it to its command). Example, the agent's link to its
-controlcenter, switched on from the agent's json file:
+The operator's login token never leaves the server. An assertion taken from
+one node is good on no other node, and it lives for one minute. The keys of a
+login are not asked: a login token sent as an assertion is refused.
 
-```json
-"global": {
-    "controlcenter.verify_operator": true
+The client takes `__operator_assertion__` out of every request, verified or
+not. It also takes out `__operator_jwt__`, the field of 7.30.6–7.30.8, which
+was never sent. No command and no audit sees either of them. The identity
+card says `knows_operator_assertion: true`, and a server gives assertions
+only to a client that says so. An older client would hand the unknown key to
+its command.
+
+Example: the agent's link to its controlcenter, in the agent's `main.c`
+(7.30.9+). Verification is on by default there:
+
+```c
+'kw': {
+    'remote_yuno_role': 'controlcenter',
+    'remote_yuno_service': 'controlcenter',
+    'verify_operator': true,
+    'service_principal': 'controlcenter'
 }
 ```
 
-with, in the agent's `main.c`, `'service_principal': 'controlcenter'`.
+To switch it off from the agent's json file:
 
-**The controlcenter does not send the token yet** (`send_operator_jwt`, off):
-the operator's token is a login token, valid in the controlcenter too, so an
-agent that held it -- a node taken, or a peer that only says
-`knows_operator_identity` -- could replay it there as the operator. It waits
-for a token bound to one agent (an audience per node, minted by the IdP).
+```json
+"global": {
+    "controlcenter.verify_operator": false
+}
+```
 
 ### Stopping with remote subscriptions open
 

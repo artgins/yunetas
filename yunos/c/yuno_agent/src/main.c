@@ -72,12 +72,17 @@ PRIVATE char fixed_config[]= "\
  *  A top-level `__json_config_variables__` in the json file reaches only
  *  that file: it changes nothing here.
  *
- *  The operator of a command the controlcenter forwards: off by default,
- *  the agent takes the `__username__` the controlcenter says. With
- *  `"global": {"controlcenter.verify_operator": true}` in the json file it
- *  verifies the token of the operator that comes with the command (against
- *  its `authz.jwks`) and takes its email; a command with no token (a step of
- *  a scenario) is of `service_principal`, 'controlcenter'.
+ *  The operator of a command the controlcenter forwards (7.30.9+): the
+ *  agent does not take the `__username__` the controlcenter says, it
+ *  verifies the operator assertion that comes with the command -- a token
+ *  the controlcenter signs for THIS node (aud = its node uuid), with the key
+ *  whose public half is `Authz.assertion_jwks` below -- and takes its `sub`.
+ *  A command with none (a controlcenter without the key, a local user) is
+ *  of `service_principal`, 'controlcenter'; a bad one is refused. The
+ *  assertion's time is checked with a day of leeway: a box whose clock
+ *  drifts (no NTP) must still take its controlcenter's commands; what binds
+ *  an assertion is its audience. To take the controlcenter's word again:
+ *  `"global": {"controlcenter.verify_operator": false}` in the json file.
  */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
@@ -132,6 +137,18 @@ PRIVATE char variable_config[]= "\
         },                                                          \n\
         'Authz.master': true,                                       \n\
         'Authz.authz_service': 'agent',                             \n\
+        'Authz.assertion_time_leeway': 86400,                       \n\
+        'Authz.assertion_jwks': [                                   \n\
+            {                                                       \n\
+                'kid': 'controlcenter',                             \n\
+                'kty': 'EC',                                        \n\
+                'crv': 'P-256',                                     \n\
+                'alg': 'ES256',                                     \n\
+                'use': 'sig',                                       \n\
+                'x': 'pfcUj6lfWF5NlMBi47QQt0NPtGs570TPZews4VJLtlE', \n\
+                'y': 'e5jGmxU2VE8If70nC1AbP2rVL18R6Y3tFSDSEb7-E0Q'  \n\
+            }                                                       \n\
+        ],                                                          \n\
         'Authz.max_sessions_per_user': 4,                           \n\
         'Authz.initial_load': {                                     \n\
             'roles': [                                              \n\
@@ -264,6 +281,7 @@ PRIVATE char variable_config[]= "\
                 'remote_yuno_name': '',                 \n\
                 'remote_yuno_role': 'controlcenter',    \n\
                 'remote_yuno_service': 'controlcenter', \n\
+                'verify_operator': true,                \n\
                 'service_principal': 'controlcenter'    \n\
             },                                          \n\
             'children': [                                \n\

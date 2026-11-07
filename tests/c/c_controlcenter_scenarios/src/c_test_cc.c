@@ -53,12 +53,19 @@
  *              - a stop, a pause or a report sends every step at once and
  *                waits for them all, naming each step that failed or was
  *                not answered; a start ends at its first failed step; and
- *                `scenarios` says the run in flight.
+ *                `scenarios` says the run in flight;
+ *              - each request for the agent (it says
+ *                `knows_operator_assertion`) carries an operator assertion
+ *                (operator_assertion_key): signed with the key, for that
+ *                node (aud = its uuid), naming who asks (sub), living 60 s;
+ *                and none when nobody asks. Verified with the public key,
+ *                as the agent's C_AUTHZ does.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <jwt.h>
 
 #include "c_test_cc_peer.h"
 #include "c_test_cc.h"
@@ -69,6 +76,11 @@
 #define AGENT_HOST  "node1"
 #define GHOST_HOST  "ghost"     // case 19: a node whose agent connects late
 #define DROPS_WAIT_MS   5000    // the most a phase waits for the drops timer
+
+/*
+ *  The public half of the key of main.c's operator_assertion_key
+ */
+PRIVATE const char *ASSERTION_PUBLIC_JWK = "{\"kid\":\"controlcenter\",\"kty\":\"EC\",\"crv\":\"P-256\",\"alg\":\"ES256\",\"use\":\"sig\",\"x\":\"nXhUxejW5sVCIMMt5VPATGJS_nsEIvIHbw_xYLdpa1Q\",\"y\":\"EmyPj6BtdnzvQTYMrLgqtRxTZig5KqIS1hh2YEB2kW8\"}";
 
 GOBJ_DECLARE_EVENT(EV_PERMISSIONS_CHANGED);     // c_controlcenter.c
 GOBJ_DECLARE_EVENT(EV_SCENARIO_RUN_ENDED);      // c_controlcenter.c
@@ -194,6 +206,23 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+    /*
+     *  libjwt allocates with gbmem, as C_AUTHZ makes it in a real control
+     *  center (this yuno has none): the control center signs its operator
+     *  assertions only then. jwt_set_alloc() hands jansson libjwt's
+     *  wrappers too: back to gbmem's own pair, as C_AUTHZ does.
+     */
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    jwt_set_alloc(malloc_func, free_func);
+    sys_malloc_fn_t json_malloc_func;
+    sys_free_fn_t json_free_func;
+    gbmem_get_json_allocators(&json_malloc_func, &json_free_func);
+    json_set_alloc_funcs(json_malloc_func, json_free_func);
 }
 
 /***************************************************************************
@@ -463,12 +492,13 @@ PRIVATE int connect_agent(hgobj gobj)
     priv->agent_channel = create_peer("agent-1", priv->input_side);
     priv->agent_wire = create_peer("agent-1-wire", priv->agent_channel);
 
-    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:{s:s, s:{s:[{s:s}]}}}",
+    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:{s:s, s:b, s:{s:[{s:s}]}}}",
         "client_yuno_role", "yuneta_agent",
         "client_yuno_name", AGENT_HOST,
         "client_yuno_service", "agent",
         "identity_card",
             "id", "uuid-" AGENT_HOST,
+            "knows_operator_assertion", 1,
             "__md_iev__",
                 "ievent_gate_stack",
                     "host", AGENT_HOST
@@ -1902,6 +1932,57 @@ PRIVATE json_t *par_newest_run(hgobj gobj, hgobj client)
     return newest;
 }
 
+/***************************************************************************
+ *  The operator assertion of a request for the agent: signed with the key
+ *  of operator_assertion_key, for this agent's node, naming `sub` (any
+ *  user if NULL), living operator_assertion_lifetime (60 s). Verified as
+ *  the agent's C_AUTHZ does, with the public key.
+ ***************************************************************************/
+PRIVATE int check_assertion(hgobj gobj, json_t *request, const char *sub, const char *what)
+{
+    const char *token = kw_get_str(gobj, request, "__operator_assertion__", "", 0);
+    if(empty_string(token)) {
+        return fail(gobj, what, "no __operator_assertion__");
+    }
+
+    jwk_set_t *jwk_set = jwks_create(ASSERTION_PUBLIC_JWK);
+    const jwk_item_t *key = jwk_set? jwks_item_get(jwk_set, 0) : NULL;
+    jwt_checker_t *checker = key? jwt_checker_new() : NULL;
+    if(!checker || jwt_checker_setkey(checker, JWT_ALG_ES256, key) != 0) {
+        if(checker) {
+            jwt_checker_free(checker);
+        }
+        if(jwk_set) {
+            jwks_free(jwk_set);
+        }
+        return fail(gobj, what, "cannot make the checker");
+    }
+    jwt_checker_claim_set(checker, JWT_CLAIM_ISS, "controlcenter");
+
+    int ret = 0;
+    json_t *payload = jwt_checker_verify2(checker, token);
+    if(!payload) {
+        ret = fail(gobj, what, jwt_checker_error_msg(checker));
+    } else {
+        json_int_t lifetime = kw_get_int(gobj, payload, "exp", 0, 0) -
+            kw_get_int(gobj, payload, "iat", 0, 0);
+        const char *got_sub = kw_get_str(gobj, payload, "sub", "", 0);
+        if(strcmp(kw_get_str(gobj, payload, "aud", "", 0), "uuid-" AGENT_HOST)!=0) {
+            ret += fail(gobj, what, "aud is not the node of the agent");
+        }
+        if(sub? strcmp(got_sub, sub)!=0 : empty_string(got_sub)) {
+            ret += fail(gobj, what, got_sub);
+        }
+        if(lifetime != 60) {
+            ret += fail(gobj, what, "it does not live operator_assertion_lifetime");
+        }
+    }
+    JSON_DECREF(payload)
+    jwt_checker_free(checker);
+    jwks_free(jwk_set);
+    return ret;
+}
+
 /*
  *  The requests of a run in parallel: one per step, all at once, each
  *  marked with its step and with the line of its yuno
@@ -1923,6 +2004,7 @@ PRIVATE int check_parallel_requests(hgobj gobj, json_t *requests, const char *co
                 kw_get_int(gobj, request, "__md_iev__`cc_step", -1, KW_WILD_NUMBER) != i) {
             ret += fail(gobj, what, line);
         }
+        ret += check_assertion(gobj, request, NULL, "a step of a run carries its operator assertion");
     }
     return ret;
 }
@@ -2636,6 +2718,46 @@ PRIVATE int test_stop_outside_shutdown(hgobj gobj)
 /***************************************************************************
  *  All the tests
  ***************************************************************************/
+/***************************************************************************
+ *  A command for the agent carries the operator assertion of who asks;
+ *  with nobody asking, none
+ ***************************************************************************/
+PRIVATE int test_operator_assertion(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string("alice@example.com"));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent with an operator");
+    json_t *request = agent_request(gobj, "command-agent with an operator reaches the agent");
+    if(!request) {
+        return -1;
+    }
+    ret += check_assertion(gobj, request, "alice@example.com",
+        "command-agent carries the operator assertion of who asks");
+    JSON_DECREF(request)
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string(""));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent with nobody");
+    request = agent_request(gobj, "command-agent with nobody reaches the agent");
+    if(!request) {
+        return -1;
+    }
+    if(json_object_get(request, "__operator_assertion__")) {
+        ret += fail(gobj, "a request of nobody carries an operator assertion", "");
+    }
+    JSON_DECREF(request)
+    return ret;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2659,6 +2781,7 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     result += test_twin_agents(gobj);
+    result += test_operator_assertion(gobj, client1);
     result += test_save_scenario_as_string(gobj, client1);
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);

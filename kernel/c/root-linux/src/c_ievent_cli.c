@@ -79,8 +79,8 @@ SDATA (DTP_STRING,  "jwt",              SDF_PERSIST|SDF_SECRET,    "",         "
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_JSON,    "extra_info",       SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
 SDATA (DTP_INTEGER, "timeout_idack",    SDF_RD,         "5000",     "timeout waiting idAck"),
-SDATA (DTP_BOOLEAN, "verify_operator",  SDF_RD,         "0",        "Verify the operator of each request of the server: its __operator_jwt__ against the jwks of this yuno's C_AUTHZ, whose email becomes its __username__ (refused if invalid); a request without one is of service_principal. Off: the __username__ the server says is taken, as up to 7.30.5"),
-SDATA (DTP_STRING,  "service_principal",SDF_RD,         "",         "With verify_operator, the __username__ of a request of the server that carries no operator's token (a request of the server itself, a scheduled one). Empty: such a request is refused"),
+SDATA (DTP_BOOLEAN, "verify_operator",  SDF_RD,         "0",        "Verify the operator of each request of the server: its __operator_assertion__, a token the server signed for THIS node (aud = its node uuid), verified by this yuno's C_AUTHZ (assertion_jwks); its sub becomes the __username__ (refused if invalid); a request without one is of service_principal. Off: the __username__ the server says is taken, as up to 7.30.5"),
+SDATA (DTP_STRING,  "service_principal",SDF_RD,         "",         "With verify_operator, the __username__ of a request of the server that carries no operator assertion (a request of the server itself, a scheduled one). Empty: such a request is refused"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -620,7 +620,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     const char *yuno_tag = gobj_read_str_attr(gobj_yuno(), "yuno_tag");
     json_int_t launch_id = gobj_read_integer_attr(gobj_yuno(), "launch_id");
     json_t *kw_identity_card = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s, s:b}",
+        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s, s:b, s:b}",
         "yuno_role", gobj_yuno_role(),
         "yuno_id", gobj_yuno_id(),
         "yuno_name", gobj_yuno_name(),
@@ -636,7 +636,8 @@ PRIVATE int send_identity_card(hgobj gobj)
         "launch_id", launch_id,
         "yuno_startdate", gobj_read_str_attr(gobj_yuno(), "start_date"),
         "id", node_uuid(),
-        "knows_operator_identity", 1    // takes __operator_jwt__ out of each request (7.30.6+)
+        "knows_operator_identity", 1,   // takes __operator_jwt__ out of each request (7.30.6+)
+        "knows_operator_assertion", 1   // and __operator_assertion__, verified for this node (7.30.9+)
     );
 
     json_t *jn_required_services = gobj_read_json_attr(gobj_yuno(), "required_services");
@@ -806,18 +807,23 @@ PRIVATE int send_remote_subscription(
  *  A controlcenter that forwards a command of an operator to an agent says
  *  who asks in `__username__`, and the agent's authz reads it: so the agent
  *  trusts the controlcenter to tell the truth. With `verify_operator` it
- *  does not: the request carries the operator's own token
- *  (`__operator_jwt__`, which the controlcenter took from the operator's
- *  session), the token is verified against the jwks of this yuno's C_AUTHZ
- *  (signature, issuer, expiry, a verified email), and its email is the
- *  `__username__`, whatever the request said. A request with no token is of
- *  `service_principal` (a command of the controlcenter itself, a step of a
- *  scenario); with no `service_principal`, it is refused. A bad token is
- *  refused, never taken as "no token".
+ *  is told by a signature instead: the request carries an operator
+ *  assertion (`__operator_assertion__`), a short token the controlcenter
+ *  signs for THIS node -- its `aud` is this node's uuid -- naming the
+ *  operator it authenticated. This yuno's C_AUTHZ verifies it (the keys of
+ *  `assertion_jwks`, never those of a login; the audience; a short life),
+ *  and its `sub` is the `__username__`, whatever the request said. The
+ *  operator's own login token never leaves the controlcenter, and an
+ *  assertion taken from one node is good on no other. A request with no
+ *  assertion is of `service_principal` (a command of the controlcenter
+ *  itself, a step of a scenario); with no `service_principal`, it is
+ *  refused. A bad assertion is refused, never taken as "none".
  *
- *  The token is taken out of the request in every case, verified or not:
- *  it is a credential, and nothing below this gobj (a command, its audit)
- *  has to see it.
+ *  The assertion is taken out of the request in every case, verified or
+ *  not, and so is the `__operator_jwt__` of 7.30.6-7.30.8 (an operator's
+ *  login token, never sent: it would be valid at the controlcenter too):
+ *  they are credentials, and nothing below this gobj (a command, its
+ *  audit) has to see them.
  *
  *  Returns 0, or -1 with the reason in `refusal` (said here, a WARNING).
  ***************************************************************************/
@@ -829,43 +835,53 @@ PRIVATE int set_operator_of_request(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_jwt = json_object_get(iev_kw, "__operator_jwt__");
-    if(jn_jwt) {
-        json_incref(jn_jwt);
-        json_object_del(iev_kw, "__operator_jwt__");
+    json_object_del(iev_kw, "__operator_jwt__");
+
+    json_t *jn_assertion = json_object_get(iev_kw, "__operator_assertion__");
+    if(jn_assertion) {
+        json_incref(jn_assertion);
+        json_object_del(iev_kw, "__operator_assertion__");
     }
 
     if(!priv->verify_operator) {
-        JSON_DECREF(jn_jwt)
+        JSON_DECREF(jn_assertion)
         return 0;
     }
 
     int ret = 0;
-    if(!jn_jwt) {
+    if(!jn_assertion) {
         const char *principal = gobj_read_str_attr(gobj, "service_principal");
         if(empty_string(principal)) {
-            snprintf(refusal, refusal_size, "%s", "A request without the token of its operator");
+            snprintf(refusal, refusal_size, "%s", "A request without the assertion of its operator");
             ret = -1;
         } else {
             json_object_set_new(iev_kw, "__username__", json_string(principal));
         }
-    } else if(!json_is_string(jn_jwt) || empty_string(json_string_value(jn_jwt))) {
-        snprintf(refusal, refusal_size, "%s", "The token of the operator is not a string");
+    } else if(!json_is_string(jn_assertion) || empty_string(json_string_value(jn_assertion))) {
+        snprintf(refusal, refusal_size, "%s", "The assertion of the operator is not a string");
         ret = -1;
     } else {
         hgobj gobj_authz = gobj_find_service_by_gclass(C_AUTHZ, FALSE);
+        const char *audience = node_uuid();
         if(!gobj_authz) {
-            snprintf(refusal, refusal_size, "%s", "No C_AUTHZ to verify the token of the operator");
+            snprintf(refusal, refusal_size, "%s", "No C_AUTHZ to verify the assertion of the operator");
+            ret = -1;
+        } else if(empty_string(audience)) {
+            // without one, verify_jwt would check a login token instead
+            snprintf(refusal, refusal_size, "%s", "No node uuid to verify the assertion of the operator for");
             ret = -1;
         } else {
             json_t *jn_resp = gobj_local_method(
                 gobj_authz,
                 "verify_jwt",
-                json_pack("{s:O}", "jwt", jn_jwt),
+                json_pack("{s:O, s:s}",
+                    "jwt", jn_assertion,
+                    "audience", audience
+                ),
                 gobj
             );
             if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
-                snprintf(refusal, refusal_size, "The token of the operator is refused: %s",
+                snprintf(refusal, refusal_size, "The assertion of the operator is refused: %s",
                     kw_get_str(gobj, jn_resp, "comment", "", 0)
                 );
                 ret = -1;
@@ -877,7 +893,7 @@ PRIVATE int set_operator_of_request(
             JSON_DECREF(jn_resp)
         }
     }
-    JSON_DECREF(jn_jwt)
+    JSON_DECREF(jn_assertion)
 
     if(ret < 0) {
         gobj_log_warning(gobj, 0,

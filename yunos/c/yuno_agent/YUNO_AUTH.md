@@ -1048,21 +1048,22 @@ Points found so far (verified this session unless noted):
    link: since 7.30.4 the agents trust only the CC's own certificate
    (`certs/controlcenter.crt`, key on the CC's machine, ports 1988/1989); up to
    7.30.3 they trusted `yuneta_agent.crt`, which every agent serves.
-   **Since 7.30.6 a node can verify the operator itself**: the CC sends the
-   operator's token with each command (`__operator_jwt__`, only to an agent
-   whose identity card says `knows_operator_identity`), and with
-   `"global": {"controlcenter.verify_operator": true}` the agent verifies it
-   against its `authz.jwks` and takes the token's email as `__username__`; a
-   command with no token (a step of a scenario) is of the principal
-   `controlcenter`, and a bad or expired token is refused. Off by default:
-   until the matrix (points 1-3) exists, a verified identity matters only to
-   what checks it already (the treedb commands, `open-console`). And **the CC
-   does not send the token yet** (`send_operator_jwt`, off): the operator's
-   token is a login token, valid in the CC too, so a node that held it could
-   replay it there as the operator and reach every node -- worse than today.
-   It needs a token bound to one agent (an audience per node, minted by the
-   IdP, e.g. a token exchange) before it is switched on. Open as well: a long
-   operator session whose token expires is refused until it reconnects.
+   **Since 7.30.9 a node verifies the operator itself**: the CC signs an
+   operator assertion for each command it forwards
+   (`__operator_assertion__`, ES256, `aud` = the node uuid, `sub` = the
+   operator, 60 s; key `operator_assertion_key` on the CC's machine, only to
+   an agent whose identity card says `knows_operator_assertion`), and the
+   agent (`verify_operator`, on in its `main.c`) verifies it with
+   `Authz.assertion_jwks` and takes the `sub` as `__username__`. A command
+   with no assertion is of the principal `controlcenter`; a bad one is
+   refused. The operator's login token never leaves the CC, and an
+   assertion is good on one node only, so a taken node cannot replay it
+   anywhere -- the reason 7.30.6's design (the CC forwarding the login
+   token, `send_operator_jwt`) was never switched on and was removed. What
+   it does NOT do: protect a node from a CC that is taken, which can sign
+   for anyone (as it could say anyone in `__username__`). Until the matrix
+   (points 1-3) exists, a verified identity matters only to what checks it
+   already (the treedb commands, `open-console`).
 
 5. **`command-agent` / `command-yuno` forward unchecked keys** ("WARNING:
    parameter's keys are not checked"). Once the gate is on, the forwarded

@@ -29,6 +29,13 @@
  *               "realm_id": "...", "permission": "read-scenarios",
  *               "parameters": {"scenario_id": ["load-test"]}}
  *
+ *          Operator assertions (`assertion_jwks`): short tokens a
+ *          controlcenter signs for ONE node, saying which operator asks a
+ *          command it forwards to that node's agent. Their keys are a set of
+ *          their own, read only by the local method `verify_jwt` asked with
+ *          an `audience` (the node), which must be the token's `aud`; a
+ *          login never reads them, so an assertion is not a way in.
+ *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -113,7 +120,9 @@ PRIVATE json_t *get_user_roles(
 
 PRIVATE int create_validation_key(
     hgobj gobj,
-    json_t *jn_jwk // owned
+    json_t *jn_jwk, // owned
+    jwk_set_t *jwks,
+    json_t *jn_validations
 );
 PRIVATE int destroy_validation_key(
     hgobj gobj,
@@ -122,7 +131,13 @@ PRIVATE int destroy_validation_key(
 
 PRIVATE int create_jwt_validations(hgobj gobj);
 PRIVATE int destroy_jwt_validations(hgobj gobj);
-PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, const char **status);
+PRIVATE BOOL verify_token(
+    hgobj gobj,
+    json_t *jn_validations,
+    const char *token,
+    json_t **jwt_payload,
+    const char **status
+);
 
 PRIVATE json_t *hash_password(
     hgobj gobj,
@@ -359,6 +374,9 @@ SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "The master is t
 SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
 SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create. Set in the config only: add-jwk/remove-jwk change the running set, not the config"),
+SDATA (DTP_LIST,    "assertion_jwks",       SDF_RD,         "[]",   "Public keys (JWK, its kid = the iss) of the issuers of operator assertions: short tokens a controlcenter signs for one node (aud). Read only by the local method verify_jwt asked with an audience; a login never reads them"),
+SDATA (DTP_INTEGER, "max_assertion_lifetime",SDF_RD,        "300",  "Seconds an operator assertion may live (exp - iat): a longer one is refused, as one with no iat or exp"),
+SDATA (DTP_INTEGER, "assertion_time_leeway",SDF_RD,         "0",    "Seconds this yuno's clock may be off the signer's when an operator assertion's exp/nbf is checked: a box whose clock drifts (no NTP) must not refuse every assertion. Its audience, not its time, is what binds an assertion"),
 SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 SDATA (DTP_BOOLEAN, "with_link_events", SDF_RD,     "1",        "Copied to the C_NODE of treedb_authzs: a link/unlink publishes EV_TREEDB_NODE_LINKED/UNLINKED, 0 the parent's EV_TREEDB_NODE_UPDATED (what the v1 SPAs read). Set in the config only"),
 
@@ -423,6 +441,9 @@ typedef struct _PRIVATE_DATA {
 
     json_t *jn_validations; // Set of keys with their checker
     jwk_set_t *jwks;        // Set of jwk
+
+    json_t *jn_assertion_validations;   // the same, of the operator assertions
+    jwk_set_t *assertion_jwks;
 
 } PRIVATE_DATA;
 
@@ -977,7 +998,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *-------------------------------*/
         const char *status = NULL;
 
-        if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
+        if(!verify_token(gobj, priv->jn_validations, jwt, &jwt_payload, &status)) {
             char temp[512];
             snprintf(temp, sizeof(temp), "%s", status);
             gobj_log_warning(gobj, 0,
@@ -1486,6 +1507,8 @@ PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *refused_authz = refuse_jwk_without_authz(gobj, "update", kw, src);
     if(refused_authz) {
         return refused_authz;
@@ -1601,7 +1624,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_object_update_new(jn_jwk, json_deep_copy(jn_record));
 
     json_t *jn_comment = NULL;
-    int status = create_validation_key(gobj, jn_jwk);
+    int status = create_validation_key(gobj, jn_jwk, priv->jwks, priv->jn_validations);
     if(status != 0) {
         jn_comment = json_sprintf("%s: Cannot create validation key", gobj_yuno_role_plus_name());
     } else {
@@ -3040,7 +3063,45 @@ PRIVATE int create_jwt_validations(hgobj gobj)
     json_array_foreach(jwks, idx, jn_record) {
         json_t *jn_jwk = create_json_record(gobj, jwk_desc);
         json_object_update_new(jn_jwk, json_deep_copy(jn_record));
-        create_validation_key(gobj, jn_jwk);
+        create_validation_key(gobj, jn_jwk, priv->jwks, priv->jn_validations);
+    }
+
+    /*
+     *  The keys of the operator assertions: an EC key has no place in
+     *  jwk_desc (crv, x, y), so the record is taken as it is written
+     */
+    priv->assertion_jwks = jwks_create(NULL);
+    priv->jn_assertion_validations = json_array();
+
+    json_t *assertion_jwks = gobj_read_json_attr(gobj, "assertion_jwks");
+    json_array_foreach(assertion_jwks, idx, jn_record) {
+        if(!json_is_object(jn_record) ||
+                empty_string(kw_get_str(gobj, jn_record, "kid", "", 0)) ||
+                strcmp(kw_get_str(gobj, jn_record, "kid", "", 0), "*")==0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_CONFIGURATION,
+                "msg",              "%s", "An assertion key needs the kid of its issuer",
+                NULL
+            );
+            continue;
+        }
+        create_validation_key(
+            gobj,
+            json_deep_copy(jn_record),
+            priv->assertion_jwks,
+            priv->jn_assertion_validations
+        );
+    }
+
+    time_t leeway = (time_t)gobj_read_integer_attr(gobj, "assertion_time_leeway");
+    json_t *jn_validation;
+    json_array_foreach(priv->jn_assertion_validations, idx, jn_validation) {
+        jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
+            gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED
+        );
+        jwt_checker_time_leeway(jwt_checker, JWT_CLAIM_NBF, leeway);
+        jwt_checker_time_leeway(jwt_checker, JWT_CLAIM_EXP, leeway);
     }
 
     return 0;
@@ -3049,12 +3110,10 @@ PRIVATE int create_jwt_validations(hgobj gobj)
 /***************************************************************************
  *  Destroy validations
  ***************************************************************************/
-PRIVATE int destroy_jwt_validations(hgobj gobj)
+PRIVATE void free_validations(hgobj gobj, json_t **jn_validations, jwk_set_t **jwks)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     int idx; json_t *jn_validation;
-    json_array_foreach(priv->jn_validations, idx, jn_validation) {
+    json_array_foreach(*jn_validations, idx, jn_validation) {
         jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
             gobj,
             jn_validation,
@@ -3063,12 +3122,21 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
             KW_REQUIRED
         );
         jwt_checker_free(jwt_checker);
-
     }
-    JSON_DECREF(priv->jn_validations)
+    JSON_DECREF(*jn_validations)
 
-    jwks_free(priv->jwks);
-    priv->jwks = NULL;
+    if(*jwks) {
+        jwks_free(*jwks);
+        *jwks = NULL;
+    }
+}
+
+PRIVATE int destroy_jwt_validations(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    free_validations(gobj, &priv->jn_validations, &priv->jwks);
+    free_validations(gobj, &priv->jn_assertion_validations, &priv->assertion_jwks);
 
     return 0;
 }
@@ -3078,10 +3146,10 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
  ***************************************************************************/
 PRIVATE int create_validation_key(
     hgobj gobj,
-    json_t *jn_jwk // owned
+    json_t *jn_jwk, // owned
+    jwk_set_t *jwks,
+    json_t *jn_validations
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
     const char *algorithm = kw_get_str(gobj, jn_jwk, "alg", "", KW_REQUIRED);
 
@@ -3106,7 +3174,7 @@ PRIVATE int create_validation_key(
     /*
      *  Create the jwk_item
      */
-    jwk_item_t *jwk_item = jwk_process_one(priv->jwks, jn_jwk);
+    jwk_item_t *jwk_item = jwk_process_one(jwks, jn_jwk);
     if(!jwk_item) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -3119,7 +3187,7 @@ PRIVATE int create_validation_key(
         JSON_DECREF(jn_jwk)
         return -1;
     }
-    jwks_item_add(priv->jwks, jwk_item);
+    jwks_item_add(jwks, jwk_item);
 
     /*
      *  Create the jwk_checker
@@ -3134,7 +3202,7 @@ PRIVATE int create_validation_key(
             "algorithm",        "%s", algorithm,
             NULL
         );
-        jwks_item_free2(priv->jwks, jwk_item);
+        jwks_item_free2(jwks, jwk_item);
         JSON_DECREF(jn_jwk)
 
         return -1;
@@ -3151,7 +3219,7 @@ PRIVATE int create_validation_key(
             "algorithm",        "%s", algorithm,
             NULL
         );
-        jwks_item_free2(priv->jwks, jwk_item);
+        jwks_item_free2(jwks, jwk_item);
         jwt_checker_free(jwt_checker);
         JSON_DECREF(jn_jwk)
         return -1;
@@ -3179,7 +3247,7 @@ PRIVATE int create_validation_key(
     }
 
     json_object_set_new(jn_jwk, "jwt_checker", json_integer((json_int_t)jwt_checker));
-    json_array_append_new(priv->jn_validations, jn_jwk);
+    json_array_append_new(jn_validations, jn_jwk);
 
     return 0;
 }
@@ -3237,17 +3305,17 @@ PRIVATE int destroy_validation_key(
  ***************************************************************************/
 PRIVATE BOOL verify_token(
     hgobj gobj,
+    json_t *jn_validations,
     const char *token,
     json_t **jwt_payload_,
     const char **status
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL validated = FALSE;
     *jwt_payload_ = NULL;
     *status = "No OAuth2 Issuer found";
 
     int idx; json_t *jn_validation;
-    json_array_foreach(priv->jn_validations, idx, jn_validation) {
+    json_array_foreach(jn_validations, idx, jn_validation) {
         const char *jn_validation_iss = kw_get_str(gobj, jn_validation, "kid", "", KW_REQUIRED);
 
         jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
@@ -4917,23 +4985,57 @@ PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
 }
 
 /***************************************************************************
- *  Local method `verify_jwt`: is `jwt` a token of an issuer of `jwks`,
- *  valid now, of a verified email? kw {"jwt": "<token>"} (owned).
+ *  Is `audience` the `aud` of a payload (a string, or a list holding it)?
+ ***************************************************************************/
+PRIVATE BOOL payload_has_audience(json_t *jwt_payload, const char *audience)
+{
+    json_t *jn_aud = json_object_get(jwt_payload, "aud");
+    if(json_is_string(jn_aud)) {
+        return strcmp(json_string_value(jn_aud), audience)==0? TRUE : FALSE;
+    }
+    if(json_is_array(jn_aud)) {
+        size_t idx; json_t *jn_item;
+        json_array_foreach(jn_aud, idx, jn_item) {
+            if(json_is_string(jn_item) && strcmp(json_string_value(jn_item), audience)==0) {
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Local method `verify_jwt`: who is the operator a token names?
+ *  kw (owned) {"jwt": "<token>", "audience": "<this node>"}.
  *  Returns {"result": 0, "username": "<email>"}, or {"result": -1,
  *  "comment": "<why>"}: the caller says the refusal (it knows who sent the
  *  token); nothing here writes the token anywhere.
  *
- *  The checks of a jwt in mt_authenticate() (and a user of this yuno that
- *  is disabled is refused), without what is of a login (the session, its
- *  count, EV_AUTHZ_USER_LOGIN, a user it does not hold): for a token that comes
- *  with each request, as the one of the operator of a command that a
- *  controlcenter forwards to an agent (C_IEVENT_CLI `verify_operator`).
+ *  With an `audience`, the token is an OPERATOR ASSERTION: signed by a key
+ *  of `assertion_jwks` (the kid is its issuer), valid now (give or take
+ *  `assertion_time_leeway`), with `aud` the audience, an `iat` and an `exp`
+ *  no more than `max_assertion_lifetime` apart, and the operator in `sub`:
+ *  the user the signer authenticated, an email or a local user (`yuneta`)
+ *  alike -- the signer is trusted to say who, as it was when it said it in
+ *  `__username__`; what the signature adds is that nobody else can. A controlcenter signs one for
+ *  each command it forwards to an agent (C_IEVENT_CLI `verify_operator`),
+ *  so a token taken from one node is good on no other, and for a minute.
+ *  The keys of a login (`jwks`) are not asked, nor are these at a login.
+ *
+ *  Without one, it is a token of an issuer of `jwks`, of a verified email
+ *  (the checks of a jwt in mt_authenticate(), without what is of a login:
+ *  the session, its count, EV_AUTHZ_USER_LOGIN).
+ *
+ *  Either way a user of this yuno that is disabled is refused, as at a
+ *  login. A user it does not hold is an identity all the same: what it may
+ *  do is the business of its roles, asked later.
  ***************************************************************************/
 PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *jwt = kw_get_str(gobj, kw, "jwt", "", 0);
+    const char *audience = kw_get_str(gobj, kw, "audience", "", 0);
     if(empty_string(jwt)) {
         KW_DECREF(kw)
         return json_pack("{s:i, s:s}", "result", -1, "comment", "No token");
@@ -4941,7 +5043,12 @@ PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgob
 
     json_t *jwt_payload = NULL;
     const char *status = NULL;
-    if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
+    if(!verify_token(
+            gobj,
+            empty_string(audience)? priv->jn_validations : priv->jn_assertion_validations,
+            jwt,
+            &jwt_payload,
+            &status)) {
         json_t *jn_resp = json_pack("{s:i, s:s}",
             "result", -1,
             "comment", status? status : "Invalid token"
@@ -4951,32 +5058,47 @@ PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgob
         return jn_resp;
     }
 
-    const char *username = kw_get_str(gobj, jwt_payload, "email", "", 0);
-    BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, 0);
+    const char *username = "";
     const char *refusal = NULL;
-    if(empty_string(username)) {
-        refusal = "The token has no email";
-    } else if(!email_verified) {
-        refusal = "Email not verified";
-    } else if(!strchr(username, '@')) {
-        refusal = "Username must be an email address";
-    } else if(priv->gobj_treedb) {
-        /*
-         *  A user of this yuno that is disabled is refused, as at a login.
-         *  A user it does not hold is an identity all the same: what it may
-         *  do is the business of its roles, asked later.
-         */
-        json_t *user = gobj_get_node(
-            priv->gobj_treedb,
-            "users",
-            json_pack("{s:s}", "id", username),
-            0,
-            gobj
-        );
-        if(user && kw_get_bool(gobj, user, "disabled", 0, 0)) {
-            refusal = "User disabled";
+    if(!empty_string(audience)) {
+        json_int_t iat = kw_get_int(gobj, jwt_payload, "iat", 0, 0);
+        json_int_t exp = kw_get_int(gobj, jwt_payload, "exp", 0, 0);
+        json_int_t max_lifetime = gobj_read_integer_attr(gobj, "max_assertion_lifetime");
+        username = kw_get_str(gobj, jwt_payload, "sub", "", 0);
+        if(!payload_has_audience(jwt_payload, audience)) {
+            refusal = "The assertion is for another node";
+        } else if(iat <= 0 || exp <= 0) {
+            refusal = "The assertion has no iat or exp";
+        } else if(exp - iat > max_lifetime) {
+            refusal = "The assertion lives too long";
+        } else if(empty_string(username)) {
+            refusal = "The assertion names no operator (sub)";
         }
-        JSON_DECREF(user)
+    } else {
+        username = kw_get_str(gobj, jwt_payload, "email", "", 0);
+        if(!kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, 0)) {
+            refusal = "Email not verified";
+        } else if(empty_string(username)) {
+            refusal = "The token has no email";
+        } else if(!strchr(username, '@')) {
+            refusal = "Username must be an email address";
+        }
+    }
+
+    if(!refusal) {
+        if(priv->gobj_treedb) {
+            json_t *user = gobj_get_node(
+                priv->gobj_treedb,
+                "users",
+                json_pack("{s:s}", "id", username),
+                0,
+                gobj
+            );
+            if(user && kw_get_bool(gobj, user, "disabled", 0, 0)) {
+                refusal = "User disabled";
+            }
+            JSON_DECREF(user)
+        }
     }
 
     json_t *jn_resp;

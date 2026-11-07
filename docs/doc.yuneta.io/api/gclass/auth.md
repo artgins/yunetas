@@ -73,6 +73,70 @@ whose **v1** SPA edits `treedb_authzs` turns it off in its config:
 
 ---
 
+
+### Operator assertions (`assertion_jwks`, 7.30.9+)
+
+An **operator assertion** is a short token that a control center signs for
+**one node**. It says which operator asks a command that the control center
+forwards to that node's agent. `C_AUTHZ` keeps the public keys of its signers
+in a set of their own, `assertion_jwks`. Only the local method `verify_jwt`
+reads this set, and only when it is asked with an `audience`. A login never
+reads it, so an assertion cannot open a session.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `assertion_jwks` | `[]` | Public keys (JWK) of the signers. The `kid` is the issuer (`iss`) of their assertions. |
+| `max_assertion_lifetime` | `300` | Seconds an assertion may live (`exp - iat`). A longer one is refused, as is one with no `iat` or `exp`. |
+| `assertion_time_leeway` | `0` | Seconds this yuno's clock may be off the signer's when `exp` and `nbf` are checked. |
+
+Example: the agents' `main.c` holds the control center's public key (EC
+P-256, ES256) and one day of leeway. A box with no NTP must still take its
+control center's commands. What binds an assertion is its audience, not its
+time.
+
+```json
+"global": {
+    "Authz.assertion_time_leeway": 86400,
+    "Authz.assertion_jwks": [
+        {
+            "kid": "controlcenter",
+            "kty": "EC",
+            "crv": "P-256",
+            "alg": "ES256",
+            "use": "sig",
+            "x": "pfcUj6lfWF5NlMBi47QQt0NPtGs570TPZews4VJLtlE",
+            "y": "e5jGmxU2VE8If70nC1AbP2rVL18R6Y3tFSDSEb7-E0Q"
+        }
+    ]
+}
+```
+
+The local method `verify_jwt` takes `{"jwt": "<token>", "audience": "<node
+uuid>"}` and answers `{"result": 0, "username": "<sub>"}`, or `{"result": -1,
+"comment": "<why>"}`:
+
+```c
+json_t *jn_resp = gobj_local_method(gobj_authz, "verify_jwt",
+    json_pack("{s:s, s:s}", "jwt", token, "audience", node_uuid()),
+    gobj
+);
+```
+
+A good assertion has these properties:
+
+- a key of `assertion_jwks` signed it;
+- it is valid now, give or take `assertion_time_leeway`;
+- its `aud` is the audience;
+- its `iat` and `exp` are no more than `max_assertion_lifetime` apart;
+- its `sub` names the operator. The `sub` can be an email or a local user of
+  the signer, such as `yuneta`.
+
+A user of this yuno that is disabled is refused. Without an `audience`,
+`verify_jwt` checks a login token instead: a token of an issuer of `jwks`,
+for a verified email. The client side is
+[`C_IEVENT_CLI`'s `verify_operator`](#gclass-c-ievent-cli). The signer is the
+[controlcenter](../../yunos/controlcenter.md).
+
 (gclass-c-auth-bff)=
 ## C_AUTH_BFF
 

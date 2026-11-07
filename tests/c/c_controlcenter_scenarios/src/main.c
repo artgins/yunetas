@@ -9,6 +9,8 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include <yunetas.h>
 #include "c_controlcenter.h"
@@ -20,6 +22,7 @@
  ***************************************************************************/
 #define APP_NAME        "test_c_controlcenter_scenarios"
 #define APP_DOC         "Test the scenarios of the control center"
+#define ASSERTION_KEY_FILE "/tmp/test_c_controlcenter_scenarios_assertion.jwk"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -83,7 +86,10 @@ PRIVATE char variable_config[]= "\
             'name': 'controlcenter',                                \n\
             'gclass': 'C_CONTROLCENTER',                            \n\
             'autostart': true,                                      \n\
-            'autoplay': true                                        \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'operator_assertion_key': '" ASSERTION_KEY_FILE "'  \n\
+            }                                                       \n\
         },                                                          \n\
         {                                                           \n\
             'name': 'test_cc',                                      \n\
@@ -97,6 +103,26 @@ PRIVATE char variable_config[]= "\
 ";
 
 time_measure_t time_measure;
+
+/***************************************************************************
+ *  The private key the control center signs its operator assertions with
+ *  (operator_assertion_key), written for the run: a test key, good for
+ *  nothing else. Its public half is in c_test_cc.c.
+ ***************************************************************************/
+PRIVATE const char *ASSERTION_KEY_JWK = "{\"kid\":\"controlcenter\",\"kty\":\"EC\",\"crv\":\"P-256\",\"alg\":\"ES256\",\"use\":\"sig\",\"x\":\"nXhUxejW5sVCIMMt5VPATGJS_nsEIvIHbw_xYLdpa1Q\",\"y\":\"EmyPj6BtdnzvQTYMrLgqtRxTZig5KqIS1hh2YEB2kW8\",\"d\":\"As0_L5bAc2Ga27EKaeu0KhDW5IjXIHxKfgXw2nFDKPo\"}";
+
+PRIVATE int write_assertion_key(void)
+{
+    unlink(ASSERTION_KEY_FILE);
+    FILE *file = fopen(ASSERTION_KEY_FILE, "w");
+    if(!file) {
+        printf("cannot write %s\n", ASSERTION_KEY_FILE);
+        return -1;
+    }
+    fputs(ASSERTION_KEY_JWK, file);
+    fclose(file);
+    return 0;
+}
 
 /***************************************************************************
  *  Every command of the control center asks a permission. With no checker
@@ -368,6 +394,10 @@ int main(int argc, char *argv[])
      *------------------------------*/
     install_poison_allocators();
 
+    if(write_assertion_key() < 0) {
+        return -1;
+    }
+
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/
@@ -415,6 +445,7 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         cleaning
     );
+    unlink(ASSERTION_KEY_FILE);
     release_quarantine();   // an entry point that ended before cleaning()
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);

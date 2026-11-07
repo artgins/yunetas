@@ -150,6 +150,18 @@ PRIVATE char variable_config[]= "\
                         'alg': 'HS256',                             \n\
                         'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
                     }                                               \n\
+                ],                                                  \n\
+                'assertion_time_leeway': 3600,                      \n\
+                'assertion_jwks': [                                 \n\
+                    {                                               \n\
+                        'kid': 'test-controlcenter',                \n\
+                        'kty': 'EC',                                \n\
+                        'crv': 'P-256',                             \n\
+                        'alg': 'ES256',                             \n\
+                        'use': 'sig',                               \n\
+                        'x': 'nXhUxejW5sVCIMMt5VPATGJS_nsEIvIHbw_xYLdpa1Q', \n\
+                        'y': 'EmyPj6BtdnzvQTYMrLgqtRxTZig5KqIS1hh2YEB2kW8'  \n\
+                    }                                               \n\
                 ]                                                   \n\
             }                                                       \n\
         },                                                          \n\
@@ -212,7 +224,7 @@ int token_logged = 0;
 
 static int token_log_write(void *v, int priority, const char *bf, size_t len)
 {
-    for(int i=0; i<7; i++) {
+    for(int i=0; i<13; i++) {
         if(test_tokens[i] && memmem(bf, len, test_tokens[i], strlen(test_tokens[i]))) {
             token_logged++;
         }
@@ -242,12 +254,15 @@ static int register_yuno_and_more(void)
     json_t *errors_list = json_array();
 #else
     /*  Strict FIFO: one warning per request whose operator is refused  */
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Request of the server refused: its operator is not verified",   // another key
         "msg", "Request of the server refused: its operator is not verified",   // expired
-        "msg", "Request of the server refused: its operator is not verified",   // email not verified
+        "msg", "Request of the server refused: its operator is not verified",   // another node
         "msg", "Request of the server refused: its operator is not verified",   // not a string
-        "msg", "Request of the server refused: its operator is not verified"    // a disabled user
+        "msg", "Request of the server refused: its operator is not verified",   // a disabled user
+        "msg", "Request of the server refused: its operator is not verified",   // a login token
+        "msg", "Request of the server refused: its operator is not verified",   // lives too long
+        "msg", "Request of the server refused: its operator is not verified"    // no sub
     );
 #endif
     set_expected_results(

@@ -24,7 +24,7 @@ GOBJ_DECLARE_GCLASS(C_TEST_CLI_OPERATOR);
  *  A wrong result found by the driver
  */
 extern int test_cli_operator_failed;
-extern char *test_tokens[7];          // the tokens the tester made: main.c looks for them in the log
+extern char *test_tokens[13];          // the tokens the tester made: main.c looks for them in the log
 
 /***************************************************************
  *              Prototypes

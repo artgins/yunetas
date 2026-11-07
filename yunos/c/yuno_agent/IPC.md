@@ -629,14 +629,15 @@ carried the operator's `__username__`.
 > identity the peer it dialled asserts**, and the controlcenter is fully
 > trusted by every node that connects to it -- load-bearing for
 > [`NODE_SEALING.md`](NODE_SEALING.md), where that link is the only remaining
-> door. Since 7.30.6 a client can stop trusting it: with `verify_operator`
-> the controlcenter sends the operator's own token (`__operator_jwt__`) and
-> the agent verifies it against its `authz.jwks`, taking the token's email as
-> `__username__`; a request with no token is of `service_principal`
-> (`controlcenter` on the agents), a bad token is refused. Off by default, and
-> the controlcenter does not send the token yet (`send_operator_jwt` off): a
-> login token handed to an agent could be replayed in the controlcenter, so it
-> waits for a token bound to one agent (an audience per node).
+> door. Since 7.30.9 the agents do not just trust it: with
+> `verify_operator` (on in the agents' `main.c`), the controlcenter signs an
+> operator assertion for each command (`__operator_assertion__`, a JWT whose
+> `aud` is the node uuid and whose `sub` is the operator), and the agent
+> verifies it with its `Authz.assertion_jwks` and takes the `sub` as
+> `__username__`. A request with no assertion is of `service_principal`
+> (`controlcenter` on the agents); a bad one is refused. The operator's login
+> token never leaves the controlcenter; an assertion is good on one node, for
+> a minute.
 
 ---
 

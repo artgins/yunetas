@@ -133,23 +133,32 @@ A top-level `__json_config_variables__` in that file changes nothing: its scope
 is the file itself, and the agent's urls are in `main.c`. The input urls
 (`ws://127.0.0.1:1991`, `wss://0.0.0.0:1993`) cannot be changed from the file.
 
-By default the agent takes the operator of a command the control center
-forwards as the control center says (`__username__`). With
-`verify_operator` (7.30.6+) it verifies the operator's own token, which the
-control center sends with the command, against its `authz.jwks`, and takes
-its email; a command with no token (a scenario's step) is of the principal
-`controlcenter`; a bad or expired token is refused. In the json file:
+**The agent verifies who asks** (7.30.9+). The control center forwards an
+operator's command with an **operator assertion**: a short token that the
+control center signs for this node (`aud` is the node uuid), and that names
+the operator (`sub`). The agent verifies the assertion with the control
+center's public key (`Authz.assertion_jwks` in its `main.c`). Then it takes
+the `sub` as the operator, and ignores the `__username__` that the control
+center wrote.
+
+- A command with no assertion is of the principal `controlcenter`. Examples
+  are a control center with no key, or a request with no user.
+- A bad assertion is refused: another key, another node, or expired by more
+  than the day of leeway (`Authz.assertion_time_leeway`).
+
+The agent accepts the day of leeway because a box whose clock drifts must
+still take its control center's commands. To take the control center's word
+again, put this in the json file:
 
 ```json
 "global": {
-    "controlcenter.verify_operator": true
+    "controlcenter.verify_operator": false
 }
 ```
 
-See [`C_IEVENT_CLI`](#gclass-c-ievent-cli). **The control center does not send
-the token yet** (its `send_operator_jwt` is off): a login token handed to an
-agent could be replayed in the control center; it waits for a token bound to
-one agent. See [`controlcenter`](controlcenter.md) for the operator side.
+See [`C_IEVENT_CLI`](#gclass-c-ievent-cli) and
+[`C_AUTHZ`](#gclass-c-authz). See [`controlcenter`](controlcenter.md) for the
+signing side.
 
 ## Audit files
 

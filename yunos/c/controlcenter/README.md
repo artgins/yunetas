@@ -49,6 +49,23 @@ from another host (a copy of a node's disk) is logged as an ERROR:
 *"Two agents with the same node uuid on other hosts"*. Give the copy its own
 uuid with `yuneta-node-uuid`.
 
+## Who asks: operator assertions (7.30.9+)
+
+The control center forwards an operator's command to an agent with
+`__username__`, and with `operator_assertion_key` it also adds an operator
+assertion, `__operator_assertion__`. This is an ES256 JWT that it signs for
+that node: `aud` is the node uuid and `sub` is the operator, and it lives
+60 s. The agent verifies it with the public key in its `main.c` and believes
+the `sub`, not the `__username__`. The control center adds an assertion only
+for an agent whose identity card says `knows_operator_assertion`. The key is
+a private JWK of EC P-256 on the control center's machine. In production:
+
+```json
+"operator_assertion_key": "/yuneta/store/certs/private/controlcenter-assertion.jwk"
+```
+
+Detail and attributes: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Who asks".
+
 ## Commands
 
 Registered in the `command_table` of `src/c_controlcenter.c`:

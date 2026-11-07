@@ -67,6 +67,64 @@ Up to 7.30.3 the agents dialled **1994** / **1995** and trusted
 center keeps a listener on 1994 and 1995, with that certificate, for the
 agents of before.
 
+### Who asks: the operator assertion (7.30.9+)
+
+When the control center forwards a command to an agent, it says who asks in
+`__username__`. With `operator_assertion_key` it also signs an **operator
+assertion**. The agent verifies the assertion and believes it, not the
+`__username__`. The assertion is a JWT (ES256) in `__operator_assertion__`:
+
+| Claim | Value |
+|-------|-------|
+| `iss` | `operator_assertion_issuer` (`controlcenter`) |
+| `sub` | the operator: the user that `C_IEVENT_SRV` authenticated (an email, or a local `yuneta`), or the user who started a scenario run |
+| `aud` | the node uuid of that agent (the `id` of its identity card) |
+| `iat`, `exp` | now, and now + `operator_assertion_lifetime` (60 s) |
+
+The control center adds an assertion to `command-agent`, `stats-agent` and
+every step of a scenario run. It adds one only for an agent whose identity
+card says `knows_operator_assertion` (7.30.9+). An older agent would hand the
+unknown key to its command. A request with no user gets no assertion.
+
+The operator's login token never leaves the control center. An assertion is
+good on one node only, for a minute, and never at a login. A node that is
+taken can replay it nowhere.
+
+The private key is a JWK of EC P-256. It stays on the control center's
+machine, mode 600, and its public half goes into the agents' `main.c`
+(`Authz.assertion_jwks`). The config of the `controlcenter` service:
+
+```json
+{
+    "name": "controlcenter",
+    "kw": {
+        "operator_assertion_key": "/yuneta/store/certs/private/controlcenter-assertion.jwk"
+    }
+}
+```
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `operator_assertion_key` | `""` | File of the private key. Empty: the control center sends no assertion, and the agents run every request as their principal `controlcenter`. |
+| `operator_assertion_issuer` | `controlcenter` | The `iss`: the `kid` of the public key in the agents. |
+| `operator_assertion_lifetime` | `60` | Seconds an assertion lives. An agent refuses more than its `max_assertion_lifetime` (300). |
+
+A key that cannot be used makes the control center log an ERROR, *"The key of
+the operator assertions is not usable: none is sent"*. Examples are a file
+that is not a private EC P-256 JWK, or a yuno whose `C_AUTHZ` did not set
+libjwt's allocators.
+
+To make a key, write a P-256 private JWK with `openssl` and a few lines of
+script:
+
+```bash
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out k.pem
+openssl pkey -in k.pem -text -noout    # priv: d, pub: 04 || x || y (base64url each)
+```
+
+Keep an offline copy of the key. Replacing the key means a new agent release
+with the new public half.
+
 ### One node, one uuid
 
 A node is known by its node uuid (the `id` of its agent's identity card), and

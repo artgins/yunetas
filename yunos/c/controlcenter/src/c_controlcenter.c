@@ -58,7 +58,8 @@
  *  without a reload. A user's own record is not watched: it changes at every
  *  login (its sessions), and disabling or deleting a user drops its sessions.
  *  A RUN sends each step to the node's agent as `command-yuno`, carrying
- *  the user who asked (`__username__`, what the agent's audit records).
+ *  the user who asked (`__username__`, what the agent's audit records, and
+ *  its operator assertion, below).
  *  A start or a resume goes one step after the other: a step is sent only
  *  when the one before it answered, and a step that fails, does not answer
  *  in `run_step_timeout`, or whose agent disconnects meanwhile ends the run
@@ -84,6 +85,22 @@
  *
  *  Users are NOT kept here: who may use this yuno is its C_AUTHZ's store.
  *
+ *  OPERATOR ASSERTIONS (7.30.9+). What it forwards to an agent says who
+ *  asks in `__username__`, which the agent believes -- unless it verifies
+ *  it (C_IEVENT_CLI `verify_operator`). For that, with
+ *  `operator_assertion_key`, each command for an agent that announces
+ *  `knows_operator_assertion` carries `__operator_assertion__`: a JWT
+ *  (ES256) signed here, `iss` = `operator_assertion_issuer`, `sub` = the
+ *  operator (the user C_IEVENT_SRV authenticated -- an email, or a local
+ *  `yuneta` -- or the user who started a run), `aud` = the node uuid of
+ *  that agent (its identity card),
+ *  living `operator_assertion_lifetime` seconds. The agent verifies it
+ *  with the public key in its C_AUTHZ `assertion_jwks`. The operator's
+ *  login token never leaves this yuno: an assertion is good on one node,
+ *  for a minute, and never at a login. A request with no user gets none,
+ *  and the agent runs it as its `service_principal`. An agent of before is
+ *  given none (it would hand an unknown key to its command).
+ *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
@@ -96,6 +113,8 @@
 #include <stdio.h>
 #include <limits.h>
 #include <pwd.h>
+#include <time.h>
+#include <jwt.h>
 
 #include "c_controlcenter.h"
 #include "treedb_schema_controlcenter.c"
@@ -215,6 +234,8 @@ PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
 PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card);
 PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src);
 PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_channel);
+PRIVATE int load_assertion_key(hgobj gobj);
+PRIVATE int add_operator_assertion(hgobj gobj, json_t *kw_agent, const char *username, hgobj agent_channel);
 PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
 PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv);
 PRIVATE hgobj requester_of_route(
@@ -373,7 +394,9 @@ SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second (write 0 to start again)"),
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
-SDATA (DTP_BOOLEAN,     "send_operator_jwt",SDF_RD,         "0",        "Send the operator's token with the commands to the agents that take it (C_IEVENT_CLI verify_operator). OFF: an agent holding the token of an operator can replay it here, where it is valid; not to be switched on before the token is bound to one agent"),
+SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
+SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
+SDATA (DTP_INTEGER,     "operator_assertion_lifetime",SDF_RD,"60",      "Seconds an operator assertion lives (the agents refuse one of more than their max_assertion_lifetime)"),
 SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
 SDATA (DTP_BOOLEAN,     "drops_timer_armed",SDF_RD,             "0",        "A capped warning has a count to say when its window ends"),
 
@@ -470,6 +493,9 @@ typedef struct _PRIVATE_DATA {
     json_t *run_channels;           // "<step idx>" -> channel (in __input_side__) of each step in flight
 
     json_int_t connections;         // number given to the last web client connection
+
+    jwk_set_t *assertion_key_set;   // operator_assertion_key, while running
+    const jwk_item_t *assertion_key;
 } PRIVATE_DATA;
 
 
@@ -621,6 +647,12 @@ PRIVATE int mt_start(hgobj gobj)
      *-----------------------------*/
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
 
+    /*
+     *  Here and not in mt_create: libjwt allocates through gbmem only
+     *  once C_AUTHZ's mt_create has said so (jwt_set_alloc)
+     */
+    load_assertion_key(gobj);
+
     return 0;   // the timers start when they are set (C_TIMER's msec)
 }
 
@@ -644,6 +676,12 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout0(priv->rates_timer);
     if(gobj_is_running(priv->rates_timer)) {
         gobj_stop(priv->rates_timer);
+    }
+
+    if(priv->assertion_key_set) {
+        jwks_free(priv->assertion_key_set);
+        priv->assertion_key_set = NULL;
+        priv->assertion_key = NULL;
     }
     return 0;
 }
@@ -3054,6 +3092,7 @@ PRIVATE int run_send_step(hgobj gobj)
     kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_run",
         json_string(kw_get_str(gobj, priv->run, "id", "", 0)));
     kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer(idx));
+    add_operator_assertion(gobj, kw_step, kw_get_str(gobj, priv->run, "username", "", 0), channel);
 
     priv->txMsgs++;
     json_t *webix = gobj_command(channel, line, kw_step, gobj);
@@ -3114,6 +3153,7 @@ PRIVATE int run_send_all_steps(hgobj gobj)
         kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_run",
             json_string(kw_get_str(gobj, run, "id", "", 0)));
         kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer((json_int_t)idx));
+        add_operator_assertion(gobj, kw_step, kw_get_str(gobj, run, "username", "", 0), channel);
 
         priv->txMsgs++;
         json_t *webix = gobj_command(channel, kw_get_str(gobj, step, "line", "", KW_REQUIRED), kw_step, gobj);
@@ -3429,43 +3469,174 @@ PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  The private key of the operator assertions (operator_assertion_key), a
+ *  JWK of EC P-256 that can sign: or none, said, and none is sent.
+ ***************************************************************************/
+PRIVATE int load_assertion_key(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *path = gobj_read_str_attr(gobj, "operator_assertion_key");
+    if(empty_string(path)) {
+        return 0;
+    }
+
+    /*
+     *  The token libjwt makes is freed with gbmem (add_operator_assertion()):
+     *  so libjwt must allocate with it, which C_AUTHZ sets (jwt_set_alloc)
+     */
+    jwt_malloc_t jwt_malloc_fn = NULL;
+    jwt_free_t jwt_free_fn = NULL;
+    jwt_get_alloc(&jwt_malloc_fn, &jwt_free_fn);
+    if(!jwt_malloc_fn || !jwt_free_fn) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "No C_AUTHZ has set libjwt's allocators: no operator assertion is sent",
+            "path",         "%s", path,
+            NULL
+        );
+        return -1;
+    }
+
+    jwk_set_t *jwk_set = jwks_create_fromfile(path);
+    const jwk_item_t *key = NULL;
+    const char *error = NULL;
+    if(!jwk_set) {
+        error = "cannot read it";
+    } else if(jwks_error(jwk_set)) {
+        error = jwks_error_msg(jwk_set);
+    } else if(jwks_item_count(jwk_set) != 1) {
+        error = "it must hold one key";
+    } else {
+        key = jwks_item_get(jwk_set, 0);
+        if(!key || jwks_item_error(key)) {
+            error = key? jwks_item_error_msg(key) : "no key";
+        } else if(!jwks_item_is_private(key)) {
+            error = "it is not a private key";
+        } else {
+            jwt_builder_t *builder = jwt_builder_new();
+            if(!builder || jwt_builder_setkey(builder, JWT_ALG_ES256, key) != 0) {
+                error = "it is not a key of EC P-256 (ES256)";
+            }
+            if(builder) {
+                jwt_builder_free(builder);
+            }
+        }
+    }
+
+    if(error) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
+            "msg",          "%s", "The key of the operator assertions is not usable: none is sent",
+            "path",         "%s", path,
+            "error",        "%s", error? error : "",
+            NULL
+        );
+        if(jwk_set) {
+            jwks_free(jwk_set);
+        }
+        return -1;
+    }
+
+    priv->assertion_key_set = jwk_set;
+    priv->assertion_key = key;
+    return 0;
+}
+
+/***************************************************************************
+ *  Add to `kw_agent` (a kw of THIS request, not shared) the operator
+ *  assertion of `username` for the agent of `agent_channel`, when there is
+ *  a key, the agent takes it, and there is a user. Otherwise nothing:
+ *  the agent runs the request as its service principal (or, if it does not
+ *  verify, as `__username__` says).
+ ***************************************************************************/
+PRIVATE int add_operator_assertion(
+    hgobj gobj,
+    json_t *kw_agent,
+    const char *username,
+    hgobj agent_channel
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->assertion_key) {
+        return 0;
+    }
+    json_t *jn_agent_card = gobj_read_json_attr(agent_channel, "identity_card");
+    if(!kw_get_bool(gobj, jn_agent_card, "knows_operator_assertion", FALSE, 0)) {
+        return 0;
+    }
+    const char *node = kw_get_str(gobj, jn_agent_card, "id", "", 0);
+    if(empty_string(node) || empty_string(username)) {
+        return 0;
+    }
+
+    jwt_builder_t *builder = jwt_builder_new();
+    if(!builder || jwt_builder_setkey(builder, JWT_ALG_ES256, priv->assertion_key) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot build an operator assertion",
+            "error",        "%s", builder? jwt_builder_error_msg(builder) : "jwt_builder_new() FAILED",
+            NULL
+        );
+        if(builder) {
+            jwt_builder_free(builder);
+        }
+        return -1;
+    }
+
+    jwt_builder_enable_iat(builder, 0);     // set below, with the exp it goes with
+    time_t now = time(NULL);
+    jwt_value_t jval;
+    jwt_set_SET_STR(&jval, "iss", gobj_read_str_attr(gobj, "operator_assertion_issuer"));
+    jwt_builder_claim_set(builder, &jval);
+    jwt_set_SET_STR(&jval, "sub", username);
+    jwt_builder_claim_set(builder, &jval);
+    jwt_set_SET_STR(&jval, "aud", node);
+    jwt_builder_claim_set(builder, &jval);
+    jwt_set_SET_INT(&jval, "iat", (jwt_long_t)now);
+    jwt_builder_claim_set(builder, &jval);
+    jwt_set_SET_INT(&jval, "exp",
+        (jwt_long_t)(now + gobj_read_integer_attr(gobj, "operator_assertion_lifetime")));
+    jwt_builder_claim_set(builder, &jval);
+
+    char *token = jwt_builder_generate(builder);
+    if(!token) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot sign an operator assertion",
+            "error",        "%s", jwt_builder_error_msg(builder),
+            "username",     "%s", username,
+            "node",         "%s", node,
+            NULL
+        );
+        jwt_builder_free(builder);
+        return -1;
+    }
+    jwt_builder_free(builder);
+
+    json_object_set_new(kw_agent, "__operator_assertion__", json_string(token));
+    GBMEM_FREE(token)  // libjwt allocates with gbmem (C_AUTHZ's jwt_set_alloc)
+    return 0;
+}
+
+/***************************************************************************
  *  The kw of a request for an agent (kw not owned; return is yours): with
- *  the token of the operator who asks (`__operator_jwt__`, from the
- *  identity card of the operator's session), when the agent takes it
- *  (`knows_operator_identity` in ITS identity card, 7.30.6+). Such an agent
- *  takes it out of the request, and with `verify_operator` verifies who
- *  asks instead of believing `__username__`. An agent of before is not
- *  given it: it would hand it to its command, and its audit would keep a
- *  credential. A request with no operator's session (a step of a scenario,
- *  a local client without a jwt) goes without one.
- *
- *  Only with `send_operator_jwt`, OFF by default and not to be switched on
- *  yet: the token is the operator's login token, valid in THIS controlcenter
- *  too, so an agent that holds it (a node taken, or a peer that only says
- *  `knows_operator_identity`) could replay it here as the operator, and
- *  reach every node. It needs a token bound to the one agent (an audience
- *  per node, minted by the IdP) before it is of any use.
+ *  the operator assertion of who asks (add_operator_assertion()), when
+ *  there is one to give; else the same kw.
  ***************************************************************************/
 PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_channel)
 {
-    if(!gobj_read_bool_attr(gobj, "send_operator_jwt")) {
-        return kw_incref(kw);
-    }
-    json_t *jn_agent_card = gobj_read_json_attr(agent_channel, "identity_card");
-    if(!kw_get_bool(gobj, jn_agent_card, "knows_operator_identity", FALSE, 0)) {
-        return kw_incref(kw);
-    }
-    if(!src || !gobj_has_attr(src, "identity_card")) {
-        return kw_incref(kw);
-    }
-    json_t *jn_operator_card = gobj_read_json_attr(src, "identity_card");
-    const char *jwt = kw_get_str(gobj, jn_operator_card, "jwt", "", 0);
-    if(empty_string(jwt)) {
-        return kw_incref(kw);
-    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!priv->assertion_key) {
+        return kw_incref(kw);
+    }
     json_t *kw_agent = json_deep_copy(kw);
-    json_object_set_new(kw_agent, "__operator_jwt__", json_string(jwt));
+    add_operator_assertion(gobj, kw_agent, username_of(gobj, kw, src), agent_channel);
     return kw_agent;
 }
 

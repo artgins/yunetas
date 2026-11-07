@@ -210,6 +210,18 @@ still reported and fails the test.
     connect, and its own was already connected: the safety stop was never
     tried again. It runs in phases 5-6, after case 19.
 
+21. The operator assertion (7.30.9). The agent's identity card says
+    `knows_operator_assertion`, and the control center has an
+    `operator_assertion_key` (a test key that `main.c` writes to
+    `/tmp/test_c_controlcenter_scenarios_assertion.jwk` for the run). A
+    `command-agent` from *alice@example.com* reaches the agent with an
+    `__operator_assertion__`. The test verifies it with the public key, as the
+    agent's `C_AUTHZ` does: `iss` `controlcenter`, `aud` the agent's node
+    uuid, `sub` the user, and 60 s of life. A `command-agent` with no user
+    reaches the agent with none. Every step of a parallel run carries one
+    too. This yuno has no `C_AUTHZ`, so the test sets libjwt's allocators
+    itself. Without them, the control center signs nothing.
+
 ## Run
 
 ```bash
