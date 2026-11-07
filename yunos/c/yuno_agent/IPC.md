@@ -622,16 +622,18 @@ enabling the `C_IEVENT_CLI` `ievents` trace on a target agent and reading the
 inbound frame: the gate stack showed `user: yuneta_agent@…` while the kw
 carried the operator's `__username__`.
 
-> ⚠️ **Asymmetry worth knowing:** the inbound path on the *client* side,
-> `ac_mt_command` in
-> [`c_ievent_cli.c`](../../../kernel/c/root-linux/src/c_ievent_cli.c), has an
-> empty `Check AUTHZ` banner and neither injects nor sanitizes
-> `__username__` — it hands the wire kw straight to `gobj_command`. A yuno
-> therefore **trusts whatever identity the peer it dialled asserts**. That is
-> defensible while the peer is your own controlcenter, but it means the
-> controlcenter is fully trusted by every node that connects to it, and it is
-> load-bearing for [`NODE_SEALING.md`](NODE_SEALING.md), where that link is the
-> only remaining door.
+> ⚠️ **Asymmetry worth knowing:** by default the inbound path on the *client*
+> side (`ac_on_message` in
+> [`c_ievent_cli.c`](../../../kernel/c/root-linux/src/c_ievent_cli.c)) takes
+> `__username__` as the peer wrote it. A yuno therefore **trusts whatever
+> identity the peer it dialled asserts**, and the controlcenter is fully
+> trusted by every node that connects to it -- load-bearing for
+> [`NODE_SEALING.md`](NODE_SEALING.md), where that link is the only remaining
+> door. Since 7.30.6 a client can stop trusting it: with `verify_operator`
+> the controlcenter sends the operator's own token (`__operator_jwt__`) and
+> the agent verifies it against its `authz.jwks`, taking the token's email as
+> `__username__`; a request with no token is of `service_principal`
+> (`controlcenter` on the agents), a bad token is refused. Off by default.
 
 ---
 

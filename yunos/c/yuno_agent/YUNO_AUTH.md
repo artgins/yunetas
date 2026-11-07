@@ -1048,6 +1048,16 @@ Points found so far (verified this session unless noted):
    link: since 7.30.4 the agents trust only the CC's own certificate
    (`certs/controlcenter.crt`, key on the CC's machine, ports 1988/1989); up to
    7.30.3 they trusted `yuneta_agent.crt`, which every agent serves.
+   **Since 7.30.6 a node can verify the operator itself**: the CC sends the
+   operator's token with each command (`__operator_jwt__`, only to an agent
+   whose identity card says `knows_operator_identity`), and with
+   `"global": {"controlcenter.verify_operator": true}` the agent verifies it
+   against its `authz.jwks` and takes the token's email as `__username__`; a
+   command with no token (a step of a scenario) is of the principal
+   `controlcenter`, and a bad or expired token is refused. Off by default:
+   until the matrix (points 1-3) exists, a verified identity matters only to
+   what checks it already (the treedb commands, `open-console`). Open: a long
+   operator session whose token expires is refused until it reconnects.
 
 5. **`command-agent` / `command-yuno` forward unchecked keys** ("WARNING:
    parameter's keys are not checked"). Once the gate is on, the forwarded

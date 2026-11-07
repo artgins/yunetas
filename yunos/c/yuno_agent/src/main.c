@@ -71,6 +71,13 @@ PRIVATE char fixed_config[]= "\
  *
  *  A top-level `__json_config_variables__` in the json file reaches only
  *  that file: it changes nothing here.
+ *
+ *  The operator of a command the controlcenter forwards: off by default,
+ *  the agent takes the `__username__` the controlcenter says. With
+ *  `"global": {"controlcenter.verify_operator": true}` in the json file it
+ *  verifies the token of the operator that comes with the command (against
+ *  its `authz.jwks`) and takes its email; a command with no token (a step of
+ *  a scenario) is of `service_principal`, 'controlcenter'.
  */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
@@ -256,7 +263,8 @@ PRIVATE char variable_config[]= "\
             'kw': {                                     \n\
                 'remote_yuno_name': '',                 \n\
                 'remote_yuno_role': 'controlcenter',    \n\
-                'remote_yuno_service': 'controlcenter'  \n\
+                'remote_yuno_service': 'controlcenter', \n\
+                'service_principal': 'controlcenter'    \n\
             },                                          \n\
             'children': [                                \n\
                 {                                               \n\

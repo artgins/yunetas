@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **An agent can verify the operator of a command itself, instead of believing
+  the controlcenter.** The controlcenter forwards an operator's command
+  (`command-agent`, `stats-agent`) with the operator's own token,
+  `__operator_jwt__`, taken from the identity card of the operator's session,
+  and only to an agent whose identity card says `knows_operator_identity`
+  (7.30.6+: an older agent would hand it to its command and its audit). The
+  agent's `C_IEVENT_CLI` takes it out of every request, and with the new
+  `verify_operator` (default off) verifies it against the `jwks` of its
+  `C_AUTHZ` -- new local method `verify_jwt`: signature, issuer, expiry, a
+  verified email, nothing of a login -- and its email becomes the
+  `__username__`, whatever the controlcenter said. A request with no token is
+  of `service_principal` (`controlcenter` in the agents' `main.c`: a step of a
+  scenario, a local client without a jwt), and a bad token is refused: a
+  command or a stats is answered with the reason, ONE warning. Switched on per
+  node with `"global": {"controlcenter.verify_operator": true}`.
+  `test_c_ievent_cli_operator` (+ `_unverified`): red with the old code (the
+  token reached the command, the bad tokens ran).
+
 ## v7.30.5 (2026-11-07)
 
 A light release, after 7.30.4 the same day: only the agents change, and only in

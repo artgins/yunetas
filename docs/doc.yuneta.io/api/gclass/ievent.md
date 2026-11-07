@@ -30,6 +30,40 @@ subscription management.
 | `url` | `string` | Connection URL. |
 | `jwt` | `string` | JSON Web Token for authentication. |
 | `timeout_idack` | `integer` | Identity-card ack timeout in seconds. |
+| `verify_operator` | `boolean` | Verify the operator of each request of the server from its own token (default `false`). See below. |
+| `service_principal` | `string` | With `verify_operator`, the `__username__` of a request that carries no operator's token. Empty: such a request is refused. |
+
+### The operator of a request of the server
+
+A server that forwards a command of somebody else -- a controlcenter
+forwarding an operator's command to an agent -- says who asks in
+`__username__`, and the client's authz reads it. With `verify_operator` the
+client does not believe it (7.30.6+):
+
+- the request carries the operator's token in `__operator_jwt__`; the client
+  verifies it against the `jwks` of its yuno's `C_AUTHZ` (signature, issuer,
+  expiry, a verified email; local method `verify_jwt`), and the token's email
+  becomes the `__username__`, whatever the request said;
+- a request with no token is of `service_principal` (a command of the server
+  itself, a step of a scheduled scenario);
+- a bad token is refused, never taken as "no token": a command or a stats is
+  answered with the reason (*"The token of the operator is refused: Token has
+  expired"*), any other event is dropped, and each refusal is ONE warning,
+  *"Request of the server refused: its operator is not verified"*.
+
+`__operator_jwt__` is taken out of every request, verified or not: no command
+and no audit sees it. The identity card says `knows_operator_identity: true`,
+and a server gives the token only to a client that says so (an older one
+would hand it to its command). Example, the agent's link to its
+controlcenter, switched on from the agent's json file:
+
+```json
+"global": {
+    "controlcenter.verify_operator": true
+}
+```
+
+with, in the agent's `main.c`, `'service_principal': 'controlcenter'`.
 
 ### Stopping with remote subscriptions open
 

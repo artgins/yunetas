@@ -131,7 +131,22 @@ A node points its agent at another control center from its json file
 
 A top-level `__json_config_variables__` in that file changes nothing: its scope
 is the file itself, and the agent's urls are in `main.c`. The input urls
-(`ws://127.0.0.1:1991`, `wss://0.0.0.0:1993`) cannot be changed from the file. See [`controlcenter`](controlcenter.md) for the operator side.
+(`ws://127.0.0.1:1991`, `wss://0.0.0.0:1993`) cannot be changed from the file.
+
+By default the agent takes the operator of a command the control center
+forwards as the control center says (`__username__`). With
+`verify_operator` (7.30.6+) it verifies the operator's own token, which the
+control center sends with the command, against its `authz.jwks`, and takes
+its email; a command with no token (a scenario's step) is of the principal
+`controlcenter`; a bad or expired token is refused. In the json file:
+
+```json
+"global": {
+    "controlcenter.verify_operator": true
+}
+```
+
+See [`C_IEVENT_CLI`](#gclass-c-ievent-cli). See [`controlcenter`](controlcenter.md) for the operator side.
 
 ## Audit files
 

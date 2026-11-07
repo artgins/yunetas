@@ -187,6 +187,7 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
 /*  Reaction to an account created in an IdP (see c_idp_keycloak.c). */
 PRIVATE int ac_idp_user_created(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
+PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
@@ -4915,6 +4916,60 @@ PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
     return json_pack("{s:b, s:b}", "found", found? 1 : 0, "may_link", may_link? 1 : 0);
 }
 
+/***************************************************************************
+ *  Local method `verify_jwt`: is `jwt` a token of an issuer of `jwks`,
+ *  valid now, of a verified email? kw {"jwt": "<token>"} (owned).
+ *  Returns {"result": 0, "username": "<email>"}, or {"result": -1,
+ *  "comment": "<why>"}: the caller says the refusal (it knows who sent the
+ *  token); nothing here writes the token anywhere.
+ *
+ *  The checks of a jwt in mt_authenticate(), without what is of a login
+ *  (the session, its count, EV_AUTHZ_USER_LOGIN): for a token that comes
+ *  with each request, as the one of the operator of a command that a
+ *  controlcenter forwards to an agent (C_IEVENT_CLI `verify_operator`).
+ ***************************************************************************/
+PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
+{
+    const char *jwt = kw_get_str(gobj, kw, "jwt", "", 0);
+    if(empty_string(jwt)) {
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s}", "result", -1, "comment", "No token");
+    }
+
+    json_t *jwt_payload = NULL;
+    const char *status = NULL;
+    if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
+        json_t *jn_resp = json_pack("{s:i, s:s}",
+            "result", -1,
+            "comment", status? status : "Invalid token"
+        );
+        JSON_DECREF(jwt_payload)
+        KW_DECREF(kw)
+        return jn_resp;
+    }
+
+    const char *username = kw_get_str(gobj, jwt_payload, "email", "", 0);
+    BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, 0);
+    const char *refusal = NULL;
+    if(empty_string(username)) {
+        refusal = "The token has no email";
+    } else if(!email_verified) {
+        refusal = "Email not verified";
+    } else if(!strchr(username, '@')) {
+        refusal = "Username must be an email address";
+    }
+
+    json_t *jn_resp;
+    if(refusal) {
+        jn_resp = json_pack("{s:i, s:s}", "result", -1, "comment", refusal);
+    } else {
+        jn_resp = json_pack("{s:i, s:s}", "result", 0, "username", username);
+    }
+    JSON_DECREF(jwt_payload)
+    KW_DECREF(kw)
+    return jn_resp;
+}
+
 
 
 
@@ -5052,6 +5107,7 @@ GOBJ_DEFINE_EVENT(EV_IDP_USER_CREATED);
  *------------------------*/
 PRIVATE LMETHOD lmt[] = {
     {"has_role",                lmt_has_role,           0},
+    {"verify_jwt",              lmt_verify_jwt,         0},
     {0, 0, 0}
 };
 

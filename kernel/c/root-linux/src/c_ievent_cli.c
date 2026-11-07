@@ -20,6 +20,7 @@
 #include <yuneta_version.h>
 
 #include "c_timer.h"
+#include "c_authz.h"
 #include "msg_ievent.h"
 #include "c_ievent_cli.h"
 
@@ -46,6 +47,18 @@ PRIVATE int send_remote_subscription(
     hgobj gobj,
     json_t *subs
 );
+PRIVATE int set_operator_of_request(
+    hgobj gobj,
+    json_t *iev_kw,
+    char *refusal,
+    size_t refusal_size
+);
+PRIVATE int refuse_request(
+    hgobj gobj,
+    gobj_event_t iev_event,
+    json_t *iev_kw,
+    const char *refusal
+);
 
 /***************************************************************
  *              Data
@@ -66,6 +79,8 @@ SDATA (DTP_STRING,  "jwt",              SDF_PERSIST|SDF_SECRET,    "",         "
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_JSON,    "extra_info",       SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
 SDATA (DTP_INTEGER, "timeout_idack",    SDF_RD,         "5000",     "timeout waiting idAck"),
+SDATA (DTP_BOOLEAN, "verify_operator",  SDF_RD,         "0",        "Verify the operator of each request of the server: its __operator_jwt__ against the jwks of this yuno's C_AUTHZ, whose email becomes its __username__ (refused if invalid); a request without one is of service_principal. Off: the __username__ the server says is taken, as up to 7.30.5"),
+SDATA (DTP_STRING,  "service_principal",SDF_RD,         "",         "With verify_operator, the __username__ of a request of the server that carries no operator's token (a request of the server itself, a scheduled one). Empty: such a request is refused"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -96,6 +111,7 @@ typedef struct _PRIVATE_DATA {
     const char *remote_yuno_role;
     const char *remote_yuno_service;
     hgobj gobj_timer;
+    BOOL verify_operator;
     BOOL inform_on_close;
     BOOL inside_on_open;    // TODO review,not used
                             // avoid duplicates, no subscriptions while in on_open,
@@ -126,6 +142,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(remote_yuno_name,          gobj_read_str_attr)
     SET_PRIV(remote_yuno_role,          gobj_read_str_attr)
     SET_PRIV(remote_yuno_service,       gobj_read_str_attr)
+    SET_PRIV(verify_operator,           gobj_read_bool_attr)
     gobj_write_str_attr(gobj, "wanted_yuno_name", priv->remote_yuno_name?priv->remote_yuno_name:"");
     gobj_write_str_attr(gobj, "wanted_yuno_role", priv->remote_yuno_role?priv->remote_yuno_role:"");
     gobj_write_str_attr(gobj, "wanted_yuno_service", priv->remote_yuno_service?priv->remote_yuno_service:"");
@@ -603,7 +620,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     const char *yuno_tag = gobj_read_str_attr(gobj_yuno(), "yuno_tag");
     json_int_t launch_id = gobj_read_integer_attr(gobj_yuno(), "launch_id");
     json_t *kw_identity_card = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s}",
+        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:i, s:i, s:s, s:s, s:I, s:s, s:s, s:b}",
         "yuno_role", gobj_yuno_role(),
         "yuno_id", gobj_yuno_id(),
         "yuno_name", gobj_yuno_name(),
@@ -618,7 +635,8 @@ PRIVATE int send_identity_card(hgobj gobj)
         "username", gobj_read_str_attr(gobj_yuno(), "__username__"),
         "launch_id", launch_id,
         "yuno_startdate", gobj_read_str_attr(gobj_yuno(), "start_date"),
-        "id", node_uuid()
+        "id", node_uuid(),
+        "knows_operator_identity", 1    // takes __operator_jwt__ out of each request (7.30.6+)
     );
 
     json_t *jn_required_services = gobj_read_json_attr(gobj_yuno(), "required_services");
@@ -780,6 +798,137 @@ PRIVATE int send_remote_subscription(
     msg_iev_set_msg_type(gobj, kw, "__subscribing__");
 
     return send_static_iev(gobj, event, kw, gobj);
+}
+
+/***************************************************************************
+ *  The operator of a request of the server, in its `__username__`.
+ *
+ *  A controlcenter that forwards a command of an operator to an agent says
+ *  who asks in `__username__`, and the agent's authz reads it: so the agent
+ *  trusts the controlcenter to tell the truth. With `verify_operator` it
+ *  does not: the request carries the operator's own token
+ *  (`__operator_jwt__`, which the controlcenter took from the operator's
+ *  session), the token is verified against the jwks of this yuno's C_AUTHZ
+ *  (signature, issuer, expiry, a verified email), and its email is the
+ *  `__username__`, whatever the request said. A request with no token is of
+ *  `service_principal` (a command of the controlcenter itself, a step of a
+ *  scenario); with no `service_principal`, it is refused. A bad token is
+ *  refused, never taken as "no token".
+ *
+ *  The token is taken out of the request in every case, verified or not:
+ *  it is a credential, and nothing below this gobj (a command, its audit)
+ *  has to see it.
+ *
+ *  Returns 0, or -1 with the reason in `refusal` (said here, a WARNING).
+ ***************************************************************************/
+PRIVATE int set_operator_of_request(
+    hgobj gobj,
+    json_t *iev_kw,
+    char *refusal,
+    size_t refusal_size
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_jwt = json_object_get(iev_kw, "__operator_jwt__");
+    if(jn_jwt) {
+        json_incref(jn_jwt);
+        json_object_del(iev_kw, "__operator_jwt__");
+    }
+
+    if(!priv->verify_operator) {
+        JSON_DECREF(jn_jwt)
+        return 0;
+    }
+
+    int ret = 0;
+    if(!jn_jwt) {
+        const char *principal = gobj_read_str_attr(gobj, "service_principal");
+        if(empty_string(principal)) {
+            snprintf(refusal, refusal_size, "%s", "A request without the token of its operator");
+            ret = -1;
+        } else {
+            json_object_set_new(iev_kw, "__username__", json_string(principal));
+        }
+    } else if(!json_is_string(jn_jwt) || empty_string(json_string_value(jn_jwt))) {
+        snprintf(refusal, refusal_size, "%s", "The token of the operator is not a string");
+        ret = -1;
+    } else {
+        hgobj gobj_authz = gobj_find_service_by_gclass(C_AUTHZ, FALSE);
+        if(!gobj_authz) {
+            snprintf(refusal, refusal_size, "%s", "No C_AUTHZ to verify the token of the operator");
+            ret = -1;
+        } else {
+            json_t *jn_resp = gobj_local_method(
+                gobj_authz,
+                "verify_jwt",
+                json_pack("{s:O}", "jwt", jn_jwt),
+                gobj
+            );
+            if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+                snprintf(refusal, refusal_size, "The token of the operator is refused: %s",
+                    kw_get_str(gobj, jn_resp, "comment", "", 0)
+                );
+                ret = -1;
+            } else {
+                json_object_set_new(iev_kw, "__username__",
+                    json_string(kw_get_str(gobj, jn_resp, "username", "", 0))
+                );
+            }
+            JSON_DECREF(jn_resp)
+        }
+    }
+    JSON_DECREF(jn_jwt)
+
+    if(ret < 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Request of the server refused: its operator is not verified",
+            "refusal",      "%s", refusal,
+            "username",     "%s", kw_get_str(gobj, iev_kw, "__username__", "", 0),
+            NULL
+        );
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  A request whose operator is refused: a command or a stats is answered
+ *  with the refusal (the operator reads it), anything else is dropped (the
+ *  WARNING is already said). iev_kw owned.
+ ***************************************************************************/
+PRIVATE int refuse_request(
+    hgobj gobj,
+    gobj_event_t iev_event,
+    json_t *iev_kw,
+    const char *refusal
+) {
+    gobj_event_t answer = NULL;
+    if(iev_event == EV_MT_COMMAND) {
+        answer = EV_MT_COMMAND_ANSWER;
+    } else if(iev_event == EV_MT_STATS) {
+        answer = EV_MT_STATS_ANSWER;
+    }
+    if(!answer) {
+        KW_DECREF(iev_kw)
+        return -1;  // Error already logged
+    }
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        -1,
+        json_sprintf("%s: %s", gobj_yuno_role_plus_name(), refusal),
+        0,
+        0
+    );
+    kw_response = msg_iev_set_back_metadata(
+        gobj,
+        iev_kw,         // owned, used to extract ONLY __md_iev__
+        kw_response,    // like owned, is returned
+        TRUE            // reverse_dst
+    );
+    send_static_iev(gobj, answer, kw_response, gobj);
+    return -1;
 }
 
 /***************************************************************************
@@ -1142,6 +1291,16 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "input_channel",
         json_string(gobj_name(gobj))
     );
+
+    /*------------------------------------*
+     *   Who asks: the operator
+     *------------------------------------*/
+    char refusal[256];
+    if(set_operator_of_request(gobj, iev_kw, refusal, sizeof(refusal)) < 0) {
+        refuse_request(gobj, iev_event, iev_kw, refusal);   // iev_kw owned
+        KW_DECREF(kw)
+        return -1;
+    }
 
     /*---------------------------------------*
      *          trace inter_event

@@ -214,6 +214,7 @@ PRIVATE json_int_t connection_number(hgobj channel);
 PRIVATE BOOL same_connection(hgobj gobj, json_t *kw, hgobj channel);
 PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card);
 PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_channel);
 PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
 PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv);
 PRIVATE hgobj requester_of_route(
@@ -1176,7 +1177,7 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
             cmd2agent,
-            kw_incref(kw),
+            kw_to_agent(gobj, kw, src, child),
             src
         );
         JSON_DECREF(webix);
@@ -1273,7 +1274,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         json_t *webix = gobj_stats( // debe retornar siempre 0.
             child,
             stats2agent,
-            kw_incref(kw),
+            kw_to_agent(gobj, kw, src, child),
             src
         );
         JSON_DECREF(webix);
@@ -3424,6 +3425,37 @@ PRIVATE void stamp_client_connection(hgobj gobj, json_t *kw, hgobj src)
         json_object_set_new(jn_client, "cc_connection",
             json_integer(connection_number(client_channel)));
     }
+}
+
+/***************************************************************************
+ *  The kw of a request for an agent (kw not owned; return is yours): with
+ *  the token of the operator who asks (`__operator_jwt__`, from the
+ *  identity card of the operator's session), when the agent takes it
+ *  (`knows_operator_identity` in ITS identity card, 7.30.6+). Such an agent
+ *  takes it out of the request, and with `verify_operator` verifies who
+ *  asks instead of believing `__username__`. An agent of before is not
+ *  given it: it would hand it to its command, and its audit would keep a
+ *  credential. A request with no operator's session (a step of a scenario,
+ *  a local client without a jwt) goes without one.
+ ***************************************************************************/
+PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_channel)
+{
+    json_t *jn_agent_card = gobj_read_json_attr(agent_channel, "identity_card");
+    if(!kw_get_bool(gobj, jn_agent_card, "knows_operator_identity", FALSE, 0)) {
+        return kw_incref(kw);
+    }
+    if(!src || !gobj_has_attr(src, "identity_card")) {
+        return kw_incref(kw);
+    }
+    json_t *jn_operator_card = gobj_read_json_attr(src, "identity_card");
+    const char *jwt = kw_get_str(gobj, jn_operator_card, "jwt", "", 0);
+    if(empty_string(jwt)) {
+        return kw_incref(kw);
+    }
+
+    json_t *kw_agent = json_deep_copy(kw);
+    json_object_set_new(kw_agent, "__operator_jwt__", json_string(jwt));
+    return kw_agent;
 }
 
 /***************************************************************************
