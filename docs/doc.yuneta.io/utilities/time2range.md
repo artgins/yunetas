@@ -33,4 +33,4 @@ A range whose start or end no calendar holds is refused with exit code -1 (*"No 
 ## See also
 
 - [`time2date`](time2date.md) — single-timestamp conversion.
-- [`utils/c/time2range/README.md`](https://github.com/artgins/yunetas/blob/7.30.4/utils/c/time2range/README.md).
+- [`utils/c/time2range/README.md`](https://github.com/artgins/yunetas/blob/7.30.5/utils/c/time2range/README.md).

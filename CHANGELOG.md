@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v7.30.5 (2026-11-07)
+
+A light release, after 7.30.4 the same day: only the agents change, and only in
+where their `__output_url__` is defined. Their behaviour is the same with the
+templates' default (1988 / 1989). Checked with `--print-config` and on a running
+agent; no test of the suite covers the agents' `main.c`, and no `.c` of a hot
+path changed (no performance study).
+
 - **A node can point its agents at another controlcenter from their json file.**
   `__output_url__` moved from the top-level `__json_config_variables__` of the
   agents' `main.c` -- whose scope is that text, so it was replaced before the
