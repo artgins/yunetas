@@ -52,9 +52,15 @@ PRIVATE char fixed_config[]= "\
  *  serves, whose key every node holds. The old port stays served for the
  *  agents of before.
  *
- *  These `__json_config_variables__` are replaced in THIS text, before the
- *  agent's json file is merged: the `__json_config_variables__` of that file
- *  do not reach the urls below. Change them here.
+ *  A top-level `__json_config_variables__` has the scope of its own json
+ *  text: these are replaced in THIS text when it is loaded, before the
+ *  agent's json file is merged, so the urls below leave with their values
+ *  already in. The json file cannot change them, neither with its own
+ *  top-level `__json_config_variables__` (they reach only that file) nor
+ *  with `"global": {"<service>.__json_config_variables__": ...}` (applied at
+ *  the creation of the service, when no `(^^__output_url__^^)` is left).
+ *  Only a variable NOT defined here survives to that second pass, as
+ *  `__sys_machine__` and `__node_owner__` do. Change them here.
  */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\

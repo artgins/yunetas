@@ -10,10 +10,14 @@
   machine. Up to 7.30.3 the link trusted `yuneta_agent.crt`, the certificate
   every agent serves on its own port 1993. The name checked is still
   `yuneta_agent.yuneta.io`. A controlcenter serves the new ports with its own
-  key, and keeps 1994 and 1995 for the agents of before. The agents'
-  `__output_url__` is compiled in `main.c`: the `__json_config_variables__` of
-  the agent's json file only replace variables of that same file, so they
-  never reached the urls (the templates now say 1988 and 1989 anyway).
+  key, and keeps 1994 and 1995 for the agents of before. The certificate is
+  EC P-256, valid from 2000 to 2126. The agents' `__output_url__` (and
+  `__input_url__`) cannot be changed from the agent's json file: `main.c`
+  defines them in its top-level `__json_config_variables__`, whose scope is its
+  own text, so its urls leave with the values in; the file's top-level
+  variables reach only the file, and a `"global"` `<service>.__json_config_variables__`
+  finds no `(^^...^^)` left to replace (checked with `--print-config`). The
+  templates now say 1988 and 1989 anyway.
 - **ytls (OpenSSL): a client whose `ssl_trusted_certificate` cannot be loaded
   fails its connection, not the yuno.** It exited the yuno with code 0 -- the
   exit meant for a server that cannot load its certificate at its first start
