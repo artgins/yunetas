@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v7.30.6 (2026-11-07)
+
+A light release: each node makes its own agent certificate, and the agents can
+verify who asks (dormant: the controlcenter does not send the token yet).
+Deployed: the agents, on every node (the package nodes with their package);
+the controlcenter took the copy of the old pair for its old ports as
+configuration (v9), before any node replaced its own. The kernel changes
+(`C_IEVENT_CLI`, `C_AUTHZ`) reach the other yunos at their next rebuild and
+change nothing there with `verify_operator` off. Tests of the changes on the
+dev machine (`test-yuneta-agent-cert.sh`, `test_c_ievent_cli_operator` and its
+`_unverified`, the ievent, authz, authenticate and controlcenter tests); no
+performance study (no hot path).
+
 - **Each node makes its own agent certificate.** The agent's pair
   (`/yuneta/agent/certs/yuneta_agent.{crt,key}`, what it serves on its secure
   port 1993) came with the agent up to 7.30.5, the same on every node, and its

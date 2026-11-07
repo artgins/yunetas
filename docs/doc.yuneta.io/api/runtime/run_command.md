@@ -37,7 +37,7 @@ ls -l /proc/<pid>/fd    # 0, 1 and 2 only (and what the program opened)
 ---
 
 (run_command)=
-## [`run_command()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/run_command.c#L208)
+## [`run_command()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/run_command.c#L208)
 
 Runs a command with `/bin/sh -c` (`posix_spawn()`), waits for its end and
 returns its output, stdout and stderr in one.
@@ -99,7 +99,7 @@ if(gbuf) {
 ---
 
 (run_process2)=
-## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/run_command.c#L351)
+## [`run_process2()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/run_command.c#L351)
 
 Runs a program and waits for its end: `posix_spawn()` and `waitpid()`, with no
 shell, so `argv` reaches the program as it is. The program starts with no
@@ -156,7 +156,7 @@ status = run_process2("/bin/sh", sh);   // a shell command, with its status
 ---
 
 (pty_sync_spawn)=
-## [`pty_sync_spawn()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/run_command.c#L516)
+## [`pty_sync_spawn()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/run_command.c#L516)
 
 Spawns a command synchronously in a pseudo-terminal (via `forkpty()`),
 providing interactive terminal I/O between parent and child. The command

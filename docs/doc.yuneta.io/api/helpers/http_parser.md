@@ -4,8 +4,8 @@ Incremental HTTP/1.x parser used by the HTTP gclasses. Feeds bytes from a `gbuff
 
 Source code:
 
-- [`ghttp_parser.h`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.h)
-- [`ghttp_parser.c`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.c)
+- [`ghttp_parser.h`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.h)
+- [`ghttp_parser.c`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.c)
 
 ### Limits
 
@@ -129,7 +129,7 @@ The kw of `on_message_event`:
 | `protocol_error` | `str` | A response that broke the protocol after its status line (no `body` nor `gbuffer`). |
 
 (ghttp_parser_create)=
-## [`ghttp_parser_create()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.c#L99)
+## [`ghttp_parser_create()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.c#L99)
 
 Creates and initializes a new `GHTTP_PARSER` instance for parsing HTTP messages. The parser processes incoming HTTP data and triggers events when headers, body, or complete messages are received.
 
@@ -170,7 +170,7 @@ The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_dest
 ---
 
 (ghttp_parser_destroy)=
-## [`ghttp_parser_destroy()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.c#L143)
+## [`ghttp_parser_destroy()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.c#L143)
 
 Releases all resources associated with a `GHTTP_PARSER` instance, including allocated memory and internal buffers.
 
@@ -195,7 +195,7 @@ After calling `ghttp_parser_destroy()`, the `parser` pointer must not be used as
 ---
 
 (ghttp_parser_received)=
-## [`ghttp_parser_received()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.c#L188)
+## [`ghttp_parser_received()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.c#L188)
 
 Parses an HTTP message from the given buffer using the [`ghttp_parser_create()`](#ghttp_parser_create) instance.
 
@@ -233,7 +233,7 @@ if(n < 0) {
 ---
 
 (ghttp_parser_finish)=
-## [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.c#L273)
+## [`ghttp_parser_finish()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.c#L273)
 
 Signals end-of-stream to the underlying llhttp parser (the TCP peer closed the socket). Required to complete HTTP messages whose terminator is the connection close itself — HTTP/1.0 responses without `Content-Length`, and HTTP/1.1 responses with neither `Content-Length` nor `Transfer-Encoding: chunked`. Without this call, `on_message_complete` will never fire for such messages and the subscriber will miss `EV_ON_MESSAGE`.
 
@@ -267,7 +267,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 ---
 
 (ghttp_parser_stop)=
-## [`ghttp_parser_stop()`](https://github.com/artgins/yunetas/blob/7.30.5/kernel/c/root-linux/src/ghttp_parser.c#L160)
+## [`ghttp_parser_stop()`](https://github.com/artgins/yunetas/blob/7.30.6/kernel/c/root-linux/src/ghttp_parser.c#L160)
 
 The connection of the parser ends (it is dropped, or it closed): nothing more is delivered, not even the rest of the bytes being parsed now. Requests pipelined in one read after the one whose subscriber dropped the connection are not published.
 
