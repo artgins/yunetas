@@ -118,6 +118,22 @@ install(DIRECTORY certs
     DESTINATION "/yuneta/agent"
 )
 
+#   The agent's own pair (yuneta_agent.{crt,key}) is not in certs/: it is
+#   made on the node, by the user that builds (yuneta-agent-cert drops to
+#   yuneta when run as root), when there is none or when it is the pair
+#   published with Yuneta up to 7.30.5; any other pair is kept. A package is
+#   built from these files and must not carry the build machine's pair: its
+#   builders copy only controlcenter.crt.
+install(CODE "
+    execute_process(
+        COMMAND \"${YUNETAS_BASE}/packages/templates/yuneta-agent-cert\" ensure
+        RESULT_VARIABLE _agent_cert_rc
+    )
+    if(NOT _agent_cert_rc EQUAL 0)
+        message(WARNING \"yuneta-agent-cert ensure failed (\${_agent_cert_rc}): the agent keeps the pair it had\")
+    endif()
+")
+
 install(
     TARGETS ${PROJECT_NAME}
     PERMISSIONS

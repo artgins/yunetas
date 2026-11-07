@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Each node makes its own agent certificate.** The agent's pair
+  (`/yuneta/agent/certs/yuneta_agent.{crt,key}`, what it serves on its secure
+  port 1993) came with the agent up to 7.30.5, the same on every node, and its
+  key was in the source: whoever had it could play any node serving it. It
+  leaves the source and the packages (they carry only `certs/controlcenter.crt`,
+  and `localhost.*` stays in the source for the tests only). The new
+  `/usr/libexec/yuneta/yuneta-agent-cert ensure` makes a pair ON the node when
+  there is none, when it is the published one (recognised by the sha256 of its
+  certificate) or when its key is not its certificate's, keeping a copy of the
+  old files; any other pair is kept. EC P-256, valid 2000-2126, named
+  `yuneta_agent.yuneta.io` (the name the clients check) with the host's name in
+  the SAN. It runs in the package's postinst / `%post` (not when the install is
+  the build of an image), before each start of the agent's unit
+  (`ExecStartPre`) and of its SysV script, and in the agent's build on a node
+  that builds from source. The `.rpm` owns the pair as `%ghost`, so that an
+  upgrade does not erase the pair `%post` has just made.
+  `packages/install-yuneta-agent-cert.sh` puts the script and the unit's step on
+  a node without the package. A client that trusted the old certificate to
+  reach a node's 1993 needs the node's new one. `packages/tests/test-yuneta-agent-cert.sh`.
+
 - **An agent can verify the operator of a command itself, instead of believing
   the controlcenter.** The controlcenter forwards an operator's command
   (`command-agent`, `stats-agent`) with the operator's own token,

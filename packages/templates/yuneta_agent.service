@@ -56,6 +56,7 @@ Environment=PATH=/yuneta/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/
 RuntimeDirectory=yuneta_agent
 PIDFile=/run/yuneta_agent/yuneta_agent.pid
 ExecStartPre=-+/usr/libexec/yuneta/yuneta-node-uuid ensure
+ExecStartPre=-+/usr/libexec/yuneta/yuneta-agent-cert ensure
 ExecStart=/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start --pid-file=/run/yuneta_agent/yuneta_agent.pid
 ExecStop=-/bin/kill -QUIT $MAINPID
 ExecStop=-/usr/bin/pkill -QUIT -P $MAINPID -x yuneta_agent

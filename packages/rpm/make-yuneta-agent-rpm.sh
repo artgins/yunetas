@@ -304,7 +304,12 @@ install -D -m 0755 "${AGENT_SRC_4}" "${STAGE}/yuneta/agent/yuneta_agent44"
 install -D -m 0644 "${AGENT_JSON_1}" "${STAGE}/yuneta/agent/yuneta_agent.json.sample"
 install -D -m 0644 "${AGENT_JSON_2}" "${STAGE}/yuneta/agent/yuneta_agent22.json.sample"
 
-copy_tree "/yuneta/agent/certs" "${STAGE}/yuneta/agent"
+# --- The agent's certs: the controlcenter's certificate, nothing else ---
+# The agent's own pair (yuneta_agent.{crt,key}) is made ON the node by
+# yuneta-agent-cert (postinst, the unit's ExecStartPre): up to 7.30.5 the
+# build machine's /yuneta/agent/certs went in, the same key on every node.
+install -D -m 0644 "${YUNETAS_BASE}/yunos/c/yuno_agent/certs/controlcenter.crt" \
+    "${STAGE}/yuneta/agent/certs/controlcenter.crt"
 
 #-----------------------------------------------------#
 #   Generated runtime files (verbatim from the .deb)
@@ -871,6 +876,9 @@ start_yunos() {
     if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
         /usr/libexec/yuneta/yuneta-node-uuid ensure || true
     fi
+    if [ -x /usr/libexec/yuneta/yuneta-agent-cert ]; then
+        /usr/libexec/yuneta/yuneta-agent-cert ensure || true
+    fi
     _set_limits
 
     if [ -x "$AGENT1_BIN" ]; then
@@ -1060,6 +1068,8 @@ done
 install -d -m 0755 "${STAGE}/usr/libexec/yuneta"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
     "${STAGE}/usr/libexec/yuneta/yuneta-node-uuid"
+install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
+    "${STAGE}/usr/libexec/yuneta/yuneta-agent-cert"
 
 # --- The node's web server, as its own unit ---
 #
@@ -1765,6 +1775,12 @@ cp -a %{_staging}/. %{buildroot}/
 /usr/lib/systemd/system/yuneta_agent22.service
 %dir /usr/libexec/yuneta
 %attr(0755,root,root) /usr/libexec/yuneta/yuneta-node-uuid
+%attr(0755,root,root) /usr/libexec/yuneta/yuneta-agent-cert
+# The agent's own pair, made on the node (yuneta-agent-cert): owned, never
+# shipped, so that an upgrade from a package that shipped it does not erase
+# the pair %post has just made (rpm erases the old package's files AFTER it)
+%ghost %attr(0644,yuneta,yuneta) /yuneta/agent/certs/yuneta_agent.crt
+%ghost %attr(0640,yuneta,yuneta) /yuneta/agent/certs/yuneta_agent.key
 /yuneta/bin/yuneta-webserver
 %config(noreplace) /etc/fail2ban/filter.d/yuneta-nginx-probe.conf
 %config(noreplace) /etc/fail2ban/jail.d/yuneta-nginx.conf
@@ -2045,6 +2061,15 @@ if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
             warn "yuneta-node-uuid failed: the node keeps the uuid it had"
             ;;
     esac
+fi
+
+# This node's own agent certificate (7.30.6+): made here when there is none, or
+# when it is the one published with Yuneta up to 7.30.5. Not when the uuid was
+# deferred (the build of an image): a key made in it would be every
+# container's; the agent's first start makes it (the unit's ExecStartPre).
+if [ -x /usr/libexec/yuneta/yuneta-agent-cert ] && [ "$UUID_DEFERRED" != "1" ]; then
+    /usr/libexec/yuneta/yuneta-agent-cert ensure \
+        || warn "yuneta-agent-cert failed: the agent keeps the certificate it had"
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true

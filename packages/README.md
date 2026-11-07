@@ -14,8 +14,9 @@ install glue.
 ```
 packages/
 ├── README.md       <- this index
-├── templates/      <- shared files: agent config samples, agent units, yuneta-node-uuid
+├── templates/      <- shared files: agent config samples, agent units, yuneta-node-uuid, yuneta-agent-cert
 ├── install-yuneta-node-uuid.sh <- the node uuid by hand, on a node without the package
+├── install-yuneta-agent-cert.sh <- the agent's own certificate by hand, on a node without the package
 ├── tests/          <- tests of the shared scripts (run them from anywhere)
 ├── deb/            <- Debian packaging (AMD64/ARM32/ARMhf/RISCV64 wrappers)
 └── rpm/            <- RPM packaging (x86_64/aarch64/riscv64 wrappers)
@@ -25,6 +26,13 @@ packages/
 header); `tests/test-yuneta-node-uuid.sh` checks it against a fake `/sys`.
 `install-yuneta-node-uuid.sh` installs it by hand on a node that builds from
 source and does not take the package (idempotent: run it again to check).
+
+`templates/yuneta-agent-cert` makes the agent's own pair
+(`/yuneta/agent/certs/yuneta_agent.{crt,key}`) on the node, when there is none
+or when it is the pair published with Yuneta up to 7.30.5 (see its header);
+`tests/test-yuneta-agent-cert.sh` checks it in a private directory, and
+`install-yuneta-agent-cert.sh` installs it by hand on a node without the
+package. The packages carry no agent pair: only `certs/controlcenter.crt`.
 
 `templates/` is shared by both packagers (referenced by absolute path from
 `$YUNETAS_BASE/packages/templates/`), so it stays at this level rather than

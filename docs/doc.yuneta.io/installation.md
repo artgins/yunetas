@@ -378,6 +378,9 @@ cat /proc/sys/kernel/core_pattern      # -> /var/crash/core.%e
 
 # 6. The node uuid comes from the hardware, not from chance
 sudo /usr/libexec/yuneta/yuneta-node-uuid show   # source: not "random"
+
+# 7. The agent's certificate is this node's own (7.30.6+)
+sudo /usr/libexec/yuneta/yuneta-agent-cert show  # state: own
 ```
 
 The node uuid is written from the hardware (the SoC serial number, DMI or
@@ -540,6 +543,43 @@ It does what the package does (the script, root's, and the `ExecStartPre` of
 both agent units, as a drop-in) and only what differs, so a second run says
 *"Nothing changed"* with the same uuid: that is also how to check any node,
 with the package or without it.
+
+### The agent's own certificate
+
+The agent serves `/yuneta/agent/certs/yuneta_agent.{crt,key}` on its secure
+port (`wss://...:1993`). Up to 7.30.5 that pair came with the agent, the same
+on every node, and its key was published with the source. Since 7.30.6 each
+node makes its own: `yuneta-agent-cert ensure` (the package's install, the
+agent's unit before each start, and the agent's build on a node that builds
+from source) makes a pair when there is none or when it is the published one,
+keeping a copy of the old files, and keeps any other pair. The new pair is EC
+P-256, valid from 2000 to 2126, named `yuneta_agent.yuneta.io` (the name the
+clients already check) with the host's name in its SAN.
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-agent-cert show
+# state:   public   -- the published pair: 'ensure' replaces it
+sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
+sudo systemctl restart yuneta_agent      # it serves the new pair from now on
+```
+
+A node that builds from source gets the unit's step by hand, as for the uuid:
+
+```bash
+sudo packages/install-yuneta-agent-cert.sh -n   # what it would do
+sudo packages/install-yuneta-agent-cert.sh      # install, and the pair
+```
+
+A client that trusted the old certificate to reach a node's port 1993 needs
+the node's new one -- it is public, copy it (a node whose agent serves a
+certificate of a public CA on 1993, set in its json, is not concerned):
+
+```bash
+scp yuneta@node:/yuneta/agent/certs/yuneta_agent.crt ~/.yuneta/certs/node.crt
+yunetas register-node node --url wss://node:1993 \
+    --ssl-trusted-certificate ~/.yuneta/certs/node.crt \
+    --ssl-server-name yuneta_agent.yuneta.io
+```
 
 If the node must **build** software, do the glibc-stamp test above too.
 

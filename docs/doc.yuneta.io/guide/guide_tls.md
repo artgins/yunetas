@@ -244,13 +244,16 @@ the same four as parameters of its `connect` command.
 Verification checks the **hostname** too, so dial the name the certificate is
 issued for, not any DNS alias that resolves to the same host. When you cannot
 — a **pinned certificate that carries a name of its own** — give that name in
-`--ssl-server-name`. The agent is the case in point: it serves one long-life
-certificate of its own (`CN=yuneta_agent.yuneta.io`) on every node, so the
-name never matches the host dialed:
+`--ssl-server-name`. The agent is the case in point: it serves a long-life
+certificate named `CN=yuneta_agent.yuneta.io` on every node, so the
+name never matches the host dialed. Since 7.30.6 that certificate is the
+NODE's own (made on it, see installation, "The agent's own certificate"), so
+the client trusts that node's copy, not its own:
 
 ```bash
+scp yuneta@node.example.com:/yuneta/agent/certs/yuneta_agent.crt /tmp/node.crt
 ycommand -u wss://node.example.com:1993 \
-    --ssl-trusted-certificate=/yuneta/agent/certs/yuneta_agent.crt \
+    --ssl-trusted-certificate=/tmp/node.crt \
     --ssl-server-name=yuneta_agent.yuneta.io \
     -c 'list-yunos'
 ```

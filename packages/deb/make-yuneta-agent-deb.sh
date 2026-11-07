@@ -329,9 +329,12 @@ install -D -m 0755 "${AGENT_SRC_4}" "${WORKDIR}/yuneta/agent/yuneta_agent44"
 install -D -m 0644 "${AGENT_JSON_1}" "${WORKDIR}/yuneta/agent/yuneta_agent.json.sample"
 install -D -m 0644 "${AGENT_JSON_2}" "${WORKDIR}/yuneta/agent/yuneta_agent22.json.sample"
 
-# --- Copy agent certs directory (if present) ---
-# Result: ${WORKDIR}/yuneta/agent/certs/...
-copy_tree "/yuneta/agent/certs" "${WORKDIR}/yuneta/agent"
+# --- The agent's certs: the controlcenter's certificate, nothing else ---
+# The agent's own pair (yuneta_agent.{crt,key}) is made ON the node by
+# yuneta-agent-cert (postinst, the unit's ExecStartPre): up to 7.30.5 the
+# build machine's /yuneta/agent/certs went in, the same key on every node.
+install -D -m 0644 "${YUNETAS_BASE}/yunos/c/yuno_agent/certs/controlcenter.crt" \
+    "${WORKDIR}/yuneta/agent/certs/controlcenter.crt"
 
 # --- Certs validator (installed into /yuneta/bin, scans current dir by default) ---
 cat > "${WORKDIR}/yuneta/bin/check-certs-validity.sh" <<'EOF'
@@ -529,6 +532,8 @@ done
 install -d -m 0755 "${WORKDIR}/usr/libexec/yuneta"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
     "${WORKDIR}/usr/libexec/yuneta/yuneta-node-uuid"
+install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
+    "${WORKDIR}/usr/libexec/yuneta/yuneta-agent-cert"
 
 # --- The wrapper the unit calls ---
 #
@@ -1076,6 +1081,9 @@ start_yunos() {
     fi
     if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
         /usr/libexec/yuneta/yuneta-node-uuid ensure || true
+    fi
+    if [ -x /usr/libexec/yuneta/yuneta-agent-cert ]; then
+        /usr/libexec/yuneta/yuneta-agent-cert ensure || true
     fi
     _set_limits
 
@@ -2246,6 +2254,15 @@ if [ -x /usr/libexec/yuneta/yuneta-node-uuid ]; then
             warn "yuneta-node-uuid failed: the node keeps the uuid it had"
             ;;
     esac
+fi
+
+# This node's own agent certificate (7.30.6+): made here when there is none, or
+# when it is the one published with Yuneta up to 7.30.5. Not when the uuid was
+# deferred (the build of an image): a key made in it would be every
+# container's; the agent's first start makes it (the unit's ExecStartPre).
+if [ -x /usr/libexec/yuneta/yuneta-agent-cert ] && [ "$UUID_DEFERRED" != "1" ]; then
+    /usr/libexec/yuneta/yuneta-agent-cert ensure \
+        || warn "yuneta-agent-cert failed: the agent keeps the certificate it had"
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true

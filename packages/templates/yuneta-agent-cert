@@ -1,0 +1,288 @@
+#!/bin/bash
+#
+#   yuneta-agent-cert -- this node's own certificate for its agent
+#
+#   The agent serves /yuneta/agent/certs/yuneta_agent.{crt,key} on its secure
+#   port (wss://...:1993), and a node may point other TLS servers at the
+#   same files. Up to 7.30.5 the pair came with the agent, the SAME on every
+#   node, and its key was published with the source: whoever has it can play
+#   any node that serves it. This script makes the pair ON the node instead:
+#
+#     - no pair, or the pair of before (its certificate's sha256 is the
+#       public one below), or a key that is not the certificate's: a new
+#       pair is made here, a copy of the old files kept;
+#     - any other pair is the node's own: kept, whatever made it (a node
+#       whose agent serves a certificate of its own CA keeps it).
+#
+#   The new pair: an EC P-256 key, a self-signed certificate valid from
+#   2000-01-01 (a box that starts with its clock behind does not take it for
+#   one of the future) to 2126-12-31, named yuneta_agent.yuneta.io -- the
+#   name the clients of 1993 check (ssl_server_name), so none has to change
+#   it -- and this host's name in its SAN too. A client that trusted the old
+#   certificate needs this node's new one (copy it, it is public).
+#
+#   It is /usr/libexec/yuneta/yuneta-agent-cert, run as root by the
+#   package's postinst / %post and by the agent's unit (ExecStartPre=+), and
+#   by the agent's build on a node that builds from source (as the user that
+#   builds). As root it drops to yuneta before it touches a file: the
+#   directory is yuneta's.
+#
+#   Usage:
+#       yuneta-agent-cert [ensure]    make the pair when it is missing or the
+#                                     public one; else keep it
+#       yuneta-agent-cert show        what is there, and whether it is the
+#                                     public pair
+#
+#   The agent reads the pair when it starts: after a new one, restart it
+#   (and whatever else serves the files). The old files are kept as
+#   <file>.replaced-<UTC time>[.<n>]. Environment, for tests:
+#   YUNETA_AGENT_CERT_DIR (default /yuneta/agent/certs) and
+#   YUNETA_AGENT_CERT_OPENSSL (the openssl to run).
+#
+#   Copyright (c) 2026, ArtGins.
+#
+set -u
+
+CERT_DIR="${YUNETA_AGENT_CERT_DIR:-/yuneta/agent/certs}"
+CRT="${CERT_DIR}/yuneta_agent.crt"
+KEY="${CERT_DIR}/yuneta_agent.key"
+OWNER="yuneta"
+NAME="yuneta_agent.yuneta.io"
+#   sha256 of the certificate that came with the agent up to 7.30.5
+PUBLIC_FPR="47:BE:EA:44:BA:DB:F5:B6:61:57:3C:FD:2B:CE:13:83:54:C2:8F:A9:15:2A:9A:36:85:CA:EF:56:C3:49:35:F4"
+
+SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+CMD="${1:-ensure}"
+
+#
+#   Output
+#
+log_info() {
+    echo "yuneta-agent-cert: $*"
+    logger -t yuneta-agent-cert -p user.info -- "$*" 2>/dev/null || true
+}
+
+log_warning() {
+    echo "yuneta-agent-cert: WARNING: $*" >&2
+    logger -t yuneta-agent-cert -p user.warning -- "$*" 2>/dev/null || true
+}
+
+log_error() {
+    echo "yuneta-agent-cert: ERROR: $*" >&2
+    logger -t yuneta-agent-cert -p user.err -- "$*" 2>/dev/null || true
+}
+
+#
+#   The openssl: the SDK's (3.6, on every node, packaged ones included),
+#   else the system's
+#
+find_openssl() {
+    if [ -n "${YUNETA_AGENT_CERT_OPENSSL:-}" ]; then
+        echo "$YUNETA_AGENT_CERT_OPENSSL"
+        return 0
+    fi
+    if [ -x /yuneta/development/yunetas/outputs_ext/bin/openssl ]; then
+        echo /yuneta/development/yunetas/outputs_ext/bin/openssl
+        return 0
+    fi
+    command -v openssl 2>/dev/null
+}
+
+#
+#   What is there: missing | public | mismatch | own
+#
+pair_state() {
+    if [ ! -s "$CRT" ] || [ ! -s "$KEY" ]; then
+        echo missing
+        return 0
+    fi
+    local fpr
+    fpr="$("$OPENSSL" x509 -in "$CRT" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')"
+    if [ -z "$fpr" ]; then
+        echo mismatch       # not a certificate
+        return 0
+    fi
+    if [ "$fpr" = "$PUBLIC_FPR" ]; then
+        echo public
+        return 0
+    fi
+    local pub_crt pub_key
+    pub_crt="$("$OPENSSL" x509 -in "$CRT" -noout -pubkey 2>/dev/null)"
+    pub_key="$("$OPENSSL" pkey -in "$KEY" -pubout 2>/dev/null)"
+    if [ -z "$pub_crt" ] || [ "$pub_crt" != "$pub_key" ]; then
+        echo mismatch
+        return 0
+    fi
+    echo own
+}
+
+#
+#   A name of this host that fits in a SAN, or nothing
+#
+host_name() {
+    local h
+    h="$(hostname 2>/dev/null || true)"
+    if printf '%s' "$h" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$'; then
+        if [ "$h" != "$NAME" ]; then
+            printf '%s' "$h"
+        fi
+    fi
+}
+
+keep_a_copy() {    # file
+    local f="$1"
+    if [ ! -e "$f" ] && [ ! -L "$f" ]; then
+        return 0
+    fi
+    local stamp n=0 dst
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    dst="${f}.replaced-${stamp}"
+    while [ -e "$dst" ]; do
+        n=$((n + 1))
+        dst="${f}.replaced-${stamp}.${n}"
+    done
+    if ! mv -f -- "$f" "$dst"; then
+        log_error "cannot keep a copy of $f"
+        return 1
+    fi
+}
+
+make_pair() {
+    local tmp_key="${CERT_DIR}/.yuneta_agent.key.new.$$"
+    local tmp_crt="${CERT_DIR}/.yuneta_agent.crt.new.$$"
+    local san="DNS:${NAME}"
+    local h
+    h="$(host_name)"
+    if [ -n "$h" ]; then
+        san="${san},DNS:${h}"
+    fi
+    local validity=(-days 36500)
+    if "$OPENSSL" req -help 2>&1 | grep -q -- '-not_before'; then
+        validity=(-not_before 20000101000000Z -not_after 21261231235959Z)
+    fi
+
+    rm -f -- "$tmp_key" "$tmp_crt"
+    if ! ( umask 077 && "$OPENSSL" req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+            -keyout "$tmp_key" -out "$tmp_crt" \
+            -subj "/O=Yuneta/CN=${NAME}" -addext "subjectAltName=${san}" \
+            "${validity[@]}" >/dev/null 2>&1 ); then
+        rm -f -- "$tmp_key" "$tmp_crt"
+        log_error "$OPENSSL could not make the pair"
+        return 1
+    fi
+    if [ "$("$OPENSSL" x509 -in "$tmp_crt" -noout -pubkey 2>/dev/null)" != \
+            "$("$OPENSSL" pkey -in "$tmp_key" -pubout 2>/dev/null)" ]; then
+        rm -f -- "$tmp_key" "$tmp_crt"
+        log_error "the pair made does not match"
+        return 1
+    fi
+    chmod 0640 "$tmp_key" && chmod 0644 "$tmp_crt"
+
+    if ! keep_a_copy "$KEY" || ! keep_a_copy "$CRT"; then
+        rm -f -- "$tmp_key" "$tmp_crt"
+        return 1    # Error already logged
+    fi
+    if ! mv -f -- "$tmp_key" "$KEY" || ! mv -f -- "$tmp_crt" "$CRT"; then
+        log_error "cannot put the new pair in $CERT_DIR"
+        return 1
+    fi
+    return 0
+}
+
+cmd_ensure() {
+    local state
+    state="$(pair_state)"
+    case "$state" in
+        own)
+            return 0
+            ;;
+        missing|public|mismatch)
+            ;;
+        *)
+            log_error "unknown state '$state'"
+            return 1
+            ;;
+    esac
+    if ! make_pair; then
+        return 1    # Error already logged
+    fi
+    local fpr
+    fpr="$("$OPENSSL" x509 -in "$CRT" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')"
+    case "$state" in
+        public)
+            log_warning "the agent's certificate was the one published with Yuneta: replaced by this node's own (sha256 $fpr). Restart the agent, and give the clients of its port 1993 this node's $CRT"
+            ;;
+        mismatch)
+            log_warning "the agent's key did not match its certificate: a new pair (sha256 $fpr), the old files kept"
+            ;;
+        missing)
+            log_info "this node's agent certificate made (sha256 $fpr)"
+            ;;
+    esac
+    return 0
+}
+
+cmd_show() {
+    local state
+    state="$(pair_state)"
+    echo "dir:     $CERT_DIR"
+    echo "state:   $state"
+    if [ -s "$CRT" ]; then
+        "$OPENSSL" x509 -in "$CRT" -noout -subject -dates -fingerprint -sha256 2>/dev/null \
+            | sed 's/^/         /'
+    fi
+    if [ "$state" = "public" ]; then
+        echo "         the certificate published with Yuneta: run 'ensure'"
+    fi
+}
+
+#
+#   Main
+#
+case "$CMD" in
+    ensure|show)
+        ;;
+    *)
+        echo "usage: $0 [ensure|show]" >&2
+        exit 2
+        ;;
+esac
+
+if [ "$(id -u)" = "0" ]; then
+    if ! id "$OWNER" >/dev/null 2>&1; then
+        log_error "no user $OWNER to write $CERT_DIR as"
+        exit 1
+    fi
+    exec setpriv --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
+        env YUNETA_AGENT_CERT_DIR="$CERT_DIR" YUNETA_AGENT_CERT_OPENSSL="${YUNETA_AGENT_CERT_OPENSSL:-}" \
+        "$SELF" "$CMD"
+fi
+
+OPENSSL="$(find_openssl)"
+if [ -z "$OPENSSL" ]; then
+    log_error "no openssl to make or read the pair"
+    exit 1
+fi
+if [ ! -d "$CERT_DIR" ]; then
+    log_error "no $CERT_DIR"
+    exit 1
+fi
+
+#
+#   One writer at a time: the agent units, the postinst, a build
+#
+if command -v flock >/dev/null 2>&1 && { exec 9>"${CERT_DIR}/.lock"; } 2>/dev/null; then
+    if ! flock -w 10 9; then
+        log_warning "could not lock ${CERT_DIR}/.lock, going on"
+    fi
+fi
+
+case "$CMD" in
+    ensure)
+        cmd_ensure
+        exit $?
+        ;;
+    show)
+        cmd_show
+        ;;
+esac
