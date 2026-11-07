@@ -37,7 +37,7 @@ chosen for OVH-hosted nodes — see [§6](#6-break-glass-the-provider-console-is
 | `C_PTY` pseudoterminal gclass           | **Exists** | [`kernel/c/root-linux/src/c_pty.c`](../../../kernel/c/root-linux/src/c_pty.c) |
 | Agent/agent22 create a PTY for the CC   | **Exists** | [`yuno_agent22/src/c_agent22.c`](../yuno_agent22/src/c_agent22.c) (`gobj_create_service(name, C_PTY, …)`) |
 | Outbound controlcenter client (`tcps://`) | **Exists** | both `main.c` (`controlcenter` service, `C_IEVENT_CLI` → `C_PROT_TCP4H`) |
-| Dual-homing (agent `:1994` / agent22 `:1995`, `.com`/`.ovh`) | **Exists** | both `main.c` `__output_url__` |
+| Dual-homing (agent `:1988` / agent22 `:1989`, `.com`/`.ovh`; `:1994`/`:1995` before 7.30.4) | **Exists** | both `main.c` `__output_url__` |
 | `node_owner != "none"` gates the CC link | **Exists** | [`c_agent.c`](src/c_agent.c) `mt_start`, [`c_agent22.c`](../yuno_agent22/src/c_agent22.c) `mt_play` |
 | Long-lived controlcenter JWT + cert auto-sync | **Exists** | agent config `controlcenter.jwt`, `cert_sync_*` (see [`YUNO_AUTH.md`](YUNO_AUTH.md)) |
 | **agent22 survives an empty `node_owner`** | **Proposed** (Hardening #0) | today it `exit(0)`s — [§5.1](#51-hardening-0-agent22-must-never-suicide) |
@@ -547,7 +547,7 @@ controlcenter proves it, then seals.
 1 bootstrap   install.sh over the hosting's SSH/user (cloud-init ideal)
               → agents run standalone (node_owner=none): black, no reverse channel
 2 provision   push the project agent JSONs to agent AND agent22 → restart
-              → both dial their controlcenter (.com:1994 / .ovh:1995)
+              → both dial their controlcenter (.com:1988 / .ovh:1989)
 3 verify      controlcenter sees BOTH registered + a PTY round-trip OK
 4 seal        controlcenter issues seal-node → gate passes → OS seals → ACK
               → from here: reverse PTY only; recovery = OVH console

@@ -16,11 +16,14 @@ alone. How the two units are started, stopped and deployed is in
 
 Like the primary agent, `agent22` dials the control center when the node has an
 owner, but on its **own** endpoint — `__output_url__` defaults to
-`yunetacontrol.ovh:1995` (port **1995**, vs the primary agent's `…com:1994`):
+`yunetacontrol.ovh:1989` (port **1989**, vs the primary agent's `…com:1988`):
 
 ```
-tcps://<machine>.<node_owner>.yunetacontrol.ovh:1995
+tcps://<machine>.<node_owner>.yunetacontrol.ovh:1989
 ```
+
+It trusts only the control center's own certificate, as the primary agent does
+(see [`controlcenter`](controlcenter.md)). Up to 7.30.3 the port was **1995**.
 
 ## Remote consoles (PTY)
 

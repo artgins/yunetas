@@ -1044,7 +1044,10 @@ Points found so far (verified this session unless noted):
    `__username__` the controlcenter it dialled asserts. That is load-bearing:
    the CC's authentication must be airtight, because every node delegates
    authorization of the operator to it. Under a seal the CC is the only door, so
-   this trust is the fleet's whole perimeter.
+   this trust is the fleet's whole perimeter. And it rests on the TLS of that
+   link: since 7.30.4 the agents trust only the CC's own certificate
+   (`certs/controlcenter.crt`, key on the CC's machine, ports 1988/1989); up to
+   7.30.3 they trusted `yuneta_agent.crt`, which every agent serves.
 
 5. **`command-agent` / `command-yuno` forward unchecked keys** ("WARNING:
    parameter's keys are not checked"). Once the gate is on, the forwarded

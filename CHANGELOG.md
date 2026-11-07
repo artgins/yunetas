@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **The agents trust only the controlcenter's own certificate, on new ports.**
+  `yuno_agent` dials `yunetacontrol.com:1988` and `yuno_agent22`
+  `yunetacontrol.ovh:1989` (they were 1994 and 1995), and their link trusts
+  only `/yuneta/agent/certs/controlcenter.crt`, the controlcenter's own
+  certificate, installed with the agent; its key stays on the controlcenter's
+  machine. Up to 7.30.3 the link trusted `yuneta_agent.crt`, the certificate
+  every agent serves on its own port 1993. The name checked is still
+  `yuneta_agent.yuneta.io`. A controlcenter serves the new ports with its own
+  key, and keeps 1994 and 1995 for the agents of before. The agents'
+  `__output_url__` is compiled in `main.c`: the `__json_config_variables__` of
+  the agent's json file only replace variables of that same file, so they
+  never reached the urls (the templates now say 1988 and 1989 anyway).
+- **ytls (OpenSSL): a client whose `ssl_trusted_certificate` cannot be loaded
+  fails its connection, not the yuno.** It exited the yuno with code 0 -- the
+  exit meant for a server that cannot load its certificate at its first start
+  -- while mbedTLS only refused the connection, and the client's own
+  certificate was already non-fatal. `c_tcps/test9`.
 - **`C_QIOGATE` alerts once per step of `alert_queue_size` the queue climbs.** The
   alert (an ERROR *"ALERT Queuing N msgs"* and an email) was "the size is a multiple of
   the step" at each enqueue, so a queue that takes and acks messages at one pace -- it

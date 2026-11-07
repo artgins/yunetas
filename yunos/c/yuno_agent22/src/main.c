@@ -44,11 +44,23 @@ PRIVATE char fixed_config[]= "\
 }                                                                   \n\
 ";
 
+/*
+ *  The link to the controlcenter (`controlcenter_cli`) trusts ONLY the
+ *  controlcenter's own certificate, `certs/controlcenter.crt`, whose key never
+ *  leaves the controlcenter's machine, on its own port (`__output_url__`).
+ *  Up to 7.30.3 it trusted `yuneta_agent.crt`, the certificate every agent
+ *  serves, whose key every node holds. The old port stays served for the
+ *  agents of before.
+ *
+ *  These `__json_config_variables__` are replaced in THIS text, before the
+ *  agent's json file is merged: the `__json_config_variables__` of that file
+ *  do not reach the urls below. Change them here.
+ */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     '__json_config_variables__': {                                  \n\
         '__realm_id__': '/yuneta_agent.trdb',                       \n\
-        '__output_url__': 'yunetacontrol.ovh:1995'                  \n\
+        '__output_url__': 'yunetacontrol.ovh:1989'                  \n\
     },                                                              \n\
     'environment': {                                                \n\
         'realm_id': '(^^__realm_id__^^)',                           \n\
@@ -160,7 +172,7 @@ PRIVATE char variable_config[]= "\
                                                 'timeout_between_connections': 10000, \n\
                                                 'crypto': {                     \n\
                                                 'library': '" TLS_LIBRARY_NAME "',   \n\
-'ssl_trusted_certificate': '/yuneta/agent/certs/yuneta_agent.crt',              \n\
+'ssl_trusted_certificate': '/yuneta/agent/certs/controlcenter.crt',              \n\
                                                     'ssl_server_name': 'yuneta_agent.yuneta.io', \n\
                                                     'trace': false              \n\
                                                 },                              \n\

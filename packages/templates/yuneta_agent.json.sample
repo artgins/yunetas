@@ -19,6 +19,6 @@
     "__json_config_variables__": {
         "__input_url__":        "ws://127.0.0.1:1991",
         "__input_secure_url__": "wss://0.0.0.0:1993",
-        "__output_url__":       "yunetacontrol.com:1994"
+        "__output_url__":       "yunetacontrol.com:1988"
     }
 }

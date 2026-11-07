@@ -7,7 +7,7 @@ node *through* the control center. `C_CONTROLCENTER` is a **server** — it neve
 dials out.
 
 ```{figure} ../_static/controlcenter_topology.svg
-:alt: Nodes dial in to the control center's __input_side__ (agent on 1994, agent22 on 1995); operators reach the __top_side__ on 1997; a command-agent is routed back down the dial-in link to one node's agent, which runs command-yuno on its yunos.
+:alt: Nodes dial in to the control center's __input_side__ (agent on 1988, agent22 on 1989); operators reach the __top_side__ on 1997; a command-agent is routed back down the dial-in link to one node's agent, which runs command-yuno on its yunos.
 :width: 100%
 
 Nodes **dial in** to `__input_side__`; operators reach `__top_side__`. A
@@ -41,13 +41,31 @@ that is, **`tcps://<machine>.<node_owner>.<output_url>`** where:
 |----------|--------|---------|
 | `__sys_machine__` | `uname` machine | `x86_64` |
 | `__node_owner__` | the node's `node_owner` | `artgins` |
-| `__output_url__` | agent config (default `yunetacontrol.com:1994`) | `yunetacontrol.com:1994` |
+| `__output_url__` | the agent's `main.c` (the `__json_config_variables__` of its json file do not reach it) | `yunetacontrol.com:1988` |
 
-→ `tcps://x86_64.artgins.yunetacontrol.com:1994` (TLS, default port **1994**).
+→ `tcps://x86_64.artgins.yunetacontrol.com:1988` (TLS, default port **1988**).
 
 The secondary [`yuneta_agent22`](yuneta_agent22.md) dials its own endpoint,
-default `yunetacontrol.ovh:1995` (port **1995**), and additionally exposes
+default `yunetacontrol.ovh:1989` (port **1989**), and additionally exposes
 remote PTY consoles that the control center drives with `write-tty`.
+
+**The agents trust only the control center's own certificate**,
+`/yuneta/agent/certs/controlcenter.crt`, installed with the agent, checked
+against the name `yuneta_agent.yuneta.io`. Its key stays on the control
+center's machine, which serves it on 1988 and 1989 -- the `crypto` of those
+listeners in its realm config:
+
+```json
+"crypto": {
+    "ssl_certificate": "/yuneta/store/certs/controlcenter.crt",
+    "ssl_certificate_key": "/yuneta/store/certs/private/controlcenter.key"
+}
+```
+
+Up to 7.30.3 the agents dialled **1994** / **1995** and trusted
+`yuneta_agent.crt`, the certificate every agent serves on 1993. A control
+center keeps a listener on 1994 and 1995, with that certificate, for the
+agents of before.
 
 ### One node, one uuid
 
@@ -75,7 +93,8 @@ The control center exposes two gates (defined in its realm config, not in the
 binary): `__input_side__` where agents connect, and `__top_side__` where
 operators (web / [`ycommand`](#util-ycommand)) connect. In production there
 are two control centers, one per agent plane: **1996** (the agents, fed on
-1994) and **1997** (`agent22`, fed on 1995).
+1988, and on 1994 by agents before 7.30.4) and **1997** (`agent22`, fed on 1989,
+and on 1995 before 7.30.4).
 
 **1 — point `ycommand` at the control center** (role and service are both
 `controlcenter`):
@@ -693,8 +712,10 @@ never armed: all six read 0.
 |------|---------|
 | `1991` | Agent local plaintext control plane (`ws://127.0.0.1:1991`) |
 | `1993` | Agent secure control plane (`wss://0.0.0.0:1993`) |
-| `1994` | Primary agent → control center (default `__output_url__`) |
-| `1995` | `agent22` → control center |
+| `1988` | Primary agent → control center (default `__output_url__`) |
+| `1989` | `agent22` → control center |
+| `1994` | Primary agent → control center, agents before 7.30.4 |
+| `1995` | `agent22` → control center, agents before 7.30.4 |
 | `1996` | Control center listener, agents plane (production realm config) |
 | `1997` | Control center listener, `agent22` plane (production realm config) |
 | `1992` | UDP log sink |

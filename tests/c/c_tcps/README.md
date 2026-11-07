@@ -49,3 +49,14 @@ runs it on mbedTLS when both backends are compiled in.
 ```bash
 ctest -R '^c_tcps/' --output-on-failure --test-dir build
 ```
+
+`test9` gives a TLS client a `ssl_trusted_certificate` that does not exist
+(`ssl_verify_mode: required`, no server). Its ytls is built when it connects:
+one ERROR (*"SSL_CTX_load_verify_locations() FAILED"*), the connection is
+refused, and the yuno goes on; after 1000 ms, before the next attempt, the test
+ends. Up to 7.30.3 the OpenSSL backend exited the yuno there with code 0 -- the
+exit meant for a server that cannot load its certificate at its first start --
+while the mbedTLS backend only refused the connection: an agent whose
+controlcenter link named a missing file died. An exit with code 0 is a pass for
+ctest, so an `atexit()` handler turns an exit before the end of the test into
+code 1 (red: *"the yuno exited before the end of the test"*).

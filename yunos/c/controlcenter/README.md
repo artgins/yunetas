@@ -14,11 +14,29 @@ A node connects only when it has an owner (`node_owner` ≠ `none`). Two client
 services on the node dial **out** to the control center over TLS:
 
 - The primary [`yuno_agent`](../yuno_agent/) — a `controlcenter` `C_IEVENT_CLI`
-  service, default endpoint port **1994** (`yunetacontrol.com:1994`).
+  service, default endpoint port **1988** (`yunetacontrol.com:1988`).
 - The secondary [`yuno_agent22`](../yuno_agent22/) — its own client, default
-  endpoint port **1995** (`yunetacontrol.ovh:1995`), which additionally exposes
+  endpoint port **1989** (`yunetacontrol.ovh:1989`), which additionally exposes
   PTY-backed remote **consoles** that the control center drives with
   `write-tty`.
+
+Both agents trust ONLY the control center's own certificate,
+`/yuneta/agent/certs/controlcenter.crt` (installed with the agent; its key stays
+on the control center's machine), checked against the name
+`yuneta_agent.yuneta.io`. The control center serves that certificate on 1988 and
+1989:
+
+```json
+"crypto": {
+    "ssl_certificate": "/yuneta/store/certs/controlcenter.crt",
+    "ssl_certificate_key": "/yuneta/store/certs/private/controlcenter.key"
+}
+```
+
+Up to 7.30.3 the agents dialled **1994** / **1995** and trusted
+`yuneta_agent.crt`, the certificate every agent serves on its own port. A
+control center keeps serving 1994 and 1995 (with that certificate) for the
+agents of before.
 
 The remote URL is assembled as
 `tcps://<__sys_machine__>.<__node_owner__>.<__output_url__>`. Both agents
@@ -304,5 +322,6 @@ agent's `install-binary` + `create-yuno` + `run-yuno` cycle. See
 ## Where it runs
 
 Typically on a dedicated **company** host (e.g. `artgins.com`), not on
-production app hosts. Production nodes' agents (`yuno_agent` on :1994 and
-`yuno_agent22` on :1995) dial out to this control center.
+production app hosts. Production nodes' agents (`yuno_agent` on :1988 and
+`yuno_agent22` on :1989; agents before 7.30.4 on :1994 and :1995) dial out to
+this control center.

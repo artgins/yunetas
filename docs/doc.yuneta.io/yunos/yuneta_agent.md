@@ -113,8 +113,9 @@ tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)
 ```
 
 that is, `tcps://<machine>.<node_owner>.<output_url>`, where `__output_url__`
-defaults to `yunetacontrol.com:1994`. With an empty/`none` owner the agent does
-not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
+defaults to `yunetacontrol.com:1988` (1994 up to 7.30.3), and the link trusts
+only `/yuneta/agent/certs/controlcenter.crt`. With an empty/`none` owner the
+agent does not dial out. See [`controlcenter`](controlcenter.md) for the operator side.
 
 ## Audit files
 

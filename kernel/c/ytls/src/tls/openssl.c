@@ -605,8 +605,16 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
             if(!empty_string(ssl_trusted_certificate)) {
                 if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
+                    /*
+                     *  As the client's own certificate above: a client whose
+                     *  trusted certificate cannot be loaded fails its
+                     *  connection, not the yuno. Up to 7.30.3 it exited the
+                     *  yuno -- an agent without the file of its controlcenter
+                     *  link died -- while mbedTLS only refused the connection.
+                     */
+                    BOOL exit_on_error = fatal && server;
                     unsigned long err = ERR_get_error();
-                    gobj_log_error(gobj, fatal?LOG_OPT_EXIT_ZERO:0,
+                    gobj_log_error(gobj, exit_on_error?LOG_OPT_EXIT_ZERO:0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_OPENSSL,
                         "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
@@ -614,7 +622,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                         "cert",         "%s", ssl_trusted_certificate,
                         NULL
                     );
-                    if(!fatal) {
+                    if(!exit_on_error) {
                         SSL_CTX_free(ctx);
                         return NULL;
                     }

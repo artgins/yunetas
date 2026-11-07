@@ -183,7 +183,7 @@ Other:
 
 ### yuneta_agent22
 
-A **secondary agent** providing a remote entry point for the `controlcenter`. Connects outbound to a controlcenter instance (default: port 1994). Operates with `master: false` authorization (cannot modify realm topology).
+A **secondary agent** providing a remote entry point for the `controlcenter`. Connects outbound to a controlcenter instance (default: port 1989, `yunetacontrol.ovh:1989`). Operates with `master: false` authorization (cannot modify realm topology).
 
 **Commands:** `help`, `write-tty`, `list-consoles`, `open-console`, `close-console`
 
