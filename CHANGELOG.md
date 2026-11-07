@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## v7.30.7 (2026-11-07)
+
+7.30.6 with one fix, found by a security review of its script the moment it was
+tagged: 7.30.6 was tagged and never released (no packages). Read the section
+of 7.30.6 below for the release; this is what changes over it.
+
+- **`yuneta-agent-cert` tells a published key by its public key, not by its
+  certificate.** 7.30.6 compared the sha256 of the CERTIFICATE with the one
+  shipped up to 7.30.5, so the published key under a certificate signed anew
+  passed for the node's own. It now compares the sha256 of the public key
+  (SPKI) of the key file and of the certificate with the published ones: the
+  agent's of before and the source's test key `localhost.key`. The test has the
+  case (the test key under a new certificate: replaced).
+
 ## v7.30.6 (2026-11-07)
 
 A light release: each node makes its own agent certificate, and the agents can
