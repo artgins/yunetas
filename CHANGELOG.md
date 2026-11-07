@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v7.30.8 (2026-11-07)
+
+A light release: the packages of 7.30.7 made no agent certificate.
+
+- **`yuneta-agent-cert` makes the pair on a node installed from a package.**
+  `openssl req` reads a config file, by default the one of the `OPENSSLDIR`
+  built into the binary, and the packaged SDK's openssl names the directory of
+  the machine that built it (`/__w/yunetas/yunetas/outputs_ext/ssl`), absent
+  on the node: `req` failed and the postinst / `%post` said *"could not make
+  the pair"*. On a `.deb` node the agent was left with no pair (dpkg removes
+  the files the package no longer carries); on an `.rpm` node with the
+  published one (`%ghost`). The agents and the yunos ran on: they served
+  their own certificate on 1993, not this pair. The script now hands `req` a
+  config file of its own, and its error says what openssl said. The test has
+  the case (an openssl whose default config file is not there). Found
+  installing 7.30.7 on the two package nodes; both got their pair by hand.
 - **`packages/install-yuneta-agent-cert.sh` no longer runs the SDK's openssl as
   root.** It read the agent's fingerprint with
   `/yuneta/development/yunetas/outputs_ext/bin/openssl`, which belongs to yuneta,
