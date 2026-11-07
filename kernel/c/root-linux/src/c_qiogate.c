@@ -46,6 +46,11 @@
  */
 #define DISK_CHECK_MS   1000
 
+/*
+ *  The least time between two alert emails of one gate
+ */
+#define ALERT_EMAIL_MS  (60*1000)
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -58,6 +63,8 @@ PRIVATE int close_queue(hgobj gobj);
 PRIVATE void raise_timeout_poll_to_floor(hgobj gobj);
 PRIVATE BOOL queue_refuses_messages(hgobj gobj);
 PRIVATE void start_refusing_messages(hgobj gobj, const char *cause, int free_percent);
+PRIVATE json_int_t queue_alert_level(hgobj gobj);
+PRIVATE void lower_alert_level(hgobj gobj);
 
 
 /***************************************************************************
@@ -110,7 +117,7 @@ SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "16",       "LOG
 SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERT Queuing", "Alert message"),
 SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "10000",    "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
-SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Limit alert queue size"),
+SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Alert (ERROR and email) at each step of this size the queue climbs; again only after it went half a step below. 0: no alert"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
 SDATA (DTP_INTEGER,     "min_free_disk_percentage",SDF_WR|SDF_PERSIST,"10", "Refuse new messages while the disk of the queue has less free space than this, in percent. 0 or less: refuse them only when the queue cannot save one"),
 
@@ -174,6 +181,9 @@ typedef struct _PRIVATE_DATA {
     json_int_t dropped_msgs;
     json_int_t dropped_while_refusing;
 
+    json_int_t alert_level;     // the last level alerted: queue size / alert_queue_size
+    uint64_t t_alert_email;
+
 } PRIVATE_DATA;
 
 
@@ -233,6 +243,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_ack,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_backup,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
+        priv->alert_level = queue_alert_level(gobj);    // a new step: the queue is not alerted again for what it holds
     ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(disable_alert,         gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(min_free_disk_percentage, gobj_read_integer_attr)
@@ -277,6 +288,7 @@ PRIVATE int mt_start(hgobj gobj)
      *--------------------------------*/
     open_queue(gobj);
     trq_load(priv->trq_msgs);
+    priv->alert_level = queue_alert_level(gobj);
 
     return 0;
 }
@@ -542,16 +554,13 @@ PRIVATE void raise_timeout_poll_to_floor(hgobj gobj)
  ***************************************************************************/
 PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
 {
-    static time_t t = 0;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(t==0) {
-        t = start_sectimer(1*60);
-    } else {
-        if(!test_sectimer(t)) {
-            return 0;
-        }
-        t = start_sectimer(1*60);
+    if(priv->t_alert_email && !test_msectimer(priv->t_alert_email)) {
+        return 0;   // One email per gate and ALERT_EMAIL_MS; the alert itself is in the log
     }
+    priv->t_alert_email = start_msectimer(ALERT_EMAIL_MS);
+
     const char *from = gobj_read_str_attr(gobj, "alert_from");
     const char *to = gobj_read_str_attr(gobj, "alert_to");
     hgobj gobj_emailsender = gobj_find_service("emailsender", FALSE);
@@ -687,6 +696,42 @@ PRIVATE int close_queue(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The alert level of the queue: how many times alert_queue_size it holds.
+ *  0 when alerts by size are off (alert_queue_size 0 or less).
+ ***************************************************************************/
+PRIVATE json_int_t queue_alert_level(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->alert_queue_size <= 0 || !priv->trq_msgs) {
+        return 0;
+    }
+    return (json_int_t)(trq_size(priv->trq_msgs) / (size_t)priv->alert_queue_size);
+}
+
+/***************************************************************************
+ *  A level alerted is alerted again only after the queue went down half a
+ *  step below it. Up to 7.30.3 the alert was "the size is a multiple of
+ *  alert_queue_size": a queue taking and acking messages at one pace sits
+ *  on a multiple, 9999 <-> 10000, and every message that lands on it
+ *  alerted again (1116 ERRORs in 145 ms, draining a backlog of 18718).
+ ***************************************************************************/
+PRIVATE void lower_alert_level(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->alert_queue_size <= 0 || !priv->trq_msgs) {
+        return;
+    }
+    json_int_t size = (json_int_t)trq_size(priv->trq_msgs);
+    json_int_t margin = priv->alert_queue_size/2 > 0? priv->alert_queue_size/2 : 1;
+    while(priv->alert_level > 0 &&
+            size < priv->alert_level * priv->alert_queue_size - margin) {
+        priv->alert_level--;
+    }
+}
+
+/***************************************************************************
  *  Enqueue message
  ***************************************************************************/
 PRIVATE q_msg_t *enqueue_message(
@@ -730,60 +775,60 @@ PRIVATE q_msg_t *enqueue_message(
         return 0;
     }
 
-    if(!priv->disable_alert) {
-        if(priv->alert_queue_size > 0 && trq_size(priv->trq_msgs) >= priv->alert_queue_size) {
-            if(trq_size(priv->trq_msgs) % priv->alert_queue_size == 0) {
-                char subject[280];
-                char alert[512];
-                struct tm *tm;
-                char utc_stamp[164];
-                time_t timestamp;
-                time(&timestamp);
-                tm = gmtime(&timestamp);
-                strftime(utc_stamp, sizeof(utc_stamp), "%Y-%m-%dT%H:%M:%S%z", tm);
+    json_int_t level = queue_alert_level(gobj);
+    if(level > priv->alert_level) {
+        priv->alert_level = level;
+        if(!priv->disable_alert) {
+            char subject[280];
+            char alert[512];
+            struct tm *tm;
+            char utc_stamp[164];
+            time_t timestamp;
+            time(&timestamp);
+            tm = gmtime(&timestamp);
+            strftime(utc_stamp, sizeof(utc_stamp), "%Y-%m-%dT%H:%M:%S%z", tm);
 
-                char local_stamp[164];
-                tm = localtime(&timestamp);
-                strftime(local_stamp, sizeof(local_stamp), "%Y-%m-%dT%H:%M:%S%z", tm);
+            char local_stamp[164];
+            tm = localtime(&timestamp);
+            strftime(local_stamp, sizeof(local_stamp), "%Y-%m-%dT%H:%M:%S%z", tm);
 
-                // WARNING "ALERTA Encolamiento" used in emailsender
-                snprintf(
-                    subject,
-                    sizeof(subject),
-                    "%s %ld msgs, node '%s', yuno '%s', queue %s, owner %s",
-                    gobj_read_str_attr(gobj, "alert_message"), //"ALERTA Encolamiento",
-                    (unsigned long)trq_size(priv->trq_msgs),
-                    get_hostname(),
-                    gobj_yuno_role_plus_name(),
-                    gobj_read_str_attr(gobj, "tranger_database"),
-                    gobj_yuno_node_owner()
-                );
-                snprintf(
-                    alert,
-                    sizeof(alert),
-                    "%s %ld msgs, node '%s', yuno '%s' %s\nUTC %s, LOCAL %s",
-                    gobj_read_str_attr(gobj, "alert_message"), //"ALERTA Encolamiento",
-                    (unsigned long)trq_size(priv->trq_msgs),
-                    get_hostname(),
-                    gobj_yuno_role_plus_name(),
-                    gobj_read_str_attr(gobj, "tranger_database"),
-                    utc_stamp, local_stamp
-                );
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_QUEUE,
-                    "msg",          "%s", subject,
-                    "node",         "%s", get_hostname(),
-                    "yuno",         "%s", gobj_yuno_role_plus_name(),
-                    "owner",        "%s", gobj_yuno_node_owner(),
-                    "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
-                    "queue_size",   "%ld", (unsigned long)trq_size(priv->trq_msgs),
-                    "utc",          "%ld", (long)timestamp,
-                    NULL
-                );
+            // WARNING "ALERTA Encolamiento" used in emailsender
+            snprintf(
+                subject,
+                sizeof(subject),
+                "%s %ld msgs, node '%s', yuno '%s', queue %s, owner %s",
+                gobj_read_str_attr(gobj, "alert_message"), //"ALERTA Encolamiento",
+                (unsigned long)trq_size(priv->trq_msgs),
+                get_hostname(),
+                gobj_yuno_role_plus_name(),
+                gobj_read_str_attr(gobj, "tranger_database"),
+                gobj_yuno_node_owner()
+            );
+            snprintf(
+                alert,
+                sizeof(alert),
+                "%s %ld msgs, node '%s', yuno '%s' %s\nUTC %s, LOCAL %s",
+                gobj_read_str_attr(gobj, "alert_message"), //"ALERTA Encolamiento",
+                (unsigned long)trq_size(priv->trq_msgs),
+                get_hostname(),
+                gobj_yuno_role_plus_name(),
+                gobj_read_str_attr(gobj, "tranger_database"),
+                utc_stamp, local_stamp
+            );
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_QUEUE,
+                "msg",          "%s", subject,
+                "node",         "%s", get_hostname(),
+                "yuno",         "%s", gobj_yuno_role_plus_name(),
+                "owner",        "%s", gobj_yuno_node_owner(),
+                "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
+                "queue_size",   "%ld", (unsigned long)trq_size(priv->trq_msgs),
+                "utc",          "%ld", (long)timestamp,
+                NULL
+            );
 
-                send_alert(gobj, subject, alert);
-            }
+            send_alert(gobj, subject, alert);
         }
     }
 
@@ -1082,6 +1127,7 @@ PRIVATE int dequeue_msg(
         }
 
         trq_unload_msg(msg, result);
+        lower_alert_level(gobj);
 
     } else {
         if(trq_check_pending_rowid(

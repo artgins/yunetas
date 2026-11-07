@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`C_QIOGATE` alerts once per step of `alert_queue_size` the queue climbs.** The
+  alert (an ERROR *"ALERT Queuing N msgs"* and an email) was "the size is a multiple of
+  the step" at each enqueue, so a queue that takes and acks messages at one pace -- it
+  sits on a multiple, 9999 <-> 10000 -- alerted at every message landing on it: 1116
+  ERRORs in 145 ms in one gate, draining a backlog of 18718 messages after an expired
+  certificate. Now a step is alerted when the queue climbs to it, and again only after
+  the queue went half a step below it. The limit of one email a minute is now each
+  gate's: it was one `static` timer for every gate of the yuno, so one gate's alert
+  silenced the others' emails, and it ran on the wall clock (now `msectimer`).
+  `test_c_qiogate_alert`.
+
 ## v7.30.3 (2026-11-06)
 
 A light release: two nodes with one node uuid. Only the `controlcenter` is deployed;
