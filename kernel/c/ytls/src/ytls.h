@@ -192,12 +192,20 @@ PUBLIC json_t *ytls_get_cert_info(hytls ytls);
       - "verified"   (bool)    its chain was verified against the CA
                                (ssl_trusted_certificate / ssl_use_system_ca).
                                false under ssl_verify_mode "optional" for a
-                               certificate that did not verify, and under
-                               "none", where nothing is verified.
+                               certificate that did not verify, under
+                               "request", and under "none", where nothing is
+                               verified.
+      - "spki_sha256" (string) sha256 of its public key (SPKI, DER), lowercase
+                               hex: the same in both backends, and what
+                               `openssl x509 -pubkey | openssl pkey -pubin
+                               -outform DER | sha256sum` says.
 
-    A server asks the client for a certificate only when it has a CA (mode
-    "optional" or "required"). Trust an identity read here only with
-    "verified" true.
+    A server asks the client for a certificate when it has a CA (mode
+    "optional" or "required"), or with ssl_verify_mode "request": the
+    client's certificate taken as it comes, its chain not verified and not
+    reported, for the owner to PIN by its spki_sha256 (a self-signed one is
+    the point). Trust an identity read here only with "verified" true, or
+    with a spki_sha256 you pinned.
 
     Returns a new json object owned by the caller, or NULL when the peer
     presented no certificate.

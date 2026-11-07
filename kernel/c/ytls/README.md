@@ -52,7 +52,7 @@ Config keys in the `crypto` block (read by `ytls_init`):
 |-----|--------|
 | `ssl_trusted_certificate` | path to a CA bundle (PEM) used to verify the peer |
 | `ssl_use_system_ca` | `true` → also trust the OS system CA store. Both backends. The bundle is located by a portable cross-distro probe (Debian/Ubuntu, RHEL/Rocky/Alma/Fedora, SUSE, Alpine), so it works even in fully-static binaries that don't inherit the host OPENSSLDIR / `SSL_CERT_FILE` (where OpenSSL's `set_default_verify_paths()` alone loads an empty store); mbedTLS, which has no system store of its own, parses the probed bundle. |
-| `ssl_verify_mode` | `"none"` / `"optional"` / `"required"` — overrides the computed default |
+| `ssl_verify_mode` | `"none"` / `"optional"` / `"required"` — overrides the computed default. A server also takes `"request"`: it asks for the client's certificate and takes it as it comes, without verifying or reporting its chain, for the owner to pin by `spki_sha256` (7.30.10+) |
 | `ssl_allow_insecure_client` | `true` → explicitly accept an unverified **client** (self-signed / PSK / IoT bring-up). Default `false` |
 
 Notes:

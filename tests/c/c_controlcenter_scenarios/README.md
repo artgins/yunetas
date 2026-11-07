@@ -222,6 +222,21 @@ still reported and fails the test.
     too. This yuno has no `C_AUTHZ`, so the test sets libjwt's allocators
     itself. Without them, the control center signs nothing.
 
+22. The key of a node (7.30.10), run first. Agent sessions present a key
+    (`peer_cert.spki_sha256` in the `EV_ON_OPEN`) or none:
+    - Only recording (`enforce_node_keys` off): a node never seen is recorded
+      `pending` with its key and let in. `accept-node` pins the key it
+      presented. Another key is let in, with a WARNING.
+    - With `enforce_node_keys`:
+      - another key is dropped (the channel gets `EV_DROP`), and no
+        `command-agent` reaches that node;
+      - the accepted key is let in;
+      - a node never seen is dropped;
+      - an agent with no key is let in (`allow_nodes_without_key`);
+      - `refuse-node` drops the agent in session (its wire gets `EV_DROP`).
+    - `accept-node` of a node that presented no key is refused, and so is a
+      user without `manage-nodes`.
+
 ## Run
 
 ```bash

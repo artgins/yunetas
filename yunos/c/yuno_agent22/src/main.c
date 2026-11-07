@@ -52,6 +52,11 @@ PRIVATE char fixed_config[]= "\
  *  serves, whose key every node holds. The old port stays served for the
  *  agents of before.
  *
+ *  And the agent shows the controlcenter who it is with its OWN pair,
+ *  `certs/yuneta_agent.{crt,key}` (made on each node, yuneta-agent-cert),
+ *  presented as the client certificate of the link (mutual TLS, 7.30.10+):
+ *  the controlcenter pins the node uuid to that key (accept-node).
+ *
  *  A top-level `__json_config_variables__` has the scope of its own json
  *  text: these are replaced in THIS text when it is loaded, before the
  *  agent's json file is merged, so the input urls leave fixed -- no json
@@ -217,6 +222,8 @@ PRIVATE char variable_config[]= "\
                                                 'crypto': {                     \n\
                                                 'library': '" TLS_LIBRARY_NAME "',   \n\
 'ssl_trusted_certificate': '/yuneta/agent/certs/controlcenter.crt',              \n\
+'ssl_certificate': '/yuneta/agent/certs/yuneta_agent.crt',                      \n\
+'ssl_certificate_key': '/yuneta/agent/certs/yuneta_agent.key',                  \n\
                                                     'ssl_server_name': 'yuneta_agent.yuneta.io', \n\
                                                     'trace': false              \n\
                                                 },                              \n\

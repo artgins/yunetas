@@ -278,6 +278,14 @@ PRIVATE const char *expected_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",
+    "Creating topic",       // nodes (7.30.10)
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-keyed
+    "Node key decided",                                                             // 22: accept-node
+    "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)", // 22: KEY_B, recording
+    "Agent refused: its node key is not the one accepted",                          // 22: KEY_B, enforcing
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-stranger
+    "Agent refused: its node key is not the one accepted",                          // 22: uuid-stranger, pending
+    "Node key decided",                                                             // 22: refuse-node
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)",   // 0: the copy, not the same host
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",

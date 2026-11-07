@@ -3,7 +3,7 @@
     This file holds this comment and the literal, nothing else: replace
     it whole with an export of the schema editor.
 
-    treedb_controlcenter  (schema_version 4)
+    treedb_controlcenter  (schema_version 5)
 
     {}  dict hook   (N unique children)
     []  list hook   (n not-unique children)
@@ -51,12 +51,27 @@
             │  steps                    │
             │  _geometry                │
             └───────────────────────────┘
+
+                        nodes
+            ┌───────────────────────────┐
+            │* id                       │
+            │  hostname                 │
+            │  state                    │
+            │  spki_sha256              │
+            │  presented_spki           │
+            │  peername                 │
+            │  first_seen               │
+            │  last_seen                │
+            │  decided_by               │
+            │  decided_at               │
+            │  _geometry                │
+            └───────────────────────────┘
 */
 
 static char treedb_schema_controlcenter[]= "\
 {                                                                   \n\
     'id': 'treedb_controlcenter',                                   \n\
-    'schema_version': '4',                                          \n\
+    'schema_version': '5',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'scenarios',                                      \n\
@@ -290,6 +305,106 @@ static char treedb_schema_controlcenter[]= "\
                     'type': 'list',                                 \n\
                     'fillspace': 10,                                \n\
                     'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                '_geometry': {                                      \n\
+                    'header': 'Geometry',                           \n\
+                    'type': 'blob',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'id': 'nodes',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Node',                               \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'required'                                  \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'hostname': {                                       \n\
+                    'header': 'Hostname',                           \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'state': {                                          \n\
+                    'header': 'State',                              \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'spki_sha256': {                                    \n\
+                    'header': 'Accepted key',                       \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'presented_spki': {                                 \n\
+                    'header': 'Presented key',                      \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'peername': {                                       \n\
+                    'header': 'Address',                            \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'first_seen': {                                     \n\
+                    'header': 'First Seen',                         \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'last_seen': {                                      \n\
+                    'header': 'Last Seen',                          \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'decided_by': {                                     \n\
+                    'header': 'Decided By',                         \n\
+                    'type': 'string',                               \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'decided_at': {                                     \n\
+                    'header': 'Decided At',                         \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\

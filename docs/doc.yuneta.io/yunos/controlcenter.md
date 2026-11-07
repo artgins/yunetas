@@ -67,6 +67,87 @@ Up to 7.30.3 the agents dialled **1994** / **1995** and trusted
 center keeps a listener on 1994 and 1995, with that certificate, for the
 agents of before.
 
+### Each node's key (7.30.10+)
+
+Each agent shows who it is with its own pair: the client certificate of its
+link, made on each node. The control center pins every node uuid to the key
+that an operator accepted. Without that, anybody with the agents' shared
+token could connect claiming the uuid of any node, and receive that node's
+commands.
+
+**1 — the listeners of the agents ask for the certificate.** The `crypto` of
+1988 and 1989 adds `"ssl_verify_mode": "request"`. A C_TCP_S in that mode asks
+the client for its certificate and takes it as it comes: the certificate is
+self-signed, so its chain is neither verified nor reported, and the control
+center pins its key. Leave the listener of the agents of before (1994) as it
+is.
+
+```json
+"crypto": {
+    "ssl_certificate": "/yuneta/store/certs/controlcenter.crt",
+    "ssl_certificate_key": "/yuneta/store/certs/private/controlcenter.key",
+    "ssl_verify_mode": "request"
+}
+```
+
+**2 — the `nodes` topic.** The control center keeps one record per node
+uuid. Each record holds:
+
+- `state`: `pending`, `accepted` or `refused`;
+- `spki_sha256`: the accepted key;
+- `presented_spki`: the last key presented that is not the accepted key;
+- `hostname` and `peername`: the node's host name and address;
+- `first_seen`, `last_seen`, `decided_by` and `decided_at`.
+
+When an agent opens its session, the control center checks it as follows:
+
+| The agent presents | The node is | Result |
+|--------------------|-------------|--------|
+| a key | never seen | recorded `pending`, INFO *"A node to accept"*; refused if `enforce_node_keys` |
+| its accepted key | `accepted` | let in |
+| another key, or none | `accepted` | WARNING; refused if `enforce_node_keys` |
+| anything | `refused` | refused if `enforce_node_keys` |
+| no key | not accepted | let in while `allow_nodes_without_key` (an agent before 7.30.10) |
+
+When the control center refuses an agent, it logs a WARNING (*"Agent refused:
+its node key is not the one accepted"*) and drops the agent's channel. The
+agent reconnects on its own schedule.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
+| `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
+
+**3 — accept the nodes** (permission `manage-nodes`; `list-nodes` asks
+`list-agents`). Before you accept a node, compare the key it presented with the
+key of its own pair, read on the node:
+
+```bash
+# on the node
+openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
+    | openssl pkey -pubin -outform DER | sha256sum
+
+# through the control center
+list-nodes state=pending
+accept-node node_id=7fb83a14-1aeb-8f0a-868b-244e75c5fd70
+accept-node node_id=7fb83a14-... spki_sha256=<the key read on the node>
+refuse-node node_id=7fb83a14-...
+```
+
+`accept-node` pins the key that the node presented, or the key given. With
+`enforce_node_keys`, `refuse-node` also drops the node's agent if it is in
+session. Each decision is an INFO, *"Node key decided"*.
+
+**The transition, with nobody cut off:**
+
+1. Deploy with `enforce_node_keys` off: every node that connects is recorded
+   with its key.
+2. Accept each node after you compare its key.
+3. Then set `"C_CONTROLCENTER.enforce_node_keys": true` in the config.
+
+The agent and the agent22 of a node reach two control centers (1996 and
+1997), and each control center keeps its own `nodes`. Accept the node in both.
+
 ### The user the agents log in as
 
 An agent opens its session with a JWT of a user of the control center's

@@ -556,6 +556,18 @@ keeping a copy of the old files, and keeps any other pair. The new pair is EC
 P-256, valid from 2000 to 2126, named `yuneta_agent.yuneta.io` (the name the
 clients already check) with the host's name in its SAN.
 
+Since 7.30.10 the same pair is also **who the node is to its control center**:
+the agent presents it as the client certificate of its link, and the control
+center pins the node's uuid to its key once an operator accepts it
+([`controlcenter`](yunos/controlcenter.md), "Each node's key"). A new pair
+(another key) is a node the control center has to accept again. To read the
+key the control center will show for a node (`spki_sha256`):
+
+```bash
+openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
+    | openssl pkey -pubin -outform DER | sha256sum
+```
+
 ```bash
 sudo /usr/libexec/yuneta/yuneta-agent-cert show
 # state:   public   -- the published pair: 'ensure' replaces it

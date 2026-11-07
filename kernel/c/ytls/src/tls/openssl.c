@@ -30,6 +30,7 @@
 #include <openssl/bn.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/evp.h>
 #include <time.h>
 
 #include <kwid.h>
@@ -345,6 +346,17 @@ PRIVATE int verify_cb_tolerant(int preverify_ok, X509_STORE_CTX *x509_ctx)
     return 1;   /* tolerate; reported via SSL_get_verify_result() post-handshake */
 }
 
+/*
+ *  "request" (a server only): the client's certificate is asked for and
+ *  taken as it comes, its chain neither verified nor reported. The owner
+ *  pins it (spki_sha256 in peer_cert): a self-signed certificate is the
+ *  point, so a chain error is no news.
+ */
+PRIVATE int verify_cb_request(int preverify_ok, X509_STORE_CTX *x509_ctx)
+{
+    return 1;
+}
+
 /***************************************************************************
  *  Build a fully-configured SSL_CTX from jn_config.
  *
@@ -578,7 +590,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
         BOOL use_system_ca = kw_get_bool(gobj, jn_config, "ssl_use_system_ca", 0, 0);
         BOOL has_ca = !empty_string(ssl_trusted_certificate) || use_system_ca;
 
-        int vmode; /* 0=NONE 1=OPTIONAL 2=REQUIRED */
+        int vmode; /* 0=NONE 1=OPTIONAL 2=REQUIRED 3=REQUEST */
         const char *ssl_verify_mode = kw_get_str(gobj, jn_config, "ssl_verify_mode", "", 0);
         if(!empty_string(ssl_verify_mode)) {
             if(strcasecmp(ssl_verify_mode, "none")==0) {
@@ -587,6 +599,17 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 vmode = 1;
             } else if(strcasecmp(ssl_verify_mode, "required")==0) {
                 vmode = 2;
+            } else if(strcasecmp(ssl_verify_mode, "request")==0 && server) {
+                vmode = 3;
+            } else if(strcasecmp(ssl_verify_mode, "request")==0) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "ssl_verify_mode 'request' is of a server: a client always verifies",
+                    NULL
+                );
+                SSL_CTX_free(ctx);
+                return NULL;
             } else {
                 vmode = has_ca ? (server ? 1 : 2) : 0;
                 gobj_log_error(gobj, 0,
@@ -601,7 +624,9 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             vmode = has_ca ? (server ? 1 : 2) : 0;
         }
 
-        if(vmode != 0) {
+        if(vmode == 3) {
+            SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_cb_request);
+        } else if(vmode != 0) {
             SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
             if(!empty_string(ssl_trusted_certificate)) {
                 if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
@@ -883,6 +908,26 @@ PRIVATE json_t *cert_info(X509 *cert)
     time_t na = asn1_time_to_unix(X509_get0_notAfter(cert));
     json_object_set_new(info, "not_before", json_integer((json_int_t)nb));
     json_object_set_new(info, "not_after",  json_integer((json_int_t)na));
+
+    /*
+     *  sha256 of the public key (SPKI, DER), lowercase hex: what pins a
+     *  self-signed certificate (the same as `openssl x509 -pubkey | openssl
+     *  pkey -pubin -outform DER | sha256sum`)
+     */
+    unsigned char *spki = NULL;
+    int spki_len = i2d_X509_PUBKEY(X509_get_X509_PUBKEY(cert), &spki);
+    if(spki_len > 0 && spki) {
+        unsigned char md[EVP_MAX_MD_SIZE];
+        unsigned int md_len = 0;
+        if(EVP_Digest(spki, (size_t)spki_len, md, &md_len, EVP_sha256(), NULL) == 1) {
+            char hex[2*EVP_MAX_MD_SIZE + 1];
+            for(unsigned int i = 0; i < md_len; i++) {
+                snprintf(hex + 2*i, 3, "%02x", md[i]);
+            }
+            json_object_set_new(info, "spki_sha256", json_string(hex));
+        }
+        OPENSSL_free(spki);
+    }
 
     /* Serial as uppercase hex. */
     ASN1_INTEGER *serial = X509_get_serialNumber(cert);
@@ -1294,7 +1339,7 @@ PRIVATE int do_handshake(hsskt sskt_)
              *  VERIFY_NONE it returns X509_V_OK, so this never false-fires.)
              */
             long vr = SSL_get_verify_result(sskt->ssl);
-            if(vr != X509_V_OK) {
+            if(vr != X509_V_OK && SSL_get_verify_callback(sskt->ssl) != verify_cb_request) {
                 gobj_log_warning(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_OPENSSL,

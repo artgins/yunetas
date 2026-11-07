@@ -54,6 +54,11 @@
  *                waits for them all, naming each step that failed or was
  *                not answered; a start ends at its first failed step; and
  *                `scenarios` says the run in flight;
+ *              - the key of a node (NODE KEYS of c_controlcenter.c): a
+ *                node never seen is recorded pending; accept-node pins its
+ *                key; with enforce_node_keys another key, a pending or a
+ *                refused node is dropped, an agent without a key is let
+ *                in; refuse-node drops the agent in session;
  *              - each request for the agent (it says
  *                `knows_operator_assertion`) carries an operator assertion
  *                (operator_assertion_key): signed with the key, for that
@@ -1205,9 +1210,10 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
         -1, "no permission to 'read-scenarios'", "the viewer may not watch another scenario");
 
     response = gobj_command(priv->cc, "my-permissions", viewer_kw(client), client);
-    json_t *expected = json_pack("{s:b, s:b, s:b, s:b, s:b, s:[s], s:b, s:b}",
+    json_t *expected = json_pack("{s:b, s:b, s:b, s:b, s:b, s:b, s:[s], s:b, s:b}",
         "list-agents", 0, "command-agent", 0, "drop-agent", 0, "logout-user", 0,
-        "write-tty", 0, "read-scenarios", "scn", "write-scenarios", 0, "run-scenarios", 0
+        "write-tty", 0, "manage-nodes", 0, "read-scenarios", "scn", "write-scenarios", 0,
+        "run-scenarios", 0
     );
     data = kw_get_dict(gobj, response, "data", 0, 0);
     if(!data || !json_equal(data, expected)) {
@@ -1528,6 +1534,222 @@ PRIVATE hgobj open_agent_session(hgobj gobj, const char *name, const char *uuid,
         priv->input_side
     );
     return channel;
+}
+
+/***************************************************************************
+ *  An agent session that presents a key (peer_cert.spki_sha256, as the
+ *  C_IEVENT_SRV of a TLS link with a client certificate gives it), or none
+ ***************************************************************************/
+PRIVATE hgobj open_keyed_session(
+    hgobj gobj,
+    const char *name,
+    const char *uuid,
+    const char *host,
+    const char *spki    // NULL: no certificate
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char wire_name[NAME_MAX];
+    snprintf(wire_name, sizeof(wire_name), "%s-wire", name);
+    hgobj channel = create_peer(name, priv->input_side);
+    hgobj wire = create_peer(wire_name, channel);
+
+    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:{s:s, s:{s:[{s:s}]}}}",
+        "client_yuno_role", "yuneta_agent",
+        "client_yuno_name", host,
+        "client_yuno_service", "agent",
+        "identity_card",
+            "id", uuid,
+            "__md_iev__",
+                "ievent_gate_stack",
+                    "host", host
+    );
+    json_t *identity_card = json_incref(json_object_get(kw_srv, "identity_card"));
+    hgobj srv = gobj_create(name, C_IEVENT_SRV, kw_srv, channel);
+    if(!srv) {
+        JSON_DECREF(identity_card)
+        fail(gobj, "open_keyed_session", "cannot create the C_IEVENT_SRV");
+        return 0;
+    }
+    gobj_set_bottom_gobj(srv, wire);
+    gobj_start(srv);
+    gobj_change_state(srv, ST_SESSION);
+
+    json_t *kw_open = json_pack("{s:{s:I}, s:o}",
+        "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel,
+        "identity_card", identity_card
+    );
+    if(spki) {
+        json_object_set_new(kw_open, "peer_cert", json_pack("{s:s, s:b}",
+            "spki_sha256", spki,
+            "verified", 0
+        ));
+    }
+    gobj_send_event(priv->cc, EV_ON_OPEN, kw_open, priv->input_side);
+    return channel;
+}
+
+/*  How many EV_DROP `peer` got (its record is taken)  */
+PRIVATE int drops_of(hgobj peer)
+{
+    json_t *received = take_received(peer);
+    int n = 0;
+    size_t idx; json_t *jn;
+    json_array_foreach(received, idx, jn) {
+        if(strcmp(kw_get_str(0, jn, "event", "", 0), EV_DROP)==0) {
+            n++;
+        }
+    }
+    JSON_DECREF(received)
+    return n;
+}
+
+PRIVATE void close_session(hgobj channel)
+{
+    if(channel) {
+        gobj_stop_tree(channel);
+        gobj_destroy(channel);
+    }
+}
+
+/*  The `nodes` record of `uuid` as list-nodes says it (yours), or NULL  */
+PRIVATE json_t *node_record(hgobj gobj, hgobj client, const char *uuid)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
+    json_t *found = NULL;
+    size_t idx; json_t *jn;
+    json_array_foreach(kw_get_list(gobj, response, "data", 0, 0), idx, jn) {
+        if(strcmp(kw_get_str(gobj, jn, "id", "", 0), uuid)==0) {
+            found = json_incref(jn);
+            break;
+        }
+    }
+    JSON_DECREF(response)
+    return found;
+}
+
+/*  A field of the record of `uuid`, compared  */
+PRIVATE int check_node_field(hgobj gobj, hgobj client, const char *uuid,
+    const char *field, const char *expected, const char *what)
+{
+    json_t *node = node_record(gobj, client, uuid);
+    const char *got = node? kw_get_str(gobj, node, field, "", 0) : "(no record)";
+    int ret = strcmp(got, expected)==0? 0 : fail(gobj, what, got);
+    JSON_DECREF(node)
+    return ret;
+}
+
+/***************************************************************************
+ *  22. The key of a node (NODE KEYS of c_controlcenter.c)
+ ***************************************************************************/
+#define KEY_A   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+#define KEY_B   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+PRIVATE int test_node_keys(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    /*
+     *  Only recorded (enforce_node_keys off): a node never seen is
+     *  pending, let in
+     */
+    hgobj ch = open_keyed_session(gobj, "keyed-1", "uuid-keyed", "keyed", KEY_A);
+    if(!ch) {
+        return -1;
+    }
+    if(drops_of(ch) != 0) {
+        ret += fail(gobj, "a node never seen is dropped while only recording", "");
+    }
+    ret += check_node_field(gobj, client, "uuid-keyed", "state", "pending",
+        "a node never seen is recorded pending");
+    ret += check_node_field(gobj, client, "uuid-keyed", "presented_spki", KEY_A,
+        "a node never seen is recorded with the key it presented");
+
+    /*
+     *  accept-node pins the key it presented
+     */
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        0, "node 'uuid-keyed' accepted", "accept-node");
+    ret += check_node_field(gobj, client, "uuid-keyed", "spki_sha256", KEY_A,
+        "accept-node pins the key the node presented");
+    close_session(ch);
+
+    /*
+     *  Another key, only recording: let in, said
+     */
+    ch = open_keyed_session(gobj, "keyed-2", "uuid-keyed", "keyed", KEY_B);
+    if(drops_of(ch) != 0) {
+        ret += fail(gobj, "another key is dropped while only recording", "");
+    }
+    close_session(ch);
+
+    /*
+     *  enforce_node_keys
+     */
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", TRUE);
+
+    ch = open_keyed_session(gobj, "keyed-3", "uuid-keyed", "keyed", KEY_B);
+    if(drops_of(ch) != 1) {
+        ret += fail(gobj, "an accepted node with another key is not dropped", "");
+    }
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("uuid-keyed"));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, 0, "a refused agent gets no command");
+    close_session(ch);
+
+    hgobj good = open_keyed_session(gobj, "keyed-4", "uuid-keyed", "keyed", KEY_A);
+    if(drops_of(good) != 0) {
+        ret += fail(gobj, "an accepted node with its key is dropped", "");
+    }
+
+    ch = open_keyed_session(gobj, "stranger-1", "uuid-stranger", "stranger", KEY_B);
+    if(drops_of(ch) != 1) {
+        ret += fail(gobj, "a node never seen is not dropped when enforcing", "");
+    }
+    close_session(ch);
+
+    hgobj old = open_keyed_session(gobj, "old-1", "uuid-old", "old", NULL);
+    if(drops_of(old) != 0) {
+        ret += fail(gobj, "an agent of before (no key) is dropped while allow_nodes_without_key", "");
+    }
+
+    /*
+     *  refuse-node drops the agent in session (its C_IEVENT_SRV, which
+     *  drops its transport: the wire)
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
+    ret += check_response(gobj, gobj_command(priv->cc, "refuse-node", kw, client),
+        0, "node 'uuid-keyed' refused", "refuse-node");
+    hgobj good_wire = gobj_child_by_name(good, "keyed-4-wire");
+    if(!good_wire || drops_of(good_wire) != 1) {
+        ret += fail(gobj, "refuse-node does not drop the agent in session", "");
+    }
+
+    /*
+     *  No key to accept; and a user without manage-nodes
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-old"));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "no key to accept", "accept-node of a node that presented no key");
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "No permission to 'manage-nodes'", "accept-node needs manage-nodes");
+
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
+    close_session(good);
+    close_session(old);
+    return ret;
 }
 
 PRIVATE int test_twin_agents(hgobj gobj)
@@ -2780,6 +3002,7 @@ PRIVATE int run_tests(hgobj gobj)
         return -1;
     }
 
+    result += test_node_keys(gobj, client1);
     result += test_twin_agents(gobj);
     result += test_operator_assertion(gobj, client1);
     result += test_save_scenario_as_string(gobj, client1);

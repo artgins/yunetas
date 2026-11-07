@@ -82,6 +82,7 @@ typedef struct mbedtls_state_s {
     BOOL has_own_cert;
     BOOL has_ca_cert;
     int authmode;       // effective MBEDTLS_SSL_VERIFY_* applied to conf
+    BOOL request_only;  // ssl_verify_mode "request": the client's cert taken as it comes, for the owner to pin
 } mbedtls_state_t;
 
 typedef struct ytls_s {
@@ -417,6 +418,24 @@ PRIVATE mbedtls_state_t *build_state(
         } else if(strcasecmp(ssl_verify_mode, "none")==0) {
             authmode = MBEDTLS_SSL_VERIFY_NONE;
             mbedtls_ssl_conf_authmode(&s->conf, authmode);
+        } else if(strcasecmp(ssl_verify_mode, "request")==0 && server) {
+            /*
+             *  The client's certificate is asked for and taken as it comes,
+             *  its chain neither verified nor reported: the owner pins it
+             *  (spki_sha256 in peer_cert). A self-signed one is the point.
+             */
+            authmode = MBEDTLS_SSL_VERIFY_OPTIONAL;
+            mbedtls_ssl_conf_authmode(&s->conf, authmode);
+            s->request_only = TRUE;
+        } else if(strcasecmp(ssl_verify_mode, "request")==0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS,
+                "msg",              "%s", "ssl_verify_mode 'request' is of a server: a client always verifies",
+                NULL
+            );
+            state_decref(s);
+            return NULL;
         } else {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
@@ -802,6 +821,23 @@ PRIVATE json_t *cert_info(const mbedtls_x509_crt *cert)
         }
         serial_hex[j] = '\0';
         json_object_set_new(info, "serial", json_string(serial_hex));
+    }
+
+    /*
+     *  sha256 of the public key (SPKI, DER: pk_raw), lowercase hex: what pins
+     *  a self-signed certificate, the same value as the openssl backend's
+     */
+    if(cert->pk_raw.p && cert->pk_raw.len > 0) {
+        uint8_t md[PSA_HASH_LENGTH(PSA_ALG_SHA_256)];
+        size_t md_len = 0;
+        if(psa_hash_compute(PSA_ALG_SHA_256, cert->pk_raw.p, cert->pk_raw.len,
+                md, sizeof(md), &md_len) == PSA_SUCCESS) {
+            char hex[2*sizeof(md) + 1];
+            for(size_t i = 0; i < md_len; i++) {
+                snprintf(hex + 2*i, 3, "%02x", md[i]);
+            }
+            json_object_set_new(info, "spki_sha256", json_string(hex));
+        }
     }
 
     return info;
@@ -1286,7 +1322,8 @@ PRIVATE int do_handshake(hsskt sskt_)
          *  which must not false-fire). The accept/reject decision itself is
          *  unchanged (that is the configured ssl_verify_mode's job).
          */
-        if(sskt->state_ref && sskt->state_ref->authmode != MBEDTLS_SSL_VERIFY_NONE) {
+        if(sskt->state_ref && sskt->state_ref->authmode != MBEDTLS_SSL_VERIFY_NONE &&
+                !sskt->state_ref->request_only) {
             uint32_t vrfy = mbedtls_ssl_get_verify_result(&sskt->ssl);
             if(vrfy != 0 && vrfy != 0xFFFFFFFFu) {
                 char vrfy_buf[512];

@@ -133,6 +133,15 @@ A top-level `__json_config_variables__` in that file changes nothing: its scope
 is the file itself, and the agent's urls are in `main.c`. The input urls
 (`ws://127.0.0.1:1991`, `wss://0.0.0.0:1993`) cannot be changed from the file.
 
+**The agent shows who it is with its own key** (7.30.10+). On the link to the
+control center the agent presents its own pair,
+`/yuneta/agent/certs/yuneta_agent.{crt,key}`, as the client certificate. Each
+node makes that pair for itself (see *The agent's own certificate* in the
+installation guide). The control center pins the node's uuid to the key once an
+operator accepts it ([`controlcenter`](controlcenter.md), "Each node's key"). A
+node with no pair cannot open that link: the connection fails and says so in
+the log, and the agent's unit makes the pair again at its next start.
+
 **The agent verifies who asks** (7.30.9+). The control center forwards an
 operator's command with an **operator assertion**: a short token that the
 control center signs for this node (`aud` is the node uuid), and that names

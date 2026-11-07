@@ -49,6 +49,23 @@ from another host (a copy of a node's disk) is logged as an ERROR:
 *"Two agents with the same node uuid on other hosts"*. Give the copy its own
 uuid with `yuneta-node-uuid`.
 
+## Each node's key (7.30.10+)
+
+The agents present their own pair as the client certificate of their link
+(1988/1989 with `"ssl_verify_mode": "request"`). The control center pins each
+node uuid to the key an operator accepted. The `nodes` topic of its treedb
+keeps the keys, and the commands are `list-nodes`, `accept-node` and
+`refuse-node` (permission `manage-nodes`). With `enforce_node_keys`, a node
+that presents another key, or that is not accepted, is dropped. Without it,
+the keys are only recorded, so the running nodes can be accepted first.
+
+```text
+list-nodes state=pending
+accept-node node_id=<uuid>
+```
+
+Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".
+
 ## Who asks: operator assertions (7.30.9+)
 
 The control center forwards an operator's command to an agent with

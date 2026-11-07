@@ -85,6 +85,26 @@
  *
  *  Users are NOT kept here: who may use this yuno is its C_AUTHZ's store.
  *
+ *  NODE KEYS (7.30.10+). An agent shows who it is with its own pair (the
+ *  client certificate of its link, made on each node), and this yuno pins
+ *  each node uuid to the key it accepted: the `nodes` topic of its treedb
+ *  (state pending / accepted / refused, the accepted key `spki_sha256`, the
+ *  last key presented that is not it, hostname, address, when). An agent
+ *  that opens its session is checked at its EV_ON_OPEN (check_node_key()):
+ *    - a node never seen is recorded `pending`, with the key it presented;
+ *    - an accepted node must present ITS key: another key, or none, is
+ *      said (WARNING) and, with `enforce_node_keys`, refused;
+ *    - a pending or refused node is refused with `enforce_node_keys`;
+ *    - a node that presents no key and has none accepted (an agent of
+ *      before 7.30.10) is let in while `allow_nodes_without_key`.
+ *  A refused agent's channel is dropped and skipped by the commands that
+ *  look for an agent. Without `enforce_node_keys` nothing is refused: the
+ *  keys are recorded, so an operator can accept the nodes that run before
+ *  it is switched on. `list-nodes`, `accept-node` (pins the key the node
+ *  presented, or the one given) and `refuse-node` (permission
+ *  `manage-nodes`). The keys are the listeners' business: a C_TCP_S with
+ *  "ssl_verify_mode": "request" asks the client for its certificate.
+ *
  *  OPERATOR ASSERTIONS (7.30.9+). What it forwards to an agent says who
  *  asks in `__username__`, which the agent believes -- unless it verifies
  *  it (C_IEVENT_CLI `verify_operator`). For that, with
@@ -156,6 +176,12 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
+PRIVATE BOOL agent_is_refused(hgobj agent_srv);
+PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id);
 PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -305,6 +331,22 @@ PRIVATE sdata_desc_t pm_drop_agent[] = {
     SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
     SDATA_END()
 };
+PRIVATE sdata_desc_t pm_list_nodes[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the nodes in this state: pending, accepted or refused"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_accept_node[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
+SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to pin (sha256 of its SPKI, hex). Default: the key the node presented"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_refuse_node[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id"),
@@ -366,6 +408,10 @@ SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              
 
 SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
+SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused"),
+SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key its agent presented (or the one given)"),
+SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
+
 SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
 
 SDATACM2 (DTP_SCHEMA,   "scenarios",        0,                  0,              pm_scenario,    cmd_scenarios,  "List the scenarios, or one"),
@@ -394,6 +440,8 @@ SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second (write 0 to start again)"),
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
+SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_WR,         "0",        "Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
+SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_WR,   "1",        "Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
 SDATA (DTP_INTEGER,     "operator_assertion_lifetime",SDF_RD,"60",      "Seconds an operator assertion lives (the agents refuse one of more than their max_assertion_lifetime)"),
@@ -439,6 +487,7 @@ SDATAAUTHZ (DTP_SCHEMA, "command-agent",    0,      0,      0,      "Permission 
 SDATAAUTHZ (DTP_SCHEMA, "drop-agent",       0,      0,      0,      "Permission to drop connection to remote agent"),
 SDATAAUTHZ (DTP_SCHEMA, "logout-user",      0,      0,      0,      "Permission to logout users"),
 SDATAAUTHZ (DTP_SCHEMA, "write-tty",        0,      0,      0,      "Internal use. Feed remote consola from local keyboard"),
+SDATAAUTHZ (DTP_SCHEMA, "manage-nodes",     0,      0,      0,      "Permission to accept or refuse the key of a node"),
 
 SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      pm_authz_scenario, "Permission to read the scenarios and their runs"),
 SDATAAUTHZ (DTP_SCHEMA, "write-scenarios",  0,      0,      pm_authz_scenario, "Permission to save and delete scenarios"),
@@ -1202,6 +1251,9 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
             const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
@@ -1299,6 +1351,9 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
             const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
@@ -1394,6 +1449,227 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
         json_sprintf("Drop sent to %d nodes", some),
         0,
         0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  The nodes and the keys of their agents (`nodes`), each with
+ *  "connected": an agent of it is in session now
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *permission = "list-agents";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the treedb is not open", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *state = kw_get_str(gobj, kw, "state", "", 0);
+    json_t *jn_data = gobj_list_nodes(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        empty_string(state)? 0 : json_pack("{s:s}", "state", state),
+        0,
+        gobj
+    );
+
+    size_t idx; json_t *jn_node;
+    json_array_foreach(jn_data, idx, jn_node) {
+        hgobj agent = find_agent_channel(gobj, kw_get_str(gobj, jn_node, "id", "", 0));
+        json_object_set_new(jn_node, "connected", json_boolean(agent? TRUE : FALSE));
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data, // owned
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Write the decision about a node: `state` accepted (with its key) or
+ *  refused, who decided and when. Return the node written, yours, or NULL
+ *  with the reason in `comment`.
+ ***************************************************************************/
+PRIVATE json_t *decide_node(
+    hgobj gobj,
+    const char *node_id,
+    const char *state,
+    const char *spki,       // the key to pin, accepted only
+    json_t *kw,             // not owned: who asks
+    hgobj src,
+    json_t **comment
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_treedb_controlcenter) {
+        *comment = json_sprintf("%s: the treedb is not open", gobj_yuno_role_plus_name());
+        return NULL;
+    }
+    if(empty_string(node_id)) {
+        *comment = json_sprintf("%s: what node_id?", gobj_yuno_role_plus_name());
+        return NULL;
+    }
+    json_t *node = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s}", "id", node_id),
+        0,
+        gobj
+    );
+    if(!node) {
+        *comment = json_sprintf("%s: node not found: '%s' (its agent has never connected)",
+            gobj_yuno_role_plus_name(), node_id);
+        return NULL;
+    }
+
+    json_t *update = json_pack("{s:s, s:s, s:s, s:I}",
+        "id", node_id,
+        "state", state,
+        "decided_by", username_of(gobj, kw, src),
+        "decided_at", (json_int_t)time(NULL)
+    );
+    if(strcmp(state, "accepted")==0) {
+        if(empty_string(spki)) {
+            spki = kw_get_str(gobj, node, "presented_spki", "", 0);
+        }
+        size_t len = strlen(spki);
+        BOOL hex = (len == 64);
+        for(size_t i = 0; hex && i < len; i++) {
+            hex = (spki[i] >= '0' && spki[i] <= '9') || (spki[i] >= 'a' && spki[i] <= 'f');
+        }
+        if(!hex) {
+            *comment = json_sprintf("%s: node '%s': no key to accept (its agent presented none; "
+                "spki_sha256 is 64 lowercase hex)", gobj_yuno_role_plus_name(), node_id);
+            JSON_DECREF(update)
+            JSON_DECREF(node)
+            return NULL;
+        }
+        json_object_set_new(update, "spki_sha256", json_string(spki));
+        json_object_set_new(update, "presented_spki", json_string(""));
+    }
+    JSON_DECREF(node)
+
+    json_t *written = gobj_update_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        update, // owned
+        0,
+        gobj
+    );
+    if(!written) {
+        *comment = json_sprintf("%s: node '%s' cannot be written", gobj_yuno_role_plus_name(), node_id);
+        return NULL;
+    }
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Node key decided",
+        "node",         "%s", node_id,
+        "state",        "%s", state,
+        "spki_sha256",  "%s", kw_get_str(gobj, written, "spki_sha256", "", 0),
+        "decided_by",   "%s", kw_get_str(gobj, written, "decided_by", "", 0),
+        NULL
+    );
+    *comment = json_sprintf("%s: node '%s' %s", gobj_yuno_role_plus_name(), node_id, state);
+    return written;
+}
+
+/***************************************************************************
+ *  Accept a node: pin its uuid to the key its agent presented, or to the
+ *  one given. An agent refused before connects again by itself.
+ ***************************************************************************/
+PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *permission = "manage-nodes";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *comment = NULL;
+    json_t *written = decide_node(
+        gobj,
+        kw_get_str(gobj, kw, "node_id", "", 0),
+        "accepted",
+        kw_get_str(gobj, kw, "spki_sha256", "", 0),
+        kw,
+        src,
+        &comment
+    );
+    return msg_iev_build_response(
+        gobj,
+        written? 0 : -1,
+        comment,
+        0,
+        written? json_pack("[o]", written) : 0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Refuse a node: with enforce_node_keys its agent is dropped now, and
+ *  refused when it comes back.
+ ***************************************************************************/
+PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *permission = "manage-nodes";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    json_t *comment = NULL;
+    json_t *written = decide_node(gobj, node_id, "refused", "", kw, src, &comment);
+    if(written && gobj_read_bool_attr(gobj, "enforce_node_keys")) {
+        hgobj agent = find_agent_channel(gobj, node_id);
+        if(agent) {
+            gobj_write_user_data(gobj_parent(agent), "node_refused", json_true());
+            gobj_send_event(agent, EV_DROP, json_object(), gobj);
+        }
+    }
+    return msg_iev_build_response(
+        gobj,
+        written? 0 : -1,
+        comment,
+        0,
+        written? json_pack("[o]", written) : 0,
         kw  // owned
     );
 }
@@ -3000,6 +3276,9 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
         const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
@@ -3010,6 +3289,159 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
     }
     gobj_free_iter(dl_children);
     return found;
+}
+
+/***************************************************************************
+ *  An agent (its C_IEVENT_SRV) whose node key was refused at its open: its
+ *  channel is being dropped, nothing goes to it meanwhile.
+ ***************************************************************************/
+PRIVATE BOOL agent_is_refused(hgobj agent_srv)
+{
+    hgobj channel = gobj_parent(agent_srv);
+    json_t *jn_refused = channel? gobj_read_user_data(channel, "node_refused") : NULL;
+    return json_is_true(jn_refused)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Does the key of the agent that opens its session (kw_open: the
+ *  EV_ON_OPEN of __input_side__, not owned) let it in? The `nodes` record
+ *  of its uuid is written (created pending the first time; its hostname,
+ *  address and last_seen each time; the key presented when it is not the
+ *  accepted one). With `enforce_node_keys` a node that is not accepted, or
+ *  presents another key, is refused: its channel is marked and dropped,
+ *  and FALSE is returned. See NODE KEYS in the header.
+ ***************************************************************************/
+PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *identity_card = kw_get_dict(gobj, kw_open, "identity_card", 0, 0);
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw_open, "__temp__`channel_gobj", 0, 0);
+    const char *node_id = kw_get_str(gobj, identity_card, "id", "", 0);
+    const char *hostname = kw_get_str(gobj, identity_card, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+    json_t *peer_cert = kw_get_dict(gobj, kw_open, "peer_cert", 0, 0);
+    const char *spki = peer_cert? kw_get_str(gobj, peer_cert, "spki_sha256", "", 0) : "";
+    const char *peername = (channel_gobj && gobj_has_bottom_attr(channel_gobj, "peername"))?
+        gobj_read_str_attr(channel_gobj, "peername") : "";
+    BOOL enforce = gobj_read_bool_attr(gobj, "enforce_node_keys");
+    BOOL without_key_ok = empty_string(spki) && gobj_read_bool_attr(gobj, "allow_nodes_without_key");
+
+    if(channel_gobj) {
+        gobj_write_user_data(channel_gobj, "node_refused", json_false());
+    }
+
+    const char *refusal = NULL;     // why it would be refused
+    const char *warning = NULL;     // said even when nothing is refused
+    if(empty_string(node_id)) {
+        if(!without_key_ok) {
+            refusal = "The agent says no node uuid";
+        }
+    } else if(!priv->gobj_treedb_controlcenter) {
+        if(!without_key_ok) {
+            refusal = "No treedb to check the node key in";
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", refusal,
+                "node",         "%s", node_id,
+                NULL
+            );
+        }
+    } else {
+        json_int_t now = (json_int_t)time(NULL);
+        json_t *node = gobj_get_node(
+            priv->gobj_treedb_controlcenter,
+            "nodes",
+            json_pack("{s:s}", "id", node_id),
+            0,
+            gobj
+        );
+        json_t *update = json_pack("{s:s, s:s, s:s, s:I}",
+            "id", node_id,
+            "hostname", hostname,
+            "peername", peername? peername : "",
+            "last_seen", now
+        );
+        if(!node) {
+            json_object_set_new(update, "state", json_string("pending"));
+            json_object_set_new(update, "first_seen", json_integer(now));
+            json_object_set_new(update, "presented_spki", json_string(spki));
+            if(!empty_string(spki)) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "A node to accept: its agent presents a key never accepted (accept-node)",
+                    "node",         "%s", node_id,
+                    "hostname",     "%s", hostname,
+                    "spki_sha256",  "%s", spki,
+                    NULL
+                );
+            }
+            if(!without_key_ok) {
+                refusal = "The node is not accepted (pending)";
+            }
+        } else {
+            const char *state = kw_get_str(gobj, node, "state", "", 0);
+            const char *accepted = kw_get_str(gobj, node, "spki_sha256", "", 0);
+            if(strcmp(state, "accepted")==0) {
+                if(empty_string(spki)) {
+                    warning = refusal = "The agent of an accepted node presents no key";
+                } else if(strcmp(spki, accepted)!=0) {
+                    warning = refusal = "The agent of an accepted node presents another key";
+                }
+                json_object_set_new(update, "presented_spki", json_string(refusal? spki : ""));
+            } else {
+                json_object_set_new(update, "presented_spki", json_string(spki));
+                if(strcmp(state, "refused")==0) {
+                    refusal = "The node is refused";
+                } else if(!without_key_ok) {
+                    refusal = "The node is not accepted (pending)";
+                }
+            }
+            JSON_DECREF(node)
+        }
+        json_t *written = gobj_update_node(
+            priv->gobj_treedb_controlcenter,
+            "nodes",
+            update, // owned
+            json_pack("{s:b}", "create", 1),
+            gobj
+        );
+        JSON_DECREF(written)
+    }
+
+    if(refusal && enforce) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Agent refused: its node key is not the one accepted",
+            "refusal",      "%s", refusal,
+            "node",         "%s", node_id,
+            "hostname",     "%s", hostname,
+            "peername",     "%s", peername? peername : "",
+            "spki_sha256",  "%s", spki,
+            NULL
+        );
+        if(channel_gobj) {
+            gobj_write_user_data(channel_gobj, "node_refused", json_true());
+            gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
+        }
+        return FALSE;
+    }
+    if(warning) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",
+            "refusal",      "%s", warning,
+            "node",         "%s", node_id,
+            "hostname",     "%s", hostname,
+            "peername",     "%s", peername? peername : "",
+            "spki_sha256",  "%s", spki,
+            NULL
+        );
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -3040,6 +3472,9 @@ PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
         const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
@@ -4686,6 +5121,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
     if(src == priv->gobj_input_side) {
+        if(!check_node_key(gobj, kw)) {
+            KW_DECREF(kw);
+            return 0;   // refused, its channel dropped: it is no agent of this yuno
+        }
         report_twin_agents(gobj, kw_get_dict(gobj, kw, "identity_card", 0, 0));
         retry_stops_waiting_node(gobj);
     }
@@ -4732,6 +5171,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     if(src == priv->gobj_input_side && channel_gobj) {
         gobj_write_user_data(channel_gobj, "link_requesters", json_object());
+        gobj_write_user_data(channel_gobj, "node_refused", json_false());
     }
 
     /*
@@ -5031,6 +5471,9 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
             /*

@@ -133,6 +133,7 @@ services, and handles WebSocket upgrade.
 | `max_subscriptions` | `integer` | Subscriptions a peer may hold on the channel (default `5000`, `0` no limit). See *What a peer may hold*. |
 | `max_subscription_size` | `integer` | Bytes, as compact json, of the `__filter__`, of the `__global__` and of the routing back (`__md_iev__`) of a peer's subscription, each one (default `16384`, `0` no limit). |
 | `max_pre_session_frame` | `integer` | Bytes of a frame received before the session (default `65536`, `0` no limit). See below. |
+| `peer_cert` | `dict` | The certificate the client presented to the TLS of its transport (C_TCP's `peer_cert`: `subject`, `cn`, `spki_sha256`, `verified`, ...), `{}` if none (7.30.10+). It goes in the `EV_ON_OPEN` the gate publishes too, for a service that binds an identity to it: the controlcenter pins each node to its agent's key. |
 
 ### Lifecycle of a channel
 

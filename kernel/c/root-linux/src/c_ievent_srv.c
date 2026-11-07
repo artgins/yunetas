@@ -188,6 +188,7 @@ SDATA (DTP_STRING,      "this_service",         SDF_VOLATIL, 0, "dst_service at 
 SDATA (DTP_POINTER,     "gobj_service",         SDF_VOLATIL, 0, "gobj of identity_card dst_service"),
 SDATA (DTP_BOOLEAN,     "authenticated",        SDF_VOLATIL, 0, "True if entry was authenticated"),
 SDATA (DTP_JSON,        "identity_card",        SDF_VOLATIL, "", "Identity Card of clisrv"),
+SDATA (DTP_DICT,        "peer_cert",            SDF_VOLATIL, "{}", "The certificate the client presented to the TLS of its transport (C_TCP's peer_cert: subject, spki_sha256, verified, ...), {} if none; also in the EV_ON_OPEN published"),
 
 // Services this channel is authorized to reach: the keys of the
 // services_roles dict returned by gobj_authenticate() at identity_card time.
@@ -767,6 +768,15 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
+     *  Who the client is to the TLS of its transport, if it presented a
+     *  certificate: for a service that binds an identity to it
+     */
+    json_t *peer_cert = json_object_get(kw, "peer_cert");
+    if(json_is_object(peer_cert)) {
+        gobj_write_json_attr(gobj, "peer_cert", peer_cert);
+    }
+
+    /*
      *  Route (channel) open.
      *  Wait Identity card
      */
@@ -1165,6 +1175,10 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         "__username__",
         json_string(gobj_read_str_attr(gobj, "__username__"))
     );
+    json_t *peer_cert = gobj_read_json_attr(gobj, "peer_cert");
+    if(json_size(peer_cert) > 0) {
+        json_object_set(kw_on_open, "peer_cert", peer_cert);
+    }
 
     gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
 

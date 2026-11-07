@@ -60,3 +60,14 @@ while the mbedTLS backend only refused the connection: an agent whose
 controlcenter link named a missing file died. An exit with code 0 is a pass for
 ctest, so an `atexit()` handler turns an exit before the end of the test into
 code 1 (red: *"the yuno exited before the end of the test"*).
+
+`test10` (`main_test10.c` + `c_test10.c`, and `test10_mbedtls` when both
+backends are built) starts a TLS server with `"ssl_verify_mode": "request"` and
+two clients: one with the test certificate as its own, and one without a
+certificate. The server takes the client's certificate as it comes. It gives
+the certificate's `spki_sha256` (the sha256 of the key's SPKI, which
+`openssl pkey -pubout -outform DER | sha256sum` also gives) with `verified`
+false, and logs NO *"did NOT verify"* warning: the owner pins the key, so a
+self-signed certificate is no news. The client without a certificate is let
+in, with no `peer_cert`. Each check is a TEST FAIL error.
+
