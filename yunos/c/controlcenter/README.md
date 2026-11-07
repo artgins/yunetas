@@ -61,7 +61,8 @@ the keys are only recorded, so the running nodes can be accepted first.
 
 ```text
 list-nodes state=pending
-accept-node node_id=<uuid>
+list-nodes state=knocking
+accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 ```
 
 Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".

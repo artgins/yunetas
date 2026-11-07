@@ -144,7 +144,8 @@ the log, and the agent's unit makes the pair again at its next start. Since
 7.30.11 the accepted key is also the agent's login: the agent needs no token
 (`controlcenter.jwt`) in its json, and the package's template carries none. A
 new node connects with its key, and appears in the control center's
-`list-nodes` as `pending` until an operator accepts it.
+`list-nodes` as `knocking` until an operator accepts it with the key read on
+the node.
 
 **The agent verifies who asks** (7.30.9+). The control center forwards an
 operator's command with an **operator assertion**: a short token that the

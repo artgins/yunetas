@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Nothing of an unauthenticated agent is written; `accept-node` needs the
+  key.** 7.30.11 recorded a node `pending` from the authentication of an
+  agent that presented a key not accepted and no token. That agent is not
+  authenticated, and anyone who reaches the agents' port can make a key, so it
+  could fill the store, or replace the presented key of a real pending node.
+  `accept-node` without a key pinned that presented key.
+  - Such an agent is now kept in memory only: `knocking` in `list-nodes`, at
+    most `max_knocking_nodes` (256), and the first key of a uuid is kept. One
+    INFO is logged, *"A node knocking"*.
+  - `accept-node` requires `spki_sha256`, the key read on the node itself, and
+    creates the record of a knocking node.
+
+  A security review. The test has the cases (a second key does not replace
+  the first; a knocking node is accepted with its key and logs in).
+
 ## v7.30.11 (2026-11-07)
 
 A light release of the control center: an agent logs in by its node key.

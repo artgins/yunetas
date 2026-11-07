@@ -1716,9 +1716,14 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     json_t *kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
     ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "what key", "accept-node without the key read on the node");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
+    json_object_set_new(kw, "spki_sha256", json_string(KEY_A));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
         0, "node 'uuid-keyed' accepted", "accept-node");
     ret += check_node_field(gobj, client, "uuid-keyed", "spki_sha256", KEY_A,
-        "accept-node pins the key the node presented");
+        "accept-node pins the key given");
     close_session(ch);
 
     /*
@@ -1780,8 +1785,9 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
      */
     kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "node_id", json_string("uuid-old"));
+    json_object_set_new(kw, "spki_sha256", json_string("not-a-key"));
     ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
-        -1, "no key to accept", "accept-node of a node that presented no key");
+        -1, "what key", "accept-node with a key that is no sha256");
     kw = viewer_kw(client);
     json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
     ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
@@ -1795,6 +1801,7 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     close_session(ch);
     kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "node_id", json_string("uuid-auth"));
+    json_object_set_new(kw, "spki_sha256", json_string(KEY_A));
     ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
         0, "node 'uuid-auth' accepted", "accept-node of uuid-auth");
 
@@ -1824,8 +1831,31 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         ret += fail(gobj, "a node never seen, with no token, is authenticated", username);
     }
     JSON_DECREF(auth)
-    ret += check_node_field(gobj, client, "uuid-new", "state", "pending",
-        "a node never seen at its authentication is recorded pending");
+    ret += check_node_field(gobj, client, "uuid-new", "state", "knocking",
+        "a node never seen at its authentication is knocking, not recorded");
+
+    /*
+     *  Another key for the same uuid does not replace the first one kept;
+     *  the operator accepts it with the key read on the node, and it logs in
+     */
+    auth = authenticate_by_key(gobj, "auth-5", "uuid-new", "newhost", KEY_A,
+        username, sizeof(username));
+    JSON_DECREF(auth)
+    ret += check_node_field(gobj, client, "uuid-new", "spki_sha256", KEY_B,
+        "a second key of a knocking node does not replace the first");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-new"));
+    json_object_set_new(kw, "spki_sha256", json_string(KEY_A));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        0, "node 'uuid-new' accepted", "accept-node of a knocking node");
+    ret += check_node_field(gobj, client, "uuid-new", "state", "accepted",
+        "accept-node of a knocking node creates its record");
+    auth = authenticate_by_key(gobj, "auth-6", "uuid-new", "newhost", KEY_A,
+        username, sizeof(username));
+    if(kw_get_int(gobj, auth, "result", -1, 0) != 0) {
+        ret += fail(gobj, "a knocking node accepted logs in by its key", username);
+    }
+    JSON_DECREF(auth)
 
     gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
     close_session(good);

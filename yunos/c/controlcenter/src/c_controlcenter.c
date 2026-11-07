@@ -100,15 +100,16 @@
  *  A refused agent's channel is dropped and skipped by the commands that
  *  look for an agent. Without `enforce_node_keys` nothing is refused: the
  *  keys are recorded, so an operator can accept the nodes that run before
- *  it is switched on. `list-nodes`, `accept-node` (pins the key the node
- *  presented, or the one given) and `refuse-node` (permission
- *  `manage-nodes`). The keys are the listeners' business: a C_TCP_S with
+ *  it is switched on. `list-nodes`, `accept-node` (pins the key GIVEN, read
+ *  on the node itself: never the one presented) and `refuse-node`
+ *  (permission `manage-nodes`). The keys are the listeners' business: a C_TCP_S with
  *  "ssl_verify_mode": "request" asks the client for its certificate.
  *  An accepted key is also the agent's LOGIN (7.30.11+): mt_authenticate()
  *  authenticates the identity card of an agent that presents it, as
  *  `agent:<node uuid>` reaching this service only, with no token; a key not
- *  accepted with no token is refused (its node recorded pending). Anything
- *  else is C_AUTHZ's.
+ *  accepted with no token is refused, and nothing of it is written: it is
+ *  kept in memory (`knocking`, capped by max_knocking_nodes, the first key of
+ *  a uuid kept) for list-nodes. Anything else is C_AUTHZ's.
  *
  *  OPERATOR ASSERTIONS (7.30.9+). What it forwards to an agent says who
  *  asks in `__username__`, which the agent believes -- unless it verifies
@@ -185,6 +186,13 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
+PRIVATE BOOL note_knocking_node(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki
+);
 PRIVATE const char *record_node_key(
     hgobj gobj,
     const char *node_id,
@@ -347,13 +355,13 @@ PRIVATE sdata_desc_t pm_drop_agent[] = {
 };
 PRIVATE sdata_desc_t pm_list_nodes[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the nodes in this state: pending, accepted or refused"),
+SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the nodes in this state: pending, accepted, refused, or knocking (a key not accepted, no token: in memory only)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_accept_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
-SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to pin (sha256 of its SPKI, hex). Default: the key the node presented"),
+SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to pin, read on the node itself (sha256 of its SPKI, 64 lowercase hex). Required: never the key presented"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_refuse_node[] = {
@@ -423,7 +431,7 @@ SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              
 SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
 SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused"),
-SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key its agent presented (or the one given)"),
+SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node)"),
 SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
 
 SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
@@ -455,6 +463,7 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
+SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); more are not kept"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
@@ -550,6 +559,7 @@ typedef struct _PRIVATE_DATA {
     hgobj run_timer;                // deadline of the step of the run in flight
     hgobj stop_timer;               // the next stop a scenario's max_run is due
     json_t *auto_stops;             // scenario id -> {stop_at, scheduled_at: epoch seconds, started_by} (max_run)
+    json_t *knocking;               // node uuid -> {spki_sha256, hostname, peername, first_seen, last_seen}: not authenticated, in memory only
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -591,6 +601,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
     priv->stop_timer = gobj_create_pure_child("stop_timer", C_TIMER, 0, gobj);
     priv->auto_stops = json_object();
+    priv->knocking = json_object();
     priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER0, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
@@ -694,6 +705,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->run_channels)
     KW_DECREF(priv->run_kw_answer)
     JSON_DECREF(priv->auto_stops)
+    JSON_DECREF(priv->knocking)
 }
 
 /***************************************************************************
@@ -704,8 +716,10 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  uuid of its identity card) is authenticated here, by that key: as
  *  `agent:<node uuid>`, reaching this service only. Keycloak is not asked:
  *  an agent needs no token. An agent with a key that is not accepted and no
- *  token is refused, its node recorded pending (a node to accept: a new
- *  box connects with nothing but its key). Anything else -- an operator, an
+ *  token is refused, and nothing of it is written (it is not
+ *  authenticated): it is kept in memory, `knocking` in list-nodes (a new
+ *  box connects with nothing but its key, and an operator accepts it with
+ *  the key read on the box). Anything else -- an operator, an
  *  agent of before with its token -- is C_AUTHZ's, as for any service.
  ***************************************************************************/
 PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
@@ -755,19 +769,19 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         if(empty_string(kw_get_str(gobj, kw, "jwt", "", 0))) {
             const char *peername = gobj_has_bottom_attr(src, "peername")?
                 gobj_read_str_attr(src, "peername") : "";
-            const char *warning = NULL;
-            record_node_key(gobj, node_id, hostname, peername, spki, FALSE, &warning);
-            if(warning) {
-                /*
-                 *  Said for an accepted node only: a pending one says it
-                 *  once (record_node_key()'s INFO) and is in list-nodes;
-                 *  its agent retries every few seconds
-                 */
+            /*
+             *  Nothing of an unauthenticated peer is written to the store:
+             *  anyone who reaches the port can make a key. It is kept in
+             *  memory, capped, for list-nodes (knocking), and an operator
+             *  accepts it giving the key read on the node itself.
+             */
+            BOOL accepted_node = note_knocking_node(gobj, node_id, hostname, peername, spki);
+            if(accepted_node) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
                     "msg",          "%s", "Agent not authenticated: its node key is not the one accepted",
-                    "refusal",      "%s", warning,
+                    "refusal",      "%s", "The agent of an accepted node presents another key",
                     "node",         "%s", node_id,
                     "hostname",     "%s", hostname,
                     "peername",     "%s", peername? peername : "",
@@ -1613,6 +1627,16 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         hgobj agent = find_agent_channel(gobj, kw_get_str(gobj, jn_node, "id", "", 0));
         json_object_set_new(jn_node, "connected", json_boolean(agent? TRUE : FALSE));
     }
+    if(empty_string(state) || strcmp(state, "knocking")==0) {
+        const char *node_id; json_t *jn_knock;
+        json_object_foreach(priv->knocking, node_id, jn_knock) {
+            json_t *jn = json_deep_copy(jn_knock);
+            json_object_set_new(jn, "id", json_string(node_id));
+            json_object_set_new(jn, "state", json_string("knocking"));
+            json_object_set_new(jn, "connected", json_false());
+            json_array_append_new(jn_data, jn);
+        }
+    }
 
     return msg_iev_build_response(
         gobj,
@@ -1656,7 +1680,8 @@ PRIVATE json_t *decide_node(
         0,
         gobj
     );
-    if(!node) {
+    json_t *knock = json_object_get(priv->knocking, node_id);
+    if(!node && !(knock && strcmp(state, "accepted")==0)) {
         *comment = json_sprintf("%s: node not found: '%s' (its agent has never connected)",
             gobj_yuno_role_plus_name(), node_id);
         return NULL;
@@ -1669,31 +1694,40 @@ PRIVATE json_t *decide_node(
         "decided_at", (json_int_t)time(NULL)
     );
     if(strcmp(state, "accepted")==0) {
-        if(empty_string(spki)) {
-            spki = kw_get_str(gobj, node, "presented_spki", "", 0);
-        }
+        /*
+         *  The key is the operator's, read on the node itself: never the
+         *  one presented, which anyone who reaches the port can make
+         */
         size_t len = strlen(spki);
         BOOL hex = (len == 64);
         for(size_t i = 0; hex && i < len; i++) {
             hex = (spki[i] >= '0' && spki[i] <= '9') || (spki[i] >= 'a' && spki[i] <= 'f');
         }
         if(!hex) {
-            *comment = json_sprintf("%s: node '%s': no key to accept (its agent presented none; "
-                "spki_sha256 is 64 lowercase hex)", gobj_yuno_role_plus_name(), node_id);
+            *comment = json_sprintf("%s: node '%s': what key? spki_sha256= the key read on the "
+                "node (64 lowercase hex)", gobj_yuno_role_plus_name(), node_id);
             JSON_DECREF(update)
             JSON_DECREF(node)
             return NULL;
         }
         json_object_set_new(update, "spki_sha256", json_string(spki));
         json_object_set_new(update, "presented_spki", json_string(""));
+        if(!node) {
+            json_object_set_new(update, "hostname",
+                json_string(kw_get_str(gobj, knock, "hostname", "", 0)));
+            json_object_set_new(update, "first_seen",
+                json_integer(kw_get_int(gobj, knock, "first_seen", 0, 0)));
+        }
+        json_object_del(priv->knocking, node_id);
     }
+    BOOL create = node? FALSE : TRUE;
     JSON_DECREF(node)
 
     json_t *written = gobj_update_node(
         priv->gobj_treedb_controlcenter,
         "nodes",
         update, // owned
-        0,
+        create? json_pack("{s:b}", "create", 1) : 0,
         gobj
     );
     if(!written) {
@@ -3416,6 +3450,74 @@ PRIVATE BOOL agent_is_refused(hgobj agent_srv)
     hgobj channel = gobj_parent(agent_srv);
     json_t *jn_refused = channel? gobj_read_user_data(channel, "node_refused") : NULL;
     return json_is_true(jn_refused)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  An agent that presents a key not accepted and no token: not
+ *  authenticated, so nothing of it goes to the store. It is kept in memory
+ *  (`knocking`, at most `max_knocking_nodes`, the first one of a uuid kept:
+ *  a later one does not replace it), said once per uuid and key (INFO), and
+ *  shown by list-nodes. Returns TRUE if the uuid is of a node in the store
+ *  (an accepted or refused one: another key for it).
+ ***************************************************************************/
+PRIVATE BOOL note_knocking_node(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(empty_string(node_id)) {
+        return FALSE;
+    }
+    json_t *node = priv->gobj_treedb_controlcenter?
+        gobj_get_node(
+            priv->gobj_treedb_controlcenter,
+            "nodes",
+            json_pack("{s:s}", "id", node_id),
+            0,
+            gobj
+        ) : NULL;
+    BOOL known = (node && strcmp(kw_get_str(gobj, node, "state", "", 0), "pending")!=0)? TRUE : FALSE;
+    JSON_DECREF(node)
+    if(known) {
+        return TRUE;
+    }
+
+    json_int_t now = (json_int_t)time(NULL);
+    json_t *entry = json_object_get(priv->knocking, node_id);
+    if(entry) {
+        if(strcmp(kw_get_str(gobj, entry, "spki_sha256", "", 0), spki)==0) {
+            json_object_set_new(entry, "last_seen", json_integer(now));
+        } else {
+            json_object_set_new(entry, "other_keys", json_true());
+        }
+        return FALSE;
+    }
+    if((json_int_t)json_object_size(priv->knocking) >= gobj_read_integer_attr(gobj, "max_knocking_nodes")) {
+        return FALSE;   // full: the ones kept are enough to see something is knocking
+    }
+    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I}",
+        "spki_sha256", spki,
+        "hostname", hostname? hostname : "",
+        "peername", peername? peername : "",
+        "first_seen", now,
+        "last_seen", now
+    ));
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)",
+        "node",         "%s", node_id,
+        "hostname",     "%s", hostname? hostname : "",
+        "peername",     "%s", peername? peername : "",
+        "spki_sha256",  "%s", spki,
+        NULL
+    );
+    return FALSE;
 }
 
 /***************************************************************************

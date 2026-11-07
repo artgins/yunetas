@@ -117,6 +117,7 @@ agent reconnects on its own schedule.
 |-----------|---------|---------|
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
+| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`. |
 
 **3 — accept the nodes** (permission `manage-nodes`; `list-nodes` asks
 `list-agents`). Before you accept a node, compare the key it presented with the
@@ -129,14 +130,14 @@ openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
 
 # through the control center
 list-nodes state=pending
-accept-node node_id=7fb83a14-1aeb-8f0a-868b-244e75c5fd70
-accept-node node_id=7fb83a14-... spki_sha256=<the key read on the node>
+accept-node node_id=7fb83a14-1aeb-8f0a-868b-244e75c5fd70 spki_sha256=<the key read on the node>
 refuse-node node_id=7fb83a14-...
 ```
 
-`accept-node` pins the key that the node presented, or the key given. With
-`enforce_node_keys`, `refuse-node` also drops the node's agent if it is in
-session. Each decision is an INFO, *"Node key decided"*.
+`accept-node` pins the key you give in `spki_sha256`, read on the node
+itself. It never pins the key that was presented, because anyone who reaches
+the port can make a key. With `enforce_node_keys`, `refuse-node` also drops
+the node's agent if it is in session. Each decision is an INFO, *"Node key decided"*.
 
 **The transition, with nobody cut off:**
 
@@ -154,8 +155,12 @@ agent presents the key accepted for the node uuid of its card. The session is
 `agent:<node uuid>` and reaches the service `controlcenter` only. No token is
 asked for, so a node needs no `controlcenter.jwt` in its agent's json. When an
 agent presents a key that is not accepted and sends no token, the control
-center refuses it and records the node as `pending`. A new box therefore
-connects with nothing but its key, and an operator accepts it. When the key is
+center refuses it. Because that agent is not authenticated, nothing of it goes
+to the store. The control center keeps it in memory (at most
+`max_knocking_nodes`, 256; the first key of a uuid is kept), logs one INFO
+(*"A node knocking"*), and `list-nodes` shows it with the state `knocking`. A
+new box therefore connects with nothing but its key, and an operator accepts it
+with the key read on the box. `accept-node` creates its record. When the key is
 for an accepted node but is not the accepted key, the control center logs a
 WARNING (*"Agent not authenticated: its node key is not the one accepted"*).
 Everything else goes to `C_AUTHZ` as before: the operators, and the agents of

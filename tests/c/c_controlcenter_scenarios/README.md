@@ -239,7 +239,10 @@ still reported and fails the test.
     - The control center's `mt_authenticate` (7.30.11): an agent with the
       accepted key and no token is authenticated as `agent:<uuid>`, reaching
       `controlcenter`. Another key, with no token, is refused (a WARNING). A
-      node never seen, with no token, is refused and recorded `pending`.
+      node never seen, with no token, is refused and kept in memory only
+      (`knocking` in `list-nodes`); a second key for it does not replace the
+      first; `accept-node` with the key creates its record, and it logs in.
+      `accept-node` without `spki_sha256` is refused.
 
 ## Run
 
