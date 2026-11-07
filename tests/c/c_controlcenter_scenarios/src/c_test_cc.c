@@ -58,7 +58,10 @@
  *                node never seen is recorded pending; accept-node pins its
  *                key; with enforce_node_keys another key, a pending or a
  *                refused node is dropped, an agent without a key is let
- *                in; refuse-node drops the agent in session;
+ *                in; refuse-node drops the agent in session; an agent with
+ *                the accepted key is authenticated by it (mt_authenticate),
+ *                as agent:<uuid>, with no token; another key or a node not
+ *                accepted, with no token, is refused;
  *              - each request for the agent (it says
  *                `knows_operator_assertion`) carries an operator assertion
  *                (operator_assertion_key): signed with the key, for that
@@ -1643,6 +1646,44 @@ PRIVATE int check_node_field(hgobj gobj, hgobj client, const char *uuid,
 }
 
 /***************************************************************************
+ *  The control center authenticates the identity card of an agent whose
+ *  C_IEVENT_SRV holds `spki` as its transport's peer_cert (no token): the
+ *  answer (yours), and in `username` the __username__ the session got
+ ***************************************************************************/
+PRIVATE json_t *authenticate_by_key(
+    hgobj gobj,
+    const char *name,
+    const char *uuid,
+    const char *host,
+    const char *spki,
+    char *username,
+    size_t username_size
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj channel = create_peer(name, priv->input_side);
+    hgobj srv = gobj_create(name, C_IEVENT_SRV, 0, channel);
+    if(!srv) {
+        fail(gobj, "authenticate_by_key", "cannot create the C_IEVENT_SRV");
+        close_session(channel);
+        return NULL;
+    }
+    gobj_write_new_json_attr(srv, "peer_cert", json_pack("{s:s, s:b}", "spki_sha256", spki, "verified", 0));
+    json_t *card = json_pack("{s:s, s:{s:[{s:s, s:s}]}}",
+        "id", uuid,
+        "__md_iev__",
+            "ievent_gate_stack",
+                "dst_service", "controlcenter",
+                "host", host
+    );
+    json_t *response = gobj_authenticate(priv->cc, card, srv);
+    snprintf(username, username_size, "%s", gobj_read_str_attr(srv, "__username__"));
+    close_session(channel);
+    return response;
+}
+
+/***************************************************************************
  *  22. The key of a node (NODE KEYS of c_controlcenter.c)
  ***************************************************************************/
 #define KEY_A   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -1745,6 +1786,46 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
     ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
         -1, "No permission to 'manage-nodes'", "accept-node needs manage-nodes");
+
+    /*
+     *  Authenticated by the key, no token: a node accepted with its key; and
+     *  refused with another key, and as a node never seen
+     */
+    ch = open_keyed_session(gobj, "auth-1", "uuid-auth", "authhost", KEY_A);
+    close_session(ch);
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-auth"));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        0, "node 'uuid-auth' accepted", "accept-node of uuid-auth");
+
+    char username[NAME_MAX];
+    json_t *auth = authenticate_by_key(gobj, "auth-2", "uuid-auth", "authhost", KEY_A,
+        username, sizeof(username));
+    if(kw_get_int(gobj, auth, "result", -1, 0) != 0 || strcmp(username, "agent:uuid-auth")!=0 ||
+            !kw_get_list(gobj, auth, "services_roles`controlcenter", 0, 0)) {
+        char *dump = auth? json_dumps(auth, JSON_COMPACT) : 0;
+        ret += fail(gobj, "an agent with the accepted key is authenticated by it", dump? dump : username);
+        if(dump) {
+            gbmem_free(dump);
+        }
+    }
+    JSON_DECREF(auth)
+
+    auth = authenticate_by_key(gobj, "auth-3", "uuid-auth", "authhost", KEY_B,
+        username, sizeof(username));
+    if(kw_get_int(gobj, auth, "result", 0, 0) >= 0) {
+        ret += fail(gobj, "an agent with another key and no token is authenticated", username);
+    }
+    JSON_DECREF(auth)
+
+    auth = authenticate_by_key(gobj, "auth-4", "uuid-new", "newhost", KEY_B,
+        username, sizeof(username));
+    if(kw_get_int(gobj, auth, "result", 0, 0) >= 0) {
+        ret += fail(gobj, "a node never seen, with no token, is authenticated", username);
+    }
+    JSON_DECREF(auth)
+    ret += check_node_field(gobj, client, "uuid-new", "state", "pending",
+        "a node never seen at its authentication is recorded pending");
 
     gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
     close_session(good);

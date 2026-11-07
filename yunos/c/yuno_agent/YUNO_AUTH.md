@@ -1048,6 +1048,11 @@ Points found so far (verified this session unless noted):
    link: since 7.30.4 the agents trust only the CC's own certificate
    (`certs/controlcenter.crt`, key on the CC's machine, ports 1988/1989); up to
    7.30.3 they trusted `yuneta_agent.crt`, which every agent serves.
+   **Since 7.30.10 the CC knows each node by its agent's own key** (client
+   certificate of the link, pinned per node uuid by an operator,
+   `accept-node`), and since 7.30.11 that key is the agent's login: no token
+   of the IdP. The token every agent of before shares opens an agent's
+   session only (role `agent`, no command).
    **Since 7.30.9 a node verifies the operator itself**: the CC signs an
    operator assertion for each command it forwards
    (`__operator_assertion__`, ES256, `aud` = the node uuid, `sub` = the

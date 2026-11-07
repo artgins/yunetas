@@ -236,6 +236,10 @@ still reported and fails the test.
       - `refuse-node` drops the agent in session (its wire gets `EV_DROP`).
     - `accept-node` of a node that presented no key is refused, and so is a
       user without `manage-nodes`.
+    - The control center's `mt_authenticate` (7.30.11): an agent with the
+      accepted key and no token is authenticated as `agent:<uuid>`, reaching
+      `controlcenter`. Another key, with no token, is refused (a WARNING). A
+      node never seen, with no token, is refused and recorded `pending`.
 
 ## Run
 

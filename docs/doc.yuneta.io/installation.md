@@ -560,7 +560,9 @@ Since 7.30.10 the same pair is also **who the node is to its control center**:
 the agent presents it as the client certificate of its link, and the control
 center pins the node's uuid to its key once an operator accepts it
 ([`controlcenter`](yunos/controlcenter.md), "Each node's key"). A new pair
-(another key) is a node the control center has to accept again. To read the
+(another key) is a node the control center has to accept again. Since 7.30.11
+that key is also the agent's login to its control center: a node needs no
+token in its agent's json. To read the
 key the control center will show for a node (`spki_sha256`):
 
 ```bash

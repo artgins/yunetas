@@ -104,6 +104,11 @@
  *  presented, or the one given) and `refuse-node` (permission
  *  `manage-nodes`). The keys are the listeners' business: a C_TCP_S with
  *  "ssl_verify_mode": "request" asks the client for its certificate.
+ *  An accepted key is also the agent's LOGIN (7.30.11+): mt_authenticate()
+ *  authenticates the identity card of an agent that presents it, as
+ *  `agent:<node uuid>` reaching this service only, with no token; a key not
+ *  accepted with no token is refused (its node recorded pending). Anything
+ *  else is C_AUTHZ's.
  *
  *  OPERATOR ASSERTIONS (7.30.9+). What it forwards to an agent says who
  *  asks in `__username__`, which the agent believes -- unless it verifies
@@ -180,6 +185,15 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
+PRIVATE const char *record_node_key(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki,
+    BOOL without_key_ok,
+    const char **warning
+);
 PRIVATE BOOL agent_is_refused(hgobj agent_srv);
 PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id);
 PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -680,6 +694,108 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->run_channels)
     KW_DECREF(priv->run_kw_answer)
     JSON_DECREF(priv->auto_stops)
+}
+
+/***************************************************************************
+ *      Framework Method authenticate
+ *
+ *  An agent that presents the key accepted for its node (the client
+ *  certificate of its link, `peer_cert` of its C_IEVENT_SRV, and the node
+ *  uuid of its identity card) is authenticated here, by that key: as
+ *  `agent:<node uuid>`, reaching this service only. Keycloak is not asked:
+ *  an agent needs no token. An agent with a key that is not accepted and no
+ *  token is refused, its node recorded pending (a node to accept: a new
+ *  box connects with nothing but its key). Anything else -- an operator, an
+ *  agent of before with its token -- is C_AUTHZ's, as for any service.
+ ***************************************************************************/
+PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *dst_service = kw_get_str(gobj, kw, "__md_iev__`ievent_gate_stack`0`dst_service", "", 0);
+    json_t *peer_cert = (src && gobj_has_attr(src, "peer_cert"))?
+        gobj_read_json_attr(src, "peer_cert") : NULL;
+    const char *spki = json_is_object(peer_cert)?
+        kw_get_str(gobj, peer_cert, "spki_sha256", "", 0) : "";
+
+    if(!empty_string(spki) && strcmp(dst_service, gobj_name(gobj))==0) {
+        const char *node_id = kw_get_str(gobj, kw, "id", "", 0);
+        const char *hostname = kw_get_str(gobj, kw, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+        json_t *node = (!empty_string(node_id) && priv->gobj_treedb_controlcenter)?
+            gobj_get_node(
+                priv->gobj_treedb_controlcenter,
+                "nodes",
+                json_pack("{s:s}", "id", node_id),
+                0,
+                gobj
+            ) : NULL;
+        BOOL accepted = node &&
+            strcmp(kw_get_str(gobj, node, "state", "", 0), "accepted")==0 &&
+            strcmp(kw_get_str(gobj, node, "spki_sha256", "", 0), spki)==0;
+        JSON_DECREF(node)
+
+        if(accepted) {
+            char username[NAME_MAX];
+            snprintf(username, sizeof(username), "agent:%s", node_id);
+            gobj_write_str_attr(src, "__username__", username);
+            gobj_write_str_attr(src, "__session_id__", "");
+            json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:{s:[s]}, s:b}",
+                "result", 0,
+                "comment", "Agent authenticated by the key of its node",
+                "username", username,
+                "session_id", "",
+                "dst_service", dst_service,
+                "services_roles", dst_service, "agent",
+                "superuser", 0
+            );
+            KW_DECREF(kw)
+            return jn_resp;
+        }
+
+        if(empty_string(kw_get_str(gobj, kw, "jwt", "", 0))) {
+            const char *peername = gobj_has_bottom_attr(src, "peername")?
+                gobj_read_str_attr(src, "peername") : "";
+            const char *warning = NULL;
+            record_node_key(gobj, node_id, hostname, peername, spki, FALSE, &warning);
+            if(warning) {
+                /*
+                 *  Said for an accepted node only: a pending one says it
+                 *  once (record_node_key()'s INFO) and is in list-nodes;
+                 *  its agent retries every few seconds
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "Agent not authenticated: its node key is not the one accepted",
+                    "refusal",      "%s", warning,
+                    "node",         "%s", node_id,
+                    "hostname",     "%s", hostname,
+                    "peername",     "%s", peername? peername : "",
+                    "spki_sha256",  "%s", spki,
+                    NULL
+                );
+            }
+            json_t *jn_resp = json_pack("{s:i, s:s, s:s}",
+                "result", -1,
+                "comment", "The key of this node is not accepted (accept-node)",
+                "dst_service", dst_service
+            );
+            KW_DECREF(kw)
+            return jn_resp;
+        }
+    }
+
+    if(!priv->gobj_authz) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "No authz service to authenticate with",
+            NULL
+        );
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s}", "result", -1, "comment", "No authz service");
+    }
+    return gobj_authenticate(priv->gobj_authz, kw, src);
 }
 
 /***************************************************************************
@@ -3303,18 +3419,116 @@ PRIVATE BOOL agent_is_refused(hgobj agent_srv)
 }
 
 /***************************************************************************
- *  Does the key of the agent that opens its session (kw_open: the
- *  EV_ON_OPEN of __input_side__, not owned) let it in? The `nodes` record
- *  of its uuid is written (created pending the first time; its hostname,
- *  address and last_seen each time; the key presented when it is not the
- *  accepted one). With `enforce_node_keys` a node that is not accepted, or
- *  presents another key, is refused: its channel is marked and dropped,
- *  and FALSE is returned. See NODE KEYS in the header.
+ *  The `nodes` record of `node_id`, written for an agent that presents
+ *  `spki` (or none): created pending the first time (an INFO when it comes
+ *  with a key: a node to accept), its hostname, address and last_seen each
+ *  time, and the key presented when it is not the accepted one. Returns why
+ *  such an agent would be refused (NULL: it may be let in), and in
+ *  `warning` what is said even when nothing is refused.
  ***************************************************************************/
-PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
+PRIVATE const char *record_node_key(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki,
+    BOOL without_key_ok,
+    const char **warning
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    *warning = NULL;
+    if(empty_string(node_id)) {
+        return without_key_ok? NULL : "The agent says no node uuid";
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        if(without_key_ok) {
+            return NULL;
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "No treedb to check the node key in",
+            "node",         "%s", node_id,
+            NULL
+        );
+        return "No treedb to check the node key in";
+    }
+
+    const char *refusal = NULL;
+    json_int_t now = (json_int_t)time(NULL);
+    json_t *node = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s}", "id", node_id),
+        0,
+        gobj
+    );
+    json_t *update = json_pack("{s:s, s:s, s:s, s:I}",
+        "id", node_id,
+        "hostname", hostname? hostname : "",
+        "peername", peername? peername : "",
+        "last_seen", now
+    );
+    if(!node) {
+        json_object_set_new(update, "state", json_string("pending"));
+        json_object_set_new(update, "first_seen", json_integer(now));
+        json_object_set_new(update, "presented_spki", json_string(spki));
+        if(!empty_string(spki)) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "A node to accept: its agent presents a key never accepted (accept-node)",
+                "node",         "%s", node_id,
+                "hostname",     "%s", hostname? hostname : "",
+                "spki_sha256",  "%s", spki,
+                NULL
+            );
+        }
+        if(!without_key_ok) {
+            refusal = "The node is not accepted (pending)";
+        }
+    } else {
+        const char *state = kw_get_str(gobj, node, "state", "", 0);
+        const char *accepted = kw_get_str(gobj, node, "spki_sha256", "", 0);
+        if(strcmp(state, "accepted")==0) {
+            if(empty_string(spki)) {
+                *warning = refusal = "The agent of an accepted node presents no key";
+            } else if(strcmp(spki, accepted)!=0) {
+                *warning = refusal = "The agent of an accepted node presents another key";
+            }
+            json_object_set_new(update, "presented_spki", json_string(refusal? spki : ""));
+        } else {
+            json_object_set_new(update, "presented_spki", json_string(spki));
+            if(strcmp(state, "refused")==0) {
+                refusal = "The node is refused";
+            } else if(!without_key_ok) {
+                refusal = "The node is not accepted (pending)";
+            }
+        }
+        JSON_DECREF(node)
+    }
+    json_t *written = gobj_update_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        update, // owned
+        json_pack("{s:b}", "create", 1),
+        gobj
+    );
+    JSON_DECREF(written)
+    return refusal;
+}
+
+/***************************************************************************
+ *  Does the key of the agent that opens its session (kw_open: the
+ *  EV_ON_OPEN of __input_side__, not owned) let it in? Its record is
+ *  written (record_node_key()). With `enforce_node_keys` a node that is not
+ *  accepted, or presents another key, is refused: its channel is marked
+ *  and dropped, and FALSE is returned. See NODE KEYS in the header.
+ ***************************************************************************/
+PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
+{
     json_t *identity_card = kw_get_dict(gobj, kw_open, "identity_card", 0, 0);
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw_open, "__temp__`channel_gobj", 0, 0);
     const char *node_id = kw_get_str(gobj, identity_card, "id", "", 0);
@@ -3330,85 +3544,10 @@ PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
         gobj_write_user_data(channel_gobj, "node_refused", json_false());
     }
 
-    const char *refusal = NULL;     // why it would be refused
-    const char *warning = NULL;     // said even when nothing is refused
-    if(empty_string(node_id)) {
-        if(!without_key_ok) {
-            refusal = "The agent says no node uuid";
-        }
-    } else if(!priv->gobj_treedb_controlcenter) {
-        if(!without_key_ok) {
-            refusal = "No treedb to check the node key in";
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL,
-                "msg",          "%s", refusal,
-                "node",         "%s", node_id,
-                NULL
-            );
-        }
-    } else {
-        json_int_t now = (json_int_t)time(NULL);
-        json_t *node = gobj_get_node(
-            priv->gobj_treedb_controlcenter,
-            "nodes",
-            json_pack("{s:s}", "id", node_id),
-            0,
-            gobj
-        );
-        json_t *update = json_pack("{s:s, s:s, s:s, s:I}",
-            "id", node_id,
-            "hostname", hostname,
-            "peername", peername? peername : "",
-            "last_seen", now
-        );
-        if(!node) {
-            json_object_set_new(update, "state", json_string("pending"));
-            json_object_set_new(update, "first_seen", json_integer(now));
-            json_object_set_new(update, "presented_spki", json_string(spki));
-            if(!empty_string(spki)) {
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "A node to accept: its agent presents a key never accepted (accept-node)",
-                    "node",         "%s", node_id,
-                    "hostname",     "%s", hostname,
-                    "spki_sha256",  "%s", spki,
-                    NULL
-                );
-            }
-            if(!without_key_ok) {
-                refusal = "The node is not accepted (pending)";
-            }
-        } else {
-            const char *state = kw_get_str(gobj, node, "state", "", 0);
-            const char *accepted = kw_get_str(gobj, node, "spki_sha256", "", 0);
-            if(strcmp(state, "accepted")==0) {
-                if(empty_string(spki)) {
-                    warning = refusal = "The agent of an accepted node presents no key";
-                } else if(strcmp(spki, accepted)!=0) {
-                    warning = refusal = "The agent of an accepted node presents another key";
-                }
-                json_object_set_new(update, "presented_spki", json_string(refusal? spki : ""));
-            } else {
-                json_object_set_new(update, "presented_spki", json_string(spki));
-                if(strcmp(state, "refused")==0) {
-                    refusal = "The node is refused";
-                } else if(!without_key_ok) {
-                    refusal = "The node is not accepted (pending)";
-                }
-            }
-            JSON_DECREF(node)
-        }
-        json_t *written = gobj_update_node(
-            priv->gobj_treedb_controlcenter,
-            "nodes",
-            update, // owned
-            json_pack("{s:b}", "create", 1),
-            gobj
-        );
-        JSON_DECREF(written)
-    }
+    const char *warning = NULL;
+    const char *refusal = record_node_key(
+        gobj, node_id, hostname, peername, spki, without_key_ok, &warning
+    );
 
     if(refusal && enforce) {
         gobj_log_warning(gobj, 0,
@@ -5581,6 +5720,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_pause                   = mt_pause,
     .mt_writing                 = mt_writing,
     .mt_reading                 = mt_reading,
+    .mt_authenticate            = mt_authenticate,
 };
 
 /*------------------------*

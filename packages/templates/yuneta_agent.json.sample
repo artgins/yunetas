@@ -7,7 +7,6 @@
                 }
             }
         },
-        "controlcenter.jwt": "",
         "controlcenter.__json_config_variables__": {
             "__output_url__": "yunetacontrol.com:1988"
         },

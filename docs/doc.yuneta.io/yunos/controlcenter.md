@@ -148,10 +148,27 @@ session. Each decision is an INFO, *"Node key decided"*.
 The agent and the agent22 of a node reach two control centers (1996 and
 1997), and each control center keeps its own `nodes`. Accept the node in both.
 
+**An accepted key is also the agent's login** (7.30.11+). The control center
+authenticates an agent's identity card itself (its `mt_authenticate`) when the
+agent presents the key accepted for the node uuid of its card. The session is
+`agent:<node uuid>` and reaches the service `controlcenter` only. No token is
+asked for, so a node needs no `controlcenter.jwt` in its agent's json. When an
+agent presents a key that is not accepted and sends no token, the control
+center refuses it and records the node as `pending`. A new box therefore
+connects with nothing but its key, and an operator accepts it. When the key is
+for an accepted node but is not the accepted key, the control center logs a
+WARNING (*"Agent not authenticated: its node key is not the one accepted"*).
+Everything else goes to `C_AUTHZ` as before: the operators, and the agents of
+before with their token.
+
 ### The user the agents log in as
 
-An agent opens its session with a JWT of a user of the control center's
-`C_AUTHZ`. That session needs a role in the service `controlcenter`, and
+Since 7.30.11 an agent with an accepted key logs in by that key (see above),
+not as a user. The user below is for the agents that still present a token:
+those of before 7.30.10, and those not yet accepted.
+
+An agent of before opens its session with a JWT of a user of the control
+center's `C_AUTHZ`. That session needs a role in the service `controlcenter`, and
 nothing more: an agent runs no command on the control center, it only sends
 answers and events. Give that user a role whose permission no command asks
 for, never `*`:
