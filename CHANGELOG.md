@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v7.30.13 (2026-11-08)
+
+A light release of the control center, after a security review of 7.30.12.
+
 - **The knocking table cannot block an onboarding.** `accept-node` creates the
   record of a node from the operator's `node_id` and `spki_sha256`, whether
   the node is in the table or not. A full table (`max_knocking_nodes`)
