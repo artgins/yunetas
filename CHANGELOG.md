@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v7.30.11 (2026-11-07)
+
+A light release of the control center: an agent logs in by its node key.
+
+- **An agent logs in to its control center by its key, not by a token.**
+  `C_CONTROLCENTER` authenticates an agent's identity card itself (its
+  `mt_authenticate`, which takes precedence over C_AUTHZ for the service) when
+  the agent presents the key accepted for the node uuid of the card. The
+  session is `agent:<node uuid>`, and reaches the `controlcenter` service only.
+  - **No token:** the agent's json needs no `controlcenter.jwt`. The packages'
+    templates drop the empty placeholder. The token that every agent shared
+    can leave the nodes.
+  - **A key not accepted:** if it comes with no token, the control center
+    refuses it and records the node `pending`. A new box connects with
+    nothing but its key, and an operator accepts it.
+  - **Another key for an accepted node:** a WARNING (*"Agent not
+    authenticated: its node key is not the one accepted"*).
+  - **The rest** goes to C_AUTHZ as before: the operators, and the agents of
+    before with their token.
+
+  `test_c_controlcenter_scenarios` case 22 has the three cases.
 - **`enforce_node_keys` and `allow_nodes_without_key` are set in the config
   only** (`SDF_RD`). In 7.30.10 they could be written at run time, and such a
   write was lost at the next restart: the control center went back to letting
