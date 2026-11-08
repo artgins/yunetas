@@ -654,6 +654,29 @@ PRIVATE int run_tests(hgobj gobj)
         "Can't decode json content64")
 
     /*
+     *  A record in content64 is a peer's json: a "gbuffer" key in it (the
+     *  name of a kw's binary field) is dropped with a WARNING, and the node
+     *  is written without it. Up to 7.30.16 C_NODE made a kw of the record
+     *  and kw_twin() increfed address 4096: a crash.
+     */
+    CHECK(expect_str, "a content64 record with a gbuffer key: created", "create-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments",
+            "content64", "eyJpZCI6ImRnYiIsIm5hbWUiOiJHYiIsImdidWZmZXIiOjQwOTZ9"),    // {"id":"dgb","name":"Gb","gbuffer":4096}
+        "id", "dgb")
+    CHECK(expect_str, "a content64 record with a gbuffer key: updated", "update-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments",
+            "content64", "eyJpZCI6ImRnYiIsIm5hbWUiOiJHYiIsImdidWZmZXIiOjQwOTZ9"),
+        "name", "Gb")
+    {
+        json_t *resp = ask(gobj, "delete-node",
+            json_pack("{s:s, s:{s:s}}", "topic_name", "departments", "record", "id", "dgb"));
+        if(kw_get_int(gobj, resp, "result", -1, 0) < 0) {
+            result += fail(gobj, "the content64 node is deleted", resp);
+        }
+        JSON_DECREF(resp)
+    }
+
+    /*
      *  A NUL in a string of the record (a frame is
      *  decoded with JSON_ALLOW_NUL). C read the id "dx\u0000evil" as "dx",
      *  and the key "dx" was taken; an update of "top" with the id
