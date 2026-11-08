@@ -5719,10 +5719,11 @@ PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
             }
             json_int_t scheduled_at = rest?
                 rest_at : kw_get_int(gobj, run, "ended_at", 0, KW_WILD_NUMBER) + max_run;
-            json_t *stop = json_pack("{s:I, s:I, s:s}",
+            json_t *stop = json_pack("{s:I, s:I, s:s, s:i}",
                 "stop_at", scheduled_at,
                 "scheduled_at", scheduled_at,
-                "started_by", kw_get_str(gobj, run, "username", "", 0)
+                "started_by", kw_get_str(gobj, run, "username", "", 0),
+                "tries", tries
             );
             if(rest) {
                 json_object_set(stop, "steps", rest);
@@ -5958,13 +5959,35 @@ PRIVATE int stop_due_scenario(hgobj gobj)
         "scenario_id",  "%s", scenario_id,
         NULL
     );
-    json_int_t scheduled_at = kw_get_int(gobj,
-        json_object_get(priv->auto_stops, scenario_id), "scheduled_at", 0, KW_REQUIRED);
-    json_t *rest = json_incref(json_object_get(json_object_get(priv->auto_stops, scenario_id), "steps"));
+    json_t *due = json_object_get(priv->auto_stops, scenario_id);
+    json_int_t scheduled_at = kw_get_int(gobj, due, "scheduled_at", 0, KW_REQUIRED);
+    int tries = (int)kw_get_int(gobj, due, "tries", 0, 0);
+    json_t *rest = json_incref(json_object_get(due, "steps"));
     json_object_del(priv->auto_stops, scenario_id);
     char err[512];
     if(start_run(gobj, scenario_id, "stop", gobj_yuno_role_plus_name(), "", 0, NULL,
             reason, "", rest, err, sizeof(err)) < 0) {
+        /*
+         *  A try that could not even start writes no run: counted here, with
+         *  the tries the runs say (schedule_from_runs()), towards the same
+         *  MAX_RUN_STOP_TRIES. Up to 7.30.17 a scenario that cannot run its
+         *  stop was tried every minute, for ever.
+         */
+        tries++;
+        if(tries >= MAX_RUN_STOP_TRIES) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "the stop of a scenario's max_run cannot run: not tried again",
+                "scenario_id",  "%s", scenario_id,
+                "tries",        "%d", tries,
+                "comment",      "%s", err,
+                NULL
+            );
+            JSON_DECREF(rest)
+            arm_stop_timer(gobj);
+            return 0;
+        }
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,
@@ -5973,8 +5996,9 @@ PRIVATE int stop_due_scenario(hgobj gobj)
             "comment",      "%s", err,
             NULL
         );
-        json_t *stop = json_pack("{s:I, s:I, s:s}",
-            "stop_at", now + 60, "scheduled_at", scheduled_at, "started_by", started_by);
+        json_t *stop = json_pack("{s:I, s:I, s:s, s:i}",
+            "stop_at", now + 60, "scheduled_at", scheduled_at, "started_by", started_by,
+            "tries", tries);
         if(rest) {
             json_object_set(stop, "steps", rest);
         }

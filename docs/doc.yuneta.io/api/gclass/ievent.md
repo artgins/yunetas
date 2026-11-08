@@ -5,6 +5,28 @@ subscribes to a remote service as if it were local.
 
 **Source:** `kernel/c/root-linux/src/c_ievent_cli.c`, `c_ievent_srv.c`
 
+**The kw a gate is given is the caller's still.** To send a request
+(`gobj_command()`, `gobj_stats()`) or an event (`gobj_send_event()` of an
+event the gate does not take, `mt_inject_event()`), both gates write the
+ievent stack and the message type into the kw, and serialize its binary
+fields (the gbuffer goes into the frame as `__gbuffer___`). A kw that somebody
+else holds too (its refcount above 1: a published kw, or a caller's
+`kw_incref()`) is twinned first (`kw_twin()`, which takes its own reference of
+the gbuffer), and its `__md_iev__` copied, so the caller's kw comes back as it
+went, gbuffer included:
+
+```c
+json_t *kw = kw_duplicate(gobj, request);    // or a kw of your own, with a gbuffer
+json_t *webix = gobj_command(agent_gate, "list-yunos", kw_incref(kw), gobj);
+JSON_DECREF(webix)
+// kw is as it was: its gbuffer still there, released with it
+KW_DECREF(kw)
+```
+
+Up to 7.25.4 only an event was twinned; up to 7.30.17 `gobj_command()` and
+`gobj_stats()` wrote in the caller's kw and took its gbuffer away, so the
+reference that `kw_incref()` had taken was never released.
+
 ---
 
 (gclass-c-ievent-cli)=

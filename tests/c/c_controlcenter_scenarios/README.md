@@ -426,6 +426,22 @@ still reported and fails the test.
     by its uuid): `command-agent` and `stats-agent` with a gbuffer reach the
     agent with the bytes, and the gbuffer holds only the test's reference.
     In 7.30.17 the kw for the agent was the request itself (see case 40).
+45. A gate does not change a kw that somebody else holds. A caller keeps a
+    kw with a gbuffer, a `__md_iev__` route and a `__md_command__` /
+    `__md_stats__`, and hands `gobj_command()` and `gobj_stats()` a
+    `kw_incref()` of it, on the agent's `C_IEVENT_SRV` and on a
+    `C_IEVENT_CLI` in session over a test peer: the frame carries the bytes,
+    the caller's kw is equal to a copy taken before, its refcount is 1 and
+    the gbuffer's 1 (released with it; the memory audit at the end finds no
+    leak). In 7.30.17 `mt_command()` and `mt_stats()` of both gates wrote
+    their stacks in the caller's kw and serialized its gbuffer away.
+46. A `max_run` stop that cannot even start writes no run: its attempts
+    count towards the same 10. The scenario "mrb": started, 9 failed tries
+    written into the treedb as in case 43 and counted by a save of "mrb" as
+    it is; then its `stop` is taken away in the treedb itself. Past the
+    stop: nothing reaches the agent, no stop is scheduled, and one warning
+    (*"the stop of a scenario's max_run cannot run: not tried again"*). In
+    7.30.17 it was tried every minute, for ever. In phases 12-13.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

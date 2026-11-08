@@ -968,6 +968,14 @@ Two answers end the tries:
   again, with one WARNING, *"the stop of a scenario's max_run did nothing in
   its last tries: not tried again"* (`tries`, and the comment of the last
   one). A try that did some steps starts the count again.
+- **A stop that cannot even start** (the scenario lost its `stop`, or none of
+  the steps left is in it, changed outside `save-scenario`) writes no run.
+  Each attempt says *"the stop of a scenario's max_run cannot run, tried
+  again in a minute"*, and counts towards the same 10, with the tries that the
+  runs show; the last one says *"the stop of a scenario's max_run cannot run:
+  not tried again"*. These attempts are counted in memory: a save of the
+  scenario, or a restart, counts again from the runs. In 7.30.17 such a stop
+  was tried every minute, for ever.
 
 In 7.30.17 a step that answered an error for ever was tried every minute,
 for ever.

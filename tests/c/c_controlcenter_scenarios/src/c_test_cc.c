@@ -121,6 +121,7 @@ GOBJ_DECLARE_EVENT(EV_SCENARIO_RUN_ENDED);      // c_controlcenter.c
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int write_failed_tries(hgobj gobj, const char *scenario_id);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 /***************************************************************************
@@ -4188,44 +4189,7 @@ PRIVATE int test_mrg_yuno_not_found(hgobj gobj)
 PRIVATE int test_mrc_start(hgobj gobj)
 {
     int ret = start_one_yuno_scenario(gobj, "mrc");
-
-    json_t *start = newest_run_named(gobj, "mrc");
-    const char *start_id = kw_get_str(gobj, start, "id", "", 0);
-    json_int_t started_at = kw_get_int(gobj, start, "started_at", 0, KW_WILD_NUMBER);
-    if(strcmp(kw_get_str(gobj, start, "action", "", 0), "start")!=0) {
-        JSON_DECREF(start)
-        return ret + fail(gobj, "the start of mrc is its newest run", "");
-    }
-
-    /*  Newer than the start: its second, and an id that sorts after its id  */
-    hgobj treedb = gobj_find_service("treedb_controlcenter", TRUE);
-    for(int i=1; i<MRC_TRIES; i++) {
-        char id[NAME_MAX];
-        snprintf(id, sizeof(id), "%s-try%d", start_id, i);
-        json_t *record = json_pack(
-            "{s:s, s:s, s:s, s:s, s:I, s:I, s:i, s:s, s:[{s:s, s:s, s:i, s:s}]}",
-            "id", id,
-            "scenario_id", "scenarios^mrc^runs",
-            "action", "stop",
-            "username", gobj_yuno_role_plus_name(),
-            "started_at", started_at,
-            "ended_at", started_at,
-            "result", -1,
-            "comment", "a try of the stop, written by the test",
-            "steps",
-                "node", AGENT_HOST,
-                "line", "command-yuno id=1234 command=pause-load",
-                "result", -1,
-                "comment", "the yuno is restarting"
-        );
-        json_t *node = gobj_update_node(treedb, "scenario_runs", record,
-            json_pack("{s:b, s:b, s:b}", "create", 1, "autolink", 1, "fkey_only_id", 1), gobj);
-        if(!node) {
-            ret += fail(gobj, "write a try of the stop of mrc", id);
-        }
-        JSON_DECREF(node)
-    }
-    JSON_DECREF(start)
+    ret += write_failed_tries(gobj, "mrc");
     return ret;
 }
 
@@ -4241,6 +4205,125 @@ PRIVATE int test_mrc_given_up(hgobj gobj)
     JSON_DECREF(step)
     if(stop_scheduled(gobj, "mrc")) {
         ret += fail(gobj, "the stop of a max_run is not tried again after its last try", "");
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  46. A max_run stop that cannot even start (the scenario lost its `stop`
+ *      outside save-scenario) writes no run: its attempts count towards the
+ *      same MRC_TRIES. The scenario "mrb" (max_run 1 s, one yuno on the
+ *      agent). A (phase 12): started; the tries before the last are written
+ *      into the treedb, as in case 43, and a save of "mrb" as it is counts
+ *      them; then "mrb" loses its `stop` in the treedb itself. B (phase 13,
+ *      past the stop): it could not start, nothing reached the agent, no
+ *      stop is scheduled, and a warning says it once (in the expected
+ *      logs). In 7.30.17 it was tried every minute, for ever, a warning
+ *      each time.
+ ***************************************************************************/
+PRIVATE int write_failed_tries(hgobj gobj, const char *scenario_id)
+{
+    int ret = 0;
+
+    json_t *start = newest_run_named(gobj, scenario_id);
+    const char *start_id = kw_get_str(gobj, start, "id", "", 0);
+    json_int_t started_at = kw_get_int(gobj, start, "started_at", 0, KW_WILD_NUMBER);
+    if(strcmp(kw_get_str(gobj, start, "action", "", 0), "start")!=0) {
+        JSON_DECREF(start)
+        return fail(gobj, "the start is the newest run", scenario_id);
+    }
+
+    /*  Newer than the start: its second, and an id that sorts after its id  */
+    char parent_ref[NAME_MAX];
+    snprintf(parent_ref, sizeof(parent_ref), "scenarios^%s^runs", scenario_id);
+    hgobj treedb = gobj_find_service("treedb_controlcenter", TRUE);
+    for(int i=1; i<MRC_TRIES; i++) {
+        char id[NAME_MAX];
+        snprintf(id, sizeof(id), "%s-try%d", start_id, i);
+        json_t *record = json_pack(
+            "{s:s, s:s, s:s, s:s, s:I, s:I, s:i, s:s, s:[{s:s, s:s, s:i, s:s}]}",
+            "id", id,
+            "scenario_id", parent_ref,
+            "action", "stop",
+            "username", gobj_yuno_role_plus_name(),
+            "started_at", started_at,
+            "ended_at", started_at,
+            "result", -1,
+            "comment", "a try of the stop, written by the test",
+            "steps",
+                "node", AGENT_HOST,
+                "line", "command-yuno id=1234 command=pause-load",
+                "result", -1,
+                "comment", "the yuno is restarting"
+        );
+        json_t *node = gobj_update_node(treedb, "scenario_runs", record,
+            json_pack("{s:b, s:b, s:b}", "create", 1, "autolink", 1, "fkey_only_id", 1), gobj);
+        if(!node) {
+            ret += fail(gobj, "write a try of a stop", id);
+        }
+        JSON_DECREF(node)
+    }
+    JSON_DECREF(start)
+    return ret;
+}
+
+PRIVATE int test_mrb_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
+
+    int ret = start_one_yuno_scenario(gobj, "mrb");
+    ret += write_failed_tries(gobj, "mrb");
+
+    /*  Saved as it is: the stop is scheduled again, counting the tries  */
+    json_t *scenario = scenario_named(gobj, "mrb");
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", json_pack("{s:s, s:s, s:I, s:O, s:O}",
+        "id", "mrb",
+        "node", AGENT_HOST,
+        "max_run", (json_int_t)1,
+        "yunos", json_object_get(scenario, "yunos"),
+        "actions", json_object_get(scenario, "actions")
+    ));
+    JSON_DECREF(scenario)
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, 0, "mrb saved as it is");
+    if(!stop_scheduled(gobj, "mrb")) {
+        ret += fail(gobj, "mrb saved as it is keeps its stop", "");
+    }
+
+    /*  Its stop gone, in the treedb itself  */
+    hgobj treedb = gobj_find_service("treedb_controlcenter", TRUE);
+    json_t *record = json_pack("{s:s, s:s, s:I, s:[{s:s}], s:{s:[{s:s, s:s}]}, s:[], s:{}}",
+        "id", "mrb",
+        "node", AGENT_HOST,
+        "max_run", (json_int_t)1,
+        "yunos", "id", "1234",
+        "actions", "start", "yuno", "1234", "command", "resume-load",
+        "links",
+        "view"
+    );
+    json_t *node = gobj_update_node(treedb, "scenarios", record, json_pack("{s:b}", "create", 1), gobj);
+    if(!node) {
+        ret += fail(gobj, "write mrb without its stop", "");
+    }
+    JSON_DECREF(node)
+    json_t *requests = agent_requests(gobj);
+    JSON_DECREF(requests)
+    return ret;
+}
+
+PRIVATE int test_mrb_given_up(hgobj gobj)
+{
+    int ret = 0;
+
+    json_t *requests = agent_requests(gobj);
+    if(json_array_size(requests) != 0) {
+        ret += fail(gobj, "a stop that cannot start sends nothing", "");
+    }
+    JSON_DECREF(requests)
+    if(stop_scheduled(gobj, "mrb")) {
+        ret += fail(gobj, "a stop that cannot start is not tried again after its last try", "");
     }
     return ret;
 }
@@ -4960,6 +5043,87 @@ PRIVATE int test_write_tty_refused(hgobj gobj, hgobj client)
     return ret;
 }
 
+/***************************************************************************
+ *  45. A gate does not change a kw that somebody else holds. A caller keeps
+ *      its kw, with a gbuffer and a route (`__md_iev__`), and hands
+ *      gobj_command() and gobj_stats() a kw_incref() of it, on the agent's
+ *      C_IEVENT_SRV and on a C_IEVENT_CLI in session: the frame carries the
+ *      bytes, the caller's kw is as it was, its refcount 1, and its gbuffer
+ *      held by it alone (released with it: the audit at the end finds no
+ *      leak). Up to 7.30.17 mt_command() and mt_stats() of both gates wrote
+ *      their stacks in the caller's kw and serialized its gbuffer away,
+ *      whose reference was then never released.
+ ***************************************************************************/
+PRIVATE int check_gate_keeps_kw(hgobj gobj, hgobj gate, hgobj wire, BOOL stats, const char *what)
+{
+    int ret = 0;
+
+    json_t *received = take_received(wire);
+    JSON_DECREF(received)
+
+    gbuffer_t *gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, "peer bytes");
+    json_t *kw = json_pack("{s:s, s:{s:[{s:s, s:s}]}, s:{s:s}}",
+        "service", "agent",
+        "__md_iev__",
+            "ievent_gate_stack",
+                "dst_service", "controlcenter",
+                "input_channel", "client-1",
+        stats? "__md_stats__" : "__md_command__",
+            "asked_by", "the caller"
+    );
+    json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));  // the kw's reference
+    json_t *before = json_deep_copy(kw);    // a json to compare, not a kw: no reference of the gbuffer
+
+    json_t *webix = stats?
+        gobj_stats(gate, "stats-yuno", kw_incref(kw), gobj) :
+        gobj_command(gate, "list-yunos", kw_incref(kw), gobj);
+    JSON_DECREF(webix)
+
+    if(!json_equal(kw, before)) {
+        ret += fail(gobj, what, "the caller's kw was changed");
+    }
+    if(kw->refcount != 1 || gbuf->refcount != 1) {
+        char detail[80];
+        snprintf(detail, sizeof(detail), "kw refcount %lu, gbuffer refcount %lu, wanted 1 and 1",
+            (unsigned long)kw->refcount, (unsigned long)gbuf->refcount);
+        ret += fail(gobj, what, detail);
+    }
+    received = take_received(wire);
+    size_t n = json_array_size(received);
+    json_t *frame = n? json_object_get(json_array_get(received, n-1), "kw") : NULL;
+    gbuffer_t *got = frame?
+        (gbuffer_t *)(uintptr_t)kw_get_int(gobj, frame, "gbuffer", 0, KW_EXTRACT) : NULL;
+    if(!got || gbuffer_leftbytes(got) != strlen("peer bytes")) {
+        ret += fail(gobj, what, "the frame does not carry the bytes");
+    }
+    GBUFFER_DECREF(got)
+    JSON_DECREF(received)
+    JSON_DECREF(before)
+    KW_DECREF(kw)
+    return ret;
+}
+
+PRIVATE int test_gates_keep_a_shared_kw(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj srv = gobj_child_by_name(priv->agent_channel, "agent-1");
+    ret += check_gate_keeps_kw(gobj, srv, priv->agent_wire, FALSE, "gobj_command() on a C_IEVENT_SRV");
+    ret += check_gate_keeps_kw(gobj, srv, priv->agent_wire, TRUE, "gobj_stats() on a C_IEVENT_SRV");
+
+    hgobj cli = gobj_create_service("gate_cli", C_IEVENT_CLI, 0, gobj);
+    hgobj cli_wire = create_peer("gate_cli_wire", cli);
+    gobj_set_bottom_gobj(cli, cli_wire);
+    gobj_change_state(cli, ST_SESSION);
+    ret += check_gate_keeps_kw(gobj, cli, cli_wire, FALSE, "gobj_command() on a C_IEVENT_CLI");
+    ret += check_gate_keeps_kw(gobj, cli, cli_wire, TRUE, "gobj_stats() on a C_IEVENT_CLI");
+    gobj_stop(cli_wire);
+    gobj_destroy(cli);
+    return ret;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -5000,6 +5164,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_operator_assertion(gobj, client1);
     result += test_commands_with_gbuffer(gobj, client1);
     result += test_write_tty_refused(gobj, client1);
+    result += test_gates_keep_a_shared_kw(gobj);
     result += test_save_scenario_as_string(gobj, client1);
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);
@@ -5112,7 +5277,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*
      *  Phase 2 waits for the run of case 17 B to end (no run in flight),
-     *  and phases 13 and 14 for the control center's drops timer to have
+     *  and phases 14 and 15 for the control center's drops timer to have
      *  fired (drops_timer_armed back to false), checked at each 100 ms
      *  tick, at most PAR_WAIT_MS / DROPS_WAIT_MS: a stall of the loop
      *  delays them, it does not reorder them; a timer that never fires
@@ -5130,10 +5295,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             priv->result += fail(gobj, "the run with a step not answered did not end in time",
                 "phase 2");
-            priv->phase = 17;
+            priv->phase = 18;
         }
     }
-    if(priv->phase == 13 || priv->phase == 14) {
+    if(priv->phase == 14 || priv->phase == 15) {
         if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
             if(!test_msectimer(priv->t_wait)) {
                 set_timeout(priv->timer, 100);
@@ -5141,8 +5306,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 return 0;
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
-                priv->phase == 13? "phase 13" : "phase 14");
-            priv->phase = 17;
+                priv->phase == 14? "phase 14" : "phase 15");
+            priv->phase = 18;
         }
     }
 
@@ -5220,29 +5385,35 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 12:
             priv->result += test_mrc_given_up(gobj);
+            priv->result += test_mrb_start(gobj);
+            set_timeout(priv->timer, 2500);     // past the stop its max_run schedules
+            KW_DECREF(kw)
+            return 0;
+        case 13:
+            priv->result += test_mrb_given_up(gobj);
             priv->result += test_drops_window_shortened(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 13:
+        case 14:
             priv->result += test_drops_counted_again(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 14:
+        case 15:
             priv->result += test_drops_timer_said(gobj);
             priv->result += test_rates_traffic(gobj);
             set_timeout(priv->timer, 2*RATES_TICK_MS + 500);    // past two ticks
             KW_DECREF(kw)
             return 0;
-        case 15:
+        case 16:
             priv->result += test_rates_read(gobj);
             set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
             KW_DECREF(kw)
             return 0;
-        case 16:
+        case 17:
             priv->result += test_stop_outside_shutdown(gobj);
             priv->result += test_no_assertion_key_with_gbuffer(gobj);
             break;

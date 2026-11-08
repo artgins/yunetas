@@ -38,6 +38,7 @@ PRIVATE int send_static_iev(
     json_t *kw, // owned and serialized,
     hgobj src
 );
+PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw);
 PRIVATE json_t *build_cli_ievent_request(
     hgobj gobj,
     const char *src_service,
@@ -257,8 +258,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         return NULL;
     }
 
+    kw = own_kw_to_send(gobj, kw);
     if(!kw) {
-        kw = json_object();
+        // Error already logged
+        return NULL;
     }
 
     /*
@@ -321,8 +324,10 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         return NULL;
     }
 
+    kw = own_kw_to_send(gobj, kw);
     if(!kw) {
-        kw = json_object();
+        // Error already logged
+        return NULL;
     }
 
     /*
@@ -380,36 +385,10 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         KW_DECREF(kw)
         return -1;
     }
+    kw = own_kw_to_send(gobj, kw);
     if(!kw) {
-        kw = json_object();
-    } else if(kw->refcount > 1) {
-        /*
-         *  Below, the kw is changed (the ievent stack, the message type, and
-         *  the binary fields serialized by send_static_iev()): change a kw
-         *  of our own. A kw somebody else holds too is, above all, a
-         *  published one, which gobj_publish_event() hands the SAME to
-         *  every subscriber that does not rewrite it: up to 7.25.4 what
-         *  this gobj wrote in it reached every subscriber after it, and
-         *  the publisher. Its top level is enough (kw_twin()): the one
-         *  nested value changed in place, __md_iev__, is copied below.
-         */
-        json_t *kw_own = kw_twin(gobj, kw);
-        KW_DECREF(kw)
-        if(!kw_own) {
-            // Error already logged
-            return -1;
-        }
-        kw = kw_own;
-    }
-
-    /*
-     *  The ievent stack and the message type are written INTO __md_iev__:
-     *  a copy of our own when anybody else holds it (the kw this one was
-     *  twinned from, or the __global__ of the subscription that put it).
-     */
-    json_t *md_iev = json_object_get(kw, "__md_iev__");
-    if(md_iev && md_iev->refcount > 1) {
-        json_object_set_new(kw, "__md_iev__", json_deep_copy(md_iev));
+        // Error already logged
+        return -1;
     }
 
     /*
@@ -681,6 +660,43 @@ PRIVATE int send_identity_card(hgobj gobj)
         kw_identity_card,
         gobj
     );
+}
+
+/***************************************************************************
+ *  The kw a method sends (owned, returned; NULL with the error logged):
+ *  the ievent stack, the message type and the binary fields serialized by
+ *  send_static_iev() are written in it, so it must be a kw of our own. A
+ *  kw somebody else holds too -- a published one, which
+ *  gobj_publish_event() hands the SAME to every subscriber that does not
+ *  rewrite it, or the kw_incref() of a caller of gobj_command() or
+ *  gobj_stats() -- is twinned: its top level is enough (kw_twin(), which
+ *  takes a reference of its gbuffer). The one nested value changed in
+ *  place, __md_iev__, is copied when anybody else holds it (the kw this
+ *  one was twinned from, or the __global__ of the subscription that put
+ *  it). Up to 7.25.4 what this gobj wrote in a published kw reached every
+ *  subscriber after it; up to 7.30.17 mt_command() and mt_stats() wrote
+ *  in the caller's kw, and took away its gbuffer, whose reference was then
+ *  never released.
+ ***************************************************************************/
+PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw)
+{
+    if(!kw) {
+        return json_object();
+    }
+    if(kw->refcount > 1) {
+        json_t *kw_own = kw_twin(gobj, kw);
+        KW_DECREF(kw)
+        if(!kw_own) {
+            // Error already logged
+            return NULL;
+        }
+        kw = kw_own;
+    }
+    json_t *md_iev = json_object_get(kw, "__md_iev__");
+    if(md_iev && md_iev->refcount > 1) {
+        json_object_set_new(kw, "__md_iev__", json_deep_copy(md_iev));
+    }
+    return kw;
 }
 
 /***************************************************************************

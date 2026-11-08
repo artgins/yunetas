@@ -380,6 +380,8 @@ PRIVATE const char *expected_msgs[] = {
     "stopping a scenario: its max_run is reached",          // 42: mrg, its yuno not found
     "stopping a scenario: its max_run is reached",          // 43: mrc, its last try
     "the stop of a scenario's max_run did nothing in its last tries: not tried again",  // 43
+    "stopping a scenario: its max_run is reached",          // 46: mrb, its stop gone
+    "the stop of a scenario's max_run cannot run: not tried again",    // 46
     /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",
