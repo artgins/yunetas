@@ -18,6 +18,11 @@ Two `C_TCP_S` share ONE channel (`C_PROT_TCP4H` over `C_TCP`): `tls_port` on
 3. The first peer leaves. Up to 7.30.1 this was a SIGSEGV in
    `ytls_free_secure_filter()`.
 4. A third peer connects to `plain_port`: accepted, the channel is free again.
+5. A peer connects to `nokw_port` (`127.0.0.1:7880`, in the gate `__nokw__`),
+   whose `child_tree_filter` has no `"kw"` (`{"op": "find"}`): every child of
+   its gate is a candidate, and its channel is the first one. It is accepted.
+   Up to 7.30.14 each such accept leaked one json (the default that
+   `kw_get_dict()` handed back): the memory audit at the end fails the test.
 
 `tls_port` needs `/yuneta/agent/certs/localhost.crt` and `.key`. Without them
 `C_TCP_S` exits the yuno with code 0 at the start (`LOG_OPT_EXIT_ZERO`), which
