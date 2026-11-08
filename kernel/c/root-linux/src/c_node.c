@@ -1357,7 +1357,7 @@ PRIVATE int mt_delete_node(
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return -1;
     }
 
@@ -1378,7 +1378,7 @@ PRIVATE int mt_delete_node(
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return -1;  // a refusal, like every other one below: 0 read as "deleted"
     }
 

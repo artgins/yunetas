@@ -12257,7 +12257,7 @@ PUBLIC int gobj_delete_node(
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         JSON_DECREF(jn_options)
         return -1;
     }
@@ -12268,7 +12268,7 @@ PUBLIC int gobj_delete_node(
             "msg",          "%s", "mt_delete_node not defined",
             NULL
         );
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         JSON_DECREF(jn_options)
         return -1;
     }
@@ -12391,7 +12391,7 @@ PUBLIC json_t *gobj_get_node( // Return is YOURS
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -12402,7 +12402,7 @@ PUBLIC json_t *gobj_get_node( // Return is YOURS
             "msg",          "%s", "mt_get_node not defined",
             NULL
         );
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         JSON_DECREF(jn_options)
         return 0;
     }
@@ -12601,7 +12601,7 @@ PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
         );
         JSON_DECREF(jn_filter);
         JSON_DECREF(jn_options)
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return 0;
     }
     if(!gobj->gclass->gmt->mt_topic_jtree) {
@@ -12613,7 +12613,7 @@ PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
         );
         JSON_DECREF(jn_filter);
         JSON_DECREF(jn_options)
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return 0;
     }
     return gobj->gclass->gmt->mt_topic_jtree(
@@ -12649,7 +12649,7 @@ PUBLIC json_t *gobj_node_tree( // Return MUST be decref
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return 0;
     }
     if(!gobj->gclass->gmt->mt_node_tree) {
@@ -12660,7 +12660,7 @@ PUBLIC json_t *gobj_node_tree( // Return MUST be decref
             NULL
         );
         JSON_DECREF(jn_options)
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return 0;
     }
     return gobj->gclass->gmt->mt_node_tree(
@@ -12760,7 +12760,7 @@ PUBLIC json_t *gobj_list_snaps(
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
-        KW_DECREF(filter);
+        JSON_DECREF(filter);
         return 0;
     }
     if(!gobj->gclass->gmt->mt_list_snaps) {
@@ -12770,7 +12770,7 @@ PUBLIC json_t *gobj_list_snaps(
             "msg",          "%s", "mt_list_snaps not defined",
             NULL
         );
-        KW_DECREF(filter);
+        JSON_DECREF(filter);
         return 0;
     }
     return gobj->gclass->gmt->mt_list_snaps(gobj, filter, src);

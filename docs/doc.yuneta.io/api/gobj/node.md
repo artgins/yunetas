@@ -96,7 +96,7 @@ int gobj_delete_node(
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance managing the tree database. |
 | `topic_name` | `const char *` | The name of the topic from which the node will be deleted. |
-| `kw` | `json_t *` | A JSON object containing the key attributes used to identify the node. This parameter is owned and will be decremented. |
+| `kw` | `json_t *` | A JSON object containing the key attributes used to identify the node: a node record, or `{"id": ...}` with its pkey2s. Owned, released with `JSON_DECREF` on every path: hand a node you keep over with `json_incref(node)`. |
 | `jn_options` | `json_t *` | A JSON object containing additional options for deletion, such as 'force'. This parameter is owned and will be decremented. |
 | `src` | `hgobj` | The source `hgobj` instance initiating the deletion request. |
 
@@ -404,7 +404,7 @@ json_t *gobj_node_tree(
 |---|---|---|
 | `gobj` | `hgobj` | The GObj instance that manages the tree database. |
 | `topic_name` | `const char *` | The name of the topic whose node tree is to be retrieved. |
-| `kw` | `json_t *` | A JSON object containing the 'id' and primary key fields used to locate the root node. Owned by the function. |
+| `kw` | `json_t *` | A JSON object containing the 'id' and primary key fields used to locate the root node. Owned, released with `JSON_DECREF`: hand a kept kw over with `json_incref(kw)`. |
 | `jn_options` | `json_t *` | A JSON object specifying options such as 'with_metadata' to include metadata in the response. Owned by the function. |
 | `src` | `hgobj` | The source GObj requesting the node tree. |
 
@@ -541,7 +541,7 @@ json_t *gobj_topic_jtree(
 | `topic_name` | `const char *` | The name of the topic whose tree structure is to be retrieved. |
 | `hook` | `const char *` | The hook defining the hierarchical relationship between nodes. |
 | `rename_hook` | `const char *` | An optional new name for the hook in the returned tree. |
-| `kw` | `json_t *` | A JSON object containing the 'id' and pkey2s fields used to find the root node. |
+| `kw` | `json_t *` | A JSON object containing the 'id' and pkey2s fields used to find the root node. Owned, released with `JSON_DECREF`: hand a kept kw over with `json_incref(kw)`. |
 | `jn_filter` | `json_t *` | A JSON object specifying filters to match records in the tree. |
 | `jn_options` | `json_t *` | A JSON object containing options such as fkey and hook configurations. |
 | `src` | `hgobj` | The source GObj requesting the topic tree. |

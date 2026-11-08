@@ -438,6 +438,19 @@ WARNING ... "msg": "identity card refused: its pid is not a process of that yuno
 Up to 7.30.17 every pid that a refused card gave got the SIGKILL, so a
 session could kill any process of the user. With `"pid": -1` that was every
 process of the user, `yuneta_agent22` included.
+
+**A card the agent accepts.** The `pid` and `watcher_pid` of an accepted card
+are recorded as `yuno_pid` and `watcher_pid` only when they pass the same
+test. Any other value is recorded as 0, with one WARNING:
+
+```text
+WARNING ... "msg": "identity card accepted: its pid is not a process of that yuno, not recorded", "yuno_id": "2", "pid": -1, "watcher_pid": -1
+```
+
+A `kill-yuno` of that yuno then answers *"yuno PID NULL"*. Up to 7.30.17 the
+pids of the card were recorded as they came. A session that sent the
+identity of a registered yuno that was not running, with `"pid": -1`, made
+the next `kill-yuno` send SIGQUIT to every process of the user.
 `tests/c/c_agent_sandbox` runs the real agent and sends these cards.
 
 #### Command response: one answer per command, and the `play=0` knob
@@ -496,9 +509,20 @@ An **orderly shutdown**, not a SIGKILL, performed by
 [`kill_yuno()`](https://github.com/artgins/yunetas/blob/7.30.17/yunos/c/yuno_agent/src/c_agent.c#L10873):
 
 1. Read the `signal2kill` attribute (default `SIGQUIT`).
-2. `kill(yuno_pid, signal2kill)`.
+2. `kill(yuno_pid, signal2kill)`, only when `yuno_pid` is one of the
+   processes of that yuno (`find_living_yuno_pids()`, the test of a refused
+   card above). A pid that has ended, or a zombie, is a yuno already gone. A
+   pid that is alive and is not a process of the yuno is not signalled: an
+   ERROR, and kill-yuno answers -1:
+
+   ```text
+   ERROR ... "msg": "The pid of the yuno is not a process of that yuno: not signalled", "yuno_id": "1", "pid": 4242
+   ```
+
+   That is a pid that ended and was given to another process. Up to 7.30.17
+   it was also a pid taken from a card: see the next paragraph.
 3. If the chosen signal is `SIGKILL` and the yuno got it (or was already
-   gone), the watcher is killed too. A watcher that cannot be signalled is a
+   gone), the watcher is killed too, when it is a process of the yuno. A watcher that cannot be signalled is a
    WARNING and not a failure of the kill: a watcher whose child ends leaves
    by itself. The WARNING says which case it is (*"Cannot kill the watcher
    of the yuno: the yuno got its SIGKILL"*, or *"... the yuno was already

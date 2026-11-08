@@ -7,7 +7,8 @@
 #   /yuneta, a passwd where uid 0 is `yuneta`, and a loopback nobody else
 #   sees. client.py speaks to it; then the agent is stopped in order, and
 #   its log must have no "BAD gbuf_decref()" and no "system memory not free"
-#   (the gbmem audit of an orderly end, CONFIG_DEBUG_TRACK_MEMORY).
+#   (the gbmem audit of an orderly end, CONFIG_DEBUG_TRACK_MEMORY), and the
+#   WARNINGs of the pids of cards not killed (3) and not recorded (1).
 #
 #   Usage: run_test.sh <yuneta_agent binary> <logcenter binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
@@ -98,10 +99,15 @@ if [ "$n" != "3" ]; then
     echo "TEST FAILED: $n warnings of a card pid not killed, expected 3"
     failed=1
 fi
+n=$(grep -ac "identity card accepted: its pid is not a process of that yuno, not recorded" "$WORK/agent.log")
+if [ "$n" != "1" ]; then
+    echo "TEST FAILED: $n warnings of a card pid not recorded, expected 1"
+    failed=1
+fi
 if [ $failed -ne 0 ]; then
     echo "---- agent log (errors and warnings) ----"
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | cut -c1-600 | tail -40
     exit 1
 fi
-echo "TEST PASSED: the agent killed only its own yuno's process, and released every gbuffer of the peer once"
+echo "TEST PASSED: the agent signalled only processes of its own yunos, and released every gbuffer of the peer once"
 exit 0

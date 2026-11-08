@@ -38,11 +38,19 @@ has no `websockets`.
    Up to 7.30.17 the agent sent SIGKILL to the pid of every card it refused,
    whatever process that was. `-1` is every process of the user: the peer
    was killed too, and the test fails there.
+5. `kill-yuno` of the running `logcenter` (relaunched by its watcher, its
+   new pid recorded): it ends. Then a second `logcenter`, registered and not
+   run, and a card the agent ACCEPTS for it with `pid: -1` and
+   `watcher_pid: -1`: neither is recorded (`yuno_pid` and `watcher_pid` stay
+   0, one WARNING), and a `kill-yuno` of it is refused (no pid). Up to
+   7.30.17 the agent recorded the card's pids, and that `kill-yuno` sent
+   SIGQUIT to every process of the user (the peer dumped a core).
 
 At the end the agent is stopped in order (SIGINT) and its log must have no
 *"BAD gbuf_decref()"*, no *"system memory not free"* (the gbmem audit of
-`CONFIG_DEBUG_TRACK_MEMORY`), and three WARNINGs *"identity card refused: its
-pid is not a process of that yuno, not killed"*.
+`CONFIG_DEBUG_TRACK_MEMORY`), three WARNINGs *"identity card refused: its pid
+is not a process of that yuno, not killed"*, and one *"identity card accepted:
+its pid is not a process of that yuno, not recorded"*.
 
 ## Run
 

@@ -33,6 +33,13 @@ hook `departments`), users under departments (`users`), items with a pkey2
   released with `JSON_DECREF`: it goes in with `json_incref()`. Up to 7.30.17
   it went with `kw_incref()` and the gbuffer of every call leaked (the leak
   check of `main.c` fails).
+- The node API where the method is not reached (a NULL gobj; a topic that
+  is not there for `delete_node`), each kw carrying a gbuffer: it is
+  released as the method releases it -- `get_node` with `KW_DECREF`;
+  `list_snaps`, `topic_jtree`, `node_tree` and `delete_node` (all the
+  refusals of `mt_delete_node` too) with `JSON_DECREF`. Up to 7.30.17 each
+  of these paths released it the other way: a leak, or *"BAD
+  gbuf_decref()"*.
 - The snaps, on the data: `shoot-snap s1`, the node changed and saved;
   `activate-snap s1` marks it active (`snaps` says so) and the treedb opened
   again (C_NODE stopped and started, as the agent's `restart_nodes()` does)

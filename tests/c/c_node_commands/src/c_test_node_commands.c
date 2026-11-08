@@ -999,6 +999,46 @@ PRIVATE int run_tests(hgobj gobj)
 
     result += export_and_import(gobj);
 
+    /*
+     *  The node API releases its kw as its method does, also where the
+     *  method is not reached (a NULL gobj; a topic that is not there). Each
+     *  kw carries a gbuffer and goes in with the reference the method
+     *  takes: up to 7.30.17 gobj_get_node() released with JSON_DECREF what
+     *  C_NODE releases with KW_DECREF (the gbuffer leaked: the leak check of
+     *  main.c), and gobj_list_snaps(), gobj_topic_jtree(), gobj_node_tree()
+     *  and gobj_delete_node() -- and mt_delete_node()'s first two refusals
+     *  -- with KW_DECREF what is released as json ("BAD gbuf_decref()" at
+     *  the KW_DECREF below).
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        gbuffer_t *gbuf = gbuffer_create(32, 32);
+        gbuffer_append_string(gbuf, "carried along");
+        json_t *kw = json_pack("{s:s, s:I}",
+            "id", "dev",
+            "gbuffer", (json_int_t)(uintptr_t)gbuf
+        );
+        if(gobj_get_node(NULL, "departments", kw_incref(kw), NULL, gobj)) {
+            result += fail(gobj, "gobj_get_node() of a NULL gobj", NULL);
+        }
+        if(gobj_list_snaps(NULL, json_incref(kw), gobj)) {
+            result += fail(gobj, "gobj_list_snaps() of a NULL gobj", NULL);
+        }
+        if(gobj_topic_jtree(NULL, "departments", "departments", "", json_incref(kw), NULL, NULL, gobj)) {
+            result += fail(gobj, "gobj_topic_jtree() of a NULL gobj", NULL);
+        }
+        if(gobj_node_tree(NULL, "departments", json_incref(kw), NULL, gobj)) {
+            result += fail(gobj, "gobj_node_tree() of a NULL gobj", NULL);
+        }
+        if(gobj_delete_node(NULL, "departments", json_incref(kw), NULL, gobj) != -1) {
+            result += fail(gobj, "gobj_delete_node() of a NULL gobj", NULL);
+        }
+        if(gobj_delete_node(priv->gobj_node, "nosuch", json_incref(kw), NULL, gobj) != -1) {
+            result += fail(gobj, "gobj_delete_node() of a topic that is not there", NULL);
+        }
+        KW_DECREF(kw)
+    }
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,

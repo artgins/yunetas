@@ -110,6 +110,7 @@ PRIVATE int run_yuno(
 PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id);
 PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno);
 PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
+PRIVATE BOOL is_yuno_process(json_t *jn_pids, pid_t pid);
 PRIVATE void kill_refused_card_pid(hgobj gobj, json_t *yuno, const char *yuno_id, pid_t pid);
 PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
 PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno, json_t *jn_killed);
@@ -2697,7 +2698,7 @@ PRIVATE json_t *cmd_delete_public_service(hgobj gobj, const char *cmd, json_t *k
         const char *id = kw_get_str(gobj, node, "id", "", 0);
         gobj_log_set_last_message("%s", "");    // the cause answered is this delete's
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
+                priv->resource, resource, json_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             /*
              *  Said with the ones deleted before it (in `data`): up to
              *  7.29.3 the answer was the cause alone, and `data` named the
@@ -3107,7 +3108,7 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         const char *id = kw_get_str(gobj, node, "id", "", 0);
         gobj_log_set_last_message("%s", "");    // the cause answered is this delete's
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
+                priv->resource, resource, json_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             /*
              *  Said with the ones deleted before it (in `data`): up to
              *  7.29.3 the answer was the cause alone, and `data` named the
@@ -4291,7 +4292,7 @@ PRIVATE json_t *cmd_delete_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
         gobj_log_set_last_message("%s", "");    // the cause answered is this delete's
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
+                priv->resource, resource, json_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             snprintf(failed_cause, sizeof(failed_cause), "%s", last_failure_cause());
             failed_node = node;
             not_tried = (int)json_array_size(jn_units) - idx - 1;
@@ -4927,7 +4928,7 @@ PRIVATE json_t *cmd_delete_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
         gobj_log_set_last_message("%s", "");    // the cause answered is this delete's
         if(gobj_delete_node(
-                priv->resource, resource, kw_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
+                priv->resource, resource, json_incref(node), json_pack("{s:b, s:b}", "force", force, "ignore_snaps", force), src)<0) {
             char after[64] = "";
             int not_tried = (int)json_array_size(iter) - idx - 1;
             if(not_tried > 0) {
@@ -10586,6 +10587,24 @@ PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno)
 }
 
 /***************************************************************************
+ *  TRUE if `pid` is in `jn_pids` (find_living_yuno_pids()): a process of
+ *  that yuno. Never a pid of 1 or less: -1 is every process of the user.
+ ***************************************************************************/
+PRIVATE BOOL is_yuno_process(json_t *jn_pids, pid_t pid)
+{
+    if(pid <= 1) {
+        return FALSE;
+    }
+    int idx; json_t *jn_pid;
+    json_array_foreach(jn_pids, idx, jn_pid) {
+        if((pid_t)json_integer_value(jn_pid) == pid) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  SIGKILL the process that sent an identity card the agent refuses, only
  *  when it is one of the processes of that yuno (find_living_yuno_pids():
  *  argv[0] its role, its configuration in its bin dir). The pid of a card
@@ -10605,13 +10624,7 @@ PRIVATE void kill_refused_card_pid(hgobj gobj, json_t *yuno, const char *yuno_id
         if(!jn_pids) {
             return; // Error already logged
         }
-        int idx; json_t *jn_pid;
-        json_array_foreach(jn_pids, idx, jn_pid) {
-            if((pid_t)json_integer_value(jn_pid) == pid) {
-                its_own = TRUE;
-                break;
-            }
-        }
+        its_own = is_yuno_process(jn_pids, pid);
         JSON_DECREF(jn_pids)
     }
 
@@ -10920,7 +10933,10 @@ PRIVATE int run_yuno(
  *  Send the yuno its signal2kill. -1 when it cannot be signalled (logged
  *  with an ERROR), with its cause in gobj_log_last_message() for the answer
  *  of kill-yuno: the error of kill() (pid, strerror, errno) when kill()
- *  refuses the signal, "yuno PID NULL" when the record has no pid.
+ *  refuses the signal, "yuno PID NULL" when the record has no pid, and
+ *  "not a process of that yuno" when its pid is alive and is not one of
+ *  find_living_yuno_pids(): only a process of the yuno is signalled, and
+ *  its watcher only when it is one too.
  *  A yuno already gone (ESRCH) is no failure, and kill-yuno waits for its
  *  EV_ON_CLOSE like the others': a process closes its sockets when it
  *  exits, before it can be reaped, so the end of its channel is already
@@ -10972,7 +10988,41 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
     int ret = 0;
     BOOL yuno_was_gone = FALSE;
 
-    if(kill(pid, signal2kill)<0) {
+    /*
+     *  Only a process of this yuno is signalled: a pid of its record that
+     *  is not (one that ended and was given to another process, or one
+     *  recorded from a card up to 7.30.17, -1 every process of the user) is
+     *  gone, or refused.
+     */
+    json_t *jn_yuno_pids = find_living_yuno_pids(gobj, yuno);  // NULL: logged
+    BOOL pid_is_yuno = is_yuno_process(jn_yuno_pids, pid);
+    BOOL watcher_is_yuno = is_yuno_process(jn_yuno_pids, watcher_pid);
+    JSON_DECREF(jn_yuno_pids)
+
+    if(!pid_is_yuno) {
+        char state = 0;
+        uint64_t start_time = 0;
+        int st = (pid > 1)? read_process_stat(gobj, pid, &state, &start_time) : 0;
+        if(pid > 1 && (st == -1 || (st == 0 && state == 'Z'))) {
+            yuno_was_gone = TRUE;   // ended, or dead and not reaped yet
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "The pid of the yuno is not a process of that yuno: not signalled",
+                "yuno_id",      "%s", yuno_id,
+                "pid",          "%d", (int)pid,
+                "yuno_role",    "%s", yuno_role,
+                "yuno_name",    "%s", yuno_name?yuno_name:"",
+                "yuno_release", "%s", yuno_release?yuno_release:"",
+                NULL
+            );
+            gobj_log_set_last_message("The pid %d of the yuno is not a process of that yuno: not signalled",
+                (int)pid
+            );
+            return -1;
+        }
+    } else if(kill(pid, signal2kill)<0) {
         int last_errno = errno;
         if(last_errno == ESRCH) { // No such process
             yuno_was_gone = TRUE;
@@ -10998,8 +11048,8 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
     }
 
     if(signal2kill == SIGKILL && ret == 0) {
-        // Kill the watcher
-        if(watcher_pid) {
+        // Kill the watcher: a process of the yuno, or it is gone
+        if(watcher_is_yuno) {
             if(kill(watcher_pid, signal2kill)<0) {
                 int last_errno = errno;
                 if(last_errno != ESRCH) { // No such process
@@ -14272,8 +14322,28 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     json_object_set_new(yuno, "yuno_startdate", json_string(yuno_startdate));
     json_object_set_new(yuno, "yuno_running", json_true());
     json_object_set_new(yuno, "yuno_playing", playing?json_true():json_false());
-    json_object_set_new(yuno, "yuno_pid", json_integer(pid));
-    json_object_set_new(yuno, "watcher_pid", json_integer(watcher_pid));
+    /*
+     *  The pids of the card are the peer's word, and kill-yuno signals them:
+     *  only a process of this yuno is recorded (up to 7.30.17 any pid was,
+     *  and -1 made the next kill-yuno signal every process of the user)
+     */
+    json_t *jn_yuno_pids = find_living_yuno_pids(gobj, yuno);  // NULL: logged
+    pid_t pid_recorded = is_yuno_process(jn_yuno_pids, pid)? pid : 0;
+    pid_t watcher_pid_recorded = is_yuno_process(jn_yuno_pids, watcher_pid)? watcher_pid : 0;
+    JSON_DECREF(jn_yuno_pids)
+    if(pid_recorded != pid || watcher_pid_recorded != watcher_pid) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "identity card accepted: its pid is not a process of that yuno, not recorded",
+            "yuno_id",      "%s", yuno_id,
+            "pid",          "%d", (int)pid,
+            "watcher_pid",  "%d", (int)watcher_pid,
+            NULL
+        );
+    }
+    json_object_set_new(yuno, "yuno_pid", json_integer(pid_recorded));
+    json_object_set_new(yuno, "watcher_pid", json_integer(watcher_pid_recorded));
 
     json_object_set_new(yuno, "_channel_gobj", json_integer((json_int_t)(uintptr_t)channel_gobj));
     if(channel_gobj) {

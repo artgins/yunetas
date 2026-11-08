@@ -21,6 +21,10 @@
 #        - an unknown yuno, pid -1: nothing is killed. Up to 7.30.17 the
 #          agent sent SIGKILL to the pid of every card it refused, and -1 is
 #          every process of the user: this peer too (run_test.sh fails).
+#   5. a card the agent ACCEPTS, of a yuno registered and not running, with
+#      pid -1 and watcher_pid -1: neither is recorded (a WARNING), and a
+#      kill-yuno of it is refused (no pid). Up to 7.30.17 the agent recorded
+#      the card's pids and kill-yuno sent SIGQUIT to pid -1.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -54,11 +58,11 @@ def routing(src_role):
     }
 
 
-def card(role, pid, yuno_id="", yuno_name="x", yuno_release="1", realm_id=""):
+def card(role, pid, yuno_id="", yuno_name="x", yuno_release="1", realm_id="", watcher_pid=0):
     kw = {
         "yuno_role": role, "yuno_id": yuno_id, "yuno_name": yuno_name, "yuno_tag": "",
         "yuno_version": "1", "yuno_release": yuno_release, "yuneta_version": "",
-        "playing": False, "pid": pid, "watcher_pid": 0,
+        "playing": False, "pid": pid, "watcher_pid": watcher_pid,
         "jwt": "", "username": "yuneta", "launch_id": 0, "yuno_startdate": "",
         "id": "sandbox", "realm_id": realm_id, "required_services": [],
         "__md_iev__": {
@@ -207,6 +211,56 @@ async def main():
 
     await refused_card("logcenter", yuno["yuno_pid"], **same_yuno)
     check("a second card of the running yuno, its own pid: killed", not alive(yuno["yuno_pid"]))
+
+    #   kill-yuno of the running one (relaunched by its watcher): its pid
+    #   is a process of it, signalled; the yuno ends
+    relaunched = None
+    for i in range(300):    # up to 30 s
+        r = await ask(ws, "list-yunos", {"yuno_role": "logcenter", "yuno_name": "x"})
+        rows = r.get("data") or []
+        if rows and rows[0].get("yuno_running") and rows[0].get("yuno_pid") not in (0, yuno["yuno_pid"]):
+            relaunched = rows[0]
+            break
+        await asyncio.sleep(0.1)
+    check("logcenter relaunched by its watcher, its new pid recorded", relaunched is not None)
+    if relaunched:
+        r = await ask(ws, "kill-yuno", {"id": relaunched["id"]}, secs=30)
+        check("kill-yuno of the running logcenter", r.get("result") == 0)
+        for i in range(100):
+            if not alive(relaunched["yuno_pid"]):
+                break
+            await asyncio.sleep(0.1)
+        check("kill-yuno of the running logcenter: it ended", not alive(relaunched["yuno_pid"]))
+
+    #   5. a card the agent accepts, of a yuno registered and not running,
+    #      that says pid -1: the pid is not recorded, and the kill-yuno that
+    #      follows signals nothing. Up to 7.30.17 the agent kept the pid of
+    #      the card, and kill-yuno sent SIGQUIT to every process of the user.
+    r = await ask(ws, "create-config", {"id": "logcenter.y", "content64": config64})
+    check("create-config of a second logcenter", r.get("result") == 0)
+    r = await ask(ws, "create-yuno", {"realm_id": "w.prod.test", "yuno_role": "logcenter", "yuno_name": "y"})
+    check("create-yuno of a second logcenter, not run", r.get("result") == 0)
+    r = await ask(ws, "list-yunos", {"yuno_role": "logcenter", "yuno_name": "y"})
+    rows = r.get("data") or []
+    check("the second logcenter is registered and not running", len(rows) == 1 and not rows[0].get("yuno_running"))
+    if len(rows) == 1:
+        other = rows[0]
+        ws2 = await connect()
+        await ws2.send(card("logcenter", -1, yuno_id=other["id"], yuno_name="y",
+            yuno_release=other["yuno_release"], realm_id=realm_id, watcher_pid=-1))
+        got = await answers(ws2, 10, lambda g: g[-1].get("event") == "EV_IDENTITY_CARD_ACK")
+        check("the card of the second logcenter, pid -1: accepted",
+            bool(got) and got[-1]["kw"].get("result") == 0)
+        await asyncio.sleep(0.5)
+        r = await ask(ws, "list-yunos", {"yuno_role": "logcenter", "yuno_name": "y"})
+        rows = r.get("data") or []
+        check("its pid -1 is not recorded",
+            len(rows) == 1 and rows[0].get("yuno_pid") == 0 and rows[0].get("watcher_pid") == 0)
+        r = await ask(ws, "kill-yuno", {"id": other["id"]})
+        check("kill-yuno of it: refused, no process to signal", r.get("result") == -1)
+        await asyncio.sleep(0.5)
+        check("kill-yuno of it: this peer lives", True)
+        await ws2.close()
 
     await refused_card("evil_role", -1, yuno_id="4243")
     check("a card of pid -1: this peer lives", True)
