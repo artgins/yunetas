@@ -198,6 +198,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t max_run_started; // when the start of case 16 ended (its stop is due 1 s after)
     hgobj mra_1;                // case 36: the two nodes that give the name of "mra"
     hgobj mra_2;
+    hgobj mrp_node;             // case 38: the node of the second yuno of "mrp"
 } PRIVATE_DATA;
 
 
@@ -2664,6 +2665,57 @@ PRIVATE int test_open_leaves_no_name(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  37. Accepting a node does not keep the name a session of a token wrote
+ *      in its record. enforce_node_keys off. Node B is accepted with its
+ *      key, its hostname `host-q12b`. Node P presented its key once (a
+ *      pending record), then a session of a token with no key claimed P's
+ *      uuid and gave `host-q12b`. accept-node of P with its key leaves its
+ *      hostname and address empty, and `host-q12b` reaches B. Node R, whose
+ *      last session presented the key accepted, keeps its hostname. In
+ *      7.30.16 P was accepted named `host-q12b`, and the name was two
+ *      nodes' until P logged in by its key.
+ ***************************************************************************/
+#define KEY_K   "4444444444444444444444444444444444444444444444444444444444444444"
+#define KEY_L   "5555555555555555555555555555555555555555555555555555555555555555"
+#define KEY_M   "6666666666666666666666666666666666666666666666666666666666666666"
+
+PRIVATE int test_accept_drops_token_name(hgobj gobj, hgobj client)
+{
+    int ret = 0;
+
+    hgobj ch = open_keyed_session(gobj, "q12b-0", "uuid-q12b", "host-q12b", KEY_K);
+    close_session(ch);
+    ret += accept_node_with(gobj, client, "uuid-q12b", KEY_K, 0, "accepted", "accept-node of B (37)");
+
+    ch = open_keyed_session(gobj, "q12p-0", "uuid-q12p", "host-q12p", KEY_L);
+    close_session(ch);
+    hgobj t = open_keyed_session(gobj, "q12t-1", "uuid-q12p", "host-q12b", NULL);
+    close_session(t);
+    ret += check_node_field(gobj, client, "uuid-q12p", "hostname", "host-q12b",
+        "a session of a token writes the hostname of a pending node");
+    ret += accept_node_with(gobj, client, "uuid-q12p", KEY_L, 0, "accepted", "accept-node of P (37)");
+    ret += check_node_field(gobj, client, "uuid-q12p", "hostname", "",
+        "accept-node keeps the hostname a session of a token wrote");
+    ret += check_node_field(gobj, client, "uuid-q12p", "peername", "",
+        "accept-node keeps the address a session of a token wrote");
+
+    hgobj b = open_key_login(gobj, "q12b-1", "uuid-q12b", "host-q12b", KEY_K);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-q12b"),
+        0, "sent to 1 nodes", "command-agent by B's hostname, after P is accepted");
+    if(frames_to(b) != 1) {
+        ret += fail(gobj, "B is not reached by its hostname after P is accepted", "");
+    }
+    close_session(b);
+
+    ch = open_keyed_session(gobj, "q12r-0", "uuid-q12r", "host-q12r", KEY_M);
+    close_session(ch);
+    ret += accept_node_with(gobj, client, "uuid-q12r", KEY_M, 0, "accepted", "accept-node of R (37)");
+    ret += check_node_field(gobj, client, "uuid-q12r", "hostname", "host-q12r",
+        "accept-node drops the hostname written by a session that presented the key accepted");
+    return ret;
+}
+
+/***************************************************************************
  *  34. enforce_node_keys off: a session of a token that claims the uuid of
  *      an accepted node, its channel first, does not take what goes to the
  *      node: the session logged in by the node's key gets it. In 7.30.15
@@ -3668,6 +3720,197 @@ PRIVATE int test_parallel_unanswered_ended(hgobj gobj)
 }
 
 /***************************************************************************
+ *  38. The stop of a max_run that does some steps only: the steps it did
+ *      not do are tried again until each is done. The scenario "mrp"
+ *      (max_run 1 s) has a yuno on the agent and one on `host-mrp`, a node
+ *      in session by a token. A (phase 6): started, both steps answered,
+ *      and the node of `host-mrp` goes. B (phase 7, past the stop): the
+ *      control center sent the stop; the agent's step answered, the other
+ *      not connected: one failed run (1 of 2 steps done), the warning
+ *      "... did not do every step, the rest tried again when a node of it
+ *      connects", and `stop_waits_node`. The node comes back. C (phase 8):
+ *      the stop went to it alone, the agent got nothing; answered, it is
+ *      done, and no stop is scheduled. In 7.30.16 the stop that did some
+ *      steps ended the schedule, with no log, and the yuno on `host-mrp`
+ *      went on.
+ ***************************************************************************/
+PRIVATE json_t *mrp_scenario_of(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(priv->client1));
+    json_object_set_new(kw, "scenario_id", json_string("mrp"));
+    json_t *response = gobj_command(priv->cc, "scenarios", kw, priv->client1);
+    json_t *mrp = json_incref(json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0));
+    JSON_DECREF(response)
+    return mrp;
+}
+
+/*  The newest run of "mrp" (yours), or NULL  */
+PRIVATE json_t *mrp_newest_run(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(priv->client1));
+    json_object_set_new(kw, "scenario_id", json_string("mrp"));
+    json_t *response = gobj_command(priv->cc, "scenario-runs", kw, priv->client1);
+    json_t *newest = json_incref(json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0));
+    JSON_DECREF(response)
+    return newest;
+}
+
+PRIVATE int test_max_run_partial_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", json_pack(
+        "{s:s, s:s, s:I, s:[{s:s}, {s:s, s:s}], s:{s:[{s:s, s:s}, {s:s, s:s}], s:[{s:s, s:s}, {s:s, s:s}]}}",
+        "id", "mrp",
+        "node", AGENT_HOST,
+        "max_run", (json_int_t)1,
+        "yunos", "id", "1234", "id", "5678", "node", "host-mrp",
+        "actions",
+            "start", "yuno", "1234", "command", "resume-load", "yuno", "5678", "command", "resume-load",
+            "stop", "yuno", "1234", "command", "pause-load", "yuno", "5678", "command", "pause-load"
+    ));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: mrp", "a scenario on two nodes");
+
+    priv->mrp_node = open_keyed_session(gobj, "mrp-1", "uuid-mrp", "host-mrp", NULL);
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mrp"));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    json_t *step = agent_request(gobj, "the start step of mrp goes to the agent");
+    if(!step) {
+        return ret - 1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "generating");
+    JSON_DECREF(step)
+    ret += session_answers(gobj, priv->mrp_node, 0, "generating", "the start of mrp reaches its second node");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    close_session(priv->mrp_node);
+    priv->mrp_node = 0;
+    return ret;
+}
+
+PRIVATE int test_max_run_partial_waits(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *step = agent_request(gobj, "the control center sends the stop of mrp to the agent");
+    if(!step) {
+        return -1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "paused");
+    JSON_DECREF(step)
+
+    json_t *newest = mrp_newest_run(gobj);
+    if(strcmp(kw_get_str(gobj, newest, "action", "", 0), "stop")!=0 ||
+            kw_get_int(gobj, newest, "result", 0, KW_WILD_NUMBER) >= 0 ||
+            !strstr(kw_get_str(gobj, newest, "comment", "", 0), "1 of 2 steps done")) {
+        ret += fail(gobj, "the stop of mrp did one step of two", kw_get_str(gobj, newest, "comment", "", 0));
+    }
+    JSON_DECREF(newest)
+
+    json_t *mrp = mrp_scenario_of(gobj);
+    if(!json_is_true(json_object_get(mrp, "stop_waits_node"))) {
+        ret += fail(gobj, "the rest of the stop of mrp waits for its node (stop_waits_node)", "");
+    }
+    JSON_DECREF(mrp)
+
+    priv->mrp_node = open_keyed_session(gobj, "mrp-2", "uuid-mrp", "host-mrp", NULL);
+    return ret;
+}
+
+PRIVATE int test_max_run_partial_retried(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *requests = agent_requests(gobj);
+    if(json_array_size(requests) != 0) {
+        ret += fail(gobj, "the rest of the stop of mrp goes to the agent again", "");
+    }
+    JSON_DECREF(requests)
+
+    json_t *received = take_received(wire_of(priv->mrp_node));
+    size_t nr = json_array_size(received);
+    json_t *step = nr? json_incref(json_object_get(json_array_get(received, nr-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(nr != 1 || !step) {
+        JSON_DECREF(step)
+        return ret + fail(gobj, "the rest of the stop of mrp goes to its node when it connects",
+            "not one request");
+    }
+    if(!strstr(kw_get_str(gobj, step, "__command__", "", 0), "id=5678")) {
+        ret += fail(gobj, "the rest of the stop of mrp", kw_get_str(gobj, step, "__command__", "", 0));
+    }
+    json_t *kw = msg_iev_build_response(gobj, 0, json_string("paused"), 0, 0, json_deep_copy(step));
+    kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)priv->mrp_node));
+    gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, kw, priv->input_side);
+    JSON_DECREF(step)
+
+    json_t *newest = mrp_newest_run(gobj);
+    if(strcmp(kw_get_str(gobj, newest, "action", "", 0), "stop")!=0 ||
+            kw_get_int(gobj, newest, "result", -1, KW_WILD_NUMBER) != 0 ||
+            json_array_size(kw_get_list(gobj, newest, "steps", 0, 0)) != 1) {
+        ret += fail(gobj, "the rest of the stop of mrp, one step, is done",
+            kw_get_str(gobj, newest, "comment", "", 0));
+    }
+    JSON_DECREF(newest)
+
+    json_t *mrp = mrp_scenario_of(gobj);
+    if(json_object_get(mrp, "stop_at") || json_object_get(mrp, "stop_waits_node")) {
+        ret += fail(gobj, "a stopped mrp has no stop scheduled", "");
+    }
+    JSON_DECREF(mrp)
+
+    /*
+     *  A stop by a user that does some steps only cancels the max_run, as
+     *  before: its rest is not the max_run's to try (it is not due)
+     */
+    hgobj client = priv->client1;
+    const char *actions[] = {"start", "stop"};
+    for(int i=0; i<2; i++) {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "scenario_id", json_string("mrp"));
+        json_object_set_new(kw, "action", json_string(actions[i]));
+        json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+        JSON_DECREF(response)
+        step = agent_request(gobj, "a step of mrp by the user goes to the agent");
+        if(!step) {
+            return ret - 1;
+        }
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "done");
+        JSON_DECREF(step)
+        ret += session_answers(gobj, priv->mrp_node, i == 0? 0 : -1, "refused",
+            "a step of mrp by the user goes to its second node");
+        count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    }
+    newest = mrp_newest_run(gobj);
+    if(!strstr(kw_get_str(gobj, newest, "comment", "", 0), "stop failed, 1 of 2 steps done")) {
+        ret += fail(gobj, "the stop of mrp by the user did one step of two",
+            kw_get_str(gobj, newest, "comment", "", 0));
+    }
+    JSON_DECREF(newest)
+    mrp = mrp_scenario_of(gobj);
+    if(json_object_get(mrp, "stop_at") || json_object_get(mrp, "stop_waits_node")) {
+        ret += fail(gobj, "a stop by a user that did some steps cancels the max_run", "");
+    }
+    JSON_DECREF(mrp)
+    close_session(priv->mrp_node);
+    priv->mrp_node = 0;
+    return ret;
+}
+
+/***************************************************************************
  *  18. The switch of a yuno: `run-scenario action=on|off scenario_yuno=`.
  *      The scenario "sw": a generator "sim" with a switch (on: two steps,
  *      the second naming no yuno, so it goes to "sim"; off: two steps) and
@@ -4216,6 +4459,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_drop_agent_by_name(gobj, client1);
     result += test_pending_name_not_taken(gobj, client1);
     result += test_open_leaves_no_name(gobj, client1);
+    result += test_accept_drops_token_name(gobj, client1);
     result += test_key_login_first_and_cards(gobj, client1);
     result += test_twin_agents(gobj);
     result += test_operator_assertion(gobj, client1);
@@ -4331,7 +4575,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*
      *  Phase 2 waits for the run of case 17 B to end (no run in flight),
-     *  and phases 4 and 5 for the control center's drops timer to have
+     *  and phases 9 and 10 for the control center's drops timer to have
      *  fired (drops_timer_armed back to false), checked at each 100 ms
      *  tick, at most PAR_WAIT_MS / DROPS_WAIT_MS: a stall of the loop
      *  delays them, it does not reorder them; a timer that never fires
@@ -4349,10 +4593,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             priv->result += fail(gobj, "the run with a step not answered did not end in time",
                 "phase 2");
-            priv->phase = 11;
+            priv->phase = 13;
         }
     }
-    if(priv->phase == 7 || priv->phase == 8) {
+    if(priv->phase == 9 || priv->phase == 10) {
         if(gobj_read_bool_attr(priv->cc, "drops_timer_armed")) {
             if(!test_msectimer(priv->t_wait)) {
                 set_timeout(priv->timer, 100);
@@ -4360,8 +4604,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 return 0;
             }
             priv->result += fail(gobj, "the drops timer did not fire in time",
-                priv->phase == 7? "phase 7" : "phase 8");
-            priv->phase = 11;
+                priv->phase == 9? "phase 9" : "phase 10");
+            priv->phase = 13;
         }
     }
 
@@ -4405,29 +4649,40 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 6:
             priv->result += test_max_run_node_refuses_retried(gobj);
+            priv->result += test_max_run_partial_start(gobj);
+            set_timeout(priv->timer, 2500);     // past the stop its max_run schedules
+            KW_DECREF(kw)
+            return 0;
+        case 7:
+            priv->result += test_max_run_partial_waits(gobj);
+            set_timeout(priv->timer, 1500);     // the stop timer, at least 1 s
+            KW_DECREF(kw)
+            return 0;
+        case 8:
+            priv->result += test_max_run_partial_retried(gobj);
             priv->result += test_drops_window_shortened(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 7:
+        case 9:
             priv->result += test_drops_counted_again(gobj);
             priv->t_wait = start_msectimer(DROPS_WAIT_MS);
             set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
-        case 8:
+        case 10:
             priv->result += test_drops_timer_said(gobj);
             priv->result += test_rates_traffic(gobj);
             set_timeout(priv->timer, 2*RATES_TICK_MS + 500);    // past two ticks
             KW_DECREF(kw)
             return 0;
-        case 9:
+        case 11:
             priv->result += test_rates_read(gobj);
             set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
             KW_DECREF(kw)
             return 0;
-        case 10:
+        case 12:
             priv->result += test_stop_outside_shutdown(gobj);
             break;
         default:

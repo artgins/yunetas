@@ -350,6 +350,26 @@ still reported and fails the test.
     in a minute"*, no `stop_waits_node`). The second node goes, and a stop by
     the user stops it. In 7.30.15 it waited for a node to connect, for ever.
     It runs in phases 2-3, between case 17 and case 19.
+37. `accept-node` does not keep the name that a session of a token wrote.
+    `enforce_node_keys` off. Node B is accepted with its key, its hostname
+    `host-q12b`. Node P presented its key once (a `pending` record). Then a
+    session of a token with no key claimed P's uuid and gave `host-q12b`.
+    `accept-node` of P with its key empties its hostname and address, and
+    `host-q12b` reaches B. Node R, whose last session presented the key
+    accepted, keeps its hostname. In 7.30.16 P was accepted with the name
+    `host-q12b`, and the name named two nodes until P logged in by its key.
+38. The stop of a `max_run` that does some steps only. The scenario "mrp"
+    (`max_run` 1 s) has a yuno on the agent and one on `host-mrp`, a node in
+    session by a token, which goes after the start. Past the stop, the run
+    did 1 of 2 steps, the warning says *"... did not do every step, the rest
+    tried again when a node of it connects"*, and `scenarios` says
+    `stop_waits_node`. The node comes back: the stop goes to it only (the
+    agent gets nothing), and when it is answered nothing is scheduled. Then a
+    start and a stop by the user, whose second step fails: nothing is
+    scheduled (the rest of a user's stop is not the `max_run`'s). In 7.30.16
+    the stop that did some steps ended the schedule with no log, and the
+    yuno on `host-mrp` continued to run. It runs in phases 6-8, after case 20
+    and before case 11.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

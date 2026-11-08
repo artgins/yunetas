@@ -95,7 +95,13 @@ uuid. Each record holds:
 
 - `state`: `pending`, `accepted` or `refused`;
 - `spki_sha256`: the accepted key;
-- `presented_spki`: the last key presented that is not the accepted key;
+- `presented_spki`: the key that the last session written in the record
+  presented. For a `pending` or `refused` node this is any key, or empty
+  when the session presented none. For an `accepted` node it is the other
+  key (or empty) that its last session presented, and it is empty when that
+  session presented the accepted key. `accept-node` empties it. With
+  `enforce_node_keys`, a refused open writes nothing, so the field keeps the
+  value of the last open that was let in;
 - `hostname` and `peername`: the node's host name and address, as its agent
   gave them. For an `accepted` node only a session that logged in by its key
   writes them: the hostname names the node, so a session of a token cannot
@@ -427,9 +433,25 @@ gives that uuid as its hostname gets what is sent to it. Protecting it would
 let any session of a token block the hostname of an accepted node for ever,
 with one record whose uuid is that hostname.
 
-When `accept-node` creates the record of a node that knocked,
-it takes the hostname the node knocked with only if it knocked with the key
-accepted. `write-tty` goes to ONE agent, and is refused without
+When `accept-node` accepts a node that was not accepted, its record keeps
+a hostname and an address only if the key accepted wrote them: the last
+session written in the record presented that key, or the node knocked with
+it. Otherwise both are emptied. Any session of the uuid, a token's included,
+writes the record of a `pending` node. The node gets its name back at its
+next login by its key. For example, node P presented its key once, and then
+a session of a token claimed P's uuid and gave `board-b`:
+
+```
+list-nodes            # uuid-p  pending  hostname: board-b  presented_spki: (empty)
+accept-node node_id=uuid-p spki_sha256=<the key read on P>
+list-nodes            # uuid-p  accepted  hostname: (empty)  peername: (empty)
+command-agent agent_id=board-b cmd2agent=list-yunos
+# -> 0 "Command sent to 1 nodes"    (board-b: the node that has that name)
+```
+
+In 7.30.16 and before, P was accepted with the name `board-b`. `board-b`
+then named two nodes, and nothing was sent to `board-b` until P logged in by
+its key. `write-tty` goes to ONE agent, and is refused without
 `agent_id` (a WARNING, *"write-tty without agent_id, nothing written"*). Up to
 7.30.14 the first agent whose uuid or hostname matched got the command, so an
 agent could take the commands of another node by giving its hostname, or its
@@ -899,6 +921,30 @@ a warning, and tried again:
   says *"node 'board-b' is the hostname of more than one node: give its node
   uuid"*. In 7.30.15 it waited for a node to connect, and nothing ended the
   wait.
+
+A stop that did some steps but not all of them is not the end of the
+`max_run` either. The steps that it did not do stay due, and they are tried
+again until each one is done. The other steps are not sent again. The rules
+are the same as above, applied to the nodes of those steps (*"the stop of a
+scenario's max_run did not do every step, the rest tried again in a
+minute"*, or *"... the rest tried again when a node of it connects"*). The
+schedule rebuilt at start keeps those steps too. For example, the yunos of
+`load-test` are on `node-a` and `node-b`, and `node-b` is down when the stop
+is due:
+
+```
+# the stop of the max_run: node-a stopped, node-b not connected
+scenario-runs scenario_id=load-test
+# -> "max_run of 2100 s reached (started by ops@example.com); run ...: stop failed, 1 of 2 steps done: ..."
+scenarios scenario_id=load-test     # stop_waits_node: true
+# node-b connects: the stop goes to node-b only
+# -> "...: stop done, 1 steps"
+```
+
+A stop by a user that did some steps cancels the `max_run`, as before: the
+steps that it did not do are the user's to run again. In 7.30.16 and before,
+a `max_run` stop that did some steps ended the schedule with no log, and the
+yunos on a node that was down at that time continued to run.
 
 Up to 7.29.1 every one was tried every minute, and every try wrote a run
 while the node was down; 7.29.2 made every one wait for an agent, so a stop

@@ -337,6 +337,12 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 33: accept B13
     "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 33: a token with a key, refused: not written
     "Agent refused: its node key is not the one accepted|||The node is not accepted (pending)|WARNING", // 33
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 37: B
+    "Node key decided",                                                             // 37: accept B
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 37: P
+    "Node key decided",                                                             // 37: accept P
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 37: R
+    "Node key decided",                                                             // 37: accept R
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 34: a token claims A
     "Agent refused: its identity card is not valid|||its id is not a string|WARNING",       // 34
     "Agent refused: its identity card is not valid|||its host is not a string|WARNING",     // 34
@@ -363,6 +369,9 @@ PRIVATE const char *expected_msgs[] = {
     "stopping a scenario: its max_run is reached",          // 19: its node connected
     "stopping a scenario: its max_run is reached",          // 20: mrn, its node connected
     "the stop of a scenario's max_run did nothing, tried again in a minute",    // 20: refused there
+    "stopping a scenario: its max_run is reached",          // 38: mrp, a node of it away
+    "the stop of a scenario's max_run did not do every step, the rest tried again when a node of it connects", // 38
+    "stopping a scenario: its max_run is reached",          // 38: the rest, its node back
     /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",
