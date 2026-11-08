@@ -212,7 +212,11 @@ leaves the packaged externals in place — the same mismatch by a shorter road.
    enables the units `yuneta_agent.service` and `yuneta_agent22.service`, and
    RESTARTS them -- the main agent first, agent22 only once it runs; a restart
    because `%pre` stopped the agent behind the generated unit's back, leaving
-   it `active (exited)`, where a start does nothing. It does so
+   it `active (exited)`, where a start does nothing. `%pre` and `%post` find
+   the running agent by the base name of its `argv[0]`, as its own `--stop`
+   does (up to 7.30.17 by `/proc/<pid>/exe`: an agent behind a symlinked
+   `/yuneta`, on a renamed binary, or under a root without `CAP_SYS_PTRACE`
+   was not found, and `%pre` left the old agent running). It does so
    **only when io_uring is actually enabled** (re-checked after the
    `sysctl --system` of step 6) and captures the real result — a disabled
    io_uring, or any other start failure, is reported, **not** hidden behind

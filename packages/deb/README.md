@@ -589,7 +589,11 @@ both down); `stop` stops the main agent alone and leaves agent22, the escape
 hatch, running, as the SysV `stop` always did; `restart` restarts the main
 agent and starts agent22 only if it was not running; `status` reports both.
 An agent running outside its unit (started by hand with `--start`) is stopped
-first and started in its unit. `service yuneta_agent22 stop` or `systemctl`
+first and started in its unit. It is recognised by the base name of its
+`argv[0]` (`/proc/<pid>/cmdline`), as its own `--stop` does: the script's
+`argv[0]` is its shell (up to 7.30.17 by `/proc/<pid>/exe`, which misses an
+agent behind a symlinked `/yuneta`, a renamed binary, or a root without
+`CAP_SYS_PTRACE`). `service yuneta_agent22 stop` or `systemctl`
 drive one unit alone. All of it needs root, as `su - yuneta` always did.
 
 ```bash

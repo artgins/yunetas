@@ -832,18 +832,19 @@ _run_as_yuneta() {
 
 # An agent running OUTSIDE its unit (started by hand with --start) is stopped
 # first with its own --stop: the unit started beside it would find it running
-# and leave. The same transition the packages do on upgrade. Found by its
-# executable, not its name: this script is named yuneta_agent too, and
-# `pgrep -x yuneta_agent` finds the script itself.
+# and leave. The same transition the packages do on upgrade. Found as its
+# own --stop finds it, by the base name of its argv[0], not by its name: this
+# script is named yuneta_agent too, `pgrep -x yuneta_agent` finds it, and its
+# argv[0] is its shell. Not by its executable (up to 7.30.17): root without
+# CAP_SYS_PTRACE cannot read it, and it is another path when /yuneta is a
+# symlink or the binary was renamed.
 _agent_outside_unit() {
     _a="$1"
     for _p in $(pgrep -x "$_a" 2>/dev/null); do
-        _exe="$(readlink "/proc/$_p/exe" 2>/dev/null || true)"
-        case "$_exe" in
-            "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
-                return 0
-                ;;
-        esac
+        _argv0="$(tr '\0' '\n' 2>/dev/null < "/proc/$_p/cmdline" | head -n 1)"
+        if [ "${_argv0##*/}" = "$_a" ]; then
+            return 0
+        fi
     done
     return 1
 }
@@ -1217,14 +1218,16 @@ if [ "$UNITS" = "1" ]; then
     systemctl daemon-reload || true
     systemctl enable yuneta_agent.service yuneta_agent22.service || true
     for _a in yuneta_agent yuneta_agent22; do
-        # An agent running outside its unit, found by its executable
+        # An agent running outside its unit, found as its own --stop finds
+        # it, by the base name of its argv[0]: its executable may be
+        # replaced, renamed, behind a symlink, or unreadable for a root
+        # without CAP_SYS_PTRACE
         _outside=0
         for _p in $(pgrep -x "$_a" 2>/dev/null); do
-            case "$(readlink "/proc/$_p/exe" 2>/dev/null || true)" in
-                "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
-                    _outside=1
-                    ;;
-            esac
+            _argv0="$(tr '\0' '\n' 2>/dev/null < "/proc/$_p/cmdline" | head -n 1)"
+            if [ "${_argv0##*/}" = "${_a}" ]; then
+                _outside=1
+            fi
         done
         if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && [ "$_outside" = "1" ]; then
             su -s /bin/sh -c "/yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" yuneta || true
@@ -1960,15 +1963,18 @@ fi
 #
 # $1 == 2 is an upgrade; on a fresh install ($1 == 1) there is nothing to stop.
 if [ "$1" = "2" ]; then
-    # found by its executable (the old one is "(deleted)" once replaced):
-    # `pgrep -x` alone also finds the SysV script, named yuneta_agent too
+    # found as its own --stop finds it, by the base name of its argv[0]:
+    # `pgrep -x` alone also finds the SysV script, named yuneta_agent too,
+    # whose argv[0] is its shell. Not by its executable (up to 7.30.17): it
+    # reads "(deleted)" once replaced, is another path when /yuneta is a
+    # symlink or the binary was renamed, and root cannot read it without
+    # CAP_SYS_PTRACE -- the old agent was then left running, unsaid
     _running=0
     for _p in $(pgrep -x yuneta_agent 2>/dev/null); do
-        case "$(readlink "/proc/$_p/exe" 2>/dev/null || true)" in
-            "/yuneta/agent/yuneta_agent"|"/yuneta/agent/yuneta_agent (deleted)")
-                _running=1
-                ;;
-        esac
+        _argv0="$(tr '\0' '\n' 2>/dev/null < "/proc/$_p/cmdline" | head -n 1)"
+        if [ "${_argv0##*/}" = "yuneta_agent" ]; then
+            _running=1
+        fi
     done
     if [ -x /yuneta/agent/yuneta_agent ] && [ "$_running" = "1" ]; then
         echo "[pre] stopping yuneta_agent for the upgrade (yuneta_agent22 stays up)"
@@ -2353,15 +2359,17 @@ else
     #   the unit's ExecStop. Then the unit is (re)started.
     _agent_into_its_unit() {
         _a="$1"
-        # found by its executable: `pgrep -x` alone also finds the SysV script
-        # (named yuneta_agent too) or another binary of the same name
+        # found as its own --stop finds it, by the base name of its argv[0]:
+        # `pgrep -x` alone also finds the SysV script (named yuneta_agent too,
+        # whose argv[0] is its shell); its executable reads "(deleted)" here,
+        # and may be renamed, behind a symlink, or unreadable without
+        # CAP_SYS_PTRACE
         _outside=0
         for _p in $(pgrep -x "$_a" 2>/dev/null); do
-            case "$(readlink "/proc/$_p/exe" 2>/dev/null || true)" in
-                "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
-                    _outside=1
-                    ;;
-            esac
+            _argv0="$(tr '\0' '\n' 2>/dev/null < "/proc/$_p/cmdline" | head -n 1)"
+            if [ "${_argv0##*/}" = "${_a}" ]; then
+                _outside=1
+            fi
         done
         if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && [ "$_outside" = "1" ]; then
             su -s /bin/sh -c "/yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" yuneta >/dev/null 2>&1 || true

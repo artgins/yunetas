@@ -32,14 +32,16 @@ if [ "$UNITS" = "1" ]; then
     systemctl daemon-reload || true
     systemctl enable yuneta_agent.service yuneta_agent22.service || true
     for _a in yuneta_agent yuneta_agent22; do
-        # An agent running outside its unit, found by its executable
+        # An agent running outside its unit, found as its own --stop finds
+        # it, by the base name of its argv[0]: its executable may be
+        # replaced, renamed, behind a symlink, or unreadable for a root
+        # without CAP_SYS_PTRACE
         _outside=0
         for _p in $(pgrep -x "$_a" 2>/dev/null); do
-            case "$(readlink "/proc/$_p/exe" 2>/dev/null || true)" in
-                "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
-                    _outside=1
-                    ;;
-            esac
+            _argv0="$(tr '\0' '\n' 2>/dev/null < "/proc/$_p/cmdline" | head -n 1)"
+            if [ "${_argv0##*/}" = "${_a}" ]; then
+                _outside=1
+            fi
         done
         if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && [ "$_outside" = "1" ]; then
             su -s /bin/sh -c "/yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" yuneta || true

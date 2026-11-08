@@ -473,10 +473,33 @@ service_units() {
     touch "${SROOT}/usr/lib/systemd/system/yuneta_agent.service" \
         "${SROOT}/usr/lib/systemd/system/yuneta_agent22.service"
 }
-agent_running() {    # name pid executable
+agent_running() {    # name pid executable argv0; no executable: it cannot be read
     echo "$2" >> "${SROOT}/pgrep/$1"
     mkdir -p "${SROOT}/proc/$2"
-    ln -s "$3" "${SROOT}/proc/$2/exe"
+    if [ -n "$3" ]; then
+        ln -s "$3" "${SROOT}/proc/$2/exe"
+    fi
+    printf '%s\000--config-file=/yuneta/agent/%s.json\000' "$4" "$1" > "${SROOT}/proc/$2/cmdline"
+}
+#   What /proc/<pid>/exe reads for an agent started as /yuneta/agent/<name>:
+#   its binary replaced on disk, /yuneta a symlink, its binary renamed
+#   (*.bak-pre-<version>), or nothing (root without CAP_SYS_PTRACE)
+AGENT_FORMS="replaced symlink renamed unreadable"
+agent_exe() {    # form name
+    case "$1" in
+        replaced)
+            echo "${SROOT}/yuneta/agent/$2 (deleted)"
+            ;;
+        symlink)
+            echo "/data/yuneta/agent/$2"
+            ;;
+        renamed)
+            echo "${SROOT}/yuneta/agent/$2.bak-pre-7.30.17"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
 }
 run_helper() {    # helper; FAIL_RESTART: the units whose restart fails
     sed "s#\([ \"'(=]\)/\(run\|usr\|lib\|etc\|yuneta\|proc\)/#\1${SROOT}/\2/#g" "$1" > "${WORK}/helper.sh"
@@ -522,8 +545,8 @@ for helper in "${SERVICE_DIR}/install-yuneta-service.sh" "$rpm_helper"; do
     #   started by hand: none of them stopped, the SysV start (up to 7.30.16
     #   both were stopped and left down, and the helper said 0)
     service_root 1
-    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent"
-    agent_running yuneta_agent22 102 "${SROOT}/yuneta/agent/yuneta_agent22"
+    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent" /yuneta/agent/yuneta_agent
+    agent_running yuneta_agent22 102 "${SROOT}/yuneta/agent/yuneta_agent22" /yuneta/agent/yuneta_agent22
     run_helper "$helper"
     rc=$?
     check "$flavour service, systemd without units: 0" "$rc" "0"
@@ -543,8 +566,8 @@ for helper in "${SERVICE_DIR}/install-yuneta-service.sh" "$rpm_helper"; do
     #   unit restarted, the main agent first
     service_root 1
     service_units
-    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent"
-    agent_running yuneta_agent22 102 "${SROOT}/yuneta/agent/yuneta_agent22 (deleted)"
+    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent" /yuneta/agent/yuneta_agent
+    agent_running yuneta_agent22 102 "${SROOT}/yuneta/agent/yuneta_agent22 (deleted)" /yuneta/agent/yuneta_agent22
     run_helper "$helper"
     rc=$?
     check "$flavour service, the units: 0" "$rc" "0"
@@ -563,12 +586,24 @@ for helper in "${SERVICE_DIR}/install-yuneta-service.sh" "$rpm_helper"; do
     rc=$?
     check "$flavour service, agent22's unit fails: not 0" "$( [ "$rc" -ne 0 ] && echo failed)" "failed"
 
-    #   ... a process named like an agent that is not its binary (the SysV
-    #   script, a build tree's agent) is not stopped
+    #   ... an agent outside its unit is found whatever its executable
+    #   reads: started as /yuneta/agent/<name> (argv[0], as its own --stop
+    #   takes it; up to 7.30.17 only by its executable)
+    for form in $AGENT_FORMS; do
+        service_root 1
+        service_units
+        agent_running yuneta_agent 101 "$(agent_exe "$form" yuneta_agent)" /yuneta/agent/yuneta_agent
+        run_helper "$helper"
+        check "$flavour service, the agent outside its unit, $form: stopped" "$(stops)" "1"
+    done
+
+    #   ... a process named like an agent that was not started as one (the
+    #   SysV script, whose argv[0] is its shell; a script of that name) is
+    #   not stopped
     service_root 1
     service_units
-    agent_running yuneta_agent 201 /usr/bin/dash
-    agent_running yuneta_agent22 202 "${SROOT}/yuneta/development/yunetas/outputs/yunos/yuneta_agent22"
+    agent_running yuneta_agent 201 /usr/bin/dash /bin/sh
+    agent_running yuneta_agent22 202 /usr/bin/python3.13 /usr/bin/python3
     run_helper "$helper"
     check "$flavour service, a process named like an agent: not stopped" "$(stops)" "0"
     check "$flavour service, a process named like an agent: both units restarted" \
@@ -624,17 +659,22 @@ for helper in "${SERVICE_DIR}/install-yuneta-service.sh" "$rpm_helper"; do
 done
 
 #
-#   The packages' own scripts find an agent by its executable too: the
-#   postinsts' _agent_into_its_unit() (the .deb's, the .rpm's %post) and the
-#   .rpm's %pre, which stops the main agent for an upgrade
+#   The packages' own scripts find an agent by its argv[0] too: the
+#   postinsts' _agent_into_its_unit() (the .deb's, the .rpm's %post), the
+#   .rpm's %pre, which stops the main agent for an upgrade, and the SysV
+#   script's _agent_outside_unit() (the .deb's is service/'s, checked above)
 #
 deb_into="$(sed -n '/^_agent_into_its_unit() {$/,/^}$/p' "${HERE}/../deb/make-yuneta-agent-deb.sh")"
 rpm_into="$(sed -n '/^    _agent_into_its_unit() {$/,/^    }$/p' "${HERE}/../rpm/make-yuneta-agent-rpm.sh")"
 rpm_pre="$(sed -n '/^%pre$/,/^%post$/p' "${HERE}/../rpm/make-yuneta-agent-rpm.sh" \
     | sed -n '/^if \[ "\$1" = "2" \]; then$/,/^fi$/p')"
+deb_outside="$(sed -n '/^_agent_outside_unit() {$/,/^}$/p' "${SERVICE_DIR}/yuneta_agent")"
+rpm_outside="$(sed -n '/^_agent_outside_unit() {$/,/^}$/p' "${HERE}/../rpm/make-yuneta-agent-rpm.sh")"
 check "the .deb's postinst: _agent_into_its_unit found" "$( [ -n "$deb_into" ] && echo found)" "found"
 check "the .rpm's %post: _agent_into_its_unit found" "$( [ -n "$rpm_into" ] && echo found)" "found"
 check "the .rpm's %pre: the upgrade's stop found" "$( [ -n "$rpm_pre" ] && echo found)" "found"
+check "the .deb's SysV script: _agent_outside_unit found" "$( [ -n "$deb_outside" ] && echo found)" "found"
+check "the .rpm's SysV script: _agent_outside_unit found" "$( [ -n "$rpm_outside" ] && echo found)" "found"
 run_snippet() {    # code call [args]
     printf '%s\n%s\n' "$1" "$2" > "${WORK}/snippet.in"
     sed "s#\([ \"'(=]\)/\(run\|usr\|lib\|etc\|yuneta\|proc\)/#\1${SROOT}/\2/#g" "${WORK}/snippet.in" \
@@ -652,25 +692,60 @@ for into in deb rpm; do
     fi
     service_root 1
     service_units
-    agent_running yuneta_agent 201 /usr/bin/dash
+    agent_running yuneta_agent 201 /usr/bin/dash /bin/sh
     run_snippet "$code" "_agent_into_its_unit yuneta_agent"
     check ".$into postinst, a process named like the agent: not stopped" "$(stops)" "0"
     check ".$into postinst, a process named like the agent: the unit restarted" "$(restarts)" "yuneta_agent.service"
     service_root 1
     service_units
-    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent"
+    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent" /yuneta/agent/yuneta_agent
     run_snippet "$code" "_agent_into_its_unit yuneta_agent"
     check ".$into postinst, the agent outside its unit: stopped" "$(stops)" "1"
+    #   ... whatever its executable reads ("(deleted)" is what an agent
+    #   outside its unit reads there: the package has just replaced it)
+    for form in $AGENT_FORMS; do
+        service_root 1
+        service_units
+        agent_running yuneta_agent 101 "$(agent_exe "$form" yuneta_agent)" /yuneta/agent/yuneta_agent
+        run_snippet "$code" "_agent_into_its_unit yuneta_agent"
+        check ".$into postinst, the agent outside its unit, $form: stopped" "$(stops)" "1"
+    done
 done
 service_root 1
 printf '#!/bin/sh\n' > "${SROOT}/yuneta/agent/yuneta_agent"
 chmod 0755 "${SROOT}/yuneta/agent/yuneta_agent"
-agent_running yuneta_agent 201 /usr/bin/dash
+agent_running yuneta_agent 201 /usr/bin/dash /bin/sh
 run_snippet "$rpm_pre" "" 2
 check ".rpm %pre, a process named like the agent: not stopped" "$(stops)" "0"
-agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent (deleted)"
-run_snippet "$rpm_pre" "" 2
-check ".rpm %pre, the agent on its old binary: stopped" "$(stops)" "1"
+for form in $AGENT_FORMS; do
+    service_root 1
+    printf '#!/bin/sh\n' > "${SROOT}/yuneta/agent/yuneta_agent"
+    chmod 0755 "${SROOT}/yuneta/agent/yuneta_agent"
+    agent_running yuneta_agent 101 "$(agent_exe "$form" yuneta_agent)" /yuneta/agent/yuneta_agent
+    run_snippet "$rpm_pre" "" 2
+    check ".rpm %pre, the agent on its old binary, $form: stopped" "$(stops)" "1"
+done
+for sysv in deb rpm; do
+    if [ "$sysv" = "deb" ]; then
+        code="$deb_outside"
+    else
+        code="$rpm_outside"
+    fi
+    service_root 1
+    agent_running yuneta_agent 201 /usr/bin/dash /bin/sh
+    run_snippet "$code" "_agent_outside_unit yuneta_agent && echo outside || echo none"
+    check ".$sysv SysV script, a process named like the agent (itself): none" "$(cat "${WORK}/snippet.out")" "none"
+    for form in plain $AGENT_FORMS; do
+        service_root 1
+        if [ "$form" = "plain" ]; then
+            agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent" /yuneta/agent/yuneta_agent
+        else
+            agent_running yuneta_agent 101 "$(agent_exe "$form" yuneta_agent)" /yuneta/agent/yuneta_agent
+        fi
+        run_snippet "$code" "_agent_outside_unit yuneta_agent && echo outside || echo none"
+        check ".$sysv SysV script, the agent outside its unit, $form: found" "$(cat "${WORK}/snippet.out")" "outside"
+    done
+done
 
 #
 #   The warning of the agent's build (yuno_agent/CMakeLists.txt) about the

@@ -344,6 +344,27 @@ and with no difference of layout. The full inventory is in
 > started by hand was invisible to systemd, and `yuneta_agent22` had no unit
 > at all. The web server has its own unit (`yuneta-webserver.service`) and is
 > not started or stopped with the agent.
+>
+> **How an agent outside its unit is recognised.** The SysV script, the
+> packages' install scripts and `install-yuneta-service.sh` look for a process
+> named `yuneta_agent` (or `yuneta_agent22`) whose `argv[0]` has that base
+> name, the way the agent's own `--stop` finds it. The SysV script has the
+> same name, but its `argv[0]` is its shell, so it is not taken. To see what
+> they see:
+>
+> ```bash
+> for p in $(pgrep -x yuneta_agent); do
+>     printf '%s: ' "$p"; tr '\0' '\n' < "/proc/$p/cmdline" | head -n 1
+> done
+> # 4120: /yuneta/agent/yuneta_agent      <- the agent
+> # 4377: /bin/sh                         <- the SysV script
+> ```
+>
+> Up to 7.30.17 they read `/proc/<pid>/exe` instead. That fails when
+> `/yuneta` is a symlink, when the running binary was renamed
+> (`yuneta_agent.bak-pre-<version>`), and when root has no `CAP_SYS_PTRACE`
+> (a container by default): the agent was then not found, and an `.rpm`
+> upgrade left the old agent running.
 
 > ℹ️ **You can build the `.deb` yourself** and not use the published asset.
 > See `packages/README.md` for the four wrapper scripts, one for each

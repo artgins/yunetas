@@ -40,7 +40,11 @@ disk against a fake `/sys`, with `yuneta-node-uuid`), and that
 source installs that copy). It also runs both packagers'
 `install-yuneta-service.sh` in a fake root, with stubs for `systemctl`,
 `pgrep` and `su` (systemd with and without the units, a unit that does not
-restart, an old `/etc/init.d/yuneta_agent`), and the agent build's warning
+restart, an old `/etc/init.d/yuneta_agent`), and a fake `/proc`: the helper,
+the postinsts, the `.rpm`'s `%pre` and the SysV script find an agent outside
+its unit by its `argv[0]` (its executable replaced, renamed, behind a
+symlinked `/yuneta`, or unreadable) and leave the SysV script alone; and
+the agent build's warning
 about the installed scripts (`cmake -P`). `install-yuneta-agent-cert.sh`
 installs it by hand on a node without the package, once
 `install-yuneta-node-uuid.sh` has run. The packages carry no agent pair: only

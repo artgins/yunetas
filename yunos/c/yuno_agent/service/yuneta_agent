@@ -74,18 +74,19 @@ _run_as_yuneta() {
 
 # An agent running OUTSIDE its unit (started by hand with --start) is stopped
 # first with its own --stop: the unit started beside it would find it running
-# and leave. The same transition the packages do on upgrade. Found by its
-# executable, not its name: this script is named yuneta_agent too, and
-# `pgrep -x yuneta_agent` finds the script itself.
+# and leave. The same transition the packages do on upgrade. Found as its
+# own --stop finds it, by the base name of its argv[0], not by its name: this
+# script is named yuneta_agent too, `pgrep -x yuneta_agent` finds it, and its
+# argv[0] is its shell. Not by its executable (up to 7.30.17): root without
+# CAP_SYS_PTRACE cannot read it, and it is another path when /yuneta is a
+# symlink or the binary was renamed.
 _agent_outside_unit() {
     _a="$1"
     for _p in $(pgrep -x "$_a" 2>/dev/null); do
-        _exe="$(readlink "/proc/$_p/exe" 2>/dev/null || true)"
-        case "$_exe" in
-            "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
-                return 0
-                ;;
-        esac
+        _argv0="$(tr '\0' '\n' 2>/dev/null < "/proc/$_p/cmdline" | head -n 1)"
+        if [ "${_argv0##*/}" = "$_a" ]; then
+            return 0
+        fi
     done
     return 1
 }
