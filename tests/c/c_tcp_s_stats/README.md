@@ -45,7 +45,8 @@ counted by it (up to 7.25.21 `pool_b` took them all, silently). Last,
 8 MB to a peer that never reads, and is stopped and started again in the same
 turn: the stop of its clisrv ends when the write is aborted, `drain_port`
 listens again and a second peer is counted (up to 7.25.21 the clisrv waited
-in `ST_WAIT_STOPPED` for ever). Each step waits a second (the timer's grain):
+in `ST_WAIT_STOPPED` for ever). The abort is said with ONE warning, which
+the test expects. A CLIENT's stop is `c_tcps/test13`. Each step waits a second (the timer's grain):
 the auto-kill is 40 s.
 
 Up to 7.25.20 both read 0 always: they were `SDF_STATS` attributes backed by

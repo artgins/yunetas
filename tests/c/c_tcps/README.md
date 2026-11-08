@@ -68,13 +68,26 @@ connection ends (*"Cannot connect tcp gobj"* in the quiet wait), no
 
 `test12` (`main_test12.c` + `c_test12.c`, plain TCP) is the inactivity timer
 of a client after a local drop. The `C_TCP` (`timeout_inactivity` 1000,
-`timeout_stop_tx` 3000) connects to a listener of the test with a 4 KB
+`timeout_stop_tx` 0, no bound) connects to a listener of the test with a 4 KB
 receive buffer that nobody accepts, and is sent 8 MB at once, so a write
 stays in flight. 300 ms later it is dropped: the drop waits in
 `ST_WAIT_STOPPED` for that write. 3 s later the `C_TCP` must still be in
 `ST_WAIT_STOPPED`, with nothing logged. Up to 7.30.16 the drop left the
 inactivity timer armed, and its `EV_TIMEOUT` landed in `ST_WAIT_STOPPED`
 (red: *"Event NOT DEFINED in state"*).
+
+`test13` (`main_test13.c` + `c_test13.c`, plain TCP) is `timeout_stop_tx`
+on a CLIENT. The `C_TCP` (`timeout_stop_tx` 1000) is sent 8 MB against a
+listener of the test with a 4 KB receive buffer that nobody accepts, and is
+STOPPED 300 ms later, with a write in flight. The socket's `TCP_USER_TIMEOUT`
+must abort that write, with ONE warning (*"The peer did not take the data in
+flight in timeout_stop_tx, connection aborted"*), and the stop must end in
+`ST_STOPPED` with `EV_STOPPED` within 8 s (the kernel aborts at its next
+zero-window probe). Up to 7.30.16 the stop of a client closed its socket
+(the connect event's) before looking for it to set `TCP_USER_TIMEOUT`, found
+none, said nothing, and waited for ever (red: *"TEST: the stop did not
+end"*). A clisrv keeps its socket until its stop ends, which is why
+`c_tcp_s_stats` (a clisrv) never saw it.
 
 ## Run
 

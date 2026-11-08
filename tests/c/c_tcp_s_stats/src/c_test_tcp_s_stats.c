@@ -782,13 +782,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             /*
              *  The pool shared by two servers of the new method: pool_b's
-             *  start must say it leaves pool_a's clisrvs to it
+             *  start must say it leaves pool_a's clisrvs to it. Then the
+             *  drain: its clisrv's write is aborted by timeout_stop_tx, said
+             *  once
              */
             result += test_json(NULL);
             set_expected_results(
-                "c_tcp_s_stats: a pool of the new method shared by two servers",
-                json_pack("[{s:s}]",
-                    "msg", "C_TCP_S new method: channels served by another running C_TCP_S, left to it"
+                "c_tcp_s_stats: a pool of the new method shared by two servers, and the drain",
+                json_pack("[{s:s}, {s:s}]",
+                    "msg", "C_TCP_S new method: channels served by another running C_TCP_S, left to it",
+                    "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted"
                 ),
                 NULL, NULL, 1
             );

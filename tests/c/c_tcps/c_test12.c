@@ -5,7 +5,7 @@
  *          Test: the inactivity timer of a client does not fire into
  *          ST_WAIT_STOPPED after a local drop.
  *
- *          The C_TCP (timeout_inactivity 1000, timeout_stop_tx 3000)
+ *          The C_TCP (timeout_inactivity 1000, timeout_stop_tx 0: no bound)
  *          connects to a listener of the test with a small receive buffer
  *          that nobody accepts: the kernel completes the handshake and
  *          takes a few KB, and then the window is zero. The C_TCP is sent
@@ -139,7 +139,7 @@ PRIVATE void mt_create(hgobj gobj)
         json_pack("{s:s, s:i, s:i, s:i}",
             "url", url,
             "timeout_inactivity", 1000,
-            "timeout_stop_tx", 3000,
+            "timeout_stop_tx", 0,
             "timeout_between_connections", 60000
         ),
         gobj

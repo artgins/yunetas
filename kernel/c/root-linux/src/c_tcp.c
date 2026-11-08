@@ -1669,16 +1669,30 @@ PRIVATE void log_closing_drops(hgobj gobj)
  *  zero) held the stop for ever: a clisrv in ST_WAIT_STOPPED, and its
  *  C_TCP_S, waiting for it, never listening again (up to 7.25.21). The
  *  socket gets a TCP_USER_TIMEOUT: data not acknowledged for that long
- *  aborts the connection, the write ends with an error, and the stop ends.
- *  A peer that reads, however slowly, is not affected.
+ *  aborts the connection, the write ends with an error (ETIMEDOUT, said
+ *  with ONE warning), and the stop ends. A window that stays at zero counts
+ *  too: the kernel aborts at its first zero-window probe past the timeout
+ *  (the probes back off, so up to some seconds later). A peer that reads,
+ *  however slowly, is not affected. Called before the socket of a client
+ *  is closed (try_to_stop_yevents()).
  ***************************************************************************/
 PRIVATE void bound_the_write_in_flight(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     unsigned int timeout = (unsigned int)gobj_read_integer_attr(gobj, "timeout_stop_tx");
+    if(timeout == 0) {
+        return;
+    }
     int fd = priv->__clisrv__? priv->fd_clisrv : (priv->yev_connect? yev_get_fd(priv->yev_connect) : -1);
-    if(timeout == 0 || fd <= 0) {
+    if(fd <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "No socket to bound the write in flight: the stop waits for the peer",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
         return;
     }
     if(setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout, sizeof(timeout)) < 0) {
@@ -1748,6 +1762,16 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
+    /*
+     *  Before the stop of the connect event, which closes a client's
+     *  socket: up to 7.30.16 a client's write in flight was never bounded
+     *  (no socket was found), and its stop waited for ever for a peer that
+     *  did not read. Once, as the stop starts to wait.
+     */
+    if(priv->tx_in_progress > 0 && !gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+        bound_the_write_in_flight(gobj);
+    }
+
     if(priv->yev_connect) {
         if(!yev_event_is_stopped(priv->yev_connect)) {
             yev_stop_event(priv->yev_connect);
@@ -1777,7 +1801,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 
     if(priv->tx_in_progress > 0) {
         to_wait_stopped = TRUE;
-        bound_the_write_in_flight(gobj);
     }
 
     // TODO someday review stopping
@@ -2215,6 +2238,21 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *  Disconnected
                      */
                     set_disconnect_cause(gobj, "%s", strerror(-yev_get_result(yev_event)));
+
+                    if(yev_get_result(yev_event) == -ETIMEDOUT &&
+                            gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+                        // TCP_USER_TIMEOUT of bound_the_write_in_flight()
+                        gobj_log_warning(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "The peer did not take the data in flight in timeout_stop_tx, connection aborted",
+                            "timeout_stop_tx", "%d", (int)gobj_read_integer_attr(gobj, "timeout_stop_tx"),
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+                            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+                            NULL
+                        );
+                    }
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
