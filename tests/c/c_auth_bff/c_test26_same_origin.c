@@ -58,6 +58,9 @@
  *                 join: 403 (a Host that is a list is no Host);
  *          62-63. a login whose Host has a space, or a tab, in it, and the
  *                 Origin that is "http://" and that Host: 403.
+ *             64. a login with ONE Host line that is a list ("a,b", no
+ *                 space), and the Origin that is "http://" and that Host:
+ *                 403. The comma alone refuses it: 61 has a space too.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test26.
@@ -229,6 +232,9 @@ PRIVATE const step_t steps[] = {
     {"/auth/login", OWN_HOST " x", OWN_ORIGIN " x", NULL, NULL, 403,
         {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
     {"/auth/login", OWN_HOST "\tx", OWN_ORIGIN "\tx", NULL, NULL, 403,
+        {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
+    /* 64 */
+    {"/auth/login", OWN_HOST ",x", OWN_ORIGIN ",x", NULL, NULL, 403,
         {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
