@@ -557,6 +557,20 @@ PRIVATE hytls init(
 
     ytls->state = build_state(gobj, jn_config, server, ytls->trace_tls, ytls);
     if(!ytls->state) {
+        if(server) {
+            /*
+             *  As the openssl backend: a server that cannot load its
+             *  certificates at the start exits with 0 (the watcher does not
+             *  relaunch it). Up to 7.30.14 it went on listening with no TLS
+             *  context, and the first peer ended the yuno with a SIGSEGV.
+             */
+            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS,
+                "msg",              "%s", "TLS server without its TLS context: exiting",
+                NULL
+            );
+        }
         GBMEM_FREE(ytls);
         return NULL;
     }
