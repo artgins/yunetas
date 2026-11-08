@@ -184,6 +184,15 @@
  *              zeroed (it was written by halves), t2timestamp() and
  *              formatdate() give an empty text and one ERROR (a NULL went
  *              to strftime()).
+ *          32. (in 30) a version 2 file with transitions, leap seconds and
+ *              indicators in both blocks is a zone (each count has its
+ *              width in each block: one taken with the wrong width puts
+ *              the footer elsewhere), and a name too long for a path is
+ *              none, even when its first PATH_MAX - 1 bytes under TZDIR
+ *              name a zone file (libc opens the whole name, and fails).
+ *              The files of 30 are in a directory of each run (mkdtemp()):
+ *              with one fixed path two runs at once wrote over the files
+ *              of each other.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -201,7 +210,11 @@
 
 #define NOW     1792573200  // Wed 2026-10-21 09:00:00 UTC, 11:00:00 CEST
 
-#define ZONES_DIR   "/tmp/test_date_text_zones"
+/*
+ *  The directory of the zones test, one per run (mkdtemp()): two runs at once
+ *  do not write the files of each other
+ */
+PRIVATE char s_zones_dir[PATH_MAX] = "";
 
 PRIVATE int global_result = 0;
 
@@ -2790,7 +2803,11 @@ PRIVATE void test_four_digits_after_what_takes_an_offset(void)
 PRIVATE void write_zone_file(const char *name, const void *bytes, size_t len)
 {
     char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/%s", ZONES_DIR, name);
+    if(!build_path(path, sizeof(path), s_zones_dir, name, NULL)) {
+        printf("FAIL cannot build the path of %s\n", name);
+        global_result += -1;
+        return;
+    }
     FILE *f = fopen(path, "w");
     if(!f || fwrite(bytes, 1, len, f) != len) {
         printf("FAIL cannot write %s\n", path);
@@ -2799,6 +2816,32 @@ PRIVATE void write_zone_file(const char *name, const void *bytes, size_t len)
     if(f) {
         fclose(f);
     }
+}
+
+/***************************************************************************
+ *  A TZ text of the zones test: `@` is the directory of the run and `%` its
+ *  last segment. Not build_path(): the text is the one libc gets, its `.`,
+ *  `..` and `//` as written. In a buffer of its own, until the next call.
+ ***************************************************************************/
+PRIVATE const char *zone_text(const char *pattern)
+{
+    static char text[PATH_MAX];
+    const char *base = strrchr(s_zones_dir, '/');
+    base = base? base + 1 : s_zones_dir;
+    size_t len = 0;
+    for(const char *p = pattern; *p; p++) {
+        const char *piece = (*p == '@')? s_zones_dir : (*p == '%')? base : NULL;
+        size_t piece_len = piece? strlen(piece) : 1;
+        if(len + piece_len >= sizeof(text)) {
+            printf("FAIL the zone text of '%s' does not fit\n", pattern);
+            global_result += -1;
+            break;
+        }
+        memcpy(text + len, piece? piece : p, piece_len);
+        len += piece_len;
+    }
+    text[len] = 0;
+    return text;
 }
 
 /***************************************************************************
@@ -2848,11 +2891,19 @@ PRIVATE void test_zones_libc_reads(void)
 {
     char path[PATH_MAX];
 
-    rmrdir(ZONES_DIR);
-    mkrdir(ZONES_DIR "/Test", 02770);
-    mkrdir(ZONES_DIR "/Directory", 02770);
-    mkrdir(ZONES_DIR "/no_tzdata", 02770);
-    mkrdir(ZONES_DIR "/Deep/Inner", 02770);
+    if(!build_path(s_zones_dir, sizeof(s_zones_dir), "/tmp", "test_date_text_zones.XXXXXX", NULL) ||
+            !mkdtemp(s_zones_dir)) {
+        printf("FAIL cannot make the directory of the zones test\n");
+        global_result += -1;
+        return;
+    }
+    static const char *dirs[] = {"Test", "Directory", "no_tzdata", "Deep/Inner"};
+    for(size_t i = 0; i < sizeof(dirs)/sizeof(dirs[0]); i++) {
+        if(!build_path(path, sizeof(path), s_zones_dir, dirs[i], NULL) || mkrdir(path, 02770) < 0) {
+            printf("FAIL cannot make %s/%s\n", s_zones_dir, dirs[i]);
+            global_result += -1;
+        }
+    }
 
     /*
      *  A TZif file of version 1 with one type: +01:00, XAA
@@ -2871,29 +2922,28 @@ PRIVATE void test_zones_libc_reads(void)
     write_zone_file("empty", text, 0);
     write_zone_file("short", "TZi", 3);
     write_zone_file("almost", "TZiX and more", 13);
-    snprintf(path, sizeof(path), "%s/fifo", ZONES_DIR);
-    if(mkfifo(path, 0660) < 0) {
+    if(!build_path(path, sizeof(path), s_zones_dir, "fifo", NULL) || mkfifo(path, 0660) < 0) {
         printf("FAIL cannot make %s\n", path);
         global_result += -1;
     }
 
     setenv("TZ", "Asia/Tokyo", 1);
     tzset();
-    setenv("TZDIR", ZONES_DIR, 1);
+    setenv("TZDIR", s_zones_dir, 1);
 
     check_known_zone("Test/Zone", 3600);
     check_known_zone(":Test/Zone", 3600);
-    check_known_zone(ZONES_DIR "/Test/Zone", 3600);
-    check_known_zone(":" ZONES_DIR "/Test/Zone", 3600);
+    check_known_zone(zone_text("@/Test/Zone"), 3600);
+    check_known_zone(zone_text(":@/Test/Zone"), 3600);
 
     static const char *not_zones[] = {
         "zone.tab", "tzdata.zi", "leapseconds", "empty", "short", "almost", "fifo", "Directory", "Test", "Test/Zone/",
-        ":zone.tab", ZONES_DIR "/zone.tab", ":" ZONES_DIR "/zone.tab", ZONES_DIR "/fifo", ZONES_DIR "/none",
-        ZONES_DIR, "/etc/passwd", ":/etc/passwd", "/",
+        ":zone.tab", "@/zone.tab", ":@/zone.tab", "@/fifo", "@/none",
+        "@", "/etc/passwd", ":/etc/passwd", "/",
     };
     alarm(30);  // a FIFO that reaches libc blocks the process for ever
     for(size_t i = 0; i < sizeof(not_zones)/sizeof(not_zones[0]); i++) {
-        check_unknown_zone(not_zones[i]);
+        check_unknown_zone(zone_text(not_zones[i]));
     }
     alarm(0);
 
@@ -2904,24 +2954,23 @@ PRIVATE void test_zones_libc_reads(void)
      */
     write_zone_file("Deep/Good", tzif, sizeof(tzif));
     write_zone_file("Other", tzif, sizeof(tzif));
-    snprintf(path, sizeof(path), "%s/lnk", ZONES_DIR);
-    if(symlink("Deep/Inner", path) < 0) {
+    if(!build_path(path, sizeof(path), s_zones_dir, "lnk", NULL) || symlink("Deep/Inner", path) < 0) {
         printf("FAIL cannot make %s\n", path);
         global_result += -1;
     }
     static const char *literal_zones[] = {
-        "../test_date_text_zones/Test/Zone", "./Test/Zone", "Test/./Zone", "Test//Zone", "Test/../Test/Zone",
-        ":../test_date_text_zones/Test/Zone", ZONES_DIR "/Test/../Test/Zone", "lnk/../Good", ":lnk/../Good",
+        "../%/Test/Zone", "./Test/Zone", "Test/./Zone", "Test//Zone", "Test/../Test/Zone",
+        ":../%/Test/Zone", "@/Test/../Test/Zone", "lnk/../Good", ":lnk/../Good",
     };
     for(size_t i = 0; i < sizeof(literal_zones)/sizeof(literal_zones[0]); i++) {
-        check_known_zone(literal_zones[i], 3600);
+        check_known_zone(zone_text(literal_zones[i]), 3600);
     }
     static const char *literal_not_zones[] = {
         "Test/Zone/.", ":Test/Zone/.", "Test/Zone/./.", "Test/Zone/x/..", "Test/Zone/..", "Test/none/../Zone",
-        "lnk/../Other", ":lnk/../Other", ZONES_DIR "/Test/Zone/.", ZONES_DIR "/Test/Zone/x/..", ".", "..", "Test/..",
+        "lnk/../Other", ":lnk/../Other", "@/Test/Zone/.", "@/Test/Zone/x/..", ".", "..", "Test/..",
     };
     for(size_t i = 0; i < sizeof(literal_not_zones)/sizeof(literal_not_zones[0]); i++) {
-        check_unknown_zone(literal_not_zones[i]);
+        check_unknown_zone(zone_text(literal_not_zones[i]));
     }
 
     /*
@@ -3002,6 +3051,53 @@ PRIVATE void test_zones_libc_reads(void)
     }
 
     /*
+     *  A version 2 with every count in both blocks: transitions, leap
+     *  seconds (correction 0) and the two indicators. Each time is 4 bytes
+     *  in the first block and 8 in the second, so a size taken with the
+     *  wrong width puts the footer, or the second header, elsewhere.
+     */
+    static const unsigned char counts_v2[] = {
+        'T', 'Z', 'i', 'f', '2',  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 4,
+        0, 0, 0, 0,                                         // transition
+        0,                                                  // its type
+        0, 0, 0x0e, 0x10, 0, 0,                             // +01:00, XAA
+        'X', 'A', 'A', 0,
+        0, 0, 0, 0,  0, 0, 0, 0,                            // leap second
+        0, 0,                                               // indicators
+        'T', 'Z', 'i', 'f', '2',  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 1,  0, 0, 0, 4,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0,
+        0, 0, 0x0e, 0x10, 0, 0,
+        'X', 'A', 'A', 0,
+        0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,
+        0, 0,
+        '\n', '<', '+', '0', '1', '>', '-', '1', '\n'
+    };
+    write_zone_file("counts_v2", counts_v2, sizeof(counts_v2));
+    check_known_zone("counts_v2", 3600);
+    write_zone_file("counts_v2_cut", counts_v2, sizeof(counts_v2) - 10);
+    check_unknown_zone("counts_v2_cut");
+
+    /*
+     *  A name too long for a path, whose first PATH_MAX - 1 bytes under
+     *  TZDIR name a zone file: libc opens the whole name, and fails
+     */
+    char long_name[PATH_MAX + 16];
+    size_t room = PATH_MAX - 1 - strlen(s_zones_dir) - 1;
+    const char *zone = ((room - strlen("Test/Zone")) % 2 == 0)? "Test/Zone" : "Test//Zone";
+    size_t dots = (room - strlen(zone))/2;
+    for(size_t i = 0; i < dots; i++) {
+        memcpy(long_name + 2*i, "./", 2);
+    }
+    memcpy(long_name + 2*dots, zone, strlen(zone) + 1);
+    check_number("a long zone name: its zone file ends at PATH_MAX - 1", strlen(long_name), room);
+    check_known_zone(long_name, 3600);
+    strcat(long_name, "-more");
+    check_unknown_zone(long_name);
+
+    /*
      *  POSIX TZ
      */
     static const struct {
@@ -3054,7 +3150,11 @@ PRIVATE void test_zones_libc_reads(void)
     /*
      *  No tzdata: the names of UTC are UTC, the others are not known
      */
-    setenv("TZDIR", ZONES_DIR "/no_tzdata", 1);
+    if(!build_path(path, sizeof(path), s_zones_dir, "no_tzdata", NULL)) {
+        printf("FAIL cannot build the path of no_tzdata\n");
+        global_result += -1;
+    }
+    setenv("TZDIR", path, 1);
     static const char *utc_names[] = {
         "UTC", "GMT", "UCT", "Universal", "Zulu", "Greenwich", "Etc/UTC", "Etc/GMT", ":UTC",
     };
@@ -3067,7 +3167,7 @@ PRIVATE void test_zones_libc_reads(void)
     check_unknown_zone("Etc/");
 
     unsetenv("TZDIR");
-    rmrdir(ZONES_DIR);
+    rmrdir(s_zones_dir);
     setenv("TZ", "Europe/Madrid", 1);
     tzset();
 }
