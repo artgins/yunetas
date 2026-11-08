@@ -91,14 +91,16 @@
  *  (state pending / accepted / refused, the accepted key `spki_sha256`, the
  *  last key presented that is not it, hostname, address, when). An agent
  *  that opens its session is checked at its EV_ON_OPEN (check_node_key()):
- *    - a node never seen is recorded `pending`, with the key it presented;
+ *    - a node never seen is recorded `pending`, with the key it presented
+ *      (refused with `enforce_node_keys`: kept knocking, not recorded);
  *    - an accepted node must present ITS key: another key, or none, is
  *      said (WARNING) and, with `enforce_node_keys`, refused;
  *    - a pending or refused node is refused with `enforce_node_keys`;
  *    - a node that presents no key and has none accepted (an agent of
  *      before 7.30.10) is let in while `allow_nodes_without_key`.
  *  A refused agent's channel is dropped and skipped by the commands that
- *  look for an agent. Without `enforce_node_keys` nothing is refused: the
+ *  look for an agent, and its open writes nothing. A card whose id or host
+ *  is not a string, or too long, is refused so too, enforce or not. Without `enforce_node_keys` nothing is refused: the
  *  keys are recorded, so an operator can accept the nodes that run before
  *  it is switched on. `list-nodes`, `accept-node` (pins the key GIVEN, read
  *  on the node itself: never the one presented; one key for one node: a
@@ -109,11 +111,13 @@
  *  "ssl_verify_mode": "request" asks the client for its certificate.
  *  A node is reached (command-agent, stats-agent, write-tty, drop-agent,
  *  the scenarios) by the uuid its session was accepted for, or by a
- *  hostname that ONE `nodes` record not refused has: a hostname is only
- *  what an agent writes in its card, an accepted node's record takes it
- *  only from a session that logged in by its key, and a name two nodes
- *  give, or that is a session's uuid and another node's hostname, is
- *  refused (find_agent_channel()).
+ *  hostname that ONE node gives: a hostname is only what an agent writes
+ *  in its card, so it names an accepted node by its record (which takes
+ *  it only from a session that logged in by its key), and any other node
+ *  only by the card of its agent in session; a name two nodes give, or
+ *  that is a session's uuid and another node's hostname, is refused
+ *  (find_agent_channel()). A scenario run in order does not start on such
+ *  a name; a run at once does what it reaches and names the rest.
  *  An accepted key is also the agent's LOGIN (7.30.11+): mt_authenticate()
  *  authenticates the identity card of an agent that presents it, as
  *  `agent:<node uuid>` reaching this service only, with no token; a key not
@@ -228,9 +232,15 @@ PRIVATE const char *record_node_key(
     const char *spki,
     BOOL without_key_ok,
     BOOL by_key,
+    BOOL enforce,
     const char **warning
 );
 PRIVATE BOOL agent_is_refused(hgobj agent_srv);
+PRIVATE const char *card_str(json_t *card, const char *key);
+PRIVATE json_t *card_host_json(json_t *card);
+PRIVATE const char *card_host(json_t *card);
+PRIVATE void node_state(hgobj gobj, const char *node_id, char *state, size_t statesz);
+PRIVATE BOOL same_address(const char *a, const char *b);
 PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid);
 PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguous);
 PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -1333,10 +1343,10 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         } else {
             json_array_append_new(jn_data,
                 json_sprintf("UUID:%s (%s,%s),  HOSTNAME:'%s'",
-                    kw_get_str(gobj, jn_attrs, "id", "", 0),
-                    kw_get_str(gobj, jn_attrs, "yuno_role", "", 0),
-                    kw_get_str(gobj, jn_attrs, "yuno_version", "", 0),
-                    kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0)
+                    card_str(jn_attrs, "id"),
+                    card_str(jn_attrs, "yuno_role"),
+                    card_str(jn_attrs, "yuno_version"),
+                    card_host(jn_attrs)
                 )
             );
             json_decref(jn_attrs);
@@ -1639,8 +1649,7 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
                 kw  // owned
             );
         }
-        snprintf(uuid, sizeof(uuid), "%s",
-            kw_get_str(gobj, gobj_read_json_attr(agent, "identity_card"), "id", "", 0));
+        snprintf(uuid, sizeof(uuid), "%s", card_str(gobj_read_json_attr(agent, "identity_card"), "id"));
     }
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
@@ -1654,7 +1663,7 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        if(!empty_string(uuid) && strcmp(kw_get_str(gobj, jn_attrs, "id", "", 0), uuid)!=0) {
+        if(!empty_string(uuid) && strcmp(card_str(jn_attrs, "id"), uuid)!=0) {
             continue;
         }
 
@@ -2536,6 +2545,38 @@ PRIVATE int start_run(
         return -1;
     }
 
+    /*
+     *  A stop, a pause or a report asks every yuno at once, and waits for
+     *  them all: one yuno that does not answer must not leave the others
+     *  running (a stop that ended at its first unanswered step left the
+     *  simulators of a node generating, and the max_run stop failed every
+     *  minute on the same dead one). A start or a resume goes in order,
+     *  and ends at the first step that fails: what follows depends on it.
+     *  A switch alike: off is a stop of one yuno, on a start of one.
+     */
+    BOOL parallel = strcmp(action, "stop")==0 || strcmp(action, "pause")==0 ||
+        strcmp(action, "report")==0 || strcmp(action, "off")==0;
+
+    /*
+     *  A run in order does not start on a name that more than one node
+     *  gives: it would do the steps before it, and stop there. One at once
+     *  does what it reaches, and names the rest (run_send_all_steps()).
+     */
+    if(!parallel) {
+        size_t i; json_t *step;
+        json_array_foreach(steps, i, step) {
+            const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
+            BOOL ambiguous = FALSE;
+            find_agent_channel(gobj, node, &ambiguous);
+            if(ambiguous) {
+                snprintf(err, errsz, "cannot run '%s' of '%s': node '%s' is the hostname of "
+                    "more than one node: give its node uuid", action, scenario_id, node);
+                JSON_DECREF(steps)
+                return -1;
+            }
+        }
+    }
+
     /*  Two runs in one millisecond would share the id, and the second
      *  record would replace the first  */
     uint64_t run_ms = time_in_milliseconds();
@@ -2577,17 +2618,7 @@ PRIVATE int start_run(
     JSON_DECREF(priv->run_channels)
     priv->run_channels = json_object();
 
-    /*
-     *  A stop, a pause or a report asks every yuno at once, and waits for
-     *  them all: one yuno that does not answer must not leave the others
-     *  running (a stop that ended at its first unanswered step left the
-     *  simulators of a node generating, and the max_run stop failed every
-     *  minute on the same dead one). A start or a resume goes in order,
-     *  and ends at the first step that fails: what follows depends on it.
-     *  A switch alike: off is a stop of one yuno, on a start of one.
-     */
-    if(strcmp(action, "stop")==0 || strcmp(action, "pause")==0 || strcmp(action, "report")==0 ||
-            strcmp(action, "off")==0) {
+    if(parallel) {
         json_object_set_new(priv->run, "parallel", json_true());
         return run_send_all_steps(gobj);
     }
@@ -3555,12 +3586,18 @@ PRIVATE json_t *sort_runs_newest_first(json_t *runs) // owned, returned
  *  session was accepted for (by its key in mt_authenticate(), against the
  *  node's record in check_node_key()). Two sessions of one uuid (a link
  *  that came back before the old one closed, or a copy of a node:
- *  report_twin_agents()) give the first. NULL `uuid`: the first agent in
- *  session (command-agent and stats-agent with no agent_id).
+ *  report_twin_agents()) give the one that logged in by the node's key
+ *  (`agent:<uuid>`), else the first: without enforce_node_keys a session
+ *  of a token is let in with the uuid of an accepted node, and it must not
+ *  take what goes to the node. NULL `uuid`: the first agent in session
+ *  (command-agent and stats-agent with no agent_id).
  ***************************************************************************/
 PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char by_key[NAME_MAX];
+    snprintf(by_key, sizeof(by_key), "agent:%s", uuid? uuid : "");
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
         "__gclass_name__", C_IEVENT_SRV,
@@ -3575,10 +3612,20 @@ PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid)
         if(agent_is_refused(child)) {
             continue;
         }
-        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        if(!uuid || strcmp(kw_get_str(gobj, jn_attrs, "id", "", 0), uuid)==0) {
+        if(!uuid) {
             found = child;
             break;
+        }
+        if(strcmp(card_str(gobj_read_json_attr(child, "identity_card"), "id"), uuid)!=0) {
+            continue;
+        }
+        const char *username = gobj_read_str_attr(child, "__username__");
+        if(strcmp(username? username : "", by_key)==0) {
+            found = child;
+            break;
+        }
+        if(!found) {
+            found = child;
         }
     }
     gobj_free_iter(dl_children);
@@ -3587,15 +3634,24 @@ PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid)
 
 /***************************************************************************
  *  The channel of the connected agent named `agent_id`: a node uuid, or a
- *  hostname. A hostname is only what an agent writes in its card, so it
- *  names a node through the `nodes` records that are not refused (an
- *  accepted node's hostname is written only by a session that logged in by
- *  its key: record_node_key()), and only when ONE record has it. The uuid
- *  of an accepted node always names it. Any other name that two nodes
- *  give, or that is the uuid of a session and the hostname of another
- *  node, is no name (NULL, `ambiguous` TRUE): an agent cannot take the
- *  commands, or the keyboard, of another by giving its name as its
- *  hostname or as its uuid -- even while the other is away.
+ *  hostname. The uuid of an accepted node always names it. A hostname is
+ *  only what an agent writes in its card, so it names:
+ *    - an ACCEPTED node by its record, even while the node is away: that
+ *      hostname is written only by a session that logged in by the node's
+ *      key (record_node_key());
+ *    - any other node (pending, or with no record) by the card of an agent
+ *      of it in session, and only then: its record is written by any
+ *      session of its uuid, a token's included, so the record names
+ *      nobody (a session of a token could rename it, and leave a name to
+ *      itself), and a session that went away leaves no name behind.
+ *  A refused node names nothing. A name that two nodes give, or that is
+ *  the uuid of a session and the hostname of another node, is no name
+ *  (NULL, `ambiguous` TRUE): an agent cannot take the commands, or the
+ *  keyboard, of another by giving its name as its hostname or as its uuid.
+ *  The uuid of a PENDING node that is away is no name of anybody: an
+ *  accepted node that gives it as its hostname gets it (protecting it
+ *  would let any session of a token block the hostname of an accepted
+ *  node for ever, with one record whose uuid is that hostname).
  ***************************************************************************/
 PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguous)
 {
@@ -3611,49 +3667,65 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguo
     if(!priv->gobj_treedb_controlcenter) {
         return by_uuid;
     }
-    json_t *node = gobj_get_node(
-        priv->gobj_treedb_controlcenter,
-        "nodes",
-        json_pack("{s:s}", "id", agent_id),
-        0,
-        gobj
-    );
-    BOOL accepted_uuid = node && strcmp(kw_get_str(gobj, node, "state", "", 0), "accepted")==0;
-    JSON_DECREF(node)
-    if(accepted_uuid) {
+    char state[NAME_MAX];
+    node_state(gobj, agent_id, state, sizeof(state));
+    if(strcmp(state, "accepted")==0) {
         return by_uuid;     // the uuid of an accepted node is nobody's hostname
     }
 
     json_t *named = gobj_list_nodes(
         priv->gobj_treedb_controlcenter,
         "nodes",
-        json_pack("{s:s}", "hostname", agent_id),
+        json_pack("{s:s, s:s}", "hostname", agent_id, "state", "accepted"),
         0,
         gobj
     );
-    hgobj found = by_uuid;
-    size_t n = 0;
-    const char *named_id = NULL;
-    size_t idx; json_t *jn_node;
-    json_array_foreach(named, idx, jn_node) {
-        const char *id_ = kw_get_str(gobj, jn_node, "id", "", 0);
-        if(strcmp(kw_get_str(gobj, jn_node, "state", "", 0), "refused")==0 ||
-                strcmp(id_, agent_id)==0) {
-            continue;   // no name of anybody; a node named by its own uuid
+    size_t n = json_array_size(named);
+    hgobj found = (n == 1)?
+        agent_channel_of_uuid(gobj, kw_get_str(gobj, json_array_get(named, 0), "id", "", 0)) : 0;
+    JSON_DECREF(named)
+
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", C_IEVENT_SRV,
+        "__state__", ST_SESSION
+    );
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    const char *live_id = NULL;
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(n > 1) {
+            break;
         }
-        named_id = id_;
+        if(agent_is_refused(child)) {
+            continue;
+        }
+        json_t *card = gobj_read_json_attr(child, "identity_card");
+        const char *id_ = card_str(card, "id");
+        if(strcmp(card_host(card), agent_id)!=0 || empty_string(id_) || strcmp(id_, agent_id)==0) {
+            continue;   // not this name; no node; a node named by its own uuid (by_uuid)
+        }
+        if(live_id && strcmp(id_, live_id)==0) {
+            continue;   // another session of the same node
+        }
+        node_state(gobj, id_, state, sizeof(state));
+        if(strcmp(state, "accepted")==0 || strcmp(state, "refused")==0) {
+            continue;   // named by its record (above), or by nothing
+        }
+        live_id = id_;
+        found = child;
         n++;
     }
+    gobj_free_iter(dl_children);
+
     if(n > 1 || (n == 1 && by_uuid)) {
-        found = 0;
         if(ambiguous) {
             *ambiguous = TRUE;
         }
-    } else if(n == 1) {
-        found = agent_channel_of_uuid(gobj, named_id);
+        return 0;
     }
-    JSON_DECREF(named)
-    return found;
+    return (n == 1)? found : by_uuid;
 }
 
 /***************************************************************************
@@ -3716,8 +3788,7 @@ PRIVATE void drop_sessions_not_accepted(
         if(agent_is_refused(child)) {
             continue;
         }
-        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        if(strcmp(kw_get_str(gobj, jn_attrs, "id", "", 0), node_id)!=0) {
+        if(strcmp(card_str(gobj_read_json_attr(child, "identity_card"), "id"), node_id)!=0) {
             continue;
         }
         json_t *peer_cert = gobj_read_json_attr(child, "peer_cert");
@@ -3754,6 +3825,67 @@ PRIVATE BOOL agent_is_refused(hgobj agent_srv)
     hgobj channel = gobj_parent(agent_srv);
     json_t *jn_refused = channel? gobj_read_user_data(channel, "node_refused") : NULL;
     return json_is_true(jn_refused)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  What an agent's identity card says (a peer's, so read by its type: no
+ *  log, and "" when it is absent or not a string): `key` of the card, and
+ *  the `host` of its first hop (C_IEVENT_CLI writes the hostname there).
+ ***************************************************************************/
+PRIVATE const char *card_str(json_t *card, const char *key)
+{
+    json_t *jn = json_object_get(card, key);
+    return json_is_string(jn)? json_string_value(jn) : "";
+}
+
+PRIVATE json_t *card_host_json(json_t *card)
+{
+    return json_object_get(
+        json_array_get(
+            json_object_get(json_object_get(card, "__md_iev__"), "ievent_gate_stack"),
+            0
+        ),
+        "host"
+    );
+}
+
+PRIVATE const char *card_host(json_t *card)
+{
+    json_t *jn = card_host_json(card);
+    return json_is_string(jn)? json_string_value(jn) : "";
+}
+
+/***************************************************************************
+ *  The state of the `nodes` record of `node_id`: pending, accepted or
+ *  refused; "" when it has none.
+ ***************************************************************************/
+PRIVATE void node_state(hgobj gobj, const char *node_id, char *state, size_t statesz)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *node = priv->gobj_treedb_controlcenter?
+        gobj_get_node(
+            priv->gobj_treedb_controlcenter,
+            "nodes",
+            json_pack("{s:s}", "id", node_id),
+            0,
+            gobj
+        ) : NULL;
+    snprintf(state, statesz, "%s", node? kw_get_str(gobj, node, "state", "", 0) : "");
+    JSON_DECREF(node)
+}
+
+/***************************************************************************
+ *  Two peernames (address:port, [address]:port) of one address: the port
+ *  of an agent changes at every connection.
+ ***************************************************************************/
+PRIVATE BOOL same_address(const char *a, const char *b)
+{
+    const char *colon_a = strrchr(a, ':');
+    const char *colon_b = strrchr(b, ':');
+    size_t len_a = colon_a? (size_t)(colon_a - a) : strlen(a);
+    size_t len_b = colon_b? (size_t)(colon_b - b) : strlen(b);
+    return len_a == len_b && strncmp(a, b, len_a)==0;
 }
 
 /***************************************************************************
@@ -3857,14 +3989,17 @@ PRIVATE const char *note_knocking_node(
  *  with a key: a node to accept), its hostname, address and last_seen each
  *  time, and the key presented when it is not the accepted one. Returns why
  *  such an agent would be refused (NULL: it may be let in), and in
- *  `warning` what is said even when nothing is refused. An open that
- *  changes nothing (its hostname, address and key presented) is not
- *  written, unless its last_seen is LAST_SEEN_STEP old: a link that comes
- *  and goes does not append a record at every open. The hostname and the
- *  address of an ACCEPTED node are written only by a session that logged
- *  in by its key (`by_key`): they name the node (find_agent_channel()),
- *  and a session of a token, or one refused, could rename it and take
- *  its name.
+ *  `warning` what is said even when nothing is refused. An open REFUSED
+ *  (a refusal with `enforce`) writes nothing, as an agent with a key and
+ *  no token (mt_authenticate()): a node never seen that presents a key is
+ *  kept knocking, in memory (note_knocking_node()). An open that changes
+ *  nothing (its hostname, address -- the port aside: it changes at every
+ *  connection -- and key presented) is not written, unless its last_seen
+ *  is LAST_SEEN_STEP old: a link that comes and goes does not append a
+ *  record at every open. The hostname and the address of an ACCEPTED node
+ *  are written only by a session that logged in by its key (`by_key`):
+ *  they name the node (find_agent_channel()), and a session of a token
+ *  could rename it and take its name.
  ***************************************************************************/
 PRIVATE const char *record_node_key(
     hgobj gobj,
@@ -3874,6 +4009,7 @@ PRIVATE const char *record_node_key(
     const char *spki,
     BOOL without_key_ok,
     BOOL by_key,    // the session logged in by the accepted key of node_id
+    BOOL enforce,   // a refusal refuses the agent (enforce_node_keys)
     const char **warning
 )
 {
@@ -3914,6 +4050,16 @@ PRIVATE const char *record_node_key(
         "last_seen", now
     );
     if(!node) {
+        if(!without_key_ok) {
+            refusal = "The node is not accepted (pending)";
+        }
+        if(refusal && enforce) {
+            if(!empty_string(spki)) {
+                note_knocking_node(gobj, node_id, hostname, peername, spki);
+            }
+            JSON_DECREF(update)
+            return refusal;
+        }
         json_object_set_new(update, "state", json_string("pending"));
         json_object_set_new(update, "first_seen", json_integer(now));
         json_object_set_new(update, "presented_spki", json_string(spki));
@@ -3927,9 +4073,6 @@ PRIVATE const char *record_node_key(
                 "spki_sha256",  "%s", spki,
                 NULL
             );
-        }
-        if(!without_key_ok) {
-            refusal = "The node is not accepted (pending)";
         }
     } else {
         const char *state = kw_get_str(gobj, node, "state", "", 0);
@@ -3955,14 +4098,15 @@ PRIVATE const char *record_node_key(
         }
         json_t *jn_name = json_object_get(update, "hostname");
         json_t *jn_address = json_object_get(update, "peername");
-        unchanged =
+        unchanged = (refusal && enforce) || (
             (!jn_name ||
                 strcmp(kw_get_str(gobj, node, "hostname", "", 0), json_string_value(jn_name))==0) &&
             (!jn_address ||
-                strcmp(kw_get_str(gobj, node, "peername", "", 0), json_string_value(jn_address))==0) &&
+                same_address(kw_get_str(gobj, node, "peername", "", 0), json_string_value(jn_address))) &&
             strcmp(kw_get_str(gobj, node, "presented_spki", "", 0),
                 kw_get_str(gobj, update, "presented_spki", "", 0))==0 &&
-            now - kw_get_int(gobj, node, "last_seen", 0, KW_WILD_NUMBER) < LAST_SEEN_STEP;
+            now - kw_get_int(gobj, node, "last_seen", 0, KW_WILD_NUMBER) < LAST_SEEN_STEP
+        );
         JSON_DECREF(node)
     }
     if(unchanged) {
@@ -3985,14 +4129,20 @@ PRIVATE const char *record_node_key(
  *  EV_ON_OPEN of __input_side__, not owned) let it in? Its record is
  *  written (record_node_key()). With `enforce_node_keys` a node that is not
  *  accepted, or presents another key, is refused: its channel is marked
- *  and dropped, and FALSE is returned. See NODE KEYS in the header.
+ *  and dropped, and FALSE is returned. A card whose `id` or `host` is not a
+ *  string, or is longer than a node uuid or a host name, is refused so
+ *  too, enforce_node_keys or not (a WARNING): a session of a token is let
+ *  in with the card its peer wrote, and what names the nodes reads it. See
+ *  NODE KEYS in the header.
  ***************************************************************************/
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
 {
-    json_t *identity_card = kw_get_dict(gobj, kw_open, "identity_card", 0, 0);
+    json_t *identity_card = json_object_get(kw_open, "identity_card");
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw_open, "__temp__`channel_gobj", 0, 0);
-    const char *node_id = kw_get_str(gobj, identity_card, "id", "", 0);
-    const char *hostname = kw_get_str(gobj, identity_card, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+    json_t *jn_id = json_object_get(identity_card, "id");
+    json_t *jn_host = card_host_json(identity_card);
+    const char *node_id = card_str(identity_card, "id");
+    const char *hostname = card_host(identity_card);
     json_t *peer_cert = kw_get_dict(gobj, kw_open, "peer_cert", 0, 0);
     const char *spki = peer_cert? kw_get_str(gobj, peer_cert, "spki_sha256", "", 0) : "";
     const char *peername = (channel_gobj && gobj_has_bottom_attr(channel_gobj, "peername"))?
@@ -4008,9 +4158,38 @@ PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
         gobj_write_user_data(channel_gobj, "node_refused", json_false());
     }
 
+    const char *bad_card = NULL;
+    if(identity_card && !json_is_object(identity_card)) {
+        bad_card = "it is not a dict";
+    } else if(jn_id && !json_is_string(jn_id)) {
+        bad_card = "its id is not a string";
+    } else if(jn_id && json_string_length(jn_id) > NODE_ID_MAX) {
+        bad_card = "its id is longer than a node uuid";
+    } else if(jn_host && !json_is_string(jn_host)) {
+        bad_card = "its host is not a string";
+    } else if(jn_host && json_string_length(jn_host) > HOST_NAME_MAX) {
+        bad_card = "its host is longer than a host name";
+    }
+    if(bad_card) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Agent refused: its identity card is not valid",
+            "refusal",      "%s", bad_card,
+            "peername",     "%s", peername? peername : "",
+            "spki_sha256",  "%s", spki,
+            NULL
+        );
+        if(channel_gobj) {
+            gobj_write_user_data(channel_gobj, "node_refused", json_true());
+            gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
+        }
+        return FALSE;
+    }
+
     const char *warning = NULL;
     const char *refusal = record_node_key(
-        gobj, node_id, hostname, peername, spki, without_key_ok, by_key, &warning
+        gobj, node_id, hostname, peername, spki, without_key_ok, by_key, enforce, &warning
     );
 
     if(refusal && enforce) {
@@ -4064,8 +4243,8 @@ PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *id = kw_get_str(gobj, identity_card, "id", "", 0);
-    const char *host = kw_get_str(gobj, identity_card, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+    const char *id = card_str(identity_card, "id");
+    const char *host = card_host(identity_card);
     if(empty_string(id)) {
         return;
     }
@@ -4085,8 +4264,8 @@ PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
             continue;
         }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
-        const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+        const char *id_ = card_str(jn_attrs, "id");
+        const char *host_ = card_host(jn_attrs);
         if(!twin_uuid && strcmp(id_, id)==0 && strcmp(host_, host)!=0) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4130,9 +4309,15 @@ PRIVATE int run_send_step(hgobj gobj)
     const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
     const char *line = kw_get_str(gobj, step, "line", "", KW_REQUIRED);
 
-    hgobj channel = find_agent_channel(gobj, node, NULL);
+    BOOL ambiguous = FALSE;
+    hgobj channel = find_agent_channel(gobj, node, &ambiguous);
     if(!channel) {
         json_object_set_new(step, "result", json_integer(-1));
+        if(ambiguous) {
+            json_object_set_new(step, "comment",
+                json_sprintf("node '%s' is the hostname of more than one node: give its node uuid", node));
+            return run_end(gobj, -1, "a node of the run is the hostname of more than one node");
+        }
         json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
         return run_end(gobj, -1, "a node of the run is not connected");
     }
@@ -4175,10 +4360,13 @@ PRIVATE int run_send_all_steps(hgobj gobj)
     size_t idx; json_t *step;
     json_array_foreach(steps, idx, step) {
         const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
-        hgobj channel = find_agent_channel(gobj, node, NULL);
+        BOOL ambiguous = FALSE;
+        hgobj channel = find_agent_channel(gobj, node, &ambiguous);
         if(!channel) {
             json_object_set_new(step, "result", json_integer(-1));
-            json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
+            json_object_set_new(step, "comment", ambiguous?
+                json_sprintf("node '%s' is the hostname of more than one node: give its node uuid", node) :
+                json_sprintf("node '%s' is not connected", node));
             continue;
         }
         char key[32];
@@ -4623,7 +4811,7 @@ PRIVATE int add_operator_assertion(
     if(!kw_get_bool(gobj, jn_agent_card, "knows_operator_assertion", FALSE, 0)) {
         return 0;
     }
-    const char *node = kw_get_str(gobj, jn_agent_card, "id", "", 0);
+    const char *node = card_str(jn_agent_card, "id");
     if(empty_string(node) || empty_string(username)) {
         return 0;
     }
@@ -5657,13 +5845,17 @@ PRIVATE void retry_stops_waiting_node(hgobj gobj)
 }
 
 /***************************************************************************
- *  Is the agent of a node of these steps connected?
+ *  Is the agent of a node of these steps connected? A name that more than
+ *  one node gives counts as connected: its agents are, and a stop that
+ *  waited for one of them to connect would wait for ever. Such a stop is
+ *  tried again in a minute (run_end()), its step failing with the name.
  ***************************************************************************/
 PRIVATE BOOL steps_reach_a_node(hgobj gobj, json_t *steps)
 {
     size_t idx; json_t *step;
     json_array_foreach(steps, idx, step) {
-        if(find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", 0), NULL)) {
+        BOOL ambiguous = FALSE;
+        if(find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", 0), &ambiguous) || ambiguous) {
             return TRUE;
         }
     }
@@ -5746,7 +5938,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_DECREF(kw);
             return 0;   // refused, its channel dropped: it is no agent of this yuno
         }
-        report_twin_agents(gobj, kw_get_dict(gobj, kw, "identity_card", 0, 0));
+        report_twin_agents(gobj, json_object_get(kw, "identity_card"));
         retry_stops_waiting_node(gobj);
     }
 

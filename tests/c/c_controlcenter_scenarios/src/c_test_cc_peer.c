@@ -46,6 +46,7 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description--*/
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             "1",        "The client of this channel is connected"),
+SDATA (DTP_STRING,      "peername",         0,                  "",         "The address:port of the peer of an agent's channel (C_TCP's attribute)"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()

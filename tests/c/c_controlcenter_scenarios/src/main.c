@@ -283,11 +283,11 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 22: accept-node
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)", // 22: KEY_B, recording
     "Agent refused: its node key is not the one accepted",                          // 22: KEY_B, enforcing
-    "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-stranger
+    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-stranger, refused: not written
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-stranger, pending
     "Node key decided",                                                             // 22: refuse-node
     "A session of the node dropped: its key is not accepted now",                   // 22: refuse-node drops it
-    "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-auth
+    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-auth, refused: not written
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-auth, pending
     "Node key decided",                                                             // 22: accept uuid-auth
     "Agent not authenticated: its node key is not the one accepted",                // 22: uuid-auth, KEY_B
@@ -329,6 +329,17 @@ PRIVATE const char *expected_msgs[] = {
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 30: a token gives host-c
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 31: A by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 31: B, A's name
+    "Agent refused: its node key is not the one accepted|||The node is not accepted (pending)|WARNING", // 32: a token with a key claims P
+    "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING", // 32: a token with no key claims P
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 32: another uuid gives P's name
+    "write-tty: the agent_id names more than one node, nothing written",           // 32
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 33: B13
+    "Node key decided",                                                             // 33: accept B13
+    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 33: a token with a key, refused: not written
+    "Agent refused: its node key is not the one accepted|||The node is not accepted (pending)|WARNING", // 33
+    "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 34: a token claims A
+    "Agent refused: its identity card is not valid|||its id is not a string|WARNING",       // 34
+    "Agent refused: its identity card is not valid|||its host is not a string|WARNING",     // 34
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING",   // 0: the copy, not the same host
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",
@@ -341,8 +352,12 @@ PRIVATE const char *expected_msgs[] = {
     "answer of an agent for no requester of this control center, dropped",
     "answer of an agent for no requester of this control center, dropped",  // a link that did not ask
     "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 35: host-amb
     "stopping a scenario: its max_run is reached",          // 16
     "a step of a scenario run was not answered",            // 17: one step, said once
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 36: host-mra
+    "stopping a scenario: its max_run is reached",          // 36: mra, its name two nodes'
+    "the stop of a scenario's max_run did nothing, tried again in a minute",    // 36
     "stopping a scenario: its max_run is reached",          // 19: mrx, its node away
     "the stop of a scenario's max_run did nothing, tried again when a node of it connects",
     "stopping a scenario: its max_run is reached",          // 19: its node connected

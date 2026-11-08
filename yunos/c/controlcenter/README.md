@@ -77,15 +77,25 @@ Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".
 
 `command-agent`, `stats-agent`, `write-tty` and the scenarios name a node by
 its uuid or by its hostname. The uuid is the identity that the session of the
-agent was accepted for. The hostname is only what the agent writes in its
-card, so it names a node through the records of `nodes` that are not
-refused, and only when one record has it. An accepted node's record takes its
-hostname only from a session that logged in by the node's key. The uuid of an
+agent was accepted for (two sessions of an accepted uuid: the one that logged
+in by the key). The hostname is only what the agent writes in its card, so it
+names an accepted node through its record (that hostname is written only by a
+session that logged in by the node's key), and any other node only through
+the card of its agent in session: the record of a node without a key is
+written by any session of its uuid, so it names nobody. An open that is
+refused writes nothing. The uuid of an
 accepted node always names it; any other name that two nodes give, or that is
 the uuid of a session and the hostname of another node, is refused (*"is the
 hostname of more than one node: give its node uuid"*). `drop-agent` names a
 node the same way. `write-tty` goes to one agent only, and is refused without
-`agent_id`.
+`agent_id`. A scenario run in order does not start on such a name; a stop
+does what it reaches and names the rest, and the stop of a `max_run` is tried
+again in a minute instead of waiting for a node.
+
+```text
+command-agent agent_id=board-b cmd2agent=list-yunos
+# -> -1 "...: 'board-b' is the hostname of more than one node: give its node uuid"
+```
 
 ## Who asks: operator assertions (7.30.9+)
 

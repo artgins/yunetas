@@ -271,8 +271,10 @@ still reported and fails the test.
 26. A refused node whose agent presents its key: the WARNING's `refusal` says
     *"The node is refused"*. Up to 7.30.14 it said *"another key"*.
 27. An open with nothing changed (hostname, address, key) writes nothing in
-    `nodes` (its `g_rowid` stays); a new hostname is written. Up to 7.30.14
-    every open wrote the record.
+    `nodes` (its `g_rowid` stays), though its link comes from a new port: the
+    port is no change. A new hostname is written, and so is a new address.
+    Up to 7.30.14 every open wrote the record; in 7.30.15 every open from a
+    new port did.
 28. A decision drops the sessions of the node that it no longer lets in (an
     INFO each). `enforce_node_keys` off: `accept-node` with the key a session
     logged in by (`agent:<uuid>`) keeps it; with a new key it drops it, and
@@ -307,8 +309,52 @@ still reported and fails the test.
     `drop-agent` by that name drops B's session and not A's. Up to 7.30.14 it
     dropped every session whose uuid or card host matched.
 
+32. The hostname of a node without a key is not taken through its record.
+    `enforce_node_keys` on, `allow_nodes_without_key` (production): node P
+    is in session with no key, its card `host-np`.
+    - A token with a key that claims P's uuid is refused, and P's record
+      keeps `host-np`.
+    - A token with no key that claims P's uuid (let in), and another uuid
+      that gives `host-np`: `command-agent` and `write-tty` by `host-np`
+      reach nobody.
+    - Both gone, `host-np` reaches P.
+
+    In 7.30.15 either open renamed P's record, and the other uuid got P's
+    commands and console keys; gone, P was not reached by its name.
+33. An open leaves no name behind. Node B is accepted, its hostname
+    `host-p13`, `enforce_node_keys` on. A token with a key and a new uuid
+    that gives `host-p13` (`allow_nodes_without_key` off) is refused and kept
+    `knocking`, not written; a token with no key and a new uuid that gives
+    it (`allow_nodes_without_key` on) is let in, and goes. Then `host-p13`
+    reaches B. In 7.30.15 each left a record with the name, and B's name was
+    two nodes' until a `refuse-node` of the other uuid.
+34. `enforce_node_keys` off: a session of a token that claims an accepted
+    node's uuid, first, does not get what goes to the node: the session that
+    logged in by the key gets it. And a session of a token whose card has an
+    `id` or a `host` that is not a string is refused (a WARNING each);
+    `command-agent`, `list-agents` and another agent's open after it log
+    nothing. In 7.30.15 the first session got it, and the bad card was let
+    in, with an ERROR from each of those.
+35. A scenario ("amb") with a yuno on a name that two nodes without a key
+    give: its start is refused, saying so (*"is the hostname of more than
+    one node"*), and no step is sent; its stop stops the yuno on the agent
+    and names the other step. In 7.30.15 the start ran its first step, and
+    both said *"not connected"*.
+36. The stop of a `max_run` on such a name. The scenario "mra" (`max_run`
+    1 s) starts on the one node that gives `host-mra`; a second node gives
+    it then. Past the stop, the stop ran once, its step naming the name of
+    more than one node, and it is tried again in a minute (*"... tried again
+    in a minute"*, no `stop_waits_node`). The second node goes, and a stop by
+    the user stops it. In 7.30.15 it waited for a node to connect, for ever.
+    It runs in phases 2-3, between case 17 and case 19.
+
 Case 22 also checks that `accept-node` of a node that knocked under another
-key does not take the hostname it knocked with.
+key does not take the hostname it knocked with. Its refused opens of nodes
+never seen are kept knocking, not written (7.30.15 wrote them `pending`).
+
+The channel of a session has a `peername` (an attribute of `C_TEST_CC_PEER`,
+as `C_TCP`'s), with a new port at every session, as a link that connects
+again.
 
 Sessions are opened as a token's (no `__username__`) or as a login by the key
 (`agent:<uuid>` in the session and in its `EV_ON_OPEN`, as `C_IEVENT_SRV`

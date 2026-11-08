@@ -98,18 +98,26 @@ uuid. Each record holds:
 - `presented_spki`: the last key presented that is not the accepted key;
 - `hostname` and `peername`: the node's host name and address, as its agent
   gave them. For an `accepted` node only a session that logged in by its key
-  writes them: the hostname names the node, so a session of a token, or one
-  that is refused, cannot rename it;
+  writes them: the hostname names the node, so a session of a token cannot
+  rename it;
 - `first_seen`, `last_seen`, `decided_by` and `decided_at`. An agent that
   opens a session again with the same hostname, address and key writes
   nothing, unless `last_seen` is an hour old: a link that comes and goes does
-  not add a record each time.
+  not add a record each time. The port of the address is no change: it is
+  new at every connection (in 7.30.15 every open from a new port wrote the
+  record).
+
+An open that the control center REFUSES writes nothing in `nodes` (7.30.16+).
+A node never seen that presents a key is kept in memory instead, as a node
+that knocks (`list-nodes` shows it `knocking`, see below). In 7.30.15 a
+refused open created or renamed the record of a node that is not accepted,
+so whoever held the token could take the hostname of a node without a key.
 
 When an agent opens its session, the control center checks it as follows:
 
 | The agent presents | The node is | Result |
 |--------------------|-------------|--------|
-| a key | never seen | recorded `pending`, INFO *"A node to accept"*; refused if `enforce_node_keys` |
+| a key | never seen | recorded `pending`, INFO *"A node to accept"*; with `enforce_node_keys` refused, and not recorded: kept `knocking`, INFO *"A node knocking"* |
 | its accepted key | `accepted` | let in |
 | another key, or none | `accepted` | WARNING; refused if `enforce_node_keys` |
 | anything | `refused` | refused if `enforce_node_keys` |
@@ -118,6 +126,15 @@ When an agent opens its session, the control center checks it as follows:
 When the control center refuses an agent, it logs a WARNING (*"Agent refused:
 its node key is not the one accepted"*) and drops the agent's channel. The
 agent reconnects on its own schedule.
+
+The identity card of every session is checked when it opens, also of a
+session of a token and with `enforce_node_keys` off. When its `id` or its
+`host` is not a string, or is longer than a node uuid (63) or a host name
+(64), the control center refuses the session with a WARNING (*"Agent refused:
+its identity card is not valid"*, the reason in `refusal`) and drops it. For
+example, a card `{"id": 7, ...}` gives `refusal: its id is not a string`. In
+7.30.15 such a session was let in, and every command that looked for an agent
+after it logged an ERROR with a stack.
 
 | Attribute | Default | Meaning |
 |-----------|---------|---------|
@@ -354,11 +371,21 @@ its uuid or by its hostname, in that order:
   its key at the login, and against the node's record in `nodes` when the
   session opens.
 - **The hostname** is only what the agent writes in its identity card. So it
-  names a node through the records of `nodes` that are not `refused`, and only
-  when ONE record has it. An accepted node's record takes its hostname only
-  from a session that logged in by the node's key.
+  names:
+  - an **accepted** node through its record in `nodes`, also while the node is
+    away. That record takes its hostname only from a session that logged in
+    by the node's key;
+  - any **other** node (pending, the agents before 7.30.10 with their token)
+    through the card of an agent of it in session, and only while it is in
+    session. Its record is written by any session of its uuid, a token's
+    included, so the record names nobody.
 
-The uuid of an accepted node always names that node. Any other name is
+  A `refused` node names nothing.
+
+The uuid of an accepted node always names that node. When two sessions give
+the uuid of an accepted node (with `enforce_node_keys` off, a session of a
+token is let in with it), the session that logged in by the node's key gets
+what goes to the node. Any other name is
 refused when two nodes give it as their hostname, or when it is the uuid of a
 session and the hostname of another node: a session of a token whose card says
 `id: board-b` does not take the commands of the node named `board-b`.
@@ -374,9 +401,33 @@ command-agent agent_id=3c4d5e6f-7a8b-4c0d-9e2f-3a4b5c6d7e8f cmd2agent=list-yunos
 # -> 0 "Command sent to 1 nodes"
 ```
 
-The name stays refused while both records keep it, also while one of the two
-nodes is away, until the node that took the other's name opens its session
-with its own. When `accept-node` creates the record of a node that knocked,
+A name that two accepted nodes give stays refused while both records keep it,
+also while one of the two nodes is away, until the node that took the other's
+name opens its session with its own. A name that a node without a key gives
+is refused only while that session is open: when it goes, the name is the
+other node's again. For example, the node `node-p` (no key) is in session,
+and a session of a token with another uuid gives `node-p`:
+
+```
+command-agent agent_id=node-p cmd2agent=list-yunos
+# -> -1 "controlcenter^cc: 'node-p' is the hostname of more than one node: give its node uuid"
+# ... the other session goes:
+command-agent agent_id=node-p cmd2agent=list-yunos
+# -> 0 "Command sent to 1 nodes"
+```
+
+In 7.30.15 the records of the nodes without a key named them too: a session
+of a token that gave the uuid of `node-p` with another hostname renamed its
+record, and a session with a new uuid that gave `node-p` got its commands and
+its console keys. A session that went away left its record, and the name was
+two nodes' for ever, until a `refuse-node` of the other uuid.
+
+The uuid of a PENDING node that is away names no node: an accepted node that
+gives that uuid as its hostname gets what is sent to it. Protecting it would
+let any session of a token block the hostname of an accepted node for ever,
+with one record whose uuid is that hostname.
+
+When `accept-node` creates the record of a node that knocked,
 it takes the hostname the node knocked with only if it knocked with the key
 accepted. `write-tty` goes to ONE agent, and is refused without
 `agent_id` (a WARNING, *"write-tty without agent_id, nothing written"*). Up to
@@ -681,6 +732,22 @@ How the steps go depends on the action:
   got the stop (the max_run stop of a scenario whose first simulator was
   already stopped failed every minute, and stopped nothing).
 
+A node of a step that is a name more than one node gives (see
+[A node is reached by its uuid](#controlcenter-node-names)) is said as such
+(7.30.16+). A serial run (`start`, `resume`, `on`) does not start: it would do
+the steps before it and stop there. A run at once does every step it reaches,
+and fails the steps on that name:
+
+```
+run-scenario scenario_id=t1 action=start
+# -> -1 "controlcenter^cc: cannot run 'start' of 't1': node 'board-b' is the hostname of more than one node: give its node uuid"
+run-scenario scenario_id=t1 action=stop
+# -> -1 "... stop failed, 1 of 2 steps done: 1 of 2 steps failed; step 1 (command-yuno id=5678 command=pause-load): node 'board-b' is the hostname of more than one node: give its node uuid"
+```
+
+In 7.30.15 both said *"node 'board-b' is not connected"*, and a start did its
+steps up to that one.
+
 The run is written to `scenario_runs` -- action, user, start and
 end, the result and the answer of every step, and for a `report` what each
 step answered (`data`) -- and the requester is answered with it (the command
@@ -826,6 +893,12 @@ a warning, and tried again:
   max_run did nothing, tried again when a node of it connects"*), and runs
   again when the agent of one of its nodes connects, not on a clock. A save
   of the scenario or another run of it does not end the wait.
+- **A node of it is a name that more than one node gives** (see
+  [A node is reached by its uuid](#controlcenter-node-names)): its agents are
+  connected, so it is tried again in a minute, like a refused stop. Its step
+  says *"node 'board-b' is the hostname of more than one node: give its node
+  uuid"*. In 7.30.15 it waited for a node to connect, and nothing ended the
+  wait.
 
 Up to 7.29.1 every one was tried every minute, and every try wrote a run
 while the node was down; 7.29.2 made every one wait for an agent, so a stop

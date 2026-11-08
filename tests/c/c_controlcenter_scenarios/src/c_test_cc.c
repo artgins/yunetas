@@ -78,8 +78,17 @@
  *                is for one node; the card of an
  *                agent not authenticated is checked; a decision about a
  *                node drops its sessions it does not let in now; an open
- *                with nothing changed writes nothing; logout-user asks its
- *                permission and passes `disabled` only when given.
+ *                with nothing changed (its port aside) writes nothing;
+ *                logout-user asks its permission and passes `disabled`
+ *                only when given;
+ *              - a node without a key is named only by the card of its
+ *                agent in session, and a refused open writes nothing, so
+ *                no session of a token takes its name nor leaves a name
+ *                behind; the session that logged in by the key gets what
+ *                goes to its uuid; the card of a session of a token is
+ *                checked; a scenario on a name of more than one node does
+ *                not start, its stop does what it reaches, and its max_run
+ *                stop is tried again in a minute.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -187,6 +196,8 @@ typedef struct _PRIVATE_DATA {
     int permissions_changed;    // EV_PERMISSIONS_CHANGED published by the control center
     int runs_ended;             // EV_SCENARIO_RUN_ENDED published by the control center
     json_int_t max_run_started; // when the start of case 16 ended (its stop is due 1 s after)
+    hgobj mra_1;                // case 36: the two nodes that give the name of "mra"
+    hgobj mra_2;
 } PRIVATE_DATA;
 
 
@@ -1575,13 +1586,17 @@ PRIVATE hgobj open_agent_session(hgobj gobj, const char *name, const char *uuid,
 /***************************************************************************
  *  An agent session that presents a key (peer_cert.spki_sha256, as the
  *  C_IEVENT_SRV of a TLS link with a client certificate holds it and gives
- *  it in its EV_ON_OPEN), or none
+ *  it in its EV_ON_OPEN), or none, with the identity card `card` (owned).
+ *  Its channel has a peername, as C_TCP's: `peer_ip` and a new port at
+ *  every session, as a link that connects again.
  ***************************************************************************/
-PRIVATE hgobj open_session_as(
+PRIVATE const char *peer_ip = "10.0.0.1";
+PRIVATE unsigned peer_port = 40000;
+
+PRIVATE hgobj open_session_card(
     hgobj gobj,
     const char *name,
-    const char *uuid,
-    const char *host,
+    json_t *card,           // owned
     const char *spki,       // NULL: no certificate
     const char *username    // NULL: a session of a token (no __username__ said)
 )
@@ -1592,22 +1607,20 @@ PRIVATE hgobj open_session_as(
     snprintf(wire_name, sizeof(wire_name), "%s-wire", name);
     hgobj channel = create_peer(name, priv->input_side);
     hgobj wire = create_peer(wire_name, channel);
+    char peername[NAME_MAX];
+    snprintf(peername, sizeof(peername), "%s:%u", peer_ip, peer_port++);
+    gobj_write_str_attr(channel, "peername", peername);
 
-    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:{s:s, s:{s:[{s:s}]}}}",
+    json_t *kw_srv = json_pack("{s:s, s:s, s:s, s:O}",
         "client_yuno_role", "yuneta_agent",
-        "client_yuno_name", host,
+        "client_yuno_name", name,
         "client_yuno_service", "agent",
-        "identity_card",
-            "id", uuid,
-            "__md_iev__",
-                "ievent_gate_stack",
-                    "host", host
+        "identity_card", card
     );
-    json_t *identity_card = json_incref(json_object_get(kw_srv, "identity_card"));
     hgobj srv = gobj_create(name, C_IEVENT_SRV, kw_srv, channel);
     if(!srv) {
-        JSON_DECREF(identity_card)
-        fail(gobj, "open_keyed_session", "cannot create the C_IEVENT_SRV");
+        JSON_DECREF(card)
+        fail(gobj, "open_session_card", "cannot create the C_IEVENT_SRV");
         return 0;
     }
     if(spki) {
@@ -1625,7 +1638,7 @@ PRIVATE hgobj open_session_as(
 
     json_t *kw_open = json_pack("{s:{s:I}, s:o}",
         "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel,
-        "identity_card", identity_card
+        "identity_card", card
     );
     if(username) {
         json_object_set_new(kw_open, "__username__", json_string(username));
@@ -1638,6 +1651,25 @@ PRIVATE hgobj open_session_as(
     }
     gobj_send_event(priv->cc, EV_ON_OPEN, kw_open, priv->input_side);
     return channel;
+}
+
+/*  The same, with the card of an agent: its uuid, its hostname  */
+PRIVATE hgobj open_session_as(
+    hgobj gobj,
+    const char *name,
+    const char *uuid,
+    const char *host,
+    const char *spki,       // NULL: no certificate
+    const char *username    // NULL: a session of a token (no __username__ said)
+)
+{
+    json_t *card = json_pack("{s:s, s:{s:[{s:s}]}}",
+        "id", uuid,
+        "__md_iev__",
+            "ievent_gate_stack",
+                "host", host
+    );
+    return open_session_card(gobj, name, card, spki, username);
 }
 
 PRIVATE hgobj open_keyed_session(
@@ -1781,6 +1813,8 @@ PRIVATE json_t *authenticate_by_key(
 #define KEY_F   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 #define KEY_G   "0000000000000000000000000000000000000000000000000000000000000000"
 #define KEY_H   "1111111111111111111111111111111111111111111111111111111111111111"
+#define KEY_I   "2222222222222222222222222222222222222222222222222222222222222222"
+#define KEY_J   "3333333333333333333333333333333333333333333333333333333333333333"
 
 PRIVATE int test_node_keys(hgobj gobj, hgobj client)
 {
@@ -2277,8 +2311,10 @@ PRIVATE json_int_t node_rowid(hgobj gobj, const char *uuid)
 
 /***************************************************************************
  *  27. An agent that opens its session again with nothing changed (its
- *      hostname, address and key) writes nothing; a new hostname is
- *      written. Up to 7.30.14 every open wrote the record.
+ *      hostname, address and key) writes nothing: its link comes from a new
+ *      port each time, and the port is no change. A new hostname is
+ *      written, and so is a new address. Up to 7.30.14 every open wrote the
+ *      record; in 7.30.15 every open from a new port did (every one).
  ***************************************************************************/
 PRIVATE int test_record_written_on_change(hgobj gobj)
 {
@@ -2293,12 +2329,19 @@ PRIVATE int test_record_written_on_change(hgobj gobj)
     if(rowid < 0 || rowid2 != rowid) {
         char detail[80];
         snprintf(detail, sizeof(detail), "g_rowid %lld, then %lld", (long long)rowid, (long long)rowid2);
-        ret += fail(gobj, "an open with nothing changed writes the record of the node", detail);
+        ret += fail(gobj, "an open with nothing changed but its port writes the record of the node", detail);
     }
     ch = open_key_login(gobj, "na-6", "uuid-na", "host-a2", KEY_C);
     close_session(ch);
     if(node_rowid(gobj, "uuid-na") != rowid + 1) {
         ret += fail(gobj, "an open with a new hostname does not write it", "");
+    }
+    peer_ip = "10.0.0.2";
+    ch = open_key_login(gobj, "na-6b", "uuid-na", "host-a2", KEY_C);
+    close_session(ch);
+    peer_ip = "10.0.0.1";
+    if(node_rowid(gobj, "uuid-na") != rowid + 2) {
+        ret += fail(gobj, "an open from a new address does not write it", "");
     }
     return ret;
 }
@@ -2511,6 +2554,368 @@ PRIVATE int test_drop_agent_by_name(hgobj gobj, hgobj client)
     }
     close_session(a);
     close_session(b);
+    return ret;
+}
+
+/***************************************************************************
+ *  32. The hostname of a node without a key (a pending node: an agent of
+ *      before 7.30.10, logged in by the shared token) is not taken through
+ *      its record. enforce_node_keys on, allow_nodes_without_key (the
+ *      configuration of production). Node P is in session, no key, its
+ *      card `host-np`:
+ *      - a token with a key that claims P's uuid is refused, and writes
+ *        nothing: P's record keeps `host-np`;
+ *      - a token with no key that claims P's uuid (let in: a node of
+ *        before), and another uuid that gives `host-np`: the name is two
+ *        nodes', command-agent and write-tty by it reach nobody;
+ *      - both gone, `host-np` reaches P.
+ *      In 7.30.15 either open renamed P's record, and the other uuid,
+ *      the one record left with `host-np`, got P's commands and keys; gone,
+ *      P was not reached by its name until it opened again.
+ ***************************************************************************/
+PRIVATE int test_pending_name_not_taken(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", TRUE);
+    hgobj p = open_keyed_session(gobj, "np-1", "uuid-np", "host-np", NULL);
+    if(drops_of(p) != 0) {
+        ret += fail(gobj, "a node with no key is dropped while allow_nodes_without_key", "");
+    }
+
+    hgobj r = open_keyed_session(gobj, "nq-1", "uuid-np", "host-evil", KEY_J);
+    if(drops_of(r) != 1) {
+        ret += fail(gobj, "a token with a key claiming a pending node is not dropped", "");
+    }
+    close_session(r);
+    ret += check_node_field(gobj, client, "uuid-np", "hostname", "host-np",
+        "a refused open renames the record of a pending node");
+
+    hgobj t = open_keyed_session(gobj, "nq-2", "uuid-np", "host-evil", NULL);
+    hgobj x = open_keyed_session(gobj, "nq-3", "uuid-nq", "host-np", NULL);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-np"),
+        -1, "more than one node", "command-agent by the name of a pending node another uuid gives");
+    write_tty_to(gobj, client, "host-np");
+    int got_p = frames_to(p);
+    int got_x = frames_to(x);
+    if(got_x != 0 || got_p != 0 || frames_to(t) != 0) {
+        ret += fail(gobj, "the name of a pending node is taken by another uuid", "");
+    }
+    close_session(x);
+    close_session(t);
+
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-np"),
+        0, "sent to 1 nodes", "command-agent by the name of a pending node, the others gone");
+    if(frames_to(p) != 1) {
+        ret += fail(gobj, "a pending node is not reached by its name once the others are gone", "");
+    }
+    close_session(p);
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
+    return ret;
+}
+
+/***************************************************************************
+ *  33. An open does not leave a name behind. Node B is accepted with its
+ *      key, its hostname `host-p13`; enforce_node_keys on:
+ *      - allow_nodes_without_key off: a token with a key and a new uuid
+ *        that gives `host-p13` is refused, and kept knocking, not written;
+ *      - allow_nodes_without_key on: a token with no key and a new uuid
+ *        that gives `host-p13` is let in (a pending node), and goes;
+ *      then B logs in by its key: `host-p13` reaches B. In 7.30.15 each of
+ *      them left a record with `host-p13`, and B's name was more than one
+ *      node's for ever (until a refuse-node of the other uuid).
+ ***************************************************************************/
+PRIVATE int test_open_leaves_no_name(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj ch = open_keyed_session(gobj, "nb13-0", "uuid-nb13", "host-p13", KEY_I);
+    close_session(ch);
+    ret += accept_node_with(gobj, client, "uuid-nb13", KEY_I, 0, "accepted", "accept-node of B13");
+
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", TRUE);
+    gobj_write_bool_attr(priv->cc, "allow_nodes_without_key", FALSE);
+    hgobj r = open_keyed_session(gobj, "np13-1", "uuid-p13", "host-p13", KEY_J);
+    if(drops_of(r) != 1) {
+        ret += fail(gobj, "a node never seen is not dropped when enforcing", "");
+    }
+    close_session(r);
+    ret += check_node_field(gobj, client, "uuid-p13", "state", "knocking",
+        "a refused open of a node never seen is kept knocking, not written");
+
+    gobj_write_bool_attr(priv->cc, "allow_nodes_without_key", TRUE);
+    hgobj k = open_keyed_session(gobj, "np13-2", "uuid-p13k", "host-p13", NULL);
+    if(drops_of(k) != 0) {
+        ret += fail(gobj, "a node with no key is dropped while allow_nodes_without_key", "");
+    }
+    close_session(k);
+
+    hgobj b = open_key_login(gobj, "nb13-1", "uuid-nb13", "host-p13", KEY_I);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-p13"),
+        0, "sent to 1 nodes", "command-agent by B13's hostname, after opens that gave it");
+    if(frames_to(b) != 1) {
+        ret += fail(gobj, "an open that gave B13's hostname leaves it to nobody", "");
+    }
+    close_session(b);
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
+    return ret;
+}
+
+/***************************************************************************
+ *  34. enforce_node_keys off: a session of a token that claims the uuid of
+ *      an accepted node, its channel first, does not take what goes to the
+ *      node: the session logged in by the node's key gets it. In 7.30.15
+ *      the first session of the uuid got it.
+ *      And the card of a session of a token is checked: an `id` or a `host`
+ *      that is not a string is refused (a WARNING), and nothing that looks
+ *      for an agent after it (command-agent, list-agents, another agent's
+ *      open) logs. In 7.30.15 it was let in, and each of them gave an
+ *      ERROR with a stack.
+ ***************************************************************************/
+PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj t = open_keyed_session(gobj, "p1-t", "uuid-na", "host-a2", NULL);
+    hgobj a = open_key_login(gobj, "p1-a", "uuid-na", "host-a2", KEY_C);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "uuid-na"),
+        0, "sent to 1 nodes", "command-agent by an accepted node's uuid, a token claiming it too");
+    if(frames_differ(frames_to(t), frames_to(a), 0, 1)) {
+        ret += fail(gobj, "a token claiming an accepted node's uuid takes what goes to the node", "");
+    }
+    close_session(t);
+    close_session(a);
+
+    json_t *cards[] = {
+        json_pack("{s:i, s:{s:[{s:s}]}}",
+            "id", 7, "__md_iev__", "ievent_gate_stack", "host", "h7"),
+        json_pack("{s:s, s:{s:[{s:i}]}}",
+            "id", "uuid-p7", "__md_iev__", "ievent_gate_stack", "host", 7),
+        0
+    };
+    hgobj bad[2] = {0, 0};
+    for(int i=0; cards[i]; i++) {
+        char name[NAME_MAX];
+        snprintf(name, sizeof(name), "p7-%d", i);
+        bad[i] = open_session_card(gobj, name, cards[i], NULL, NULL);
+        if(drops_of(bad[i]) != 1) {
+            ret += fail(gobj, "a session of a token with a card not valid is let in", name);
+        }
+    }
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "uuid-p7"),
+        -1, "sent to 0 nodes", "command-agent to a session with a card not valid");
+    json_t *agents = gobj_command(priv->cc, "list-agents", client_kw(gobj_name(client)), client);
+    JSON_DECREF(agents)
+    hgobj other = open_keyed_session(gobj, "p7-other", "uuid-p7o", "h7", NULL);
+    close_session(other);
+    for(int i=0; i<2; i++) {
+        close_session(bad[i]);
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  35. A scenario over a name that more than one node gives. The scenario
+ *      "amb" has a yuno on AGENT_HOST and one on `host-amb`, which two
+ *      nodes without a key give:
+ *      - its start is refused, saying so ("more than one node"), and
+ *        nothing reaches any agent;
+ *      - its stop stops what it reaches (the agent of AGENT_HOST) and names
+ *        the rest: the run fails with "node 'host-amb' is the hostname of
+ *        more than one node", and neither node of `host-amb` gets a step.
+ *      In 7.30.15 the start ran its first step, and said "a node of the run
+ *      is not connected" at the second; the stop said "not connected".
+ ***************************************************************************/
+PRIVATE json_t *amb_scenario(void)
+{
+    return json_pack(
+        "{s:s, s:s, s:[{s:s}, {s:s, s:s}], s:{s:[{s:s, s:s}, {s:s, s:s}], s:[{s:s, s:s}, {s:s, s:s}]}}",
+        "id", "amb",
+        "node", AGENT_HOST,
+        "yunos", "id", "1234", "id", "5678", "node", "host-amb",
+        "actions",
+            "start", "yuno", "1234", "command", "resume-load", "yuno", "5678", "command", "resume-load",
+            "stop", "yuno", "1234", "command", "pause-load", "yuno", "5678", "command", "pause-load"
+    );
+}
+
+PRIVATE int test_scenario_ambiguous_name(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", amb_scenario());
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: amb", "a scenario with a yuno on a name two nodes give");
+
+    hgobj s1 = open_keyed_session(gobj, "amb-1", "uuid-amb1", "host-amb", NULL);
+    hgobj s2 = open_keyed_session(gobj, "amb-2", "uuid-amb2", "host-amb", NULL);
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("amb"));
+    json_object_set_new(kw, "action", json_string("start"));
+    ret += check_response(gobj, gobj_command(priv->cc, "run-scenario", kw, client),
+        -1, "'host-amb' is the hostname of more than one node", "the start of a scenario on a name two nodes give");
+    json_t *received = take_received(priv->agent_wire);
+    if(json_array_size(received) != 0) {
+        ret += fail(gobj, "a start refused for a name two nodes give sends a step", "");
+    }
+    JSON_DECREF(received)
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("amb"));
+    json_object_set_new(kw, "action", json_string("stop"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    json_t *step = agent_request(gobj, "the stop of amb reaches the agent of " AGENT_HOST);
+    if(step) {
+        agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "paused");
+        JSON_DECREF(step)
+    }
+    if(count_received(client, EV_MT_COMMAND_ANSWER,
+            "node 'host-amb' is the hostname of more than one node") != 1) {
+        ret += fail(gobj, "the stop of amb names the step of a name two nodes give", "");
+    }
+    if(frames_differ(frames_to(s1), frames_to(s2), 0, 0)) {
+        ret += fail(gobj, "a step on a name two nodes give reaches one of them", "");
+    }
+    close_session(s1);
+    close_session(s2);
+    return ret;
+}
+
+/***************************************************************************
+ *  36. The stop of a max_run whose name more than one node gives. The
+ *      scenario "mra" (max_run 1 s) starts and stops a yuno on `host-mra`.
+ *      A (phase 2): it starts on the one node that gives `host-mra`, and a
+ *      second node gives it then. B (phase 3, past the stop): the control
+ *      center ran the stop, which did nothing, its step naming the name of
+ *      more than one node; the stop is tried again in a minute (the warning
+ *      "... tried again in a minute", a `stop_at` a minute away), and does
+ *      not wait for a node to connect: they are connected, and waiting
+ *      would never end. The second node goes, and a stop by the user stops
+ *      it. In 7.30.15 the stop waited for a node to connect
+ *      (`stop_waits_node`), and nothing ever woke it up.
+ ***************************************************************************/
+PRIVATE json_t *mra_scenario(void)
+{
+    return json_pack(
+        "{s:s, s:s, s:I, s:[{s:s}], s:{s:[{s:s, s:s}], s:[{s:s, s:s}]}}",
+        "id", "mra",
+        "node", "host-mra",
+        "max_run", (json_int_t)1,
+        "yunos", "id", "1234",
+        "actions",
+            "start", "yuno", "1234", "command", "resume-load",
+            "stop", "yuno", "1234", "command", "pause-load"
+    );
+}
+
+/*  The node of `channel` answers the last request it got: `result`  */
+PRIVATE int session_answers(hgobj gobj, hgobj channel, int result, const char *comment, const char *what)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *received = take_received(wire_of(channel));
+    size_t n = json_array_size(received);
+    json_t *step = n? json_incref(json_object_get(json_array_get(received, n-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(!step) {
+        return fail(gobj, what, "the node got no request");
+    }
+    json_t *kw = msg_iev_build_response(gobj, result, json_string(comment), 0, 0, json_deep_copy(step));
+    kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)channel));
+    gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, kw, priv->input_side);
+    JSON_DECREF(step)
+    return 0;
+}
+
+PRIVATE int test_max_run_ambiguous_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", mra_scenario());
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: mra", "a scenario on a name that two nodes give later");
+
+    priv->mra_1 = open_keyed_session(gobj, "mra-1", "uuid-mra1", "host-mra", NULL);
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mra"));
+    json_object_set_new(kw, "action", json_string("start"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    ret += session_answers(gobj, priv->mra_1, 0, "generating", "the start of mra reaches its node");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+
+    priv->mra_2 = open_keyed_session(gobj, "mra-2", "uuid-mra2", "host-mra", NULL);
+    return ret;
+}
+
+PRIVATE int test_max_run_ambiguous_retried(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mra"));
+    json_t *response = gobj_command(priv->cc, "scenario-runs", kw, client);
+    json_t *newest = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
+    json_t *step = json_array_get(kw_get_list(gobj, newest, "steps", 0, 0), 0);
+    if(strcmp(kw_get_str(gobj, newest, "action", "", 0), "stop")!=0 ||
+            kw_get_int(gobj, newest, "result", 0, KW_WILD_NUMBER) >= 0 ||
+            !strstr(kw_get_str(gobj, step, "comment", "", 0), "more than one node")) {
+        ret += fail(gobj, "the stop of mra ran, and named the name of more than one node",
+            kw_get_str(gobj, newest, "comment", "", 0));
+    }
+    JSON_DECREF(response)
+
+    json_int_t now = (json_int_t)time_in_seconds();
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mra"));
+    response = gobj_command(priv->cc, "scenarios", kw, client);
+    json_t *mra = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
+    json_int_t stop_at = kw_get_int(gobj, mra, "stop_at", 0, KW_WILD_NUMBER);
+    if(json_object_get(mra, "stop_waits_node")) {
+        ret += fail(gobj, "the stop of a max_run on a name of two nodes waits for a node", "");
+    }
+    if(stop_at < now + 55 || stop_at > now + 60) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%lld, now %lld", (long long)stop_at, (long long)now);
+        ret += fail(gobj, "the stop of a max_run on a name of two nodes is tried again in a minute", detail);
+    }
+    JSON_DECREF(response)
+    if(frames_differ(frames_to(priv->mra_1), frames_to(priv->mra_2), 0, 0)) {
+        ret += fail(gobj, "the stop on a name two nodes give reaches one of them", "");
+    }
+
+    close_session(priv->mra_2);
+    priv->mra_2 = 0;
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mra"));
+    json_object_set_new(kw, "action", json_string("stop"));
+    response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    ret += session_answers(gobj, priv->mra_1, 0, "paused", "the stop of mra by the user reaches its node");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mra"));
+    response = gobj_command(priv->cc, "scenarios", kw, client);
+    mra = json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0);
+    if(json_object_get(mra, "stop_at") || json_object_get(mra, "stop_waits_node")) {
+        ret += fail(gobj, "a stopped mra has no stop scheduled", "");
+    }
+    JSON_DECREF(response)
+    close_session(priv->mra_1);
+    priv->mra_1 = 0;
     return ret;
 }
 
@@ -3775,6 +4180,9 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_logout_user(gobj, client1);
     result += test_names_not_planted(gobj, client1);
     result += test_drop_agent_by_name(gobj, client1);
+    result += test_pending_name_not_taken(gobj, client1);
+    result += test_open_leaves_no_name(gobj, client1);
+    result += test_key_login_first_and_cards(gobj, client1);
     result += test_twin_agents(gobj);
     result += test_operator_assertion(gobj, client1);
     result += test_save_scenario_as_string(gobj, client1);
@@ -3789,6 +4197,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
     result += test_permissions_changed(gobj);
+    result += test_scenario_ambiguous_name(gobj, client1);
     result += test_switch(gobj, client1);
     result += test_parallel_stop(gobj, client1);    // before 16: it counts the runs ended
     result += test_max_run_start(gobj, client1);
@@ -3939,10 +4348,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 2:
             priv->result += test_parallel_unanswered_ended(gobj);
-            set_timeout(priv->timer, 100);
+            priv->result += test_max_run_ambiguous_start(gobj);
+            set_timeout(priv->timer, 2500);     // past the stop its max_run schedules
             KW_DECREF(kw)
             return 0;
         case 3:
+            priv->result += test_max_run_ambiguous_retried(gobj);
             priv->result += test_max_run_no_node_start(gobj);
             set_timeout(priv->timer, 2500);     // past the stop its max_run schedules
             KW_DECREF(kw)
