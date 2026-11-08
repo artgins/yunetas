@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## v7.30.14 (2026-11-08)
+
+A light release: a limit of `C_AUTHZ`, set in the control center only.
+
+- **A login token opens a session only while it is young.** `C_AUTHZ` has
+  `max_token_age`: the seconds a login token may have lived (`now - iat`)
+  to open a session. `0`, the default, is no limit. It is Yuneta's own
+  limit, whatever the identity provider gives the token: a Keycloak access
+  token can live 20 days.
+    - Only the login is checked. A session that is open stays open.
+    - A token with no `iat` is refused when the limit is set.
+    - A refusal is a WARNING *"Authentication failed: token too old"* with
+      the age, the limit and the user, never the token.
+    - The local method `verify_jwt` with no audience (a login token) refuses
+      the same tokens.
+    - `token_age_exempt_users` lists the users whose token is not checked:
+      a token that cannot be renewed, such as the shared token of the agents
+      of before 7.30.10.
+- New test `authz_token_age`, with the limit and without it.
+
 ## v7.30.13 (2026-11-08)
 
 A light release of the control center, after a security review of 7.30.12.

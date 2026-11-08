@@ -24,4 +24,4 @@ zone, prints *"timestamp too big"* with exit code -1: up to 7.29.3
 ## See also
 
 - [`time2range`](time2range.md) — period start/end boundaries.
-- [`utils/c/time2date/README.md`](https://github.com/artgins/yunetas/blob/7.30.13/utils/c/time2date/README.md).
+- [`utils/c/time2date/README.md`](https://github.com/artgins/yunetas/blob/7.30.14/utils/c/time2date/README.md).
