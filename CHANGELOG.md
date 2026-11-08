@@ -9,6 +9,160 @@
   inside other movements, a layer added with `addLayer` that drew nothing
   beyond its source's `maxzoom`, and symbol text on iOS 15.
 
+### HTTP and websocket
+
+- **BREAKING: a `C_WEBSOCKET` client opens a session only on a right
+  handshake** (RFC 6455 4.1). The 101 must carry the `Sec-WebSocket-Accept`
+  due to the key it sent, `Upgrade: websocket` and a `Connection` holding
+  `upgrade` (tokens, any case), and no subprotocol nor
+  `Sec-WebSocket-Extensions` (the client asks for none). Up to 7.30.14 it
+  looked only at the 101 and opened the session; a browser already refused
+  such a server. A refused handshake logs ONE warning (`MSGSET_PROTOCOL`,
+  *"Websocket handshake refused: ..."*, with `status`, `accept`, `protocol`
+  and a capped dump), publishes no `EV_ON_OPEN` and drops the connection.
+  *"NO 101 HTTP Response"* now says the status (it said 0). A `C_WEBSOCKET`
+  server already answers the right accept.
+- **A `C_WEBSOCKET` client delivers the frames a server writes behind its
+  101 in the same read**; up to 7.30.14 they were dropped, and with them the
+  first messages of the session.
+- **A `C_WEBSOCKET` client's `Sec-WebSocket-Key` is 16 random bytes**
+  (`getrandom()`, the generator of the masking keys); up to 7.30.14 it was
+  the clock in hex.
+- **A `C_WEBSOCKET` server answers `400` to a `Sec-WebSocket-Key` that is not
+  24 characters** (16 bytes in base64), with the warning *"Websocket upgrade
+  request refused"*; up to 7.30.14 one over 64 characters was cut where its
+  accept is computed, and answered a wrong accept.
+- **`C_PROT_HTTP_CL`: a refused response stops the parser**, as the other
+  three cuts do. A request sent after a refused response (head or body over
+  its limit, protocol error), while a write in flight keeps the connection
+  open, is refused (`-1`, ONE warning *"HTTP request sent while the
+  connection is dropped..."*). Up to 7.30.14 it went to the transport, which
+  threw it away.
+- **`C_PROT_HTTP_SR`: an answer that cannot be built leaves a `500` in its
+  place.** A body that cannot be dumped (not UTF-8, over the max block) sent
+  nothing and was counted as sent, so the peer took the next answer as the
+  answer of that request; an answer too big for a gbuffer crashed the yuno
+  (`gbuffer_create()` was not checked), and so did an answer without `body`
+  whose kw could not be dumped (`strlen()` of NULL). Now ONE ERROR (*"An
+  answer cannot be built (a body that cannot be dumped, or no memory),
+  answered 500 in its place"*), a `500 Internal Server Error` with
+  `Content-Length: 0` in its place, and `-1`; if not even the 500 can be
+  built, the connection is dropped. **BREAKING** for a log watcher: the text
+  of the ERROR is new.
+- **`C_PROT_HTTP_SR`: a read no longer resets the timer while it watches a
+  full queue** (a silent peer could be held for two inactivity periods).
+- Tests: `c_websocket/test5` (the key a client sends; the handshakes it
+  refuses: no accept, a wrong one, a subprotocol, no Upgrade, `Upgrade: h2c`,
+  no Connection, an extension; a frame written with the 101), and `test4`
+  (the RFC accept in every 101, a subprotocol of 255 bytes answered and 256
+  refused, a key of 72 characters answered `400`); `c_prot_http_cl/test2`
+  step 13; `c_prot_http_sr/test1` steps 17-22 (a last answer that fills the
+  transport, with the server's send buffer made small so the step does not
+  depend on the kernel's `tcp_wmem`; a refusal held behind the answers owed;
+  a refusal waiting for late answers; an active peer under a short
+  inactivity; the two 500s), and step 15 at `timeout_tx_stall` 4000 with 1.5 s
+  of slack. A step no longer inherits the client of the step before.
+
+### BFF, tasks and ycommand
+
+- **`C_TASK`: a job run again after a reconnection keeps its time.**
+  `exec_timeout` is armed once per job. C_TASK runs a job again on each
+  `EV_ON_OPEN` of `gobj_results`, and up to 7.30.14 each run armed the time
+  again, so a connection that broke more often than `exec_timeout` kept the
+  task alive for ever (`dba_postgres`: a Postgres that cut more often than
+  every 20 s). **BREAKING** for a job that counted on a fresh time after a
+  reconnection: it gets the time left. The BFF, `C_TASK_AUTHENTICATE` and
+  `C_IDP_KEYCLOAK` need nothing.
+- **`C_TASK`: the end stops the task before it publishes `EV_END_TASK`**,
+  and reads nothing of the task after that publication; a volatile task is
+  destroyed on the next turn. An owner may start the task again inside its
+  `EV_END_TASK`: up to 7.30.14 the end stopped that new run as soon as the
+  publication returned.
+- **`C_AUTH_BFF` with no IdP configured answers at once**, `500
+  auth_config_error`, a logout with its cookies cleared. Up to 7.30.14 it
+  queued every request for ever. No new error code.
+- **BREAKING: `C_AUTH_BFF`, a full pending queue is a peer's load.**
+  *"👤BFF pending queue full"* and the `503 server_busy` it answers (now
+  *"👤BFF request rejected"*, was *"👤BFF server error"*) are WARNINGs, not
+  ERRORs.
+- **`C_AUTH_BFF`: an IdP 5xx to a logout is said**, a WARNING *"👤BFF IdP
+  failed a logout, the cookies are cleared"* (the browser still gets 200).
+  It left no log.
+- **`C_AUTH_BFF` `idp_timeout_ms`:** its description said 0 disables it; 0
+  or less is the default, 30000, as the code always did.
+- **BREAKING: `C_TASK_AUTHENTICATE`, the answer of the end-session.** Any
+  2xx ends the session (up to 7.30.14 only a 204). A 4xx/5xx is a WARNING
+  *"task_authenticate: the IdP did not end the session"* (with
+  `status_code` and the IdP's `error`), not the ERROR *"Logout has failed"*
+  with the whole answer dumped. An end-session with no answer, after the
+  token, ends with a WARNING *"task_authenticate: the IdP did not answer the
+  end-session"*; it ended with no log.
+- **`ycommand`** without `-l`/`-i` prints the reason of a token failure and
+  `Abort.` on stderr (exit 255 as before); it printed nothing.
+- Tests: `tests/c/c_task` cases G and H; `c_auth_bff/test31_no_idp`, and
+  test8 and test28 assert the priority of their logs; `c_task_authenticate`
+  `test25`-`test32` (the end-session answers, a task stopped while it waits
+  to connect, endpoints that are not URLs or too long, a `/token` that is no
+  object), and `test18` with `expires_in` 0.
+
+### Time
+
+- **BREAKING: `time2date` refuses what is no time, with exit code -1.**
+    - A date that is no date: up to 7.30.14 `time2date 2026-10-01Tgarbage`
+      printed 1970 (the answer of `parse_date_basic()` was not checked).
+    - A zone libc will not read: up to 7.30.14 `-z Nowhere/Zone` printed the
+      time in UTC with the name of that zone, its ERROR sent nowhere (the
+      tool had no log handler). The ERROR is now printed once.
+    - A number (a text with no `T`) is read as a JSON integer,
+      `-?(0|[1-9][0-9]*)`, inside the 64 bits of a `time_t` (*"it is no
+      integer"*, *"out of range"*). Up to 7.30.14 it was read with
+      `strtoull(arg, NULL, 0)`: `abc` printed 1970, `007` was octal and
+      `0x10` hex.
+    - With `-m` a time before the epoch is divided as a signed number: up to
+      7.30.14 `time2date -m -- -5000` printed the year 584556019.
+- **BREAKING: `time2range` reads `-r` as a JSON integer**, as the command
+  parser of a yuno does: up to 7.30.14 `-r " 5"`, `-r +5` and `-r 05` were 5
+  (`strtol()`). An integer outside an `int` says *"out of range"*. A range
+  that logs an ERROR is refused with exit code -1 and no range: an unknown
+  zone (up to 7.30.14 the range in UTC, its ERROR three times, exit code 0)
+  and, with `-r 0`, a time no calendar holds (up to 7.30.14 1970, exit code
+  0).
+- **Docs:** with `TZ=:/etc/localtime`, a change of `/etc/localtime` is seen
+  again after any `gmtime2timezone()` or range with a zone, not only by a new
+  process (`time_date.md`, and the comments of `helpers.h`).
+- Tests: new `tests/c/time_cli` runs `time2date` and `time2range`, built from
+  their sources, on good input and on each refusal above, with output and
+  exit code. `test_date_text` writes its zone files in a directory of each
+  run (`mkdtemp()`), so two runs at once no longer write over each other's
+  files, and tests a version 2 TZif with transitions, leap seconds and
+  indicators in both blocks, and a zone name too long for a path whose first
+  `PATH_MAX - 1` bytes name a zone file.
+
+### JavaScript
+
+- **BREAKING: gui_agent 1.3.8 and gui_treedb 1.2.6, what reaches the log.**
+  The detail is in the yunos-js CHANGELOG.
+    - Three more failures a peer causes are a WARNING, no longer an ERROR: a
+      command the node's agent did not answer in time (gui_agent's
+      `C_AGENT_TREEDB_LINK`), a gui_treedb discovery that failed, and a
+      `services` that answered no list.
+    - A denial of the BFF whose code no locale knows (a newer BFF), at a
+      login or at a refresh that ends the session, is a WARNING; it was an
+      INFO. A code the app translates stays an INFO.
+    - The tests that tie a published `<NAME>_I18N_KEYS` list to its helper
+      read a key through a table or a marked read, and fail on a helper used
+      other than called by its name or called without its key; a logout the
+      server did not end is checked by the text the form shows for each of
+      its answers, and the Spanish text of each logout key must differ from
+      the English one.
+- **gobj-js tests: a rope read many times is charged once.** The count of
+  the secret masking gets a new linear work: one rope as long as the text,
+  read at each 4 KB. Before, a count that charged a rope at every read
+  passed every test. The comments of the count no longer say that every
+  native is wrapped; they name the globals that are not walked (`Atomics`,
+  `WebAssembly`, `Proxy`, `DisposableStack`, the events and the message
+  ports), with a reason only where one holds. `src/` does not change.
+
 ## v7.30.14 (2026-11-08)
 
 A light release: a limit of `C_AUTHZ`, set in the control center only.
