@@ -17,6 +17,19 @@ plain UDP socket, the peer:
 2. A `C_UDP_S` with `udps://127.0.0.1:34294` is started: the start must fail
    with *"A secure url (udps://) is not supported by C_UDP_S: there is no
    DTLS"*, and nothing may listen on the port.
+3. A `C_UDP_S` whose port (`127.0.0.1:34299`) is held by a socket with no
+   `SO_REUSEADDR` is started: ONE ERROR, *"Listen failed: not listening,
+   trying again"* (`errno` 98), `listening` false. Its first try (1 s later)
+   fails too and says nothing more (only the `bind()` WARNING); the port is
+   released, and the second try listens, with one INFO, *"Listening again
+   after a failed listen"*.
+4. A `C_UDP_S` with an empty url is started: *"URL NULL"*, the start fails,
+   the yuno goes on.
+
+No `C_UDP_S` of the test sets `exitOnError`. Up to 7.30.17 cases 2 to 4
+exited the yuno with code 0 (`exitOnError`, `TRUE` by default), which ctest
+takes for a pass: an `atexit()` handler turns an exit before the end of the
+test into code 1 (red: *"the yuno exited before the end of the test"*).
 
 Up to 7.25.4:
 

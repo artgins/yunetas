@@ -182,9 +182,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->gobj_allow = gobj_create(
         "allow",
         C_UDP_S,
-        json_pack("{s:s, s:b, s:b}",
+        json_pack("{s:s, s:b}",
             "url", ALLOW_URL,
-            "exitOnError", 0,
             "only_allowed_ips", 1
         ),
         gobj

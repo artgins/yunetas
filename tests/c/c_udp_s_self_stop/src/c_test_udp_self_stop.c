@@ -23,6 +23,17 @@
  *                 (an ERROR, the start fails). Up to 7.25.4 it listened,
  *                 with no TLS session, and the first datagram crashed the
  *                 yuno (ytls_decrypt_data() with a NULL session).
+ *              3. A C_UDP_S whose port is held by another socket is
+ *                 started: the listen fails, ONE error, `listening` false,
+ *                 and the yuno goes on. Up to 7.30.17 the yuno exited with
+ *                 code 0 (exitOnError, TRUE by default), and code 0 told its
+ *                 watcher not to launch it again. The first try of the
+ *                 server (1 s later) fails too, and says nothing more; the
+ *                 port is released, and the second (2 s after the first)
+ *                 listens, with one info.
+ *              4. A C_UDP_S with an empty url is started: one error, the
+ *                 start fails, the yuno goes on (it exited with 0 too).
+ *              2 and 4 used to need "exitOnError": 0 not to end the test.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -43,6 +54,8 @@
 #define UDPS_PORT   34294
 #define UDPS_URL    "udps://127.0.0.1:34294"
 #define PEER_PORT   34295
+#define HELD_PORT   34299
+#define HELD_URL    "udp://127.0.0.1:34299"
 
 /***************************************************************************
  *              Structures
@@ -80,7 +93,10 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_udp;
     hgobj gobj_udps;
+    hgobj gobj_held;
+    hgobj gobj_no_url;
     int peer_fd;
+    int held_fd;
     int phase;
     int stopped;
     struct sockaddr_in peer_addr;
@@ -105,22 +121,37 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->peer_fd = -1;
+    priv->held_fd = -1;
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->gobj_udp = gobj_create(
         "udp",
         C_UDP_S,
-        json_pack("{s:s, s:b}",
-            "url", UDP_S_URL,
-            "exitOnError", 0
+        json_pack("{s:s}",
+            "url", UDP_S_URL
+        ),
+        gobj
+    );
+    priv->gobj_held = gobj_create(
+        "held",
+        C_UDP_S,
+        json_pack("{s:s}",
+            "url", HELD_URL
+        ),
+        gobj
+    );
+    priv->gobj_no_url = gobj_create(
+        "no_url",
+        C_UDP_S,
+        json_pack("{s:s}",
+            "url", ""
         ),
         gobj
     );
     priv->gobj_udps = gobj_create(
         "udps",
         C_UDP_S,
-        json_pack("{s:s, s:b, s:{s:s, s:s}}",
+        json_pack("{s:s, s:{s:s, s:s}}",
             "url", UDPS_URL,
-            "exitOnError", 0,
             "crypto",
                 "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
                 "ssl_certificate_key", "/yuneta/agent/certs/localhost.key"
@@ -139,6 +170,10 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(priv->peer_fd >= 0) {
         close(priv->peer_fd);
         priv->peer_fd = -1;
+    }
+    if(priv->held_fd >= 0) {
+        close(priv->held_fd);
+        priv->held_fd = -1;
     }
 }
 
@@ -169,6 +204,12 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     if(gobj_is_running(priv->gobj_udps)) {
         gobj_stop(priv->gobj_udps);
+    }
+    if(gobj_is_running(priv->gobj_held)) {
+        gobj_stop(priv->gobj_held);
+    }
+    if(gobj_is_running(priv->gobj_no_url)) {
+        gobj_stop(priv->gobj_no_url);
     }
 
     return 0;
@@ -271,6 +312,77 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->phase++;
+    if(priv->phase == 2) {
+        /*
+         *  3. Not listening, and its first try (1 s after the failure)
+         *  fails too, saying nothing more
+         */
+        BOOL degraded = gobj_in_this_state(priv->gobj_held, ST_STOPPED) &&
+            !gobj_read_bool_attr(priv->gobj_held, "listening");
+        if(!degraded) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a C_UDP_S whose port is held does not say it is not listening",
+                "state",        "%s", gobj_current_state(priv->gobj_held),
+                NULL
+            );
+        }
+        set_timeout(priv->timer, 1200);
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(priv->phase == 3) {
+        /*
+         *  3. Released after the first try, before the second (2 s after
+         *  the first)
+         */
+        if(!gobj_in_this_state(priv->gobj_held, ST_STOPPED)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a C_UDP_S listens on a port still held",
+                "state",        "%s", gobj_current_state(priv->gobj_held),
+                NULL
+            );
+        }
+        close(priv->held_fd);
+        priv->held_fd = -1;
+        set_timeout(priv->timer, 2500);     // the second try at 3 s from the failure, ample on a busy box
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(priv->phase == 4) {
+        /*
+         *  3. Listening at its try. 4. An empty url: said, the yuno goes on
+         */
+        BOOL held_ok = gobj_in_this_state(priv->gobj_held, ST_IDLE) &&
+            gobj_read_bool_attr(priv->gobj_held, "listening");
+        int ret = gobj_start(priv->gobj_no_url);
+        BOOL no_url_ok = ret < 0 &&
+            gobj_in_this_state(priv->gobj_no_url, ST_STOPPED) &&
+            !gobj_read_bool_attr(priv->gobj_no_url, "listening");
+        if(!held_ok || !no_url_ok) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a failed listen of C_UDP_S was not tried again, or an empty url not refused",
+                "held_state",   "%s", gobj_current_state(priv->gobj_held),
+                "no_url_start", "%d", ret,
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TEST: a failed listen of C_UDP_S listens at its try, and an empty url is refused",
+                NULL
+            );
+        }
+        set_yuno_must_die();
+        KW_DECREF(kw)
+        return 0;
+    }
 
     /*
      *  1. The self-stop ended, and the answer reached the peer
@@ -331,7 +443,26 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    set_yuno_must_die();
+    /*
+     *  3. The port of `held` taken by a socket with no SO_REUSEADDR, so the
+     *  bind of the server is refused (EADDRINUSE)
+     */
+    struct sockaddr_in held_addr = priv->server_addr;
+    held_addr.sin_port = htons(HELD_PORT);
+    priv->held_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(priv->held_fd < 0 ||
+            bind(priv->held_fd, (struct sockaddr *)&held_addr, sizeof(held_addr)) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "TEST: cannot hold the port",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    gobj_start(priv->gobj_held);
+    set_timeout(priv->timer, 300);
 
     KW_DECREF(kw)
     return 0;

@@ -20,6 +20,7 @@
 #include <yev_loop.h>
 #include <ytls.h>
 #include "c_yuno.h"
+#include "c_timer.h"
 #include "c_udp_s.h"
 #include "msg_ievent.h"
 
@@ -36,6 +37,13 @@
  */
 #define REFUSAL_WARN_MSEC       60000
 
+/*
+ *  A listen that fails is tried again at each timeout of its C_TIMER, the
+ *  wait doubling from RETRY_FIRST_MSEC up to RETRY_MAX_MSEC (listen_failed())
+ */
+#define RETRY_FIRST_MSEC        1000
+#define RETRY_MAX_MSEC          60000
+
 typedef enum {
     REFUSAL_DENIED = 0,     // the peer is in denied_ips
     REFUSAL_NOT_ALLOWED,    // only_allowed_ips, and the peer is not in allowed_ips
@@ -46,6 +54,8 @@ typedef enum {
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE int start_listening(hgobj gobj);
+PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int err, BOOL retry);
 PRIVATE int udp_set_broadcast(int fd, int on);
 // PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
@@ -95,7 +105,8 @@ SDATA (DTP_DICT,        "crypto",           SDF_WR|SDF_PERSIST, "{}", "Crypto co
 SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",          SDF_RD,  "FALSE", "Always FALSE: a secure url (udps://) is refused at the start, there is no DTLS"),
-SDATA (DTP_BOOLEAN,     "exitOnError",      SDF_RD,  "1", "Exit if Listen failed"),
+SDATA (DTP_BOOLEAN,     "exitOnError",      SDF_RD|SDF_DEPRECATED, "0", "Ignored: a listen that fails never ends the yuno (up to 7.30.17 the yuno exited with code 0, TRUE by default). Kept so that a config that sets it is not refused"),
+SDATA (DTP_BOOLEAN,     "listening",        SDF_RD|SDF_STATS, 0, "Listening now. False while stopped, while a failed listen is tried again (from 1 s up to each 60 s), and when its url is bad (said at the start). Running and not listening: the yuno goes on, one ERROR said why"),
 SDATA (DTP_BOOLEAN,     "set_broadcast",    SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
 SDATA (DTP_BOOLEAN,     "shared",           SDF_WR|SDF_PERSIST, 0, "Share the port"),
 SDATA (DTP_INTEGER,     "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
@@ -154,7 +165,10 @@ typedef struct send_in_flight_s {
 typedef struct _PRIVATE_DATA {
     // Conf
     const char *url;
-    BOOL exitOnError;
+
+    hgobj gobj_timer;               // the tries of a listen that failed
+    BOOL listen_down;               // its listen failed, and it was said: until it listens, or stops
+    json_int_t listen_backoff_msec; // the wait of the next try of a failed listen; 0: no try armed
 
     yev_event_h yev_server_udp;
     yev_event_h yev_reading;
@@ -208,11 +222,12 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(url,               gobj_read_str_attr)
-    SET_PRIV(exitOnError,       gobj_read_bool_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
 
     dl_init(&priv->dl_sends, gobj);
+
+    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  CHILD subscription model
@@ -323,18 +338,18 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
+    return start_listening(gobj);
+}
+
+/***************************************************************************
+ *  Listen: the socket, and its read
+ ***************************************************************************/
+PRIVATE int start_listening(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(empty_string(priv->url)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "URL NULL",
-            NULL
-        );
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
+        return listen_failed(gobj, "URL NULL", MSGSET_CONNECT_DISCONNECT, 0, FALSE);
     }
 
     char schema[20], host[120], port[40];
@@ -348,33 +363,11 @@ PRIVATE int mt_start(hgobj gobj)
         0, 0,
         FALSE
     )<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Parsing url failed",
-            "url",          "%s", priv->url,
-            NULL
-        );
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
+        return listen_failed(gobj, "Parsing url failed", MSGSET_PARAMETER, 0, FALSE);
     }
 
     if(atoi(port) == 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Cannot Listen on port 0",
-            "url",          "%s", priv->url,
-            NULL
-        );
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
+        return listen_failed(gobj, "Cannot Listen on port 0", MSGSET_CONNECT_DISCONNECT, 0, FALSE);
     }
 
     /*--------------------------------*
@@ -392,22 +385,8 @@ PRIVATE int mt_start(hgobj gobj)
         gobj
     );
     if(!priv->yev_server_udp) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "yev_create_accept_event() FAILED",
-            "url",          "%s", priv->url,
-            NULL
-        );
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            if(priv->yev_server_udp) {
-                yev_destroy_event(priv->yev_server_udp);
-                priv->yev_server_udp = 0;
-            }
-            return -1;
-        }
+        int err = errno;    // the cause, set by yev_create_accept_event()
+        return listen_failed(gobj, "Listen failed: not listening, trying again", MSGSET_SYSTEM, err, TRUE);
     }
 
     /*
@@ -426,10 +405,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        }
-        return -1;
+        return -1;  // a url does not fix itself: said at each start
     }
 
     udp_set_broadcast(
@@ -489,11 +465,20 @@ PRIVATE int mt_start(hgobj gobj)
         );
         EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
         EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        }
-        return -1;
+        return listen_failed(gobj, "Listen failed: not listening, trying again", MSGSET_SYSTEM, 0, TRUE);
     }
+
+    if(priv->listen_down) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Listening again after a failed listen",
+            "url",          "%s", priv->url,
+            NULL
+        );
+        priv->listen_down = FALSE;
+    }
+    priv->listen_backoff_msec = 0;
 
     gobj_change_state(gobj, ST_IDLE);
 
@@ -505,7 +490,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->listen_down = FALSE;      // a stop takes back the tries of its start
+    priv->listen_backoff_msec = 0;
+    clear_timeout(priv->gobj_timer);
 
     try_to_stop_yevents(gobj);
 
@@ -537,6 +526,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "rxRefusedMsgs")==0) {
         v.found = 1;
         v.v.i = priv->rxRefusedMsgs;
+    } else if(strcmp(name, "listening")==0) {
+        v.found = 1;
+        v.v.b = gobj_in_this_state(gobj, ST_IDLE);
     } else if(strcmp(name, "cur_tx_queue")==0) {
         v.v.i = (json_int_t)dl_size(&priv->dl_tx);
     }
@@ -907,6 +899,58 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     return 0;
 }
 #endif
+
+/***************************************************************************
+ *  The listen failed: no listen, and the yuno goes on. Up to 7.30.17 it
+ *  exited with code 0 (exitOnError, TRUE by default), and code 0 told its
+ *  watcher not to launch it again: a port held by another process, or a
+ *  host not on the machine yet at boot, left the yuno down for good.
+ *  Return -1, or 0 when a try is armed.
+ *
+ *  `retry` (the socket or its read could not be made: an address in use, a
+ *  host not on this machine yet, a name that does not resolve yet): tried
+ *  again at the next timeout of the timer, the wait doubling from
+ *  RETRY_FIRST_MSEC up to RETRY_MAX_MSEC. Said ONCE, at the first failure;
+ *  each try still writes the cause of yev_create_accept_event(). One info
+ *  when it listens (start_listening()).
+ *
+ *  Not `retry` (a bad url: empty, unparsable, of port 0, udps://): nothing
+ *  to wait for, the url is read only. Said at each start.
+ ***************************************************************************/
+PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int err, BOOL retry)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!retry || !priv->listen_down) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", msgset,
+            "msg",          "%s", msg,
+            "url",          "%s", priv->url,
+            "errno",        "%d", err,
+            "strerror",     "%s", err? strerror(err) : "",
+            "then",         "%s", retry?
+                "not listening, the yuno goes on: tried again from 1 s up to each 60 s" :
+                "not listening, the yuno goes on: a good url and a start are needed",
+            NULL
+        );
+    }
+
+    if(!retry) {
+        return -1;
+    }
+    priv->listen_down = TRUE;
+    if(priv->listen_backoff_msec == 0) {
+        priv->listen_backoff_msec = RETRY_FIRST_MSEC;
+    } else {
+        priv->listen_backoff_msec *= 2;
+        if(priv->listen_backoff_msec > RETRY_MAX_MSEC) {
+            priv->listen_backoff_msec = RETRY_MAX_MSEC;
+        }
+    }
+    set_timeout(priv->gobj_timer, priv->listen_backoff_msec);
+    return 0;
+}
 
 /***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
@@ -1653,6 +1697,23 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  A try of a listen that failed (listen_failed()). A stop in between
+ *  took it back.
+ ***************************************************************************/
+PRIVATE int ac_listen_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->listen_backoff_msec > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+        if(start_listening(gobj) < 0) {
+            // Error already logged
+        }
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
@@ -1701,13 +1762,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_stopped[] = {
+        {EV_TIMEOUT,            ac_listen_retry,    0},
         {0, 0, 0}
     };
     ev_action_t st_wait_stopped[] = {
+        {EV_TIMEOUT,            ac_listen_retry,    0},
         {0, 0, 0}
     };
     ev_action_t st_idle[] = {
         {EV_TX_DATA,            ac_tx_data,         0},
+        {EV_TIMEOUT,            ac_listen_retry,    0},
         {0, 0, 0}
     };
 
@@ -1720,6 +1784,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_TX_DATA,            0},
+        {EV_TIMEOUT,            0},
         {EV_RX_DATA,            EVF_OUTPUT_EVENT},
         {EV_TX_READY,           EVF_OUTPUT_EVENT},
         {EV_STOPPED,            EVF_OUTPUT_EVENT},

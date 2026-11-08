@@ -2,11 +2,18 @@
  *          MAIN.C
  *
  *          Main of test_c_udp_s_self_stop: the stops C_UDP_S makes by
- *          itself end, and are said; a secure url is refused
+ *          itself end, and are said; a secure url is refused; a listen
+ *          that fails is tried again, and the yuno goes on
+ *
+ *          The red of a listen that fails was an EXIT with code 0, which
+ *          ctest would take for a pass: an atexit() handler turns an exit
+ *          before the end of the test into code 1.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <stdlib.h>
+#include <unistd.h>
 #include <yunetas.h>
 #include "c_test_udp_self_stop.h"
 
@@ -103,7 +110,9 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
+                  "{s:s,s:s},{s:s,s:s,s:i},{s:s,s:s},{s:s},{s:s,s:s},{s:s},{s:s},"
+                  "{s:s},{s:s},{s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "UDP listening ...",
             "msg", "Playing yuno",
@@ -111,6 +120,13 @@ static int register_yuno_and_more(void)
             "msg", "UDP: the read cannot be started again, the server stops listening",
             "msg", "A secure url (udps://) is not supported by C_UDP_S: there is no DTLS",
             "msg", "TEST: the self-stop of C_UDP_S ended, and udps:// was refused",
+            "msg", "bind() FAILED", "__priority__", "WARNING",
+            "msg", "Listen failed: not listening, trying again", "__priority__", "ERROR", "errno", 98,
+            "msg", "bind() FAILED", "__priority__", "WARNING",   // its first try, said by nobody else
+            "msg", "UDP listening ...",
+            "msg", "Listening again after a failed listen", "__priority__", "INFO",
+            "msg", "URL NULL",
+            "msg", "TEST: a failed listen of C_UDP_S listens at its try, and an empty url is refused",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"
@@ -139,8 +155,22 @@ static void cleaning(void)
 /***************************************************************************
  *                      Main
  ***************************************************************************/
+PRIVATE BOOL reached_end = FALSE;
+
+PRIVATE void check_reached_end(void)
+{
+    if(!reached_end) {
+        printf("<-- %sTEST FAILED%s: %s, the yuno exited before the end of the test\n",
+            On_Red BWhite, Color_Off, APP_NAME);
+        fflush(stdout);
+        _exit(1);
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    atexit(check_reached_end);
+
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/
@@ -198,6 +228,7 @@ int main(int argc, char *argv[])
         register_yuno_and_more,
         cleaning
     );
+    reached_end = TRUE;
 
     if(get_cur_system_memory()!=0) {
         printf("%sERROR --> %s%s\n", On_Red BWhite, "system memory not free", Color_Off);

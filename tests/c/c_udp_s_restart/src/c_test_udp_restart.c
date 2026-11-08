@@ -111,9 +111,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->gobj_udp = gobj_create(
         "udp",
         C_UDP_S,
-        json_pack("{s:s, s:b}",
-            "url", UDP_S_URL,
-            "exitOnError", 0
+        json_pack("{s:s}",
+            "url", UDP_S_URL
         ),
         gobj
     );
