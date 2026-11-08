@@ -329,8 +329,9 @@ static int register_yuno_and_more(void)
          *  main() takes nothing below a warning), each ONCE although the
          *  peer repeats what causes it. A wrong result is an error, which is
          *  not in this list.  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "SUBSCRIBING keys a peer may not set, ignored",
+            "msg", "Json of a peer with 'gbuffer' keys, a binary field name: dropped",
             "msg", "SUBSCRIBING refused, its routing is bigger than max_subscription_size",
             "msg", "SUBSCRIBING refused, the peer holds max_subscriptions",
             "msg", "SUBSCRIBING refused, bigger than max_subscription_size",

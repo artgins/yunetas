@@ -42,6 +42,21 @@ Returns `0` on success, or `-1` if the maximum number of serialized fields was r
 
 The function maintains an internal table of registered binary types. If the table is full, an error is logged, and the function returns `-1`.
 
+A binary field counts only at the **top level** of a kw dict: [`kw_incref()`](#kw_incref), [`kw_decref()`](#kw_decref), [`kw_twin()`](#kw_twin), [`kw_duplicate()`](#kw_duplicate), [`kw_update_missing()`](#kw_update_missing) and the serializers look for it there, and nowhere else. Its name is never data of a peer: [`gbuf2json_from_peer()`](#gbuf2json_from_peer) and [`anystring2json_from_peer()`](#anystring2json_from_peer) drop a `"gbuffer"` key at any depth, and [`kw_deserialize()`](#kw_deserialize) drops it from the top level of a frame's kw. `gobj_start_up()` registers the only one, `gbuffer`:
+
+```C
+kw_add_binary_type(
+    "gbuffer",
+    "__gbuffer___",
+    (serialize_fn_t)gbuffer_serialize,
+    (deserialize_fn_t)gbuffer_deserialize_from_peer,
+    (incref_fn_t)gbuffer_incref,
+    (decref_fn_t)gbuffer_decref
+);
+```
+
+A new binary type has to be dropped at that frontier too: a peer's integer under its name would be taken for a pointer.
+
 ---
 
 (kw_clone_by_keys)=
@@ -391,6 +406,18 @@ A new JSON object or array that is a deep copy of `kw`, with serialized fields p
 
 Unlike `json_deep_copy()`, [`kw_duplicate()`](#kw_duplicate) processes serialized fields to make sure that correct duplication of binary data.
 
+The binary field counts only at the TOP level of a dict, as in [`kw_incref()`](#kw_incref): the copy takes a reference of its own of the `gbuffer` there, and [`KW_DECREF`](#kw_decref) of the copy releases it. A `"gbuffer"` nested in a dict, or in a list, is copied as an integer and nothing more. Up to 7.30.16 it was increfed at any depth: a peer's `{"x": {"gbuffer": 4096}}` (which [`kw_deserialize()`](#kw_deserialize) does not clean, it is not the top level) made `gbuffer_incref()` write at address 4096 -- a crash -- and a real gbuffer nested that way leaked, because `kw_decref()` never releases a nested one.
+
+```C
+json_t *kw = json_pack("{s:I, s:{s:I}}",
+    "gbuffer", (json_int_t)(uintptr_t)gbuf,     // the binary field: increfed in the copy
+    "x", "gbuffer", (json_int_t)4096            // data: copied as an integer
+);
+json_t *copy = kw_duplicate(gobj, kw);
+KW_DECREF(copy)     // releases the copy's reference of gbuf
+KW_DECREF(kw)       // and kw its own
+```
+
 ---
 
 (kw_twin)=
@@ -463,6 +490,14 @@ A new JSON object or array with all metadata keys removed. The caller owns the r
 
 Metadata keys are identified as those beginning with '__'. If `kw` is not an object or array, an error is logged, and `NULL` is returned.
 
+The binary field is copied as [`kw_duplicate()`](#kw_duplicate) copies it: increfed at the top level only. Up to 7.30.16 a `"gbuffer"` at any depth was increfed, so a node of a treedb holding `"_geometry": {"gbuffer": 4096}`, written by a peer with `update-node`, crashed every `saved-schema` after it, across restarts.
+
+```C
+json_t *clean = kw_filter_metadata(gobj, json_incref(node));   // node: {"id": "a", "__md_treedb__": {...}}
+// clean: {"id": "a"}
+JSON_DECREF(clean)
+```
+
 ---
 
 (kw_filter_private)=
@@ -490,7 +525,13 @@ A new JSON object or array with private keys removed. The caller owns the return
 
 **Notes**
 
-Private keys are identified as those that begin with a single underscore (`_`). The function uses `_duplicate_object()` and `_duplicate_array()` to create a filtered copy of the input JSON.
+Private keys are identified as those that begin with a single underscore (`_`). The function uses `_duplicate_object()` and `_duplicate_array()` to create a filtered copy of the input JSON. The binary field is copied as [`kw_duplicate()`](#kw_duplicate) copies it: increfed at the top level only.
+
+```C
+json_t *pub = kw_filter_private(gobj, json_incref(record));    // record: {"id": "a", "_geometry": {...}}
+// pub: {"id": "a"}
+JSON_DECREF(pub)
+```
 
 ---
 

@@ -212,6 +212,14 @@ The test drives `C_TREEDB` through its own commands and checks:
      appended, with its time cut and the ERROR *"Record time past what an md2
      row keeps (44 bits): appended CUT"*.
 
+A `"gbuffer"` nested in what a command carries is data, not a pointer
+(`check_nested_gbuffer_is_data`): a `saved-schema` with no `treedb_name` and
+`{"x": {"gbuffer": 4096}}`, and a `saved-schema` after an `update-node` that
+writes `"_geometry": {"gbuffer": 4096}` into the `treedbs` node of
+`__system__`, both answer. Up to 7.30.16 both crashed in `gbuffer_incref()`
+(`kw_duplicate()` and `kw_filter_metadata()` increfed the key at any depth),
+the second one at every `saved-schema` after the write.
+
 Steps 2 and 3 are the ones that matter for schema editing: they are the path an
 edited schema takes to reach a running treedb. Step 4 is what stands between an
 editor and a treedb that no longer opens.

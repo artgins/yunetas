@@ -2583,7 +2583,8 @@ PUBLIC int kw_update_missing(
 }
 
 /***************************************************************************
- *  Make a twin of a array
+ *  Make a twin of a array: no binary field in it, at any depth (kw_incref()
+ *  of a list counts none), whatever `serialize`
  ***************************************************************************/
 PRIVATE json_t * _duplicate_array(json_t *kw, const char **keys, int underscores, BOOL serialize)
 {
@@ -2596,10 +2597,10 @@ PRIVATE json_t * _duplicate_array(json_t *kw, const char **keys, int underscores
         json_type type = json_typeof(value);
         switch(type) {
         case JSON_OBJECT:
-            new_value = _duplicate_object(value, keys, underscores, serialize);
+            new_value = _duplicate_object(value, keys, underscores, FALSE);
             break;
         case JSON_ARRAY:
-            new_value = _duplicate_array(value, keys, underscores, serialize);
+            new_value = _duplicate_array(value, keys, underscores, FALSE);
             break;
         case JSON_STRING:
             new_value = json_string(json_string_value(value));
@@ -2632,7 +2633,11 @@ PRIVATE json_t * _duplicate_array(json_t *kw, const char **keys, int underscores
     return kw_dup_;
 }
 /***************************************************************************
- *  Make a twin of a object
+ *  Make a twin of a object.
+ *  `serialize`: kw is the TOP level of a kw, where its binary fields are,
+ *  and they are increfed as kw_incref() does. Only there: a nested
+ *  "gbuffer" is data (a peer's integer up to 7.30.16 was increfed as a
+ *  pointer), and nested dicts and lists are copied with FALSE.
  ***************************************************************************/
 PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscores, BOOL serialize)
 {
@@ -2659,10 +2664,10 @@ PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscore
         json_type type = json_typeof(value);
         switch(type) {
         case JSON_OBJECT:
-            new_value = _duplicate_object(value, keys, underscores, serialize);
+            new_value = _duplicate_object(value, keys, underscores, FALSE);
             break;
         case JSON_ARRAY:
-            new_value = _duplicate_array(value, keys, underscores, serialize);
+            new_value = _duplicate_array(value, keys, underscores, FALSE);
             break;
         case JSON_STRING:
             new_value = json_string(json_string_value(value));
@@ -2673,7 +2678,7 @@ PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscore
                 new_value = json_integer(binary);
                 if(serialize) {
                     serialize_fields_t * pf = get_serialize_field(key);
-                    if(pf) {
+                    if(pf && pf->incref_fn && binary) {
                         pf->incref_fn((void *)(uintptr_t)binary);
                     }
                 }

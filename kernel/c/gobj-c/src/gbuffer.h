@@ -447,6 +447,10 @@ PUBLIC json_t *gbuf2json(
  *  the transport under peer_gobj), with the parser's
  *  error and a capped dump of the bytes. Use it wherever the gbuffer was
  *  received; use gbuf2json() for what we wrote ourselves.
+ *  The json it returns has no "gbuffer" key, at any depth: that is the
+ *  name of the binary field of a kw (kw_add_binary_type()), and a peer's
+ *  integer under it was taken for a pointer by kw_incref() and its
+ *  siblings. They are dropped with ONE warning (MSGSET_PROTOCOL).
  */
 PUBLIC json_t *gbuf2json_from_peer(
     hgobj gobj,
@@ -458,7 +462,8 @@ PUBLIC json_t *gbuf2json_from_peer(
  *  anystring2json() of bytes that came from a PEER (an HTTP body): the
  *  `len` bytes of `bf`, any json value. A failure is logged as
  *  gbuf2json_from_peer() logs it: a WARNING, no stack, a capped and
- *  masked dump.
+ *  masked dump. Its "gbuffer" keys are dropped as gbuf2json_from_peer()
+ *  drops them.
  */
 PUBLIC json_t *anystring2json_from_peer(
     hgobj gobj,

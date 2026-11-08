@@ -636,6 +636,14 @@ in `EV_ON_OPEN` are a copy without the `gbuffer` field. Up to 7.30.15 both
 kept it: an integer that pointed to freed memory, which the controlcenter's
 list of agents showed to an operator.
 
+**A frame has no `"gbuffer"` of the peer, at any depth.** The frame is
+parsed with [`gbuf2json_from_peer()`](#gbuf2json_from_peer), which drops
+every `"gbuffer"` key with one warning; only the top-level `"gbuffer"` that
+`kw_deserialize()` makes of a `"__gbuffer___"` reaches the services. A
+command of a peer with `{"topic_name": "items", "record": {"id": "a",
+"gbuffer": 4096}}` crashed the yuno up to 7.30.16: C_NODE makes a kw of the
+record, and the integer was taken for a pointer.
+
 **A session has one identity.** A card sent IN a session is refused without
 being authenticated: a negative `EV_IDENTITY_CARD_ACK` (*"Identity card
 refused: the session has its identity already"*), ONE warning per 10 s

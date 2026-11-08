@@ -1520,6 +1520,77 @@ PRIVATE void log_json_from_peer_failed(
     );
 }
 
+/*
+ *  A json of a PEER carries no binary field, at any depth: a "gbuffer" key
+ *  (the one binary field gobj_start_up() registers, kw_add_binary_type())
+ *  holds an integer the peer chose, and kw_incref(), kw_decref(), kw_twin()
+ *  and kw_duplicate() take it for a pointer wherever a dict of the json
+ *  ends up as the top level of a kw (a treedb record, an HTTP body, an MQTT
+ *  payload). Up to 7.30.16 it was a remote crash. The keys are dropped,
+ *  and said once per json. A binary field of a peer arrives serialized
+ *  ("__gbuffer___", kw_deserialize()), never as a "gbuffer".
+ */
+PRIVATE size_t drop_binary_keys(json_t *jn)
+{
+    size_t dropped = 0;
+    if(json_is_object(jn)) {
+        if(json_object_get(jn, "gbuffer")) {
+            json_object_del(jn, "gbuffer");
+            dropped++;
+        }
+        const char *key; json_t *value;
+        json_object_foreach(jn, key, value) {
+            if(json_is_object(value) || json_is_array(value)) {
+                dropped += drop_binary_keys(value);
+            }
+        }
+    } else if(json_is_array(jn)) {
+        size_t idx; json_t *value;
+        json_array_foreach(jn, idx, value) {
+            if(json_is_object(value) || json_is_array(value)) {
+                dropped += drop_binary_keys(value);
+            }
+        }
+    }
+    return dropped;
+}
+
+PRIVATE void drop_peer_binary_keys(
+    hgobj gobj,
+    const char *function,
+    json_t *jn,
+    const char *bf,         // the text jn was parsed from
+    size_t len,
+    hgobj peer_gobj
+)
+{
+    /*
+     *  The walk costs ~20% of the parse of a json of small dicts: a text
+     *  without the name cannot hold the key. Only a \u escape can spell a
+     *  letter, so a text with one is walked too.
+     */
+    if(!memmem(bf, len, "gbuffer", sizeof("gbuffer")-1) &&
+            !memmem(bf, len, "\\u", 2)) {
+        return;
+    }
+    size_t dropped = drop_binary_keys(jn);
+    if(dropped == 0) {
+        return;
+    }
+    const char *peername = "";
+    if(peer_gobj && gobj_has_bottom_attr(peer_gobj, "peername")) {
+        peername = gobj_read_str_attr(peer_gobj, "peername");
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", function,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "Json of a peer with 'gbuffer' keys, a binary field name: dropped",
+        "peername",     "%s", peername?peername:"",
+        "dropped",      "%d", (int)dropped,
+        NULL
+    );
+}
+
 PUBLIC json_t *gbuf2json_from_peer(
     hgobj gobj,
     gbuffer_t *gbuf,        // owned
@@ -1534,6 +1605,8 @@ PUBLIC json_t *gbuf2json_from_peer(
 
     if(!jn_msg) {
         log_json_from_peer_failed(gobj, __FUNCTION__, "frame is not json", &jn_error, p, len, peer_gobj);
+    } else {
+        drop_peer_binary_keys(gobj, __FUNCTION__, jn_msg, p, len, peer_gobj);
     }
     gbuffer_decref(gbuf);
     return jn_msg;
@@ -1565,6 +1638,8 @@ PUBLIC json_t *anystring2json_from_peer(
     json_t *jn = json_loadb(bf, len, JSON_DECODE_ANY, &jn_error);
     if(!jn) {
         log_json_from_peer_failed(gobj, __FUNCTION__, "data of a peer is not json", &jn_error, bf, len, peer_gobj);
+    } else {
+        drop_peer_binary_keys(gobj, __FUNCTION__, jn, bf, len, peer_gobj);
     }
     return jn;
 }

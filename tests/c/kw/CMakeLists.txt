@@ -54,6 +54,7 @@ set(SRCS
     test_kw1
     test_json_flat
     test_kw_set_dict_value
+    test_kw_binary_depth
 )
 
 ##############################################

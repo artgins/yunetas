@@ -113,6 +113,14 @@ typedef enum {
     KW_RECURSIVE        = 0x0080,   //
 } kw_flag_t;
 
+/*
+ *  A binary field counts only at the TOP level of a kw dict: kw_incref(),
+ *  kw_decref(), kw_twin(), kw_duplicate(), kw_update_missing() and the
+ *  serializers look for it there. Its name is never data of a peer:
+ *  gbuf2json_from_peer() and anystring2json_from_peer() drop a "gbuffer"
+ *  key at any depth, and kw_deserialize() the top level of a frame's kw.
+ *  A new binary type has to be dropped there too.
+ */
 PUBLIC int kw_add_binary_type(
     const char *binary_field_name,
     const char *serialized_field_name,
@@ -455,6 +463,10 @@ PUBLIC int kw_update_missing(
 /**rst**
    Make a duplicate of kw
    WARNING near as json_deep_copy(), but processing serialized fields and with new references
+   A binary field (the `gbuffer`) counts only at the TOP level of a dict, as
+   in kw_incref(), kw_decref() and kw_twin(): the copy takes a reference of
+   it there. A nested "gbuffer" (or one in a list) is copied as data: it is
+   not a pointer, and a peer can write it.
 **rst**/
 PUBLIC json_t *kw_duplicate(
     hgobj gobj,
@@ -680,6 +692,7 @@ PUBLIC json_t *kwid_new_dict(
 /**rst**
     HACK Convention: private data begins with "_".
     This function return a duplicate of kw removing all private data
+    Binary fields as kw_duplicate(): the top level only.
 **rst**/
 PUBLIC json_t *kw_filter_private(
     hgobj gobj,
@@ -689,6 +702,7 @@ PUBLIC json_t *kw_filter_private(
 /**rst**
     HACK Convention: metadata begins with "__".
     This function return a duplicate of kw removing all metadata
+    Binary fields as kw_duplicate(): the top level only.
 **rst**/
 PUBLIC json_t *kw_filter_metadata(
     hgobj gobj,

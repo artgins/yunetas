@@ -63,6 +63,18 @@ json_t *gbuf2json_from_peer(
 
 A `json_t *` (yours) if the data is JSON, `NULL` otherwise.
 
+**A json of a peer has no `"gbuffer"` key, at any depth.** `gbuffer` is the name of the binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)), and [`kw_incref()`](#kw_incref), [`kw_decref()`](#kw_decref), [`kw_twin()`](#kw_twin) and [`kw_duplicate()`](#kw_duplicate) take the integer under it for a pointer wherever a dict of the json ends up as the top level of a kw: a treedb record, an HTTP body, an MQTT payload. Every such key is dropped, and said with ONE warning (`MSGSET_PROTOCOL`, *"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*, the `peername` and the number dropped). A binary field of a peer arrives serialized (`"__gbuffer___"`, see [`kw_deserialize()`](#kw_deserialize)), never as a `"gbuffer"`. Up to 7.30.16 the keys were kept: a `create-node` of a peer with `{"record": {"id": "a", "gbuffer": 4096}}` crashed the yuno. A text that holds neither the name nor a `\u` escape (the only way to spell a letter in a json string) is not walked: the check costs a scan of the bytes, not a walk of the json.
+
+```json
+{"gbuffer": 4096, "a": {"gbuffer": 1, "l": [{"gbuffer": 2}, 3]}, "b": "gbuffer"}
+```
+
+comes out as
+
+```json
+{"a": {"l": [{}, 3]}, "b": "gbuffer"}
+```
+
 **Example**
 
 A gate reading the frames of its input side:
@@ -111,7 +123,7 @@ json_t *anystring2json_from_peer(
 
 **Returns**
 
-A `json_t *` (yours) if the bytes are JSON, `NULL` otherwise.
+A `json_t *` (yours) if the bytes are JSON, `NULL` otherwise. Its `"gbuffer"` keys are dropped, at any depth, as [`gbuf2json_from_peer()`](#gbuf2json_from_peer) drops them.
 
 **Example**
 

@@ -67,6 +67,9 @@
  *                 subscription without filter gets it, without the
  *                 `gbuffer` she set (up to 7.25.4 the gate took her integer
  *                 for a gbuffer when it serialized the event: a crash).
+ *                 Her `gbuffer` no longer reaches the gate (it did up to
+ *                 7.30.16): the parse of the frame drops it, with its own
+ *                 WARNING.
  *              5. What the gate keeps to route the events back:
  *                 `alice`'s EV_TEST_OPEN frame carries a 4 KB key of her
  *                 own in `__md_iev__`, which is not stored (up to 7.25.4 the

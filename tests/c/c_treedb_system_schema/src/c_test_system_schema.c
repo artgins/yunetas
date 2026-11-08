@@ -7296,6 +7296,54 @@ PRIVATE int check_tkey_date_past_max_c_node(hgobj gobj)
 }
 
 /***************************************************************************
+ *  A "gbuffer" nested in a peer's json is data, not a pointer. Up to 7.30.16
+ *  kw_duplicate() and kw_filter_metadata() increfed it at any depth: a
+ *  saved-schema with no treedb_name and `{"x": {"gbuffer": 4096}}`
+ *  (for_every_treedb() duplicates the kw) crashed the yuno with the `read`
+ *  permission, and a `_geometry` of a __system__ node holding one crashed
+ *  every saved-schema after it (diff_treedb_schema() reads the node tree
+ *  without its metadata), across restarts too.
+ ***************************************************************************/
+PRIVATE int check_nested_gbuffer_is_data(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs, "saved-schema",
+        json_pack("{s:{s:I}}", "x", "gbuffer", (json_int_t)4096), gobj);
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += save_fail(gobj, "TEST FAIL: saved-schema of a kw with a nested gbuffer", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    hgobj gobj_node_system = gobj_find_service(SYSTEM_TREEDB, FALSE);
+    if(!gobj_node_system) {
+        return save_fail(gobj, "TEST FAIL: __system__ treedb service not found", NULL);
+    }
+    jn_resp = gobj_command(gobj_node_system, "update-node",
+        json_pack("{s:s, s:{s:s, s:{s:I}}}",
+            "topic_name", "treedbs",
+            "record", "id", TREEDB_NAME, "_geometry", "gbuffer", (json_int_t)4096),
+        gobj);
+    result += check_done(gobj, "TEST FAIL: a _geometry with a gbuffer key was not written", jn_resp);
+
+    jn_resp = treedbs_command(gobj, "saved-schema", json_object());
+    if(kw_get_int(gobj, jn_resp, "result", -1, 0) < 0) {
+        result += save_fail(gobj, "TEST FAIL: saved-schema over a _geometry with a gbuffer key", jn_resp);
+    }
+    JSON_DECREF(jn_resp)
+
+    jn_resp = gobj_command(gobj_node_system, "update-node",
+        json_pack("{s:s, s:{s:s, s:{}}}",
+            "topic_name", "treedbs",
+            "record", "id", TREEDB_NAME, "_geometry"),
+        gobj);
+    result += check_done(gobj, "TEST FAIL: the _geometry was not put back", jn_resp);
+
+    return result;
+}
+
+/***************************************************************************
  *  Run all tests — called from the timer action, inside the event loop
  ***************************************************************************/
 PRIVATE int run_tests(hgobj gobj)
@@ -7330,6 +7378,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += check_node_tree_copy_not_pure(gobj);
     result += check_schema_order(gobj, jn_schema);
     result += check_no_saved_schema(gobj);
+    result += check_nested_gbuffer_is_data(gobj);
 
     /*-----------------------------------------------*
      *  Test 1b: close-treedb, create-topic and
