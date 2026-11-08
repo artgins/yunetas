@@ -37,6 +37,60 @@ Tests: `c_tcps/test14` (+ `test14_mbedtls`), `ytls/test_server_init_not_fatal`;
 `test_c_tcp_s_busy_channel` now fails saying its TLS port is not listening when
 `/yuneta/agent/certs/localhost.*` is missing (it relied on the exit).
 
+### Security
+
+- **The agent killed any process whose pid a refused identity card gave**
+  (7.30.17, and long before). `ac_on_open()` sent SIGKILL to the `pid` of
+  every card it refused (an unknown yuno, a second instance of a living one,
+  a role, name, release or realm that does not match). The pid is the peer's
+  word: any session of the agent could kill any process of the user, and
+  `pid: -1` killed all of them, `yuneta_agent22` included. Now the pid is
+  killed only when it is one of the processes of that yuno (`argv[0]` its
+  role, its configuration in its `bin/`), else **one WARNING** *"identity
+  card refused: its pid is not a process of that yuno, not killed"* and no
+  signal. **BREAKING** for a log watcher (a new WARNING) and for anyone who
+  relied on the agent killing a second instance of a yuno launched by hand
+  with another configuration: it is no longer killed.
+- **The agent recorded the pids of an identity card unchecked, and
+  `kill-yuno` signalled them** (7.30.17 and before): a session that sent the
+  identity of a registered yuno that was not running, with `pid: -1`, made
+  the next `kill-yuno` (an operator's, a restart's) send SIGQUIT to every
+  process of the user. Now a pid or watcher pid of a card is recorded only
+  when it is a process of that yuno (else 0 and **one WARNING** *"identity
+  card accepted: its pid is not a process of that yuno, not recorded"*), and
+  `kill-yuno` signals a recorded pid only when it is a process of the yuno:
+  one that ended is a yuno already gone, one alive that is not the yuno's is
+  an **ERROR** *"The pid of the yuno is not a process of that yuno: not
+  signalled"* and the command answers -1. **BREAKING** for a log watcher (a
+  new WARNING and a new ERROR), and for a yuno launched by hand with another
+  configuration: its pid is no longer recorded, and its `kill-yuno` answers
+  "yuno PID NULL".
+- **The agent released a peer's gbuffer twice in `write-tty`** of a console
+  that is not there (7.30.17, since the "console not found" answer was
+  added), and in `check-realm`, `dir-logs`, `dir-local-data` and
+  `update-binary` of an id that is not there: one *"BAD gbuf_decref()"* per
+  request whose kw carried a `__gbuffer___` -- a double free in a node
+  without `CONFIG_DEBUG_TRACK_MEMORY`, reachable from any session and through
+  the controlcenter. They hand the kw on with `kw_incref()`.
+- **controlcenter: a refused `write-tty` frees its request once, and is
+  answered.** Any authenticated user without the permission `write-tty` made
+  the control center free the request twice (since 7.0.0), and the answer
+  went back as `EV_WRITE_TTY`, which no client takes (*"Event NOT DEFINED"*;
+  the user got nothing). It is answered as a command is now,
+  `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service
+  'controlcenter'"*. **BREAKING** for a client that waited for nothing: it
+  gets that answer. Test: case 40 of `test_c_controlcenter_scenarios`.
+- **controlcenter: who may write a scenario but not run it cannot make the
+  control center run what it writes** (in 7.30.17). A `max_run` stop that did
+  some steps made the scenario look stopped, so `save-scenario` and
+  `delete-scenario` did not ask `run-scenarios`. And when none of the steps
+  left was in the scenario saved since, the control center ran its whole new
+  `stop`. While its `max_run` stop is due, a scenario runs (saving or
+  deleting it needs `run-scenarios`). The steps left are those that the
+  scenario still has (a save that takes out or changes one drops it). The
+  control center never runs a step that the run did not have. **BREAKING**
+  for such a writer: *"scenario 'x' runs: saving it needs 'run-scenarios'
+  too"*. Test: case 41.
 - **`C_AUTHZ`: a `jwks` key of kid `*` is refused when the keys load.**
   **BREAKING** for a configuration with such a key: it no longer loads, and
   `C_AUTHZ` logs ONE ERROR, *"A jwks key with kid '*' is not allowed: its kid
@@ -46,6 +100,227 @@ Tests: `c_tcps/test14` (+ `test14_mbedtls`), `ytls/test_server_init_not_fatal`;
   have to equal the key's `kid`, so a `*` key verified no token and nothing
   said so. The checker of every key now always asks `iss == kid`.
   `assertion_jwks` refused `*` already. `tests/c/authz_login` (cases 11, 12).
+
+### Agent
+
+- **The agent leaked the gbuffer of a request in 38 filters** (7.30.17 and
+  before): `list-yunos`, `command-yuno`, `kill-yuno` and the rest handed
+  their kw to `gobj_list_nodes()` / `gobj_list_instances()` /
+  `find_new_yunos()` with `kw_incref()`, which release it with
+  `JSON_DECREF`: 200 KB per call for a 200 KB `__gbuffer___`. Same in
+  `C_NODE`'s `snaps`. They take `json_incref()`. And `trace-on-yuno` /
+  `trace-off-yuno` of a yuno with no channel leaked their copy of the kw.
+- Tests: new `test_c_agent_sandbox` (the real agent in namespaces of its
+  own, driven as a peer); `test_c_node_commands` passes a gbuffer through
+  `snaps`.
+
+### Control center
+
+- **controlcenter: the `max_run` stop ends its tries** (since 7.27.19). A
+  step that answered an error for ever was tried every minute, for ever,
+  with a run, a WARNING and an INFO each time. A step of a stop answered
+  *"Yuno not found"* (the yuno stopped by hand, or gone) is done, with an
+  error. After 10 tries in a row that did nothing, the stop is not tried
+  again, with ONE WARNING *"the stop of a scenario's max_run did nothing in
+  its last tries: not tried again"*. **BREAKING** for a log watcher (a new
+  WARNING), and for an operator who counted on the endless retry. Tests:
+  cases 42, 43.
+- **controlcenter: a `max_run` stop that cannot even start ends its tries**
+  (since 7.27.19). When the stop could not start (the scenario lost its
+  `stop`, or none of the steps left is in it), it wrote no run and was tried
+  every minute, for ever, a warning each time. Its attempts count towards
+  the same 10 tries, and the last says ONCE *"the stop of a scenario's
+  max_run cannot run: not tried again"*. **BREAKING** for a log watcher (a
+  new WARNING). Test: case 46.
+- **controlcenter: no gbuffer leaks in a request for an agent.** `write-tty`
+  (since 7.0.0), and `command-agent`/`stats-agent` without an
+  `operator_assertion_key` (since 7.30.17: up to 7.30.16 the same path freed
+  the gbuffer once too often), gave the agent's gate the request itself. The
+  gate serializes the gbuffer away, so one reference was never freed. It
+  gets a copy now (`kw_duplicate()`). Tests: cases 40, 44.
+
+### Kernel and stores
+
+- **`C_IEVENT_SRV`, `C_IEVENT_CLI`: a request does not change a kw somebody
+  else holds** (since 7.0.0). `gobj_command()` and `gobj_stats()` on a gate
+  wrote the ievent stack and the message type into the kw they were given,
+  and serialized its gbuffer away, also when the caller held it too
+  (`kw_incref()`): the caller's kw came back changed, without its gbuffer,
+  and that reference was never released. A shared kw is twinned first
+  (`kw_twin()`), and a shared `__md_iev__` copied, as `mt_inject_event()`
+  already did. Test: case 45 of `test_c_controlcenter_scenarios`.
+- **The node API released its kw the other way from its method where the
+  method is not reached** (a NULL or destroyed gobj, a gclass without the
+  method; 7.30.17 and before): `gobj_get_node()` leaked a gbuffer of its kw,
+  and `gobj_list_snaps()`, `gobj_topic_jtree()`, `gobj_node_tree()` and
+  `gobj_delete_node()` released it twice. And `C_NODE`'s `delete_node`
+  released its kw as a kw in two refusals (a replica, a topic not found) and
+  as json in the rest: json on every path now, as every caller passes a node
+  record. Test: `test_c_node_commands`.
+- **A record on disk with a top-level `"gbuffer"` key no longer crashes the
+  yuno or the tool that trims or prints it.** `C_TRANGER`'s `open-list` with
+  `fields`, `print-tranger` with `expanded=1 lists_limit=0 dicts_limit=0`,
+  and the `-f` of `tr2list` and `tr2search` (and the `--filter` of
+  `tr2list`) handled the record as a kw: their `kw_incref()`/`kw_decref()`
+  took the integer for a gbuffer, SIGSEGV. A store written by 7.30.16 or
+  before holds such records, and a C `add-record` of a dict can still write
+  one. In 7.30.17, there since 7.0.0. Tests: `test_c_tranger`,
+  `test_date_bound_units`.
+- **A json read from a store is no longer taken for a kw** -- a top-level
+  `"gbuffer"` in it is data, and a `kw_incref()`/`kw_decref()` of it took
+  the integer for a gbuffer (SIGSEGV):
+    - `C_RESOURCE2` saves a record as a json, less its private keys at
+      every depth as before (with a real gbuffer in a record, the copy also
+      kept a reference nobody released). Since 7.0.0.
+    - `tranger2_topic_desc()` (`desc-topic`, `topics expanded=1`, the descs
+      of `C_NODE`) copies the topic as a json: a `"gbuffer"` in its
+      `topic_var.json` or in a C caller's `jn_var` crashed it. Since 7.0.0.
+    - `emailsender` releases the email it reads from its queue as a json:
+      an email queued before 7.4.4 kept the pointer of its body under
+      `"gbuffer"`, and the first send after a restart crashed.
+    - `webstats` drops a `"gbuffer"` from a stored report it reads, with
+      the WARNING *"A stored report with a 'gbuffer' key, a binary field
+      name: dropped"*: a run that kept the stored day published it as a kw.
+    - `tr2q_mqtt` drops a `"gbuffer"` from a row of the queue it reads, with
+      the WARNING *"A row of the queue with a 'gbuffer' key, a binary field
+      name: dropped"*, and rebuilds the message from its `"payload"`: the
+      load of a queued one crashed, and one in flight carried the integer as
+      its gbuffer. `tr2q_append()` never writes the key: only a corrupt or
+      foreign row has it.
+
+  All in 7.30.17. **BREAKING** for a log watcher: the two new WARNINGs.
+  Tests: `c_resource2_names`, `test_c_tranger`,
+  `emailsender/queued_gbuffer_key`, `webstats/report_ready`,
+  `test_tr2q_queued`.
+- **`C_RESOURCE2`: a reload takes each file back under the name it was
+  saved with.** The name was cut at its FIRST `.json` and every file holding
+  `.json` was loaded: after a restart `x.jsonz` came back as `x`, over the
+  record of `x`, and `victim.json` competed with `victim` by the order of
+  the directory (an MQTT client id with `.json` took another id's record).
+  Now only a file ending in `.json` is loaded, less that last `.json`. In
+  7.30.17, there since 7.0.0. **BREAKING** for a file in a store directory
+  that does not end in `.json` (`x.json.bak`): it is no longer loaded. Test:
+  `c_resource2_names`.
+- **`C_RESOURCE2` loads only the top of its store**: a `.json` of a
+  subdirectory was loaded under its bare name, over a resource of the top
+  (no resource is saved below: a name has no `/`). In 7.30.17, there since
+  7.0.0. **BREAKING** for a store that kept files in subdirectories: they
+  are no longer loaded.
+- **`C_QIOGATE`: a message with a `gbuffer` at the top level of its kw
+  leaked that gbuffer** (one per message), and the queue saved its address
+  as a number. The queue frees its json with `json_decref()`, so the
+  reference taken by the copy was never given back. Now the binary field is
+  saved as its content (`kw_serialize()`, `__gbuffer___`). Present in
+  7.30.17, and in every 7.x release. Test: `test_c_qiogate_stats`.
+- The frontier walks a peer's json only when its text holds `gbuffer`,
+  `\u006` or `\u007` (the only escapes of a letter of the name), not any
+  `\u`: one `é` in a json of 1 MB cost +12-30% of its parse, at the
+  peer's will (+3% now, as a text without escapes). New in 7.30.17. Test:
+  `test_kw_binary_depth` (every spelling of the name with escapes).
+- `tr2list --filter='{}'` lists every record (it listed none).
+- `tr2q_mqtt`: with verbose, the trace of a loaded row read it after
+  `new_msg()` had released it (a queued message): it is traced first. In
+  7.30.17, there since `tr2q_mqtt` began; verbose only.
+
+### TCP and TLS
+
+- **`C_TCP`: the rest of a write of a dropped CLIENT went to whatever file
+  or socket had taken the number of its socket.** The drop (or stop) of a
+  client closed its socket at once (the stop of its connect event), and a
+  write in flight that completed short re-sent its rest with that closed
+  number: to EBADF, the data lost with no trace, or to a file, socket or
+  accepted connection that an `open()`, `socket()` or `accept()` had been
+  given the number in the meantime. A peer can make a write complete short
+  by filling its window. Now the socket of a client stays open until its
+  last write ends, as a clisrv's did, and the rest reaches its peer, bounded
+  by `timeout_stop_tx`. In 7.30.17 and before, since a stop of a client
+  waits for its write in flight. `tests/c/c_tcp` `test10`.
+- **`C_TCP`: a client's `timeout_inactivity` no longer skips the deadline of
+  its TLS handshake.** The two share one timer, and each byte read during
+  the handshake re-armed it with the inactivity time: a peer that sent one
+  byte now and then held the handshake open past `timeout_tls_handshake`.
+  The inactivity timer is armed only in `ST_CONNECTED`. In 7.30.17 (where
+  the deadline came). `tests/c/c_tcp` `test11`.
+- **BREAKING (log watchers) -- `C_TCP`: the warning *"TLS handshake not
+  ended in time, connection dropped"* is one per 10 s for the whole yuno**,
+  with a new field `suppressed`: the deadlines in the 10 s before it that
+  wrote no warning. Up to 7.30.17 each deadline wrote one, so a peer that
+  kept opening mute connections wrote the log at its will (903 warnings in
+  21 s, about 3 MB/min). A monitor that counted these warnings must read
+  `suppressed`. In 7.30.17. `tests/c/c_tcp` `test11`, `tests/c/c_tcps`
+  `test11`.
+- **BREAKING (scripts) -- `ycommand`: a connection that does not open in
+  10 s is said, and the exit is an error (255).** `Cannot connect to <url>:
+  <cause>` on stderr (stdout with `-i`/`-l`), the cause being the
+  transport's last `disconnect_cause` (*"Connection refused"*, *"TLS
+  handshake failed: ...certificate verify failed"*, or *"no answer"*). Up to
+  7.30.17 a refused port or a certificate that did not verify (a name that
+  does not match) left `ycommand` waiting for ever, with nothing printed
+  without `-l`: the transport retries a failed connection and tells its host
+  nothing until one opens. A script that relied on `ycommand` waiting for an
+  agent to come up now gets an error after 10 s.
+
+### Resilience
+
+- **BREAKING (operators, log watchers): a listener or a queue that fails no
+  longer ends its yuno.** The yuno now stays up with that service down, and
+  one ERROR says so. Before the fix (7.30.17, and from the v7 port on), the
+  process exited and was relaunched, or for `C_UDP_S` exited with code 0 and
+  was NOT relaunched. Alert on these ERRORs, or on the stats, not on "Daemon
+  relaunched" or a dead process:
+    - `C_TCP_S`: a socket that cannot be made (an address held past
+      `listen_retry_msec`, a host not on the machine, a name that does not
+      resolve) used to exit the yuno (`exitOnError`, -1 by default; the
+      agent died when 1991 or 1993 was held for 5 s). Now: ONE ERROR
+      *"Listen failed: not listening, trying again"*, a try from 1 s up to
+      each 60 s, one INFO *"Listening again after a failed listen"*;
+      `listening` false meanwhile. A bad url (empty, unparsable, port 0) is
+      its ERROR at each start and is not tried by itself; writing `url`
+      while down tries it at once. Test: `test_c_tcp_s_addr_in_use`.
+    - `C_UDP_S`: every failed start called `exit(0)` (`exitOnError`, TRUE
+      by default), so a UDP port held at boot left the yuno down for good.
+      Now the same as `C_TCP_S` (`url` is read only: a bad one needs a new
+      config and a start). New stat `listening`. Test:
+      `test_c_udp_s_self_stop`.
+    - `exitOnError` (both) is deprecated and ignored: a config that still
+      sets it gets a WARNING *"Deprecated attribute used in gobj
+      creation"*.
+    - `C_QIOGATE`: a queue that could not be opened at the start aborted
+      the yuno at its first message (CRITICAL *"trq_msgs NULL"*), in a
+      loop. Now the gate refuses messages (`-1`, `dropped_msgs`), says ONE
+      ERROR *"Queue cannot be opened: the gate refuses messages, trying
+      again"*, tries to open it from 1 s up to each 60 s, and says one INFO
+      *"Queue opened: the gate accepts messages"*. New stat `queue_ready`.
+      Test: `test_c_qiogate_stats`.
+- `C_UDP_S`: *"UDP listening ..."* is said once, when it listens; a read
+  that cannot be started is ONE ERROR, *"Cannot start the read of the UDP
+  server: not listening, trying again"* (the old *"Cannot start the read of
+  the UDP server"* is gone: a log watcher that matched it exactly must match
+  the new text). Test: `test_c_udp_s_self_stop`.
+- `C_QIOGATE`: `queue_mark_pending` / `queue_mark_notpending` no longer open
+  the queue again over the open one (*"tranger NOT NULL"*, the live store
+  shut down, the gate left with no queue after the command), and no longer
+  crash on a queue that is not open: they act on the open queue (a mark is
+  taken at the next load) and answer `-1` when `queue_ready` is false.
+  Present in 7.30.17, and since the v7 port. Test: `test_c_qiogate_stats`.
+
+### The packages and their scripts
+
+- **An agent running outside its unit is found by its `argv[0]`, as its own
+  `--stop` finds it.** The postinsts, the `.rpm`'s `%pre`,
+  `install-yuneta-service.sh` and the SysV script found the agent by
+  `/proc/<pid>/exe` alone. That misses the agent in three cases: when
+  `/yuneta` is a symlink, when its running binary was renamed
+  (`*.bak-pre-<version>`), and when root has no `CAP_SYS_PTRACE` (a
+  container by default). The agent was then left running beside its unit,
+  and an `.rpm` upgrade left the OLD agent running without a word. Now each
+  script compares the base name of `argv[0]` from `/proc/<pid>/cmdline`,
+  which the SysV script (whose `argv[0]` is its shell) does not match. In
+  7.30.17. The SysV script had the defect since 7.25.22-3; the packages'
+  scripts only in 7.30.17. No BREAKING change: a build tree's agent of the
+  same name counts again as an agent outside its unit, as in 7.30.16, and
+  the `--stop` that runs takes it anyway. Test:
+  `packages/tests/test-yuneta-agent-cert.sh` (175 checks).
 
 ## v7.30.17 (2026-11-08)
 
@@ -92,10 +367,10 @@ could write that key, and three remote faults followed (up to 7.30.16):
 - **A treedb column cannot be named `gbuffer`** (`parse_schema_cols()`).
   **BREAKING** for a schema that has one.
 - **`C_RESOURCE2`: a persistent store refuses a name with `/`, a leading
-  `.`, `..` or too long**, with ONE WARNING (it logged three ERRORs per
-  connect for an MQTT client id like that, and wrote `clients/.hidden.json`
-  for `.hidden`); `C_PROT_MQTT` answers such a client id with CONNACK
-  identifier rejected. Test: `c_resource2_names`.
+  `.`, `..` anywhere in it (`a..b` too) or too long**, with ONE WARNING (it
+  logged three ERRORs per connect for an MQTT client id like that, and wrote
+  `clients/.hidden.json` for `.hidden`); `C_PROT_MQTT` answers such a client
+  id with CONNACK identifier rejected. Test: `c_resource2_names`.
 - `yuno_agent`: `cert-sync-now` and `cert-sync-status` released their kw with
   `JSON_DECREF`, leaking a gbuffer it carried.
 
