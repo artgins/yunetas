@@ -2193,6 +2193,22 @@ PRIVATE json_t *load_report(hgobj gobj, const char *date)
 
     tranger2_close_iterator(priv->tranger, iterator);
 
+    /*
+     *  A report is published as the kw of EV_REPORT_READY, and a top-level
+     *  "gbuffer" of a kw is taken for a pointer. Webstats never writes one:
+     *  a record with it is foreign or tampered, and the key goes.
+     */
+    if(record && json_object_get(record, "gbuffer")) {
+        json_object_del(record, "gbuffer");
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "A stored report with a 'gbuffer' key, a binary field name: dropped",
+            "date",         "%s", date,
+            NULL
+        );
+    }
+
     return record;
 }
 

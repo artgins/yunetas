@@ -10,6 +10,11 @@
  *             away) and report-day DAY runs again: it reads nothing, keeps
  *             the stored day, and must publish THAT one. Up to 7.25.20 it
  *             mailed the stored report and published the empty one.
+ *             Between the two runs the day is stored again with a
+ *             top-level "gbuffer" key (a foreign or tampered record): the
+ *             second run drops it, says it with a WARNING, and publishes
+ *             the day. Up to 7.30.17 the publish took the integer for a
+ *             gbuffer: SIGSEGV.
  *
  *          The second run is posted to ourselves: EV_REPORT_READY is
  *          published from inside the run, before webstats is idle again.
@@ -233,6 +238,26 @@ PRIVATE int ac_report_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
                 NULL
             );
         }
+        /*
+         *  The day stored again with a top-level "gbuffer" key, as a
+         *  foreign or tampered record would have it: the second run keeps
+         *  it and publishes it. Up to 7.30.17 the publish increfed it as a
+         *  kw, gbuffer_incref() of the integer: SIGSEGV.
+         */
+        hgobj gobj_tranger = gobj_find_service("tranger_webstats", TRUE);
+        json_t *tranger = gobj_tranger? gobj_read_pointer_attr(gobj_tranger, "tranger") : NULL;
+        json_t *poisoned = json_deep_copy(kw);
+        json_object_set_new(poisoned, "gbuffer", json_integer(4096));
+        md2_record_ex_t md = {0};
+        if(!tranger || tranger2_append_record(tranger, "daily_stats", 0, 0, &md, poisoned) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "The day with a gbuffer key was not stored",
+                NULL
+            );
+        }
+
         write_file(gobj, "access.log", "");
         gobj_post_event(gobj, EV_SECOND_RUN, 0, gobj);
 

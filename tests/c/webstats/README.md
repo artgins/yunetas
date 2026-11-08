@@ -15,6 +15,11 @@ The report a run publishes (`EV_REPORT_READY`) is the report of the day.
    warning *"Read nothing for a day already stored with data, keeping the
    stored one"*) and must publish THAT one, 3 requests. Up to 7.25.20 the run
    mailed the stored report and published the empty one it had read.
+   Between the two runs the day is stored again with a top-level `"gbuffer"`
+   key, as a foreign or tampered record would have it: the second run drops
+   the key with the warning *"A stored report with a 'gbuffer' key, a binary
+   field name: dropped"* and publishes the day. Up to 7.30.17 the publish
+   took the integer for a gbuffer (`kw_incref()`, SIGSEGV).
 
 No mail is sent (`send_email: false`, `send=0`), no registry is asked
 (`whois_enabled: false`); the logs and the store live under
