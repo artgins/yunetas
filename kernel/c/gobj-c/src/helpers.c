@@ -7377,7 +7377,10 @@ PRIVATE BOOL zone_of_text_loaded = FALSE;
  *  in localtime(). It is not saved by looking once per interval: in the
  *  interval a text would be read in whatever zone other code left in libc,
  *  and nothing here tells that zone from the local one. TZ=:/etc/localtime
- *  takes it away, and with it the sight of a change of that file.
+ *  takes it away, and with it the sight of a change of that file at each
+ *  text (it is seen again after TZ held another zone, as in
+ *  gmtime2timezone(): glibc looks at the file again at the first tzset()
+ *  after TZ changed).
  ***************************************************************************/
 PRIVATE void load_zone_of_text(void)
 {

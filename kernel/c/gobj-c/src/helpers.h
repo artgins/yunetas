@@ -1198,7 +1198,9 @@ PUBLIC timestamp_t approxidate_careful(const char *date, int *error_ret);
         any zone: it looks at none and costs no tzset(). The price, with
         TZ unset: one stat() of /etc/localtime per text that reads the
         local zone, as for a line of log. TZ=:/etc/localtime takes it
-        away, and with it the sight of a change of that file
+        away, and with it the sight of a change of that file at each
+        text (it is seen again after TZ held another zone, as in
+        gmtime2timezone())
         "yesterday 15:00"  "3 days 10:00"  "noon yesterday"
         after "at" comes a time of day or a date: "at yesterday", "at
         now", "at today", "at never" are no date
