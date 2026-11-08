@@ -52,7 +52,10 @@ answers `-1`. What then:
 
 The head is put together in linear time: each byte is copied once, into a
 buffer that grows by doubling, and a header goes into `jn_headers` once,
-when its value ends. A header with an empty value is kept as `""`. A value
+when its value ends, without the OWS (spaces and tabs) around it (RFC 9110
+§5.5): `Upgrade: websocket \t` is `"websocket"`, and `X-A: a b` stays
+`"a b"`. Up to 7.30.15 the trailing OWS was kept. A header with an empty
+value, or of OWS only, is kept as `""`. A value
 that is not utf-8 is left out, with ONE warning per message however many
 there are (*"cannot store header value (invalid utf-8?), the first one of the
 message"*). A name that comes again is one field, its values joined in their

@@ -525,6 +525,36 @@ PRIVATE void test_ghttp_parser_header_pieces(void)
 }
 
 /***************************************************************************
+ *  The OWS around a value (spaces and tabs, RFC 9110 5.5) is not part of
+ *  it, whole or byte by byte; inside it stays. Up to 7.30.15 the trailing
+ *  OWS stayed, and a 101 with "Upgrade: websocket " was refused.
+ ***************************************************************************/
+PRIVATE void test_ghttp_parser_header_ows(void)
+{
+    fprintf(stderr, "\n== ghttp_parser: the OWS around a header value ==\n");
+
+    for(size_t chunk = 1; chunk <= 4096; chunk += 4095) {
+        char resp[] = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket \r\n"
+            "Connection:\t Upgrade \t\r\nX-Inner: a \t b\t\r\nX-Blank:  \t \r\n"
+            "X-Two: one \r\nX-Two:  two\r\n\r\n";
+        GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+        int rc = feed_in_chunks(parser, resp, strlen(resp), chunk);
+        EXPECT(rc == (int)strlen(resp), chunk == 1? "the head is parsed byte by byte" : "the head is parsed whole");
+        const char *upgrade = json_string_value(json_object_get(parser->jn_headers, "UPGRADE"));
+        EXPECT(upgrade && strcmp(upgrade, "websocket") == 0, "a trailing space is not part of the value");
+        const char *connection = json_string_value(json_object_get(parser->jn_headers, "CONNECTION"));
+        EXPECT(connection && strcmp(connection, "Upgrade") == 0, "nor the tabs and spaces around it");
+        const char *inner = json_string_value(json_object_get(parser->jn_headers, "X-INNER"));
+        EXPECT(inner && strcmp(inner, "a \t b") == 0, "the spaces inside a value stay");
+        const char *blank = json_string_value(json_object_get(parser->jn_headers, "X-BLANK"));
+        EXPECT(blank && strcmp(blank, "") == 0, "a value of OWS only is \"\"");
+        const char *two = json_string_value(json_object_get(parser->jn_headers, "X-TWO"));
+        EXPECT(two && strcmp(two, "one, two") == 0, "a name that comes again joins its values without their OWS");
+        ghttp_parser_destroy(parser);
+    }
+}
+
+/***************************************************************************
  *  Each header costs GHTTP_HEADER_COST bytes against max_header_size, what
  *  it holds in memory beyond its text: many empty headers of a repeated
  *  name are refused like one huge one. At the limit they pass, one more is
@@ -848,6 +878,7 @@ int main(int argc, char *argv[])
     test_ghttp_parser_finish_eof();
     test_ghttp_parser_fragmented_url();
     test_ghttp_parser_header_pieces();
+    test_ghttp_parser_header_ows();
     test_ghttp_parser_header_cap();
     test_ghttp_parser_stop();
     test_ghttp_parser_header_cost();

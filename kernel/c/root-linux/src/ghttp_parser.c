@@ -870,6 +870,7 @@ PRIVATE void say_trailer_left_out(GHTTP_PARSER *parser, const char *key)
  *  A header is whole: its name, in upper case, and its value go into
  *  jn_headers, once (a name that comes again: see join_repeated_headers()).
  *  It pays GHTTP_HEADER_COST: what it holds in memory beyond its text.
+ *  Its value without the OWS around it (RFC 9110 5.5).
  *  A value that is not utf-8 is left out, with ONE warning per message,
  *  and a trailer in fields_not_in_trailers too.
  ***************************************************************************/
@@ -897,6 +898,14 @@ PRIVATE int on_header_value_complete(llhttp_t* llhttp)
     size_t key_len = parser->gbuf_field? gbuffer_leftbytes(parser->gbuf_field) : 0;
     const char *value = parser->gbuf_value? gbuffer_cur_rd_pointer(parser->gbuf_value) : "";
     size_t value_len = parser->gbuf_value? gbuffer_leftbytes(parser->gbuf_value) : 0;
+
+    /*
+     *  OWS is not part of a value (RFC 9110 5.5): llhttp drops the leading
+     *  one, not the trailing one (kept up to 7.30.15)
+     */
+    while(value_len > 0 && (value[value_len - 1] == ' ' || value[value_len - 1] == '\t')) {
+        value_len--;
+    }
 
     if(key_len > 0) {
         strntoupper(key, key_len);
