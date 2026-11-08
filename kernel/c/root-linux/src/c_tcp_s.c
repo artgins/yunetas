@@ -1097,13 +1097,14 @@ PRIVATE void note_refused_connection(
  *  with a socket on each port ended the yuno in ytls_free_secure_filter()
  *  (up to 7.30.1). The walk stops at the first one: it is on the accept
  *  path, and matching and listing every channel cost O(channels) per
- *  accept (up to 7.30.14).
+ *  accept (up to 7.30.14). jn_filter NULL (no "kw" in child_tree_filter):
+ *  every child is a candidate.
  ***************************************************************************/
 PRIVATE hgobj find_free_channel(hgobj gobj, json_t *jn_filter)
 {
     hgobj child = gobj_first_child(gobj_parent(gobj));
     while(child) {
-        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+        if(!jn_filter || gobj_match_gobj(child, json_incref(jn_filter))) {
             hgobj bottom = gobj_last_bottom_gobj(child);
             if(!bottom || gobj_gclass_name(bottom) != C_TCP || !gobj_is_running(bottom)) {
                 return child;
@@ -1245,7 +1246,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         hgobj gobj_bottom = 0;
 
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
-        json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", json_object(), 0);
+        json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", 0, 0);
         gobj_top = find_free_channel(gobj, jn_filter);
         if(!gobj_top) {
             note_refused_connection(gobj, REFUSAL_NO_FREE_CHANNEL, peername);

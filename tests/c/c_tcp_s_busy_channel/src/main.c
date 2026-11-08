@@ -128,6 +128,39 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__nokw__',                                     \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': false,                                     \n\
+            'autoplay': false,                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'nokw_channel',                         \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'nokw_channel',                 \n\
+                            'gclass': 'C_PROT_TCP4H',               \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'gclass': 'C_TCP'               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'nokw_port',                            \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://127.0.0.1:7880',              \n\
+                        'child_tree_filter': {                      \n\
+                            'op': 'find'                            \n\
+                        }                                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\

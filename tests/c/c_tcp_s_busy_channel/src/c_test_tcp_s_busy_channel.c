@@ -22,6 +22,13 @@
  *          counts it. When the first peer leaves, the channel is free and
  *          a third peer is accepted.
  *
+ *          A third server, nokw_port in the gate __nokw__, has a
+ *          child_tree_filter with no "kw" (every child is a candidate; its
+ *          channel is the first child of the gate). A peer is accepted
+ *          there. Up to 7.30.14 each such accept leaked the json_object()
+ *          that kw_get_dict() handed back as the default: the memory audit
+ *          at the end fails the test.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -36,6 +43,7 @@
  ***************************************************************************/
 #define TLS_PORT    7878
 #define PLAIN_PORT  7879
+#define NOKW_PORT   7880
 
 /***************************************************************************
  *              Structures
@@ -76,6 +84,7 @@ typedef struct _PRIVATE_DATA {
     int fd_tls;
     int fd_plain;
     int fd_third;
+    int fd_nokw;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -101,6 +110,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->fd_tls = -1;
     priv->fd_plain = -1;
     priv->fd_third = -1;
+    priv->fd_nokw = -1;
 }
 
 /***************************************************************************
@@ -136,6 +146,9 @@ PRIVATE int mt_play(hgobj gobj)
     hgobj gate = gobj_find_service("__side__", TRUE);
     gobj_subscribe_event(gate, NULL, 0, gobj);
     gobj_start_tree(gate);
+    hgobj nokw = gobj_find_service("__nokw__", TRUE);
+    gobj_subscribe_event(nokw, NULL, 0, gobj);
+    gobj_start_tree(nokw);
     set_timeout(priv->timer, 300);
     return 0;
 }
@@ -263,6 +276,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(priv->fd_third < 0) {
                 test_error(gobj, "TEST: cannot connect to plain_port again", -1, 0);
             }
+            priv->fd_nokw = connect_to(NOKW_PORT);
+            if(priv->fd_nokw < 0) {
+                test_error(gobj, "TEST: cannot connect to nokw_port", -1, 0);
+            }
             set_timeout(priv->timer, 300);
             break;
 
@@ -281,6 +298,19 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 if(priv->fd_third >= 0) {
                     close(priv->fd_third);
                     priv->fd_third = -1;
+                }
+                hgobj nokw_port = gobj_find_child(gobj_find_service("__nokw__", TRUE),
+                    json_pack("{s:s}", "__gobj_name__", "nokw_port")
+                );
+                int nokw_accepted = (int)gobj_read_integer_attr(nokw_port, "tconnxs");
+                if(nokw_accepted != 1) {
+                    test_error(gobj, "TEST: a filter with no 'kw' did not give its channel",
+                        nokw_accepted, 1
+                    );
+                }
+                if(priv->fd_nokw >= 0) {
+                    close(priv->fd_nokw);
+                    priv->fd_nokw = -1;
                 }
                 busy_channel_reached_end = 1;
                 set_yuno_must_die();
