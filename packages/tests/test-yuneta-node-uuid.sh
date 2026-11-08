@@ -205,11 +205,11 @@ check "placeholder already used, nothing else: warns" "$(echo "$out" | grep -c '
 #   every board, the SoC serial is the board's. Two boards of an SD copied
 #   from one, both with the uuid of the placeholder, each get their own
 #
-for soc in 005A4666E59CC606 0059D968E58BD119; do
+for soc in 00A1B2C3D4E5F607 00F7E6D5C4B3A291; do
     reset
     set_dt_serial "0123456789ABCDEF"
     set_soc_serial "$soc"
-    add_nic end0 "c0:74:2b:fb:11:76" 0
+    add_nic end0 "a0:b1:c2:d3:e4:f5" 0
     write_file "$(derive devicetree-serial 0123456789abcdef)" "devicetree-serial"
     run ensure
     check "rv2 $soc: source" "$(field source)" "soc-serial"
@@ -217,7 +217,7 @@ for soc in 005A4666E59CC606 0059D968E58BD119; do
 done
 reset
 set_dt_serial "0123456789ABCDEF"
-set_soc_serial "005A4666E59CC606"
+set_soc_serial "00A1B2C3D4E5F607"
 run ensure
 check "rv2, first start: source" "$(field source)" "soc-serial"
 
