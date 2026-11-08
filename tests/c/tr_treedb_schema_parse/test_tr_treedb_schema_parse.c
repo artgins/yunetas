@@ -102,6 +102,38 @@ static char schema_bad_flag[]= "\
 ";
 
 /*
+ *  A column named `gbuffer`, the name of a kw's binary field: refused.
+ */
+static char schema_binary_name[]= "\
+{                                                                   \n\
+    'id': 'treedb_schema_parse',                                    \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'notes',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent', 'required']              \n\
+                },                                                  \n\
+                'gbuffer': {                                        \n\
+                    'header': 'Bytes',                              \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'integer',                              \n\
+                    'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
+/*
  *  `children` is both the hook of the tree and an fkey: refused.
  */
 static char schema_hook_fkey[]= "\
@@ -297,6 +329,29 @@ PRIVATE int test_parse(void)
     ret = parse_schema(jn_schema);
     if(ret >= 0) {
         printf("%sERROR%s --> parse_schema() of a hook+fkey column: %d, expected < 0\n",
+            On_Red BWhite, Color_Off, ret);
+        result += -1;
+    }
+    JSON_DECREF(jn_schema)
+    result += test_json(NULL);
+
+    /*
+     *  A value under "gbuffer" at the top level of a node was taken for a
+     *  pointer wherever the node went on as a kw (up to 7.30.16 the column
+     *  was accepted)
+     */
+    set_expected_results(
+        "a column named gbuffer is refused",
+        json_pack("[{s:s}]", "msg", "A column cannot be named 'gbuffer', the name of a kw's binary field"),
+        NULL, NULL, 1
+    );
+    jn_schema = load_schema(schema_binary_name);
+    if(!jn_schema) {
+        return -1;
+    }
+    ret = parse_schema(jn_schema);
+    if(ret >= 0) {
+        printf("%sERROR%s --> parse_schema() of a column named gbuffer: %d, expected < 0\n",
             On_Red BWhite, Color_Off, ret);
         result += -1;
     }

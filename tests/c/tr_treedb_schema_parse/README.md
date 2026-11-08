@@ -16,6 +16,10 @@ The test checks:
 3. A treedb with the flag-less column opens and takes a record.
 4. A column flagged both `hook` and `fkey` is refused by `parse_schema()`
    (*"A column cannot be both 'hook' and 'fkey'"*).
+   A column named `gbuffer` is refused too (*"A column cannot be named
+   'gbuffer', the name of a kw's binary field"*): the value of such a column
+   was taken for a pointer wherever its node went on as a kw. Up to 7.30.16 it
+   was accepted.
 5. `treedb_create_topic()` refuses a topic with such a column, instead of only
    logging it (*"Topic refused: a column is both 'hook' and 'fkey'"*).
 6. A schema with one hook on an fkey parses clean twice (`parse_hooks()`

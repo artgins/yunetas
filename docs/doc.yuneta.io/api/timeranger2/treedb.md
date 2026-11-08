@@ -332,6 +332,24 @@ columns, the hook and the fkey:
 }
 ```
 
+A column named `gbuffer` is refused too (*"A column cannot be named
+'gbuffer', the name of a kw's binary field"*): `gbuffer` is the name of the
+binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)), and a
+node is handed on as a kw (`get-node` without metadata is a
+[`kw_filter_metadata()`](#kw_filter_metadata) of it), so the value of such a
+column was taken for a pointer. Up to 7.30.16 the column was accepted. The
+same refusal applies to a topic a peer creates (`create-topic`), to a column
+written into `__system__`, and, with an ERROR and the topic kept, to a C
+caller's [`treedb_create_topic()`](#treedb_create_topic). Name it otherwise:
+
+```C
+'payload': {                    // not 'gbuffer'
+    'header': 'Payload',
+    'type': 'string',
+    'flag': ['persistent']
+}
+```
+
 ---
 
 (parse_schema_cols)=

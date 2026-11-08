@@ -348,6 +348,7 @@ PRIVATE int create_icons_topic(hgobj gobj, json_t *tranger, const char *treedb_n
 PRIVATE int derive_file_hooks(hgobj gobj, json_t *tranger, const char *treedb_name);
 PRIVATE int check_file_columns(hgobj gobj, const char *treedb_name, const char *topic_name, json_t *cols);
 PRIVATE BOOL col_is_hook_and_fkey(hgobj gobj, const char *topic_name, const char *col_name, json_t *col);
+PRIVATE BOOL col_has_binary_field_name(hgobj gobj, const char *col_name);
 PRIVATE int check_file_column(
     hgobj gobj,
     const char *treedb_name,
@@ -3992,6 +3993,9 @@ PUBLIC int parse_schema_cols(
         if(col_is_hook_and_fkey(gobj, "", col_name? col_name : "", dato)) {
             ret += -1;
         }
+        if(col_has_binary_field_name(gobj, col_name)) {
+            ret += -1;
+        }
     } else if(json_is_array(dato)) {
         int idx1; json_t *d;
         json_array_foreach(dato, idx1, d) {
@@ -4001,6 +4005,9 @@ PUBLIC int parse_schema_cols(
             }
             const char *col_name = json_string_value(json_object_get(d, "id"));
             if(col_is_hook_and_fkey(gobj, "", col_name? col_name : "", d)) {
+                ret += -1;
+            }
+            if(col_has_binary_field_name(gobj, col_name)) {
                 ret += -1;
             }
         }
@@ -18634,6 +18641,29 @@ PRIVATE BOOL col_is_hook_and_fkey(
             "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "A column cannot be both 'hook' and 'fkey'",
             "topic_name",   "%s", topic_name,
+            "col",          "%s", col_name,
+            NULL
+        );
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A column is not named "gbuffer": that is the name of the binary field of
+ *  a kw (kw_add_binary_type()), and kw_incref(), kw_decref(), kw_twin()
+ *  and kw_duplicate() take the integer under it, at the top level of a
+ *  dict, for a pointer. A node is such a dict wherever it is handed on as
+ *  a kw (get-node without metadata is kw_filter_metadata() of it): a value
+ *  written in that column was dereferenced.
+ ***************************************************************************/
+PRIVATE BOOL col_has_binary_field_name(hgobj gobj, const char *col_name)
+{
+    if(col_name && strcmp(col_name, "gbuffer")==0) {
+        log_data_fault(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "A column cannot be named 'gbuffer', the name of a kw's binary field",
             "col",          "%s", col_name,
             NULL
         );
