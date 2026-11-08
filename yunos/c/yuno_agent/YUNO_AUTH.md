@@ -448,6 +448,15 @@ attribute, not the literal `azp` name.
 Other validated claims: `iss` (must match `issuer`), `exp` (expiry),
 `nbf` if present.
 
+**The age of the token (`max_token_age`, 7.30.14+).** `exp` is what the
+identity provider decides, and a Keycloak access token can live 20 days.
+`C_AUTHZ`'s `max_token_age` (seconds, `0` = no limit) is Yuneta's own limit:
+a login token opens a session only if its `iat` is no more than that many
+seconds old. A session already open is not cut. The users of
+`token_age_exempt_users` are not checked (a token that cannot be renewed).
+Details and an example in the
+[`C_AUTHZ` reference](#gclass-c-authz).
+
 **CLI grant type — ROPC, Keycloak-only (PKCE deferred by design).** The CLI
 tools authenticate via `c_task_authenticate`, which POSTs
 `grant_type=password` (ROPC: username + password + `client_id`). This works
@@ -915,6 +924,8 @@ The `C_AUTHZ` gclass reads a small set of attrs at boot (see
 | `authz.authz_service`     | preferred             | Service name under which to build/look up the authz tree. Empty → defaults to `yuno_role`. |
 | `authz.authz_yuno_role`   | **`SDF_DEPRECATED`**  | Legacy alias for `authz.authz_service`. Fallback at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.30.13/kernel/c/root-linux/src/c_authz.c) — only read if `authz_service` is empty. New configs must use `authz.authz_service`. |
 | `authz.tranger_path`      | optional              | External tranger storage path (when sharing the authz treedb across instances).          |
+| `authz.max_token_age`     | int, default `0`      | Seconds a login token may have lived (`now - iat`) to open a session. `0`: no limit (7.30.14+). |
+| `authz.token_age_exempt_users` | list, default `[]` | Users (the token's `email`) whose token `max_token_age` does not check (7.30.14+). |
 
 Same `Authz.*` keys (capital A) appear in some legacy configs — both
 spellings are accepted by jansson's path resolution, but the canonical

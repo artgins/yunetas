@@ -139,6 +139,13 @@ PRIVATE BOOL verify_token(
     const char **status
 );
 
+PRIVATE const char *login_token_age_refusal(
+    hgobj gobj,
+    json_t *jwt_payload,
+    const char *username,
+    json_int_t *token_age
+);
+
 PRIVATE json_t *hash_password(
     hgobj gobj,
     const char *password,
@@ -377,6 +384,8 @@ SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public
 SDATA (DTP_LIST,    "assertion_jwks",       SDF_RD,         "[]",   "Public keys (JWK, its kid = the iss) of the issuers of operator assertions: short tokens a controlcenter signs for one node (aud). Read only by the local method verify_jwt asked with an audience; a login never reads them"),
 SDATA (DTP_INTEGER, "max_assertion_lifetime",SDF_RD,        "300",  "Seconds an operator assertion may live (exp - iat): a longer one is refused, as one with no iat or exp"),
 SDATA (DTP_INTEGER, "assertion_time_leeway",SDF_RD,         "0",    "Seconds this yuno's clock may be off the signer's when an operator assertion's exp/nbf is checked: a box whose clock drifts (no NTP) must not refuse every assertion. Its audience, not its time, is what binds an assertion"),
+SDATA (DTP_INTEGER, "max_token_age",        SDF_RD,         "0",    "Seconds a login token may have lived (now - its iat) to open a session; 0 no limit. Yuneta's own limit, whatever the IdP lets the token live: a session already open stays open, a token with no iat is refused. Not checked for the users of token_age_exempt_users"),
+SDATA (DTP_LIST,    "token_age_exempt_users",SDF_RD,        "[]",   "Users (the email of the token) whose login token max_token_age does not check: a token that cannot be renewed, as the one the agents of old share"),
 SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 SDATA (DTP_BOOLEAN, "with_link_events", SDF_RD,     "1",        "Copied to the C_NODE of treedb_authzs: a link/unlink publishes EV_TREEDB_NODE_LINKED/UNLINKED, 0 the parent's EV_TREEDB_NODE_UPDATED (what the v1 SPAs read). Set in the config only"),
 
@@ -1064,6 +1073,34 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                 "result", -1,
                 "comment", "Username must be an email address",
+                "username", username,
+                "service", dst_service
+            );
+            JSON_DECREF(jwt_payload);
+            KW_DECREF(kw)
+            return jn_resp;
+        }
+
+        json_int_t token_age = 0;
+        const char *too_old = login_token_age_refusal(gobj, jwt_payload, username, &token_age);
+        if(too_old) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Authentication failed: token too old",
+                "refusal",      "%s", too_old,
+                "token_age",    "%" JSON_INTEGER_FORMAT, token_age,
+                "max_token_age","%" JSON_INTEGER_FORMAT,
+                    (json_int_t)gobj_read_integer_attr(gobj, "max_token_age"),
+                "username",     "%s", username,
+                "service",      "%s", dst_service,
+                "peername",     "%s", peername,
+                "sockname",     "%s", sockname,
+                NULL
+            );
+            json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+                "result", -1,
+                "comment", too_old,
                 "username", username,
                 "service", dst_service
             );
@@ -4985,6 +5022,46 @@ PRIVATE json_t *lmt_has_role(hgobj gobj, const char *lmethod, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  Why a login token is too old to open a session, or NULL when it is not.
+ *  max_token_age is Yuneta's own limit, whatever the IdP lets the token
+ *  live: its age is now - iat (the wall clock, as the iat), and a token
+ *  with no iat has no age to check, so it is refused. A user of
+ *  token_age_exempt_users is not checked: its token cannot be renewed.
+ ***************************************************************************/
+PRIVATE const char *login_token_age_refusal(
+    hgobj gobj,
+    json_t *jwt_payload,    // not owned
+    const char *username,
+    json_int_t *token_age   // out: 0 when not known
+)
+{
+    *token_age = 0;
+    json_int_t max_age = (json_int_t)gobj_read_integer_attr(gobj, "max_token_age");
+    if(max_age <= 0) {
+        return NULL;
+    }
+
+    json_t *exempt = gobj_read_json_attr(gobj, "token_age_exempt_users");
+    size_t idx; json_t *jn_user;
+    json_array_foreach(exempt, idx, jn_user) {
+        if(json_is_string(jn_user) && strcmp(json_string_value(jn_user), username)==0) {
+            return NULL;
+        }
+    }
+
+    json_t *jn_iat = json_object_get(jwt_payload, "iat");
+    json_int_t iat = json_is_integer(jn_iat)? json_integer_value(jn_iat) : 0;
+    if(iat <= 0) {
+        return "The token has no iat";
+    }
+    *token_age = (json_int_t)time_in_seconds() - iat;
+    if(*token_age > max_age) {
+        return "The token is too old";
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  Is `audience` the `aud` of a payload (a string, or a list holding it)?
  ***************************************************************************/
 PRIVATE BOOL payload_has_audience(json_t *jwt_payload, const char *audience)
@@ -5082,6 +5159,9 @@ PRIVATE json_t *lmt_verify_jwt(hgobj gobj, const char *lmethod, json_t *kw, hgob
             refusal = "The token has no email";
         } else if(!strchr(username, '@')) {
             refusal = "Username must be an email address";
+        } else {
+            json_int_t token_age = 0;
+            refusal = login_token_age_refusal(gobj, jwt_payload, username, &token_age);
         }
     }
 

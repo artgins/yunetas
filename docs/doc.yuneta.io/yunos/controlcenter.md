@@ -200,6 +200,11 @@ nothing else: from the operators' port it answers *"No permission to
 'list-agents' in service 'controlcenter'"*. A role with `*` there let anybody
 who took the token from one node command every node.
 
+That token is old and cannot be renewed on the nodes. With a
+`max_token_age` (see [Configuration](#controlcenter-configuration)), put
+its user in `Authz.token_age_exempt_users`, or the agents of before cannot
+log in.
+
 ### Who asks: the operator assertion (7.30.9+)
 
 When the control center forwards a command to an agent, it says who asks in
@@ -811,10 +816,29 @@ ycommand ... -c 'run-scenario scenario_id=t1 action=stop'
 # -> ... cannot run 'stop' of 't1': step 0: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno; save the scenario again
 ```
 
+(controlcenter-configuration)=
 ## Configuration
 
 The yuno composes `authz` ([`C_AUTHZ`](#gclass-c-authz)) + `controlcenter` (`C_CONTROLCENTER`,
-default service). `Authz.max_sessions_per_user` defaults to 4. Key attributes:
+default service). `Authz.max_sessions_per_user` defaults to 4.
+
+An operator's token opens a session only while it is young, if
+`Authz.max_token_age` is set (7.30.14+, [details](#gclass-c-authz)). The
+identity provider can give a token a long life, and this is the control
+center's own limit. The agents of before 7.30.10 log in with a token that
+cannot be renewed, so their user is exempt:
+
+```json
+"global": {
+    "Authz.max_token_age": 3600,
+    "Authz.token_age_exempt_users": ["agent@example.com"]
+}
+```
+
+`ycommand` logs in with a new token on each run. The agent console refreshes
+its token and connects again when the control center refuses an old one.
+
+Key attributes of `C_CONTROLCENTER`:
 
 | Attribute | Purpose |
 |-----------|---------|

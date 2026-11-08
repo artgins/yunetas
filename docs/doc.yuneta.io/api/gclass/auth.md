@@ -74,6 +74,47 @@ whose **v1** SPA edits `treedb_authzs` turns it off in its config:
 ---
 
 
+### The age of a login token (`max_token_age`, 7.30.14+)
+
+The identity provider decides how long its tokens live. A Keycloak access
+token can live 20 days. `max_token_age` is Yuneta's own limit, whatever the
+identity provider gives: a login token opens a session only if it was issued
+(its `iat`) no more than `max_token_age` seconds ago.
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `max_token_age` | `0` | Seconds a login token may have lived (`now - iat`) to open a session. `0`: no limit. With a limit, a token with no `iat` is refused. |
+| `token_age_exempt_users` | `[]` | Users (the `email` of the token) whose token is not checked. Use it only for a token that cannot be renewed. |
+
+Example: one hour, and the shared token of the agents of before 7.30.10,
+which cannot be renewed (see the
+[controlcenter](../../yunos/controlcenter.md)):
+
+```json
+"global": {
+    "Authz.max_token_age": 3600,
+    "Authz.token_age_exempt_users": ["agent@example.com"]
+}
+```
+
+What the limit does:
+
+- Only the login is checked. A session that is open stays open when its
+  token gets older.
+- A refusal is a WARNING *"Authentication failed: token too old"*, with
+  `token_age`, `max_token_age` and the user, never the token. The client gets
+  the comment *"The token is too old"* or *"The token has no iat"*.
+- The local method `verify_jwt` without an `audience` (a login token) refuses
+  the same tokens, without a log.
+- The age is this yuno's clock against the identity provider's `iat`. Give
+  the limit some minutes more than the time a client needs.
+
+A client must get a new token before it logs in again. `ycommand` and the
+other CLI tools log in with a new token on each run. A SPA behind
+[`C_AUTH_BFF`](#gclass-c-auth-bff) that reconnects with an old cookie gets a
+refused identity card; the agent console then refreshes its token
+(`/auth/refresh`) and connects again.
+
 ### Operator assertions (`assertion_jwks`, 7.30.9+)
 
 An **operator assertion** is a short token that a control center signs for
@@ -133,7 +174,7 @@ A good assertion has these properties:
 
 A user of this yuno that is disabled is refused. Without an `audience`,
 `verify_jwt` checks a login token instead: a token of an issuer of `jwks`,
-for a verified email. The client side is
+for a verified email, not older than `max_token_age`. The client side is
 [`C_IEVENT_CLI`'s `verify_operator`](#gclass-c-ievent-cli). The signer is the
 [controlcenter](../../yunos/controlcenter.md).
 
