@@ -25,6 +25,12 @@ plain UDP socket, the peer:
    after a failed listen"*.
 4. A `C_UDP_S` with an empty url is started: *"URL NULL"*, the start fails,
    the yuno goes on.
+5. A `C_UDP_S` whose read cannot be started (`rx_buffer_size` 0) is started:
+   ONE ERROR, *"Cannot start the read of the UDP server: not listening,
+   trying again"*, and at its first try only the cause of
+   `yev_start_event()`. With `rx_buffer_size` 4096 its second try listens,
+   and *"UDP listening ..."* is said then, once. Up to this fix each try said
+   *"UDP listening ..."* and its own ERROR again (red).
 
 No `C_UDP_S` of the test sets `exitOnError`. Up to 7.30.17 cases 2 to 4
 exited the yuno with code 0 (`exitOnError`, `TRUE` by default), which ctest

@@ -33,6 +33,12 @@
  *                 listens, with one info.
  *              4. A C_UDP_S with an empty url is started: one error, the
  *                 start fails, the yuno goes on (it exited with 0 too).
+ *              5. A C_UDP_S whose read cannot be started (rx_buffer_size 0)
+ *                 is started: ONE error, and its tries say nothing more
+ *                 than the cause yev_start_event() writes. With
+ *                 rx_buffer_size 4096 its next try listens, and only then
+ *                 "UDP listening ..." is said. Up to the fix of this case
+ *                 each try said "UDP listening ..." and its own error.
  *              2 and 4 used to need "exitOnError": 0 not to end the test.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -56,6 +62,7 @@
 #define PEER_PORT   34295
 #define HELD_PORT   34299
 #define HELD_URL    "udp://127.0.0.1:34299"
+#define DEAF_URL    "udp://127.0.0.1:34300"
 
 /***************************************************************************
  *              Structures
@@ -95,6 +102,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_udps;
     hgobj gobj_held;
     hgobj gobj_no_url;
+    hgobj gobj_deaf;
     int peer_fd;
     int held_fd;
     int phase;
@@ -144,6 +152,15 @@ PRIVATE void mt_create(hgobj gobj)
         C_UDP_S,
         json_pack("{s:s}",
             "url", ""
+        ),
+        gobj
+    );
+    priv->gobj_deaf = gobj_create(
+        "deaf",
+        C_UDP_S,
+        json_pack("{s:s, s:i}",
+            "url", DEAF_URL,
+            "rx_buffer_size", 0
         ),
         gobj
     );
@@ -210,6 +227,9 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     if(gobj_is_running(priv->gobj_no_url)) {
         gobj_stop(priv->gobj_no_url);
+    }
+    if(gobj_is_running(priv->gobj_deaf)) {
+        gobj_stop(priv->gobj_deaf);
     }
 
     return 0;
@@ -376,6 +396,49 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "TEST: a failed listen of C_UDP_S listens at its try, and an empty url is refused",
+                NULL
+            );
+        }
+
+        /*
+         *  5. A read that cannot be started
+         */
+        gobj_start(priv->gobj_deaf);
+        set_timeout(priv->timer, 1500);     // past its first try, at 1 s
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(priv->phase == 5) {
+        if(!gobj_in_this_state(priv->gobj_deaf, ST_STOPPED) ||
+                gobj_read_bool_attr(priv->gobj_deaf, "listening")) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a C_UDP_S whose read cannot be started says it listens",
+                "state",        "%s", gobj_current_state(priv->gobj_deaf),
+                NULL
+            );
+        }
+        gobj_write_integer_attr(priv->gobj_deaf, "rx_buffer_size", 4096);
+        set_timeout(priv->timer, 2500);     // its second try at 3 s, ample on a busy box
+        KW_DECREF(kw)
+        return 0;
+    }
+    if(priv->phase == 6) {
+        if(gobj_in_this_state(priv->gobj_deaf, ST_IDLE) &&
+                gobj_read_bool_attr(priv->gobj_deaf, "listening")) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TEST: a C_UDP_S whose read could not be started listens at its try",
+                NULL
+            );
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a C_UDP_S whose read could not be started does not listen at its try",
+                "state",        "%s", gobj_current_state(priv->gobj_deaf),
                 NULL
             );
         }

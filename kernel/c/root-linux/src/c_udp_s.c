@@ -420,18 +420,6 @@ PRIVATE int start_listening(hgobj gobj)
     get_sockname(temp, sizeof(temp), yev_get_fd(priv->yev_server_udp));
     gobj_write_str_attr(gobj, "sockname", temp);
 
-    /*
-     *  Info of "listening..."
-     */
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", "UDP listening ...",
-        "msg2",         "%s", "UDP Listening...🔷",
-        "url",          "%s", priv->url,
-        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
-        NULL
-    );
-
     /*-------------------------------*
      *      Setup reading event
      *-------------------------------*/
@@ -456,17 +444,29 @@ PRIVATE int start_listening(hgobj gobj)
         gbuffer_create(rx_buffer_size, rx_buffer_size)
     );
     if(!priv->yev_reading || yev_start_event(priv->yev_reading) < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "Cannot start the read of the UDP server",
-            "url",          "%s", priv->url,
-            NULL
-        );
         EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
         EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
-        return listen_failed(gobj, "Listen failed: not listening, trying again", MSGSET_SYSTEM, 0, TRUE);
+        return listen_failed(   // the cause logged by yev_start_event(), at each try
+            gobj,
+            "Cannot start the read of the UDP server: not listening, trying again",
+            MSGSET_SYSTEM,
+            0,
+            TRUE
+        );
     }
+
+    /*
+     *  Info of "listening...": when it listens, once. Up to the fix of a
+     *  read that cannot be started it was said before the read, at each try
+     */
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "UDP listening ...",
+        "msg2",         "%s", "UDP Listening...🔷",
+        "url",          "%s", priv->url,
+        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+        NULL
+    );
 
     if(priv->listen_down) {
         gobj_log_info(gobj, 0,
