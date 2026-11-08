@@ -7,7 +7,7 @@ refuses.
 `C_PROT_HTTP_SR` over `C_TCP` (`max_body_size` 1024, `max_tx_queue` 4,
 `timeout_tx_stall` 500, `max_rx_held` 65536, `timeout_linger` 500), a second
 one for step 15 and a third one for step 16. The test gobj is the application
-behind them. Sixteen steps, each on a connection of its own:
+behind them. Twenty-one steps, each on a connection of its own:
 
 | Step | The peer | Expected |
 |---|---|---|
@@ -25,8 +25,13 @@ behind them. Sixteen steps, each on a connection of its own:
 | 12 | fills the queue with 10 requests, reads the answers and goes silent; `timeout_inactivity` 3 | it is dropped: the timer that watched the queue is back on the inactivity |
 | 13 | never reads; the application goes on answering after the drop, which waits for the write in flight | ONE warning for the peer, ONE for those answers |
 | 14 | reads: 10000 requests, 1000 in each write, the next write when it has all the answers of the one before; the application answers later, and halfway it goes silent for 1.5 s, with the queue empty | what is due and what waits in the transport never passes `max_tx_queue` by more than one read; the peer gets every answer, in order, and is not dropped; nothing logged |
-| 15 | on the second server (`timeout_tx_stall` 3000, port 7765): sends 10000 requests in one pipeline and never reads; the application answers later | the same bound; the connection is dropped from 3 to 5 seconds after the last write that moved; ONE warning |
+| 15 | on the second server (`timeout_tx_stall` 4000, port 7765): sends 10000 requests in one pipeline and never reads; the application answers later | the same bound; the connection is dropped from 4 to 6 seconds after the last write that moved (the test allows 1.5 s more for its own lateness); ONE warning |
 | 16 | on the third server (`max_tx_queue` 12000, `max_rx_held` 8 MB, port 7769): sends 30000 requests in one write and reads; the application answers each one as it comes | one turn parses and answers 12000 of those held, 30000 answers in order, nothing logged |
+| 17 | with a receive buffer of 4 KB, sends 5 requests in one write and never reads; the first answer has 6 MB, the others 16 bytes | the last answer brings the transport to `max_tx_queue` waiting behind the first, and nothing else comes: the connection is dropped at `timeout_tx_stall`; ONE warning |
+| 18 | sends 5 requests, which the application answers later, at once; then a body of 12000 bytes, held behind them | it reads five `200` and ONE `413`, and nothing after it; ONE warning |
+| 19 | as 18, with two requests before the body: the application answers those two 3 s after they come, after the timer that watched the full queue would have fired | it reads seven `200` and ONE `413`; ONE warning |
+| 20 | sends a request every second, six, with `timeout_inactivity` 3 s (set when the channel opens) | it gets the six answers, nothing logged |
+| 21 | sends two requests; the application answers the first with a body that is not UTF-8, and the second as usual | it reads a `500` and then the `200` of the second request; ONE error |
 
 Up to 7.29.3 the requests of step 1 after the drop went to the gobj already
 disconnected (red: an ERROR with a stack, *"Event NOT DEFINED in state"*, for
@@ -45,6 +50,21 @@ at about twice the wait). With an event posted at each answer that leaves room,
 step 16 is red (*"Too many posted events, this is NOT a work queue"*, an ERROR
 with a stack for each one over the limit): what resumes what is held is the
 `EV_TX_READY` of the transport.
+
+Steps 17 to 20 hold what earlier code got right, and each one fails when one
+line of `c_prot_http_sr.c` is taken out: without the look at the queue after an
+answer, step 17 is red (*"A step did not end"*); without emptying what is held
+when a request is refused, step 18 reads two `413`; without the inactivity
+armed when a refusal waits for its answers, step 19 is dropped by the timer of
+the full queue and never reads its `413`; without a read re-arming the
+inactivity, step 20 is dropped (*"An active peer was dropped at
+timeout_inactivity"*). Up to 7.30.14 an answer whose body could not be dumped
+sent nothing, and step 21 is red (*"An answer that cannot be built did not
+leave a 500 in its place"*: the peer took the second answer as the first).
+
+The peer of a step the test ends itself is forgotten before it is stopped: its
+disconnection comes in the next step, and a silent peer's step took it for its
+own end.
 
 ```c
 /*  in a channel tree  */

@@ -701,6 +701,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = 0;
+    BOOL dumped = TRUE;
 
     if(peer_does_not_read(gobj)) {
         // Warning already logged
@@ -718,16 +719,22 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         const char *headers = kw_get_str(gobj, kw, "headers", "", 0);
         char *resp = json2uglystr(kw_get_dict_value(gobj, kw, "body", 0, 0));
         if(!resp) {
+            /*
+             *  HTTP answers go in the order of the requests: one that cannot
+             *  be built leaves a 500 in its place, or the next answer would
+             *  be taken as its own
+             */
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "The body of an answer cannot be dumped",
+                "msg",          "%s", "The body of an answer cannot be dumped, answered 500 in its place",
                 NULL
             );
-            KW_DECREF(kw)
-            return -1;
+            dumped = FALSE;
+            code = "500 Internal Server Error";
+            headers = "";
         }
-        int body_len = strlen(resp);
+        int body_len = resp? (int)strlen(resp) : 0;
         int headers_len = strlen(headers);
 
         /*
@@ -738,9 +745,9 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  fails with HPE_INVALID_CONSTANT), so emit a body-less
          *  response regardless of what the caller passed in `body`.
          */
-        BOOL no_body = (code[0] == '1') ||
+        BOOL no_body = resp && ((code[0] == '1') ||
             (strncmp(code, "204", 3) == 0) ||
-            (strncmp(code, "304", 3) == 0);
+            (strncmp(code, "304", 3) == 0));
 
         gbuf = gbuffer_create(256 + headers_len + body_len, 256 + headers_len + body_len);
         if(no_body) {
@@ -761,7 +768,9 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
                 headers,
                 body_len
             );
-            gbuffer_append(gbuf, resp, body_len);
+            if(body_len > 0) {
+                gbuffer_append(gbuf, resp, body_len);
+            }
         }
         GBMEM_FREE(resp)
     } else  {
@@ -769,16 +778,28 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         msg_iev_clean_metadata(kw);
 
         char *resp = json2uglystr(kw);
-        int len = (int)strlen(resp);
+        if(!resp) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "The body of an answer cannot be dumped, answered 500 in its place",
+                NULL
+            );
+            dumped = FALSE;
+        }
+        int len = resp? (int)strlen(resp) : 0;
 
         gbuf = gbuffer_create(256+len, 256+len);
         gbuffer_printf(gbuf,
-            "HTTP/1.1 200 OK\r\n"
+            "HTTP/1.1 %s\r\n"
             "Content-Type: application/json; charset=utf-8\r\n"
             "Content-Length: %d\r\n\r\n",
+            resp? "200 OK" : "500 Internal Server Error",
             len
         );
-        gbuffer_append(gbuf, resp, len);
+        if(len > 0) {
+            gbuffer_append(gbuf, resp, len);
+        }
         GBMEM_FREE(resp)
     }
 
@@ -813,7 +834,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         // Warning already logged
         drop_connection(gobj);
     }
-    return ret;
+    return dumped? ret : -1;    // Error already logged when not dumped
 }
 
 /***************************************************************************

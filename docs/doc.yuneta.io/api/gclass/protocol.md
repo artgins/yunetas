@@ -296,6 +296,26 @@ at, even with a write in flight, which makes the disconnection come later.
 Up to 7.29.3 they were delivered to the gobj already disconnected: an ERROR
 with a stack (*"Event NOT DEFINED in state"*) for each one.
 
+**An answer that cannot be built.** HTTP answers go in the order of the
+requests, so an answer whose `body` cannot be dumped (a string that is not
+UTF-8, a body over the max block) leaves a `500 Internal Server Error` in its
+place, with `Content-Length: 0`: the action logs an ERROR (*"The body of an
+answer cannot be dumped, answered 500 in its place"*) and answers `-1`, and the
+next answer still goes to the next request. Up to 7.30.14 nothing went, the
+answer was counted as sent all the same, and the peer took the next answer as
+the answer of that request.
+
+```C
+json_t *kw = json_pack("{s:s, s:s, s:o}",
+    "code", "200 OK",
+    "headers", "",
+    "body", json_stringn_nocheck("\xff", 1)    // not UTF-8: cannot be dumped
+);
+if(gobj_send_event(channel, EV_SEND_MESSAGE, kw, gobj) < 0) {
+    /* the peer got a 500 for this request */
+}
+```
+
 ```C
 /*  a server of 16 KB heads, 1 MB bodies  */
 {
@@ -316,8 +336,13 @@ behind an answer that comes later; a peer that reads gets 2000 pipelined
 answers in order, and a slow one is not dropped; a peer that never reads is
 held at `max_tx_queue` and dropped. With an application that answers later,
 10000 pipelined requests stay under `max_tx_queue` plus one read, a peer that
-reads gets every answer in order, and one that does not is dropped from 3 to 5
-seconds after its last write with `timeout_tx_stall` 3000.
+reads gets every answer in order, and one that does not is dropped from 4 to 6
+seconds after its last write with `timeout_tx_stall` 4000. A last answer that
+brings the transport to `max_tx_queue` starts the wait by itself; a refused
+request held behind the answers owed is answered once, after them, even when
+the application answers them seconds later; a peer that keeps sending is not
+dropped at `timeout_inactivity`; an answer that cannot be built leaves a 500 in
+its place.
 
 ---
 
