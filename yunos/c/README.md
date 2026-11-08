@@ -17,7 +17,7 @@ yunos/
     ├── archive_sender/     # Ships the batches of a timeranger2 archive to a backup
     ├── archive_keeper/     # Keeps them on the backup machine
     ├── dba_postgres/       # PostgreSQL database adapter
-    ├── sgateway/           # Simple gateway for protocol bridging
+    ├── sgateway/           # Simple gateway: raw TCP relay
     └── watchfs/            # Filesystem watcher — run commands on file changes
 ```
 
@@ -287,7 +287,7 @@ PostgreSQL database adapter. Wraps the `C_POSTGRES` module GClass with a yuno en
 
 ### sgateway
 
-Simple protocol gateway for bridging between different transport/protocol combinations. Configurable input/output topology.
+Raw TCP relay: takes one connection on `input_url` and relays its bytes, both ways, to a connection to `output_url` (reconnected when it ends). See [`sgateway/README.md`](sgateway/README.md).
 
 ### watchfs
 

@@ -4,7 +4,41 @@
  *
  *          Simple Gateway
  *
+ *          A byte relay between two TCP sides:
+ *
+ *              client --> input_url  (C_TCP_S)
+ *                         __input_side__  C_IOGATE
+ *                              tcp-1  C_CHANNEL -> C_PROT_RAW -> C_TCP (clisrv)
+ *
+ *                         __output_side__ C_IOGATE
+ *                              output C_CHANNEL -> C_PROT_RAW -> C_TCP --> output_url
+ *
+ *          What arrives from one side is sent, as it is, to the other one.
+ *
+ *          The input side takes ONE connection at a time (one channel,
+ *          `tcp-1`, found by the `child_tree_filter` of its C_TCP_S, legacy
+ *          method: the clisrv C_TCP is created at each accept and destroyed
+ *          when it ends). A second client is refused while the first one is
+ *          connected: the output side is one connection, and what comes
+ *          back from it could not be told apart between two clients.
+ *
+ *          The output side is a client C_TCP to `output_url`. It connects
+ *          when the service plays and keeps connected: when its peer goes
+ *          away it connects again each `timeout_between_connections` ms.
+ *          It is not tied to the input side: it is open whether a client
+ *          is connected or not.
+ *
+ *          Bytes that arrive while the other side is not open are dropped
+ *          (counted in `dropMsgs`; one WARNING per side each time it
+ *          closes, not one per message).
+ *
+ *          The urls are taken at each play: write `input_url` and
+ *          `output_url` (config kw, or write-str at run time, then pause
+ *          and play the yuno). A play without them is refused with an
+ *          ERROR, and the yuno goes on running, not playing.
+ *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -24,20 +58,29 @@
  ***************************************************************************/
 PRIVATE int create_input_side(hgobj gobj);
 PRIVATE int create_output_side(hgobj gobj);
+PRIVATE int set_output_url(hgobj gobj, const char *output_url);
 PRIVATE int open_input_side(hgobj gobj);
 PRIVATE int close_input_side(hgobj gobj);
 PRIVATE int open_output_side(hgobj gobj);
 PRIVATE int close_output_side(hgobj gobj);
+PRIVATE const char *side_name(hgobj gobj, hgobj side);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
 SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_authzs[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 
@@ -46,25 +89,28 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATA_END()
 };
-
 
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_STRING,      "input_url",        SDF_WR|SDF_PERSIST, 0,          "input_side url"),
-SDATA (DTP_STRING,      "output_url",       SDF_WR|SDF_PERSIST, 0,          "output_side url"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
+SDATA (DTP_STRING,      "input_url",        SDF_WR|SDF_PERSIST, 0,          "Url where the input side listens (tcp://host:port, tcps:// with TLS). Taken at each play"),
+SDATA (DTP_STRING,      "output_url",       SDF_WR|SDF_PERSIST, 0,          "Url the output side connects to (tcp://host:port, tcps:// with TLS). Taken at each play"),
+SDATA (DTP_INTEGER,     "timeout_between_connections", SDF_RD, "100",       "Output side: ms to wait before connecting again when its connection fails or ends"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages sent to the other side"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received from either side"),
+SDATA (DTP_INTEGER,     "dropMsgs",         SDF_RD|SDF_RSTATS,  0,          "Messages dropped: the other side was not open"),
 
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Messages by second"),
 SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Period of the rates, in ms"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "Subscriber of output-events"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
@@ -82,21 +128,35 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 };
 
 /*---------------------------------------------*
+ *      GClass authz levels
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t authz_table[] = {
+/*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
+SDATA_END()
+};
+
+/*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     int32_t timeout;
     hgobj timer;
 
-    hgobj gobj_output_side;
     hgobj gobj_input_side;
+    hgobj gobj_server_port;
+    hgobj gobj_output_side;
+    hgobj gobj_output_prot;
+    hgobj gobj_output_tcp;
     BOOL input_side_opened;
     BOOL output_side_opened;
+    BOOL input_drop_said;
+    BOOL output_drop_said;
 
-    uint64_t txMsgs;
-    uint64_t rxMsgs;
-    uint64_t txMsgsec;
-    uint64_t rxMsgsec;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
+    json_int_t dropMsgs;
+    json_int_t txMsgsec;
+    json_int_t rxMsgsec;
 
 } PRIVATE_DATA;
 
@@ -120,6 +180,17 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
+    /*
+     *  SERVICE subscription model
+     */
+    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    } else if(gobj_is_pure_child(gobj)) {
+        subscriber = gobj_parent(gobj);
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    }
+
     create_input_side(gobj);
     create_output_side(gobj);
 
@@ -139,6 +210,39 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
     END_EQ_SET_PRIV()
+
+    /*
+     *  `stats=__reset__` writes the defaults of the SDF_RSTATS attrs: the
+     *  counters live in priv (mt_reading)
+     */
+    if(path && strcmp(path, "txMsgs")==0) {
+        priv->txMsgs = 0;
+    } else if(path && strcmp(path, "rxMsgs")==0) {
+        priv->rxMsgs = 0;
+    } else if(path && strcmp(path, "dropMsgs")==0) {
+        priv->dropMsgs = 0;
+    }
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
+    } else if(strcmp(name, "dropMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->dropMsgs;
+    }
+    return v;
 }
 
 /***************************************************************************
@@ -156,11 +260,6 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-
-    hgobj agent_client = gobj_find_service("agent_client", FALSE);
-    if(!agent_client) {
-        gobj_play(gobj);
-    }
     return 0;
 }
 
@@ -171,6 +270,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->timer);
     gobj_stop(priv->timer);
     return 0;
 }
@@ -186,8 +286,6 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj agent_client = gobj_find_service("agent_client", FALSE);
-
     const char *input_url = gobj_read_str_attr(gobj, "input_url");
     const char *output_url = gobj_read_str_attr(gobj, "output_url");
 
@@ -198,9 +296,6 @@ PRIVATE int mt_play(hgobj gobj)
             "msg",          "%s", "What yuno input url?",
             NULL
         );
-        if(agent_client) {
-            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
-        }
         return -1;
     }
 
@@ -211,9 +306,17 @@ PRIVATE int mt_play(hgobj gobj)
             "msg",          "%s", "What yuno output url?",
             NULL
         );
-        if(agent_client) {
-            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
-        }
+        return -1;
+    }
+
+    if(!priv->gobj_server_port || !priv->gobj_output_prot) {
+        // Error already logged (create_input_side(), create_output_side())
+        return -1;
+    }
+
+    gobj_write_str_attr(priv->gobj_server_port, "url", input_url);
+    if(set_output_url(gobj, output_url) < 0) {
+        // Error already logged
         return -1;
     }
 
@@ -266,6 +369,23 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     );
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_authzs_doc(gobj, cmd, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_resp,
+        kw  // owned
+    );
+}
+
 
 
 
@@ -277,34 +397,46 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 /***************************************************************************
- *
+ *  __input_side__: a C_TCP_S and one channel, tcp-1, with a bare
+ *  C_PROT_RAW: the C_TCP_S creates its C_TCP at each accept (legacy
+ *  method, child_tree_filter). Its url is written at each play.
  ***************************************************************************/
 PRIVATE int create_input_side(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_t *kw_iogate = json_pack("{s:I}",
+        "subscriber", (json_int_t)(uintptr_t)gobj
+    );
     priv->gobj_input_side = gobj_create_service(
         "__input_side__",
         C_IOGATE,
-        0,
-        gobj_yuno()
+        kw_iogate,
+        gobj
     );
+    if(!priv->gobj_input_side) {
+        // Error already logged
+        return -1;
+    }
 
-    json_t *kw1 = json_pack("{s:b, s:s, s:{s:s, s:{s:s, s:s, s:b, s:b}}}",
-        "exitOnError", 0,
-        "url", gobj_read_str_attr(gobj, "input_url"),
+    json_t *kw_server = json_pack("{s:{s:{s:s, s:s, s:b, s:b}}}",
         "child_tree_filter",
             "kw",
+                "__prefix_gobj_name__", "tcp-",
                 "__gclass_name__", C_CHANNEL,
                 "__disabled__", 0,
                 "connected", 0
     );
-    gobj_create(
+    priv->gobj_server_port = gobj_create(
         "server_port",
-        C_TCP,
-        kw1,
+        C_TCP_S,
+        kw_server,
         priv->gobj_input_side
     );
+    if(!priv->gobj_server_port) {
+        // Error already logged
+        return -1;
+    }
 
     hgobj gobj_channel = gobj_create(
         "tcp-1",
@@ -312,6 +444,10 @@ PRIVATE int create_input_side(hgobj gobj)
         0,
         priv->gobj_input_side
     );
+    if(!gobj_channel) {
+        // Error already logged
+        return -1;
+    }
 
     hgobj gobj_prot_raw = gobj_create(
         "tcp-1",
@@ -319,26 +455,37 @@ PRIVATE int create_input_side(hgobj gobj)
         0,
         gobj_channel
     );
+    if(!gobj_prot_raw) {
+        // Error already logged
+        return -1;
+    }
     gobj_set_bottom_gobj(gobj_channel, gobj_prot_raw);
-
-    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
 
     return 0;
 }
 
 /***************************************************************************
- *
+ *  __output_side__: one channel, output, with a C_PROT_RAW whose client
+ *  C_TCP is created by set_output_url(), at the first play: a C_TCP is a
+ *  client when it is created with a url.
  ***************************************************************************/
 PRIVATE int create_output_side(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_t *kw_iogate = json_pack("{s:I}",
+        "subscriber", (json_int_t)(uintptr_t)gobj
+    );
     priv->gobj_output_side = gobj_create_service(
         "__output_side__",
         C_IOGATE,
-        0,
-        gobj_yuno()
+        kw_iogate,
+        gobj
     );
+    if(!priv->gobj_output_side) {
+        // Error already logged
+        return -1;
+    }
 
     hgobj gobj_channel = gobj_create(
         "output",
@@ -346,29 +493,57 @@ PRIVATE int create_output_side(hgobj gobj)
         0,
         priv->gobj_output_side
     );
+    if(!gobj_channel) {
+        // Error already logged
+        return -1;
+    }
 
-    hgobj gobj_prot_raw = gobj_create(
+    priv->gobj_output_prot = gobj_create(
         "output",
         C_PROT_RAW,
         0,
         gobj_channel
     );
-    gobj_set_bottom_gobj(gobj_channel, gobj_prot_raw);
+    if(!priv->gobj_output_prot) {
+        // Error already logged
+        return -1;
+    }
+    gobj_set_bottom_gobj(gobj_channel, priv->gobj_output_prot);
 
-    json_t *kw = json_pack("{s:i, s:[s]}",
-        "timeout_between_connections", 100,
-        "urls", gobj_read_str_attr(gobj, "output_url")
+    return 0;
+}
+
+/***************************************************************************
+ *  The client C_TCP of the output side: created with the url at the first
+ *  play, its url written at the next ones (it is stopped then).
+ ***************************************************************************/
+PRIVATE int set_output_url(hgobj gobj, const char *output_url)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_output_tcp) {
+        if(strcmp(gobj_read_str_attr(priv->gobj_output_tcp, "url"), output_url)!=0) {
+            gobj_write_str_attr(priv->gobj_output_tcp, "url", output_url);
+        }
+        return 0;
+    }
+
+    json_t *kw_tcp = json_pack("{s:s, s:I}",
+        "url", output_url,
+        "timeout_between_connections",
+            (json_int_t)gobj_read_integer_attr(gobj, "timeout_between_connections")
     );
-
-    hgobj gobj_connex = gobj_create_service(
+    priv->gobj_output_tcp = gobj_create_pure_child(
         "output",
         C_TCP,
-        kw,
-        gobj_prot_raw
+        kw_tcp,
+        priv->gobj_output_prot
     );
-    gobj_set_bottom_gobj(gobj_prot_raw, gobj_connex);
-
-    gobj_subscribe_event(priv->gobj_output_side, 0, 0, gobj);
+    if(!priv->gobj_output_tcp) {
+        // Error already logged
+        return -1;
+    }
+    gobj_set_bottom_gobj(priv->gobj_output_prot, priv->gobj_output_tcp);
 
     return 0;
 }
@@ -392,19 +567,24 @@ PRIVATE int close_input_side(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_stop_tree(priv->gobj_input_side);
+    if(priv->gobj_input_side && gobj_is_running(priv->gobj_input_side)) {
+        gobj_stop_tree(priv->gobj_input_side);
+    }
 
     return 0;
 }
 
 /***************************************************************************
- *
+ *  The C_TCP is manual start: started here, by its host, after the tree
  ***************************************************************************/
 PRIVATE int open_output_side(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start_tree(priv->gobj_output_side);
+    if(!gobj_is_running(priv->gobj_output_tcp)) {
+        gobj_start(priv->gobj_output_tcp);
+    }
 
     return 0;
 }
@@ -416,9 +596,26 @@ PRIVATE int close_output_side(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_stop_tree(priv->gobj_output_side);
+    if(priv->gobj_output_side && gobj_is_running(priv->gobj_output_side)) {
+        gobj_stop_tree(priv->gobj_output_side);
+    }
 
     return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char *side_name(hgobj gobj, hgobj side)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(side == priv->gobj_input_side) {
+        return "input";
+    } else if(side == priv->gobj_output_side) {
+        return "output";
+    }
+    return "???";
 }
 
 
@@ -439,12 +636,33 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_input_side) {
-        // TODO mantén conexión abierta, tendría que encolar mensajes si cierro/abro gates
         priv->input_side_opened = TRUE;
-        //open_output_side(gobj);
-    } else if (src == priv->gobj_output_side) {
+        priv->input_drop_said = FALSE;
+    } else if(src == priv->gobj_output_side) {
         priv->output_side_opened = TRUE;
+        priv->output_drop_said = FALSE;
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_ON_OPEN from an unknown source",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
     }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "Side open",
+        "side",         "%s", side_name(gobj, src),
+        "url",          "%s", gobj_read_str_attr(
+            gobj, (src == priv->gobj_input_side)? "input_url" : "output_url"
+        ),
+        NULL
+    );
 
     KW_DECREF(kw);
     return 0;
@@ -458,45 +676,115 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_input_side) {
-        priv->input_side_opened = TRUE;
-        // TODO mantén conexión abierta, tendría que encolar mensajes si cierro/abro gates
-        //close_output_side(gobj);
-    } else if (src == priv->gobj_output_side) {
-        priv->output_side_opened = TRUE;
+        priv->input_side_opened = FALSE;
+    } else if(src == priv->gobj_output_side) {
+        priv->output_side_opened = FALSE;
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_ON_CLOSE from an unknown source",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
     }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "Side closed",
+        "side",         "%s", side_name(gobj, src),
+        NULL
+    );
 
     KW_DECREF(kw);
     return 0;
 }
 
 /***************************************************************************
- *
+ *  What comes from one side is sent to the other one, if it is open
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    hgobj dst;
+    BOOL dst_opened;
+    BOOL *drop_said;
+    if(src == priv->gobj_input_side) {
+        dst = priv->gobj_output_side;
+        dst_opened = priv->output_side_opened;
+        drop_said = &priv->output_drop_said;
+    } else if(src == priv->gobj_output_side) {
+        dst = priv->gobj_input_side;
+        dst_opened = priv->input_side_opened;
+        drop_said = &priv->input_drop_said;
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_ON_MESSAGE from an unknown source",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
+    }
+
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_ON_MESSAGE without gbuffer",
+            "side",         "%s", side_name(gobj, src),
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
+    }
 
     priv->rxMsgs++;
+    priv->rxMsgsec++;
 
-    if(src == priv->gobj_input_side) {
-        gbuffer_incref(gbuf);
-        json_t *kw_send = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(uintptr_t)gbuf
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s ==> %s",
+            side_name(gobj, src),
+            side_name(gobj, dst)
         );
-        gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
+    }
 
+    if(!dst_opened) {
+        priv->dropMsgs++;
+        if(!*drop_said) {
+            *drop_said = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "Side not open, data dropped until it opens",
+                "from",         "%s", side_name(gobj, src),
+                "to",           "%s", side_name(gobj, dst),
+                "bytes",        "%d", (int)gbuffer_leftbytes(gbuf),
+                NULL
+            );
+        }
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    /*
+     *  A kw of its own: the kw received carries the routing (__temp__) of
+     *  the side it came from
+     */
+    gbuffer_incref(gbuf);
+    json_t *kw_send = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
+    );
+    if(gobj_send_event(dst, EV_SEND_MESSAGE, kw_send, gobj) == 0) {
         priv->txMsgs++;
-
-    } else if (src == priv->gobj_output_side) {
-        gbuffer_incref(gbuf);
-        json_t *kw_send = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(uintptr_t)gbuf
-        );
-        gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
-
-        priv->txMsgs++;
+        priv->txMsgsec++;
     }
 
     KW_DECREF(kw);
@@ -504,14 +792,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  The rates of the last period
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
+    json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+    json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
     if(priv->txMsgsec > maxtxMsgsec) {
         gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
     }
@@ -543,6 +831,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_play        = mt_play,
     .mt_pause       = mt_pause,
     .mt_writing     = mt_writing,
+    .mt_reading     = mt_reading,
 };
 
 /*------------------------*
@@ -579,11 +868,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ON_MESSAGE,       ac_on_message,     0},
-        {EV_ON_OPEN,          ac_on_open,        0},
-        {EV_ON_CLOSE,         ac_on_close,       0},
-        {EV_TIMEOUT,          ac_timeout,        0},
-        {EV_STOPPED,          0,                 0},
+        {EV_ON_MESSAGE,         ac_on_message,      0},
+        {EV_ON_OPEN,            ac_on_open,         0},
+        {EV_ON_CLOSE,           ac_on_close,        0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
+        {EV_STOPPED,            0,                  0},
         {0,0,0}
     };
 
@@ -596,11 +885,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_ON_MESSAGE,       0},
-        {EV_ON_OPEN,          0},
-        {EV_ON_CLOSE,         0},
-        {EV_TIMEOUT,          0},
-        {EV_STOPPED,          0},
+        {EV_ON_MESSAGE,         0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
+        {EV_TIMEOUT_PERIODIC,   0},
+        {EV_STOPPED,            0},
         {NULL, 0}
     };
 
@@ -615,7 +904,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  // Local method table (LMT)
         attrs_table,
         sizeof(PRIVATE_DATA),
-        0,  // Authorization table
+        authz_table,
         command_table,
         s_user_trace_level,
         0   // GClass flags

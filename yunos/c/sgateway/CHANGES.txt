@@ -1,3 +1,17 @@
+Unreleased (APP_VERSION follows YUNETA_VERSION)
+===============================================
+
+-  Works again on the v7 SDK, with its original design: one input
+   connection relayed both ways to one output connection.
+-  The service gclass is C_SGATEWAY (main.c named 'Sgateway': gclass NOT
+   FOUND, nothing ran).
+-  The input side is a C_TCP_S (child_tree_filter), the output side a client
+   C_TCP with `url`, started by the gateway (it is manual start). The urls
+   are taken at each play.
+-  The rates are updated (EV_TIMEOUT_PERIODIC), a closed side is seen as
+   closed, and bytes for a side not open are dropped and counted (dropMsgs).
+-  The yuno is played by the agent or by `yuno.autoplay`, not by itself.
+
 1.0.0
 =====
 

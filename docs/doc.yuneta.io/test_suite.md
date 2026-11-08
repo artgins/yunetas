@@ -560,6 +560,17 @@ about a json that the yuno reads back from its store.
 
 **Source:** `tests/c/emailsender/`, `tests/c/webstats/`
 
+## The sgateway yuno
+
+The real binary (`outputs/yunos/sgateway`, built by `yunetas build`), run by a
+python driver that is the peer of both of its sides.
+
+| Binary | Description |
+|--------|-------------|
+| **`test_sgateway`** | A listener of the driver is the output target and a client of the driver connects to the input port: bytes go input to output and output to input; the client goes away and a second one connects (the single input channel is free again), and bytes flow; the listener drops the gateway's connection, the gateway connects again by itself, and bytes flow. Each step waits for the gateway's own *"Side open"* / *"Side closed"* in its log. A SIGINT ends it with exit code 0, and its log has no ERROR, no WARNING, no *"Event NOT DEFINED"* and no *"system memory not free"* (the gbmem audit of the orderly end). Up to 7.30.17 the gateway ran nothing (its service gclass was named `Sgateway`: *"gclass NOT FOUND"*); with that name fixed, its input server was a `C_TCP`, its output `C_TCP` got `urls` and was never started, and its periodic timer raised *"Event NOT DEFINED in state"* once a second. Skipped (77) when the binary is not there. |
+
+**Source:** `tests/c/sgateway/`
+
 ## TreeDB
 
 | Binary | Description |

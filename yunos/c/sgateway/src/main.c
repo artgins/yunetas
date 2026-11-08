@@ -4,18 +4,25 @@
  *
  *          Simple Gateway
  *
- *  {"command": "-install-binary sgateway id=11 content64=$$(sgateway)"}
- *  {"command": "create-config sgateway.gw1 version=1 id=11"}
- *  {"command": "create-yuno id=11 realm_name=utils yuno_role=sgateway yuno_name=gw1 yuno_tag=utils"}
+ *          Takes ONE connection on input_url and relays its bytes,
+ *          both ways, to a connection to output_url (see c_sgateway.c)
  *
- *  {"command": "-update-binary id=11 content64=$$(sgateway)"}
+ *  Standalone (no agent), with a config file:
+ *      {
+ *          "yuno": {"autoplay": true},
+ *          "global": {
+ *              "sgateway.input_url": "tcp://0.0.0.0:2011",
+ *              "sgateway.output_url": "tcp://192.0.2.10:2012"
+ *          }
+ *      }
  *
- *  command-yuno id=11 service=__root__ command=write-str attribute=input_url value=tcp://0.0.0.0:2011
- *  command-yuno id=11 service=__root__ command=write-str attribute=output_url value=tcp://x.x.x.x:yy
- *
- *  command-yuno id=11 service=__root__ command=view-attrs
- *
- *  command-yuno id=11 service=__yuno__ command=set-gclass-trace gclass_name=Tcp0 level=traffic set=1
+ *  Under the agent, the same "global" keys in its configuration; or, at
+ *  run time (persisted; then pause-yuno and play-yuno: the urls are taken
+ *  at play):
+ *      command-yuno id=<id> service=__yuno__ command=write-attr attribute=input_url value=tcp://0.0.0.0:2011
+ *      command-yuno id=<id> service=__yuno__ command=write-attr attribute=output_url value=tcp://192.0.2.10:2012
+ *      command-yuno id=<id> service=__yuno__ command=view-attrs gobj_name=sgateway
+ *      command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=C_SGATEWAY level=messages set=1
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
@@ -88,7 +95,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'sgateway',                                     \n\
-            'gclass': 'Sgateway',                                   \n\
+            'gclass': 'C_SGATEWAY',                                 \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
