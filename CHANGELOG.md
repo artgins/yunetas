@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **maplibre-gl 6.17.0** in the JS layer: gobj-ui's lockfile and its demo
+  (no gobj-ui release, the peer floor stays `^6.14.0`), gui_treedb 1.2.4 and
+  the `gui/` of the project templates. No breaking change for Yuneta: the
+  camera internals it removes are not used. It fixes camera movements started
+  inside other movements, a layer added with `addLayer` that drew nothing
+  beyond its source's `maxzoom`, and symbol text on iOS 15.
+
 ## v7.30.14 (2026-11-08)
 
 A light release: a limit of `C_AUTHZ`, set in the control center only.
