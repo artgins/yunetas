@@ -97,7 +97,9 @@ uuid. Each record holds:
 - `spki_sha256`: the accepted key;
 - `presented_spki`: the last key presented that is not the accepted key;
 - `hostname` and `peername`: the node's host name and address, as its agent
-  gave them at its last session;
+  gave them. For an `accepted` node only a session that logged in by its key
+  writes them: the hostname names the node, so a session of a token, or one
+  that is refused, cannot rename it;
 - `first_seen`, `last_seen`, `decided_by` and `decided_at`. An agent that
   opens a session again with the same hostname, address and key writes
   nothing, unless `last_seen` is an hour old: a link that comes and goes does
@@ -334,7 +336,7 @@ an agent can cause it):
 
 ```
 Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)
-    uuid: 8d984d10-be71-8950-ad7a-51196f35b774, hostname: board-b, hostname2: board-a
+    uuid: 5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b, hostname: board-b, hostname2: board-a
 ```
 
 The same host is not reported: that is a node whose link came back before its
@@ -352,13 +354,18 @@ its uuid or by its hostname, in that order:
   its key at the login, and against the node's record in `nodes` when the
   session opens.
 - **The hostname** is only what the agent writes in its identity card. So it
-  names a node through the records of `nodes` (each record keeps the hostname
-  of the node's last session), and only when ONE record has it.
+  names a node through the records of `nodes` that are not `refused`, and only
+  when ONE record has it. An accepted node's record takes its hostname only
+  from a session that logged in by the node's key.
 
-When two nodes give one hostname, a command by that name is refused, and the
-control center logs a WARNING when the second one opens its session (*"Two
-nodes give one hostname: command-agent by that name is refused, give the node
-uuid"*):
+The uuid of an accepted node always names that node. Any other name is
+refused when two nodes give it as their hostname, or when it is the uuid of a
+session and the hostname of another node: a session of a token whose card says
+`id: board-b` does not take the commands of the node named `board-b`.
+`drop-agent` names a node the same way, and drops every session of it. When
+two agents of different nodes in session give one hostname, the control
+center logs a WARNING (*"Two agents of different nodes give one hostname:
+reach them by their node uuid"*):
 
 ```
 command-agent agent_id=board-b cmd2agent=list-yunos
@@ -369,12 +376,15 @@ command-agent agent_id=3c4d5e6f-7a8b-4c0d-9e2f-3a4b5c6d7e8f cmd2agent=list-yunos
 
 The name stays refused while both records keep it, also while one of the two
 nodes is away, until the node that took the other's name opens its session
-with its own. `write-tty` goes to ONE agent, and is refused without
+with its own. When `accept-node` creates the record of a node that knocked,
+it takes the hostname the node knocked with only if it knocked with the key
+accepted. `write-tty` goes to ONE agent, and is refused without
 `agent_id` (a WARNING, *"write-tty without agent_id, nothing written"*). Up to
 7.30.14 the first agent whose uuid or hostname matched got the command, so an
 agent could take the commands of another node by giving its hostname, or its
-uuid as hostname; and `write-tty` went to every agent that matched, to all of
-them without `agent_id`.
+uuid as hostname; `write-tty` went to every agent that matched, to all of
+them without `agent_id`; and `drop-agent` dropped every agent whose uuid or
+hostname matched.
 
 ## Reaching nodes through the control center (ycommand)
 
@@ -1001,7 +1011,7 @@ never armed: all six read 0.
 | `list-agents` | List currently connected nodes (UUID, hostname, status) |
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
-| `drop-agent` | Drop a node's connection |
+| `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
 | `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required |
 | `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |
 | `scenarios` | List the scenarios, or one (`scenario_id`) |

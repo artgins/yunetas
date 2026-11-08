@@ -71,7 +71,11 @@
  *              - a node is reached by its uuid, and by a hostname only when
  *                one node has it: an agent that gives another's hostname,
  *                or its uuid as hostname, takes nothing, and write-tty goes
- *                to one agent; one key is for one node; the card of an
+ *                to one agent; a hostname is written only by a key login
+ *                of an accepted node, so it cannot be planted, and a card
+ *                id that is another node's hostname takes nothing;
+ *                drop-agent names a node as command-agent does; one key
+ *                is for one node; the card of an
  *                agent not authenticated is checked; a decision about a
  *                node drops its sessions it does not let in now; an open
  *                with nothing changed writes nothing; logout-user asks its
@@ -1573,12 +1577,13 @@ PRIVATE hgobj open_agent_session(hgobj gobj, const char *name, const char *uuid,
  *  C_IEVENT_SRV of a TLS link with a client certificate holds it and gives
  *  it in its EV_ON_OPEN), or none
  ***************************************************************************/
-PRIVATE hgobj open_keyed_session(
+PRIVATE hgobj open_session_as(
     hgobj gobj,
     const char *name,
     const char *uuid,
     const char *host,
-    const char *spki    // NULL: no certificate
+    const char *spki,       // NULL: no certificate
+    const char *username    // NULL: a session of a token (no __username__ said)
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1611,6 +1616,9 @@ PRIVATE hgobj open_keyed_session(
             "verified", 0
         ));
     }
+    if(username) {
+        gobj_write_str_attr(srv, "__username__", username);
+    }
     gobj_set_bottom_gobj(srv, wire);
     gobj_start(srv);
     gobj_change_state(srv, ST_SESSION);
@@ -1619,6 +1627,9 @@ PRIVATE hgobj open_keyed_session(
         "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel,
         "identity_card", identity_card
     );
+    if(username) {
+        json_object_set_new(kw_open, "__username__", json_string(username));
+    }
     if(spki) {
         json_object_set_new(kw_open, "peer_cert", json_pack("{s:s, s:b}",
             "spki_sha256", spki,
@@ -1627,6 +1638,31 @@ PRIVATE hgobj open_keyed_session(
     }
     gobj_send_event(priv->cc, EV_ON_OPEN, kw_open, priv->input_side);
     return channel;
+}
+
+PRIVATE hgobj open_keyed_session(
+    hgobj gobj,
+    const char *name,
+    const char *uuid,
+    const char *host,
+    const char *spki    // NULL: no certificate
+)
+{
+    return open_session_as(gobj, name, uuid, host, spki, NULL);
+}
+
+/*  A session that logged in by the accepted key of its node: agent:<uuid>  */
+PRIVATE hgobj open_key_login(
+    hgobj gobj,
+    const char *name,
+    const char *uuid,
+    const char *host,
+    const char *spki
+)
+{
+    char username[NAME_MAX];
+    snprintf(username, sizeof(username), "agent:%s", uuid);
+    return open_session_as(gobj, name, uuid, host, spki, username);
 }
 
 /*  How many EV_DROP `peer` got (its record is taken)  */
@@ -1744,6 +1780,7 @@ PRIVATE json_t *authenticate_by_key(
 #define KEY_E   "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 #define KEY_F   "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 #define KEY_G   "0000000000000000000000000000000000000000000000000000000000000000"
+#define KEY_H   "1111111111111111111111111111111111111111111111111111111111111111"
 
 PRIVATE int test_node_keys(hgobj gobj, hgobj client)
 {
@@ -1906,6 +1943,8 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         0, "node 'uuid-new' accepted", "accept-node of a knocking node");
     ret += check_node_field(gobj, client, "uuid-new", "state", "accepted",
         "accept-node of a knocking node creates its record");
+    ret += check_node_field(gobj, client, "uuid-new", "hostname", "",
+        "accept-node takes the hostname a node knocked with under another key");
     auth = authenticate_by_key(gobj, "auth-6", "uuid-new", "newhost", KEY_G,
         username, sizeof(username));
     if(kw_get_int(gobj, auth, "result", -1, 0) != 0) {
@@ -2042,8 +2081,8 @@ PRIVATE int test_node_names(hgobj gobj, hgobj client)
     /*
      *  A gives B's hostname
      */
-    hgobj a = open_keyed_session(gobj, "na-1", "uuid-na", "host-b", KEY_C);
-    hgobj b = open_keyed_session(gobj, "nb-1", "uuid-nb", "host-b", KEY_D);
+    hgobj a = open_key_login(gobj, "na-1", "uuid-na", "host-b", KEY_C);
+    hgobj b = open_key_login(gobj, "nb-1", "uuid-nb", "host-b", KEY_D);
     if(!a || !b) {
         return -1;  // Error already logged
     }
@@ -2081,8 +2120,8 @@ PRIVATE int test_node_names(hgobj gobj, hgobj client)
     /*
      *  A gives B's uuid as its hostname
      */
-    a = open_keyed_session(gobj, "na-2", "uuid-na", "uuid-nb", KEY_C);
-    b = open_keyed_session(gobj, "nb-2", "uuid-nb", "host-b", KEY_D);
+    a = open_key_login(gobj, "na-2", "uuid-na", "uuid-nb", KEY_C);
+    b = open_key_login(gobj, "nb-2", "uuid-nb", "host-b", KEY_D);
     ret += check_response(gobj, to_agent(gobj, client, "command-agent", "uuid-nb"),
         0, "sent to 1 nodes", "command-agent by B's uuid, A giving it as its hostname");
     if(frames_differ(frames_to(a), frames_to(b), 0, 1)) {
@@ -2099,8 +2138,8 @@ PRIVATE int test_node_names(hgobj gobj, hgobj client)
     /*
      *  A back with its own name: B's hostname is B's
      */
-    a = open_keyed_session(gobj, "na-3", "uuid-na", "host-a", KEY_C);
-    b = open_keyed_session(gobj, "nb-3", "uuid-nb", "host-b", KEY_D);
+    a = open_key_login(gobj, "na-3", "uuid-na", "host-a", KEY_C);
+    b = open_key_login(gobj, "nb-3", "uuid-nb", "host-b", KEY_D);
     ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-b"),
         0, "sent to 1 nodes", "command-agent by a hostname of one node");
     if(frames_differ(frames_to(a), frames_to(b), 0, 1)) {
@@ -2113,7 +2152,7 @@ PRIVATE int test_node_names(hgobj gobj, hgobj client)
      *  A session with no key gives B's hostname
      */
     hgobj x = open_keyed_session(gobj, "nx-1", "uuid-nx", "host-b", NULL);
-    b = open_keyed_session(gobj, "nb-4", "uuid-nb", "host-b", KEY_D);
+    b = open_key_login(gobj, "nb-4", "uuid-nb", "host-b", KEY_D);
     if(drops_of(x) != 0) {
         ret += fail(gobj, "a node with no key is dropped while allow_nodes_without_key", "");
     }
@@ -2245,10 +2284,10 @@ PRIVATE int test_record_written_on_change(hgobj gobj)
 {
     int ret = 0;
 
-    hgobj ch = open_keyed_session(gobj, "na-4", "uuid-na", "host-a", KEY_C);
+    hgobj ch = open_key_login(gobj, "na-4", "uuid-na", "host-a", KEY_C);
     close_session(ch);
     json_int_t rowid = node_rowid(gobj, "uuid-na");
-    ch = open_keyed_session(gobj, "na-5", "uuid-na", "host-a", KEY_C);
+    ch = open_key_login(gobj, "na-5", "uuid-na", "host-a", KEY_C);
     close_session(ch);
     json_int_t rowid2 = node_rowid(gobj, "uuid-na");
     if(rowid < 0 || rowid2 != rowid) {
@@ -2256,20 +2295,12 @@ PRIVATE int test_record_written_on_change(hgobj gobj)
         snprintf(detail, sizeof(detail), "g_rowid %lld, then %lld", (long long)rowid, (long long)rowid2);
         ret += fail(gobj, "an open with nothing changed writes the record of the node", detail);
     }
-    ch = open_keyed_session(gobj, "na-6", "uuid-na", "host-a2", KEY_C);
+    ch = open_key_login(gobj, "na-6", "uuid-na", "host-a2", KEY_C);
     close_session(ch);
     if(node_rowid(gobj, "uuid-na") != rowid + 1) {
         ret += fail(gobj, "an open with a new hostname does not write it", "");
     }
     return ret;
-}
-
-/*  The session of `channel` logged in by its node's key, as agent:<uuid>  */
-PRIVATE void logged_in_by_key(hgobj channel, const char *uuid)
-{
-    char username[NAME_MAX];
-    snprintf(username, sizeof(username), "agent:%s", uuid);
-    gobj_write_str_attr(gobj_child_by_name(channel, gobj_name(channel)), "__username__", username);
 }
 
 /***************************************************************************
@@ -2293,8 +2324,7 @@ PRIVATE int test_key_revoked(hgobj gobj, hgobj client)
     close_session(ch);
     ret += accept_node_with(gobj, client, "uuid-nr", KEY_E, 0, "accepted", "accept-node of R");
 
-    hgobj r1 = open_keyed_session(gobj, "nr-1", "uuid-nr", "host-r", KEY_E);
-    logged_in_by_key(r1, "uuid-nr");
+    hgobj r1 = open_key_login(gobj, "nr-1", "uuid-nr", "host-r", KEY_E);
     hgobj t1 = open_keyed_session(gobj, "nt-1", "uuid-nr", "host-r", KEY_E);    // a token's
     ret += accept_node_with(gobj, client, "uuid-nr", KEY_E, 0, "accepted", "accept-node of R again");
     if(drops_of(wire_of(r1)) != 0) {
@@ -2308,8 +2338,7 @@ PRIVATE int test_key_revoked(hgobj gobj, hgobj client)
     close_session(r1);
     close_session(t1);
 
-    hgobj r2 = open_keyed_session(gobj, "nr-2", "uuid-nr", "host-r", KEY_F);
-    logged_in_by_key(r2, "uuid-nr");
+    hgobj r2 = open_key_login(gobj, "nr-2", "uuid-nr", "host-r", KEY_F);
     json_t *kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "node_id", json_string("uuid-nr"));
     ret += check_response(gobj, gobj_command(priv->cc, "refuse-node", kw, client),
@@ -2382,6 +2411,106 @@ PRIVATE int test_logout_user(hgobj gobj, hgobj client)
         }
         JSON_DECREF(received)
     }
+    return ret;
+}
+
+
+/***************************************************************************
+ *  30. A hostname cannot be planted, nor taken by a uuid. Node C is
+ *      accepted with its key, enforce_node_keys on, its agent logged in by
+ *      the key with `host-c`:
+ *      - a session of a token that claims C's uuid with another hostname is
+ *        refused, and C's record keeps `host-c`: only a session logged in
+ *        by the key of an accepted node writes its hostname and address;
+ *      - a session of a token whose card id IS `host-c` takes nothing by
+ *        that name (a uuid of a session and a hostname of another node:
+ *        ambiguous), and C's uuid still reaches C;
+ *      - a session of a token with another uuid that gives `host-c` takes
+ *        nothing either: two records have the name;
+ *      - the record of a refused node names nobody.
+ *      Up to the first fix the refused open renamed C's record, so the
+ *      last session was the only `host-c` and got C's commands; and a card
+ *      id of `host-c` was matched as a uuid, first.
+ ***************************************************************************/
+PRIVATE int test_names_not_planted(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj ch = open_keyed_session(gobj, "nc-0", "uuid-nc", "host-c", KEY_H);
+    close_session(ch);
+    ret += accept_node_with(gobj, client, "uuid-nc", KEY_H, 0, "accepted", "accept-node of C");
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", TRUE);
+    hgobj c = open_key_login(gobj, "nc-1", "uuid-nc", "host-c", KEY_H);
+
+    hgobj x = open_keyed_session(gobj, "nx-2", "uuid-nc", "elsewhere", NULL);
+    if(drops_of(x) != 1) {
+        ret += fail(gobj, "a session of no key claiming an accepted node is not dropped", "");
+    }
+    close_session(x);
+    ret += check_node_field(gobj, client, "uuid-nc", "hostname", "host-c",
+        "a refused open writes the hostname of an accepted node");
+
+    hgobj y = open_keyed_session(gobj, "ny-1", "host-c", "y-host", NULL);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-c"),
+        -1, "more than one node", "command-agent by a name that is a session's uuid and another's hostname");
+    if(frames_differ(frames_to(y), frames_to(c), 0, 0)) {
+        ret += fail(gobj, "a card id that is another node's hostname takes its commands", "");
+    }
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "uuid-nc"),
+        0, "sent to 1 nodes", "command-agent by C's uuid");
+    if(frames_differ(frames_to(y), frames_to(c), 0, 1)) {
+        ret += fail(gobj, "C's uuid reaches C, and C only", "");
+    }
+    close_session(y);
+
+    hgobj x2 = open_keyed_session(gobj, "nx-3", "uuid-nx3", "host-c", NULL);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "host-c"),
+        -1, "more than one node", "command-agent by a hostname a session of a token gives too");
+    if(frames_differ(frames_to(x2), frames_to(c), 0, 0)) {
+        ret += fail(gobj, "a session of a token takes the hostname of an accepted node", "");
+    }
+    close_session(x2);
+    close_session(c);
+    gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
+
+    /*
+     *  The record of a refused node names nobody: `keyed` (case 22) names
+     *  the one node not refused that has it
+     */
+    hgobj k = open_keyed_session(gobj, "nk-1", "uuid-nk", "keyed", NULL);
+    ret += check_response(gobj, to_agent(gobj, client, "command-agent", "keyed"),
+        0, "sent to 1 nodes", "command-agent by a hostname a refused node had");
+    if(frames_to(k) != 1) {
+        ret += fail(gobj, "the hostname of a refused node blocks another node's", "");
+    }
+    close_session(k);
+    return ret;
+}
+
+/***************************************************************************
+ *  31. drop-agent reaches a node as command-agent does. enforce_node_keys
+ *      off: A, by a token (no key, let in with a WARNING), gives the
+ *      hostname B logged in with by its key. drop-agent by that name drops
+ *      B's session, and not A's: A's record keeps its own name. Up to
+ *      7.30.14 it dropped every session whose uuid or card host matched.
+ ***************************************************************************/
+PRIVATE int test_drop_agent_by_name(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj a = open_keyed_session(gobj, "na-7", "uuid-na", "host-b2", NULL);
+    hgobj b = open_key_login(gobj, "nb-5", "uuid-nb", "host-b2", KEY_D);
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("host-b2"));
+    ret += check_response(gobj, gobj_command(priv->cc, "drop-agent", kw, client),
+        0, "Drop sent to 1 nodes", "drop-agent by a hostname");
+    if(frames_differ(drops_of(wire_of(a)), drops_of(wire_of(b)), 0, 1)) {
+        ret += fail(gobj, "drop-agent by B's hostname drops A, or not B", "");
+    }
+    close_session(a);
+    close_session(b);
     return ret;
 }
 
@@ -3644,6 +3773,8 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_record_written_on_change(gobj);
     result += test_key_revoked(gobj, client1);
     result += test_logout_user(gobj, client1);
+    result += test_names_not_planted(gobj, client1);
+    result += test_drop_agent_by_name(gobj, client1);
     result += test_twin_agents(gobj);
     result += test_operator_assertion(gobj, client1);
     result += test_save_scenario_as_string(gobj, client1);

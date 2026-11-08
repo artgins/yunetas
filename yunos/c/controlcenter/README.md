@@ -78,11 +78,14 @@ Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".
 `command-agent`, `stats-agent`, `write-tty` and the scenarios name a node by
 its uuid or by its hostname. The uuid is the identity that the session of the
 agent was accepted for. The hostname is only what the agent writes in its
-card, so it names a node through the node's record in `nodes`, and only when
-one record has it. When two nodes give one hostname, a command by that name is
-refused (*"is the hostname of more than one node: give its node uuid"*), and
-the control center logs a WARNING when the second one opens its session.
-`write-tty` goes to one agent only, and is refused without `agent_id`.
+card, so it names a node through the records of `nodes` that are not
+refused, and only when one record has it. An accepted node's record takes its
+hostname only from a session that logged in by the node's key. The uuid of an
+accepted node always names it; any other name that two nodes give, or that is
+the uuid of a session and the hostname of another node, is refused (*"is the
+hostname of more than one node: give its node uuid"*). `drop-agent` names a
+node the same way. `write-tty` goes to one agent only, and is refused without
+`agent_id`.
 
 ## Who asks: operator assertions (7.30.9+)
 
@@ -113,7 +116,7 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 | `list-agents`    | List currently connected nodes (UUID, hostname, status).                      |
 | `command-agent`  | Forward an arbitrary command to a specific node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
 | `stats-agent`    | Get stats from a specific node.                                               |
-| `drop-agent`     | Drop the connection to a specific node.                                       |
+| `drop-agent`     | Drop every session of a node (`agent_id` as for `command-agent`; empty: every agent). |
 | `write-tty`      | Write bytes to the PTY console of one node (the `yuno_agent22` backdoor). `agent_id` is required. |
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
 | `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated; `revision=` (the `__md_treedb__.g_rowid` it was read at) refuses it when somebody saved it since. |

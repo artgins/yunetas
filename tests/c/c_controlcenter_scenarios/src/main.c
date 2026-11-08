@@ -301,10 +301,10 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 23: accept A
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: B
     "Node key decided",                                                             // 23: accept B
-    "Two nodes give one hostname: command-agent by that name is refused, give the node uuid||||WARNING", // 23: A gives B's
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 23: A gives B's
     "write-tty: the agent_id names more than one node, nothing written",           // 23
     "write-tty without agent_id, nothing written",                                 // 23
-    "Two nodes give one hostname: command-agent by that name is refused, give the node uuid||||WARNING", // 23: no key, B's
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 23: no key, B's
     "Node not accepted: its key is accepted for another node||||WARNING",          // 24
     "Node key decided",                                                             // 24: A, its own key
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: id not a string
@@ -323,6 +323,12 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 28: accept R, enforcing
     "Node key decided",                                                             // 28: accept R, the old key
     "A session of the node dropped: its key is not accepted now",                   // 28
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 30: C
+    "Node key decided",                                                             // 30: accept C
+    "Agent refused: its node key is not the one accepted|||The agent of an accepted node presents no key|WARNING", // 30: a token claims C
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 30: a token gives host-c
+    "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 31: A by a token
+    "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 31: B, A's name
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING",   // 0: the copy, not the same host
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",

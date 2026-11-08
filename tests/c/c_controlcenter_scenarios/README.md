@@ -285,6 +285,35 @@ still reported and fails the test.
     anybody logged anybody out, and a missing `disabled` went as `false` (a
     disabled user was enabled again).
 
+30. A hostname cannot be planted, nor taken by a uuid. Node C is accepted
+    with its key, `enforce_node_keys` on, its agent logged in by the key with
+    `host-c`:
+    - a session of a token that claims C's uuid with another hostname is
+      refused, and C's record keeps `host-c` (only a session that logged in
+      by an accepted node's key writes its hostname and address);
+    - a session of a token whose card `id` IS `host-c` takes nothing by that
+      name (the uuid of a session and the hostname of another node), and C's
+      uuid still reaches C;
+    - a session of a token with another uuid that gives `host-c` takes
+      nothing either (two records have the name);
+    - the record of a refused node (`keyed`, case 22) names nobody: the one
+      node that is not refused and has `keyed` gets it.
+
+    Before this, the refused open renamed C's record, so the last session was
+    the only `host-c` and got C's commands; and a card `id` of `host-c` was
+    matched as a uuid, first.
+31. `drop-agent` names a node as `command-agent` does. `enforce_node_keys`
+    off: A, by a token, gives the hostname that B logged in with by its key;
+    `drop-agent` by that name drops B's session and not A's. Up to 7.30.14 it
+    dropped every session whose uuid or card host matched.
+
+Case 22 also checks that `accept-node` of a node that knocked under another
+key does not take the hostname it knocked with.
+
+Sessions are opened as a token's (no `__username__`) or as a login by the key
+(`agent:<uuid>` in the session and in its `EV_ON_OPEN`, as `C_IEVENT_SRV`
+gives it); cases 23, 27 and 28 use the key logins.
+
 The agent of `node1` opens its session as in production (`EV_ON_OPEN`), so its
 node has a record in `nodes`, whose hostname names it. Case 0's copy, from
 another host, renames that record, so the agent opens its session again after
