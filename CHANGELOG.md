@@ -284,7 +284,7 @@ next one is against 7.30.0).
   indicators in both blocks, and a zone name too long for a path whose first
   `PATH_MAX - 1` bytes name a zone file.
 
-### Packages
+### The packages and their scripts
 
 - **BREAKING (packages, operators): a copy of a node no longer keeps the agent's
   key.** Up to 7.30.14 `yuneta-agent-cert` kept any pair whose key matched its
