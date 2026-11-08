@@ -37,6 +37,13 @@
  *            open tried again on its timer. The file removed, the next try
  *            opens the queue (one INFO) and the next message goes in. Up to
  *            7.30.17 the first message aborted the yuno ("trq_msgs NULL")
+ *          - queue_mark_pending / queue_mark_notpending answer -1 on a gate
+ *            whose queue is not open, and the gate goes on; on an open one
+ *            they mark its messages and leave it open and working. Up to
+ *            7.30.17 they opened the queue again over the open one ("tranger
+ *            NOT NULL", the live store shut down, and closed after them: the
+ *            gate was left with no queue), and on a queue that could not be
+ *            opened they read a NULL queue (SIGSEGV)
  *          - A message that carries a gbuffer is queued without keeping a
  *            reference of it: the queue keeps json, and frees it with
  *            json_decref(). Up to 7.30.17 the copy for the queue increfed
@@ -67,6 +74,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE void check(hgobj gobj, const char *what, BOOL ok);
+PRIVATE int mark_queue(hgobj gobj, hgobj qiogate, const char *command, const char *expected);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -192,6 +200,31 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *  A queue_mark_* command: its result, and its comment checked to hold
+ *  `expected`
+ ***************************************************************************/
+PRIVATE int mark_queue(hgobj gobj, hgobj qiogate, const char *command, const char *expected)
+{
+    json_t *jn_resp = gobj_command(qiogate, command, json_pack("{s:i}", "from-rowid", 1), gobj);
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -99, 0);
+    const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+    if(!strstr(comment, expected)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: a queue_mark command answered another thing",
+            "command",      "%s", command,
+            "comment",      "%s", comment,
+            "expected",     "%s", expected,
+            NULL
+        );
+        test_qiogate_stats_failed++;
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
 
 /***************************************************************************
  *
@@ -410,6 +443,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 check(gobj, "and counted in dropped_msgs",
                     gobj_read_integer_attr(priv->gobj_q3, "dropped_msgs") == N_HELD
                 );
+                check(gobj, "queue_mark_pending answers -1 on a queue that is not open",
+                    mark_queue(gobj, priv->gobj_q3, "queue_mark_pending", "queue is not open") == -1
+                );
+                check(gobj, "and the gate goes on, its queue still not open",
+                    !gobj_read_bool_attr(priv->gobj_q3, "queue_ready")
+                );
                 unlink(QUEUES_PATH "/blocked");
                 set_timeout(priv->timer, 2000);     // its try at 1 s, ample on a busy box; the next at 3 s
             }
@@ -459,6 +498,24 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     );
                 }
                 GBUFFER_DECREF(gbuf)
+
+                check(gobj, "queue_mark_pending marks the messages of the open queue",
+                    mark_queue(gobj, priv->gobj_q3, "queue_mark_pending", "2 messages marked as PENDING") == 0
+                );
+                check(gobj, "queue_mark_notpending too",
+                    mark_queue(gobj, priv->gobj_q3, "queue_mark_notpending", "2 messages marked as NOT-PENDING") == 0
+                );
+                ret = gobj_send_event(
+                    priv->gobj_q3,
+                    EV_SEND_MESSAGE,
+                    json_pack("{s:s, s:i}", "id", "1", "n", N_HELD + 2),
+                    gobj
+                );
+                check(gobj, "and the gate keeps its queue open and working",
+                    ret == 0 &&
+                    gobj_read_bool_attr(priv->gobj_q3, "queue_ready") &&
+                    gobj_read_integer_attr(priv->gobj_q3, "msgs_in_queue") == 3
+                );
                 gobj_stop(priv->gobj_q3);
                 set_yuno_must_die();
             }

@@ -70,6 +70,7 @@ PRIVATE int open_queue(hgobj gobj);
 PRIVATE void queue_not_ready(hgobj gobj, BOOL retry);
 PRIVATE void open_queue_again(hgobj gobj);
 PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg);
+PRIVATE int mark_queue_range(hgobj gobj, int64_t from_rowid, int64_t to_rowid, BOOL pending);
 PRIVATE int close_queue(hgobj gobj);
 PRIVATE void raise_timeout_poll_to_floor(hgobj gobj);
 PRIVATE BOOL queue_refuses_messages(hgobj gobj);
@@ -446,26 +447,31 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
         );
     }
 
-    /*--------------------------------*
-     *      Ouput queue
-     *--------------------------------*/
-    open_queue(gobj);
-    trq_load_all(priv->trq_msgs, from_rowid, to_rowid);
-
-    /*----------------------------------*
-     *      Mark pending
-     *----------------------------------*/
-    int count = 0;
-    q_msg_t *msg;
-    qmsg_foreach_forward(priv->trq_msgs, msg) {
-        count++;
-        trq_set_hard_flag(msg, TRQ_MSG_PENDING, 1);
+    if(!priv->trq_msgs) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the queue is not open (queue_ready false): nothing marked",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
     }
-    /*
-     *  Close que queue
-     */
-    close_queue(gobj);
-
+    int count = mark_queue_range(gobj, from_rowid, to_rowid, TRUE);
+    if(count < 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the messages of the queue cannot be read (check logs)",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return msg_iev_build_response(
         gobj,
@@ -509,26 +515,31 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
         );
     }
 
-    /*--------------------------------*
-     *      Ouput queue
-     *--------------------------------*/
-    open_queue(gobj);
-    trq_load_all(priv->trq_msgs, from_rowid, to_rowid);
-
-    /*----------------------------------*
-     *      Unmark pending
-     *----------------------------------*/
-    int count = 0;
-    q_msg_t *msg;
-    qmsg_foreach_forward(priv->trq_msgs, msg) {
-        count++;
-        trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0);
+    if(!priv->trq_msgs) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the queue is not open (queue_ready false): nothing marked",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
     }
-
-    /*
-     *  Close que queue
-     */
-    close_queue(gobj);
+    int count = mark_queue_range(gobj, from_rowid, to_rowid, FALSE);
+    if(count < 0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the messages of the queue cannot be read (check logs)",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     return msg_iev_build_response(
         gobj,
@@ -799,6 +810,42 @@ PRIVATE void open_queue_again(hgobj gobj)
             priv->t_backup = start_sectimer(priv->timeout_backup);
         }
     }
+}
+
+/***************************************************************************
+ *  The hard mark TRQ_MSG_PENDING of the messages of a range, on disk: what
+ *  a load sends (queue_mark_pending / queue_mark_notpending). The range is
+ *  read into a list of its own, on the OPEN store; the live queue and its
+ *  list are not touched, a mark is taken at the next load. Up to 7.30.17
+ *  the commands opened the queue again over the open one ("tranger NOT
+ *  NULL": the live store shut down) and closed it after them, so the gate
+ *  was left with no queue; and on a queue that could not be opened they
+ *  read a NULL queue (SIGSEGV). Return the messages marked, or -1.
+ ***************************************************************************/
+PRIVATE int mark_queue_range(hgobj gobj, int64_t from_rowid, int64_t to_rowid, BOOL pending)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    tr_queue_t *trq = trq_open(
+        priv->tranger_queues,
+        gobj_read_str_attr(gobj, "topic_name"),
+        gobj_read_str_attr(gobj, "tkey"),
+        tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
+        gobj_read_integer_attr(gobj, "backup_queue_size")
+    );
+    if(!trq) {
+        return -1;  // Error already logged
+    }
+    trq_load_all(trq, from_rowid, to_rowid);
+
+    int count = 0;
+    q_msg_t *msg;
+    qmsg_foreach_forward(trq, msg) {
+        count++;
+        trq_set_hard_flag(msg, TRQ_MSG_PENDING, pending);
+    }
+    trq_close(trq);
+    return count;
 }
 
 /***************************************************************************

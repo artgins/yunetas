@@ -53,6 +53,13 @@ opened at the start:
 Up to 7.30.17 the first message aborted the yuno (CRITICAL *"trq_msgs
 NULL"*; red: *"Subprocess aborted"*).
 
+`queue_mark_pending` on `output-q3` while its queue is not open answers
+`-1` (*"the queue is not open"*) and the gate goes on; once open,
+`queue_mark_pending` and `queue_mark_notpending` mark its 2 messages and the
+gate keeps its queue open and takes the next message. Up to 7.30.17 they
+opened the queue again over the open one and closed it after them, and on a
+queue that was not open the yuno crashed (red: SIGSEGV).
+
 Last, a message that carries a `gbuffer` is queued: the gbuffer must keep
 only the test's own reference (`refcount` 1). Up to 7.30.17 the copy for the
 queue increfed it and nobody gave it back, because the queue frees its json
