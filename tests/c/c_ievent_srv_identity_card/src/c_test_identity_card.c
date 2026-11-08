@@ -34,7 +34,11 @@
  *                 timeout_idgot. Up to 7.30.14 that gbuffer was released
  *                 twice ("BAD gbuf_decref()", a double free in a yuno
  *                 without the memory tracking), before any session
- *             13. a good card: EV_IDENTITY_CARD_ACK, the session opens
+ *             13. a good card: EV_IDENTITY_CARD_ACK, the session opens.
+ *                 It carries a serialized gbuffer too: the card the gate
+ *                 keeps (its identity_card attr) and the one it publishes
+ *                 in EV_ON_OPEN have no "gbuffer". Up to 7.30.15 both kept
+ *                 it, a pointer to memory freed with the frame
  *             14. in that session, a second card, good, of ANOTHER user:
  *                 refused (a negative EV_IDENTITY_CARD_ACK, one warning), and
  *                 the session keeps its user and its channel; no second
@@ -84,6 +88,7 @@ PRIVATE json_t *card_routing(
     const char *src_service
 );
 PRIVATE void check(hgobj gobj, const char *what, BOOL ok);
+PRIVATE hgobj session_gate(hgobj gobj);
 PRIVATE const char *session_user(hgobj gobj);
 
 /***************************************************************************
@@ -434,6 +439,12 @@ PRIVATE int send_card(hgobj gobj, int card)
             break;
 
         default:
+            if(card == LAST_CARD) {
+                json_object_set_new(kw, "__gbuffer___", json_pack("{s:s, s:s}",
+                    "label", "",
+                    "data", "cGVlciBieXRlcw=="  // "peer bytes"
+                ));
+            }
             jn_routing = card_routing("", role, "tester", role, "cli");
             break;
     }
@@ -446,9 +457,9 @@ PRIVATE int send_card(hgobj gobj, int card)
 }
 
 /***************************************************************************
- *  The user of the session: of the C_IEVENT_SRV of the channel in session
+ *  The C_IEVENT_SRV of the channel in session
  ***************************************************************************/
-PRIVATE const char *session_user(hgobj gobj)
+PRIVATE hgobj session_gate(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -458,13 +469,22 @@ PRIVATE const char *session_user(hgobj gobj)
         while(gate) {
             if(strcmp(gobj_gclass_name(gate), C_IEVENT_SRV)==0 &&
                     gobj_read_bool_attr(gate, "authenticated")) {
-                return gobj_read_str_attr(gate, "__username__");
+                return gate;
             }
             gate = gobj_next_child(gate);
         }
         channel = gobj_next_child(channel);
     }
-    return "";
+    return 0;
+}
+
+/***************************************************************************
+ *  The user of the session
+ ***************************************************************************/
+PRIVATE const char *session_user(hgobj gobj)
+{
+    hgobj gate = session_gate(gobj);
+    return gate? gobj_read_str_attr(gate, "__username__") : "";
 }
 
 /***************************************************************************
@@ -511,6 +531,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         send_card(gobj, priv->card);
     } else {
         priv->server_opens++;
+        json_t *card = json_object_get(kw, "identity_card");
+        check(gobj, "EV_ON_OPEN publishes the identity card", json_is_object(card));
+        check(gobj, "the published identity card has no gbuffer of the frame",
+            !json_object_get(card, "gbuffer"));
     }
 
     KW_DECREF(kw)
@@ -572,6 +596,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         check(gobj, "each refused card closed its channel", priv->client_closes == LAST_CARD);
         check(gobj, "only the good card opened a session", priv->server_opens == 1);
         check(gobj, "two ACKs: the refused card's and the good one's", priv->acks == 2);
+        hgobj gate = session_gate(gobj);
+        json_t *card = gate? gobj_read_json_attr(gate, "identity_card") : NULL;
+        check(gobj, "the gate keeps the identity card", json_is_object(card));
+        check(gobj, "the identity card kept has no gbuffer of the frame",
+            !json_object_get(card, "gbuffer"));
 
         priv->card = SESSION_CARD;
         send_card(gobj, priv->card);

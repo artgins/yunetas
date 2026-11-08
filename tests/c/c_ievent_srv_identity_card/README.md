@@ -44,7 +44,11 @@ refused and its channel closed; the client connects again and sends the next:
     gate released that gbuffer twice (2 x *"BAD gbuf_decref()"*: a double
     free in a yuno without `CONFIG_DEBUG_TRACK_MEMORY`), before any
     authentication -- red against the `c_ievent_srv.c` of 7.30.14;
-13. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session;
+13. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session. It
+    carries a serialized gbuffer too: the card the gate keeps (its
+    `identity_card` attr) and the one it publishes in `EV_ON_OPEN` have no
+    `gbuffer`. Up to 7.30.15 both kept it, a pointer to memory freed with the
+    frame, which the controlcenter's list of agents showed to an operator;
 14. in that session, a second card, good, of ANOTHER user: refused, a
     negative `EV_IDENTITY_CARD_ACK` and ONE warning (*"Identity card in a
     session, refused: the session keeps its identity"*); the session keeps its

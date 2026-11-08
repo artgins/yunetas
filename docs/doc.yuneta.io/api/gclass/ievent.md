@@ -621,6 +621,21 @@ A card refused by the authentication is answered with a negative
 `EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is
 dropped at `timeout_idgot` (default 5000 ms).
 
+**A card may carry a gbuffer.** Every frame of a peer goes through
+`kw_deserialize()`, so a serialized field the peer writes becomes a real
+gbuffer of the kw, released with the frame:
+
+```json
+{"jwt": "...", "__gbuffer___": {"label": "", "data": "cGVlciBieXRlcw=="}}
+```
+
+Up to 7.30.14 a card refused by the authentication released that gbuffer
+twice (a double free a peer caused before any login; fixed in 7.30.15). The
+card the gate keeps (its `identity_card` attribute) and the one it publishes
+in `EV_ON_OPEN` are a copy without the `gbuffer` field. Up to 7.30.15 both
+kept it: an integer that pointed to freed memory, which the controlcenter's
+list of agents showed to an operator.
+
 **A session has one identity.** A card sent IN a session is refused without
 being authenticated: a negative `EV_IDENTITY_CARD_ACK` (*"Identity card
 refused: the session has its identity already"*), ONE warning per 10 s

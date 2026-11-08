@@ -1157,7 +1157,17 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     json_t *jwt_payload = gobj_read_json_attr(gobj, "jwt_payload");
     json_object_set(kw, "jwt", jwt_payload?jwt_payload:json_null()); // HACK delete original jwt
-    gobj_write_json_attr(gobj, "identity_card", kw);
+
+    /*
+     *  The card kept and published is a copy without the binary field of
+     *  the frame: kw_deserialize() made a gbuffer of a "__gbuffer___" the
+     *  peer wrote, released with the frame. Up to 7.30.15 the card kept its
+     *  "gbuffer", a pointer to freed memory, which the controlcenter's list
+     *  of agents showed to an operator.
+     */
+    json_t *identity_card = json_copy(kw);
+    json_object_del(identity_card, "gbuffer");
+    gobj_write_json_attr(gobj, "identity_card", identity_card);
 
     /*----------------------------------------------*
      *  Change to state SESSION,
@@ -1192,7 +1202,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         "client_yuno_name", gobj_read_str_attr(gobj, "client_yuno_name"),
         "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
         "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service"),
-        "identity_card", kw // REQUIRED for controlcenter, agent!!
+        "identity_card", identity_card // REQUIRED for controlcenter, agent!!
     );
     kw_set_dict_value(
         gobj,
@@ -1207,6 +1217,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
 
+    JSON_DECREF(identity_card)
     KW_DECREF(kw)
     return 0;
 }
