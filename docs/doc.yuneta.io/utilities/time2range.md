@@ -37,7 +37,9 @@ time2range -t 2026-10-01T10:30:00Z -p days -r 1 -z Nowhere/Zone; echo $?
 time2range -t 2026-10-01T10:30:00Z -p days -r +5; echo $?
 # RANGE refused, it is no integer: '+5'
 # 255
-``` With `-z`, hours are counted as the zone counts them, so the time grows with the years the range covers: a year takes 0.2 ms and 245146 years, the most `-r` can ask for, take minutes. Without `-z` it is one step.
+```
+
+With `-z`, hours are counted as the zone counts them, so the time grows with the years the range covers: a year takes 0.2 ms and 245146 years, the most `-r` can ask for, take minutes. Without `-z` it is one step.
 
 ## See also
 
