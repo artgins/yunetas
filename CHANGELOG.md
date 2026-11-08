@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`C_AUTHZ`: a `jwks` key of kid `*` is refused when the keys load.**
+  **BREAKING** for a configuration with such a key: it no longer loads, and
+  `C_AUTHZ` logs ONE ERROR, *"A jwks key with kid '*' is not allowed: its kid
+  must be the issuer (iss) of the tokens it validates"*; the other keys load.
+  `add-jwk kid=*` answers `-1` with the same text. The key never worked since
+  7.2.0: 7.0.0 made `*` a wildcard for any issuer, 7.2.0 made a token's `iss`
+  have to equal the key's `kid`, so a `*` key verified no token and nothing
+  said so. The checker of every key now always asks `iss == kid`.
+  `assertion_jwks` refused `*` already. `tests/c/authz_login` (cases 11, 12).
+
 ## v7.30.17 (2026-11-08)
 
 A security release, deployed on every node. The tests of each change ran,
