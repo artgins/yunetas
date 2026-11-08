@@ -56,6 +56,17 @@
 
     What is RECEIVED is dumped as it comes: the sender cannot flag it.
 
+    The TLS handshake has a deadline, `timeout_tls_handshake` (10 s by
+    default, 0: none), on a server and on a client: armed on the C_TIMER of
+    the gobj when ST_WAIT_HANDSHAKE begins (a clisrv with TLS gets its
+    timer at its start), cleared when the handshake ends or the connection
+    does. Its EV_TIMEOUT drops the connection with ONE warning naming the
+    peer; a client then reconnects as after any failed connection. It costs
+    nothing per read. Before it (up to 7.30.16), a peer that sent nothing
+    held a connection for ever: EV_CONNECTED comes only after the
+    handshake, so no deadline of the host above (C_WEBSOCKET's
+    timeout_handshake) ever started.
+
     This gclass works with two type of TCP clients:
             - cli (pure client)
             - clisrv (client of server)
@@ -185,6 +196,7 @@ SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout
 SDATA (DTP_INTEGER, "timeout_between_connections_max", SDF_RD, "0", "If > timeout_between_connections, reconnect uses exponential backoff from the base up to this cap (ms), resetting to base once a connection is established. 0 = disabled (legacy fixed interval)."),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_RD,       "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 SDATA (DTP_INTEGER, "timeout_stop_tx",  SDF_RD,         "10000", "A stop (or a drop) waits for the write in flight: a peer that does not take its data for this many ms aborts the connection (TCP_USER_TIMEOUT), so the stop ends. 0: no bound"),
+SDATA (DTP_INTEGER, "timeout_tls_handshake", SDF_RD,    "10000", "A TLS handshake that has not ended in this many ms drops the connection, with a warning: a peer that sends nothing, or too little, holds no connection longer. A client then reconnects as after any failed connection. 0: no deadline"),
 SDATA (DTP_BOOLEAN, "connect_on_start", SDF_RD,         "TRUE",     "Client: connect when started. FALSE: stay in ST_DISCONNECTED until the owner sends EV_CONNECT (connections on demand)"),
 SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS failure with its reason, 'Local dropping', 'Inactivity timeout', 'Local stop'. The first cause of an end is kept. Emptied when a connection attempt starts (EV_CONNECT or the reconnect timer) and when a connection begins"),
 
@@ -234,7 +246,7 @@ typedef struct alive_s {
 } alive_t;
 
 typedef struct _PRIVATE_DATA {
-    hgobj gobj_timer;               // Only used in pure tcp client
+    hgobj gobj_timer;               // a client's (reconnect, inactivity); with TLS, also the handshake's deadline
     BOOL __clisrv__;
     const char *url;
     yev_event_h yev_connect; // Used if not __clisrv__ (pure tcp client)
@@ -393,6 +405,11 @@ PRIVATE int mt_start(hgobj gobj)
          *  clisrv
          *  It's already connected when is created
          */
+        if(priv->use_ssl && !priv->gobj_timer) {
+            // The deadline of the TLS handshake (timeout_tls_handshake): a server needs it too
+            priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+        }
+
         if(priv->fd_clisrv > 0) {
             /*
              *  Legacy method
@@ -800,6 +817,19 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          **---------------------------*/
         gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
 
+        /*
+         *  The deadline of the handshake. Cleared when it ends
+         *  (set_secure_connected()) or the connection does
+         *  (try_to_stop_yevents()). Up to 7.30.16 there was none: EV_CONNECTED
+         *  comes only after the handshake, so a host's own deadline
+         *  (C_WEBSOCKET's timeout_handshake) never started, and a peer that
+         *  said nothing held the connection, and its channel, for ever.
+         */
+        json_int_t timeout_tls_handshake = gobj_read_integer_attr(gobj, "timeout_tls_handshake");
+        if(priv->gobj_timer && timeout_tls_handshake > 0) {
+            set_timeout(priv->gobj_timer, timeout_tls_handshake);
+        }
+
         priv->inform_disconnection = FALSE;
 
         priv->sskt = ytls_new_secure_filter(
@@ -906,6 +936,10 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 PRIVATE void set_secure_connected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_timer) {
+        clear_timeout(priv->gobj_timer);    // the deadline of the handshake (set_connected())
+    }
 
     gobj_write_bool_attr(gobj, "secure_connected", TRUE);
     priv->inform_disconnection = TRUE;
@@ -1687,6 +1721,10 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
         return;
+    }
+
+    if(priv->gobj_timer && gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE)) {
+        clear_timeout(priv->gobj_timer);    // the deadline of the handshake (set_connected())
     }
 
     uint32_t trace_level = gobj_trace_level(gobj);
@@ -2575,6 +2613,31 @@ PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hg
 }
 
 /***************************************************************************
+ *  The TLS handshake did not end in timeout_tls_handshake: the peer said
+ *  nothing, or too little. The connection is dropped; a client reconnects
+ *  as after any failed connection.
+ ***************************************************************************/
+PRIVATE int ac_timeout_tls_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "TLS handshake not ended in time, connection dropped",
+        "timeout_tls_handshake", "%d", (int)gobj_read_integer_attr(gobj, "timeout_tls_handshake"),
+        "url",          "%s", gobj_read_str_attr(gobj, "url"),
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+        NULL
+    );
+
+    set_disconnect_cause(gobj, "TLS: the handshake did not end in time");
+    try_to_stop_yevents(gobj);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Tx data while disconnected (inactivity model).
  *  Queue the data and trigger an on-demand reconnection; the queue is
  *  flushed by start_pending_writes() once connected.
@@ -2808,6 +2871,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_handshake[] = {
         {EV_SEND_ENCRYPTED_DATA,    ac_send_encrypted_data,     0},
         {EV_TX_DATA,                ac_tx_data_queued,          0},
+        {EV_TIMEOUT,                ac_timeout_tls_handshake,   0},
         {EV_DROP,                   ac_drop,                    0},
         {EV_TX_READY,               ac_tx_ready_posted,         0},
         {0,0,0}

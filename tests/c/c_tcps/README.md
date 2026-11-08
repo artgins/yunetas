@@ -44,6 +44,28 @@ read its url (red in clear: a SegFault), and over TLS the read path took ytls's
 cause and stopped the destroyed gobj again (red: a SegFault). `test7_mbedtls`
 runs it on mbedTLS when both backends are compiled in.
 
+`test11` (`main_test11.c` + `c_test11.c`, and `test11_mbedtls` when both
+backends are built) is the deadline of the TLS handshake,
+`timeout_tls_handshake` of `C_TCP`, at 1 s:
+
+| Who | Does | Must |
+|---|---|---|
+| a wss server of 2 channels (`child_tree_filter`) | gets two raw TCP clients: one sends nothing, one the byte `0x16` | drop both between 0.9 s and 5 s, ONE warning each (*"TLS handshake not ended in time, connection dropped"*) |
+| a TLS server of the new method (no `child_tree_filter`) | gets a raw client that sends `hello` | drop it at once (*"TLS handshake rejected"*), and fire NOTHING in the 3 s after: its clisrv stays running between connections, and a deadline left armed would fire there |
+| a wss client | connects to the first server, whose channels are free again | open its session, and keep it past the deadline |
+| a wss client (`timeout_between_connections` 300) | connects to a plain TCP server that accepts and says nothing | drop the connection between 0.9 s and 5 s, ONE warning, and connect again: the end |
+
+Up to 7.30.16 `C_TCP` armed nothing while its handshake ran, and
+`EV_CONNECTED` (which starts `C_WEBSOCKET`'s `timeout_handshake`) comes only
+when it ends: the two raw clients held both channels for ever (red: *"A TLS
+handshake that never ends held its connection"*), and the client waited for
+ever. Mutants of the fix and what kills them: no timer for a clisrv (that
+red), no deadline for a client (*"The wss client did not drop the silent
+server and connect again"*), the deadline not cleared when the handshake ends
+(*"The wss session was dropped after its handshake"*), not cleared when the
+connection ends (*"Cannot connect tcp gobj"* in the quiet wait), no
+`EV_TIMEOUT` in `ST_WAIT_HANDSHAKE` (*"Event NOT DEFINED in state"*).
+
 ## Run
 
 ```bash

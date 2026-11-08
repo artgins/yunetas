@@ -34,6 +34,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `connect_on_start` | `bool` | A client connects when it starts (default `true`). `false`: it stays in `ST_DISCONNECTED` until its owner sends `EV_CONNECT`. Only that FIRST connection waits for the owner: once a connection ends (an error, a drop by the peer) the client connects again after `timeout_between_connections`, as any client does, unless that is `-1` (no timer: every connection waits for an `EV_CONNECT` of the owner) -- `json_pack("{s:s, s:b, s:i}", "url", url, "connect_on_start", 0, "timeout_between_connections", -1)`. `C_SMTP_SESSION` starts its transport this way, so a yuno with nothing to send logs in to nobody (added after 7.25.20). Example in a gclass that builds its client: `json_pack("{s:s, s:b}", "url", url, "connect_on_start", 0)` |
 | `disconnect_cause` | `string` | Why the last connection, or the last attempt to connect, ended: the error of the socket (`Connection refused`), a TLS failure with the backend's reason when it has one (`TLS handshake failed: SSL - An invalid SSL record was received`, `TLS: decrypt failed: ...`; up to 7.25.21 the mbedTLS backend gave none), `Local dropping`, `Inactivity timeout`, `Local stop`, a write or a connect that could not start. The FIRST cause of an end is kept: the cancel of the read that a drop or an inactivity close makes (`Operation canceled`) does not replace it. Emptied when a connection attempt starts (`EV_CONNECT`, or the reconnect timer, both through `ac_connect`) and when a connection begins (a clisrv gets no `EV_CONNECT`). A cause longer than 512 bytes is truncated with a warning. The `Disconnected` trace says it as its `cause`. A failed attempt publishes no event, only state changes: an owner that wants the cause reads this attr when it sees the change out of `ST_WAIT_CONNECTED` / `ST_WAIT_HANDSHAKE` -- `gobj_read_str_attr(tcp, "disconnect_cause")` -- rather than `gobj_log_last_message()`, which is the last ERROR of the whole process (added after 7.25.20). |
 | `timeout_stop_tx` | `integer` | A stop (or a drop) waits for the write in flight, which ends when the peer takes its data. A peer that never does (it does not read, its window stays at zero) held the stop for ever -- a clisrv in `ST_WAIT_STOPPED`, and its `C_TCP_S`, waiting for it, never listening again (up to 7.25.21). Now the socket gets a `TCP_USER_TIMEOUT` of this many ms when the stop has to wait for a write: data not acknowledged for that long aborts the connection, the write ends with an error (`disconnect_cause`), and the stop ends. Default `10000`; `0`: no bound. A peer that reads, however slowly, is not affected. A server sets it on its clisrvs with `clisrv_kw`: `json_pack("{s:s, s:{s:i}}", "url", url, "clisrv_kw", "timeout_stop_tx", 1000)`. |
+| `timeout_tls_handshake` | `integer` | The deadline of the TLS handshake, in ms (default `10000`; `0`: none), on a server and on a client. A handshake that has not ended when it runs out drops the connection with ONE warning, *"TLS handshake not ended in time, connection dropped"* (`peername`, `sockname`, `url`); a client then reconnects after `timeout_between_connections`, as after any failed connection. See *The deadline of the TLS handshake* (added after 7.30.16). |
 | `txBytes` | `integer` | Total bytes transmitted (stat). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
 | `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
@@ -74,6 +75,64 @@ On the server, `"ssl_verify_mode": "required"` in the `crypto` of the
 `C_TCP_S` refuses a client without a certificate of the CA in the handshake.
 The client's `crypto` gives its own with `ssl_certificate` and
 `ssl_certificate_key`. Example: `archive_keeper`.
+
+### The deadline of the TLS handshake
+
+`EV_CONNECTED` of a TLS connection comes only when its handshake ends, so a
+deadline of the host above -- `C_WEBSOCKET`'s `timeout_handshake`, an
+inactivity timer of a protocol -- starts only then. The handshake itself is
+bounded by `timeout_tls_handshake` (default 10 s): `C_TCP` arms it on its
+`C_TIMER` when it enters `ST_WAIT_HANDSHAKE` (a clisrv with TLS gets that
+timer at its start), and clears it when the handshake ends
+(`ST_CONNECTED`) or the connection does. It costs nothing per read. Its
+`EV_TIMEOUT` drops the connection:
+
+- on a server, the channel is free again: a peer that opens a TCP connection
+  to a `wss`/`tcps`/`https` port and sends nothing, or only the first bytes
+  of a ClientHello, holds it for that long and no longer;
+- on a client, the connection is dropped and the client reconnects after
+  `timeout_between_connections`, as after a refused connect.
+
+Up to 7.30.16 there was no such deadline: a few silent TCP connections held
+every channel of a TLS server for ever (the next legitimate client got a
+reset), and a TLS client whose peer accepted the TCP connection and said
+nothing waited for ever, never reconnecting.
+
+A server sets it on its channels in the `C_TCP` of the tree, or with
+`clisrv_kw` for the legacy method; a client in its own kw:
+
+```C
+'children': [
+    {
+        'name': 'input-(^^__range__^^)',
+        'gclass': 'C_WEBSOCKET',
+        'kw': {
+            'iamServer': true,
+            'timeout_handshake': 5000
+        },
+        'children': [
+            {
+                'name': 'input-(^^__range__^^)',
+                'gclass': 'C_TCP',
+                'kw': {
+                    'timeout_tls_handshake': 5000
+                }
+            }
+        ]
+    }
+]
+```
+
+```C
+json_t *kw_tcp = json_pack("{s:s, s:i}",
+    "url", "wss://controlcenter.example.com:1988",
+    "timeout_tls_handshake", 5000
+);
+```
+
+The timer is a `C_TIMER`, which the yuno's periodic timeout drives
+(`timeout_periodic`, 1 s by default): the drop comes between the deadline
+and one period after it.
 
 ### The stop
 

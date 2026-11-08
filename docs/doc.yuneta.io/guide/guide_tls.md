@@ -138,6 +138,22 @@ Both backends floor at **TLS 1.2** when `ssl_min_version` is unset.
   handshake is logged **by default** (not only under `trace_tls`) in
   [`ytls_do_handshake()`](#ytls_do_handshake).
 
+### Handshake deadline — `timeout_tls_handshake`
+
+A TLS handshake that has not ended in `timeout_tls_handshake` ms (an
+attribute of `C_TCP`, default `10000`, `0`: none) drops the connection with
+one warning, on a server and on a client; a client then reconnects. Without
+it, a peer that opened a TCP connection and said nothing held a channel of a
+TLS server for ever (up to 7.30.16). See *The deadline of the TLS handshake*
+in the `C_TCP` section of the transport GClasses page.
+
+```C
+'gclass': 'C_TCP',
+'kw': {
+    'timeout_tls_handshake': 5000
+}
+```
+
 ### Renegotiation — `ssl_disable_renegotiation`
 
 Defaults to **`true`** (renegotiation disabled), closing the renegotiation-based
@@ -341,6 +357,7 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    |---|---|---|
    | `TLS client WITHOUT server-certificate validation` | a client is not validating the server it dials | add a CA → Profile A |
    | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor) | if legitimate, move that gate to Profile B |
+   | `TLS handshake not ended in time, connection dropped` | a peer opened a TCP connection and did not end its handshake in `timeout_tls_handshake` (a scanner, a slowloris, a broken client) | if a legitimate peer is slow, raise `timeout_tls_handshake` on that `C_TCP` |
    | `legacy floor below TLS1.2` | a gate is on a relaxed floor | confirm it is an intended IoT gate |
    | `renegotiation explicitly enabled` | a gate re-enabled renegotiation | confirm it is needed |
    | `peer certificate did NOT verify` | an `optional` gate accepted an invalid cert | fix the chain, or raise to `required` |
