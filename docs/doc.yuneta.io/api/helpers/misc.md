@@ -61,7 +61,7 @@ On a Linux node installed from the `.deb` or `.rpm`, the file is written by `/us
 
 ```bash
 sudo /usr/libexec/yuneta/yuneta-node-uuid show
-sudo /usr/libexec/yuneta/yuneta-node-uuid set ff14fc16-2cb2-472c-9c0a-89fa43837130
+sudo /usr/libexec/yuneta/yuneta-node-uuid set 5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230
 sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22
 ycommand -c 'kill-yuno'; ycommand -c 'run-yuno'
 ```

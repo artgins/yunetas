@@ -151,7 +151,7 @@ check "clone: one copy per replacement" "$(backups)" "3"
 reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 mkdir -p "$YUNETA_NODE_UUID_DIR"
-echo '{"uuid": "ff14fc16-2cb2-472c-9c0a-89fa43837130"}' > "$FILE"
+echo '{"uuid": "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"}' > "$FILE"
 run ensure
 check "legacy: replaced by hardware" "$(field uuid)" "$first"
 
@@ -905,9 +905,9 @@ touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
 set_hostname "c0ffee000005"
 mkdir -p "$YUNETA_NODE_UUID_DIR"
 printf '{\n    "uuid": "%s",\n    "source": "random",\n    "container": "docker",\n    "created": "2026-10-28T00:00:00Z"\n}\n' \
-    "ff14fc16-2cb2-472c-9c0a-89fa43837132" > "$FILE"
+    "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819232" > "$FILE"
 run ensure
-check "container, 7.29.3 random of no hostname: replaced" "$( [ "$(field uuid)" != "ff14fc16-2cb2-472c-9c0a-89fa43837132" ] && echo changed)" "changed"
+check "container, 7.29.3 random of no hostname: replaced" "$( [ "$(field uuid)" != "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819232" ] && echo changed)" "changed"
 
 #
 #   A random of 7.29.2 made in a container records no hostname: it is that
@@ -916,9 +916,9 @@ check "container, 7.29.3 random of no hostname: replaced" "$( [ "$(field uuid)" 
 reset
 touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
 set_hostname "c0ffee000002"
-write_file "ff14fc16-2cb2-472c-9c0a-89fa43837131" "random"
+write_file "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819231" "random"
 run ensure
-check "container, 7.29.2 random: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837131"
+check "container, 7.29.2 random: kept" "$(field uuid)" "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819231"
 check "container, 7.29.2 random: no copy" "$(backups)" "0"
 reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
@@ -946,16 +946,16 @@ chmod 600 "${YUNETA_NODE_UUID_SYSROOT}/sys/class/dmi/id/product_uuid"
 #
 reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
-out="$("$SCRIPT" set "FF14FC16-2CB2-472C-9C0A-89FA43837130" 2>&1)"
+out="$("$SCRIPT" set "5A6B7C8D-1E2F-4A3B-9C4D-5E6F70819230" 2>&1)"
 check "set: says to restart the agents and the yunos" "$(echo "$out" | grep -c 'yunos')" "1"
 run ensure
-check "manual: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+check "manual: kept" "$(field uuid)" "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
 check "manual: source" "$(field source)" "manual"
 check "set: refuses a non-uuid" "$("$SCRIPT" set nonsense >/dev/null 2>&1; echo $?)" "1"
 check "set, no file before: no copy" "$(backups)" "0"
-run set "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+run set "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
 check "set again, same uuid: no copy" "$(backups)" "0"
-check "set again, same uuid: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+check "set again, same uuid: kept" "$(field uuid)" "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
 
 #
 #   `set` of the uuid the hardware already gave: it becomes manual, and no
@@ -969,7 +969,7 @@ run set "$first"
 check "set, the uuid it had: manual" "$(field source)" "manual"
 check "set, the uuid it had: no copy" "$(backups)" "0"
 check "set, the uuid it had: created kept" "$(field created)" "$created_first"
-run set "ff14fc16-2cb2-472c-9c0a-89fa43837130"
+run set "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
 check "set, another uuid: a copy" "$(backups)" "1"
 
 if [ "$FAILED" -ne 0 ]; then
