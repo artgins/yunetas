@@ -8269,7 +8269,7 @@ PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj
             "store_dir", gobj_read_str_attr(gobj, "cert_sync_store_dir")
         )
     );
-    JSON_DECREF(kw);
+    KW_DECREF(kw)
     return resp;
 }
 
@@ -8308,7 +8308,7 @@ PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hg
     );
 
     json_t *resp = build_command_response(gobj, 0, 0, 0, data);
-    JSON_DECREF(kw);
+    KW_DECREF(kw)
     return resp;
 }
 
