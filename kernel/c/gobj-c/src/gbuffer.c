@@ -1570,6 +1570,71 @@ PUBLIC json_t *anystring2json_from_peer(
 }
 
 /***************************************************************************
+ *  gbuffer_deserialize() of a serialized gbuffer RECEIVED from a peer (the
+ *  "__gbuffer___" of a kw, see kw_deserialize()). A `data` that is missing,
+ *  not a string or not base64 is the peer's: ONE warning (MSGSET_PROTOCOL,
+ *  the peername of `gobj` if it has one), the first bytes of `data` in a
+ *  trace dump, no stack. gbuffer_deserialize() says an ERROR with a stack:
+ *  it is for what we serialized ourselves.
+ ***************************************************************************/
+PUBLIC gbuffer_t *gbuffer_deserialize_from_peer(
+    hgobj gobj,
+    const json_t *jn  // not owned
+) {
+    const char *label = json_string_value(json_object_get(jn, "label"));
+    size_t mark = (size_t)json_integer_value(json_object_get(jn, "mark"));
+    json_t *jn_data = json_object_get(jn, "data");
+    const char *base64 = json_string_value(jn_data);
+    size_t base64_len = json_string_length(jn_data);
+
+    const char *refused = NULL;
+    gbuffer_t *gbuf = NULL;
+    if(!base64) {
+        refused = "Serialized gbuffer of a peer without a 'data' string, refused";
+    } else {
+        size_t output_len = b64_output_decode_len(base64_len);
+        gbuf = gbuffer_create(output_len, output_len);
+        if(!gbuf) {
+            return NULL;    // Error already logged
+        }
+        size_t decoded = b64_decode(base64, base64_len, gbuffer_cur_wr_pointer(gbuf), output_len);
+        if(decoded == (size_t)-1) {
+            GBUFFER_DECREF(gbuf)
+            refused = "Serialized gbuffer of a peer whose 'data' is not base64, refused";
+        } else {
+            gbuffer_set_wr(gbuf, decoded);
+        }
+    }
+
+    if(refused) {
+        const char *peername = "";
+        if(gobj && gobj_has_bottom_attr(gobj, "peername")) {
+            peername = gobj_read_str_attr(gobj, "peername");
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", refused,
+            "peername",     "%s", peername?peername:"",
+            "len",          "%d", (int)base64_len,
+            NULL
+        );
+        if(base64_len > 0) {
+            gobj_trace_dump(gobj,
+                base64,
+                base64_len < PEER_JSON_DUMP_SIZE? base64_len: PEER_JSON_DUMP_SIZE,
+                "%s", refused
+            );
+        }
+        return NULL;
+    }
+
+    gbuffer_setlabel(gbuf, label);
+    gbuffer_setmark(gbuf, mark);
+    return gbuf;
+}
+
+/***************************************************************************
  *  Convert a json config with comments in gbuffer to json
  *  gbuf is decref
  *  Return NULL if error

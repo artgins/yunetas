@@ -12,7 +12,9 @@
  *              0. a card without __md_iev__
  *              1. dst_role of another yuno, and a 4 KB key of its own
  *              2. dst_yuno of another yuno
- *              3. no src_role
+ *              3. no src_role; and a serialized gbuffer with no `data`:
+ *                 ONE warning before the refusal ("Serialized gbuffer of a
+ *                 peer without a 'data' string, refused"), no error
  *              4. no src_service
  *              5. dst_service not in this yuno
  *              6. a jwt that is not a string
@@ -34,12 +36,18 @@
  *                 timeout_idgot. Up to 7.30.14 that gbuffer was released
  *                 twice ("BAD gbuf_decref()", a double free in a yuno
  *                 without the memory tracking), before any session
- *             13. a good card: EV_IDENTITY_CARD_ACK, the session opens.
+ *             13. a card the authentication refuses, carrying a serialized
+ *                 gbuffer whose `data` is not base64: ONE warning
+ *                 ("Serialized gbuffer of a peer whose 'data' is not
+ *                 base64, refused"), no error. Up to 7.30.15 each of these
+ *                 two was an ERROR with a stack (two for a bad base64),
+ *                 that any peer could write once per frame before any login
+ *             14. a good card: EV_IDENTITY_CARD_ACK, the session opens.
  *                 It carries a serialized gbuffer too: the card the gate
  *                 keeps (its identity_card attr) and the one it publishes
  *                 in EV_ON_OPEN have no "gbuffer". Up to 7.30.15 both kept
  *                 it, a pointer to memory freed with the frame
- *             14. in that session, a second card, good, of ANOTHER user:
+ *             15. in that session, a second card, good, of ANOTHER user:
  *                 refused (a negative EV_IDENTITY_CARD_ACK, one warning), and
  *                 the session keeps its user and its channel; no second
  *                 EV_ON_OPEN. Up to 7.30.14 it was authenticated again and
@@ -67,8 +75,9 @@
  *              Constants
  ***************************************************************************/
 #define REFUSED_CARD 12     // refused by the authentication, a gbuffer in its kw
-#define LAST_CARD   13
-#define SESSION_CARD 14     // sent in the session of LAST_CARD, of another user: refused
+#define BAD_GBUFFER_CARD 13 // refused by the authentication, a gbuffer that is not base64
+#define LAST_CARD   14
+#define SESSION_CARD 15     // sent in the session of LAST_CARD, of another user: refused
 
 /***************************************************************************
  *              Structures
@@ -293,6 +302,7 @@ PRIVATE int send_card(hgobj gobj, int card)
             break;
 
         case 3:
+            json_object_set_new(kw, "__gbuffer___", json_pack("{s:s}", "label", ""));  // no data
             jn_routing = card_routing("", role, "tester", "", "cli");
             break;
 
@@ -429,6 +439,15 @@ PRIVATE int send_card(hgobj gobj, int card)
             json_object_set_new(kw, "__gbuffer___", json_pack("{s:s, s:s}",
                 "label", "",
                 "data", "cGVlciBieXRlcw=="  // "peer bytes"
+            ));
+            jn_routing = card_routing("", role, "tester", role, "cli");
+            break;
+
+        case BAD_GBUFFER_CARD:
+            json_object_set_new(kw, "jwt", json_string("tester-refused"));
+            json_object_set_new(kw, "__gbuffer___", json_pack("{s:s, s:s}",
+                "label", "",
+                "data", "not*base64"
             ));
             jn_routing = card_routing("", role, "tester", role, "cli");
             break;
@@ -579,10 +598,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         check(gobj, "the session keeps its user", strcmp(session_user(gobj), "tester")==0);
         check(gobj, "the session keeps its channel", priv->client_closes == LAST_CARD);
         check(gobj, "no second EV_ON_OPEN", priv->server_opens == 1);
-        check(gobj, "three ACKs: the refused card's, the good one's and the one in session",
-            priv->acks == 3);
+        check(gobj, "four ACKs: the two refused cards', the good one's and the one in session",
+            priv->acks == 4);
         set_yuno_must_die();
-    } else if(priv->card == REFUSED_CARD) {
+    } else if(priv->card == REFUSED_CARD || priv->card == BAD_GBUFFER_CARD) {
         /*
          *  The gate closes the channel at timeout_idgot: the next card
          *  goes on the next connection
@@ -595,7 +614,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         check(gobj, "the ACK is positive", kw_get_int(gobj, iev_kw, "result", -1, 0) == 0);
         check(gobj, "each refused card closed its channel", priv->client_closes == LAST_CARD);
         check(gobj, "only the good card opened a session", priv->server_opens == 1);
-        check(gobj, "two ACKs: the refused card's and the good one's", priv->acks == 2);
+        check(gobj, "three ACKs: the two refused cards' and the good one's", priv->acks == 3);
         hgobj gate = session_gate(gobj);
         json_t *card = gate? gobj_read_json_attr(gate, "identity_card") : NULL;
         check(gobj, "the gate keeps the identity card", json_is_object(card));

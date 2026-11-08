@@ -305,6 +305,47 @@ The function decodes the base64-encoded data from the JSON object and reconstruc
 
 ---
 
+(gbuffer_deserialize_from_peer)=
+## [`gbuffer_deserialize_from_peer()`](https://github.com/artgins/yunetas/blob/7.30.15/kernel/c/gobj-c/src/gbuffer.c#L1580)
+
+[`gbuffer_deserialize()`](#gbuffer_deserialize) of a serialized gbuffer RECEIVED from a peer: the `"__gbuffer___"` of a frame, which [`kw_deserialize()`](#kw_deserialize) turns into the `gbuffer` of the kw. A `data` that is missing, not a string, or not base64 is the peer's doing, not a broken invariant of ours, so the failure is ONE warning (`MSGSET_PROTOCOL`, no stack) that names the peer (the `peername` of the transport under `gobj`) and the length of `data`, with its first 256 bytes in a trace dump: *"Serialized gbuffer of a peer without a 'data' string, refused"* or *"Serialized gbuffer of a peer whose 'data' is not base64, refused"*. [`gbuffer_deserialize()`](#gbuffer_deserialize) logs an ERROR with a stack: it is for what we serialized ourselves (a queue of our own store). It is the deserializer of the `gbuffer` binary type; up to 7.30.15 that was `gbuffer_deserialize()`, and any peer, before any login, could write an ERROR with a stack per frame.
+
+```C
+gbuffer_t *gbuffer_deserialize_from_peer(
+    hgobj gobj,
+    const json_t *jn  // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the warning, a gobj above the transport the frame came through (a `C_IEVENT_SRV`, a `C_IEVENT_CLI`): the `peername` of the transport under it goes into the warning. |
+| `jn` | `const json_t *` | The serialized gbuffer: `label` (a string), `mark` (an integer) and `data` (the bytes in base64). |
+
+**Returns**
+
+A new `gbuffer_t *` (yours) with the bytes, its label and its mark, or `NULL` if `data` cannot be read (the warning said it).
+
+**Example**
+
+What a peer writes in the kw of an inter-event, and what the gate reads (`kw_deserialize()` does it for every frame):
+
+```C
+// {"jwt": "...", "__gbuffer___": {"label": "", "mark": 0, "data": "cGVlciBieXRlcw=="}}
+json_t *jn_serialized = json_object_get(kw, "__gbuffer___");
+gbuffer_t *gbuf = gbuffer_deserialize_from_peer(gobj, jn_serialized);
+if(!gbuf) {
+    // Error already logged, as a warning: the bytes are the peer's
+    return -1;
+}
+// gbuf holds "peer bytes"
+GBUFFER_DECREF(gbuf)
+```
+
+---
+
 (gbuffer_encode_base64)=
 ## [`gbuffer_encode_base64()`](https://github.com/artgins/yunetas/blob/7.30.15/kernel/c/gobj-c/src/gbuffer.c#L1257)
 

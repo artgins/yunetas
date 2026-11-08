@@ -370,6 +370,19 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
 );
 
 /*
+ *  The same, for a serialized gbuffer that came from a PEER (the
+ *  "__gbuffer___" of a frame, deserialized by kw_deserialize()): a `data`
+ *  missing, not a string or not base64 is the peer's doing, logged as a
+ *  WARNING (MSGSET_PROTOCOL, no stack) naming the peer (the `peername` of
+ *  the transport under gobj) with a capped dump. NULL then. Use
+ *  gbuffer_deserialize() for what we serialized ourselves.
+ */
+PUBLIC gbuffer_t *gbuffer_deserialize_from_peer(
+    hgobj gobj,
+    const json_t *jn  // not owned
+);
+
+/*
  *  Encode to base64
  *  Old gbuf_string2base64, gbuffer_string_to_base64
  *  binary will be usually string

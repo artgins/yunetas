@@ -129,6 +129,14 @@ PUBLIC char *kw_serialize_to_string( // return must be free with jsonp_free()
     hgobj gobj,
     json_t *kw
 );
+/*
+ *  For a kw received from a PEER (the kw of an inter-event of the wire,
+ *  iev_create_from_gbuffer()): a binary field the peer wrote is dropped,
+ *  and a serialized one ("__gbuffer___") becomes the binary field
+ *  ("gbuffer"), through gbuffer_deserialize_from_peer(): one that cannot be
+ *  read is a WARNING and a "gbuffer" of 0. Not for what we serialized
+ *  ourselves: read that with gbuffer_deserialize().
+ */
 PUBLIC json_t *kw_deserialize(
     hgobj gobj,
     json_t *kw // like owned, return same kw

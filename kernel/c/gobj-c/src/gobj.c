@@ -778,7 +778,7 @@ PUBLIC int gobj_start_up(
         "gbuffer",
         "__gbuffer___",
         (serialize_fn_t)gbuffer_serialize,
-        (deserialize_fn_t)gbuffer_deserialize,
+        (deserialize_fn_t)gbuffer_deserialize_from_peer,    // kw_deserialize(): a kw of a peer
         (incref_fn_t)gbuffer_incref,
         (decref_fn_t)gbuffer_decref
     );

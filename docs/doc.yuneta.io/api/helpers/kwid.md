@@ -329,7 +329,7 @@ If the dictionary at the specified path does not exist, an error is logged. If t
 (kw_deserialize)=
 ## [`kw_deserialize()`](https://github.com/artgins/yunetas/blob/7.30.15/kernel/c/gobj-c/src/kwid.c#L231)
 
-The function `kw_deserialize()` deserializes specific fields in a JSON object, converting stored serialized data back into its original binary representation.
+The function `kw_deserialize()` deserializes the serialized fields of a kw **received from a peer** (the kw of an inter-event of the wire: [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer) is its caller), converting them back into their binary representation. A binary field the peer wrote as such (a `"gbuffer"` integer) is dropped first: a peer cannot hand over a pointer. A serialized `"__gbuffer___"` becomes the `"gbuffer"` of the kw through [`gbuffer_deserialize_from_peer()`](#gbuffer_deserialize_from_peer): one that cannot be read is ONE warning and a `"gbuffer"` of `0`. It is not for what we serialized ourselves: read that with [`gbuffer_deserialize()`](#gbuffer_deserialize), which says a failure as an ERROR.
 
 ```C
 json_t *kw_deserialize(
@@ -351,7 +351,16 @@ Returns the same JSON object `kw` with its serialized fields converted back to t
 
 **Notes**
 
-The function iterates over predefined serialized fields and applies the corresponding deserialization function. If a field is found and successfully deserialized, the original serialized field is removed from the JSON object.
+The function iterates over predefined serialized fields and applies the corresponding deserialization function. If a field is found, the serialized field is removed from the JSON object.
+
+**Example**
+
+```C
+// The kw of a frame: {"jwt": "...", "__gbuffer___": {"label": "", "data": "cGVlciBieXRlcw=="}}
+kw = kw_deserialize(gobj, kw);
+gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+// gbuf holds "peer bytes"; it is released with the kw (KW_DECREF)
+```
 
 ---
 

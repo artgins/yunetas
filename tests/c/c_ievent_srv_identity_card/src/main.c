@@ -202,6 +202,7 @@ peer_log_count_t peer_log_counts[] = {
     {"Identity card without its routing",               0, -1, 0},
     {"Identity card refused, dst_role NOT MATCH",       0, -1, 0},
     {"Identity card refused, dst_yuno NOT MATCH",       0, -1, 0},
+    {"Serialized gbuffer of a peer without a 'data' string, refused", 0, -1, 0},
     {"Identity card refused, without yuno role",        0, -1, 0},
     {"Identity card refused, without yuno service",     0, -1, 0},
     {"Identity card refused, dst_service NOT FOUND",    0, -1, 0},
@@ -211,6 +212,7 @@ peer_log_count_t peer_log_counts[] = {
     {"Frame of an event that is not public, refused",   0, -1, 0},
     {"Frame is not an inter-event",                     0, -1, 0},
     {"frame is not json",                               0, -1, 0},
+    {"Serialized gbuffer of a peer whose 'data' is not base64, refused", 0, -1, 0},
     {"Identity card in a session, refused",             0, -1, 0},
     {0, 0, 0, 0}
 };
@@ -281,10 +283,11 @@ static int register_yuno_and_more(void)
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per refused
          *  card, and no error  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Identity card without its routing (__md_iev__ ievent stack), refused",
             "msg", "Identity card refused, dst_role NOT MATCH",
             "msg", "Identity card refused, dst_yuno NOT MATCH",
+            "msg", "Serialized gbuffer of a peer without a 'data' string, refused",
             "msg", "Identity card refused, without yuno role",
             "msg", "Identity card refused, without yuno service",
             "msg", "Identity card refused, dst_service NOT FOUND in this yuno",
@@ -294,6 +297,7 @@ static int register_yuno_and_more(void)
             "msg", "Frame of an event that is not public, refused",
             "msg", "Frame is not an inter-event (an \"event\" string and a \"kw\" dict), refused",
             "msg", "frame is not json",
+            "msg", "Serialized gbuffer of a peer whose 'data' is not base64, refused",
             "msg", "Identity card in a session, refused: the session keeps its identity"
         ),
         NULL,   // expected
@@ -399,7 +403,7 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
 
-    set_auto_kill_time(30);    // a crash-free hang must not hang the suite (the test takes ~16 s)
+    set_auto_kill_time(40);    // a crash-free hang must not hang the suite (the test takes ~19 s)
 
     /*------------------------------------------------*
      *          Start yuneta
