@@ -1222,6 +1222,11 @@ PRIVATE int send_head_of_queue(hgobj gobj)
     }
 
     q_msg_t *qmsg_for_fail = priv->qmsg_cur_email;
+    /*
+     *  A json read from disk, not a kw: released with JSON_DECREF. A queue
+     *  written before 7.4.4 kept the pointer of the body under "gbuffer",
+     *  and KW_DECREF took that integer for a gbuffer (SIGSEGV).
+     */
     json_t *msg = trq_msg_json(priv->qmsg_cur_email);
 
     const char *from = kw_get_str(gobj, msg, "from", 0, 0);
@@ -1270,7 +1275,7 @@ PRIVATE int send_head_of_queue(hgobj gobj)
             );
             priv->qmsg_cur_email = NULL;
             process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL, NULL);
-            KW_DECREF(msg);
+            JSON_DECREF(msg)
             return -1;
         }
     }
@@ -1316,7 +1321,7 @@ PRIVATE int send_head_of_queue(hgobj gobj)
         /* Error already logged */
         priv->qmsg_cur_email = NULL;
         process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL, NULL); // permanent: bad content
-        KW_DECREF(msg);
+        JSON_DECREF(msg)
         return -1;
     }
 
@@ -1347,11 +1352,11 @@ PRIVATE int send_head_of_queue(hgobj gobj)
         GBUFFER_DECREF(mime_body)
         priv->qmsg_cur_email = NULL;
         process_smtp_response(gobj, qmsg_for_fail, -1, TRUE, NULL, NULL); // permanent: cannot build request
-        KW_DECREF(msg);
+        JSON_DECREF(msg)
         return -1;
     }
     GBUFFER_DECREF(mime_body)
-    KW_DECREF(msg);
+    JSON_DECREF(msg)
 
     priv->send++;
 

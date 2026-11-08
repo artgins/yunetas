@@ -91,6 +91,7 @@ SET(SRCS
     set_user_queued
     skip_in_flight
     skip_no_credentials
+    queued_gbuffer_key
 )
 
 ##############################################
