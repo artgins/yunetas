@@ -1373,7 +1373,7 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *kw = json_deep_copy(kw_);
+    json_t *kw = kw_duplicate(gobj, kw_);  // a kw copy: its gbuffer goes with a reference
     KW_DECREF(kw_);
 
     /*----------------------------------------*
@@ -1514,7 +1514,7 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *kw = json_deep_copy(kw_);
+    json_t *kw = kw_duplicate(gobj, kw_);  // a kw copy: its gbuffer goes with a reference
     KW_DECREF(kw_);
 
     /*----------------------------------------*
@@ -1605,7 +1605,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
 PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *kw = json_deep_copy(kw_);
+    json_t *kw = kw_duplicate(gobj, kw_);  // a kw copy: its gbuffer goes with a reference
     KW_DECREF(kw_);
 
     /*----------------------------------------*
@@ -2727,7 +2727,7 @@ PRIVATE json_t *cmd_scenario_runs(hgobj gobj, const char *cmd, json_t *kw, hgobj
 PRIVATE json_t *cmd_watch_scenario(hgobj gobj, const char *cmd, json_t *kw_, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *kw = json_deep_copy(kw_);
+    json_t *kw = kw_duplicate(gobj, kw_);  // a kw copy: its gbuffer goes with a reference
     KW_DECREF(kw_);
 
     json_t *refused = refuse_scenario_command(gobj, "read-scenarios", scenario_id_of(gobj, kw), kw, src);
@@ -4917,7 +4917,7 @@ PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_chann
     if(!priv->assertion_key) {
         return kw_incref(kw);
     }
-    json_t *kw_agent = json_deep_copy(kw);
+    json_t *kw_agent = kw_duplicate(gobj, kw);    // a kw copy: its gbuffer goes with a reference
     add_operator_assertion(gobj, kw_agent, username_of(gobj, kw, src), agent_channel);
     return kw_agent;
 }

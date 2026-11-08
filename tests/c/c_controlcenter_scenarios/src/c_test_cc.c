@@ -4425,6 +4425,104 @@ PRIVATE int test_operator_assertion(hgobj gobj, hgobj client)
     return ret;
 }
 
+/***************************************************************************
+ *  A request that carries a gbuffer (kw_deserialize() makes one of a
+ *  peer's "__gbuffer___"): `command` of the control center with `kw`
+ *  (owned) answers `expected`, the gbuffer keeps the test's reference and
+ *  no other, and the agent gets its bytes when `reaches_agent`. Up to
+ *  7.30.16 the handlers copied the kw with json_deep_copy() -- the integer
+ *  without its reference -- and released the copy with KW_DECREF: the
+ *  gbuffer was released once too often, also by a refused request.
+ ***************************************************************************/
+PRIVATE int check_command_with_gbuffer(
+    hgobj gobj,
+    hgobj client,
+    const char *command,
+    json_t *kw,     // owned
+    int expected,
+    BOOL reaches_agent,
+    const char *what
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    gbuffer_t *gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, "peer bytes");
+    json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
+    gbuffer_incref(gbuf);   // the test's own, to look at it after
+
+    ret += check_response(gobj, gobj_command(priv->cc, command, kw, client), expected, 0, what);
+    if(gbuf->refcount != 1) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "refcount %lu, wanted 1", (unsigned long)gbuf->refcount);
+        ret += fail(gobj, what, detail);
+    }
+
+    if(reaches_agent) {
+        json_t *request = agent_request(gobj, what);
+        gbuffer_t *got = (gbuffer_t *)(uintptr_t)kw_get_int(
+            gobj, request, "gbuffer", 0, KW_EXTRACT
+        );
+        if(!got || gbuffer_leftbytes(got) != strlen("peer bytes") ||
+                memcmp(gbuffer_cur_rd_pointer(got), "peer bytes", strlen("peer bytes"))!=0) {
+            ret += fail(gobj, what, "the agent did not get the bytes");
+        }
+        GBUFFER_DECREF(got)
+        JSON_DECREF(request)
+    }
+
+    GBUFFER_DECREF(gbuf)
+    return ret;
+}
+
+PRIVATE int test_commands_with_gbuffer(hgobj gobj, hgobj client)
+{
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_command_with_gbuffer(gobj, client, "command-agent", kw, 0, TRUE,
+        "command-agent with a gbuffer");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "stats2agent", json_string("stats-yuno"));
+    ret += check_command_with_gbuffer(gobj, client, "stats-agent", kw, 0, TRUE,
+        "stats-agent with a gbuffer");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("nobody-node"));
+    ret += check_command_with_gbuffer(gobj, client, "drop-agent", kw, -1, FALSE,
+        "drop-agent of nobody with a gbuffer");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("no-such-scenario"));
+    ret += check_command_with_gbuffer(gobj, client, "watch-scenario", kw, -1, FALSE,
+        "watch-scenario of nothing with a gbuffer");
+
+    /*  Refused: no permission  */
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_command_with_gbuffer(gobj, client, "command-agent", kw, -1, FALSE,
+        "a refused command-agent with a gbuffer");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "stats2agent", json_string("stats-yuno"));
+    ret += check_command_with_gbuffer(gobj, client, "stats-agent", kw, -1, FALSE,
+        "a refused stats-agent with a gbuffer");
+
+    kw = viewer_kw(client);
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    ret += check_command_with_gbuffer(gobj, client, "drop-agent", kw, -1, FALSE,
+        "a refused drop-agent with a gbuffer");
+
+    return ret;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4463,6 +4561,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_key_login_first_and_cards(gobj, client1);
     result += test_twin_agents(gobj);
     result += test_operator_assertion(gobj, client1);
+    result += test_commands_with_gbuffer(gobj, client1);
     result += test_save_scenario_as_string(gobj, client1);
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);

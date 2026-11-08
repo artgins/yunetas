@@ -6943,7 +6943,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
          *  Trace on yuno
          */
         json_object_set_new(yuno, "traced", json_true());
-        json_t *kw_clone = json_deep_copy(kw);
+        json_t *kw_clone = kw_duplicate(gobj, kw);  // a kw copy: its gbuffer goes with a reference
         (void)msg_iev_clean_metadata(kw_clone);
         trace_on_yuno(gobj, yuno, kw_clone, src);
 
@@ -7017,7 +7017,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
          *  Trace off yuno
          */
         json_object_set_new(yuno, "traced", json_false());
-        json_t *kw_clone = json_deep_copy(kw);
+        json_t *kw_clone = kw_duplicate(gobj, kw);  // a kw copy: its gbuffer goes with a reference
         (void)msg_iev_clean_metadata(kw_clone);
         trace_off_yuno(gobj, yuno, kw_clone, src);
 
@@ -7101,7 +7101,7 @@ PRIVATE json_t *cmd_command_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  Command to yuno
          */
-        json_t *kw_yuno = json_deep_copy(kw);
+        json_t *kw_yuno = kw_duplicate(gobj, kw);   // a kw copy: its gbuffer goes with a reference
         if(command_to_yuno(gobj, yuno, json_string_value(jn_command), kw_yuno, src) < 0) {
             json_array_append_new(jn_unreached, json_string(kw_get_str(gobj, yuno, "id", "", 0)));
         } else {
@@ -7165,7 +7165,7 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         /*
          *  Command to yuno
          */
-        json_t *kw_yuno = json_deep_copy(kw);
+        json_t *kw_yuno = kw_duplicate(gobj, kw);   // a kw copy: its gbuffer goes with a reference
         if(stats_to_yuno(gobj, yuno, stats, kw_yuno, src) < 0) {
             json_array_append_new(jn_unreached, json_string(kw_get_str(gobj, yuno, "id", "", 0)));
         } else {
@@ -7428,7 +7428,7 @@ PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  Command to yuno
          */
-        json_t *kw_yuno = json_deep_copy(kw);
+        json_t *kw_yuno = kw_duplicate(gobj, kw);   // a kw copy: its gbuffer goes with a reference
         if(authzs_to_yuno(gobj, yuno, kw_yuno, src) < 0) {
             json_array_append_new(jn_unreached, json_string(kw_get_str(gobj, yuno, "id", "", 0)));
         } else {

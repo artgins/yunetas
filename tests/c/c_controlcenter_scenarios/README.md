@@ -370,6 +370,16 @@ still reported and fails the test.
     the stop that did some steps ended the schedule with no log, and the
     yuno on `host-mrp` continued to run. It runs in phases 6-8, after case 20
     and before case 11.
+39. A request that carries a gbuffer, as `kw_deserialize()` leaves one of a
+    peer's `"__gbuffer___"` (`test_commands_with_gbuffer`): `command-agent`
+    and `stats-agent` that reach the agent (which gets the bytes),
+    `drop-agent` of a node that is not there, `watch-scenario` of no
+    scenario, and `command-agent`, `stats-agent` and `drop-agent` of a user
+    who may not. After each, the gbuffer holds only the test's reference.
+    In 7.30.16 the handlers copied the kw with `json_deep_copy()` (the
+    integer without its reference) and released the copy with `KW_DECREF`:
+    the gbuffer was freed while the test still held it, refused requests
+    included.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes
