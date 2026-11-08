@@ -335,7 +335,7 @@ cmd_ensure() {
     fpr="$("$OPENSSL" x509 -in "$CRT" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')"
     case "$state" in
         public)
-            log_warning "the agent's certificate was on a key published with Yuneta: replaced by this node's own (sha256 $fpr). Restart the agent, and give the clients of its port 1993 this node's $CRT"
+            log_warning "the agent's certificate was on a key published with Yuneta: replaced by this node's own (sha256 $fpr). Restart both agents, one at a time, and give the clients of port 1993 this node's $CRT"
             ;;
         mismatch)
             log_warning "the agent's key did not match its certificate: a new pair (sha256 $fpr), the old files kept"

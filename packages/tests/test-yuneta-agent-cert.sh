@@ -364,6 +364,33 @@ check "install-yuneta-agent-cert.sh: its drop-in runs after the node uuid's" \
     "$(printf '%s\n%s\n' "$cert_dropin" "$uuid_dropin" | LC_ALL=C sort | paste -sd' ' -)" "$uuid_dropin $cert_dropin"
 
 #
+#   A node that builds from source installs the agent's service/ (its
+#   CMakeLists.txt), and the postinst seeds /etc/init.d/yuneta_agent from
+#   there: it is the .deb's SysV script, which runs the node uuid, then the
+#   pair, before it starts the agents outside systemd
+#
+deb_sysv="$(sed -n '/^cat > "${WORKDIR}\/etc\/init.d\/yuneta_agent" <<'"'"'EOF'"'"'$/,/^EOF$/p' \
+    "${HERE}/../deb/make-yuneta-agent-deb.sh" | sed '1d;$d')"
+check "the .deb's SysV script: found" "$( [ -n "$deb_sysv" ] && echo found)" "found"
+check "yuno_agent/service/yuneta_agent: the .deb's SysV script" "$(
+    if [ "$deb_sysv" = "$(cat "${HERE}/../../yunos/c/yuno_agent/service/yuneta_agent")" ]; then
+        echo same
+    else
+        echo different
+    fi)" "same"
+for f in "${HERE}/../deb/make-yuneta-agent-deb.sh" "${HERE}/../rpm/make-yuneta-agent-rpm.sh"; do
+    check "$(basename "$f"): the SysV start runs the node uuid, then the pair" "$(
+        grep -E '^ +/usr/libexec/yuneta/yuneta-(node-uuid|agent-cert) ensure \|\| true$' "$f" \
+            | sed 's/.*yuneta-\(node-uuid\|agent-cert\).*/\1/' | paste -sd' ' -)" "node-uuid agent-cert"
+done
+
+#
+#   A new pair is served by both agents once restarted, one at a time
+#
+check "install-yuneta-agent-cert.sh: says to restart both agents" \
+    "$(grep -c 'systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22' "${HERE}/../install-yuneta-agent-cert.sh")" "1"
+
+#
 #   Usage
 #
 check "an unknown command: refused" "$("$SCRIPT" nonsense >/dev/null 2>&1; echo $?)" "2"

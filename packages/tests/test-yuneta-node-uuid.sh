@@ -135,6 +135,7 @@ out="$("$SCRIPT" ensure 2>&1)"
 check "clone: uuid changes" "$( [ "$(field uuid)" != "$first" ] && echo changed)" "changed"
 check "clone: old file kept" "$(backups)" "1"
 check "clone: says the yunos keep the old uuid" "$(echo "$out" | grep -c 'yunos')" "1"
+check "clone: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
 
 #
 #   Every replacement keeps its own copy, even several in the same second
@@ -948,13 +949,15 @@ reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 out="$("$SCRIPT" set "5A6B7C8D-1E2F-4A3B-9C4D-5E6F70819230" 2>&1)"
 check "set: says to restart the agents and the yunos" "$(echo "$out" | grep -c 'yunos')" "1"
+check "set: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
 run ensure
 check "manual: kept" "$(field uuid)" "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
 check "manual: source" "$(field source)" "manual"
 check "set: refuses a non-uuid" "$("$SCRIPT" set nonsense >/dev/null 2>&1; echo $?)" "1"
 check "set, no file before: no copy" "$(backups)" "0"
-run set "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
+out="$("$SCRIPT" set "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230" 2>&1)"
 check "set again, same uuid: no copy" "$(backups)" "0"
+check "set again, same uuid: nothing to accept" "$(echo "$out" | grep -c 'accept-node')" "0"
 check "set again, same uuid: kept" "$(field uuid)" "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
 
 #

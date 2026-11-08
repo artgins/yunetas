@@ -20,12 +20,17 @@
 #     3. runs `yuneta-agent-cert ensure` and says the certificate before and
 #        after.
 #
+#   It refuses a node without /usr/libexec/yuneta/yuneta-node-uuid (run
+#   install-yuneta-node-uuid.sh first): the pair is bound to the node uuid,
+#   and a copy of a disk carries the random uuid node_uuid() wrote.
+#
 #   IDEMPOTENT: each step writes only what differs. A second run changes
 #   nothing and says so.
 #
-#   When the pair changes, the agent serves the old one until it restarts,
-#   and the clients of its port 1993 that trusted the old certificate need
-#   the node's new one (it is public: copy /yuneta/agent/certs/yuneta_agent.crt).
+#   When the pair changes, both agents serve the old one until they restart,
+#   and the clients of the agent's port 1993 that trusted the old certificate
+#   need the node's new one (it is public: copy
+#   /yuneta/agent/certs/yuneta_agent.crt).
 #
 #   Usage:
 #       sudo packages/install-yuneta-agent-cert.sh            install / check
@@ -78,6 +83,21 @@ ExecStartPre=-+${DST} ensure
 if [ ! -s "$SRC" ]; then
     echo "[-] Missing $SRC: run this from a yunetas checkout" >&2
     exit 1
+fi
+
+#   The pair is bound to the node uuid that yuneta-node-uuid keeps, and its
+#   drop-in runs after that one: without it the node keeps the random uuid
+#   of node_uuid(), which a copy of the disk carries, and so the pair
+NODE_UUID_SRC="$(dirname "$SRC")/yuneta-node-uuid"
+NODE_UUID_DST="${DST_DIR}/yuneta-node-uuid"
+if [ ! -x "$NODE_UUID_DST" ]; then
+    echo "[-] Missing $NODE_UUID_DST: install the node uuid first," >&2
+    echo "    sudo $(dirname "$(dirname "$SRC")")/install-yuneta-node-uuid.sh" >&2
+    exit 1
+fi
+if ! cmp -s "$NODE_UUID_SRC" "$NODE_UUID_DST"; then
+    echo "[!] $NODE_UUID_DST is not this checkout's: run" >&2
+    echo "    sudo $(dirname "$(dirname "$SRC")")/install-yuneta-node-uuid.sh" >&2
 fi
 
 CHANGED=0
@@ -210,13 +230,15 @@ fi
 if [ "$BEFORE" != "$AFTER" ]; then
     CHANGED=1
     echo "[+] agent certificate ${BEFORE:-(none)} -> ${AFTER}"
-    echo "[!] The agent serves the old pair until it restarts:"
+    echo "[!] Both agents serve the old pair until they restart, one at a time,"
+    echo "    the main one first:"
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet yuneta_agent; then
-        echo "      sudo systemctl restart yuneta_agent"
+        echo "      sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22"
     else
-        echo "      (outside systemd, as yuneta)"
+        echo "      (outside systemd: each with --stop, then --start, as yuneta)"
         echo "      /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop"
         echo "      /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json"
+        echo "      ... and the same for yuneta_agent22"
     fi
     echo "    and whatever else serves those files; the clients of port 1993"
     echo "    that trusted the old certificate need this one: $CRT"

@@ -530,13 +530,35 @@ bound to the node uuid (see [the agent's own certificate](#agent-own-certificate
 ```
 
 The agents and the yunos read the uuid when they start. If the uuid changes
-(a disk moved to other hardware, or `yuneta-node-uuid set <uuid>`), restart
-both agents and then every yuno: the package restarts the agents only.
+(a disk moved to other hardware, `yuneta-node-uuid set <uuid>`, a random uuid
+replaced by the hardware's, or a uuid made from a placeholder replaced by a
+real identifier), restart both agents and then every yuno: the package
+restarts the agents only.
 
 ```bash
 sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22
 sudo -u yuneta ycommand -c 'kill-yuno'; sudo -u yuneta ycommand -c 'run-yuno'
 ```
+
+A changed uuid also changes the node for its control centers, which know it
+by its uuid and its key. The pair that `yuneta-agent-cert` made is bound to
+the old uuid, so the agents' restart makes a new pair and removes the old key
+(see [the agent's own certificate](#agent-own-certificate)). This is true
+also after `set <uuid>` with the uuid the node had before. Accept the node
+again in each control center (1996 and 1997), with its uuid and its new key,
+both read on the node after the restart:
+
+```bash
+# on the node
+sudo /usr/libexec/yuneta/yuneta-agent-cert show      # node: <its uuid>
+openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
+    | openssl pkey -pubin -outform DER | sha256sum
+# through each control center
+accept-node node_id=<its uuid> spki_sha256=<the sha256 read on the node>
+```
+
+The script's warning says the same: *"... accept the node again in each
+(accept-node node_id=<this uuid> spki_sha256=<its new key>)"*.
 
 A node that builds from source does not install the package, so it keeps the
 random uuid until it is given the script by hand, from its checkout:
@@ -583,10 +605,10 @@ that already started, a VM template, a `docker commit` of a started
 container. Every copy would present the same key, and any of them could
 claim the node of another. Each pair that `yuneta-agent-cert` makes is bound
 to the node uuid it was made for, written beside it in
-`/yuneta/agent/certs/yuneta_agent.uuid`. A copy gets its own node uuid on its
-first start (`yuneta-node-uuid`, which runs first), so `ensure` finds a pair
-made for another uuid (`state: cloned`): it makes a new pair and logs a
-warning. It keeps a copy of the old certificate (it is public), but **not of
+`/yuneta/agent/certs/yuneta_agent.uuid`. A copy whose hardware gives
+another identifier gets its own node uuid on its first start
+(`yuneta-node-uuid`, which runs first), so `ensure` finds a pair made for
+another uuid (`state: cloned`): it makes a new pair and logs a warning. It keeps a copy of the old certificate (it is public), but **not of
 the old key**: that key is the other node's login, so it is overwritten and
 removed. Both agents' units run `ensure` (the two agents serve the same pair;
 the script locks, so their runs do not overlap), so neither serves the copied
@@ -595,6 +617,31 @@ key in the control center as a new node's. A pair made by an earlier version has
 `yuneta_agent.uuid`: `ensure` binds it to the node uuid it finds, so take
 the image after one `ensure` of this version. A pair that the script did not
 make (a certificate of your own CA) is never bound and never replaced.
+
+**A copy that keeps the uuid keeps the key**, and nothing warns. That is the
+case when:
+
+- the box has no hardware identifier (`source: random` in `uuid.json`, not in
+  a container): the copy keeps the random uuid;
+- the copy has the same identifier: a VM copied with its SMBIOS uuid, or a
+  filler DMI uuid that the script does not know as a placeholder;
+- the copy was made before the first `ensure` of 7.30.15: the pair has no
+  `yuneta_agent.uuid`, and its first `ensure` binds it to the copy's uuid;
+- the node builds from source and does not have `yuneta-node-uuid`
+  (`install-yuneta-node-uuid.sh`): its uuid is the random one that
+  `node_uuid()` wrote, and the copy carries it.
+
+Give such a copy its own uuid before its agents start (or restart them
+after), then make its pair, as root:
+
+```bash
+cat /proc/sys/kernel/random/uuid                     # a new uuid
+/usr/libexec/yuneta/yuneta-node-uuid set 7d3f0a52-9c1e-4b8a-a6d4-2e5f8c1b9a03
+/usr/libexec/yuneta/yuneta-agent-cert ensure         # state: cloned -> a new pair
+```
+
+Then accept the copy as a new node, with its uuid and its key (see above).
+On a node that builds from source, run `install-yuneta-node-uuid.sh` first.
 
 ```bash
 sudo /usr/libexec/yuneta/yuneta-agent-cert show
@@ -612,7 +659,7 @@ sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
 sudo /usr/libexec/yuneta/yuneta-agent-cert show
 # state:   public   -- the published pair: 'ensure' replaces it
 sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
-sudo systemctl restart yuneta_agent      # it serves the new pair from now on
+sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22   # both serve the new pair
 ```
 
 A node that builds from source gets the units' step by hand, as for the uuid
@@ -623,6 +670,20 @@ in the order of their names, so it runs after `yuneta-node-uuid.conf`; the
 ```bash
 sudo packages/install-yuneta-agent-cert.sh -n   # what it would do
 sudo packages/install-yuneta-agent-cert.sh      # install, and the pair
+```
+
+It refuses a node without `/usr/libexec/yuneta/yuneta-node-uuid`: run
+`install-yuneta-node-uuid.sh` first. A `git pull` does not update the
+installed scripts or the drop-ins. The agent's build (`yunetas build`) warns
+when they are not the checkout's, and tells you to run both installers
+again:
+
+```
+CMake Warning: /usr/libexec/yuneta/yuneta-agent-cert is not this tree's;
+  /etc/systemd/system/yuneta_agent.service.d/yuneta-agent-cert.conf is of
+  7.30.14 (it runs before the node uuid).  From this checkout, as root, one
+  after the other: packages/install-yuneta-node-uuid.sh, then
+  packages/install-yuneta-agent-cert.sh
 ```
 
 A client that trusted the old certificate to reach a node's port 1993 needs

@@ -34,9 +34,12 @@ it made for another node uuid (a cloned disk: `yuneta_agent.uuid` holds the
 uuid each pair was made for, and the other node's key is removed, not kept;
 see its header). Both agents' units run it, after `yuneta-node-uuid`;
 `tests/test-yuneta-agent-cert.sh` checks it in a private directory (a cloned
-disk against a fake `/sys`, with `yuneta-node-uuid`), and
-`install-yuneta-agent-cert.sh` installs it by hand on a node without the
-package. The packages carry no agent pair: only `certs/controlcenter.crt`.
+disk against a fake `/sys`, with `yuneta-node-uuid`), and that
+`yunos/c/yuno_agent/service/yuneta_agent` is the `.deb`'s SysV script (a node
+that builds from source installs that copy). `install-yuneta-agent-cert.sh`
+installs it by hand on a node without the package, once
+`install-yuneta-node-uuid.sh` has run. The packages carry no agent pair: only
+`certs/controlcenter.crt`.
 
 `templates/` is shared by both packagers (referenced by absolute path from
 `$YUNETAS_BASE/packages/templates/`), so it stays at this level rather than

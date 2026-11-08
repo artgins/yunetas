@@ -122,7 +122,10 @@
 #
 #   The agents and the yunos read the uuid once, when they start
 #   (node_uuid() keeps it in memory). After a change -- by `ensure` on other
-#   hardware, or by `set` -- restart both agents AND every yuno.
+#   hardware, or by `set` -- restart both agents AND every yuno. A control
+#   center knows the node by its uuid and its key, and the agents' start
+#   makes a new pair (yuneta-agent-cert binds a pair to the node uuid): the
+#   node has to be accepted again (accept-node), with its new uuid and key.
 #
 #   Usage:
 #       yuneta-node-uuid [ensure]     create or correct uuid.json (as root)
@@ -771,7 +774,7 @@ random_is_ours() {    # host_now container_now pidns_now
     return 1
 }
 
-RESTART_NOTE="the agents and the yunos running keep the old one until they restart: restart both agents, then every yuno (kill-yuno, run-yuno)"
+RESTART_NOTE="the agents and the yunos running keep the old one until they restart: restart both agents, then every yuno (kill-yuno, run-yuno). Its control centers know the node by its uuid and its key, and the agents' start makes a new pair (yuneta-agent-cert: the key made for the old uuid is removed): accept the node again in each (accept-node node_id=<this uuid> spki_sha256=<its new key>)"
 
 #
 #   Commands

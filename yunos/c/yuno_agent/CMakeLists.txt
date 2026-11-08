@@ -104,10 +104,12 @@ target_link_libraries(${PROJECT_NAME}
 #   source node OVERWRITES what the package put there. The packagers are the
 #   authority for that script (the heredocs in packages/{deb,rpm}/
 #   make-yuneta-agent-*.sh); the copy here must stay identical to the .deb one,
-#   which is the only flavour a source node can be. When they drifted, the copy
-#   here still started /yuneta/bin/nginx/sbin/nginx by hand: a second web
-#   server, of the wrong kind on a node serving with openresty, racing the
-#   yuneta-webserver unit for ports 80 and 443.
+#   which is the only flavour a source node can be
+#   (packages/tests/test-yuneta-agent-cert.sh checks it). When they drifted,
+#   the copy here still started /yuneta/bin/nginx/sbin/nginx by hand: a second
+#   web server, of the wrong kind on a node serving with openresty, racing the
+#   yuneta-webserver unit for ports 80 and 443; up to 7.30.15 it drove no
+#   systemd unit and ran neither yuneta-node-uuid nor yuneta-agent-cert.
 install(DIRECTORY service
     USE_SOURCE_PERMISSIONS
     DESTINATION "/yuneta/agent"
@@ -133,6 +135,39 @@ install(CODE "
         message(WARNING \"yuneta-agent-cert ensure failed (\${_agent_cert_rc}): the agent keeps the pair it had\")
     endif()
 ")
+
+#   The agents' units run the scripts that packages/install-yuneta-node-uuid.sh
+#   and packages/install-yuneta-agent-cert.sh put in /usr/libexec/yuneta, and
+#   a `git pull` does not update them: say it when they are not this tree's
+#   (nothing when the node never took them).
+install(CODE "set(_yuneta_templates \"${YUNETAS_BASE}/packages/templates\")")
+install(CODE [[
+    set(_stale "")
+    foreach(_s yuneta-node-uuid yuneta-agent-cert)
+        set(_installed "/usr/libexec/yuneta/${_s}")
+        if(EXISTS "${_installed}")
+            execute_process(
+                COMMAND "${CMAKE_COMMAND}" -E compare_files "${_installed}" "${_yuneta_templates}/${_s}"
+                RESULT_VARIABLE _same_rc
+            )
+            if(NOT _same_rc EQUAL 0)
+                list(APPEND _stale "${_installed} is not this tree's")
+            endif()
+        elseif(EXISTS "/usr/libexec/yuneta/yuneta-agent-cert")
+            list(APPEND _stale "${_installed} is missing (the pair is bound to the node uuid)")
+        endif()
+    endforeach()
+    foreach(_unit yuneta_agent yuneta_agent22)
+        set(_old_dropin "/etc/systemd/system/${_unit}.service.d/yuneta-agent-cert.conf")
+        if(EXISTS "${_old_dropin}")
+            list(APPEND _stale "${_old_dropin} is of 7.30.14 (it runs before the node uuid)")
+        endif()
+    endforeach()
+    if(_stale)
+        string(REPLACE ";" "; " _stale_text "${_stale}")
+        message(WARNING "${_stale_text}. From this checkout, as root, one after the other: packages/install-yuneta-node-uuid.sh, then packages/install-yuneta-agent-cert.sh")
+    endif()
+]])
 
 install(
     TARGETS ${PROJECT_NAME}
