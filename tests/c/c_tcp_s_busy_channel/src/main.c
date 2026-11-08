@@ -4,9 +4,15 @@
  *          Main of test_c_tcp_s_busy_channel
  *          Tests that an accept never takes a channel whose C_TCP is running
  *
+ *          The TLS port needs /yuneta/agent/certs/localhost.crt: without it
+ *          C_TCP_S exits with code 0 (LOG_OPT_EXIT_ZERO), which ctest would
+ *          take for a pass. An atexit() handler turns an exit before the end
+ *          of the test into code 1.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <yunetas.h>
@@ -176,10 +182,25 @@ static void cleaning(void)
 }
 
 /***************************************************************************
+ *  An exit before the end of the test (LOG_OPT_EXIT_ZERO) is a failure
+ ***************************************************************************/
+static void check_reached_end(void)
+{
+    if(!busy_channel_reached_end) {
+        printf("<-- %sTEST FAILED%s: %s, the yuno exited before the end of the test\n",
+            On_Red BWhite, Color_Off, APP_NAME);
+        fflush(stdout);
+        _exit(1);
+    }
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    atexit(check_reached_end);
+
     /*------------------------------*
      *  Captura salida logger
      *------------------------------*/

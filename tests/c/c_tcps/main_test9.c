@@ -211,6 +211,7 @@ static void check_reached_end(void)
     if(!test9_reached_end) {
         printf("<-- %sTEST FAILED%s: %s, the yuno exited before the end of the test\n",
             On_Red BWhite, Color_Off, APP_NAME);
+        fflush(stdout);
         _exit(1);
     }
 }

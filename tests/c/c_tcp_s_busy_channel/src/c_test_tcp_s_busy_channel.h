@@ -24,6 +24,8 @@ GOBJ_DECLARE_GCLASS(C_TEST_TCP_S_BUSY_CHANNEL);
  ***************************************************************/
 PUBLIC int register_c_test_tcp_s_busy_channel(void);
 
+extern int busy_channel_reached_end;  // the test ran to its end (the yuno did not exit)
+
 #ifdef __cplusplus
 }
 #endif

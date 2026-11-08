@@ -51,6 +51,8 @@ PRIVATE void test_error(hgobj gobj, const char *msg, int got, int expected);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+int busy_channel_reached_end = 0;
+
 PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
@@ -280,6 +282,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     close(priv->fd_third);
                     priv->fd_third = -1;
                 }
+                busy_channel_reached_end = 1;
                 set_yuno_must_die();
             }
             break;
