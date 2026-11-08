@@ -68,6 +68,9 @@ certificate. The server takes the client's certificate as it comes. It gives
 the certificate's `spki_sha256` (the sha256 of the key's SPKI, which
 `openssl pkey -pubout -outform DER | sha256sum` also gives) with `verified`
 false, and logs NO *"did NOT verify"* warning: the owner pins the key, so a
-self-signed certificate is no news. The client without a certificate is let
-in, with no `peer_cert`. Each check is a TEST FAIL error.
+self-signed certificate is no news. The server also has a CA
+(`ssl_trusted_certificate`) that signs the client's certificate: `"request"`
+does not use it, so `verified` stays false on both backends (up to 7.30.14
+mbedTLS verified the chain against it and said true). The client without a
+certificate is let in, with no `peer_cert`. Each check is a TEST FAIL error.
 
