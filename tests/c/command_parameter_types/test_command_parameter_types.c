@@ -96,12 +96,19 @@ SDATAPM (DTP_STRING,    "rs",           SDF_REQUIRED,   0,          "A required 
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_unlock[] = {
+/*-PM----type-----------name------------flag------------------------default-----description---------- */
+SDATAPM (DTP_STRING,    "pin",          SDF_REQUIRED|SDF_SECRET,    0,          "The pin"),
+SDATA_END()
+};
+
 PRIVATE const char *a_required[] = {"must", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------flag----------alias---items-------json_fn-----description--*/
 SDATACM2(DTP_SCHEMA,    "typed",        0,            0,      pm_typed,   cmd_probe,  "A parameter of each type"),
 SDATACM2(DTP_SCHEMA,    "required",     0,            a_required, pm_required,cmd_probe,  "Required parameters"),
+SDATACM2(DTP_SCHEMA,    "unlock",       0,            0,      pm_unlock,  cmd_probe,  "Unlock with a pin"),
 SDATA_END()
 };
 
@@ -557,6 +564,13 @@ int main(int argc, char *argv[])
     expect_help(yuno, "must", "- required", "- typed");
     expect_help(yuno, "nosuch", "not available", "Commands that mention");
     expect_help(yuno, "typed password=hunter2-help", "A parameter of each type", "hunter2-help");
+    /*
+     *  A secret of the command given without its key, as the command line
+     *  takes it: masked by the command's table (up to 7.30.14 only a secret's
+     *  name was masked, and the pin came back in clear)
+     */
+    expect_help(yuno, "unlock 4711-pin-help", "Unlock with a pin", "4711-pin-help");
+    expect_help(yuno, "unlock 4711-pin-help", "unlock ********", NULL);
 
     JSON_DECREF(g_seen)
     gobj_end();

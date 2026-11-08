@@ -73,7 +73,11 @@ as something else (`"treedb_name": 5` saved every treedb in C_TREEDB's
 `help`, through `gobj_build_cmds_doc()`: a `cmd` that is a command gives its
 page; one that is not lists the commands that mention it in any case, in their
 name (`TYP`), description (`parameters`) or an alias (`must`), and only those;
-one that nothing mentions is *"not available"*.
+one that nothing mentions is *"not available"*. The `cmd` echoed at the
+top of a page is masked as a trace masks a command line: a secret by its name
+(`typed password=...`), and a `SDF_SECRET` parameter of the command given
+without its key (`unlock 4711-...` shows `unlock ********`; up to 7.30.14 only
+the name was masked, and the pin came back in clear).
 
 Run it:
 

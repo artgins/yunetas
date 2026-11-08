@@ -1788,7 +1788,8 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         hgobj gobj_found = NULL;
         const sdata_desc_t *cnf_cmd = search_command_desc(gobj, cmd, level, &gobj_found);
         if(cnf_cmd) {
-            char *cmd_shown = mask_secrets_inline(cmd);  // the caller's word, as below
+            // the caller's line as a trace shows it: a secret given without its key too
+            char *cmd_shown = command_mask_secret_line(gobj_found, cmd);
             gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
             gbuffer_printf(gbuf, "%s (%s)\n", cmd_shown? cmd_shown : cmd, gobj_short_name(gobj_found));
             int len = (int)strlen(cmd_shown? cmd_shown : cmd);
