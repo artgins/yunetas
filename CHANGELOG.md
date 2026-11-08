@@ -304,6 +304,21 @@ Tests: `c_tcps/test14` (+ `test14_mbedtls`), `ytls/test_server_init_not_fatal`;
   taken at the next load) and answer `-1` when `queue_ready` is false.
   Present in 7.30.17, and since the v7 port. Test: `test_c_qiogate_stats`.
 
+### sgateway
+
+- **sgateway works again** (its original design: one input connection
+  relayed, both ways, to one output connection). Up to 7.30.17 it ran
+  nothing: `main.c` named its service gclass `Sgateway` ("gclass NOT
+  FOUND"). Behind that: its input server was a `C_TCP` (now a `C_TCP_S`
+  with `child_tree_filter`), its output `C_TCP` got `urls` and was never
+  started (manual start: the gateway starts it now), the urls were read
+  only at create (now at each play), its periodic timer raised "Event NOT
+  DEFINED in state" once a second, a closed side was never seen as closed,
+  and the service played itself. Bytes for a side not open are dropped and
+  counted (`dropMsgs`, one WARNING per close). New attr
+  `timeout_between_connections` (default 100 ms, the old fixed value).
+  New test `tests/c/sgateway` runs the real binary.
+
 ### The packages and their scripts
 
 - **An agent running outside its unit is found by its `argv[0]`, as its own
