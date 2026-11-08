@@ -1338,7 +1338,8 @@ PRIVATE const char *subscription_permission(hgobj gobj_service)
  *  an internal gobj_subscribe_event() never comes through here and is never
  *  gated. A refusal is logged here (MSGSET_AUTH) when `log_refusal`: the
  *  caller asks it for the first refusal of the service and event on this
- *  channel, not for a peer that repeats it frame after frame.
+ *  channel, not for a peer that repeats it frame after frame. A WARNING:
+ *  the peer asked for what its user may not have (up to 7.30.15 an ERROR).
  *
  *  Up to 7.25.4 the check was commented out (here since v6, and in
  *  gobj_subscribe_event()), so the EV_TREEDB_NODE_* feed of a treedb was
@@ -1375,7 +1376,7 @@ PRIVATE BOOL is_subscription_authorized(
     }
 
     if(log_refusal) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "No permission to subscribe event",

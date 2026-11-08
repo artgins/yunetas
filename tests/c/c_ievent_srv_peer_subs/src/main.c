@@ -255,6 +255,12 @@ int no_match_lines = 0;
 size_t no_match_longest = 0;
 
 /*
+ *  The refusal of a subscription the user may not have: the peer's, so a
+ *  WARNING (up to 7.30.15 an ERROR)
+ */
+int no_permission_priority = -1;
+
+/*
  *  The same, for the other logs a peer can repeat: the first four ONE line
  *  each, capped, and no stack (a stack is written as more lines of the same
  *  log); the last two none at all
@@ -282,6 +288,10 @@ static int no_match_write(void *v, int priority, const char *bf, size_t len)
         if(len > no_match_longest) {
             no_match_longest = len;
         }
+    }
+    const char *no_permission = "No permission to subscribe event";
+    if(memmem(bf, len, no_permission, strlen(no_permission))) {
+        no_permission_priority = priority;
     }
     for(int i=0; peer_log_counts[i].mark; i++) {
         peer_log_count_t *c = &peer_log_counts[i];
@@ -362,6 +372,16 @@ static void cleaning(void)
             "a withdrawal of nothing is logged per frame, or uncapped",
             no_match_lines,
             (unsigned long)no_match_longest,
+            Color_Off
+        );
+        result += -1;
+    }
+    if(no_permission_priority != LOG_WARNING) {
+        printf("%sERROR --> %s: priority %d (expected %d)%s\n",
+            On_Red BWhite,
+            "the refusal of a subscription is not a WARNING",
+            no_permission_priority,
+            LOG_WARNING,
             Color_Off
         );
         result += -1;

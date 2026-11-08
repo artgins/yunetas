@@ -33,7 +33,8 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    are refused (logged once); 5 withdrawals of nothing, each with a 2 KB
    key, are ONE warning, capped (`main.c` counts the lines and measures
    them); 3 subscriptions of `EV_TEST_SECRET`, which only `bob` may read,
-   are ONE error.
+   are ONE warning (*"No permission to subscribe event"*: the peer asks for
+   it; `main.c` checks its priority. Up to 7.30.15 it was an error).
 3. `bob` withdraws his subscription with its `__global__`, as
    `C_IEVENT_CLI` does it: it goes. Up to 7.25.4 the server compared it with
    the `__global__` it had stored, which carries its own back-metadata, and

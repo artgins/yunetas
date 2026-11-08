@@ -203,7 +203,9 @@ service the channel may reach. Since 7.25.5, when the yuno sets
 permission aliased `__subscribe_event__` — `read` for the `EV_TREEDB_NODE_*`
 feed of a treedb and for the `EV_TRANGER_RECORD_ADDED` feed of a
 `C_TRANGER` — or the global `__subscribe_event__`. A refused subscription is
-logged (*"No permission to subscribe event"*) and not made; the channel stays
+a WARNING (*"No permission to subscribe event"*, `MSGSET_AUTH`, with the
+`service`, the `event`, the `permission` and the `username`; up to 7.30.15 an
+ERROR, though the peer causes it) and is not made; the channel stays
 open. The refusal is logged once per service and event on a channel: a peer
 that repeats it does not write a log line per frame. When the peer withdraws a
 refused subscription later, that is logged at info level (*"its subscription
