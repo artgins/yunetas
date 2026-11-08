@@ -19,6 +19,12 @@
  *      made (an in-flight message that expired left the queued ones
  *      waiting, with nothing in flight).
  *
+ *  3.  A row on disk with a top-level "gbuffer" key (tr2q_append() never
+ *      writes one: a corrupt or foreign row) is dropped with a WARNING and
+ *      the message rebuilt from its "payload", in flight and queued. Up to
+ *      7.30.17 the queued one crashed the load (KW_DECREF of the row) and
+ *      the one in flight carried the integer as its gbuffer.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -200,6 +206,76 @@ PRIVATE int test_backup_with_queued(void)
 }
 
 /***************************************************************************
+ *  3.  A row of the queue with a top-level "gbuffer" key: data, not a
+ *      pointer. tr2q_append() never writes one (it serializes the gbuffer
+ *      into "payload"), so the row is a corrupt or foreign one.
+ ***************************************************************************/
+PRIVATE int test_disk_gbuffer_key(void)
+{
+    int result = 0;
+    const char *topic_name = "tr2q_gbuffer";
+    rmrdir(path_database);
+
+    set_expected_results("gbuffer key: setup", NULL, NULL, NULL, 0);
+    json_t *tranger = startup();
+    tr2_queue_t *trq = tr2q_open(tranger, topic_name, "tm", 0, 1 /* max_inflight */, 0);
+    tr2q_load(trq);
+    tr2q_close(trq);
+    for(int mid = 1; mid <= 2; mid++) {
+        gbuffer_t *gbuf = gbuffer_create(16, 16);
+        gbuffer_append_string(gbuf, "hello");
+        json_t *row = tr2q_kw(mid, 946684800 + mid);
+        json_object_set_new(row, "payload", gbuffer_serialize(0, gbuf));
+        json_object_set_new(row, "gbuffer", json_integer(4096));
+        GBUFFER_DECREF(gbuf)
+        md2_record_ex_t md = {0};
+        tranger2_append_record(tranger, topic_name, 946684800 + mid, TR2Q_MSG_PENDING, &md, row);
+    }
+    test_json(NULL);    // the setup logs are not what is tested
+
+    /*
+     *  Loaded: one in flight (its row kept), one queued (its row released).
+     *  Up to 7.30.17 the release was KW_DECREF of the row: SIGSEGV in
+     *  gbuffer_decref(), and the one in flight was not rebuilt from its
+     *  "payload": the integer went on as the gbuffer of the message.
+     */
+    set_expected_results("gbuffer key: dropped, rebuilt from the payload",
+        json_pack("[{s:s},{s:s},{s:s}]",
+            "msg", "A row of the queue with a 'gbuffer' key, a binary field name: dropped",
+            "msg", "A row of the queue with a 'gbuffer' key, a binary field name: dropped",
+            "msg", "A row of the queue with a 'gbuffer' key, a binary field name: dropped"
+        ),
+        NULL, NULL, 1
+    );
+    trq = tr2q_open(tranger, topic_name, "tm", 0, 1 /* max_inflight */, 0);
+    tr2q_load(trq);
+    result += expect_int("gbuffer key: in flight", (json_int_t)tr2q_inflight_size(trq), 1);
+    result += expect_int("gbuffer key: queued", (json_int_t)tr2q_queued_size(trq), 1);
+    for(int mid = 1; mid <= 2; mid++) {
+        q2_msg_t *msg = tr2q_get_by_mid(trq, mid);
+        if(msg && !msg->inflight && tr2q_move_from_queued_to_inflight(msg) < 0) {
+            msg = NULL;
+        }
+        json_t *kw = msg? tr2q_msg_json(msg) : NULL;
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(kw, "gbuffer"));
+        if(!gbuf || (uintptr_t)gbuf == 4096 || gbuffer_leftbytes(gbuf) != 5 ||
+                memcmp(gbuffer_cur_rd_pointer(gbuf), "hello", 5) != 0) {
+            printf("%sERROR%s --> gbuffer key: message %d not rebuilt from its payload\n",
+                On_Red BWhite, Color_Off, mid);
+            result += -1;
+        }
+    }
+    result += test_json(NULL);
+
+    set_expected_results("gbuffer key: shutdown", NULL, NULL, NULL, 1);
+    tr2q_close(trq);
+    tranger2_shutdown(tranger);
+    result += test_json(NULL);
+
+    return result;
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -279,6 +355,7 @@ int main(int argc, char *argv[])
 
     result += test_move_unreadable();
     result += test_backup_with_queued();
+    result += test_disk_gbuffer_key();
 
     MT_INCREMENT_COUNT(time_measure, 1)
     MT_PRINT_TIME(time_measure, APP)

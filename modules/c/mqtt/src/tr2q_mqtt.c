@@ -38,6 +38,7 @@ PRIVATE void free_msg(void *msg_);
         with the flag used in tr2q_load()
 */
 PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
+PRIVATE void drop_row_binary_key(hgobj gobj, tr2_queue_t *trq, json_t *jn_record);
 
 /***************************************************************
  *              Data
@@ -464,6 +465,29 @@ PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
 }
 
 /***************************************************************************
+ *  A row read from disk is a json: its gbuffer is serialized in "payload"
+ *  (tr2q_append()), and tr2q_msg_json() rebuilds it. A row with a
+ *  "gbuffer" key of its own is a corrupt or foreign one, and the key is
+ *  data: kept, it was taken for a pointer (KW_DECREF of the row, and the
+ *  message carried it as its gbuffer). It goes, and the message is
+ *  rebuilt from its "payload".
+ ***************************************************************************/
+PRIVATE void drop_row_binary_key(hgobj gobj, tr2_queue_t *trq, json_t *jn_record)
+{
+    if(!json_object_get(jn_record, "gbuffer")) {
+        return;
+    }
+    json_object_del(jn_record, "gbuffer");
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_TRANGER,
+        "msg",          "%s", "A row of the queue with a 'gbuffer' key, a binary field name: dropped",
+        "topic",        "%s", trq->topic_name,
+        NULL
+    );
+}
+
+/***************************************************************************
     New msg in memory
  ***************************************************************************/
 PRIVATE q2_msg_t *new_msg(
@@ -547,6 +571,7 @@ PRIVATE int load_record_callback(
         // The first record called is the first pending record
         trq->first_rowid = rowid;
     }
+    drop_row_binary_key(gobj, trq, jn_record);
     uint16_t mid = kw_get_int(gobj, jn_record, "mid", 0, KW_REQUIRED);
     new_msg(trq, rowid, mid, md_record, jn_record);
 
@@ -935,6 +960,7 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
             "",
             &msg->md_record
         );
+        drop_row_binary_key(gobj, msg->trq, msg->kw_record);
     }
 
     /*

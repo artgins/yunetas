@@ -17,7 +17,13 @@ of a queued message: it stays queued"*. Up to 7.25.4 it was moved in flight
 first and left there with no content (red: 2 in flight, 0 queued). And
 `tr2q_check_backup()` with nothing in flight and a message queued answers 0 and
 does not back up: the queued message keeps its content. Up to 7.25.4 the
-backup was made and the content was lost (red: topic size 0).
+backup was made and the content was lost (red: topic size 0). A row on disk
+with a top-level `"gbuffer"` key (`tr2q_append()` never writes one: a corrupt
+or foreign row) is dropped with a WARNING (*"A row of the queue with a
+'gbuffer' key, a binary field name: dropped"*) and the message rebuilt from
+its `"payload"`, in flight and queued. Up to 7.30.17 the load of the queued one
+crashed (`KW_DECREF` of the row, SIGSEGV) and the one in flight carried the
+integer as its gbuffer.
 
 `test_tr_queue_backup_failed` covers a backup that FAILS (the backup name
 taken by a file: the `rename()` fails): `trq_check_backup()` /
