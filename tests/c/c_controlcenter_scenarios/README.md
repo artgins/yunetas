@@ -110,7 +110,8 @@ still reported and fails the test.
     that `mt_pause()` had cleared): three *"GObj NOT RUNNING"* errors with a
     stack. It runs a tick after the 3 messages of test 13, so the rates are
     not 0 before the pause; paused, they read 0 (up to 7.25.21 they kept the
-    last tick's value). It is the last test.
+    last tick's value). It is the last test but case 44, which runs after
+    its stop.
 13. The message counters and rates. The rate tick (`timeout`) is set to
     1500 ms and the stats reset; 100 `command-agent` round trips add exactly
     200 to `rxMsgs` and to `txMsgs`. Over two ticks later, the maxima hold
@@ -380,6 +381,51 @@ still reported and fails the test.
     integer without its reference) and released the copy with `KW_DECREF`:
     the gbuffer was freed while the test still held it, refused requests
     included.
+40. `write-tty` (`test_write_tty_refused`). Of a user who may not ("viewer"):
+    its kw is released once (the test holds a reference and reads it back),
+    the client gets one `EV_MT_COMMAND_ANSWER` (*"No permission to
+    'write-tty'"*), and nothing reaches the agent. Of a user who may, with a
+    gbuffer: the agent gets the bytes, and the gbuffer holds only the
+    test's reference. In 7.30.17 the refusal released the kw twice (the
+    poison read back as its refcount) and answered `EV_WRITE_TTY`, which no
+    client takes (*"Event NOT DEFINED"*); the kw given to the agent was the
+    request itself, whose gbuffer the agent's gate serialized away, so one
+    reference was never released.
+41. Who may write a scenario but not run it does not make the control
+    center run what it writes. The scenario "mrw" (`max_run` 1 s; the
+    "writer" of `main.c` may write it) has a yuno on the agent and one on
+    `host-mrw`, a node in session by a token that goes after the start.
+    Past the stop, the stop did the agent's step only, and the rest waits
+    for `host-mrw`. The writer saves "mrw" with another stop (`command-yuno
+    id=9999 service=__yuno__ command=shutdown`), and deletes it: both
+    refused (*"saving it needs 'run-scenarios' too"*, *"deleting it needs
+    'run-scenarios' too"*), the stop still pending. The step of `host-mrw`
+    is changed in the treedb itself (not by `save-scenario`, which schedules
+    again), and the node comes back: the rest is due and none of its steps
+    is in the scenario, so the stop does not run (*"... cannot run, tried
+    again in a minute"*), and nothing reaches the agent nor the node. A user
+    who may run it saves that stop: the rest is dropped, and no stop is
+    scheduled. In 7.30.17 the stop that did some
+    steps made the scenario look stopped, so the writer's save and delete
+    went through; and a rest none of whose steps was in the scenario ran the
+    whole new stop. It runs in phases 8-10, after case 38.
+42. A `max_run` stop whose step is answered *"Yuno not found"* (the yuno
+    stopped by hand): the run is a failed stop, and no stop is scheduled,
+    with no warning. In 7.30.17 it was tried again every minute, for ever.
+    The scenario "mrg", in phases 10-11.
+43. The `max_run` stop is not tried again after 10 tries in a row that did
+    nothing (`MAX_RUN_STOP_TRIES`), and that end is said once (*"the stop of
+    a scenario's max_run did nothing in its last tries: not tried again"*).
+    The scenario "mrc": the 9 tries before the last are written into the
+    treedb by the test, as the control center writes them (a minute apart,
+    they would take 9 minutes); the last, answered -1, ends it. In 7.30.17
+    a step that answered an error for ever was tried every minute, for ever.
+    In phases 11-12.
+44. A control center with no `operator_assertion_key` (after case 12's
+    stop, which drops the key and closes the treedb, so the agent is named
+    by its uuid): `command-agent` and `stats-agent` with a gbuffer reach the
+    agent with the bytes, and the gbuffer holds only the test's reference.
+    In 7.30.17 the kw for the agent was the request itself (see case 40).
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

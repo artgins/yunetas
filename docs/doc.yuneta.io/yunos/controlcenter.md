@@ -941,6 +941,37 @@ scenarios scenario_id=load-test     # stop_waits_node: true
 # -> "...: stop done, 1 steps"
 ```
 
+While those steps are due the scenario runs, so saving or deleting it needs
+`run-scenarios` too (below). The steps that stay due are those that the
+scenario still has: a save that takes out or changes one of them drops it,
+and when none is left nothing is scheduled. The control center never runs a
+step that the run did not have. In 7.30.17 a stop that did some steps made
+the scenario look stopped: a user with `write-scenarios` and no
+`run-scenarios` could save a new `stop`, and when no step of it matched the
+steps due, the control center ran the whole new `stop` by itself. For
+example, a user with both permissions changes the stop of the yuno on
+`node-b` while that step is due:
+
+```
+scenarios scenario_id=load-test     # stop_waits_node: true (node-b's step is due)
+save-scenario scenario={... "stop": [..., {"yuno": "gen-b", "command": "stop-load"}]}
+scenarios scenario_id=load-test     # no stop_at: node-b's step is not in the scenario now
+```
+
+Two answers end the tries:
+
+- **A step answered *"Yuno not found"*** (the agent's answer when no yuno of
+  that id runs: stopped by hand, or gone) is done, with an error. The run is
+  a failed stop, and the step is not sent again.
+- **10 tries in a row that did nothing** (each a run, a WARNING and an INFO,
+  a minute apart or at each connection of a node): the stop is not tried
+  again, with one WARNING, *"the stop of a scenario's max_run did nothing in
+  its last tries: not tried again"* (`tries`, and the comment of the last
+  one). A try that did some steps starts the count again.
+
+In 7.30.17 a step that answered an error for ever was tried every minute,
+for ever.
+
 A stop by a user that did some steps cancels the `max_run`, as before: the
 steps that it did not do are the user's to run again. In 7.30.16 and before,
 a `max_run` stop that did some steps ended the schedule with no log, and the
@@ -958,10 +989,11 @@ the scenario, if any, as `run_in_flight` (`id`, `action`, `username`,
 not offer another. Every run that ends
 publishes `EV_SCENARIO_RUN_ENDED` (public, no data): the console says *"stops
 at 18:45"* while it runs, and sees it stopped -- by the control center, or by
-anybody -- at once. While a scenario runs (a run of it in flight, or its last
-run that did anything is not a stop), saving it needs `run-scenarios` on it
-too (7.27.19): a max_run saved then schedules the stop steps saved then, so
-writing them would be running them. So does deleting it (after 7.29.1): the
+anybody -- at once. While a scenario runs (a run of it in flight, its
+`max_run` stop due, or its last run that did anything is not a stop), saving
+it needs `run-scenarios` on it too (7.27.19; the stop due, after 7.30.17): a
+max_run saved then schedules the stop steps saved then, so writing them
+would be running them. So does deleting it (after 7.29.1): the
 delete takes its stop steps and its max_run stop, and leaves its yunos as
 they are -- *"scenario 'x' runs: deleting it needs 'run-scenarios' too"*:
 
@@ -1131,7 +1163,7 @@ never armed: all six read 0.
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
-| `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required |
+| `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
 | `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |
 | `scenarios` | List the scenarios, or one (`scenario_id`) |
 | `save-scenario` | Create or replace a scenario (`scenario`) |

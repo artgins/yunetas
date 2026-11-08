@@ -40,7 +40,12 @@
  *  `scenarios` answers it as `stop_at` (epoch seconds). A stop of its own
  *  that did some steps only is not the end of it: the steps it did not do
  *  are tried again (a minute later, or when an agent of their node
- *  connects) until each is done. Every run that ends
+ *  connects) until each is done -- those of them that the scenario saved
+ *  since still has, never a step the run did not have -- and while they
+ *  are due the scenario runs (saving or deleting it needs `run-scenarios`).
+ *  A step answered "Yuno not found" is done, with an error (no yuno of
+ *  that id runs there); after MAX_RUN_STOP_TRIES tries in a row that did
+ *  nothing, the stop is not tried again, with a warning. Every run that ends
  *  publishes EV_SCENARIO_RUN_ENDED (public, no data): a console that watches
  *  a scenario reads its state again, and sees it stopped by somebody else.
  *  A yuno of a scenario may carry a SWITCH, `switch: {on: [steps], off:
@@ -173,6 +178,15 @@
 /*  The longest max_run of a scenario: a week, in seconds  */
 #define MAX_RUN_LIMIT   (7*24*3600)
 
+/*  The stops of its own in a row that did nothing, after which a max_run
+ *  stop is not tried again: a step that fails at every try is not asked
+ *  every minute for ever  */
+#define MAX_RUN_STOP_TRIES  10
+
+/*  How the agent's command-yuno ends its answer when no yuno of the id
+ *  runs: a stop's step that got it is done (step_done())  */
+#define YUNO_NOT_FOUND  ": Yuno not found"
+
 /*  The longest node uuid: what node_uuid() holds (its buffer of 64)  */
 #define NODE_ID_MAX     63
 
@@ -271,7 +285,9 @@ PRIVATE int start_run(
     char *err,
     size_t errsz
 );
-PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id);
+PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id);
+PRIVATE BOOL steps_have(hgobj gobj, json_t *steps, json_t *step);
+PRIVATE BOOL step_done(hgobj gobj, json_t *run, json_t *step);
 PRIVATE int run_steps_done(hgobj gobj, json_t *run);
 PRIVATE BOOL run_changes_state(hgobj gobj, json_t *run);
 PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id);
@@ -2511,7 +2527,9 @@ PRIVATE json_t *cmd_run_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *  `scenario_yuno` names the yuno whose switch an on/off turns ("" for an
  *  action of the scenario). `only_steps` keeps of the action the steps it
  *  names (the steps a max_run stop did not do); none of them left (the
- *  scenario saved since), the whole action.
+ *  scenario changed since), it does not run: a step the run did not have
+ *  is not run for it (up to 7.30.17 the whole action ran, what a save had
+ *  written in it).
  *  -1 with the reason in `err` when it cannot start, and kw_answer is the
  *  caller's still.
  ***************************************************************************/
@@ -2562,21 +2580,19 @@ PRIVATE int start_run(
     }
     if(only_steps) {
         json_t *kept = json_array();
-        size_t i, j; json_t *step, *only;
+        size_t i; json_t *step;
         json_array_foreach(steps, i, step) {
-            json_array_foreach(only_steps, j, only) {
-                if(strcmp(kw_get_str(gobj, step, "node", "", 0), kw_get_str(gobj, only, "node", "", 0))==0 &&
-                        strcmp(kw_get_str(gobj, step, "line", "", 0), kw_get_str(gobj, only, "line", "", 0))==0) {
-                    json_array_append(kept, step);
-                    break;
-                }
+            if(steps_have(gobj, only_steps, step)) {
+                json_array_append(kept, step);
             }
         }
-        if(json_array_size(kept) > 0) {
+        JSON_DECREF(steps)
+        steps = kept;
+        if(json_array_size(steps) == 0) {
             JSON_DECREF(steps)
-            steps = kept;
-        } else {
-            JSON_DECREF(kept)
+            snprintf(err, errsz, "cannot run '%s' of '%s': none of its steps left is in the scenario now",
+                action, scenario_id);
+            return -1;
         }
     }
 
@@ -4906,17 +4922,16 @@ PRIVATE int add_operator_assertion(
 }
 
 /***************************************************************************
- *  The kw of a request for an agent (kw not owned; return is yours): with
- *  the operator assertion of who asks (add_operator_assertion()), when
- *  there is one to give; else the same kw.
+ *  The kw of a request for an agent (kw not owned; return is yours): a
+ *  copy, with the operator assertion of who asks (add_operator_assertion()),
+ *  when there is one to give. Always a copy: the agent's gate changes the kw
+ *  it is given and serializes its gbuffer away (C_IEVENT_SRV's
+ *  mt_command()), so the request itself would lose the gbuffer before its
+ *  owner released it -- up to 7.30.17 one reference was never released
+ *  without an operator_assertion_key.
  ***************************************************************************/
 PRIVATE json_t *kw_to_agent(hgobj gobj, json_t *kw, hgobj src, hgobj agent_channel)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!priv->assertion_key) {
-        return kw_incref(kw);
-    }
     json_t *kw_agent = kw_duplicate(gobj, kw);    // a kw copy: its gbuffer goes with a reference
     add_operator_assertion(gobj, kw_agent, username_of(gobj, kw, src), agent_channel);
     return kw_agent;
@@ -5509,7 +5524,7 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
      *  yunos it did not reach went on.
      */
     if(priv->gobj_treedb_controlcenter) {
-        schedule_from_runs(gobj, scenario_id);
+        BOOL gave_up = schedule_from_runs(gobj, scenario_id);
         json_t *pending = json_object_get(priv->auto_stops, scenario_id);
         if(!empty_string(reason) && done < (int)json_array_size(steps) && pending) {
             json_t *rest = json_object_get(pending, "steps");
@@ -5517,7 +5532,7 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP,
-                "msg",          "%s", done == 0?
+                "msg",          "%s", run_steps_done(gobj, run) == 0?
                     (reaches?
                         "the stop of a scenario's max_run did nothing, tried again in a minute" :
                         "the stop of a scenario's max_run did nothing, tried again when a node of it connects") :
@@ -5534,6 +5549,16 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
             } else {
                 json_object_set_new(pending, "waits_node", json_true());
             }
+        } else if(!empty_string(reason) && gave_up) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "the stop of a scenario's max_run did nothing in its last tries: not tried again",
+                "scenario_id",  "%s", scenario_id,
+                "tries",        "%d", MAX_RUN_STOP_TRIES,
+                "comment",      "%s", comment? comment : "",
+                NULL
+            );
         }
         arm_stop_timer(gobj);
     }
@@ -5546,14 +5571,53 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
 }
 
 /***************************************************************************
- *  How many steps of a run did their work: a step not sent has no result.
+ *  Is `step` ({node, line}) one of `steps`?
+ ***************************************************************************/
+PRIVATE BOOL steps_have(hgobj gobj, json_t *steps, json_t *step)
+{
+    size_t idx; json_t *one;
+    json_array_foreach(steps, idx, one) {
+        if(strcmp(kw_get_str(gobj, one, "node", "", 0), kw_get_str(gobj, step, "node", "", 0))==0 &&
+                strcmp(kw_get_str(gobj, one, "line", "", 0), kw_get_str(gobj, step, "line", "", 0))==0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Did a step of a run do its work? A step not sent has no result. A step
+ *  of a stop answered "Yuno not found" did it, with an error: no yuno of
+ *  that id runs on its node (stopped by hand, or gone), and asked again it
+ *  answers the same for ever. Up to 7.30.17 the max_run stop asked it
+ *  every minute.
+ ***************************************************************************/
+PRIVATE BOOL step_done(hgobj gobj, json_t *run, json_t *step)
+{
+    if(!kw_has_key(step, "result")) {
+        return FALSE;
+    }
+    if(kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) >= 0) {
+        return TRUE;
+    }
+    if(strcmp(kw_get_str(gobj, run, "action", "", 0), "stop")!=0) {
+        return FALSE;
+    }
+    const char *comment = kw_get_str(gobj, step, "comment", "", 0);
+    size_t len = strlen(comment);
+    size_t len_nf = strlen(YUNO_NOT_FOUND);
+    return len >= len_nf && strcmp(comment + len - len_nf, YUNO_NOT_FOUND)==0;
+}
+
+/***************************************************************************
+ *  How many steps of a run did their work (step_done())
  ***************************************************************************/
 PRIVATE int run_steps_done(hgobj gobj, json_t *run)
 {
     int done = 0;
     size_t idx; json_t *step;
     json_array_foreach(kw_get_list(gobj, run, "steps", 0, 0), idx, step) {
-        if(kw_has_key(step, "result") && kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) >= 0) {
+        if(step_done(gobj, run, step)) {
             done++;
         }
     }
@@ -5565,9 +5629,13 @@ PRIVATE int run_steps_done(hgobj gobj, json_t *run)
  *  has no max_run or its last run that did anything (a report changes
  *  nothing) is a stop; else the end of its last start, plus max_run. A
  *  stop of its own (the max_run's) that did some steps only leaves the
- *  steps it did not do (`steps`) due at its end: they are tried until done.
+ *  steps it did not do (`steps`) due at its end: they are tried until done,
+ *  those of them that its stop has now (a step that a save took out or
+ *  changed is not done for it). After MAX_RUN_STOP_TRIES stops of its own
+ *  in a row that did nothing, it is not tried again: TRUE (said by
+ *  run_end()).
  ***************************************************************************/
-PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
+PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -5584,9 +5652,12 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
         gobj
     );
     json_int_t max_run = kw_get_int(gobj, scenario, "max_run", 0, KW_WILD_NUMBER);
+    char why[256];
+    json_t *stop_steps = (scenario && max_run > 0)?
+        build_run_steps(gobj, scenario, "stop", "", why, sizeof(why)) : NULL;
     JSON_DECREF(scenario)
     if(max_run <= 0) {
-        return;
+        return FALSE;
     }
 
     json_t *runs = sort_runs_newest_first(gobj_node_children(
@@ -5599,11 +5670,22 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
         gobj
     ));
     BOOL running = FALSE;
+    BOOL gave_up = FALSE;
+    BOOL did_some = FALSE;
+    int tries = 0;      // its stops in a row that did nothing, the newest first
     json_t *rest = NULL;
     json_int_t rest_at = 0;
     size_t idx; json_t *run;
     json_array_foreach(runs, idx, run) {
         const char *action = kw_get_str(gobj, run, "action", "", 0);
+        if(!did_some && strcmp(action, "stop")==0 &&
+                strcmp(kw_get_str(gobj, run, "username", "", 0), gobj_yuno_role_plus_name())==0) {
+            if(run_steps_done(gobj, run) > 0) {
+                did_some = TRUE;
+            } else {
+                tries++;
+            }
+        }
         if(!run_changes_state(gobj, run)) {
             continue;
         }
@@ -5615,7 +5697,8 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
                 rest = json_array();
                 size_t i; json_t *step;
                 json_array_foreach(kw_get_list(gobj, run, "steps", 0, 0), i, step) {
-                    if(!kw_has_key(step, "result") || kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) < 0) {
+                    if(!step_done(gobj, run, step) &&
+                            (!stop_steps || steps_have(gobj, stop_steps, step))) {
                         json_array_append_new(rest, json_pack("{s:s, s:s}",
                             "node", kw_get_str(gobj, step, "node", "", 0),
                             "line", kw_get_str(gobj, step, "line", "", 0)
@@ -5630,6 +5713,10 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
             running = TRUE;
         }
         if(strcmp(action, "start")==0) {
+            if(tries >= MAX_RUN_STOP_TRIES) {
+                gave_up = TRUE;
+                break;
+            }
             json_int_t scheduled_at = rest?
                 rest_at : kw_get_int(gobj, run, "ended_at", 0, KW_WILD_NUMBER) + max_run;
             json_t *stop = json_pack("{s:I, s:I, s:s}",
@@ -5646,6 +5733,7 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
     }
     JSON_DECREF(rest)
     JSON_DECREF(runs)
+    JSON_DECREF(stop_steps)
 
     /*
      *  The same stop (same start, same max_run) keeps what its failures
@@ -5664,6 +5752,7 @@ PRIVATE void schedule_from_runs(hgobj gobj, const char *scenario_id)
             json_object_set_new(stop, "stop_at", json_integer(old_stop_at));
         }
     }
+    return gave_up;
 }
 
 /***************************************************************************
@@ -5724,14 +5813,18 @@ PRIVATE void last_state_action(hgobj gobj, const char *scenario_id, char *bf, si
 }
 
 /***************************************************************************
- *  Does the scenario run? A run of it in flight, or its last run that
- *  changed its state is not a stop.
+ *  Does the scenario run? A run of it in flight, its max_run stop pending
+ *  (a stop of its own that did some steps only is a stop, and leaves yunos
+ *  running), or its last run that changed its state is not a stop.
  ***************************************************************************/
 PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0), scenario_id)==0) {
+        return TRUE;
+    }
+    if(json_object_get(priv->auto_stops, scenario_id)) {
         return TRUE;
     }
     char action[NAME_MAX];
@@ -6334,10 +6427,15 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *----------------------------------------*/
     const char *permission = "write-tty";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        /*
+         *  Answered as a command is (EV_MT_COMMAND_ANSWER, what a client
+         *  takes): up to 7.30.17 it went back as EV_WRITE_TTY, which none
+         *  declares, and the kw handed over owned was released again
+         */
         gobj_send_event(
             src,
-            event,
-                msg_iev_build_response(
+            EV_MT_COMMAND_ANSWER,
+            msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
@@ -6347,7 +6445,6 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             ),
             gobj
         );
-        KW_DECREF(kw);
         return 0;
     }
 
@@ -6382,7 +6479,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
             "write-tty",
-            kw_incref(kw),
+            kw_duplicate(gobj, kw),     // a kw copy: the agent's gate serializes what it is given
             src
         );
         JSON_DECREF(webix);

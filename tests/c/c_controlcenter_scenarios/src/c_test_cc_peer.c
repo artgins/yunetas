@@ -160,6 +160,16 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *  An answer sent to this gobj as the gate of the request it answers (as
+ *  C_IEVENT_SRV takes it in session): kept as what reached the client
+ ***************************************************************************/
+PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    record(gobj, event, kw);
+    return 0;
+}
+
+/***************************************************************************
  *  Asked to drop the connection
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -228,6 +238,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_SEND_IEV,               ac_send_iev,        0},
         {EV_SEND_MESSAGE,           ac_send_message,    0},
+        {EV_MT_COMMAND_ANSWER,      ac_command_answer,  0},
         {EV_DROP,                   ac_drop,            0},
         {EV_REJECT_USER,            ac_reject_user,     0},
         {EV_STOPPED,                ac_stopped,         0},
@@ -245,6 +256,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_SEND_IEV,               0},
         {EV_SEND_MESSAGE,           0},
+        {EV_MT_COMMAND_ANSWER,      0},
         {EV_DROP,                   0},
         {EV_REJECT_USER,            0},
         {EV_STOPPED,                0},

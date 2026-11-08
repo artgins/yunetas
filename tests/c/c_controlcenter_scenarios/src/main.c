@@ -129,8 +129,8 @@ PRIVATE int write_assertion_key(void)
  *  installed the default one is C_AUTHZ's, which this test yuno does not
  *  run. This test is about what the commands do, not about who may ask:
  *  everybody may do everything, but "viewer", who may only read the
- *  scenario "scn", and "writer", who may read and write "scn", "mr" and "wr"
- *  but run nothing -- the
+ *  scenario "scn", and "writer", who may read and write "scn", "mr", "wr"
+ *  and "mrw" but run nothing -- the
  *  scope a role's `parameters` gives in C_AUTHZ
  *  (tests/c/authz_scoped_permissions), which is what the control center
  *  asks per scenario (case 14).
@@ -144,7 +144,8 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
         allow = strcmp(authz, "read-scenarios")==0 && on_scn;
     } else if(strcmp(username, "writer")==0) {
         const char *id = kw_get_str(gobj, kw, "scenario_id", "", 0);
-        BOOL on_mine = on_scn || strcmp(id, "mr")==0 || strcmp(id, "wr")==0;
+        BOOL on_mine = on_scn || strcmp(id, "mr")==0 || strcmp(id, "wr")==0 ||
+            strcmp(id, "mrw")==0;
         allow = (strcmp(authz, "read-scenarios")==0 || strcmp(authz, "write-scenarios")==0) &&
             on_mine;
     }
@@ -372,6 +373,13 @@ PRIVATE const char *expected_msgs[] = {
     "stopping a scenario: its max_run is reached",          // 38: mrp, a node of it away
     "the stop of a scenario's max_run did not do every step, the rest tried again when a node of it connects", // 38
     "stopping a scenario: its max_run is reached",          // 38: the rest, its node back
+    "stopping a scenario: its max_run is reached",          // 41: mrw, a node of it away
+    "the stop of a scenario's max_run did not do every step, the rest tried again when a node of it connects", // 41
+    "stopping a scenario: its max_run is reached",          // 41: its node back
+    "the stop of a scenario's max_run cannot run, tried again in a minute",    // 41: none of the rest in it
+    "stopping a scenario: its max_run is reached",          // 42: mrg, its yuno not found
+    "stopping a scenario: its max_run is reached",          // 43: mrc, its last try
+    "the stop of a scenario's max_run did nothing in its last tries: not tried again",  // 43
     /*  11: a 300 ms window (C_TIMER ticks every 100 ms here, the
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",
