@@ -391,8 +391,8 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 
 | Script | Location | Purpose |
 |--------|----------|---------|
-| `install-yuneta-service.sh` | `/yuneta/agent/service/` | Enable and start the SysV init service |
-| `remove-yuneta-service.sh` | `/yuneta/agent/service/` | Stop and remove the SysV runlevel symlinks |
+| `install-yuneta-service.sh` | `/yuneta/agent/service/` | Enable and (re)start both agents' systemd units; without systemd, install, enable and start the SysV init script |
+| `remove-yuneta-service.sh` | `/yuneta/agent/service/` | Disable and stop both agents' units and the web server's, stop the SysV service and remove its runlevel symlinks (the init script stays: it is a conffile) |
 | `restart-yuneta` | `/yuneta/bin/` | Restart the Yuneta stack (prefers `service`, falls back to `yshutdown` + direct start) |
 | `install-certbot.sh` | `/yuneta/bin/` | Install certbot via snap; symlink to `/usr/bin/certbot` |
 | `install-yuneta-dev-deps.sh` | `/yuneta/bin/` | Install full build toolchain (gcc, cmake, libs, pipx packages) |

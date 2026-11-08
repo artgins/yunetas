@@ -378,6 +378,18 @@ check "yuno_agent/service/yuneta_agent: the .deb's SysV script" "$(
     else
         echo different
     fi)" "same"
+#   ... and the two helpers beside it, which install and remove the service
+for n in install-yuneta-service.sh remove-yuneta-service.sh; do
+    deb_helper="$(sed -n '/^cat > "${WORKDIR}\/yuneta\/agent\/service\/'"$n"'" <<'"'"'EOF'"'"'$/,/^EOF$/p' \
+        "${HERE}/../deb/make-yuneta-agent-deb.sh" | sed '1d;$d')"
+    check "the .deb's $n: found" "$( [ -n "$deb_helper" ] && echo found)" "found"
+    check "yuno_agent/service/$n: the .deb's" "$(
+        if [ "$deb_helper" = "$(cat "${HERE}/../../yunos/c/yuno_agent/service/$n")" ]; then
+            echo same
+        else
+            echo different
+        fi)" "same"
+done
 for f in "${HERE}/../deb/make-yuneta-agent-deb.sh" "${HERE}/../rpm/make-yuneta-agent-rpm.sh"; do
     check "$(basename "$f"): the SysV start runs the node uuid, then the pair" "$(
         grep -E '^ +/usr/libexec/yuneta/yuneta-(node-uuid|agent-cert) ensure \|\| true$' "$f" \

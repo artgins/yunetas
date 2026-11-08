@@ -104,8 +104,9 @@ target_link_libraries(${PROJECT_NAME}
 #   source node OVERWRITES what the package put there. The packagers are the
 #   authority for that script (the heredocs in packages/{deb,rpm}/
 #   make-yuneta-agent-*.sh); the copy here must stay identical to the .deb one,
-#   which is the only flavour a source node can be
-#   (packages/tests/test-yuneta-agent-cert.sh checks it). When they drifted,
+#   which is the only flavour a source node can be, and so must the two
+#   helpers beside it, install- and remove-yuneta-service.sh
+#   (packages/tests/test-yuneta-agent-cert.sh checks all three). When they drifted,
 #   the copy here still started /yuneta/bin/nginx/sbin/nginx by hand: a second
 #   web server, of the wrong kind on a node serving with openresty, racing the
 #   yuneta-webserver unit for ports 80 and 443; up to 7.30.15 it drove no
