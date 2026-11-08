@@ -274,7 +274,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "HTTP headers larger than their limit, message refused",    // step 2, ONE
@@ -289,7 +289,10 @@ static int register_yuno_and_more(void)
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 17, ONE
         "msg", "HTTP body larger than its limit, message refused",         // step 18, ONE
         "msg", "HTTP body larger than its limit, message refused",         // step 19, ONE
-        "msg", "The body of an answer cannot be dumped, answered 500 in its place", // step 21, ONE
+        "msg", "An answer cannot be built (a body that cannot be dumped, or no memory), answered 500 in its place", // step 21, ONE
+        "msg", "SIZE GREATER THAN MAX_BLOCK",                               // step 22, ONE
+        "msg", "no memory",                                                 // step 22, ONE: gbuffer_create()
+        "msg", "An answer cannot be built (a body that cannot be dumped, or no memory), answered 500 in its place", // step 22, ONE
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

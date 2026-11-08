@@ -70,9 +70,10 @@
  *             the parsing is the EV_TX_READY of the transport, and an answer
  *             posts nothing.
  *          17. A peer that sends max_tx_queue + 1 requests in one write and
- *             never reads, with a small window: the first answer (6 MB) never
- *             leaves, and the last one brings the transport to max_tx_queue
- *             waiting behind it. Nothing else comes. The answer itself starts the wait: the peer
+ *             never reads, with the socket buffers of the connection small at
+ *             both ends: the first answer (1 MB) never leaves, whatever the
+ *             kernel's defaults, and the last one brings the transport to
+ *             max_tx_queue waiting behind it. Nothing else comes. The answer itself starts the wait: the peer
  *             is dropped at timeout_tx_stall. One warning.
  *          18. A peer fills the answers owed (max_tx_queue + 1 requests the
  *             application answers later, at once), then sends a body over the
@@ -90,6 +91,9 @@
  *             be dumped (invalid UTF-8): the peer reads a 500 in its place,
  *             and the answer of the next request after it, in order. One
  *             error.
+ *          22. The same with an answer too big for a gbuffer (its headers
+ *             fill the max block): a 500 in its place, then the next answer.
+ *             The error of the memory and one of the answer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -145,7 +149,7 @@
 #define STEP_LONG_WATCH     20000       // step 15, milliseconds: its drop is measured, not its watchdog
 #define WINDOW_REQUESTS     30000       // step 16: over the max_tx_queue of its server, and that over MAX_POSTED_EVENTS
 #define FILL_REQUESTS       (MAX_TX_QUEUE + 1)  // answered in one turn: one in flight, max_tx_queue waiting
-#define ANSWER_STUCK        (6*1024*1024)   // step 17: over what the kernel takes (tcp_wmem, 4 MB by default), under the max block
+#define SMALL_SOCKET_BUFFER 4096        // step 17: the buffers of its connection, both ends
 #define HELD_BODY           12000       // steps 18, 19: over max_body_size, in three reads, under max_rx_held
 #define HELD_WAIT           300         // steps 18, 19: milliseconds, the body is held before the answers
 #define PENDING_WAIT        3000        // step 19: milliseconds, over the look of a full queue (timeout_tx_stall and two ticks)
@@ -176,6 +180,7 @@ enum {
     STEP_REFUSAL_PENDING,
     STEP_ACTIVE,
     STEP_BAD_BODY,
+    STEP_ANSWER_NO_MEMORY,
     STEP_END
 };
 
@@ -417,7 +422,7 @@ PRIVATE int connect_mute_peer(hgobj gobj)
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if(priv->fd_mute >= 0 && priv->step == STEP_ARM_AFTER) {
         // A small window: the kernel takes nothing like the answers, not one write ends
-        int rcvbuf = 4096;
+        int rcvbuf = SMALL_SOCKET_BUFFER;
         setsockopt(priv->fd_mute, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
     }
     if(priv->fd_mute < 0 || connect(priv->fd_mute, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
@@ -817,6 +822,45 @@ PRIVATE int answers_of_step(int step)
 }
 
 /***************************************************************************
+ *  Step 17: the server's end of the silent peer's connection gets a small
+ *  send buffer, so no answer of 1 MB ends whatever the kernel's tcp_wmem.
+ *  The socket is found among the fds of this process: the one on
+ *  SERVER_PORT whose peer is the silent peer.
+ ***************************************************************************/
+PRIVATE void shrink_server_sndbuf(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct sockaddr_in mute = {0};
+    socklen_t len = sizeof(mute);
+    if(getsockname(priv->fd_mute, (struct sockaddr *)&mute, &len) == 0) {
+        for(int fd = 0; fd < 4096; fd++) {
+            struct sockaddr_in local = {0}, peer = {0};
+            socklen_t local_len = sizeof(local), peer_len = sizeof(peer);
+            if(fd == priv->fd_mute ||
+                    getsockname(fd, (struct sockaddr *)&local, &local_len) < 0 ||
+                    local.sin_family != AF_INET || ntohs(local.sin_port) != SERVER_PORT ||
+                    getpeername(fd, (struct sockaddr *)&peer, &peer_len) < 0 ||
+                    peer.sin_port != mute.sin_port) {
+                continue;
+            }
+            int sndbuf = SMALL_SOCKET_BUFFER;
+            if(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf)) == 0) {
+                return;
+            }
+            break;
+        }
+    }
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_SYSTEM,
+        "msg",          "%s", "The send buffer of the silent peer's connection could not be made small",
+        "errno",        "%s", strerror(errno),
+        NULL
+    );
+}
+
+/***************************************************************************
  *  Steps 18 and 19: what the peer sends behind the answers owed, held: a
  *  body over max_body_size, after two requests in step 19
  ***************************************************************************/
@@ -1016,7 +1060,7 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
         }
-    } else if(priv->step == STEP_BAD_BODY) {
+    } else if(priv->step == STEP_BAD_BODY || priv->step == STEP_ANSWER_NO_MEMORY) {
         const char *text = gbuffer_cur_rd_pointer(priv->answer);
         const char *ok = strstr(text, "HTTP/1.1 200 OK\r\n");
         if(strncmp(text, "HTTP/1.1 500 ", 13) != 0 || !ok || !strstr(ok, "{\"n\":1,")) {
@@ -1024,6 +1068,7 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "An answer that cannot be built did not leave a 500 in its place",
+                "step",         "%d", priv->step,
                 "answer",       "%.120s", text,
                 NULL
             );
@@ -1157,7 +1202,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         send_pipelined_requests(gobj, 1);
         set_timeout_periodic0(priv->timer_tick, ACTIVE_EVERY);
 
-    } else if(priv->step == STEP_BAD_BODY) {
+    } else if(priv->step == STEP_BAD_BODY || priv->step == STEP_ANSWER_NO_MEMORY) {
         send_pipelined_requests(gobj, 2);
 
     } else if(priv->step == STEP_BODY) {
@@ -1198,7 +1243,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         BOOL all_read = FALSE;
         if(priv->step == STEP_ACTIVE) {
             all_read = count_status(gobj, "HTTP/1.1 200 OK\r\n") == ACTIVE_REQUESTS;
-        } else if(priv->step == STEP_BAD_BODY) {
+        } else if(priv->step == STEP_BAD_BODY || priv->step == STEP_ANSWER_NO_MEMORY) {
             all_read = strstr(gbuffer_cur_rd_pointer(priv->answer), FILLING_END) != NULL;
         }
         if(all_read && !priv->step_done) {
@@ -1340,8 +1385,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  The first answer never leaves; the others wait behind it, and the
          *  last one makes them max_tx_queue
          */
+        if(!priv->held_channel) {
+            shrink_server_sndbuf(gobj);
+        }
         priv->held_channel = channel;
-        answer_request(gobj, channel, n, (n == 0)? ANSWER_STUCK : 16);
+        answer_request(gobj, channel, n, (n == 0)? ANSWER_SIZE_BIG : 16);
 
     } else if(priv->step == STEP_HELD_REFUSED || priv->step == STEP_REFUSAL_PENDING) {
         priv->held_channel = channel;
@@ -1353,21 +1401,37 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->pending_timer = start_msectimer(PENDING_WAIT);
         }
 
-    } else if(priv->step == STEP_BAD_BODY) {
+    } else if(priv->step == STEP_BAD_BODY || priv->step == STEP_ANSWER_NO_MEMORY) {
         if(n == 0) {
-            int ret = gobj_send_event(channel, EV_SEND_MESSAGE,
-                json_pack("{s:s, s:s, s:o}",
+            json_t *kw_answer;
+            if(priv->step == STEP_BAD_BODY) {
+                kw_answer = json_pack("{s:s, s:s, s:o}",
                     "code", "200 OK",
                     "headers", "",
                     "body", json_stringn_nocheck("\xff", 1)
-                ),
-                gobj
-            );
+                );
+            } else {
+                size_t size = gbmem_get_maximum_block() - 200;     // a string fits, the answer does not
+                char *headers = gbmem_malloc(size + 1);
+                if(!headers) {
+                    KW_DECREF(kw)
+                    return 0;   // Error already logged
+                }
+                memset(headers, 'h', size);
+                headers[size] = 0;
+                kw_answer = json_pack("{s:s, s:s, s:{}}",
+                    "code", "200 OK",
+                    "headers", headers,
+                    "body"
+                );
+                GBMEM_FREE(headers)
+            }
+            int ret = gobj_send_event(channel, EV_SEND_MESSAGE, kw_answer, gobj);
             if(ret != -1) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "An answer whose body cannot be dumped was not refused",
+                    "msg",          "%s", "An answer that cannot be built was not refused",
                     NULL
                 );
             }

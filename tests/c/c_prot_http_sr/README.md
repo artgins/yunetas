@@ -7,7 +7,7 @@ refuses.
 `C_PROT_HTTP_SR` over `C_TCP` (`max_body_size` 1024, `max_tx_queue` 4,
 `timeout_tx_stall` 500, `max_rx_held` 65536, `timeout_linger` 500), a second
 one for step 15 and a third one for step 16. The test gobj is the application
-behind them. Twenty-one steps, each on a connection of its own:
+behind them. Twenty-two steps, each on a connection of its own:
 
 | Step | The peer | Expected |
 |---|---|---|
@@ -27,11 +27,12 @@ behind them. Twenty-one steps, each on a connection of its own:
 | 14 | reads: 10000 requests, 1000 in each write, the next write when it has all the answers of the one before; the application answers later, and halfway it goes silent for 1.5 s, with the queue empty | what is due and what waits in the transport never passes `max_tx_queue` by more than one read; the peer gets every answer, in order, and is not dropped; nothing logged |
 | 15 | on the second server (`timeout_tx_stall` 4000, port 7765): sends 10000 requests in one pipeline and never reads; the application answers later | the same bound; the connection is dropped from 4 to 6 seconds after the last write that moved (the test allows 1.5 s more for its own lateness); ONE warning |
 | 16 | on the third server (`max_tx_queue` 12000, `max_rx_held` 8 MB, port 7769): sends 30000 requests in one write and reads; the application answers each one as it comes | one turn parses and answers 12000 of those held, 30000 answers in order, nothing logged |
-| 17 | with a receive buffer of 4 KB, sends 5 requests in one write and never reads; the first answer has 6 MB, the others 16 bytes | the last answer brings the transport to `max_tx_queue` waiting behind the first, and nothing else comes: the connection is dropped at `timeout_tx_stall`; ONE warning |
+| 17 | sends 5 requests in one write and never reads; the socket buffers of the connection are 4 KB at both ends (the test sets `SO_SNDBUF` on the server's socket, found among its fds), so the first answer (1 MB) never leaves whatever the kernel's `tcp_wmem`; the others have 16 bytes | the last answer brings the transport to `max_tx_queue` waiting behind the first, and nothing else comes: the connection is dropped at `timeout_tx_stall`; ONE warning |
 | 18 | sends 5 requests, which the application answers later, at once; then a body of 12000 bytes, held behind them | it reads five `200` and ONE `413`, and nothing after it; ONE warning |
 | 19 | as 18, with two requests before the body: the application answers those two 3 s after they come, after the timer that watched the full queue would have fired | it reads seven `200` and ONE `413`; ONE warning |
 | 20 | sends a request every second, six, with `timeout_inactivity` 3 s (set when the channel opens) | it gets the six answers, nothing logged |
 | 21 | sends two requests; the application answers the first with a body that is not UTF-8, and the second as usual | it reads a `500` and then the `200` of the second request; ONE error |
+| 22 | as 21, but the first answer has headers that fill the max block (a gbuffer cannot hold it) | the same; the errors of the memory (`SIZE GREATER THAN MAX_BLOCK`, `no memory`) and ONE of the answer |
 
 Up to 7.29.3 the requests of step 1 after the drop went to the gobj already
 disconnected (red: an ERROR with a stack, *"Event NOT DEFINED in state"*, for
@@ -60,7 +61,9 @@ the full queue and never reads its `413`; without a read re-arming the
 inactivity, step 20 is dropped (*"An active peer was dropped at
 timeout_inactivity"*). Up to 7.30.14 an answer whose body could not be dumped
 sent nothing, and step 21 is red (*"An answer that cannot be built did not
-leave a 500 in its place"*: the peer took the second answer as the first).
+leave a 500 in its place"*: the peer took the second answer as the first),
+and step 22 crashed the yuno (`gbuffer_printf()` on the NULL of a failed
+`gbuffer_create()`).
 
 The peer of a step the test ends itself is forgotten before it is stopped: its
 disconnection comes in the next step, and a silent peer's step took it for its

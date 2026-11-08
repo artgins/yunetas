@@ -297,13 +297,16 @@ Up to 7.29.3 they were delivered to the gobj already disconnected: an ERROR
 with a stack (*"Event NOT DEFINED in state"*) for each one.
 
 **An answer that cannot be built.** HTTP answers go in the order of the
-requests, so an answer whose `body` cannot be dumped (a string that is not
-UTF-8, a body over the max block) leaves a `500 Internal Server Error` in its
-place, with `Content-Length: 0`: the action logs an ERROR (*"The body of an
-answer cannot be dumped, answered 500 in its place"*) and answers `-1`, and the
-next answer still goes to the next request. Up to 7.30.14 nothing went, the
-answer was counted as sent all the same, and the peer took the next answer as
-the answer of that request.
+requests, so an answer that cannot be built -- a `body` that cannot be dumped
+(a string that is not UTF-8, a body over the max block), or an answer too big
+for a gbuffer -- leaves a `500 Internal Server Error` in its place, with
+`Content-Length: 0`: the action logs an ERROR (*"An answer cannot be built (a
+body that cannot be dumped, or no memory), answered 500 in its place"*) and
+answers `-1`, and the next answer still goes to the next request. If not even
+the 500 can be built, the connection is dropped. Up to 7.30.14 a body that
+could not be dumped sent nothing and was counted as sent all the same, so the
+peer took the next answer as the answer of that request; an answer too big for
+a gbuffer crashed the yuno.
 
 ```C
 json_t *kw = json_pack("{s:s, s:s, s:o}",
@@ -341,8 +344,8 @@ seconds after its last write with `timeout_tx_stall` 4000. A last answer that
 brings the transport to `max_tx_queue` starts the wait by itself; a refused
 request held behind the answers owed is answered once, after them, even when
 the application answers them seconds later; a peer that keeps sending is not
-dropped at `timeout_inactivity`; an answer that cannot be built leaves a 500 in
-its place.
+dropped at `timeout_inactivity`; an answer that cannot be built (a body that
+is not UTF-8, headers that fill the max block) leaves a 500 in its place.
 
 ---
 
