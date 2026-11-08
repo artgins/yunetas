@@ -87,7 +87,7 @@ presents its own certificate when it is given `ssl_certificate` and
 `ytls_get_peer_cert_info()` exists); one that cannot be loaded refuses the
 client (`ytls_init()` answers `NULL`), never a fatal exit.
 
-A **server** is never fatal either (since after 7.30.17): a certificate, key
+A **server** is never fatal either (since 7.30.18): a certificate, key
 or trusted certificate that cannot be loaded, or an unknown `library`, makes
 `ytls_init()` answer `NULL` with one ERROR of the cause. Its owner degrades
 that listener: `C_TCP_S` does not listen and tries again until the files load,

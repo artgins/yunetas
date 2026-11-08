@@ -999,7 +999,7 @@ publishes `EV_SCENARIO_RUN_ENDED` (public, no data): the console says *"stops
 at 18:45"* while it runs, and sees it stopped -- by the control center, or by
 anybody -- at once. While a scenario runs (a run of it in flight, its
 `max_run` stop due, or its last run that did anything is not a stop), saving
-it needs `run-scenarios` on it too (7.27.19; the stop due, after 7.30.17): a
+it needs `run-scenarios` on it too (7.27.19; the stop due, 7.30.18): a
 max_run saved then schedules the stop steps saved then, so writing them
 would be running them. So does deleting it (after 7.29.1): the
 delete takes its stop steps and its max_run stop, and leaves its yunos as

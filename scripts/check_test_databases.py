@@ -113,7 +113,8 @@ def sources_of(base, build_abs, command):
     """The files a test is made of: its sources and the local headers they include."""
     exe = command[0]
     if os.path.basename(exe) in SCRIPT_RUNNERS and len(command) > 1:
-        return [command[1]]
+        script = next((a for a in command[1:] if not a.startswith('-')), None)
+        return [script] if script else None
     if exe.endswith(('.sh', '.py')):
         return [exe]
     target_dir = os.path.join(os.path.dirname(exe), 'CMakeFiles', os.path.basename(exe) + '.dir')

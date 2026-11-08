@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v7.30.18 (2026-11-08)
+
+A security and resilience release, deployed on every node. A yuno no longer
+dies because a secondary service fails (a TLS listener without its
+certificate, a listener whose port is held, a queue that cannot open); the
+agent and the control center free nothing twice and kill no pid a peer
+names; a json read from a store is never taken for a kw. The tests of each
+change ran, not the whole suite; no performance study (the next one is
+against 7.30.0).
+
 ### BREAKING: a TLS server without its certificate no longer ends the yuno; it degrades that listener
 
 A yuno never dies because a secondary service fails. Up to 7.30.17 a TLS

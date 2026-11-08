@@ -99,7 +99,7 @@ the entry from the realm's public key.
 }
 ```
 
-**A `kid` of `*` is refused** (new after 7.30.17). In 7.0.0 `*` was a
+**A `kid` of `*` is refused** (new in 7.30.18). In 7.0.0 `*` was a
 wildcard for any issuer. Since 7.2.0 a token must have `iss` equal to the
 `kid`, so a `*` key verified no token, and nothing said so. Now:
 
