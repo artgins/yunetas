@@ -55,7 +55,7 @@ its low word first, read over TCP:
 ```json
 {
     "modbus_protocol": "TCP",
-    "url": "tcp://192.168.50.11:502",
+    "url": "tcp://192.0.2.10:502",
     "timeout_polling": 10000,
     "timeout_response": 3,
     "slaves": [

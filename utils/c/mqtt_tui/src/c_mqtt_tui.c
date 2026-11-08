@@ -346,7 +346,7 @@ PRIVATE int mt_start(hgobj gobj)
      *          {node.uuid}
      *
      *  Example:
-     *  "/yuneta/store/mqtt-client-db/6a2561e2-ab5e-43ac-8454-c19064345b62"
+     *  "/yuneta/store/mqtt-client-db/0c1d2e3f-4a5b-4c6d-8e7f-90a1b2c3d4e5"
     *------------------------------------------------------------------------*/
 
     /*---------------------------------------*

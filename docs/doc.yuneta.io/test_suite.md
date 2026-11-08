@@ -328,6 +328,7 @@ dropping live sessions and rolls back cleanly on invalid material.
 | **`c_websocket/test4`** | The subprotocol a server answers is the first one offered; a value that is not a token, or too long, gets none (255 bytes answered, 256 not). Every 101 carries the accept of RFC 6455 §1.3; a key of 72 characters is answered `400`. |
 | **`c_websocket/test5`** | The handshake of a client: its key is 16 random bytes, new on each connection; it refuses a 101 with no accept, a wrong accept, a subprotocol, no `Upgrade`, `Upgrade: h2c`, no `Connection: upgrade`, or an extension (one warning each, no `EV_ON_OPEN`); it delivers a frame written together with the 101. |
 | **`c_websocket/ws_accept`** | The SHA-1 and base64 of `Sec-WebSocket-Accept`, against FIPS 180 and RFC 6455 §1.3. |
+
 **Source:** `tests/c/c_llhttp_parser/`, `tests/c/c_prot_http_cl/`, `tests/c/c_prot_http_sr/`, `tests/c/c_websocket/`
 
 ## OAuth2 / BFF (c_auth_bff)
