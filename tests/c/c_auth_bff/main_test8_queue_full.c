@@ -258,20 +258,22 @@ static int register_yuno_and_more(void)
     /*
      *  The 4th POST hits the queue-full branch in enqueue() and is
      *  rejected via send_error_response(503, ..., "Server busy,
-     *  retry in a moment", ...).  Both enqueue() and send_error_response()
-     *  emit gobj_log_error (no silent errors convention).  The actual
-     *  log order on the wire is:
+     *  retry in a moment", ...).  Both log, and both are WARNINGs: the
+     *  load of a peer is not a fault of the BFF (up to 7.30.14 both were
+     *  ERRORs). The actual log order on the wire is:
      *    1) "BFF pending queue full"   (from enqueue)
-     *    2) "BFF error response"        (from send_error_response)
+     *    2) "BFF request rejected"     (from send_error_response)
      *  The test harness matches strictly first-in-array, so they must
-     *  be declared in that exact order.
+     *  be declared in that exact order, with their priority.
      */
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s, s:s}]",
-            "msg",        "👤BFF pending queue full",
-            "msg",        "👤BFF server error",
-            "error_code", "server_busy"
+        json_pack("[{s:s, s:s}, {s:s, s:s, s:s}]",
+            "msg",          "👤BFF pending queue full",
+            "__priority__", "WARNING",
+            "msg",          "👤BFF request rejected",
+            "error_code",   "server_busy",
+            "__priority__", "WARNING"
         ),
         NULL,
         NULL,
@@ -304,7 +306,7 @@ int main(int argc, char *argv[])
         capture_log_write,
         0
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
 
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);

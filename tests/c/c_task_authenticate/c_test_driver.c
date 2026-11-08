@@ -20,6 +20,7 @@ SDATA (DTP_INTEGER,   "expected_result", SDF_RD, "0",   "Expected EV_ON_TOKEN re
 SDATA (DTP_INTEGER,   "runs",          SDF_RD, "1",    "Runs of the task: after each EV_ON_TOKEN but the last it is stopped and started again; after the last, none of its C_TASK or HTTP clients (C_PROT_HTTP_CL, C_TCP) may be left"),
 SDATA (DTP_BOOLEAN,   "stop_in_on_token", SDF_RD, "0", "Stop the task inside its EV_ON_TOKEN, as ycli does"),
 SDATA (DTP_INTEGER,   "end_delay_ms",  SDF_RD, "200",  "Time the test goes on after EV_ON_TOKEN: the logout comes after it"),
+SDATA (DTP_INTEGER,   "stop_after_ms", SDF_RD, "0",    "If > 0, the task is stopped so long after its start, while it waits (runs 0: no EV_ON_TOKEN may come), and the test goes on end_delay_ms"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
 SDATA_END()
 };
@@ -92,7 +93,7 @@ PRIVATE int mt_stop(hgobj gobj)
      *  to say
      */
     int runs = (int)gobj_read_integer_attr(gobj, "runs");
-    if(!priv->test_passed || priv->runs_done != runs) {
+    if((runs > 0 && !priv->test_passed) || priv->runs_done != runs) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_APP,
@@ -215,6 +216,18 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
+    if(priv->gobj_task && gobj_read_integer_attr(gobj, "stop_after_ms") > 0) {
+        /*
+         *  The owner leaves the task while it waits: no EV_ON_TOKEN may come
+         *  after this, not even when the wait would have ended
+         */
+        gobj_stop(priv->gobj_task);
+        priv->dying = TRUE;
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "end_delay_ms"));
+        JSON_DECREF(kw)
+        return 0;
+    }
+
     priv->gobj_task = gobj_find_service("task-authenticate", FALSE);
     if(!priv->gobj_task) {
         gobj_log_error(gobj, 0,
@@ -231,6 +244,9 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_subscribe_event(priv->gobj_task, EV_ON_TOKEN, 0, gobj);
     gobj_start(priv->gobj_task);
+    if(gobj_read_integer_attr(gobj, "stop_after_ms") > 0) {
+        set_timeout(priv->timer, gobj_read_integer_attr(gobj, "stop_after_ms"));
+    }
 
     JSON_DECREF(kw)
     return 0;

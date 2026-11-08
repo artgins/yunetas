@@ -86,6 +86,7 @@ SET(TESTS
     test28_logout_idp_cut
     test29_tls_origin
     test30_logout_bound
+    test31_no_idp
 )
 
 foreach(test ${TESTS})

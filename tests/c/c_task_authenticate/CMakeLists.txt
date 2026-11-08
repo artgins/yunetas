@@ -80,6 +80,14 @@ SET(TESTS
     test22_unreachable_stop
     test23_no_end_session
     test24_no_token_endpoint
+    test25_logout_200
+    test26_logout_400
+    test27_logout_mute
+    test28_stop_while_waiting
+    test29_token_not_url
+    test30_end_session_not_url
+    test31_end_session_too_long
+    test32_token_not_object
 )
 
 foreach(test ${TESTS})

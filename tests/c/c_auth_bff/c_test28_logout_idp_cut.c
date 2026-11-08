@@ -18,25 +18,33 @@
  *            5. the same, its token_endpoint is longer than a path;
  *            6. the same, the IdP cuts the connection of each discovery: a
  *               discovery goes twice, not for ever;
- *            7. a logout, the IdP drops the connection of the first /logout
+ *            7. the same, only its token_endpoint is not a URL;
+ *            8. the same, only its end_session_endpoint is not a URL;
+ *            9. the same, its end_session_endpoint is longer than a path;
+ *           10. a logout, the IdP drops the connection of the first /logout
  *               (the race of a connection kept open): sent again on the next
  *               connection, 200, both cookies cleared, 2 /logout;
- *            8. a logout, the IdP drops the first two: 502
+ *           11. a logout, the IdP drops the first two: 502
  *               auth_service_unavailable, both cookies cleared, 2 /logout,
- *               not a third;
- *            9. a logout, the IdP takes it and stays silent: 504
+ *               not a third, one more idp_errors;
+ *           12. a logout, the IdP takes it and stays silent: 504
  *               auth_timeout, both cookies cleared, 1 /logout;
- *           10. a logout: 200, both cookies cleared, 1 /logout;
- *           11. a login, the IdP drops the connection: 502
+ *           13. a logout: 200, both cookies cleared, 1 /logout;
+ *           14. a logout, the IdP answers 503: 200, both cookies cleared, 1
+ *               /logout, one more idp_errors and a WARNING (up to 7.30.14 it
+ *               left no log);
+ *           15. a login, the IdP drops the connection: 502
  *               auth_service_unavailable, no Set-Cookie: a logout is the one
  *               request that goes twice;
- *           12. three requests in one write, the queue being 1 long: a
+ *           16. three requests in one write, the queue being 1 long: a
  *               login (the IdP answers it 300 ms later), a logout that waits,
  *               and a logout the queue has no room for: 200, 200 and 503
  *               server_busy, in that order, both cookies cleared in the 503.
+ *          Each step says the idp_errors it adds (the stats of the BFF).
  *
  *          The logs are asserted by the test harness via
- *          set_expected_results in main_test28.
+ *          set_expected_results in main_test28, with the priority of each
+ *          WARNING.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -52,6 +60,7 @@
 #include <yunetas.h>
 
 #include "c_test28_logout_idp_cut.h"
+#include "test_helpers.h"
 
 /***************************************************************************
  *              Constants
@@ -67,6 +76,8 @@
 
 #define DROP_DISCOVERIES "@drop"        /* raw_discovery: the IdP drops the connection of two discoveries */
 #define LONG_ENDPOINT   "@long"         /* discovery_body: a token_endpoint of PATH_MAX bytes */
+#define LONG_END_SESSION "@longes"      /* discovery_body: an end_session_endpoint of PATH_MAX bytes */
+#define ANSWER_503      "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n"
 
 /***************************************************************************
  *              Structures
@@ -83,6 +94,8 @@ typedef struct {
     int         logouts;        /* /logout requests that must reach the mock */
     const char *discovery_body; /* json of the discovery answer, NULL the good one */
     const char *raw_discovery;  /* the discovery answer as it is, NULL none */
+    const char *raw_answer;     /* the answer of /token and /logout as it is, NULL the mock's */
+    int         idp_errors;     /* the idp_errors the step adds */
 } step_t;
 
 /***************************************************************************
@@ -92,43 +105,60 @@ PRIVATE const step_t steps[] = {
     /* 1 */
     {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
         {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
-        "{\"issuer\": \"no endpoints\"}", NULL},
+        "{\"issuer\": \"no endpoints\"}", NULL, NULL, 0},
     /* 2 */
     {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
         {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
-        NULL, BROKEN_ANSWER},
+        NULL, BROKEN_ANSWER, NULL, 0},
     /* 3 */
     {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
         {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
-        "{\"token_endpoint\": 5, \"end_session_endpoint\": 6}", NULL},
+        "{\"token_endpoint\": 5, \"end_session_endpoint\": 6}", NULL, NULL, 0},
     /* 4 */
     {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
         {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
-        "{\"token_endpoint\": \"no-scheme\", \"end_session_endpoint\": \"no-scheme\"}", NULL},
+        "{\"token_endpoint\": \"no-scheme\", \"end_session_endpoint\": \"no-scheme\"}", NULL, NULL, 0},
     /* 5 */
     {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
         {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
-        LONG_ENDPOINT, NULL},
+        LONG_ENDPOINT, NULL, NULL, 0},
     /* 6 */
     {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
         {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
-        NULL, DROP_DISCOVERIES},
+        NULL, DROP_DISCOVERIES, NULL, 0},
     /* 7 */
-    {"/auth/logout", "refresh_token=RT1", 1, FALSE, FALSE, 200,
-        {"\"success\":true", AT_CLEARED, RT_CLEARED}, NULL, 2, NULL, NULL},
+    {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
+        {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
+        "{\"token_endpoint\": \"no-scheme\", \"end_session_endpoint\": \"http://localhost/\"}",
+        NULL, NULL, 0},
     /* 8 */
-    {"/auth/logout", "refresh_token=RT1", 2, FALSE, FALSE, 502,
-        {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 2, NULL, NULL},
+    {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
+        {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
+        "{\"token_endpoint\": \"http://localhost/\", \"end_session_endpoint\": \"no-scheme\"}",
+        NULL, NULL, 0},
     /* 9 */
-    {"/auth/logout", "refresh_token=RT1", 0, TRUE, FALSE, 504,
-        {"auth_timeout", AT_CLEARED, RT_CLEARED}, NULL, 1, NULL, NULL},
+    {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 502,
+        {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 0,
+        LONG_END_SESSION, NULL, NULL, 0},
     /* 10 */
-    {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 200,
-        {"\"success\":true", AT_CLEARED, RT_CLEARED}, NULL, 1, NULL, NULL},
+    {"/auth/logout", "refresh_token=RT1", 1, FALSE, FALSE, 200,
+        {"\"success\":true", AT_CLEARED, RT_CLEARED}, NULL, 2, NULL, NULL, NULL, 0},
     /* 11 */
+    {"/auth/logout", "refresh_token=RT1", 2, FALSE, FALSE, 502,
+        {"auth_service_unavailable", AT_CLEARED, RT_CLEARED}, NULL, 2, NULL, NULL, NULL, 1},
+    /* 12 */
+    {"/auth/logout", "refresh_token=RT1", 0, TRUE, FALSE, 504,
+        {"auth_timeout", AT_CLEARED, RT_CLEARED}, NULL, 1, NULL, NULL, NULL, 0},
+    /* 13 */
+    {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 200,
+        {"\"success\":true", AT_CLEARED, RT_CLEARED}, NULL, 1, NULL, NULL, NULL, 0},
+    /* 14 */
+    {"/auth/logout", "refresh_token=RT1", 0, FALSE, FALSE, 200,
+        {"\"success\":true", AT_CLEARED, RT_CLEARED}, NULL, 1, NULL, NULL, ANSWER_503, 1},
+    /* 15 */
     {"/auth/login", NULL, 0, FALSE, TRUE, 502,
         {"auth_service_unavailable", "closed the connection before answering", NULL},
-        "Set-Cookie", 0, NULL, NULL},
+        "Set-Cookie", 0, NULL, NULL, NULL, 1},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -196,6 +226,7 @@ typedef struct _PRIVATE_DATA {
     int     step;           /* step whose answer is awaited; -1 before the first */
     int     fd_browser;     /* the plain socket of the requests */
     int     polls;          /* looks at the socket for the answer in flight */
+    json_int_t idp_errors;  /* the idp_errors of the BFF when the step was posted */
     size_t  got;            /* bytes of the answer in flight */
     char    answer[16*1024];
 } PRIVATE_DATA;
@@ -324,6 +355,22 @@ PRIVATE hgobj find_mock(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The idp_errors of the BFF (its stats)
+ ***************************************************************************/
+PRIVATE json_int_t read_idp_errors(hgobj gobj)
+{
+    hgobj bff = test_helpers_find_bff(gobj);
+    if(!bff) {
+        return -1;  // Error already logged
+    }
+    json_t *resp = gobj_stats(bff, "idp_errors", 0, gobj);
+    json_int_t idp_errors = json_integer_value(
+        json_object_get(json_object_get(resp, "data"), "idp_errors"));
+    JSON_DECREF(resp)
+    return idp_errors;
+}
+
+/***************************************************************************
  *  Open the plain socket of the requests
  ***************************************************************************/
 PRIVATE int connect_browser(hgobj gobj)
@@ -386,8 +433,10 @@ PRIVATE int post_step(hgobj gobj)
         return -1;  // Error already logged
     }
     gobj_write_integer_attr(mock, "logouts_seen", 0);
+    priv->idp_errors = read_idp_errors(gobj);
 
     if(priv->step == NSTEPS) {
+        gobj_write_str_attr(mock, "raw_answer", "");
         gobj_write_integer_attr(mock, "drop_logout_requests", 0);
         gobj_write_bool_attr(mock, "silent_logout", FALSE);
         gobj_write_integer_attr(mock, "latency_ms", PIPELINED_LATENCY_MS);
@@ -397,14 +446,15 @@ PRIVATE int post_step(hgobj gobj)
     const step_t *st = &steps[priv->step];
     const char *discovery_body = st->discovery_body? st->discovery_body : "{}";
     json_t *jn_discovery;
-    if(strcmp(discovery_body, LONG_ENDPOINT) == 0) {
+    if(strcmp(discovery_body, LONG_ENDPOINT) == 0 || strcmp(discovery_body, LONG_END_SESSION) == 0) {
         char endpoint[PATH_MAX + 1];
         memset(endpoint, 'a', PATH_MAX);
         memcpy(endpoint, "http://", 7);
         endpoint[PATH_MAX] = '\0';
+        BOOL long_token = strcmp(discovery_body, LONG_ENDPOINT) == 0;
         jn_discovery = json_pack("{s:s, s:s}",
-            "token_endpoint",       endpoint,
-            "end_session_endpoint", "http://localhost/"
+            "token_endpoint",       long_token? endpoint : "http://localhost/",
+            "end_session_endpoint", long_token? "http://localhost/" : endpoint
         );
     } else {
         jn_discovery = anystring2json(discovery_body, strlen(discovery_body), FALSE);
@@ -418,6 +468,7 @@ PRIVATE int post_step(hgobj gobj)
     gobj_write_integer_attr(mock, "drop_logout_requests", st->drop_logouts);
     gobj_write_bool_attr(mock, "silent_logout", st->silent_logout);
     gobj_write_bool_attr(mock, "drop_token_request", st->drop_token);
+    gobj_write_str_attr(mock, "raw_answer", st->raw_answer? st->raw_answer : "");
 
     const char *body = strcmp(st->url, "/auth/login") == 0? LOGIN_BODY : "{}";
     char cookie_line[128] = "";
@@ -516,6 +567,19 @@ PRIVATE void check_step(hgobj gobj)
             "step",         "%d", priv->step + 1,
             "expected",     "%d", st->logouts,
             "seen",         "%d", logouts,
+            NULL
+        );
+    }
+
+    json_int_t idp_errors = read_idp_errors(gobj) - priv->idp_errors;
+    if(idp_errors != st->idp_errors) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", TEST_NAME ": the idp_errors the step added",
+            "step",         "%d", priv->step + 1,
+            "expected",     "%d", st->idp_errors,
+            "added",        "%d", (int)idp_errors,
             NULL
         );
     }

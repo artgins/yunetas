@@ -64,6 +64,13 @@ PUBLIC void set_task_runs(int runs, BOOL stop_in_on_token);
  */
 PUBLIC void set_task_end_delay(int ms);
 
+/*
+ *  Before run_task_authenticate_test(): the owner stops the task `stop_ms`
+ *  after its start, while it waits, and the test goes on `end_delay_ms`:
+ *  no EV_ON_TOKEN may come (expected_result is not used).
+ */
+PUBLIC void set_task_stop_after(int stop_ms, int end_delay_ms);
+
 PUBLIC int run_task_authenticate_test(
     int argc, char *argv[],
     const char *app_name,

@@ -49,12 +49,15 @@
  *                 "/app/x%2", "/app/x%zz", an empty segment ("/app//evil.com/",
  *                 "/app//@evil.com", "/app/x//y", "/app/;/evil.com/"): 400
  *                 redirect_uri_not_allowed, no call to the IdP;
- *          53-59. "/app/x%41y", "/app/x%21%7e", "/app/x%4Ay%4a",
+ *          53-60. "/app/x%41y", "/app/x%21%7e", "/app/x%4Ay%4a",
  *                 "/app/..a/b..", "/app/a;b=1" and, in the query,
- *                 "/app/cb?next=%2e%2e%2f..;/x", and "/app/x/" (the last
- *                 segment may be empty): 200;
- *             60. a login with two Host lines, and the Origin that is their
- *                 join: 403 (a Host that is a list is no Host).
+ *                 "/app/cb?next=%2e%2e%2f..;/x", "/app/x/" (the last
+ *                 segment may be empty), and "/app/x%6f" (a lower-case hex
+ *                 digit over 'e'): 200;
+ *             61. a login with two Host lines, and the Origin that is their
+ *                 join: 403 (a Host that is a list is no Host);
+ *          62-63. a login whose Host has a space, or a tab, in it, and the
+ *                 Origin that is "http://" and that Host: 403.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test26.
@@ -217,8 +220,15 @@ PRIVATE const step_t steps[] = {
         {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
     {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/x/"), 200,
         {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
-    /* 60 */
+    {"/auth/callback", NULL, NULL, NULL, CALLBACK_BODY("http://localhost/app/x%6f"), 200,
+        {"Set-Cookie: access_token=ey", NULL}, {NULL}, FALSE},
+    /* 61 */
     {"/auth/login", OWN_HOST "\r\nHost: " OWN_HOST, OWN_ORIGIN ", " OWN_HOST, NULL, NULL, 403,
+        {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
+    /* 62-63 */
+    {"/auth/login", OWN_HOST " x", OWN_ORIGIN " x", NULL, NULL, 403,
+        {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
+    {"/auth/login", OWN_HOST "\tx", OWN_ORIGIN "\tx", NULL, NULL, 403,
         {"origin_not_allowed", NULL}, {"Set-Cookie", NULL}, TRUE},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))

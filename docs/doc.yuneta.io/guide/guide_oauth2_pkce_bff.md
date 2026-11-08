@@ -563,7 +563,7 @@ same-origin included; a client that is not a browser must send it too. The
 
 | Request to `/auth/logout` | Answer |
 |---|---|
-| `refresh_token` cookie, the SPA's `Origin` | IdP end-session call, both cookies cleared, `200` (also when the IdP answers an error, or an answer the HTTP client refuses, with a WARNING) |
+| `refresh_token` cookie, the SPA's `Origin` | IdP end-session call, both cookies cleared, `200` (also when the IdP answers an error; a `5xx`, or an answer the HTTP client refuses, with a WARNING, *"👤BFF IdP failed a logout, the cookies are cleared"* for a `5xx`) |
 | The same, the IdP cuts the connection once | Sent again on the next connection, both cookies cleared, `200` |
 | The same, the IdP cuts it twice, or the discovery fails | Both cookies cleared, `502 auth_service_unavailable` |
 | The same, the IdP stays silent or cannot be reached | Both cookies cleared, `504 auth_timeout`, within `idp_logout_timeout_ms` (10 s) |
@@ -572,6 +572,7 @@ same-origin included; a client that is not a browser must send it too. The
 | The same, `end_session_endpoint` is not a URL | Both cookies cleared, `500 auth_config_error` |
 | `refresh_token` cookie longer than the BFF writes (name and value over 4096 bytes), the SPA's `Origin` | Both cookies cleared, `400 token_too_large`, no IdP call |
 | `access_token` cookie only, the SPA's `Origin` | No IdP call, both cookies cleared, `200` |
+| A cookie, the SPA's `Origin`, a BFF with no IdP configured (no `issuer`, nor `token_endpoint` and `end_session_endpoint`) | Both cookies cleared, `500 auth_config_error` at once (a login, callback or refresh too, without cookies) |
 | A cookie, another `Origin` or none | `403 origin_not_allowed`, no IdP call, no `Set-Cookie` |
 | No cookie (no session, or a cross-site request) | `200 {"success": true}`, no `Set-Cookie`: nothing to end |
 
@@ -717,7 +718,7 @@ that fits is taken whole.
 | `expose_access_token` | `false` | Enables `/auth/token`. Needs `allowed_origin`. |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS crypto for the outbound IdP HTTP client. **Verifying-by-default** since 7.6.0: a public IdP is validated against the system CA store by default. For a private/self-signed IdP CA, override with `{"ssl_trusted_certificate": "/path/ca.pem"}`. The attribute **replaces** the default wholesale (no merge) — an override must repeat the verifying keys it still wants. mbedTLS has no system store: set `ssl_trusted_certificate` there. (The `c_idp_keycloak` `kc_crypto` attribute mirrors this for its Keycloak admin calls.) |
 | `pending_queue_size` | `16` (clamped to `[1, 1024]`) | Depth of the per-channel pending IdP request queue. Raised on front-line BFFs under burst. |
-| `idp_timeout_ms` | `30000` (0 disables) | Bounds the IdP round-trip once connected. On expiry the browser gets `504`. |
+| `idp_timeout_ms` | `30000` (0 or less: the default, 30000) | Bounds the IdP round-trip once connected. On expiry the browser gets `504`. It cannot be turned off: a round-trip is always bounded, `"idp_timeout_ms": 0` is `30000`. |
 | `idp_connect_timeout_ms` | `30000` (0 disables) | Bounds the wait to connect to the IdP. See [`YUNO_AUTH.md` §2.6](../../../yunos/c/yuno_agent/YUNO_AUTH.md). |
 | `idp_logout_timeout_ms` | `10000` (0: only the two above bound a logout) | Bounds the whole of a logout: the wait for the discovery and the connection, the end-session and its resend. When it passes the logout is answered with both cookies cleared. Keep it under the time the SPA waits (15 s), or the answer comes to nobody and the cookies stay. Accuracy of a second (`C_TIMER`). |
 
@@ -730,7 +731,15 @@ in production:
   a `C_AUTH_BFF` under each `C_CHANNEL` of its server. Each one keeps a FIFO of
   pending IdP requests (depth `pending_queue_size`), with one job in flight at
   a time. Overflows bump the `q_full_drops` stat and the browser gets
-  `503 server_busy`.
+  `503 server_busy`, with two WARNINGs, *"👤BFF pending queue full"* and
+  *"👤BFF request rejected"* (the load of a peer, not a fault of the BFF;
+  up to 7.30.14 both were ERRORs).
+- **No IdP configured.** A BFF with no `issuer` and not both
+  `token_endpoint` and `end_session_endpoint` logs one ERROR when it is
+  created (*"👤BFF no IdP configured"*), and answers every request for the
+  IdP at once with `500 auth_config_error`, a logout with both cookies
+  cleared. Up to 7.30.14 it queued them, and the browser waited for an
+  answer that never came.
 - **Flush-on-disconnect.** When a browser closes mid-round-trip the BFF
   flushes its queue for that channel and, if a reply from the IdP later
   arrives for a disconnected client, drops it (`responses_dropped`
@@ -753,8 +762,8 @@ in production:
   error"*): one for the `504`, or one for each request queued behind the
   discovery, after an INFO with how many. A
   failed discovery is retried at the next request, not by a timer. A
-  discovery goes twice at most when the IdP cuts its connection, or an IdP
-  that always cuts would re-arm its timeout for ever. What a discovery
+  discovery goes twice at most when the IdP cuts its connection, so an IdP
+  that always cuts is not asked again on every new connection. What a discovery
   answers is data of a peer: a broken answer, no endpoints, or an endpoint
   that is not a URL or is longer than a path are a WARNING (*"👤BFF OIDC
   discovery: an endpoint is not a URL"*), and refused there, so a bad endpoint
@@ -768,7 +777,9 @@ in production:
 - **Log hygiene.** An answer to the browser with a 4xx status (a wrong
   password, an expired session) is logged as a WARNING (*"👤BFF request
   rejected"*), not an ERROR — a wrong password is not a server error. A 5xx
-  answer is an ERROR (*"👤BFF server error"*). When the IdP's answer maps to
+  answer is an ERROR (*"👤BFF server error"*), but for a `503 server_busy`,
+  which is the load of a peer, a WARNING (*"👤BFF request rejected"*), and an
+  IdP answer refused (*"👤BFF IdP answer refused"*). When the IdP's answer maps to
   one of the generic codes, one more ERROR line carries what the IdP said
   (*"👤BFF IdP rejected the request"*). The status on the wire is the one of
   the catalog (`502`, `429`, ...), and every error answered carries a code of

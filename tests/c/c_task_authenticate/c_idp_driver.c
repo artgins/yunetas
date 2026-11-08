@@ -27,9 +27,10 @@
  *               lives 60 seconds;
  *            8. a list with a search of 600 bytes, with the token of step 7:
  *               the url carries it whole (it used to be cut, with no word);
- *         9-12. each after a set-kc-config, which forgets the token: a token
- *               whose "expires_in" is negative, then one too big for a date:
- *               they live 60 seconds too, so the next command asks for none.
+ *        9-14. each after a set-kc-config, which forgets the token: a token
+ *               whose "expires_in" is negative, one too big for a date, and
+ *               one of 0: they live 60 seconds too, so the next command asks
+ *               for none.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -90,6 +91,9 @@ PRIVATE const step_t steps[] = {
     /* 11-12 */
     {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1,
         "{\"access_token\": \"AT\", \"expires_in\": 9223372036854775807}", TRUE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+    /* 13-14 */
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": 0}", TRUE},
     {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))

@@ -204,7 +204,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `expose_access_token` | `boolean` | Opt-in `POST /auth/token` (default `false`). |
 | `crypto` | `dict` | TLS configuration of the IdP calls (verifying by default). |
 | `pending_queue_size` | `integer` | Requests queued per channel (default 16). |
-| `idp_timeout_ms` | `integer` | Round-trip limit of an IdP call (default 30000). |
+| `idp_timeout_ms` | `integer` | Round-trip limit of an IdP call (default 30000; 0 or less is that default, a round-trip is always bounded). |
 | `idp_connect_timeout_ms` | `integer` | Connect limit of an IdP call (default 30000). |
 | `idp_logout_timeout_ms` | `integer` | Limit of a whole logout, the wait for the discovery and the connection and the resend included (default 10000; 0: only the two above). A logout answers within it, cookies cleared, so the answer reaches a SPA that waits 15 s. |
 
@@ -395,8 +395,10 @@ the same `EV_ON_TOKEN`, so subscribe before starting it:
 | takes a request and does not answer it | `The IdP did not answer` | WARNING `task_authenticate: the IdP did not answer` |
 
 So a caller needs no timer of its own. With nobody at the IdP's address,
-`ycommand` gives up after 10 s, exit code 255 (it prints the `comment` when it
-is verbose or interactive):
+`ycommand` gives up after 10 s, exit code 255, and prints the `comment` and
+`Abort.`: on stdout when it is verbose (`-l`) or interactive (`-i`), else on
+stderr, so the stdout of a script is only ever its answer (up to 7.30.14 it
+printed nothing without `-l` or `-i`):
 
 ```bash
 $ ycommand -l 1 -I https://auth.example.com/realms/foo/ -Z cli -x user -X secret \
@@ -404,12 +406,29 @@ $ ycommand -l 1 -I https://auth.example.com/realms/foo/ -Z cli -x user -X secret
 
 The IdP cannot be reached
 Abort.
+
+$ ycommand -I https://auth.example.com/realms/foo/ -Z cli -x user -X secret \
+    -u wss://node.example.com:1991 -c 'help' 2>/dev/null; echo $?
+255
 ```
 
 The wait covers the first connection only. An IdP that comes up within it is
 used; one that comes up later is not, and the caller starts another run. A
 token already published ends the wait for good: an end-session with no answer
-ends the run with nothing more to the caller.
+ends the run with nothing more to the caller, and one WARNING, *"task_authenticate:
+the IdP did not answer the end-session"* (up to 7.30.14 it ended with no log).
+
+**The answer of the end-session.** Any `2xx` ends the session (Keycloak answers
+`204`, others `200`). A `4xx` or `5xx` is the IdP's answer, not a fault of the
+program: one WARNING, *"task_authenticate: the IdP did not end the session"*,
+with `status_code` and the `error` of the IdP's body, for example
+
+```
+WARNING task_authenticate: the IdP did not end the session  status_code=400 error=invalid_grant
+```
+
+Up to 7.30.14 every status but `204` was an ERROR *"Logout has failed"*, with
+the whole answer dumped after it.
 
 **What goes again.** `C_TASK` runs its job again each time the connection opens.
 The password grant goes once: a cut is `result` -1 and a WARNING. The discovery

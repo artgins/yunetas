@@ -247,6 +247,16 @@ PUBLIC void set_task_end_delay(int ms)
 }
 
 /***************************************************************************
+ *  Before run_task_authenticate_test(): the owner stops the task while it
+ *  waits, and no EV_ON_TOKEN may come
+ ***************************************************************************/
+PUBLIC void set_task_stop_after(int stop_ms, int end_delay_ms)
+{
+    snprintf(s_driver_kw_extra, sizeof(s_driver_kw_extra),
+        ", 'runs': 0, 'stop_after_ms': %d, 'end_delay_ms': %d", stop_ms, end_delay_ms);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int run_task_authenticate_test(

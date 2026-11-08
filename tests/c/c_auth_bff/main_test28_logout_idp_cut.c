@@ -276,41 +276,56 @@ static int register_yuno_and_more(void)
     json_t *jn_expected = json_array();
     #define EXPECT_MSG(text) \
         json_array_append_new(jn_expected, json_pack("{s:s}", "msg", (text)))
+    #define EXPECT_WARNING(text) \
+        json_array_append_new(jn_expected, json_pack("{s:s, s:s}", \
+            "msg", (text), "__priority__", "WARNING"))
+    #define EXPECT_ERROR(text) \
+        json_array_append_new(jn_expected, json_pack("{s:s, s:s}", \
+            "msg", (text), "__priority__", "ERROR"))
 
     /*  The discovery of the start  */
-    EXPECT_MSG("👤BFF OIDC discovery: missing required endpoints in response");
+    EXPECT_WARNING("👤BFF OIDC discovery: missing required endpoints in response");
     /*  1: no endpoints  */
-    EXPECT_MSG("👤BFF OIDC discovery: missing required endpoints in response");
-    EXPECT_MSG("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery: missing required endpoints in response");
+    EXPECT_ERROR("👤BFF server error");
     /*  2: an answer that breaks the protocol  */
     EXPECT_MSG("Protocol violation: non-HTTP data received");
-    EXPECT_MSG("👤BFF OIDC discovery failed: answer refused");
-    EXPECT_MSG("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery failed: answer refused");
+    EXPECT_ERROR("👤BFF server error");
     /*  3: endpoints that are numbers  */
-    EXPECT_MSG("👤BFF OIDC discovery: missing required endpoints in response");
-    EXPECT_MSG("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery: missing required endpoints in response");
+    EXPECT_ERROR("👤BFF server error");
     /*  4: endpoints that are not URLs  */
-    EXPECT_MSG("👤BFF OIDC discovery: an endpoint is not a URL");
-    EXPECT_MSG("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery: an endpoint is not a URL");
+    EXPECT_ERROR("👤BFF server error");
     /*  5: an endpoint longer than a path  */
-    EXPECT_MSG("👤BFF OIDC discovery: an endpoint is not a URL");
-    EXPECT_MSG("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery: an endpoint is not a URL");
+    EXPECT_ERROR("👤BFF server error");
     /*  6: a discovery that is cut twice  */
-    EXPECT_MSG("👤BFF IdP closed the connection before answering the OIDC discovery");
-    EXPECT_MSG("👤BFF server error");
-    /*  7: sent again  */
-    EXPECT_MSG("👤BFF IdP closed the connection before answering a logout, it is sent again");
-    /*  8: sent again, and cut again  */
-    EXPECT_MSG("👤BFF IdP closed the connection before answering a logout, it is sent again");
-    EXPECT_MSG("👤BFF server error");
-    /*  9: silent  */
-    EXPECT_MSG("👤BFF IdP outbound watchdog fired");
-    EXPECT_MSG("👤BFF server error");
-    /*  11: a login is not sent again  */
-    EXPECT_MSG("👤BFF server error");
-    /*  12: no room in the queue  */
-    EXPECT_MSG("👤BFF pending queue full");
-    EXPECT_MSG("👤BFF server error");
+    EXPECT_WARNING("👤BFF IdP closed the connection before answering the OIDC discovery");
+    EXPECT_ERROR("👤BFF server error");
+    /*  7, 8: one endpoint that is not a URL; 9: an end_session_endpoint longer than a path  */
+    EXPECT_WARNING("👤BFF OIDC discovery: an endpoint is not a URL");
+    EXPECT_ERROR("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery: an endpoint is not a URL");
+    EXPECT_ERROR("👤BFF server error");
+    EXPECT_WARNING("👤BFF OIDC discovery: an endpoint is not a URL");
+    EXPECT_ERROR("👤BFF server error");
+    /*  10: sent again  */
+    EXPECT_WARNING("👤BFF IdP closed the connection before answering a logout, it is sent again");
+    /*  11: sent again, and cut again  */
+    EXPECT_WARNING("👤BFF IdP closed the connection before answering a logout, it is sent again");
+    EXPECT_ERROR("👤BFF server error");
+    /*  12: silent  */
+    EXPECT_ERROR("👤BFF IdP outbound watchdog fired");
+    EXPECT_ERROR("👤BFF server error");
+    /*  14: the IdP fails the logout  */
+    EXPECT_WARNING("👤BFF IdP failed a logout, the cookies are cleared");
+    /*  15: a login is not sent again  */
+    EXPECT_ERROR("👤BFF server error");
+    /*  16: no room in the queue: the load of a peer  */
+    EXPECT_WARNING("👤BFF pending queue full");
+    EXPECT_WARNING("👤BFF request rejected");
     set_expected_results(
         APP_NAME,
         jn_expected,

@@ -1125,16 +1125,20 @@ PRIVATE json_t *result_logout(
         STOP_TASK()
     }
     int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
-    if(response_status_code != 204) {
-        gobj_log_error(gobj, 0,
+    if(response_status_code < 200 || response_status_code >= 300) {
+        /*
+         *  The answer of a peer (an IdP that refused or failed the
+         *  end-session, a session already gone there): a WARNING, the
+         *  token is already published
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK,
-            "msg",          "%s", "Logout has failed",
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "task_authenticate: the IdP did not end the session",
             "status_code",  "%d", response_status_code,
+            "error",        "%.256s", peer_json_str(json_object_get(kw, "body"), "error"),
             NULL
         );
-        gobj_trace_json(gobj, kw, "Logout has failed");
-
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -1157,7 +1161,8 @@ PRIVATE json_t *result_logout(
  *  The end of a run. The token was published already, except when the run
  *  failed with no result of a job (the IdP took the request and did not
  *  answer, C_TASK timed out): then it goes out here, last, since the owner
- *  may stop this gclass in it.
+ *  may stop this gclass in it. A timeout after the token (the end-session
+ *  had no answer) is said with a WARNING, and nothing more to the caller.
  ***************************************************************************/
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1170,6 +1175,19 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     retire_http(gobj);
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, KW_REQUIRED);
+    if(end_of_this_run && result == -2 && priv->token_published) {
+        /*
+         *  The end-session timed out (no job of the run ran its result): the
+         *  token went out, and this is the one word of it
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "task_authenticate: the IdP did not answer the end-session",
+            "last_job",     "%d", (int)kw_get_int(gobj, kw, "last_job", 0, 0),
+            NULL
+        );
+    }
     if(end_of_this_run && result < 0 && !priv->token_published) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,

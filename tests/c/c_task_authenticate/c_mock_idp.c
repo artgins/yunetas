@@ -35,8 +35,11 @@ SDATA (DTP_JSON,        "override_discovery_body",  SDF_RD, "{}",     "If non-em
 SDATA (DTP_INTEGER,     "drop_token_requests",      SDF_RD, "0",      "So many /token requests are not answered: their connection is dropped (an IdP that restarts)"),
 SDATA (DTP_BOOLEAN,     "mute_token_requests",      SDF_RD, "0",      "A /token request gets no answer, and its connection stays open"),
 SDATA (DTP_INTEGER,     "drop_logout_requests",     SDF_RD, "0",      "So many /logout requests are not answered: their connection is dropped"),
+SDATA (DTP_BOOLEAN,     "mute_logout_requests",     SDF_RD, "0",      "A /logout request gets no answer, and its connection stays open"),
+SDATA (DTP_INTEGER,     "return_status_logout",     SDF_RD, "204",    "HTTP status returned by /logout; one that is not 2xx carries {\"error\": \"invalid_grant\"}"),
 SDATA (DTP_INTEGER,     "drop_discovery_requests",  SDF_RD, "0",      "So many /.well-known requests are not answered: their connection is dropped"),
-SDATA (DTP_INTEGER,     "discovery_endpoint_len",   SDF_RD, "0",      "If > 0, the token_endpoint of the discovery has this length"),
+SDATA (DTP_INTEGER,     "discovery_endpoint_len",   SDF_RD, "0",      "If > 0, the token_endpoint of the discovery (or discovery_long_key) has this length"),
+SDATA (DTP_STRING,      "discovery_long_key",       SDF_RD, "token_endpoint", "The endpoint of the discovery that discovery_endpoint_len makes long"),
 SDATA (DTP_INTEGER,     "expected_logouts",         SDF_RD, "-1",     "If >= 0, the mock logs an ERROR when it stops with another count of /logout requests"),
 SDATA (DTP_INTEGER,     "expected_bearer_len",      SDF_RD, "0",      "If > 0, a /logout whose Authorization header has not this length logs an ERROR"),
 SDATA (DTP_INTEGER,     "access_token_len",         SDF_RD, "0",      "If > 0, the access_token of the /token envelope has this length"),
@@ -365,7 +368,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     memset(endpoint, 'a', (size_t)endpoint_len);
                     memcpy(endpoint, "http://", 7);
                     endpoint[endpoint_len] = '\0';
-                    json_object_set_new(jn_body, "token_endpoint", json_string(endpoint));
+                    json_object_set_new(jn_body,
+                        gobj_read_str_attr(gobj, "discovery_long_key"), json_string(endpoint));
                     GBMEM_FREE(endpoint)
                 }
             }
@@ -448,12 +452,23 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
         }
+        int status = (int)gobj_read_integer_attr(gobj, "return_status_logout");
         if(gobj_read_integer_attr(gobj, "drop_logout_requests") > 0) {
             gobj_write_integer_attr(gobj, "drop_logout_requests",
                 gobj_read_integer_attr(gobj, "drop_logout_requests") - 1);
             gobj_send_event(gobj_bottom_gobj(src), EV_DROP, 0, gobj);
-        } else {
+        } else if(gobj_read_bool_attr(gobj, "mute_logout_requests")) {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj, "mock-idp: /logout taken, no answer");
+            }
+        } else if(status == 204) {
             send_resp(gobj, src, 204, "204 No Content", json_object());
+        } else {
+            char status_tx[32];
+            snprintf(status_tx, sizeof(status_tx), "%d Status", status);
+            send_resp(gobj, src, status, status_tx,
+                status >= 200 && status < 300? json_object() :
+                    json_pack("{s:s}", "error", "invalid_grant"));
         }
 
     } else {

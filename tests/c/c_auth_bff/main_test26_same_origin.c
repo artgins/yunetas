@@ -293,7 +293,9 @@ static int register_yuno_and_more(void)
     for(int i = 0; i < 34; i++) {
         EXPECT_REJECTED("redirect_uri_not_allowed");
     }
-    /*  60: a Host that is a list  */
+    /*  61: a Host that is a list; 62-63: a Host with a space or a tab  */
+    EXPECT_REJECTED("origin_not_allowed");
+    EXPECT_REJECTED("origin_not_allowed");
     EXPECT_REJECTED("origin_not_allowed");
     set_expected_results(
         APP_NAME,

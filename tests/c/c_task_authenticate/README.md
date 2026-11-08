@@ -31,17 +31,27 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 | `test15_endpoint_not_url` | The discovery answers a `token_endpoint` that is not a URL: `result=-1`, ONE WARNING. The caller is told: the job used to end with no `EV_ON_TOKEN`. |
 | `test16_minimal_answer` | `/token` answers only its tokens: `result=0`, no log. |
 | `test17_discovery_cut` | The mock (`drop_discovery_requests`) drops every discovery: 2 go, `result=-1`, a WARNING for each. |
-| `test18_idp_keycloak` | `C_IDP_KEYCLOAK` on the same mock (and a `user_id` of `.` or `..` refused at once), with its own driver (`c_idp_driver.c`: the service and the channel a command answers to) and config (`main_test18_idp_keycloak.c`), 12 commands: what goes again when a connection is cut and what does not, a token too long, an `expires_in` that is a text, negative or too big, a search of 600 bytes. |
+| `test18_idp_keycloak` | `C_IDP_KEYCLOAK` on the same mock (and a `user_id` of `.` or `..` refused at once), with its own driver (`c_idp_driver.c`: the service and the channel a command answers to) and config (`main_test18_idp_keycloak.c`), 14 commands: what goes again when a connection is cut and what does not, a token too long, an `expires_in` that is a text, negative, too big or 0 (each a token of 60 s), a search of 600 bytes. |
 | `test19_endpoint_too_long` | The discovery answers a `token_endpoint` of 4096 bytes: `result=-1`, ONE WARNING. |
 | `test20_idp_mute` | The mock (`mute_token_requests`) never answers `/token`: when the `C_TASK` times out, `result=-1` and ONE WARNING per run, twice. |
 | `test21_idp_unreachable` | Nobody listens at the IdP's port: the wait for the connection ends, `result=-1` and ONE WARNING per run, twice, with no `C_TASK` and no client left. |
 | `test22_unreachable_stop` | The same, once, the task stopped inside that `EV_ON_TOKEN`, as `ycli` does. |
 | `test23_no_end_session` | A `token_endpoint` with no `end_session_endpoint` and no `issuer`: the run does not start, its ERROR, and `EV_ON_TOKEN` with `result=-1`, in each of two runs. |
 | `test24_no_token_endpoint` | The same, an `end_session_endpoint` with no `token_endpoint`. |
+| `test25_logout_200` | The mock (`return_status_logout` 200) answers the end-session `200`, not `204`: any 2xx ends the session, `result=0`, no log. Up to 7.30.14 every status but 204 was an ERROR with the answer dumped. |
+| `test26_logout_400` | The mock answers the end-session `400 invalid_grant`: `result=0` (the token was published), ONE WARNING *"task_authenticate: the IdP did not end the session"*, no dump. |
+| `test27_logout_mute` | The mock (`mute_logout_requests`) takes the end-session and never answers it: `result=0`, and when the `C_TASK` times out (10 s) ONE WARNING *"task_authenticate: the IdP did not answer the end-session"*. Up to 7.30.14 nothing was logged. |
+| `test28_stop_while_waiting` | Nobody listens at the IdP's port, and the owner stops the task 1 s after its start (`set_task_stop_after()`): no `EV_ON_TOKEN` and no WARNING when the wait (10 s) would have ended. |
+| `test29_token_not_url` | The discovery answers a `token_endpoint` that is not a URL and an `end_session_endpoint` that is: `result=-1`, ONE WARNING. |
+| `test30_end_session_not_url` | The same, the other way round: each endpoint is checked. |
+| `test31_end_session_too_long` | The discovery answers an `end_session_endpoint` of 4096 bytes (`discovery_long_key`): `result=-1`, ONE WARNING. |
+| `test32_token_not_object` | `/token` answers `200` with the JSON `[1,2]`: `result=-1`, ONE WARNING *"Oauth2 response without body"*. |
 
 `C_TEST_DRIVER` logs an ERROR when it stops unless each run got ONE
 `EV_ON_TOKEN` with the expected result, so a task that publishes nothing fails
-at the yuno's auto-kill instead of passing.
+at the yuno's auto-kill instead of passing. With `set_task_stop_after()` the
+owner stops the task while it waits, and the count expected is 0: an
+`EV_ON_TOKEN` that comes after the stop fails.
 
 ## Mock IdP (`C_MOCK_IDP`)
 
@@ -63,7 +73,11 @@ substring:
 * `/logout` → returns 204.
 * `drop_token_requests` drops the connection of that many `/token`
   requests with no answer; `mute_token_requests` leaves `/token` with no
-  answer and the connection open; `raw_token_answer` answers `/token` with its
+  answer and the connection open; `mute_logout_requests` does the same with
+  `/logout`, and `return_status_logout` (204 by default) is the status of its
+  answer (`{"error": "invalid_grant"}` when it is not a 2xx);
+  `discovery_endpoint_len` makes the `token_endpoint` of the discovery (or
+  the endpoint `discovery_long_key` names) that long; `raw_token_answer` answers `/token` with its
   bytes as they are (`@bighead`: a 200 with a header of 70 KB).
 
 ## Running

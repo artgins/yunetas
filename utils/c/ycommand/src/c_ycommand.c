@@ -1794,12 +1794,15 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     int result = (int)kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result < 0) {
+        const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
         if(priv->verbose || priv->interactive) {
-            const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
             printf("\n%s", comment);
             printf("\nAbort.\n");
+            printf("\n");
+        } else {
+            // the stdout of a script is its answer: why there is none goes apart
+            fprintf(stderr, "%s\nAbort.\n", comment);
         }
-        printf("\n");
         exit(-1);
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);

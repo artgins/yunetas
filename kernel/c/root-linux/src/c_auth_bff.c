@@ -379,7 +379,7 @@ SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "The redirect_ur
 SDATA (DTP_BOOLEAN,     "expose_access_token",  SDF_RD, "false", "Enable POST /auth/token (returns the access_token to JS for multi-backend identity_card forwarding). DELIBERATE, opt-in relaxation of the httpOnly-cookie rule: leave false everywhere except a BFF whose SPA must forward the token to OTHER backend hosts. Requires allowed_origin to be set (the token is origin-pinned to it, fail-closed)"),
 SDATA (DTP_DICT,        "crypto",               SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}",   "TLS crypto for IdP outbound calls. Verifying-by-default against the system CA (public IdP). For a private/self-signed IdP CA, override with {\"ssl_trusted_certificate\":\"/path/ca.pem\"}. mbedTLS has no system store: set ssl_trusted_certificate there"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
-SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
+SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds; 0 or less is the default, 30000 (a round-trip is always bounded). When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_INTEGER,     "idp_connect_timeout_ms",SDF_RD,             "30000","How long to wait for the outbound to CONNECT before giving up on the task in flight. Separate from idp_timeout_ms, which times the round-trip once connected: while unconnected C_TASK arms nothing, so without this a task waits forever (see ac_timeout). 0 disables"),
 SDATA (DTP_INTEGER,     "idp_logout_timeout_ms", SDF_RD,            "10000","The whole of a logout, in milliseconds: the wait for the discovery and the connection, the end-session and its resend. When it passes, the BFF answers (504, or 502 behind a discovery) with the cookies cleared. Keep it under the time a SPA waits (15 s). 0: only idp_timeout_ms and idp_connect_timeout_ms bound a logout"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
@@ -1978,8 +1978,10 @@ PRIVATE void send_json_response(hgobj gobj, hgobj browser, int status_code,
  *              — the server is doing exactly what it should.
  *    - 5xx  →  gobj_log_error "👤BFF server error"
  *              Something is genuinely broken: upstream down, config
- *              wrong, server overwhelmed.  The operator should look.
- *  except for the 502 of send_idp_answer_refused(), a WARNING.
+ *              wrong.  The operator should look.
+ *  except for the 502 of send_idp_answer_refused(), a WARNING, and the
+ *  503 server_busy (the pending queue full): the load of a peer, a
+ *  WARNING "👤BFF request rejected" like a 4xx.
  ***************************************************************************/
 PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     int status_code, const char *status_text,
@@ -2062,7 +2064,7 @@ PRIVATE void answer_error_to_browser(hgobj gobj, hgobj browser,
             "sockname",     "%s", sockname ? sockname : "",
             NULL
         );
-    } else if(status_code >= 500) {
+    } else if(status_code >= 500 && status_code != 503) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
@@ -2140,9 +2142,9 @@ PRIVATE int enqueue(hgobj gobj, const PENDING_AUTH *pa)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if((int)dl_size(&priv->dl_pending) - priv->q_answers >= priv->queue_size_max) {
         priv->st_q_full_drops++;
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "👤BFF pending queue full",
             "queue_size",   "%d", priv->queue_size_max,
             NULL
@@ -3285,8 +3287,9 @@ PRIVATE json_t *send_logout_to_browser(
 
     /*
      *  The logout ends in the browser whatever the IdP answered (its
-     *  session there ends by its own timeout): an answer refused is said,
-     *  and the cookies are cleared all the same
+     *  session there ends by its own timeout): an answer refused and a
+     *  5xx are said (a 4xx is the session already gone there), and the
+     *  cookies are cleared all the same
      */
     char refused[160];
     if(idp_response_refused(gobj, kw, refused, sizeof(refused))) {
@@ -3295,6 +3298,14 @@ PRIVATE json_t *send_logout_to_browser(
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "👤BFF IdP answer to a logout refused, the cookies are cleared",
             "refused",      "%s", refused,
+            NULL
+        );
+    } else if(status >= 500) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "👤BFF IdP failed a logout, the cookies are cleared",
+            "status",       "%d", status,
             NULL
         );
     }
@@ -3314,9 +3325,9 @@ PRIVATE json_t *send_logout_to_browser(
  *  OIDC discovery: GET <issuer>/.well-known/openid-configuration.
  *  Action job of the discovery task fired in mt_start.
  *
- *  A GET goes again when the connection is cut before its answer, but not
- *  for ever: each run re-arms the exec_timeout of the task, so an IdP that
- *  always cuts would keep it alive, and the browsers behind it waiting.
+ *  A GET goes again when the connection is cut before its answer, but
+ *  twice at most: an IdP that always cuts is not asked again on every new
+ *  connection while the browsers behind it wait.
  ***************************************************************************/
 PRIVATE json_t *discover_oidc(
     hgobj gobj,
@@ -3491,9 +3502,10 @@ PRIVATE json_t *save_oidc_discovery(
 /***************************************************************************
  *  The time of the logout at the head of the queue: its own C_TIMER, armed
  *  once when its turn comes, because neither of the other two bounds it. A
- *  C_TASK arms exec_timeout again with each send, and the connect watchdog
- *  goes when the connection opens and starts again with the next one. What
- *  it waits for from there, the discovery included, comes under this time.
+ *  C_TASK times the end-session (idp_timeout_ms, longer than a SPA waits)
+ *  from its first send, and the connect watchdog goes when the connection
+ *  opens and starts again with the next one. What it waits for from there,
+ *  the discovery included, comes under this time.
  ***************************************************************************/
 PRIVATE void arm_logout_timeout(hgobj gobj)
 {
@@ -3537,6 +3549,17 @@ PRIVATE void process_next(hgobj gobj)
         return;
     }
     arm_logout_timeout(gobj);
+    if(!priv->gobj_idprovider) {
+        /*
+         *  No IdP configured (the ERROR of mt_create): nothing will serve
+         *  the queue, so it is answered now, a logout with its cookies
+         *  cleared
+         */
+        clear_logout_timeout(gobj);
+        flush_pending_with_error(gobj,
+            500, "auth_config_error", "Authentication configuration error: no IdP configured");
+        return;
+    }
     if(!priv->discovery_done) {
         /*
          *  OIDC endpoints not yet resolved.  Keep the request queued and
