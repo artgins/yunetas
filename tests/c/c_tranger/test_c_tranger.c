@@ -59,6 +59,9 @@
  *        an empty jn_cols, and without jn_cols it is refused
  *      - add-record of a purged period is refused before the tranger for a
  *        key flagged unlisted too (its base unreadable at the open)
+ *      - a record on disk with a top-level "gbuffer" key is a json: an
+ *        open-list with `fields` trims it and print-tranger prints it
+ *        (both took it for a kw, and the integer for a gbuffer: SIGSEGV)
  *
  *  The C_TRANGER gobj is created as a master yuno; its own tranger handle is
  *  borrowed to create a topic and append records, then the commands are
@@ -3712,6 +3715,40 @@ PRIVATE int do_test(void)
         check_str("trimmed: its id", kw_get_str(0, rec, "id", "", 0), "KGB");
         check_str("trimmed: its content", kw_get_str(0, rec, "content", "", 0), "kept");
         check_int("trimmed: only the fields asked", (json_int_t)json_object_size(rec), 2);
+        JSON_DECREF(r)
+
+        /*  The same record in a live list, printed whole by print-tranger:
+         *  it was increfed as a kw, gbuffer_incref() of the integer  */
+        r = gobj_command(yuno, "open-list",
+            json_pack("{s:s, s:s, s:s}",
+                "list_id", "lstGB2",
+                "topic_name", TOPIC_NAME,
+                "key", "KGB"
+            ), yuno);
+        check_int("open-list of a record with a gbuffer key", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        json_t *lists = kw_get_list(0, tranger, "topics`" TOPIC_NAME "`lists", 0, 0);
+        int list_idx = -1;
+        size_t idx; json_t *list;
+        json_array_foreach(lists, idx, list) {
+            if(strcmp(kw_get_str(0, list, "id", "", 0), "lstGB2") == 0) {
+                list_idx = (int)idx;
+            }
+        }
+        char path_record[NAME_MAX];
+        snprintf(path_record, sizeof(path_record), "topics`%s`lists`%d`data`0", TOPIC_NAME, list_idx);
+        r = gobj_command(yuno, "print-tranger",
+            json_pack("{s:s, s:b, s:i, s:i}",
+                "path", path_record,
+                "expanded", 1,
+                "lists_limit", 0,
+                "dicts_limit", 0
+            ), yuno);
+        check_int("print-tranger of a record with a gbuffer key", kw_get_int(0, r, "result", -999, 0), 0);
+        check_str("print-tranger: the record", kw_get_str(0, r, "data`id", "", 0), "KGB");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "close-list",
+            json_pack("{s:s}", "list_id", "lstGB2"), yuno);
         JSON_DECREF(r)
     }
     global_result += test_json(NULL);

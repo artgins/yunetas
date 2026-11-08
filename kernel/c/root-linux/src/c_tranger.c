@@ -2278,7 +2278,9 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         value = json_incref(value); // a scalar has nothing to collapse: kw_collapse() logged an ERROR
     } else if(expanded) {
         if(!lists_limit && !dicts_limit) {
-            kw_incref(value); // All
+            /*  The tranger is a json, not a kw: a record in it can hold a
+             *  "gbuffer" key, data that kw_incref() took for a pointer  */
+            json_incref(value); // All
         } else {
             value = kw_collapse(gobj, value, lists_limit, dicts_limit);
         }
