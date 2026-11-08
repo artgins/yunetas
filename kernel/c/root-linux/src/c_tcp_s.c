@@ -51,11 +51,12 @@
  *  A TLS url whose context cannot be loaded (the certificate, its key or the
  *  trusted certificate of `crypto` is missing or bad) does not listen: it
  *  tries again at each timeout of its C_TIMER, the wait doubling from
- *  TLS_RETRY_FIRST_MSEC up to TLS_RETRY_MAX_MSEC (tls_again_later()). A try
- *  loads nothing while the files and `crypto` are as at the last refusal.
+ *  RETRY_FIRST_MSEC up to RETRY_MAX_MSEC (tls_again_later()). A try loads
+ *  nothing while the files and `crypto` are as at the last refusal. A
+ *  listen that fails (listen_failed()) is tried again with the same waits.
  */
-#define TLS_RETRY_FIRST_MSEC    1000
-#define TLS_RETRY_MAX_MSEC      60000
+#define RETRY_FIRST_MSEC        1000
+#define RETRY_MAX_MSEC          60000
 
 /***************************************************************************
  *              Structures
@@ -75,6 +76,7 @@ PRIVATE hgobj find_free_channel(hgobj gobj, json_t *jn_filter);
 GOBJ_DECLARE_EVENT(EV_LISTEN_AGAIN);
 PRIVATE int start_listening(hgobj gobj);
 PRIVATE BOOL listen_again_later(hgobj gobj);
+PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int err, BOOL retry);
 PRIVATE void tls_again_later(hgobj gobj);
 PRIVATE int try_tls_again(hgobj gobj);
 PRIVATE void stop_clisrvs(hgobj gobj);
@@ -138,12 +140,12 @@ SDATA (DTP_DICT,        "crypto",               SDF_WR|SDF_PERSIST, "{}",       
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",        "True if schema is secure. Set internally"),
-SDATA (DTP_BOOLEAN,     "listening",            SDF_RD|SDF_STATS,   0,              "Listening now. False while stopped, while an address in use is tried again (listen_retry_msec), and while a TLS url has no TLS context (tls_ready)"),
+SDATA (DTP_BOOLEAN,     "listening",            SDF_RD|SDF_STATS,   0,              "Listening now. False while stopped, while an address in use is tried again (listen_retry_msec), while a failed listen is tried again or its url is bad, and while a TLS url has no TLS context (tls_ready). Running and not listening: the yuno goes on, one ERROR said why"),
 SDATA (DTP_BOOLEAN,     "tls_ready",            SDF_RD|SDF_STATS,   0,              "A TLS url (use_ssl) with its TLS context loaded. use_ssl and not tls_ready: the certificate, key or trusted certificate of 'crypto' cannot be loaded; the server does not listen and tries again (from 1 s up to each 60 s, and at reload-certs), the yuno goes on"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
-SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",           "Exit if Listen failed"),
-SDATA (DTP_INTEGER,     "listen_retry_msec",    SDF_WR|SDF_PERSIST, "5000",         "How long a listen whose address is in use (EADDRINUSE) is tried again, at each tick of the yuno's periodic timeout, before it fails as any other listen (exitOnError). A yuno killed and launched at once finds its port held by the dead one for a while: the io_uring ring of a process is torn down after it is gone, with the accept that holds the socket. 0: no retry"),
+SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD|SDF_DEPRECATED, "0",        "Ignored: a listen that fails never ends the yuno, it is tried again (up to 7.30.17 the yuno exited with this code, -1 by default). Kept so that a config that sets it is not refused"),
+SDATA (DTP_INTEGER,     "listen_retry_msec",    SDF_WR|SDF_PERSIST, "5000",         "How long a listen whose address is in use (EADDRINUSE) is tried again, at each tick of the yuno's periodic timeout, before it fails as any other listen (tried again from 1 s up to each 60 s). A yuno killed and launched at once finds its port held by the dead one for a while: the io_uring ring of a process is torn down after it is gone, with the accept that holds the socket. 0: no fast retry"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept, legacy method"),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
@@ -179,7 +181,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     const char *url;
-    int exitOnError;
 
     json_t * clisrv_kw;
     BOOL trace_tls;
@@ -198,6 +199,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_listen_retry_end;    // msectimer: the retries end
     int listen_retries;             // retries armed since the address was found in use
     json_int_t tls_retry_msec;      // the wait of the next try of a TLS context; 0: it has one, or no try armed
+    BOOL listen_down;               // its listen failed, and it was said: until it listens, or stops
+    json_int_t listen_backoff_msec; // the wait of the next try of a failed listen; 0: no try armed
     json_t *certs_refused;          // certs_fingerprint() of the last TLS context refused
 
     yev_event_h yev_server_accept;
@@ -236,7 +239,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(url,               gobj_read_str_attr)
-    SET_PRIV(exitOnError,       gobj_read_integer_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
@@ -298,7 +300,19 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(url,                 gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(exitOnError,       gobj_read_integer_attr)
+        /*
+         *  A url written while its listen is down (a bad url, or a listen
+         *  that failed) is tried at once. Listening, it is taken at the
+         *  next start, as always.
+         */
+        if(priv->listen_down && !priv->start_pending &&
+                gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+            clear_timeout(priv->gobj_timer);
+            priv->listen_backoff_msec = 0;
+            if(start_listening(gobj) < 0) {
+                // Error already logged
+            }
+        }
     ELIF_EQ_SET_PRIV(trace_tls,         gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     END_EQ_SET_PRIV()
@@ -383,8 +397,8 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  Its last stop still waits for the cancel of an accept (or the stop of
      *  a clisrv): the listen socket is open yet, and a new one could not
-     *  bind (the yuno exited, exitOnError), nor could the pending events be
-     *  overwritten. It listens when that stop ends (end_of_stop()).
+     *  bind, nor could the pending events be overwritten. It listens when
+     *  that stop ends (end_of_stop()).
      */
     if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
         priv->start_pending = TRUE;
@@ -411,23 +425,7 @@ PRIVATE int start_listening(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(empty_string(priv->url)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "URL NULL",
-            NULL);
-        if(priv->exitOnError) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Exiting",
-                "exitOnError",  "%d", priv->exitOnError,
-                NULL
-            );
-            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
+        return listen_failed(gobj, "URL NULL", MSGSET_CONNECT_DISCONNECT, 0, FALSE);
     }
 
     char schema[40];
@@ -445,47 +443,11 @@ PRIVATE int start_listening(hgobj gobj)
         0, 0,
         FALSE
     )<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Parsing url failed",
-            "url",          "%s", url,
-            NULL
-        );
-        if(priv->exitOnError) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Exiting",
-                "exitOnError",  "%d", priv->exitOnError,
-                NULL
-            );
-            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
+        return listen_failed(gobj, "Parsing url failed", MSGSET_PARAMETER, 0, FALSE);
     }
 
     if(atoi(port) == 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "Cannot Listen on port 0",
-            "url",          "%s", priv->url,
-            NULL
-        );
-        if(priv->exitOnError) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Exiting",
-                "exitOnError",  "%d", priv->exitOnError,
-                NULL
-            );
-            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
+        return listen_failed(gobj, "Cannot Listen on port 0", MSGSET_CONNECT_DISCONNECT, 0, FALSE);
     }
 
     /*--------------------------------*
@@ -506,37 +468,12 @@ PRIVATE int start_listening(hgobj gobj)
 
     if(!priv->yev_server_accept) {
         int err = errno;    // the cause, set by yev_create_accept_event()
-        if(err == EADDRINUSE && listen_again_later(gobj)) {
+        if(err == EADDRINUSE && priv->listen_backoff_msec == 0 && listen_again_later(gobj)) {
             return 0;   // it listens at a retry (EV_TIMEOUT)
         }
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "yev_create_accept_event() FAILED",
-            "url",          "%s", url,
-            "errno",        "%d", err,
-            "strerror",     "%s", err? strerror(err) : "not a socket failure",
-            "listen_retries", "%d", priv->listen_retries,
-            NULL
-        );
-        priv->listen_retries = 0;
-        if(priv->exitOnError) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Exiting",
-                "exitOnError",  "%d", priv->exitOnError,
-                NULL
-            );
-            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            if(priv->yev_server_accept) {
-                yev_destroy_event(priv->yev_server_accept);
-                priv->yev_server_accept = 0;
-            }
-            return -1;
-        }
+        return listen_failed(gobj, "Listen failed: not listening, trying again", MSGSET_SYSTEM, err, TRUE);
     }
+    priv->listen_backoff_msec = 0;
 
     if(priv->listen_retries > 0) {
         gobj_log_info(gobj, 0,
@@ -648,6 +585,17 @@ PRIVATE int start_listening(hgobj gobj)
             "lPort",        "%s", port,
             NULL
         );
+    }
+
+    if(priv->listen_down) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Listening again after a failed listen",
+            "url",          "%s", url,
+            NULL
+        );
+        priv->listen_down = FALSE;
     }
 
     gobj_change_state(gobj, ST_IDLE);
@@ -817,6 +765,8 @@ PRIVATE int mt_stop(hgobj gobj)
     priv->start_pending = FALSE;
     priv->listen_retries = 0;   // a stop takes back the retries of its start
     priv->tls_retry_msec = 0;
+    priv->listen_down = FALSE;
+    priv->listen_backoff_msec = 0;
     clear_timeout(priv->gobj_timer);
 
     if(priv->yev_server_accept) {
@@ -891,7 +841,8 @@ PRIVATE BOOL is_loopback_peer(const char *peername)
  *  waitpid(): 4-10 ms on an idle 2-cpu VM, and more than 117 ms when the
  *  agent killed seven yunos at once). Up to 7.27.3 the start failed at
  *  once: the yuno exited (exitOnError), and its watcher launched it again
- *  2 s later with a "Daemon relaunched" ERROR, which read as a crash.
+ *  2 s later with a "Daemon relaunched" ERROR, which read as a crash. When
+ *  the wait is over it fails as any other listen (listen_failed()).
  *
  *  Said on the transitions: the first refusal here, and the listen that
  *  comes after it (start_listening()). Each try still writes the warning
@@ -924,9 +875,64 @@ PRIVATE BOOL listen_again_later(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The listen failed: no listen, and the yuno goes on. Up to 7.30.17 it
+ *  exited (exitOnError, -1 by default), and its watcher launched it again
+ *  2 s later: a port held by another process relaunched the yuno over and
+ *  over, and an agent whose 1991 or 1993 was held went down with all its
+ *  other listeners. Return -1, or 0 when a try is armed.
+ *
+ *  `retry` (the socket could not be made: an address held past
+ *  listen_retry_msec, a host not on this machine yet, a name that does not
+ *  resolve yet): tried again at the next timeout of the timer, the wait
+ *  doubling from RETRY_FIRST_MSEC up to RETRY_MAX_MSEC. Said ONCE, at the
+ *  first failure; each try still writes the cause of
+ *  yev_create_accept_event(). One info when it listens (start_listening()).
+ *
+ *  Not `retry` (a bad url: empty, unparsable, of port 0): nothing to wait
+ *  for, a url does not fix itself. Said at each start, and writing a `url`
+ *  tries it at once (mt_writing()).
+ ***************************************************************************/
+PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int err, BOOL retry)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!retry || !priv->listen_down) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", msgset,
+            "msg",          "%s", msg,
+            "url",          "%s", priv->url,
+            "errno",        "%d", err,
+            "strerror",     "%s", err? strerror(err) : "",
+            "listen_retries", "%d", priv->listen_retries,
+            "then",         "%s", retry?
+                "not listening, the yuno goes on: tried again from 1 s up to each 60 s" :
+                "not listening, the yuno goes on: write a good url to listen",
+            NULL
+        );
+    }
+    priv->listen_down = TRUE;
+    priv->listen_retries = 0;
+
+    if(!retry) {
+        return -1;
+    }
+    if(priv->listen_backoff_msec == 0) {
+        priv->listen_backoff_msec = RETRY_FIRST_MSEC;
+    } else {
+        priv->listen_backoff_msec *= 2;
+        if(priv->listen_backoff_msec > RETRY_MAX_MSEC) {
+            priv->listen_backoff_msec = RETRY_MAX_MSEC;
+        }
+    }
+    set_timeout(priv->gobj_timer, priv->listen_backoff_msec);
+    return 0;
+}
+
+/***************************************************************************
  *  A TLS url with no TLS context (start_listening()): try again at the next
- *  timeout of the timer, the wait doubling from TLS_RETRY_FIRST_MSEC up to
- *  TLS_RETRY_MAX_MSEC. Said on the transition: ONE error when it stops
+ *  timeout of the timer, the wait doubling from RETRY_FIRST_MSEC up to
+ *  RETRY_MAX_MSEC. Said on the transition: ONE error when it stops
  *  listening for it (after the ERROR of its cause, from ytls), one info when
  *  a context is loaded and it listens. A secondary listener of a yuno -- the
  *  1993 of the agent without its pair -- must not end the yuno: the yuno
@@ -939,7 +945,7 @@ PRIVATE void tls_again_later(hgobj gobj)
 
     if(priv->tls_retry_msec == 0) {
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        priv->tls_retry_msec = TLS_RETRY_FIRST_MSEC;
+        priv->tls_retry_msec = RETRY_FIRST_MSEC;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -952,8 +958,8 @@ PRIVATE void tls_again_later(hgobj gobj)
         );
     } else {
         priv->tls_retry_msec *= 2;
-        if(priv->tls_retry_msec > TLS_RETRY_MAX_MSEC) {
-            priv->tls_retry_msec = TLS_RETRY_MAX_MSEC;
+        if(priv->tls_retry_msec > RETRY_MAX_MSEC) {
+            priv->tls_retry_msec = RETRY_MAX_MSEC;
         }
     }
     set_timeout(priv->gobj_timer, priv->tls_retry_msec);
@@ -1750,8 +1756,9 @@ PRIVATE int ac_listen_again(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  A retry of a listen whose address was in use (listen_again_later()), or
- *  of a TLS context (tls_again_later()). A stop in between took it back.
+ *  A retry of a listen whose address was in use (listen_again_later()), of
+ *  a TLS context (tls_again_later()), or of a listen that failed
+ *  (listen_failed()). A stop in between took it back.
  ***************************************************************************/
 PRIVATE int ac_listen_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1763,6 +1770,10 @@ PRIVATE int ac_listen_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         }
     } else if(priv->tls_retry_msec > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
         if(try_tls_again(gobj) < 0) {
+            // Error already logged
+        }
+    } else if(priv->listen_backoff_msec > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+        if(start_listening(gobj) < 0) {
             // Error already logged
         }
     }

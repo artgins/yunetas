@@ -25,11 +25,21 @@
  *              (a channel opens).
  *
  *          Phase 2, held for longer than `listen_retry_msec` (1 ms): the
- *              retry fails too, and the start fails as any other listen
- *              ("yev_create_accept_event() FAILED", with its errno).
+ *              retry fails too, and the listen fails. Up to 7.30.17 the yuno
+ *              exited there (exitOnError, -1 by default). Now ONE ERROR,
+ *              "Listen failed: not listening, trying again", `listening`
+ *              false, and the yuno goes on. The port is released, and the
+ *              next try of the server (1 s later) listens, with one INFO;
+ *              a client connects.
  *
- *          Phase 3, `listen_retry_msec` 0: no retry, the start fails at
- *              once, as up to 7.27.3.
+ *          Phase 3, `listen_retry_msec` 0: no window, the listen fails at
+ *              once, the same ERROR. A stop takes the try back: the port is
+ *              released, and nothing more is tried nor said.
+ *
+ *          Phase 4, a bad url: empty, of port 0, with no schema. Each one is
+ *              an ERROR, the yuno goes on, and nothing is tried by itself
+ *              (no config is fixed by waiting). Writing a good `url` listens
+ *              at once, and a client connects.
  *
  *          A wrong verdict is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -49,6 +59,7 @@
  *              Constants
  ***************************************************************************/
 #define TEST_PORT   7796
+#define TEST_URL    "tcp://127.0.0.1:7796"
 
 /***************************************************************************
  *              Prototypes
@@ -57,6 +68,7 @@ PRIVATE int hold_port(hgobj gobj);
 PRIVATE void release_port(hgobj gobj);
 PRIVATE int connect_client(hgobj gobj);
 PRIVATE void check_state(hgobj gobj, gobj_state_t expected, const char *phase);
+PRIVATE void check_opens(hgobj gobj, int expected, const char *phase);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -292,6 +304,42 @@ PRIVATE void check_state(hgobj gobj, gobj_state_t expected, const char *phase)
             NULL
         );
     }
+
+    BOOL listening = gobj_read_bool_attr(priv->server_port, "listening");
+    if(listening != (expected == ST_IDLE)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "C_TCP_S says a wrong `listening`",
+            "phase",        "%s", phase,
+            "listening",    "%d", listening,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void check_opens(hgobj gobj, int expected, const char *phase)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->opens != expected) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "the server did not accept the client",
+            "phase",        "%s", phase,
+            "opens",        "%d", priv->opens,
+            "expected",     "%d", expected,
+            NULL
+        );
+    }
+    if(priv->fd_client >= 0) {
+        close(priv->fd_client);
+        priv->fd_client = -1;
+    }
 }
 
 
@@ -336,47 +384,95 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case 2:
-            if(priv->opens != 1) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "the server did not accept after its retry",
-                    "opens",        "%d", priv->opens,
-                    NULL
-                );
-            }
-            close(priv->fd_client);
-            priv->fd_client = -1;
+            check_opens(gobj, 1, "phase 1");
             gobj_stop(priv->server_port);
             set_timeout(priv->timer, 300);
             break;
 
         case 3:
             /*
-             *  Phase 2: held for longer than listen_retry_msec. This timer
-             *  is longer than the retry's, which fails before it
+             *  Phase 2: held for longer than listen_retry_msec. The window
+             *  ends at the first retry, and the listen fails
              */
             check_state(gobj, ST_STOPPED, "stopped after phase 1");
             hold_port(gobj);
             gobj_write_integer_attr(priv->server_port, "listen_retry_msec", 1);
             gobj_start(priv->server_port);
-            set_timeout(priv->timer, 1000);     // ample for the retry on a busy box
+            set_timeout(priv->timer, 600);
             break;
 
         case 4:
-            check_state(gobj, ST_STOPPED, "the retries over");
-
             /*
-             *  Phase 3: no retry, the start fails at once
+             *  The yuno goes on, the server does not listen. Its first try
+             *  (1 s after the failure) fails too, and says nothing more
              */
+            check_state(gobj, ST_STOPPED, "the listen failed");
+            set_timeout(priv->timer, 1000);
+            break;
+
+        case 5:
+            /*
+             *  Released now, after the first try and before the second (2 s
+             *  after the first)
+             */
+            check_state(gobj, ST_STOPPED, "the first try failed");
+            release_port(gobj);
+            set_timeout(priv->timer, 2500);     // the second try at 3 s, ample on a busy box; the next at 7 s
+            break;
+
+        case 6:
+            check_state(gobj, ST_IDLE, "the try after the port is released");
+            connect_client(gobj);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 7:
+            check_opens(gobj, 2, "phase 2");
             gobj_stop(priv->server_port);
+            set_timeout(priv->timer, 300);
+            break;
+
+        case 8:
+            /*
+             *  Phase 3: no window, the listen fails at once. Its stop takes
+             *  the try back: released, and waited past the try
+             */
+            check_state(gobj, ST_STOPPED, "stopped after phase 2");
+            hold_port(gobj);
             gobj_write_integer_attr(priv->server_port, "listen_retry_msec", 0);
             gobj_start(priv->server_port);
-            check_state(gobj, ST_STOPPED, "no retry");
+            check_state(gobj, ST_STOPPED, "no window");
+            gobj_stop(priv->server_port);
+            release_port(gobj);
+            set_timeout(priv->timer, 1500);
+            break;
+
+        case 9:
+            check_state(gobj, ST_STOPPED, "the try taken back by the stop");
+
+            /*
+             *  Phase 4: a bad url is said, and not tried by itself
+             */
+            gobj_write_str_attr(priv->server_port, "url", "");
+            gobj_start(priv->server_port);
+            check_state(gobj, ST_STOPPED, "an empty url");
+            set_timeout(priv->timer, 1500);
+            break;
+
+        case 10:
+            check_state(gobj, ST_STOPPED, "an empty url, waited");
+            gobj_write_str_attr(priv->server_port, "url", "tcp://127.0.0.1:0");
+            check_state(gobj, ST_STOPPED, "a url of port 0");
+            gobj_write_str_attr(priv->server_port, "url", "127.0.0.1:7796");
+            check_state(gobj, ST_STOPPED, "a url with no schema");
+            gobj_write_str_attr(priv->server_port, "url", TEST_URL);
+            check_state(gobj, ST_IDLE, "a good url written");
+            connect_client(gobj);
             set_timeout(priv->timer, 300);
             break;
 
         default:
+            check_opens(gobj, 3, "phase 4");
             release_port(gobj);
             set_yuno_must_die();
             break;

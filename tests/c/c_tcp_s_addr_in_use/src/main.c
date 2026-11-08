@@ -83,7 +83,6 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': 'tcp://127.0.0.1:7796',              \n\
-                        'exitOnError': 0,                           \n\
                         'listen_retry_msec': 3000,                  \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
@@ -148,12 +147,15 @@ static int register_yuno_and_more(void)
          *  order (see c_test_addr_in_use.c for why the count is exact).
          *  Phase 1: one bind refused, the retry announced, the listen after
          *  it. Phase 2: refused at the start and at the retry, which ends
-         *  the window of 1 ms: the start fails. Phase 3: no retry, it fails
-         *  at once.  */
+         *  the window of 1 ms: the listen fails, ONE error; its first try
+         *  fails too (only the bind() warning), the second listens. Phase 3: no window, it fails at once; its stop
+         *  takes the try back. Phase 4: three bad urls, each said, and the
+         *  good one listens.  */
         json_pack("[{s:s}, "
                   "{s:s,s:s}, {s:s,s:s}, {s:s}, {s:s,s:s}, "
-                  "{s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s,s:i}, "
+                  "{s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s,s:i}, {s:s,s:s}, {s:s,s:s}, "
                   "{s:s,s:s}, {s:s,s:s,s:i}, "
+                  "{s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, {s:s,s:s}, "
                   "{s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "bind() FAILED", "__priority__", "WARNING",
@@ -163,9 +165,16 @@ static int register_yuno_and_more(void)
             "msg", "bind() FAILED", "__priority__", "WARNING",
             "msg", "Address in use: listening again", "__priority__", "WARNING",
             "msg", "bind() FAILED", "__priority__", "WARNING",
-            "msg", "yev_create_accept_event() FAILED", "__priority__", "ERROR", "errno", 98,
+            "msg", "Listen failed: not listening, trying again", "__priority__", "ERROR", "errno", 98,
+            "msg", "bind() FAILED", "__priority__", "WARNING",   // its first try, said by nobody else
+            "msg", "Listening again after a failed listen", "__priority__", "INFO",
             "msg", "bind() FAILED", "__priority__", "WARNING",
-            "msg", "yev_create_accept_event() FAILED", "__priority__", "ERROR", "errno", 98,
+            "msg", "Listen failed: not listening, trying again", "__priority__", "ERROR", "errno", 98,
+            "msg", "URL NULL", "__priority__", "ERROR",
+            "msg", "Cannot Listen on port 0", "__priority__", "ERROR",
+            "msg", "parse_url() FAILED, no schema", "__priority__", "ERROR",
+            "msg", "Parsing url failed", "__priority__", "ERROR",
+            "msg", "Listening again after a failed listen", "__priority__", "INFO",
             "msg", "Exit to die",
             "msg", "Pausing yuno",
             "msg", "Yuno stopped, gobj end"
