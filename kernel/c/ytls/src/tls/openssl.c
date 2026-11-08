@@ -360,17 +360,19 @@ PRIVATE int verify_cb_request(int preverify_ok, X509_STORE_CTX *x509_ctx)
 /***************************************************************************
  *  Build a fully-configured SSL_CTX from jn_config.
  *
- *  If fatal is TRUE, fatal errors use LOG_OPT_EXIT_ZERO (used on first init
- *  at yuno startup). For hot-reload, set fatal=FALSE so that a failure does
- *  not kill the yuno — the caller keeps the previous context intact.
- *
- *  Returns a new SSL_CTX * (refcount=1) on success, or NULL on failure.
+ *  Returns a new SSL_CTX * (refcount=1) on success, or NULL on failure,
+ *  with the ERROR of its cause. Never fatal, for a server too: a server
+ *  whose certificate, key or trusted certificate cannot be loaded gets no
+ *  context, and its owner degrades that listener -- the yuno goes on
+ *  (C_TCP_S does not listen, and tries again). Up to 7.30.17 a server
+ *  exited the yuno with code 0 at its first init (LOG_OPT_EXIT_ZERO): an
+ *  agent without its pair died, and on a sealed node only SSH could fix it.
+ *  A hot reload that fails keeps the previous context (its caller's).
  ***************************************************************************/
 PRIVATE SSL_CTX *build_ssl_ctx(
     hgobj gobj,
     json_t *jn_config,
     BOOL server,
-    BOOL fatal,
     BOOL trace_tls,
     void *trace_arg
 )
@@ -508,16 +510,13 @@ PRIVATE SSL_CTX *build_ssl_ctx(
     /*
      *  The server always has its certificate. A client has one when it is
      *  given (mutual TLS: the server asks it and verifies it), as in the
-     *  mbedTLS backend. A client whose certificate cannot be loaded is
-     *  refused (NULL), never fatal: its connection fails, the yuno goes on.
+     *  mbedTLS backend. One that cannot be loaded is refused (NULL), never
+     *  fatal: a client's connection fails, a server's listener degrades.
      */
     if(server || !empty_string(ssl_certificate)) {
-        BOOL exit_on_error = fatal && server;
-        log_opt_t log_fatal = exit_on_error ? LOG_OPT_EXIT_ZERO : 0;
-
         if(SSL_CTX_use_certificate_chain_file(ctx, ssl_certificate)!=1) {
             unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, log_fatal,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_CTX_use_certificate_chain_file() FAILED",
@@ -525,14 +524,13 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 "cert",         "%s", ssl_certificate,
                 NULL
             );
-            if(!exit_on_error) {
-                SSL_CTX_free(ctx);
-                return NULL;
-            }
+            ERR_clear_error();
+            SSL_CTX_free(ctx);
+            return NULL;
         }
         if(SSL_CTX_use_PrivateKey_file(ctx, ssl_certificate_key, SSL_FILETYPE_PEM)!=1) {
             unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, log_fatal,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_CTX_use_PrivateKey_file() FAILED",
@@ -540,16 +538,15 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 "cert",         "%s", ssl_certificate_key,
                 NULL
             );
-            if(!exit_on_error) {
-                SSL_CTX_free(ctx);
-                return NULL;
-            }
+            ERR_clear_error();
+            SSL_CTX_free(ctx);
+            return NULL;
         }
 
         /* Sanity-check: private key must match certificate. */
         if(SSL_CTX_check_private_key(ctx) != 1) {
             unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, log_fatal,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_CTX_check_private_key() FAILED: key does not match cert",
@@ -558,10 +555,9 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 "cert_key",     "%s", ssl_certificate_key,
                 NULL
             );
-            if(!exit_on_error) {
-                SSL_CTX_free(ctx);
-                return NULL;
-            }
+            ERR_clear_error();
+            SSL_CTX_free(ctx);
+            return NULL;
         }
 
         /* Certificate/key ops may leave non-fatal entries in the error queue. */
@@ -631,15 +627,15 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             if(!empty_string(ssl_trusted_certificate)) {
                 if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
                     /*
-                     *  As the client's own certificate above: a client whose
-                     *  trusted certificate cannot be loaded fails its
-                     *  connection, not the yuno. Up to 7.30.3 it exited the
-                     *  yuno -- an agent without the file of its controlcenter
-                     *  link died -- while mbedTLS only refused the connection.
+                     *  As the own certificate above: a client whose trusted
+                     *  certificate cannot be loaded fails its connection, a
+                     *  server's listener degrades, never the yuno. Up to
+                     *  7.30.3 a client exited the yuno -- an agent without
+                     *  the file of its controlcenter link died --, and up to
+                     *  7.30.17 a server did.
                      */
-                    BOOL exit_on_error = fatal && server;
                     unsigned long err = ERR_get_error();
-                    gobj_log_error(gobj, exit_on_error?LOG_OPT_EXIT_ZERO:0,
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_OPENSSL,
                         "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
@@ -647,10 +643,9 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                         "cert",         "%s", ssl_trusted_certificate,
                         NULL
                     );
-                    if(!exit_on_error) {
-                        SSL_CTX_free(ctx);
-                        return NULL;
-                    }
+                    ERR_clear_error();
+                    SSL_CTX_free(ctx);
+                    return NULL;
                 }
             }
             if(use_system_ca) {
@@ -764,10 +759,11 @@ PRIVATE hytls init(
     }
 
     /*--------------------------------*
-     *      Build SSL_CTX (fatal on first init)
+     *      Build SSL_CTX
      *--------------------------------*/
-    ytls->ctx = build_ssl_ctx(gobj, jn_config, server, TRUE, ytls->trace_tls, ytls);
+    ytls->ctx = build_ssl_ctx(gobj, jn_config, server, ytls->trace_tls, ytls);
     if(!ytls->ctx) {
+        // Error already logged: the cause, never fatal (a server too)
         GBMEM_FREE(ytls)
         return 0;
     }
@@ -794,7 +790,7 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
 
     BOOL trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", ytls->trace_tls, KW_WILD_NUMBER);
 
-    SSL_CTX *new_ctx = build_ssl_ctx(gobj, jn_config, ytls->server, FALSE, trace_tls, ytls);
+    SSL_CTX *new_ctx = build_ssl_ctx(gobj, jn_config, ytls->server, trace_tls, ytls);
     if(!new_ctx) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,

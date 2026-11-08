@@ -5,9 +5,10 @@
  *          Tests that an accept never takes a channel whose C_TCP is running
  *
  *          The TLS port needs /yuneta/agent/certs/localhost.crt: without it
- *          C_TCP_S exits with code 0 (LOG_OPT_EXIT_ZERO), which ctest would
- *          take for a pass. An atexit() handler turns an exit before the end
- *          of the test into code 1.
+ *          C_TCP_S does not listen (the yuno goes on), and the test fails
+ *          saying so. Up to 7.30.17 the yuno exited with code 0 there, which
+ *          ctest would take for a pass: an atexit() handler still turns an
+ *          exit before the end of the test into code 1.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -215,7 +216,7 @@ static void cleaning(void)
 }
 
 /***************************************************************************
- *  An exit before the end of the test (LOG_OPT_EXIT_ZERO) is a failure
+ *  An exit before the end of the test is a failure
  ***************************************************************************/
 static void check_reached_end(void)
 {

@@ -100,11 +100,34 @@ ctest -R '^c_tcps/' --output-on-failure --test-dir build
 one ERROR (*"SSL_CTX_load_verify_locations() FAILED"*), the connection is
 refused, and the yuno goes on; after 1000 ms, before the next attempt, the test
 ends. Up to 7.30.3 the OpenSSL backend exited the yuno there with code 0 -- the
-exit meant for a server that cannot load its certificate at its first start --
-while the mbedTLS backend only refused the connection: an agent whose
+exit a server that could not load its certificate at its first start took up
+to 7.30.17 (see `test14`) -- while the mbedTLS backend only refused the
+connection: an agent whose
 controlcenter link named a missing file died. An exit with code 0 is a pass for
 ctest, so an `atexit()` handler turns an exit before the end of the test into
 code 1 (red: *"the yuno exited before the end of the test"*).
+
+`test14` (`main_test14.c` + `c_test14.c`, and `test14_mbedtls` when both
+backends are built) is a TLS server without its certificate. Three `C_TCP_S`
+share one pool of channels, as the agent's two do: `plain_port` (7882) and two
+TLS servers, `tls_port` (7881) and `tls_port2` (7883), whose certificate and
+key name files of a dir of the run that are not there yet.
+
+| When | Must |
+|---|---|
+| start | ONE error of the cause and ONE *"TLS server without its TLS context: not listening, trying again"* per TLS server; the yuno goes on |
+| 300 ms (a tick) | `plain_port` listens and takes a peer; `tls_port` refuses a connect, `listening` and `tls_ready` false, `use_ssl` true; `reload-certs` answers -1 (the error of the cause again) |
+| 4 s later | the try of the timer of `tls_port` came and found nothing changed: it says nothing (the log is checked in order) |
+| then | the files are copied; `reload-certs` of `tls_port2` answers 0, it listens at once and takes a peer; `tls_port` waits for its timer |
+| next try of `tls_port` | it listens (*"TLS context loaded: listening"*), and a TLS client opens its channel (the handshake ended), with no restart |
+
+Up to 7.30.17 ytls exited the yuno with code 0 at the start (red: *"the yuno
+exited before the end of the test"*, on both backends). Mutants of the fix and
+what kills them: listening without a context (a SIGSEGV at the first peer),
+no try of the timer (*"tls_port did not listen once its certificate was
+there"*), a try that loads unchanged files or a state error at each try (an
+error out of order), no `reload-certs` path (*"reload-certs with the files
+answers 0"*).
 
 `test10` (`main_test10.c` + `c_test10.c`, and `test10_mbedtls` when both
 backends are built) starts a TLS server with `"ssl_verify_mode": "request"` and

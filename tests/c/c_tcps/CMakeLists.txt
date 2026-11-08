@@ -65,6 +65,7 @@ SET(SRCS
     test11
     test12
     test13
+    test14
 )
 
 ##############################################
@@ -219,4 +220,34 @@ if(CONFIG_HAVE_OPENSSL AND CONFIG_HAVE_MBEDTLS)
         ${DEBUG_LIBS}
     )
     add_test("${current_directory_name}/test11_mbedtls" test_tcps_test11_mbedtls)
+
+    add_yuno_executable(test_tcps_test14_mbedtls
+        "main_test14.c"
+        "c_test14.c"
+    )
+    target_compile_definitions(test_tcps_test14_mbedtls PRIVATE
+        TEST14_TLS_LIBRARY="mbedtls"
+        TEST14_PORT_TLS="7889"
+        TEST14_PORT_TLS2="7893"
+        TEST14_PORT_PLAIN="7894"
+        TEST14_APP_NAME="test_tcps_test14_mbedtls"
+        TEST14_CERT_ERROR="mbedtls_x509_crt_parse_file() FAILED"
+    )
+    if(CONFIG_FULLY_STATIC)
+        set_target_properties(test_tcps_test14_mbedtls PROPERTIES
+            LINK_SEARCH_START_STATIC TRUE
+            LINK_SEARCH_END_STATIC TRUE
+        )
+    endif()
+    target_link_libraries(test_tcps_test14_mbedtls
+        ${MODULE_TEST}
+        ${YUNETAS_KERNEL_LIBS}
+        ${YUNETAS_EXTERNAL_LIBS}
+        ${YUNETAS_PCRE_LIBS}
+        ${JWT_LIBS}
+        ${OPENSSL_LIBS}
+        ${MBEDTLS_LIBS}
+        ${DEBUG_LIBS}
+    )
+    add_test("${current_directory_name}/test14_mbedtls" test_tcps_test14_mbedtls)
 endif()

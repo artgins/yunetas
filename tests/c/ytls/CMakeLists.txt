@@ -49,6 +49,7 @@ set(SRCS
     test_tls_verify_openssl
     test_free_inside_callback
     test_peer_cert
+    test_server_init_not_fatal
 )
 
 ##############################################

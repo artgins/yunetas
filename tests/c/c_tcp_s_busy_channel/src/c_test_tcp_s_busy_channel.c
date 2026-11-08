@@ -244,6 +244,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     switch(priv->phase) {
         case 1:
+            /*
+             *  Without its certificate tls_port does not listen (and the
+             *  yuno goes on): say that, not only the refused connect
+             */
+            if(!gobj_read_bool_attr(find_server("tls_port"), "listening")) {
+                test_error(gobj,
+                    "TEST: tls_port is not listening: are /yuneta/agent/certs/localhost.{crt,key} there?",
+                    0, 1
+                );
+            }
             priv->fd_tls = connect_to(TLS_PORT);
             if(priv->fd_tls < 0) {
                 test_error(gobj, "TEST: cannot connect to tls_port", -1, 0);

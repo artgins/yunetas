@@ -47,6 +47,16 @@
  */
 #define LISTEN_RETRY_MSEC       100
 
+/*
+ *  A TLS url whose context cannot be loaded (the certificate, its key or the
+ *  trusted certificate of `crypto` is missing or bad) does not listen: it
+ *  tries again at each timeout of its C_TIMER, the wait doubling from
+ *  TLS_RETRY_FIRST_MSEC up to TLS_RETRY_MAX_MSEC (tls_again_later()). A try
+ *  loads nothing while the files and `crypto` are as at the last refusal.
+ */
+#define TLS_RETRY_FIRST_MSEC    1000
+#define TLS_RETRY_MAX_MSEC      60000
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -65,6 +75,8 @@ PRIVATE hgobj find_free_channel(hgobj gobj, json_t *jn_filter);
 GOBJ_DECLARE_EVENT(EV_LISTEN_AGAIN);
 PRIVATE int start_listening(hgobj gobj);
 PRIVATE BOOL listen_again_later(hgobj gobj);
+PRIVATE void tls_again_later(hgobj gobj);
+PRIVATE int try_tls_again(hgobj gobj);
 PRIVATE void stop_clisrvs(hgobj gobj);
 PRIVATE BOOL stop_is_pending(hgobj gobj);
 PRIVATE void end_of_stop(hgobj gobj);
@@ -126,6 +138,8 @@ SDATA (DTP_DICT,        "crypto",               SDF_WR|SDF_PERSIST, "{}",       
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",        "True if schema is secure. Set internally"),
+SDATA (DTP_BOOLEAN,     "listening",            SDF_RD|SDF_STATS,   0,              "Listening now. False while stopped, while an address in use is tried again (listen_retry_msec), and while a TLS url has no TLS context (tls_ready)"),
+SDATA (DTP_BOOLEAN,     "tls_ready",            SDF_RD|SDF_STATS,   0,              "A TLS url (use_ssl) with its TLS context loaded. use_ssl and not tls_ready: the certificate, key or trusted certificate of 'crypto' cannot be loaded; the server does not listen and tries again (from 1 s up to each 60 s, and at reload-certs), the yuno goes on"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",           "Exit if Listen failed"),
@@ -180,9 +194,11 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_refusal_log[REFUSAL_CAUSES];         // next log of a cause (msectimer)
     json_int_t refused_since_log[REFUSAL_CAUSES];   // refused since the last log
 
-    hgobj gobj_timer;               // the retries of a listen whose address is in use
+    hgobj gobj_timer;               // the retries of a listen whose address is in use, or of a TLS context
     uint64_t t_listen_retry_end;    // msectimer: the retries end
     int listen_retries;             // retries armed since the address was found in use
+    json_int_t tls_retry_msec;      // the wait of the next try of a TLS context; 0: it has one, or no try armed
+    json_t *certs_refused;          // certs_fingerprint() of the last TLS context refused
 
     yev_event_h yev_server_accept;
     int use_dups;
@@ -263,6 +279,12 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
         count_connections(gobj, &connxs, &tconnxs);
         v.found = 1;
         v.v.i = tconnxs;
+    } else if(strcmp(name, "listening")==0) {
+        v.found = 1;
+        v.v.b = gobj_in_this_state(gobj, ST_IDLE);
+    } else if(strcmp(name, "tls_ready")==0) {
+        v.found = 1;
+        v.v.b = priv->use_ssl && priv->ytls;
     }
 
     return v;
@@ -296,6 +318,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
      * If the 'crypto' attribute is written while the listener is running with
      * TLS enabled, hot-reload the certificates. New connections will use the
      * new cert/key; existing TLS sessions keep working until they close.
+     * With no TLS context yet, the next try loads it (try_tls_again()).
      */
     if(path && strcmp(path, "crypto") == 0) {
         if(priv->use_ssl && priv->ytls && gobj_is_running(gobj)) {
@@ -334,6 +357,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     // WARNING It must be in mt_destroy, the childs tcp are using in mt_stop
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
     JSON_DECREF(priv->certs_loaded)
+    JSON_DECREF(priv->certs_refused)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
 
@@ -572,9 +596,35 @@ PRIVATE int start_listening(hgobj gobj)
             if(priv->ytls) {
                 JSON_DECREF(priv->certs_loaded)
                 priv->certs_loaded = fingerprint;
+                JSON_DECREF(priv->certs_refused)
             } else {
-                JSON_DECREF(fingerprint)    // Error already logged
+                JSON_DECREF(priv->certs_refused)    // Error already logged: the cause
+                priv->certs_refused = fingerprint;
             }
+        }
+
+        if(!priv->ytls) {
+            /*
+             *  No TLS context: no listen. The socket is closed before any
+             *  accept was asked; the yuno and its other listeners go on.
+             *  Up to 7.30.14 (mbedTLS) it listened with none, and the first
+             *  peer crashed the yuno in ytls_new_secure_filter(); up to
+             *  7.30.17 ytls exited the yuno with code 0 instead.
+             */
+            yev_destroy_event(priv->yev_server_accept);
+            priv->yev_server_accept = 0;
+            tls_again_later(gobj);
+            return 0;   // it listens at a try that loads its context (EV_TIMEOUT, reload-certs)
+        }
+        if(priv->tls_retry_msec > 0) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "TLS context loaded: listening",
+                "url",          "%s", url,
+                NULL
+            );
+            priv->tls_retry_msec = 0;
         }
     } else {
         priv->use_ssl = FALSE;  // a url no longer secure; a ytls of before stays for its connections
@@ -766,6 +816,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     priv->start_pending = FALSE;
     priv->listen_retries = 0;   // a stop takes back the retries of its start
+    priv->tls_retry_msec = 0;
     clear_timeout(priv->gobj_timer);
 
     if(priv->yev_server_accept) {
@@ -870,6 +921,68 @@ PRIVATE BOOL listen_again_later(hgobj gobj)
     priv->listen_retries++;
     set_timeout(priv->gobj_timer, LISTEN_RETRY_MSEC);
     return TRUE;
+}
+
+/***************************************************************************
+ *  A TLS url with no TLS context (start_listening()): try again at the next
+ *  timeout of the timer, the wait doubling from TLS_RETRY_FIRST_MSEC up to
+ *  TLS_RETRY_MAX_MSEC. Said on the transition: ONE error when it stops
+ *  listening for it (after the ERROR of its cause, from ytls), one info when
+ *  a context is loaded and it listens. A secondary listener of a yuno -- the
+ *  1993 of the agent without its pair -- must not end the yuno: the yuno
+ *  goes on with its other listeners, and this one opens the moment its
+ *  certificates are there (`yuneta-agent-cert ensure`, cert-sync).
+ ***************************************************************************/
+PRIVATE void tls_again_later(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->tls_retry_msec == 0) {
+        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+        priv->tls_retry_msec = TLS_RETRY_FIRST_MSEC;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "TLS server without its TLS context: not listening, trying again",
+            "url",          "%s", priv->url,
+            "ssl_certificate", "%s", kw_get_str(gobj, jn_crypto, "ssl_certificate", "", 0),
+            "ssl_certificate_key", "%s", kw_get_str(gobj, jn_crypto, "ssl_certificate_key", "", 0),
+            "ssl_trusted_certificate", "%s", kw_get_str(gobj, jn_crypto, "ssl_trusted_certificate", "", 0),
+            NULL
+        );
+    } else {
+        priv->tls_retry_msec *= 2;
+        if(priv->tls_retry_msec > TLS_RETRY_MAX_MSEC) {
+            priv->tls_retry_msec = TLS_RETRY_MAX_MSEC;
+        }
+    }
+    set_timeout(priv->gobj_timer, priv->tls_retry_msec);
+}
+
+/***************************************************************************
+ *  A try of the TLS context (tls_again_later()). While the files and
+ *  `crypto` are as at the last refusal it loads nothing, says nothing, and
+ *  waits longer: a stat() of each file is the whole cost. Otherwise it
+ *  listens again, which loads them.
+ *
+ *  This timer is a deliberate exception to "no polling": nothing tells a
+ *  yuno that a certificate file appeared (`yuneta-agent-cert ensure`, a
+ *  copy by hand), and a listener that waits for an operator stays closed
+ *  on a node nobody can reach. reload-certs (cert-sync sends it, an
+ *  operator can) tries at once.
+ ***************************************************************************/
+PRIVATE int try_tls_again(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *fingerprint = certs_fingerprint(gobj_read_json_attr(gobj, "crypto"));
+    BOOL same = priv->certs_refused && json_equal(fingerprint, priv->certs_refused);
+    JSON_DECREF(fingerprint)
+    if(same) {
+        tls_again_later(gobj);
+        return 0;
+    }
+    return start_listening(gobj);
 }
 
 /***************************************************************************
@@ -1480,6 +1593,34 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->tls_retry_msec > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+        /*
+         *  No TLS context yet: load it now, and listen
+         */
+        clear_timeout(priv->gobj_timer);
+        if(start_listening(gobj) < 0) {
+            // Error already logged
+        }
+        if(!priv->ytls) {
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: TLS context cannot be loaded (check logs): not listening, trying again",
+                    gobj_yuno_role_plus_name()
+                ),
+                0,
+                0,
+                kw
+            );
+        }
+        return msg_iev_build_response(gobj,
+            0,
+            json_sprintf("%s: TLS context loaded: listening", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw
+        );
+    }
+
     if(!priv->use_ssl || !priv->ytls) {
         return msg_iev_build_response(gobj,
             -1,
@@ -1520,6 +1661,17 @@ PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->use_ssl && !priv->ytls) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: TLS server without its TLS context: not listening",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0,
+            kw
+        );
+    }
     if(!priv->use_ssl || !priv->ytls) {
         return msg_iev_build_response(gobj,
             -1,
@@ -1598,8 +1750,8 @@ PRIVATE int ac_listen_again(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  A retry of a listen whose address was in use (listen_again_later()).
- *  A stop in between took it back.
+ *  A retry of a listen whose address was in use (listen_again_later()), or
+ *  of a TLS context (tls_again_later()). A stop in between took it back.
  ***************************************************************************/
 PRIVATE int ac_listen_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1607,6 +1759,10 @@ PRIVATE int ac_listen_retry(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     if(priv->listen_retries > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
         if(start_listening(gobj) < 0) {
+            // Error already logged
+        }
+    } else if(priv->tls_retry_msec > 0 && gobj_is_running(gobj) && gobj_in_this_state(gobj, ST_STOPPED)) {
+        if(try_tls_again(gobj) < 0) {
             // Error already logged
         }
     }

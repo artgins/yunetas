@@ -103,16 +103,10 @@ PUBLIC hytls ytls_init(
 
     if(!api_tls) {
         /*
-         *  Exit without let re-starting
+         *  No context, never fatal: a client's connection fails, a server's
+         *  listener degrades. Up to 7.30.17 it exited the yuno with code 0.
          */
-        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL,
-            "msg",              "%s", "api_tls() FAILED",
-            "library",          "%s", tls_library,
-            NULL
-        );
-        return 0;
+        return 0;   // Error already logged
     }
 
     /*--------------------------------*
