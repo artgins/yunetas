@@ -1095,24 +1095,23 @@ PRIVATE void note_refused_connection(
  *  C_TCP already holds a socket and maybe a secure filter. An accept on it
  *  rewrote its fd and its ytls: with a second server with no TLS, a peer
  *  with a socket on each port ended the yuno in ytls_free_secure_filter()
- *  (up to 7.30.1).
+ *  (up to 7.30.1). The walk stops at the first one: it is on the accept
+ *  path, and matching and listing every channel cost O(channels) per
+ *  accept (up to 7.30.14).
  ***************************************************************************/
 PRIVATE hgobj find_free_channel(hgobj gobj, json_t *jn_filter)
 {
-    hgobj channel = NULL;
-    json_t *iter = gobj_match_children(gobj_parent(gobj), json_incref(jn_filter));
-    int idx; json_t *jn_child;
-    json_array_foreach(iter, idx, jn_child) {
-        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-        hgobj bottom = gobj_last_bottom_gobj(child);
-        if(bottom && gobj_gclass_name(bottom) == C_TCP && gobj_is_running(bottom)) {
-            continue;
+    hgobj child = gobj_first_child(gobj_parent(gobj));
+    while(child) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            hgobj bottom = gobj_last_bottom_gobj(child);
+            if(!bottom || gobj_gclass_name(bottom) != C_TCP || !gobj_is_running(bottom)) {
+                return child;
+            }
         }
-        channel = child;
-        break;
+        child = gobj_next_child(child);
     }
-    gobj_free_iter(iter);
-    return channel;
+    return NULL;
 }
 
 /***************************************************************************
