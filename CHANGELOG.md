@@ -92,7 +92,7 @@ could write that key, and three remote faults followed (up to 7.30.16):
   the schedule was dropped with no log and the yunos of the node that was
   down kept running). Two new WARNINGs. Test: case 38.
 
-### Packages
+### The packages and their scripts
 
 - **`install-yuneta-service.sh` no longer leaves an agent stopped on a node
   with systemd but without the units** (in 7.30.16): it drives the units only
