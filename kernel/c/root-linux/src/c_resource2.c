@@ -47,6 +47,7 @@ PRIVATE int delete_record(
     hgobj gobj,
     const char *resource
 );
+PRIVATE void drop_private_keys(json_t *jn);
 PRIVATE json_t *get_resource_record(json_t *db_resources, const char *resource);
 
 PRIVATE int load_persistent_resources(hgobj gobj);
@@ -631,7 +632,7 @@ PRIVATE int load_persistent_resources(hgobj gobj)
         gobj,
         priv->path_database,
         "\\.json$",    // a resource's file ENDS in .json ("x.json.bak" is none)
-        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        WD_MATCH_REGULAR_FILE,  // and is at the top: a name has no '/', no file below is one
         load_resource_cb,
         gobj
     );
@@ -718,6 +719,34 @@ PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *res
 }
 
 /***************************************************************************
+ *  Drop the private keys (one leading '_') at every depth, as
+ *  kw_filter_private() does. A record is a json, not a kw: a top-level
+ *  "gbuffer" in it is data, and kw_filter_private() of a kw_incref() took
+ *  it for a pointer (SIGSEGV at the save, up to 7.30.17).
+ ***************************************************************************/
+PRIVATE void drop_private_keys(json_t *jn)
+{
+    if(json_is_object(jn)) {
+        const char *key;
+        json_t *value;
+        void *tmp;
+        json_object_foreach_safe(jn, tmp, key, value) {
+            if(is_private_key(key)) {
+                json_object_del(jn, key);
+            } else {
+                drop_private_keys(value);
+            }
+        }
+    } else if(json_is_array(jn)) {
+        size_t idx;
+        json_t *value;
+        json_array_foreach(jn, idx, value) {
+            drop_private_keys(value);
+        }
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int save_record(
@@ -736,7 +765,8 @@ PRIVATE int save_record(
 
     int ret;
     if(priv->ignore_private) {
-        json_t *_record = kw_filter_private(gobj, kw_incref(record));
+        json_t *_record = json_deep_copy(record);
+        drop_private_keys(_record);
         ret = json_dump_file(
             _record,
             path,

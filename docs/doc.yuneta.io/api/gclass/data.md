@@ -1270,20 +1270,27 @@ json_t *client = gobj_create_resource(gobj_mqtt_clients, "dev-0042", kw_client, 
 json_t *none = gobj_create_resource(gobj_mqtt_clients, ".hidden", kw_other, 0);       // NULL, a WARNING
 ```
 
-At its start a persistent store loads every file of its directory that ENDS
-in `.json`, under its name less that last `.json`. A name may hold `.json`
-itself, and comes back as it was saved:
+At its start a persistent store loads every file at the top of its directory
+that ENDS in `.json`, under its name less that last `.json`; a file of a
+subdirectory is no resource (a name has no `/`, so none is saved there). A
+name may hold `.json` itself, and comes back as it was saved:
 
 ```C
 gobj_create_resource(gobj_mqtt_clients, "x.jsonz", kw_x, 0);         // x.jsonz.json -> "x.jsonz"
 gobj_create_resource(gobj_mqtt_clients, "victim.json", kw_v, 0);     // victim.json.json -> "victim.json"
 // "x.json.bak" in the directory is no resource: it is not loaded
+// nor is "sub/only.json"
 ```
+
+A record is a json, saved as it is less its private keys (one leading `_`, at
+every depth, with `ignore_private`): a top-level `"gbuffer"` in it is data.
 
 Up to 7.30.17 the name was cut at its FIRST `.json` and any file holding
 `.json` was loaded: after a restart `x.jsonz` came back as `x`, over the
 record of `x`, and `victim.json` and `victim` competed for one name by the
-order of the directory.
+order of the directory; a `.json` of a subdirectory was loaded under its bare
+name; and the save of a record with a top-level `"gbuffer"` took the integer
+for a gbuffer (SIGSEGV).
 
 ---
 

@@ -20,10 +20,17 @@
  *          A reload (a stop and a start of the store) takes each file
  *          back under the name it was saved with: "x", "x.jsonz",
  *          "victim" and "victim.json" are each their own record, and a
- *          file not ending in ".json" ("other.json.bak") is no resource.
+ *          file not ending in ".json" ("other.json.bak") is no resource,
+ *          nor is a file of a subdirectory ("sub/only.json": a name has no
+ *          '/', so no resource is saved there; up to 7.30.17 it was loaded
+ *          as "only").
  *          Up to 7.30.17 the name was cut at its FIRST ".json": "x.jsonz"
  *          came back as "x" with the record of one of the two, and
  *          "victim.json" competed with "victim" by the order of readdir().
+ *
+ *          A record with a top-level "gbuffer" key is a json: it is saved,
+ *          less its private keys, and comes back from a reload as it was.
+ *          Up to 7.30.17 the save took the integer for a gbuffer: SIGSEGV.
  *
  *          Up to 7.30.16 every one of them was made in memory, and every
  *          save of it logged an ERROR (three per connect of an MQTT client
@@ -332,6 +339,27 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         json_t *jn_stray = json_pack("{s:s}", "id", "other.json.bak");
         json_dump_file(jn_stray, stray, 0);
         JSON_DECREF(jn_stray)
+
+        char subdir[PATH_MAX];
+        char below[PATH_MAX];
+        if(!build_path(subdir, sizeof(subdir), dir, "sub", NULL) ||
+                !build_path(below, sizeof(below), subdir, "only.json", NULL)) {
+            bad++;  // Error already logged
+        } else {
+            mkrdir(subdir, yuneta_xpermission());
+            json_t *jn_below = json_pack("{s:s}", "id", "sub/only");
+            if(json_dump_file(jn_below, below, 0) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: cannot write a file in a subdirectory of the store",
+                    "path",         "%s", below,
+                    NULL
+                );
+                bad++;
+            }
+            JSON_DECREF(jn_below)
+        }
     }
 
     gobj_stop(priv->gobj_store);
@@ -352,7 +380,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             bad++;
         }
     }
-    const char *not_resources[] = {"other", "other.json.bak", "other.json", NULL};
+    const char *not_resources[] = {"other", "other.json.bak", "other.json", "only", "sub/only", NULL};
     for(int i = 0; not_resources[i]; i++) {
         if(gobj_get_resource(priv->gobj_store, not_resources[i], 0, 0)) {
             gobj_log_error(gobj, 0,
@@ -364,6 +392,33 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
             bad++;
         }
+    }
+
+    /*
+     *  A record is a json: one with a top-level "gbuffer" key (a file of
+     *  another version, a record a caller built) is saved and kept as it
+     *  is. Up to 7.30.17 the save increfed it as a kw, gbuffer_incref() of
+     *  the integer: SIGSEGV.
+     */
+    json_t *gb = gobj_create_resource(
+        priv->gobj_store,
+        "gb",
+        json_pack("{s:s, s:I, s:s}", "id", "gb", "gbuffer", (json_int_t)4096, "_private", "not saved"),
+        0
+    );
+    gobj_stop(priv->gobj_store);
+    gobj_start(priv->gobj_store);
+    json_t *gb_kept = gobj_get_resource(priv->gobj_store, "gb", 0, 0);
+    if(!gb || !gb_kept ||
+            json_integer_value(json_object_get(gb_kept, "gbuffer")) != 4096 ||
+            json_object_get(gb_kept, "_private")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: a record with a gbuffer key was not saved as it is, less its private keys",
+            NULL
+        );
+        bad++;
     }
 
     if(!bad) {
