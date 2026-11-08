@@ -14,9 +14,8 @@
  *          on a simulator of clients too busy to read a frame in time.
  *
  *          The server here is raw (C_PROT_RAW) and plays websocket by hand:
- *          it answers the upgrade (the client drops whatever comes behind
- *          the 101 in the same read, so the frame goes
- *          HEADER_DELAY_MS later), sends the header of a frame of FRAME_LEN
+ *          it answers the upgrade, and HEADER_DELAY_MS later sends the
+ *          header of a frame of FRAME_LEN
  *          bytes with the first FIRST_PART of them, and the rest
  *          REST_DELAY_MS later -- after the client's timeout_payload (1 s)
  *          closed it. The client must take

@@ -8,9 +8,10 @@
  *          - Play a raw server (C_PROT_RAW) that answers each upgrade by hand
  *          - Open __output_side__, a C_WEBSOCKET client that reconnects
  *          - The server answers no accept, a wrong one, a subprotocol not
- *            offered, and a right handshake
- *          - The client refuses the first three, ONE warning each, and opens
- *            the session with the last one: shutdown
+ *            offered, no Upgrade, Upgrade: h2c, no Connection, an extension
+ *            not asked for, and a right handshake with a frame behind it
+ *          - The client refuses the first seven, ONE warning each, opens the
+ *            session with the last one and delivers the frame: shutdown
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -203,12 +204,16 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Websocket handshake refused: Sec-WebSocket-Accept missing or wrong",  // case 0
         "msg", "Websocket handshake refused: Sec-WebSocket-Accept missing or wrong",  // case 1
         "msg", "Websocket handshake refused: a subprotocol that was not offered",     // case 2
+        "msg", "Websocket handshake refused: no Upgrade: websocket, or no Connection: upgrade", // case 3
+        "msg", "Websocket handshake refused: no Upgrade: websocket, or no Connection: upgrade", // case 4
+        "msg", "Websocket handshake refused: no Upgrade: websocket, or no Connection: upgrade", // case 5
+        "msg", "Websocket handshake refused: an extension that was not asked for",    // case 6
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

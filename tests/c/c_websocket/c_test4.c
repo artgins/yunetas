@@ -12,7 +12,11 @@
  *          with the case of its channel, and reads the 101. All the answers
  *          read, the yuno ends. A token of NAME_MAX bytes is the longest
  *          answered: one more is refused, with a warning (the buffer of the
- *          answer holds NAME_MAX and its NUL).
+ *          answer holds NAME_MAX and its NUL). Every 101 carries the accept
+ *          of the example of RFC 6455 (1.3), the key they all send; a key
+ *          that is not 24 characters (16 bytes in base64) is answered 400,
+ *          with a warning: up to 7.30.14 one over 64 characters was cut
+ *          where its accept is computed, and answered a wrong accept.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -27,6 +31,9 @@
  ***************************************************************************/
 #define LONG_TOKEN_SIZE 600
 #define TOKEN_LONGEST   NAME_MAX        // the longest subprotocol answered
+#define RFC_KEY         "dGhlIHNhbXBsZSBub25jZQ=="          // RFC 6455 1.3
+#define RFC_ACCEPT      "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="      // its accept
+#define LONG_KEY        RFC_KEY RFC_KEY RFC_KEY             // 72 characters
 
 /***************************************************************************
  *              Structures
@@ -36,6 +43,7 @@ typedef struct {
     size_t token_len;       // > 0: a token of that many 'a' is offered
     const char *answered;   // NULL: no header in the 101, or the token
     BOOL token_answered;    // the token of token_len is answered
+    const char *key;        // NULL: RFC_KEY; another one is refused: 400
 } ws_case_t;
 
 /***************************************************************************
@@ -46,13 +54,14 @@ typedef struct {
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE const ws_case_t ws_cases[] = {
-    {NULL,              0,                  NULL,   FALSE},
-    {"chat, superchat", 0,                  "chat", FALSE},
-    {" , mqtt ,x",      0,                  "mqtt", FALSE},
-    {"bad value, chat", 0,                  NULL,   FALSE},
-    {NULL,              LONG_TOKEN_SIZE,    NULL,   FALSE},
-    {NULL,              TOKEN_LONGEST,      NULL,   TRUE},
-    {NULL,              TOKEN_LONGEST + 1,  NULL,   FALSE},
+    {NULL,              0,                  NULL,   FALSE,  NULL},
+    {"chat, superchat", 0,                  "chat", FALSE,  NULL},
+    {" , mqtt ,x",      0,                  "mqtt", FALSE,  NULL},
+    {"bad value, chat", 0,                  NULL,   FALSE,  NULL},
+    {NULL,              LONG_TOKEN_SIZE,    NULL,   FALSE,  NULL},
+    {NULL,              TOKEN_LONGEST,      NULL,   TRUE,   NULL},
+    {NULL,              TOKEN_LONGEST + 1,  NULL,   FALSE,  NULL},
+    {NULL,              0,                  NULL,   FALSE,  LONG_KEY},
 };
 #define WS_CASES (sizeof(ws_cases)/sizeof(ws_cases[0]))
 
@@ -91,6 +100,7 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *answer[WS_CASES];
     BOOL case_done[WS_CASES];
     size_t cases_done;
+    hgobj last_channel;     // the last case waits for the others: its warning comes last
 } PRIVATE_DATA;
 
 
@@ -219,8 +229,9 @@ PRIVATE gbuffer_t *build_upgrade_request(const ws_case_t *ws_case)
         "Host: 127.0.0.1:7750\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
-        "Sec-WebSocket-Version: 13\r\n"
+        "Sec-WebSocket-Key: %s\r\n"
+        "Sec-WebSocket-Version: 13\r\n",
+        ws_case->key? ws_case->key : RFC_KEY
     );
     if(ws_case->offered || ws_case->token_len > 0) {
         gbuffer_printf(gbuf, "Sec-WebSocket-Protocol: ");
@@ -235,6 +246,21 @@ PRIVATE gbuffer_t *build_upgrade_request(const ws_case_t *ws_case)
     }
     gbuffer_printf(gbuf, "\r\n");
     return gbuf;
+}
+
+/***************************************************************************
+ *  A client sends the upgrade request of its case
+ ***************************************************************************/
+PRIVATE void send_upgrade_request(hgobj gobj, hgobj channel)
+{
+    gobj_send_event(
+        channel,
+        EV_SEND_MESSAGE,
+        json_pack("{s:I}", "gbuffer",
+            (json_int_t)(uintptr_t)build_upgrade_request(&ws_cases[case_of_channel(channel)])
+        ),
+        gobj
+    );
 }
 
 /***************************************************************************
@@ -256,7 +282,10 @@ PRIVATE void check_answer(hgobj gobj, size_t n, const char *answer, size_t len)
     }
 
     BOOL right;
-    if(!memmem(answer, len, "101 Switching Protocols", 23)) {
+    if(ws_cases[n].key) {
+        right = memmem(answer, len, "HTTP/1.1 400 ", 13) != NULL;
+    } else if(!memmem(answer, len, "101 Switching Protocols", 23) ||
+            !memmem(answer, len, "Sec-WebSocket-Accept: " RFC_ACCEPT "\r\n", 22 + strlen(RFC_ACCEPT) + 2)) {
         right = FALSE;
     } else if(answered) {
         right = memmem(answer, len, expected, strlen(expected)) != NULL;
@@ -332,14 +361,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         hgobj channel = (hgobj)(uintptr_t)kw_get_int(
             gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED
         );
-        gobj_send_event(
-            channel,
-            EV_SEND_MESSAGE,
-            json_pack("{s:I}", "gbuffer",
-                (json_int_t)(uintptr_t)build_upgrade_request(&ws_cases[case_of_channel(channel)])
-            ),
-            gobj
-        );
+        if(case_of_channel(channel) == WS_CASES - 1 && priv->cases_done < WS_CASES - 1) {
+            priv->last_channel = channel;
+        } else {
+            send_upgrade_request(gobj, channel);
+        }
     }
 
     JSON_DECREF(kw)
@@ -383,6 +409,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         check_answer(gobj, n, p, len);
         priv->case_done[n] = TRUE;
         priv->cases_done++;
+        if(priv->cases_done == WS_CASES - 1 && priv->last_channel) {
+            send_upgrade_request(gobj, priv->last_channel);
+            priv->last_channel = 0;
+        }
         if(priv->cases_done == WS_CASES) {
             clear_timeout(priv->timer);
             set_yuno_must_die();

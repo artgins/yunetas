@@ -526,14 +526,23 @@ Sec-WebSocket-Protocol: bad value, chat     ->  (none, and a warning)
 ```
 
 The longest value answered is `NAME_MAX` bytes (255): one of 256 gets none.
+A `Sec-WebSocket-Key` that is not 24 characters (16 bytes in base64, RFC 6455
+§4.2.1) is answered `400 Bad Request`, with the warning *"Websocket upgrade
+request refused"*; up to 7.30.14 one over 64 characters was cut where its
+accept is computed, and answered a wrong accept.
 
 ### The handshake a client accepts
 
-A `C_WEBSOCKET` **client** opens the session only with a `101` that proves
-the server read its request (RFC 6455 §4.1): its `Sec-WebSocket-Accept` must
-be the SHA-1 of the `Sec-WebSocket-Key` the client sent and the GUID
-`258EAFA5-E914-47DA-95CA-C5AB0DC85B11`, in base64. A client offers no
-subprotocol, so a `101` that names one is refused too. A refused handshake
+A `C_WEBSOCKET` **client** sends a `Sec-WebSocket-Key` of 16 random bytes in
+base64 (from `getrandom()`, the generator of its masking keys; up to 7.30.14
+it was the clock, in hex). It opens the session only with a `101` that
+upgrades to websocket and proves the server read its request (RFC 6455
+§4.1): `Upgrade: websocket` and a `Connection` that holds `upgrade` (tokens,
+any case), and a `Sec-WebSocket-Accept` that is the SHA-1 of the key it sent
+and the GUID `258EAFA5-E914-47DA-95CA-C5AB0DC85B11`, in base64. A client
+offers no subprotocol and asks for no extension, so a `101` that names one
+is refused too. Frames the server writes behind its `101`, in the same read,
+are delivered (up to 7.30.14 they were dropped). A refused handshake
 logs ONE warning (`MSGSET_PROTOCOL`, with `status`, `accept`, `protocol` and
 a dump of the read, capped at 256 bytes), publishes no `EV_ON_OPEN`, and drops
 the connection; the transport reconnects as after any drop. The example of
@@ -546,8 +555,10 @@ Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==   ->    Sec-WebSocket-Accept: s3pPLM
 
 | The `101` | The client |
 |---|---|
+| no `Upgrade: websocket`, or no `upgrade` in `Connection` | warning *"Websocket handshake refused: no Upgrade: websocket, or no Connection: upgrade"* |
 | no `Sec-WebSocket-Accept`, or a wrong one | warning *"Websocket handshake refused: Sec-WebSocket-Accept missing or wrong"* |
 | a `Sec-WebSocket-Protocol` | warning *"Websocket handshake refused: a subprotocol that was not offered"* |
+| a `Sec-WebSocket-Extensions` | warning *"Websocket handshake refused: an extension that was not asked for"* |
 | any status but `101` | warning *"NO 101 HTTP Response"*, with the status |
 
 Up to 7.30.14 the client looked only at the `101` and opened the session with

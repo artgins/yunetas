@@ -105,7 +105,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                      \n\
-                '__range__': [1,7],                                  \n\
+                '__range__': [1,8],                                  \n\
                 '__vars__': {                                        \n\
                 },                                                  \n\
                 '__content__': {                                     \n\
@@ -138,7 +138,7 @@ PRIVATE char variable_config[]= "\
             'children': [                                            \n\
             ],                                                      \n\
             '[^^children^^]': {                                      \n\
-                '__range__': [0,6],                                  \n\
+                '__range__': [0,7],                                  \n\
                 '__vars__': {                                        \n\
                 },                                                  \n\
                 '__content__': {                                     \n\
@@ -203,12 +203,13 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "A subprotocol offered is no token, or too long: none selected",
         "msg", "A subprotocol offered is no token, or too long: none selected",
         "msg", "A subprotocol offered is no token, or too long: none selected",
+        "msg", "Websocket upgrade request refused",                         // a key of 72 characters
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

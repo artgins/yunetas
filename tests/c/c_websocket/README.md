@@ -42,22 +42,36 @@ so the answer never ended (red). Two more clients test the exact limit: a
 token of `NAME_MAX` bytes (255) is answered, one of 256 answers none, with a
 warning (the buffer holds 255 and its NUL: with `>` for `>=` in
 `select_subprotocol()` the 256 bytes are answered, and written one byte past
-it).
+it). Every 101 must carry `Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=`,
+the accept of the key of RFC 6455 (1.3) the clients send. A last client, which
+waits for the others so that its warning comes last, sends a key of 72
+characters: it is answered `400`, with the warning *"Websocket upgrade request
+refused"* (up to 7.30.14 the key was cut at 64 characters where the accept is
+computed, and answered a wrong accept: red).
 
 `test5` (`main_test5.c` + `c_test5.c`) is the handshake a `C_WEBSOCKET`
-**client** accepts (RFC 6455 4.1). A raw server answers four upgrades, one per
-connection, and the client reconnects after each refusal:
+**client** sends and accepts (RFC 6455 4.1). A raw server answers eight
+upgrades, one per connection, and the client reconnects after each refusal.
+Every `Sec-WebSocket-Key` it gets must be 16 bytes in base64, not all of them
+hex digits, and not the key of the connection before:
 
 | The 101 | The client |
 |---|---|
 | no `Sec-WebSocket-Accept` | refuses it, ONE warning |
 | a wrong `Sec-WebSocket-Accept` | refuses it, ONE warning |
 | the right one, and `Sec-WebSocket-Protocol: chat` (not offered) | refuses it, ONE warning |
-| the right one | opens the session (`EV_ON_OPEN`): the test ends |
+| no `Upgrade` | refuses it, ONE warning |
+| `Upgrade: h2c` | refuses it, ONE warning |
+| no `Connection` | refuses it, ONE warning |
+| `Sec-WebSocket-Extensions: permessage-deflate` (not asked for) | refuses it, ONE warning |
+| `Upgrade: WebSocket`, `Connection: keep-alive, Upgrade`, the right accept, and a text frame `hello` in the same write | opens the session and delivers `hello`: the test ends |
 
 Up to 7.30.14 the client looked only at the 101 and opened the session with
 the first one (red: *"The client opened a session with a handshake it must
-refuse"*, case 0).
+refuse"*), its key was the clock in hex (red: *"The Sec-WebSocket-Key is not
+16 random bytes"*), and the frame behind the last 101 was dropped with the
+rest of that read (red: *"Not every case of the handshake was answered"*).
+Without the case-insensitive match of `Upgrade`, the last case is refused.
 
 The raw servers of test1, test2, test3 and test5 answer the
 `Sec-WebSocket-Accept` of the key the client sent, computed by

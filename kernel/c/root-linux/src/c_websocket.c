@@ -522,7 +522,8 @@ PRIVATE int _add_frame_header(hgobj gobj, gbuffer_t *gbuf, char h_fin, char h_op
 }
 
 /***************************************************************************
- *  A random 32-bit value: the masking key of a frame
+ *  A random 32-bit value: the masking key of a frame, and the pieces of the
+ *  Sec-WebSocket-Key of a client
  ***************************************************************************/
 PRIVATE uint32_t dev_urandom(void)
 {
@@ -1383,17 +1384,15 @@ PRIVATE int send_http_message2(hgobj gobj, const char *format, ...)
 }
 
 /***************************************************************************
- *
+ *  The 16 bytes of a Sec-WebSocket-Key: random (RFC 6455 4.1), from the
+ *  generator of the masking keys. Up to 7.30.14 they were the clock in hex.
  ***************************************************************************/
-PRIVATE unsigned char *generate_uuid(unsigned char bf[16])
+PRIVATE void get_random_key(unsigned char bf[16])
 {
-    char temp[20];
-    struct timespec ts;
-
-    clock_gettime(CLOCK_REALTIME, &ts);
-    snprintf(temp, sizeof(temp), "%08lX%08lX", ts.tv_sec, ts.tv_nsec);
-    memcpy(bf, temp, 16);
-    return bf;
+    for(int i = 0; i < 4; i++) {
+        uint32_t r = dev_urandom();
+        memcpy(bf + i*4, &r, sizeof(r));
+    }
 }
 
 /***************************************************************************
@@ -1412,7 +1411,7 @@ PRIVATE BOOL do_request(
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    generate_uuid(uuid);
+    get_random_key(uuid);
     bin_to_base64_str(gobj, uuid, sizeof(uuid), key_b64, sizeof(key_b64));
     accept_of_key(gobj, key_b64, priv->accept_due, sizeof(priv->accept_due));
 
@@ -1589,7 +1588,11 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
         0,
         0
     );
-    if(!sec_websocket_key) {
+    if(!sec_websocket_key || strlen(sec_websocket_key) != 24) {
+        /*
+         *  RFC 6455 4.2.1: the key is 16 bytes in base64, 24 characters.
+         *  A longer one did not fit where its accept is computed.
+         */
         const char *data =
             "HTTP/1.1 400 Bad Request\r\n"
             "Connection: Close\r\n"
@@ -1896,20 +1899,29 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 
         } else if (result > 0) {
             /*
-             *  RFC 6455 4.1: a 101 that proves the server read our key, and
-             *  no subprotocol, because this client offers none
+             *  RFC 6455 4.1: a 101 that upgrades to websocket, proves the
+             *  server read our key, and names no subprotocol and no
+             *  extension, because this client offers none
              */
             int status = llhttp_get_status_code(&priv->parsing_response->llhttp);
             json_t *jn_headers = priv->parsing_response->jn_headers;
+            const char *upgrade = json_string_value(json_object_get(jn_headers, "UPGRADE"));
+            const char *connection = json_string_value(json_object_get(jn_headers, "CONNECTION"));
             const char *accept = json_string_value(json_object_get(jn_headers, "SEC-WEBSOCKET-ACCEPT"));
             const char *protocol = json_string_value(json_object_get(jn_headers, "SEC-WEBSOCKET-PROTOCOL"));
+            const char *extensions = json_string_value(json_object_get(jn_headers, "SEC-WEBSOCKET-EXTENSIONS"));
             const char *refused = NULL;
             if(status != 101) {
                 refused = "NO 101 HTTP Response";
+            } else if(!upgrade || strcasecmp(upgrade, "websocket") != 0 ||
+                    !connection || !strcasestr(connection, "upgrade")) {    // tokens: no case (RFC 7230)
+                refused = "Websocket handshake refused: no Upgrade: websocket, or no Connection: upgrade";
             } else if(!accept || empty_string(priv->accept_due) || strcmp(accept, priv->accept_due) != 0) {
                 refused = "Websocket handshake refused: Sec-WebSocket-Accept missing or wrong";
             } else if(!empty_string(protocol)) {
                 refused = "Websocket handshake refused: a subprotocol that was not offered";
+            } else if(!empty_string(extensions)) {
+                refused = "Websocket handshake refused: an extension that was not asked for";
             }
 
             if(!refused) {
@@ -1922,6 +1934,11 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 
                 gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
+                if(gbuffer_leftbytes(gbuf) > 0 && gobj_current_state(gobj) == ST_WAIT_FRAME_HEADER) {
+                    // The frames a server wrote with its 101, in the same read
+                    return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
+                }
+
             } else {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1930,6 +1947,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                     "status",       "%d", status,
                     "accept",       "%.64s", accept? accept : "",
                     "protocol",     "%.64s", protocol? protocol : "",
+                    "extensions",   "%.64s", extensions? extensions : "",
                     "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                     "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
                     NULL
