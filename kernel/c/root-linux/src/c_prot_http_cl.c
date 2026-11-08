@@ -685,6 +685,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     int result = parse_http_message(gobj, gbuf, priv->parsing_response);
     if (result < 0) {
+        ghttp_parser_stop(priv->parsing_response);
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
 

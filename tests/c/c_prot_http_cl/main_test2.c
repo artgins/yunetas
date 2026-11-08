@@ -170,7 +170,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "A value of a form must be a string, a number or a boolean",    // step 1, ONE
@@ -182,6 +182,8 @@ static int register_yuno_and_more(void)
         "msg", "Protocol violation: non-HTTP data received",                   // step 7, ONE
         "msg", "HTTP field that a trailer must not carry left out, the first one of the message", // step 8, ONE
         "msg", "HTTP headers larger than their limit, message refused",        // step 10, ONE
+        "msg", "HTTP headers larger than their limit, message refused",        // step 13, ONE
+        "msg", "HTTP request sent while the connection is dropped, refused, the first one of the connection", // step 13, ONE
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"

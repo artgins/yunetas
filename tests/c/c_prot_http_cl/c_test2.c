@@ -48,6 +48,10 @@
  *         12. A server that reads slowly, max_tx_queue 1 and timeout_tx_stall
  *             500: the requests take longer than that to leave, and none is
  *             refused, because writes keep ending. Nothing is logged.
+ *         13. A response whose head passes max_header_size while the POST
+ *             of 8 MB it answers is still being written: the connection
+ *             is dropped and closes later, when the write ends. A request
+ *             sent in between is refused (-1), with ONE warning of its own.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -91,6 +95,7 @@ enum {
     STEP_RAW_REFUSED,
     STEP_DROP,
     STEP_SLOW,
+    STEP_REFUSED_IN_FLIGHT,
     STEP_END
 };
 
@@ -107,6 +112,7 @@ PRIVATE void start_step(hgobj gobj);
  *          Data: config, public data, private data
  ***************************************************************************/
 GOBJ_DEFINE_EVENT(EV_NEXT_STEP);
+GOBJ_DEFINE_EVENT(EV_SEND_AFTER_REFUSAL);
 
 /*---------------------------------------------*
  *      Attributes
@@ -602,7 +608,7 @@ PRIVATE void answer_bad_response(hgobj gobj, hgobj channel)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf;
-    if(priv->step == STEP_HEAD || priv->step == STEP_RAW_REFUSED) {
+    if(priv->step == STEP_HEAD || priv->step == STEP_RAW_REFUSED || priv->step == STEP_REFUSED_IN_FLIGHT) {
         gbuf = gbuffer_create(BIG_HEADER + 256, BIG_HEADER + 256);
         gbuffer_printf(gbuf, "HTTP/1.1 200 OK\r\nX-Two: a\r\nX-Two: b\r\nX-Big: ");
         for(int i = 0; i < BIG_HEADER; i++) {
@@ -834,7 +840,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 }
             }
 
-        } else if(priv->step == STEP_DROP) {
+        } else if(priv->step == STEP_DROP || priv->step == STEP_REFUSED_IN_FLIGHT) {
             send_big_post(gobj, STALLED_BODY);
 
         } else if(priv->step == STEP_SLOW) {
@@ -890,6 +896,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             bad = empty_string(kw_get_str(gobj, kw, "protocol_error", "", 0)) ||
                 kw_has_key(kw, "body") || kw_has_key(kw, "gbuffer");
             check_header(gobj, kw, "X-TWO", "a, b");
+        } else if(priv->step == STEP_REFUSED_IN_FLIGHT) {
+            bad = kw_get_int(gobj, kw, "headers_too_large", 0, 0) != 65536 ||
+                kw_has_key(kw, "body") || kw_has_key(kw, "gbuffer");
+            gobj_post_event(gobj, EV_SEND_AFTER_REFUSAL, json_object(), gobj);
         } else if(priv->step == STEP_READS) {
             bad = (status != 200);
             if(priv->responses == READS && !priv->step_done) {
@@ -938,7 +948,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         hgobj channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
         if(gbuf) {
-            if(priv->step == STEP_DROP && priv->requests > 0) {
+            if((priv->step == STEP_DROP || priv->step == STEP_REFUSED_IN_FLIGHT) && priv->requests > 0) {
                 gbuffer_clear(gbuf);    // the rest of a long body
             }
             gbuffer_append_gbuf(priv->received, gbuf);
@@ -960,6 +970,36 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Step 13: the response was refused, out of the stack of the read that
+ *  refused it, and the connection is dropping: a request is refused
+ ***************************************************************************/
+PRIVATE int ac_send_after_refusal(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_client || gobj_current_state(priv->gobj_client) != ST_CONNECTED) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The connection closed before a request could be sent: nothing tested",
+            "step",         "%d", priv->step,
+            NULL
+        );
+    } else if(send_post(gobj, "/after", "x") != -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "A request sent after a refused response was not refused",
+            "step",         "%d", priv->step,
+            NULL
+        );
+    }
+
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -986,8 +1026,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->gobj_client && priv->step != STEP_FORMS && priv->step < STEP_SLOW &&
-            !priv->step_done) {
+    if(src == priv->gobj_client && priv->step != STEP_FORMS && priv->step != STEP_SLOW &&
+            priv->step < STEP_END && !priv->step_done) {
         priv->step_done = TRUE;
         int expected = 1;
         if(priv->step == STEP_MUTE || priv->step == STEP_GARBAGE || priv->step == STEP_RAW_REFUSED) {
@@ -1094,6 +1134,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_HEADER,              ac_on_header,               0},
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_NEXT_STEP,              ac_next_step,               0},
+        {EV_SEND_AFTER_REFUSAL,     ac_send_after_refusal,      0},
         {EV_TIMEOUT_PERIODIC,       ac_timeout,                 0},
         {EV_TIMEOUT,                ac_timeout,                 0},
         {EV_STOPPED,                ac_stopped,                 0},
@@ -1111,6 +1152,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_HEADER,              0},
         {EV_ON_CLOSE,               0},
         {EV_NEXT_STEP,              0},
+        {EV_SEND_AFTER_REFUSAL,     0},
         {EV_TIMEOUT_PERIODIC,       0},
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},

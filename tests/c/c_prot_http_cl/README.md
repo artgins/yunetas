@@ -44,7 +44,7 @@ gobj_send_event(gobj_http_cl, EV_SEND_MESSAGE, kw, gobj);   // GET /path?a=1&b=x
 ```
 
 `test2` (`main_test2.c` + `c_test2.c`) is about forms and the responses the
-client refuses. The raw server answers with bytes the test writes. Twelve
+client refuses. The raw server answers with bytes the test writes. Thirteen
 steps, a client each:
 
 | Step | The client | Expected |
@@ -63,6 +63,7 @@ steps, a client each:
 | 10 | `raw_body_data`, gets a head of 70 KB | no `EV_ON_MESSAGE`, ONE warning, the connection dropped |
 | 11 | sends a POST of 8 MB, gets three responses in one read, and drops at the first with the write in flight | the other two are not published |
 | 12 | sends four POSTs of 4 MB to a server that reads 6 MB/s, `max_tx_queue` 1, `timeout_tx_stall` 500, and one more each second | none refused, all read, nothing logged |
+| 13 | sends a POST of 8 MB and gets a response whose head is 70 KB while the body is still in flight; sends one more request before the connection closes | `EV_ON_MESSAGE` with `headers_too_large`, ONE warning; the request is refused (`-1`), ONE warning of its own |
 
 Up to 7.29.3 an empty value was left out with an ERROR (an empty password
 could not be sent), a NUL cut its value, a value of 6 MB was refused (the form
@@ -71,6 +72,10 @@ ZERO"* with a stack, a head had no limit, a broken response answered nothing,
 and the requests waiting for a server that does not read had no limit.
 With a limit of the queue that counted the requests of the turn, step 5 is red
 (*"A request to a server that reads was refused"* at the 66th).
+Up to 7.30.14 a refused response did not stop the parser, so step 13 is red
+(*"A request sent after a refused response was not refused"*: it went to the
+transport, which threw it away, *"tcp data sent while the connection closes,
+dropped"*).
 
 ```c
 json_t *kw = json_pack("{s:s, s:s, s:{s:s}, s:{s:s, s:i}}",

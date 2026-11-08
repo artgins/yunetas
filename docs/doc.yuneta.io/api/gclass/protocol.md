@@ -159,8 +159,14 @@ the same warning and drop, and **no** `EV_ON_MESSAGE`: nothing answers, and
 the request waiting has `EV_ON_CLOSE`. With `raw_body_data` nothing is
 published either, in any of these cases: a last `EV_ON_MESSAGE` would say the
 body is whole, so the subscriber takes `EV_ON_CLOSE` without it for the
-failure. Once the connection is dropped (`EV_DROP`, the inactivity timeout)
-nothing more of what was received is published. Up to 7.29.3 a body over the max block logged an ERROR with a stack for every
+failure. Once the connection is dropped (`EV_DROP`, the inactivity timeout,
+a response refused) nothing more of what was received is published, and a
+request sent before it closes is refused (`-1`, *"HTTP request sent while the
+connection is dropped, refused, the first one of the connection"*); a write
+in flight can keep it open for a while. Up to 7.30.14 a refused response left
+the connection open to requests: they went to the transport, which threw them
+away (*"tcp data sent while the connection closes, dropped"*), and the action
+did not answer `-1`. Up to 7.29.3 a body over the max block logged an ERROR with a stack for every
 piece that arrived, and was handed up cut; a head had no limit, and took a
 time that grew with the square of its size (an 8 MB header, seconds); a
 broken response answered nothing.
