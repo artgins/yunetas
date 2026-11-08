@@ -79,6 +79,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_subscriptions` | subscribe/publish semantics of the GObj core; a repeated hard subscription is one, a repeated `__own_event__` / `__rename_event_name__` subscription is overridden and can be withdrawn (`test3`) |
 | `kw` | `kw_*` helpers from `gobj-c/kwid.c`; `kw_set_dict_value()` overwrites and answers `-1` when it writes nothing |
 | `helpers` | `helpers.c` string helpers, the directory walks and listings (and the errno of a failed `mkrdir()`), the agent's audit record builder (the routing of a peer redacted and capped too), the rotatory (log files, `exit_on_fail` only at the open, the size limit in bytes) |
+| `time_cli` | the `time2date` and `time2range` tools, built here from their sources and run by a script (ctest `time_cli/test_time_cli`): the answer and the exit code for good input, a date that is no date, an unknown zone, a range that is no JSON integer and a time no calendar holds |
 | `build_path` | `build_path()` and its clamped `..` |
 | `gbuffer` | NULL guards of the gbuffer accessors; a refused `gbmem_realloc()` leaves the old block valid and tracked |
 | `glogger_utf8` | The logger never writes a record that is not valid UTF-8 JSON |

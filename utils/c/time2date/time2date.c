@@ -4,6 +4,7 @@
  *          Conver time_t to date
  *
  *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -163,6 +164,26 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
+    /*
+     *  With no log handler the ERROR of a zone libc does not read went
+     *  nowhere, and the time was printed in UTC with the name of that zone
+     */
+    sys_malloc_fn_t malloc_func;
+    sys_free_fn_t free_func;
+    gbmem_get_json_allocators(&malloc_func, &free_func);
+    json_set_alloc_funcs(malloc_func, free_func);
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL  // global_authentication_parser
+    );
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+
     timestamp_t timestamp;
     int offset;
 
@@ -174,8 +195,14 @@ int main(int argc, char *argv[])
         arguments.args[0] = now;
     }
     if(strstr(arguments.args[0], "T")) {
-        // standard date format: <date>T<time>
-        parse_date_basic(arguments.args[0], &timestamp, &offset);
+        /*
+         *  Standard date format: <date>T<time>. Up to 7.30.14 the answer
+         *  was not checked: "2026-10-01Tgarbage" printed 1970, exit code 0
+         */
+        if(parse_date_basic(arguments.args[0], &timestamp, &offset) < 0) {
+            fprintf(stderr, "TIME_T refused, a text that is no date: '%s'\n\n", arguments.args[0]);
+            exit(-1);
+        }
     } else {
         timestamp = strtoull(arguments.args[0], NULL, 0);
         if(arguments.time_in_miliseconds) {
@@ -225,6 +252,17 @@ int main(int argc, char *argv[])
         time_t offset;
         struct tm tm2;
         gmtime2timezone(timestamp, arguments.TZ, &tm2, &offset);
+
+        /*
+         *  A zone libc does not read: its ERROR is logged. Up to 7.30.14 the
+         *  time was printed in UTC with that zone's name, exit code 0
+         */
+        json_t *jn_log = gobj_get_log_data();
+        json_int_t errors = kw_get_int(0, jn_log, "error", 0, 0);
+        json_decref(jn_log);
+        if(errors > 0) {
+            exit(-1);   // Error already logged
+        }
         strftime(tz_stamp, sizeof(tz_stamp), "%FT%T%z", &tm2);
 
         char hexString[1264];  // Buffer to store the resulting string
@@ -236,5 +274,6 @@ int main(int argc, char *argv[])
             timestamp, hexString, hexString2, utc_stamp, arguments.TZ, tz_stamp, local_stamp, tm2.tm_yday
         );
     }
+    gobj_end();
     return 0;
 }

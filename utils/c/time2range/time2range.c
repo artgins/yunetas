@@ -137,13 +137,22 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     case 'r':
         /*
-         *  Up to 7.29.3 atoi(): "abc" was a range of 0, in silence
+         *  A JSON integer, -?(0|[1-9][0-9]*), as the command parser reads
+         *  one. Up to 7.29.3 atoi(): "abc" was a range of 0, in silence;
+         *  up to 7.30.14 strtol(): " 5", "+5" and "05" were 5
          */
         if(arg) {
-            char *end;
+            const char *digits = (*arg == '-')? arg + 1 : arg;
+            BOOL json_integer = ((*digits >= '1' && *digits <= '9') ||
+                (*digits == '0' && digits[1] == 0))? TRUE : FALSE;
+            for(const char *p = digits; json_integer && *p; p++) {
+                if(*p < '0' || *p > '9') {
+                    json_integer = FALSE;
+                }
+            }
             errno = 0;
-            long value = strtol(arg, &end, 10);
-            if(end == arg || *end || errno != 0 || value < INT_MIN || value > INT_MAX) {
+            long value = json_integer? strtol(arg, NULL, 10) : 0;
+            if(!json_integer || errno != 0 || value < INT_MIN || value > INT_MAX) {
                 fprintf(stderr, "RANGE refused, it is no integer: '%s'\n\n", arg);
                 exit(-1);
             }
@@ -252,11 +261,20 @@ int main(int argc, char *argv[])
     } SWITCHS_END;
 
     /*
-     *  The range 0 with a range asked: its error is logged
+     *  An error logged (a zone libc does not read, a time no calendar
+     *  holds) is no range: up to 7.30.14 the range was printed in UTC, or
+     *  as 1970, with exit code 0, and an unknown zone said its ERROR three
+     *  times. The range 0 with a range asked is one too.
      */
+    json_t *jn_log = gobj_get_log_data();
+    json_int_t errors = kw_get_int(0, jn_log, "error", 0, 0);
+    json_decref(jn_log);
     if(time_range.start == 0 && time_range.end == 0 && arguments.range != 0) {
         fprintf(stderr, "No range: no calendar holds its start or its end\n\n");
         exit(-1);
+    }
+    if(errors > 0) {
+        exit(-1);   // Error already logged
     }
 
     char start[80];

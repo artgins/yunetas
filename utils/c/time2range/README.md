@@ -19,7 +19,9 @@ time2range -t 2026-10-01T10:30:00Z -p hours -r 2 -z Europe/Madrid
 # Start: 2026-10-01T12:00:00+0200, End: 2026-10-01T14:00:00+0200
 ```
 
-`-r` must be an integer (`-r abc` is refused), and a range whose start or end
-no calendar holds is refused with exit code -1. With `-z`, hours are counted as
+`-r` must be a JSON integer, as the command parser of a yuno reads one
+(`-r abc`, `-r " 5"`, `-r +5` and `-r 05` are refused). A range whose start or
+end no calendar holds, and any range that logs an ERROR (an unknown zone,
+`-z Nowhere/Zone`, said once), is refused with exit code -1 and no range. With `-z`, hours are counted as
 the zone counts them, so the time grows with the years the range covers: a
 year takes 0.2 ms.
