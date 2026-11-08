@@ -117,11 +117,11 @@ run() {
 #   made by it, and a new formula would move them all
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
 first="$(field uuid)"
 check "dmi: source" "$(field source)" "dmi-product-uuid"
-check "dmi: the formula of 7.29.1" "$first" "0204075f-4a9a-8ace-9696-0d92648cadcd"
+check "dmi: the formula of 7.29.1" "$first" "ab81a85f-a234-8d07-9345-928dbac002e6"
 rm -rf "$YUNETA_NODE_UUID_DIR"
 run ensure
 check "reinstall: same uuid" "$(field uuid)" "$first"
@@ -130,7 +130,7 @@ check "reinstall: same uuid" "$(field uuid)" "$first"
 #   A disk cloned to other hardware gets its own uuid, keeps a copy, and
 #   says that the yunos running keep the old one until they restart
 #
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E33"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E33"
 out="$("$SCRIPT" ensure 2>&1)"
 check "clone: uuid changes" "$( [ "$(field uuid)" != "$first" ] && echo changed)" "changed"
 check "clone: old file kept" "$(backups)" "1"
@@ -139,9 +139,9 @@ check "clone: says the yunos keep the old uuid" "$(echo "$out" | grep -c 'yunos'
 #
 #   Every replacement keeps its own copy, even several in the same second
 #
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E34"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E34"
 run ensure
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E35"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E35"
 run ensure
 check "clone: one copy per replacement" "$(backups)" "3"
 
@@ -149,7 +149,7 @@ check "clone: one copy per replacement" "$(backups)" "3"
 #   A legacy random uuid (no source) is replaced by the hardware one
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 mkdir -p "$YUNETA_NODE_UUID_DIR"
 echo '{"uuid": "ff14fc16-2cb2-472c-9c0a-89fa43837130"}' > "$FILE"
 run ensure
@@ -304,7 +304,7 @@ check "random: source" "$(field source)" "random"
 rnd="$(field uuid)"
 run ensure
 check "random: kept" "$(field uuid)" "$rnd"
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
 check "random: replaced by the hardware that appears" "$(field uuid)" "$first"
 
@@ -313,7 +313,7 @@ check "random: replaced by the hardware that appears" "$(field uuid)" "$first"
 #   of it: random, and an existing uuid is kept as it is
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
 set_hostname "c0ffee000001"
 run ensure
@@ -360,7 +360,7 @@ check "image build: no more copies" "$(backups)" "1"
 #   namespace, so it is no container and its hardware gives its uuid
 #
 set_pidns 4026531836
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
 check "docker export on a board, same hostname: the hardware read" "$(field source)" "dmi-product-uuid"
 check "docker export on a board, same hostname: its own uuid" "$(field uuid)" "$first"
@@ -419,21 +419,21 @@ fake_virt() {
 }
 for v in docker podman; do
     reset
-    set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+    set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
     touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
     set_pidns 4026531836
     fake_virt "$v"
     YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
     check "systemd-detect-virt '$v' in the initial pid namespace: the hardware" "$(field source)" "dmi-product-uuid"
     reset
-    set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+    set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
     set_pidns 4026532512
     fake_virt "$v"
     YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
     check "systemd-detect-virt '$v' in another pid namespace: a container" "$(field container)" "$v"
 done
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 set_pidns 4026531836
 fake_virt wsl
 YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
@@ -447,7 +447,7 @@ check "systemd-detect-virt 'wsl' in the initial pid namespace: a container" "$(f
 #   the image. A system booted on its own never runs out of the initial one.
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 add_nic eth0 "aa:bb:cc:00:00:01" 0
 set_pidns 4026532512
 set_hostname "buildkitsandbox"
@@ -499,14 +499,14 @@ fi
 #   /.dockerenv in another pid namespace: a container
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
 set_pidns 4026532512
 set_hostname "c0ffee000004"
 run ensure
 check "/.dockerenv in its own pid namespace: a container" "$(field source)" "random"
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/run"
 touch "${YUNETA_NODE_UUID_SYSROOT}/run/.containerenv"
 set_pidns 4026531836
@@ -536,7 +536,7 @@ set_marker() {    # file under SYSROOT, content
 }
 board() {    # a board in the initial pid namespace, /run of that fstype
     reset
-    set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+    set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
     set_pidns 4026531836
     set_run_fs "$1"
 }
@@ -574,7 +574,7 @@ printf 'HOME=/\000container=lxc\000' > "${YUNETA_NODE_UUID_SYSROOT}/proc/1/envir
 run ensure
 check "PID 1's container=, initial pid namespace: a container" "$(field container)" "lxc"
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 set_pidns 4026532512
 set_run_fs ""
 set_marker run/systemd/container docker
@@ -871,7 +871,7 @@ check "install in a container, nothing stored: exit 3" "$("$SCRIPT" ensure --ins
 run ensure
 check "install in a container, a uuid stored: exit 0" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 check "install on a box: exit 0" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
 check "install on a box: stored" "$(field uuid)" "$first"
 
@@ -921,7 +921,7 @@ run ensure
 check "container, 7.29.2 random: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa43837131"
 check "container, 7.29.2 random: no copy" "$(backups)" "0"
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/run/systemd"
 echo lxc > "${YUNETA_NODE_UUID_SYSROOT}/run/systemd/container"
 write_file "$first" "dmi-product-uuid"
@@ -933,7 +933,7 @@ check "container: show says it" "$("$SCRIPT" show 2>&1 | grep -c 'container')" "
 #   show without root: a source it cannot read is said, not skipped
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 chmod 000 "${YUNETA_NODE_UUID_SYSROOT}/sys/class/dmi/id/product_uuid"
 add_nic eth0 "aa:bb:cc:00:00:01" 0
 out="$("$SCRIPT" show 2>&1)"
@@ -945,7 +945,7 @@ chmod 600 "${YUNETA_NODE_UUID_SYSROOT}/sys/class/dmi/id/product_uuid"
 #   A manual uuid is never touched
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 out="$("$SCRIPT" set "FF14FC16-2CB2-472C-9C0A-89FA43837130" 2>&1)"
 check "set: says to restart the agents and the yunos" "$(echo "$out" | grep -c 'yunos')" "1"
 run ensure
@@ -962,7 +962,7 @@ check "set again, same uuid: kept" "$(field uuid)" "ff14fc16-2cb2-472c-9c0a-89fa
 #   copy is kept, the uuid did not change
 #
 reset
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
 created_first="$(field created)"
 run set "$first"

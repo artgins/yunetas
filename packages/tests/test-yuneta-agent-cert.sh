@@ -236,7 +236,7 @@ node_uuid() {
 spki() {
     "$OPENSSL" pkey -in "$KEY" -pubout -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1
 }
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 node_uuid_ensure
 uuid_a="$(node_uuid)"
 run ensure >/dev/null
@@ -245,7 +245,7 @@ check "box A: the pair is bound to its uuid" "$(cat "$UUID_MARK" 2>/dev/null)" "
 out="$(run ensure)"
 check "box A again: kept" "$(spki)" "$key_a"
 check "box A again: says nothing" "$( [ -z "$out" ] && echo quiet)" "quiet"
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E33"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E33"
 node_uuid_ensure
 uuid_b="$(node_uuid)"
 check "box B: another uuid" "$( [ -n "$uuid_b" ] && [ "$uuid_b" != "$uuid_a" ] && echo other)" "other"
@@ -269,7 +269,7 @@ key_b="$(spki)"
 out="$(run ensure)"
 check "made before the binding: kept" "$(spki)" "$key_b"
 check "made before the binding: bound now" "$(cat "$UUID_MARK" 2>/dev/null)" "$uuid_b"
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E34"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E34"
 node_uuid_ensure
 run ensure >/dev/null
 check "made before the binding, then cloned: another key" \
@@ -284,7 +284,7 @@ make_other_pair "$CRT" "$KEY"
 own="$(fpr "$CRT")"
 run ensure >/dev/null
 check "a pair of its own: kept" "$(fpr "$CRT")" "$own"
-set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E35"
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E35"
 node_uuid_ensure
 run ensure >/dev/null
 check "a pair of its own, on a clone: kept" "$(fpr "$CRT")" "$own"

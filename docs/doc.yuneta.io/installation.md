@@ -595,12 +595,12 @@ make (a certificate of your own CA) is never bound and never replaced.
 ```bash
 sudo /usr/libexec/yuneta/yuneta-agent-cert show
 # state:   cloned
-# node:    c05bfc5c-9f86-8e93-8678-5561a0bd954b
-# bound:   0204075f-4a9a-8ace-9696-0d92648cadcd
+# node:    16b087c8-46c2-8d38-8928-ea7a11521ec6
+# bound:   ab81a85f-a234-8d07-9345-928dbac002e6
 #          a pair made for another node uuid (a cloned disk): run 'ensure'
 sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
-# WARNING: the agent's pair was made for node uuid 0204075f-..., and this
-# node is c05bfc5c-... (a cloned disk or image): a new pair ...
+# WARNING: the agent's pair was made for node uuid ab81a85f-..., and this
+# node is 16b087c8-... (a cloned disk or image): a new pair ...
 ```
 
 ```bash
