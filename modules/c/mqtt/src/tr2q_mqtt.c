@@ -573,8 +573,11 @@ PRIVATE int load_record_callback(
     }
     drop_row_binary_key(gobj, trq, jn_record);
     uint16_t mid = kw_get_int(gobj, jn_record, "mid", 0, KW_REQUIRED);
-    new_msg(trq, rowid, mid, md_record, jn_record);
 
+    /*
+     *  Traced BEFORE new_msg(): it releases the row of a queued message
+     *  (up to 7.30.17 the trace read it after, freed)
+     */
     if(trq->verbose) {
         BOOL retain = (int)kw_get_bool(gobj, jn_record, "retain", 0, KW_REQUIRED);
         trace_machine2("💾💾 ==> LOAD MSG tr2q %s, session '%s', topic '%s', qos %d, retain %d %s",
@@ -587,6 +590,8 @@ PRIVATE int load_record_callback(
         ); // ♥🔵🔴💙🔷🔶🔀💾
         gobj_trace_json(gobj, jn_record, "💾💾 ==> LOAD MSG tr2q");
     }
+
+    new_msg(trq, rowid, mid, md_record, jn_record);
 
     return 0;
 }

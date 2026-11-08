@@ -225,6 +225,9 @@ PRIVATE int test_disk_gbuffer_key(void)
         gbuffer_t *gbuf = gbuffer_create(16, 16);
         gbuffer_append_string(gbuf, "hello");
         json_t *row = tr2q_kw(mid, 946684800 + mid);
+        json_object_set_new(row, "client_id", json_string("c1"));   // what the trace of the load reads
+        json_object_set_new(row, "qos", json_integer(1));
+        json_object_set_new(row, "retain", json_false());
         json_object_set_new(row, "payload", gbuffer_serialize(0, gbuf));
         json_object_set_new(row, "gbuffer", json_integer(4096));
         GBUFFER_DECREF(gbuf)
@@ -248,7 +251,9 @@ PRIVATE int test_disk_gbuffer_key(void)
         NULL, NULL, 1
     );
     trq = tr2q_open(tranger, topic_name, "tm", 0, 1 /* max_inflight */, 0);
+    tr2q_set_verbose(trq, TRUE);    // the trace of the load reads each row (it read a freed one)
     tr2q_load(trq);
+    tr2q_set_verbose(trq, FALSE);
     result += expect_int("gbuffer key: in flight", (json_int_t)tr2q_inflight_size(trq), 1);
     result += expect_int("gbuffer key: queued", (json_int_t)tr2q_queued_size(trq), 1);
     for(int mid = 1; mid <= 2; mid++) {
