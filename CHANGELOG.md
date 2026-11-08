@@ -9,6 +9,142 @@
   inside other movements, a layer added with `addLayer` that drew nothing
   beyond its source's `maxzoom`, and symbol text on iOS 15.
 
+### Security: node identity, logins and the control channel
+
+- **`C_AUTHZ`: `trust_peer_ip`, the login by the peer's address can be turned off.**
+  A peer with no token and no password logs in by its address alone: from
+  `127.0.0.*` as the local user `yuneta`, with its real roles (`root` in the
+  seed of every yuno), or from an address of `allowed_ips`. A proxy on the same
+  host (nginx in front of a `C_IEVENT_SRV`) connects from `127.0.0.1`, so every
+  client of the proxy that sent a card with no token and the user `yuneta` was
+  `yuneta`, a superuser, with no login (since 7.2.0, the local-ip login). New
+  attribute `trust_peer_ip` (`SDF_RD`, default `true`): `false` refuses such a
+  login, a WARNING *"Without JWT/passw the peer address is not trusted"*; a token
+  or a password is the only way in. Per yuno. A yuno behind a proxy sets
+  `"Authz.trust_peer_ip": false`; the agents keep the default. **BREAKING** only
+  for a yuno that sets it: its local clients without a token are refused.
+  `tests/c/authz_login`.
+- **`C_IEVENT_SRV`: the `service` of a command is checked against the services the
+  channel may reach**, as the one of a stats request is (since 7.6.0 a command was
+  not): a session authorized for one service reached every other service of the
+  yuno by naming it, `__yuno__` included (`write-attr`, `shutdown`,
+  `add-denied-ip`). Now a negative answer *"Not authorized to request commands of
+  service: '<name>'"* and a WARNING *"Not authorized to request commands of a
+  different service"* (`MSGSET_AUTH`, rate-limited); a superuser still reaches
+  any service. **BREAKING**: a client that sent commands to a service its user
+  has no role in gets `-1` now. `tests/c/c_ievent_srv_peer_subs`.
+- **`C_AUTHZ`: a refused login does not write the token.** The WARNING
+  *"Authentication failed: Invalid token"* carried the token whole (`jwt`, since
+  7.0.0): one good elsewhere that reached the wrong port was in the log. It
+  carries `jwt_sha256` (16 hex characters) and `jwt_length` now. **BREAKING** for
+  a log watcher that read `jwt`.
+- **`C_AUTHZ`: a verified token with no `email` or no `email_verified`** is refused
+  with its WARNING only; since 7.0.0 the reader logged an ERROR first.
+- **libjwt: the claims of a token whose `exp`/`nbf`/`iss`/`sub`/`aud` fails are
+  not traced.** Since 7.6.4 a DEBUG trace dumped them all, unverified, before the
+  signature was checked; it says which claims failed (`failed_claims=0x...`) now.
+- **`C_IEVENT_CLI`: the trace of a server's fault (an event before the session, a
+  frame for another `dst_role`/`dst_yuno`) has an initialized prefix**: since 7.0.0
+  it was stack bytes with the traces off. `tests/c/c_ievent_cli_peer_faults`.
+- **`help cmd="<command> <secret>"` masks a secret given without its key**, by the
+  command's table (`command_mask_secret_line()`); since 7.30.1 only a secret's name
+  was masked, and a positional secret came back in clear.
+  `tests/c/command_parameter_types`.
+- **`C_IEVENT_SRV`: an identity card in a session is refused, and the session
+  keeps its identity.** Since 7.0.0 a second card was authenticated again: a good
+  one replaced the user of the session, the services it may reach, the superuser
+  flag and the `identity_card` the services read later -- while the services
+  above had checked the first one only (`C_CHANNEL` does not pass a second
+  `EV_ON_OPEN` up); a refused one armed a timeout that went to the peer as a
+  frame. Now a negative `EV_IDENTITY_CARD_ACK`, ONE WARNING per 10 s (*"Identity
+  card in a session, refused: the session keeps its identity"*), and the session
+  goes on as it was. **BREAKING** for a client that changed its user by sending a
+  new card in the same connection: it must reconnect.
+  `tests/c/c_ievent_srv_identity_card` (case 13).
+- **`C_IEVENT_SRV`: nothing of the gate's own tree goes to the peer.** An event
+  of its timer or its transport that its FSM does not take in the state went to
+  the peer as a frame (since 7.0.0; `mt_inject_event`). Now an ERROR, *"Event of
+  the gate's own tree not taken in this state, not sent to the peer"*, and nothing
+  sent. What the path is for is unchanged: publications to remote subscriptions,
+  answers of services, what an app or the agent sends to the peer.
+  `tests/c/c_ievent_srv_peer_subs`.
+- **`C_AUTHZ`: a verified token with no `iss`** (a key of kid `*`) is refused
+  with its WARNING only, status *"Token of no issuer configured here (its iss)"*;
+  since 7.0.0 the reader logged an ERROR first. `tests/c/authz_login`.
+- **libjwt: when two or more claims fail, the status names them** (*"Failed
+  claims: exp, nbf"*, never their values); it was *"What JWT_CLAIM_???"* (since
+  7.6.4). `tests/c/authz_login`.
+- **`YUNO_AUTH.md` §4.2/§8.6: the login without a token is a login by address**:
+  the proxy trap, `trust_peer_ip`, and `allow_anonymous_in_localhost` (a local
+  peer names any user).
+- **controlcenter: a node is reached by the uuid its session was accepted for, never by the name it gives itself.**
+  `command-agent`, `stats-agent`, `write-tty` and the scenarios took the first
+  agent whose uuid OR card `host` matched, and `host` is written by the agent
+  and authenticated by nobody: an agent that gave another node's hostname, or
+  its uuid as hostname, received that node's commands and its console
+  keyboard (`write-tty` did not stop at the first match). Now a uuid wins, and
+  a hostname names a node through the records of `nodes` that are not
+  refused, only when ONE record has it, and an accepted node's record takes
+  its hostname and address only from a session that logged in by its key (a
+  session of a token, or a refused open, cannot rename it). The uuid of an
+  accepted node always names it; any other name that is a session's uuid and
+  another node's hostname is refused too. `accept-node` of a node that knocked
+  takes the hostname it knocked with only under the key accepted. The hostname
+  match was there before 7.30.0; 7.30.10 meant to close exactly this. Up to
+  7.30.14.
+  - **BREAKING (operators):** a command by a hostname that two nodes give is
+    refused: *"'X' is the hostname of more than one node: give its node
+    uuid"*. This also holds while one of the two is away, until the node
+    that took the name opens again with its own.
+  - **BREAKING (operators):** `write-tty` goes to one agent only, and is
+    refused without `agent_id` (a WARNING, *"write-tty without agent_id,
+    nothing written"*). Before, it went to every agent.
+  - **BREAKING (operators):** `drop-agent` names a node as `command-agent`
+    does, and drops every session of that node. Before, it dropped every
+    session whose uuid or card host matched, so an agent that gave another
+    node's hostname was dropped with it.
+  - A WARNING when two agents of different nodes in session give one
+    hostname: *"Two agents of different nodes give one hostname: reach them
+    by their node uuid"*.
+- **controlcenter: one key, one node.** `accept-node` refuses a key that is
+  accepted for another node, with a WARNING (*"Node not accepted: its key is
+  accepted for another node"*). A copy of a node's disk carries its pair, and
+  under its own uuid the copy logged in as both nodes. **BREAKING
+  (operators)**: give the copy its own pair. There since 7.30.10.
+- **controlcenter: a decision about a node holds for its sessions in
+  course.** `accept-node` with a new key drops the session of the old key,
+  and `refuse-node` drops every session of the node. Each drop is an INFO,
+  *"A session of the node dropped: its key is not accepted now"*. Without
+  `enforce_node_keys`, only a session that logged in by its key is dropped.
+  Up to 7.30.14 such a session stayed until it reconnected, and `refuse-node`
+  dropped one session, only with `enforce_node_keys`. There since 7.30.10 and
+  7.30.11.
+- **controlcenter: the card of an agent not authenticated yet is checked
+  before anything of it is kept.** The card is refused with a WARNING
+  (*"Agent not authenticated: its identity card is not valid"*, with the
+  reason in `refusal`) when:
+  - its `id` is not 1 to 63 letters, digits and `-`;
+  - its `host` is not a string, or is longer than a host name.
+
+  Up to 7.30.14 a value that was not a string gave an ERROR with a stack and
+  the kw dumped twice, and an id or a host of any length was kept in
+  memory (`knocking`). There since 7.30.11. **BREAKING (agents):** a keyed
+  card with no `id` is refused even with a token.
+- **controlcenter: `logout-user` asks the permission `logout-user`**, and
+  passes `disabled` to C_AUTHZ only when it is given. Up to 7.30.14 any
+  session logged out anybody (since 7.30.11 that included any accepted
+  node), and a `logout-user` without `disabled` enabled a disabled user.
+  The missing check was there before 7.30.0. **BREAKING (callers):** the
+  role that logs users out needs `logout-user`.
+- controlcenter, small fixes (up to 7.30.14):
+  - an agent that opens again with nothing changed writes no record in
+    `nodes`: `last_seen` is written again after an hour (7.30.10);
+  - a refused node whose agent presents its key is said *"The node is
+    refused"*, not *"another key"* (7.30.11);
+  - **BREAKING (log watchers):** *"Two agents with the same node uuid on
+    other hosts"* is a WARNING, not an ERROR (an agent can cause it; an
+    ERROR since 7.30.3).
+
 ### HTTP and websocket
 
 - **BREAKING: a `C_WEBSOCKET` client opens a session only on a right
@@ -138,6 +274,87 @@
   indicators in both blocks, and a zone name too long for a path whose first
   `PATH_MAX - 1` bytes name a zone file.
 
+### Packages
+
+- **BREAKING (packages, operators): a copy of a node no longer keeps the agent's
+  key.** Up to 7.30.14 `yuneta-agent-cert` kept any pair whose key matched its
+  certificate, so a disk or SD copied from a box that had already started, a
+  VM template or a `docker commit` of a started container kept the original
+  node's private key (since 7.30.6). Since 7.30.11 that key is the agent's login
+  to its control center, so every copy could claim another's node. Each pair
+  the script makes is now bound to the node uuid it was made for
+  (`/yuneta/agent/certs/yuneta_agent.uuid`). On a copy, which gets its own node
+  uuid from `yuneta-node-uuid`, `ensure` makes a new pair and logs a WARNING
+  naming both uuids (`state: cloned` in `show`). It keeps the old certificate
+  but NOT the old key: that key is the other node's login, so it is overwritten
+  and removed (the other cases still keep both old files). The operator accepts
+  the copy's key as a new node's. A pair made by 7.30.6–7.30.14 is bound to the
+  node uuid found at its first `ensure`: take an image after one `ensure` of
+  this version. A pair of the node's own CA is never bound and never replaced.
+  `show` also prints the node uuid and the bound one.
+  - `yuneta_agent22.service` runs `yuneta-agent-cert ensure` too, after
+    `yuneta-node-uuid ensure` as the main unit does; up to 7.30.14 only the
+    main unit did (since 7.30.6), so on a copy's first boot agent22 could start
+    on the copied key. The two runs share the script's lock.
+  - `install-yuneta-agent-cert.sh` (a node that builds from source) writes its
+    drop-in in both units, as `zz-yuneta-agent-cert.conf`, and removes the old
+    `yuneta-agent-cert.conf`. systemd runs drop-ins in the order of their names,
+    so the old one ran before `yuneta-node-uuid.conf` and saw the previous
+    boot's uuid (since 7.30.6).
+  - `packages/tests/test-yuneta-agent-cert.sh` (62 checks: a cloned disk against
+    a fake `/sys`, no file left with the original key, two ensures at once,
+    the order of both units and of the drop-ins).
+- `yuneta-agent-cert` says when it goes on without its lock (no `flock`, or a
+  `.lock` it cannot open); up to 7.30.14 it went on silently (since 7.30.6).
+- installation.md: a container that starts the agents without their units runs
+  `yuneta-agent-cert ensure` after `yuneta-node-uuid ensure`; it named only the
+  uuid (since 7.30.6).
+- `test-yuneta-node-uuid.sh` and `test-yuneta-agent-cert.sh` use invented
+  hardware values: SoC serials and MAC in the two-boards case (since 7.30.3),
+  and DMI product uuids (since 7.29.1).
+
+### TLS and TCP
+
+- **ytls: `"verified"` is false under `ssl_verify_mode` `"request"` on
+  mbedTLS too.** "request" does not use a CA given in the same context; the
+  OpenSSL backend never loaded it, while mbedTLS verified the chain against it
+  and said `true` for a client signed by it -- the same configuration said
+  two things by backend. Since 7.30.10 (when "request" came) up to 7.30.14.
+  **BREAKING** for a caller on mbedTLS that read `verified` true under
+  "request": pin the `spki_sha256`, which is what the mode is for.
+- **ytls/mbedTLS: a server that cannot load its certificate, key or trusted
+  certificate at the start exits with code 0, as on OpenSSL.** Up to 7.30.14
+  it went on listening with no TLS context and the first peer that connected
+  ended the yuno with a SIGSEGV (relaunched by its watcher, to crash again at
+  the next connection). **BREAKING** for an operator on mbedTLS: the yuno
+  now stops at the start with *"TLS server without its TLS context:
+  exiting"* after the ERROR of the cause, and its watcher does not relaunch
+  it. The exit code 0 is deliberate on both backends (code 0 tells the
+  watcher not to relaunch; any other relaunches every <= 60 s for ever) and
+  is now documented in the ytls API page; under systemd an agent that exits
+  so shows its unit `inactive`, not `failed`.
+- **`C_TCP_S`: an accept with `child_tree_filter` looks for a free channel
+  up to the first one.** It matched and listed every channel on each accept:
+  17 / 180 / 1700 us with 100 / 1000 / 5000 free channels, now 0.13-0.16 us.
+  Since `find_free_channel()` came (7.30.2) up to 7.30.14.
+- **yuno_agent: the help of `snap-content` says what `topic_name` omitted
+  does** (the records the snap tags in every topic, without their content);
+  it still said "per-topic overview". Up to 7.30.14.
+- **Tests.** `test_c_tcp_s_busy_channel` fails (rc 1) when its yuno exits
+  before the end -- without `/yuneta/agent/certs/localhost.crt` it exited
+  with 0 and passed, since it came (7.30.2) up to 7.30.14; the atexit
+  handlers of it and `c_tcps/test9` flush their FAILED line, lost under
+  ctest. `c_tcps/test10` gives its "request" server a CA that signs the
+  client: `verified` must stay false. The mbedTLS paths ran by hand (this
+  machine builds OpenSSL only): test10 on mbedTLS, and a busy_channel on
+  mbedTLS without its certificate.
+- **`C_TCP_S`: a `child_tree_filter` with no `"kw"` leaked one json on every
+  accept** (the default `kw_get_dict()` hands back when the key is missing).
+  Up to 7.30.14. Such a filter (for example `{"op": "find"}`) still makes
+  every child of the gate a candidate.
+- **Docs:** the TLS guide said `ssl_use_system_ca` was OpenSSL only; mbedTLS
+  parses the system CA bundle too.
+
 ### JavaScript
 
 - **BREAKING: gui_agent 1.3.8 and gui_treedb 1.2.6, what reaches the log.**
@@ -155,6 +372,11 @@
       server did not end is checked by the text the form shows for each of
       its answers, and the Spanish text of each logout key must differ from
       the English one.
+- **gui_treedb 1.2.7: the late answer of a slow backend is a WARNING**
+  (a `get-page` or `list-keys` page whose request was already settled), not
+  an ERROR. **BREAKING** for log watchers.
+- **gobj-js tests:** a card sent again when its ACK is late gets the negative
+  ACK of the server after the positive one, and the client keeps its session.
 - **gobj-js tests: a rope read many times is charged once.** The count of
   the secret masking gets a new linear work: one rope as long as the text,
   read at each 4 KB. Before, a count that charged a rope at every read
@@ -267,8 +489,9 @@ key, not by the token that every agent shares.
   - a node that presents no key and has none accepted is let in while
     `allow_nodes_without_key` (on): these are the agents of before.
 
-  The commands are `list-nodes`, `accept-node` (it pins the key presented, or
-  the one given) and `refuse-node`, under the new permission `manage-nodes`.
+  The commands are `list-nodes` (permission `list-agents`), and `accept-node`
+  (it pins the key presented, or the one given) and `refuse-node`, under the
+  new permission `manage-nodes`.
   The listeners of the agents ask for the certificate with
   `"ssl_verify_mode": "request"`. Before this, anyone with the shared token
   could connect claiming the uuid of any node and receive that node's
@@ -304,7 +527,10 @@ replaces 7.30.6's design, which was never switched on.
     goes in `__operator_assertion__`:
     - `iss` is `controlcenter`;
     - `sub` is the operator: the user it authenticated, or the user who
-      started the run;
+      started the run. The stop that a scenario's `max_run` schedules is the
+      control center's own run: its `sub` is the control center
+      (`<role>^<name>`), and the comment of the run names the user who
+      started the scenario;
     - `aud` is the agent's node uuid;
     - it lives 60 s.
 

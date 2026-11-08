@@ -604,6 +604,17 @@ Corollaries:
   all for a `DTP_JSON`. A type that lies is what makes the guard necessary;
   `crypto` was `DTP_JSON` in seven gclasses and is a dict in all seven.
 
+- **A proxy on the same host makes every client `yuneta`.** `C_AUTHZ` lets a
+  peer of `127.0.0.*` (or of `allowed_ips`) with no token and no password log
+  in as the local user `yuneta`, root, by its address alone. nginx in front of
+  a yuno's `C_IEVENT_SRV` on the same host connects from `127.0.0.1`, so every
+  browser behind it is such a peer. A yuno behind a proxy sets
+  `"Authz.trust_peer_ip": false` (after 7.30.14; per yuno, not per listener);
+  the agents keep the default. On an older SDK the stopgap is
+  `proxy_bind 127.0.1.1;` in every proxied `location` (the prefix checked is
+  exactly `127.0.0.`). Denying addresses (it cuts the users with a token too)
+  and deleting `yuneta` (a seed is immutable) do not help.
+
 - **`jwt_checker_verify2()` fails closed** (`kernel/c/libjwt`, since 7.6.0,
   `46f62d8be`): a non-NULL return is the claims of a token that passed every
   check, and it is YOURS to `json_decref`; on any failure it returns `NULL`
