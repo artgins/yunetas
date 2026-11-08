@@ -418,6 +418,7 @@ OpenSSL and mbed-TLS backends):
 | `not_before` | `integer` | Unix timestamp of the certificate's `notBefore`. |
 | `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`. A negative value means already expired. |
 | `serial` | `string` | Serial number as uppercase hex (no colons). |
+| `spki_sha256` | `string` | The sha256 of the public key (SPKI, DER), lowercase hex, the same in both backends: the value a peer that pins this key records (see [`ytls_get_peer_cert_info()`](#ytls_get_peer_cert_info)). |
 
 **Notes**
 
@@ -459,18 +460,31 @@ and:
 
 | Key | Type | Description |
 |---|---|---|
-| `verified` | `boolean` | The chain of the certificate was verified against the CA of the context (`ssl_trusted_certificate`, `ssl_use_system_ca`). `false` under `ssl_verify_mode` `"optional"` for a certificate that did not verify (the handshake completes, with a WARNING), and under `"none"`, where nothing is verified. |
+| `verified` | `boolean` | The chain of the certificate was verified against the CA of the context (`ssl_trusted_certificate`, `ssl_use_system_ca`). `false` under `ssl_verify_mode` `"optional"` for a certificate that did not verify (the handshake completes, with a WARNING), under `"request"`, where the chain is not verified (a CA in the context is not used), and under `"none"`, where nothing is verified. |
+| `spki_sha256` | `string` | The sha256 of the public key of the certificate (its SPKI, DER), in lowercase hex. It is the same in both backends, and it is what `openssl x509 -in peer.crt -pubkey -noout \| openssl pkey -pubin -outform DER \| sha256sum` gives. It names the KEY: a certificate made again with the same key keeps it. |
 
 **Notes**
 
-A server asks the client for a certificate only when it has a CA: with
-`ssl_trusted_certificate` the default mode is `"optional"`, and
-`"required"` refuses a client without one, or with one that does not
-verify, in the handshake. A client presents a certificate when it is given
-`ssl_certificate` and `ssl_certificate_key` (both backends; the OpenSSL
-client loads them since this function exists, and a client whose
-certificate cannot be loaded is refused, `NULL` from `ytls_init()`, not a
-fatal exit). **Trust an identity read here only with `verified` true.**
+A server asks the client for a certificate in three modes:
+
+- With a CA (`ssl_trusted_certificate` or `ssl_use_system_ca`) the default
+  mode is `"optional"`: a client may come without a certificate, and one
+  that does not verify is let in with a WARNING and `verified` false.
+- `"required"` refuses, in the handshake, a client without a certificate or
+  with one that does not verify.
+- `"request"` (a server only; a client with it is refused, `NULL` from
+  `ytls_init()`) asks for the certificate and takes it as it comes: its
+  chain is not verified and not reported, and a client without one is let
+  in. A CA in the same context is NOT used, in both backends, so `verified`
+  is always `false`. It is for an owner that PINS the key of each client by
+  its `spki_sha256`; a self-signed client certificate is the point.
+
+A client presents a certificate when it is given `ssl_certificate` and
+`ssl_certificate_key` (both backends; the OpenSSL client loads them since
+this function exists, and a client whose certificate cannot be loaded is
+refused, `NULL` from `ytls_init()`, not a fatal exit). **Trust an identity
+read here only with `verified` true, or with a `spki_sha256` that you
+pinned.**
 
 **Example**
 
@@ -494,6 +508,25 @@ json_t *client_crypto = json_pack("{s:s, s:s, s:s}",
 json_t *peer = ytls_get_peer_cert_info(ytls, sskt);
 if(peer && json_is_true(json_object_get(peer, "verified"))) {
     const char *cn = json_string_value(json_object_get(peer, "cn"));   /* "node-b" */
+}
+JSON_DECREF(peer)
+```
+
+A server that takes the self-signed certificate of each client as it
+comes and pins its key (`"request"`):
+
+```C
+json_t *server_crypto = json_pack("{s:s, s:s, s:s}",
+    "ssl_certificate",          "/yuneta/store/certs/controlcenter.example.com.crt",
+    "ssl_certificate_key",      "/yuneta/store/certs/private/controlcenter.example.com.key",
+    "ssl_verify_mode",          "request"
+);
+
+/* In the server, after the handshake of a connection: */
+json_t *peer = ytls_get_peer_cert_info(ytls, sskt);
+const char *spki = peer? json_string_value(json_object_get(peer, "spki_sha256")) : NULL;
+if(spki && strcmp(spki, pinned_spki) == 0) {   /* the key recorded for this client */
+    /* the client is the one pinned; "verified" is false here, by design */
 }
 JSON_DECREF(peer)
 ```
@@ -586,6 +619,46 @@ Returns a handle to the newly created TLS context (`hytls`) on success, or `NULL
 **Notes**
 
 The `jn_config` parameter must include necessary TLS settings such as certificates, ciphers, and buffer sizes. See the structure documentation for valid configuration fields.
+
+**A server that cannot load its certificates exits the process with code
+0.** When `server` is `TRUE` and the certificate, its key, or the
+`ssl_trusted_certificate` cannot be loaded (a missing file, a key that does
+not match), `ytls_init()` logs the ERROR with `LOG_OPT_EXIT_ZERO` and the
+yuno ends with exit code 0. This is deliberate. The watcher of a yuno
+relaunches it after a signal or a non-zero exit code: after 2 s, then the
+wait doubles up to 60 s, and it never stops. A certificate that is not there
+does not come back with a retry, so code 0 tells the watcher NOT to
+relaunch the yuno. The mbedTLS backend does the same since the
+release after 7.30.14; up to 7.30.14 it returned `NULL`, `C_TCP_S` went on
+listening with no TLS context, and the first peer crashed the yuno.
+
+What the operator sees:
+
+- The ERROR is the last line of the yuno's log, for example
+  `"msg": "SSL_CTX_use_certificate_chain_file() FAILED", "cert":
+  "/yuneta/agent/certs/yuneta_agent.crt", "exiting": "0"`.
+- The watcher of the yuno does not relaunch it, and `list-yunos` shows it
+  with `running` false until it is run again (`run-yuno`).
+- The agent itself runs under its watcher. When the agent exits 0, its
+  watcher also ends with 0, so systemd shows `yuneta_agent.service` as
+  `inactive (dead)`, not `failed`. Read the log of the agent, not the state
+  of the unit. Put the certificate back, then
+  `sudo systemctl start yuneta_agent`.
+
+A client is never fatal: `ytls_init()` returns `NULL` and only that
+connection fails. A hot reload is never fatal either:
+[`ytls_reload_certificates()`](<#ytls_reload_certificates>) keeps the
+previous certificates.
+
+```C
+json_t *crypto = json_pack("{s:s, s:s, s:s}",
+    "library",              "openssl",
+    "ssl_certificate",      "/yuneta/agent/certs/localhost.crt",
+    "ssl_certificate_key",  "/yuneta/agent/certs/localhost.key"
+);
+hytls ytls = ytls_init(gobj, crypto, TRUE);   /* a server: no file -> exit(0) */
+JSON_DECREF(crypto)
+```
 
 ---
 

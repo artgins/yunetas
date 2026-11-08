@@ -157,14 +157,44 @@ configured:
 | **server** with a CA | `optional` — request + verify the client cert if presented |
 | **client** with a CA | `required` — validate the server cert + hostname |
 
-`ssl_verify_mode` (`required` / `optional` / `none`) overrides the computed
-default. `ssl_use_system_ca` adds the OS trust store. `ssl_verify_depth` bounds
+`ssl_verify_mode` (`required` / `optional` / `none` / `request`) overrides the
+computed default. `ssl_use_system_ca` adds the OS trust store. `ssl_verify_depth` bounds
 the chain. A verify failure is **never silent**: under `optional` a non-verifying
 peer is accepted but logged post-handshake (OpenSSL `SSL_get_verify_result()`,
 mbed-TLS `mbedtls_ssl_get_verify_result()`). Under `required` the verify callback
 logs the chain error and aborts the handshake. The mbed-TLS verify *default* is
 deliberately left IoT-tolerant (`optional`, surfaced) — raise it per gate with
 `ssl_verify_mode=required`.
+
+| Mode | Asks the client's certificate (server) | Chain verified | A peer that does not verify | `verified` in `peer_cert` |
+|---|---|---|---|---|
+| `none` | no | no | — | always `false` |
+| `optional` | yes, may be absent | yes | let in, WARNING | `true` only if it verified |
+| `required` | yes, must be present (server) | yes | refused in the handshake | `true` |
+| `request` | yes, may be absent | **no** (a CA given is not used) | let in, nothing logged | always `false` |
+
+`request` (since 7.30.10) is for a **server** only: a client with it is
+refused (`ytls_init()` fails). It takes the client's certificate as it
+comes, so that the owner PINS the key of each client by the `spki_sha256`
+of its `peer_cert` — a self-signed client certificate is the point. Trust an
+identity from a `request` server only through a key you pinned, never
+through `verified`. The controlcenter's listeners of the agents use it to
+pin the key of each node:
+
+```json
+"crypto": {
+    "library": "openssl",
+    "ssl_certificate": "/yuneta/store/certs/controlcenter.example.com.crt",
+    "ssl_certificate_key": "/yuneta/store/certs/private/controlcenter.example.com.key",
+    "ssl_verify_mode": "request"
+}
+```
+
+The key of a certificate, as `spki_sha256` gives it:
+
+```bash
+openssl x509 -in client.crt -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum
+```
 
 #### Verify-by-default for clients (since 7.6.0)
 
@@ -186,7 +216,7 @@ clients and are unaffected.
 |---|---|---|
 | `ssl_min_version` | TLS 1.2 floor | minimum negotiated protocol version |
 | `ssl_disable_renegotiation` | `true` | OpenSSL renegotiation off |
-| `ssl_verify_mode` | computed (table above) | `required` / `optional` / `none` |
+| `ssl_verify_mode` | computed (table above) | `required` / `optional` / `none` / `request` (a server that pins its clients' keys) |
 | `ssl_trusted_certificate` | unset | path to a CA bundle (PEM) used to verify the peer |
 | `ssl_use_system_ca` | `false` | also trust the OS CA store (OpenSSL only) |
 | `ssl_verify_depth` | `2` | max certificate chain depth (leaf → intermediate → root) |
