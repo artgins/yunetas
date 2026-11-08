@@ -2,6 +2,117 @@
 
 ## Unreleased
 
+## v7.30.17 (2026-11-08)
+
+A security release, deployed on every node. The tests of each change ran,
+not the whole suite; no performance study (the next one is against 7.30.0).
+
+### Security: a `"gbuffer"` key written by a peer is never taken for a pointer
+
+`"gbuffer"` is the binary field of a kw: `kw_incref()`, `kw_decref()`,
+`kw_twin()` and `kw_duplicate()` take its integer for a `gbuffer_t *`. A peer
+could write that key, and three remote faults followed (up to 7.30.16):
+
+- **A command with `__gbuffer___` released that gbuffer once too often.** The
+  handlers of the control center (`command-agent`, `stats-agent`,
+  `drop-agent`, `watch-scenario`, the relay to an agent) and of the agent
+  (`command-yuno`, `stats-yuno`, the authz and trace commands) copied the kw
+  with `json_deep_copy()`, released it, and handed on a copy that held the
+  integer without its reference: a use after free and a double free, also for
+  a user with no permission (the refusal released it the same way). They copy
+  with `kw_duplicate()` now. A legitimate gbuffer in a command (the binary
+  door of the treedb `file` columns) still passes. Test: case 39 of
+  `test_c_controlcenter_scenarios`.
+- **A `"gbuffer"` nested anywhere crashed the yuno.** `kw_duplicate()`,
+  `kw_filter_metadata()` and `kw_filter_private()` increfed it at any depth: a
+  `saved-schema` with `{"x":{"gbuffer":4096}}` crashed a yuno with `C_TREEDB`
+  (the `read` permission was enough), and a `_geometry` holding one, written
+  into `__system__` with `update-node`, crashed every `saved-schema` after it,
+  across restarts. The binary field counts only at the top level of a dict
+  now (since 7.0.0). Tests: `kw/test_kw_binary_depth`,
+  `test_c_treedb_system_schema`.
+- **`C_NODE` made a kw of a peer's `record`**: `create-node` with
+  `{"record":{"gbuffer":4096}}`, or with such a json in `content64`, crashed it
+  (since 7.18.0). Test: `test_c_node_commands`.
+- **The frontier:** `gbuf2json_from_peer()` and `anystring2json_from_peer()`
+  drop every `"gbuffer"` key of a peer's json, at any depth, with ONE WARNING
+  (*"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*);
+  every ievent frame and every JSON HTTP body goes through them, and so do
+  `iev_create_from_gbuffer()` whatever its `verbose`, the command parser for a
+  json parameter given as text, `content64` of `C_NODE` and a string `record`
+  of `C_TRANGER add-record`. New `drop_peer_binary_keys()` for a peer's json
+  parsed some other way. The walk runs only when the text holds `"gbuffer"`
+  or a `\u` escape (+2-6% of the parse of a 2.5 MB json then). **BREAKING**
+  for a log watcher and for a peer that sent such a key: it is gone.
+- **A treedb column cannot be named `gbuffer`** (`parse_schema_cols()`).
+  **BREAKING** for a schema that has one.
+- **`C_RESOURCE2`: a persistent store refuses a name with `/`, a leading
+  `.`, `..` or too long**, with ONE WARNING (it logged three ERRORs per
+  connect for an MQTT client id like that, and wrote `clients/.hidden.json`
+  for `.hidden`); `C_PROT_MQTT` answers such a client id with CONNACK
+  identifier rejected. Test: `c_resource2_names`.
+- `yuno_agent`: `cert-sync-now` and `cert-sync-status` released their kw with
+  `JSON_DECREF`, leaking a gbuffer it carried.
+
+### TLS and TCP
+
+- **`C_TCP`: a TLS handshake that does not end is dropped** (since 7.0.0). New
+  attribute `timeout_tls_handshake` (ms, default 10000, 0 no deadline), on a
+  server and a client, armed when `ST_WAIT_HANDSHAKE` begins and cleared when
+  the handshake or the connection ends; nothing per read. A peer that opened a
+  TCP connection to a TLS port and sent nothing held its channel for ever: a
+  few of them filled a TLS server's pool, and on the agent locked out a local
+  `ycommand` (1991 and 1993 share one pool); a TLS client whose peer stayed
+  silent never reconnected. **BREAKING** (log watchers, slow peers): ONE
+  warning *"TLS handshake not ended in time, connection dropped"*. Test:
+  `c_tcps/test11`.
+- **`yuno_agent`: the handshakes of its input pool are bounded at 5 s**
+  (`timeout_handshake` of `C_WEBSOCKET` and `timeout_tls_handshake` of
+  `C_TCP`; the upgrade had 30 s and TLS no limit). **BREAKING** for a client of
+  1991/1993 slower than that.
+- **`C_TCP`: `timeout_stop_tx` bounds the stop of a client too** (since it
+  came). The stop closed the client's only socket before setting
+  `TCP_USER_TIMEOUT` on it and said nothing, so a client stopped with a write
+  in flight to a peer that did not read waited for ever. **BREAKING** (log
+  watchers): the abort is ONE warning, *"The peer did not take the data in
+  flight in timeout_stop_tx, connection aborted"*. Test: `c_tcps/test13`.
+- **`C_TCP`: the inactivity timer no longer fires into a drop that waits**
+  (*"Event NOT DEFINED in state"* in `ST_WAIT_STOPPED`). Test: `c_tcps/test12`.
+
+### Control center
+
+- **`accept-node` no longer keeps the name a session of a token wrote.** A
+  record that was not accepted keeps its `hostname`/`peername` only when the
+  accepted key wrote them; otherwise both are emptied until the node logs in
+  by its key (since 7.30.10). **BREAKING** for an operator: such a node shows
+  an empty hostname in `list-nodes` until then. Test: case 37.
+- **A `max_run` stop that does some steps tries the rest again** (in a
+  minute, or when an agent of their node connects) until each is done; the
+  steps done are not sent again (since 7.27.19 such a stop counted as a stop:
+  the schedule was dropped with no log and the yunos of the node that was
+  down kept running). Two new WARNINGs. Test: case 38.
+
+### Packages
+
+- **`install-yuneta-service.sh` no longer leaves an agent stopped on a node
+  with systemd but without the units** (in 7.30.16): it drives the units only
+  where `yuneta_agent.service` exists, and a failed restart exits 1
+  (**BREAKING**; it exited 0, the .deb's and .rpm's helper too).
+- It brings `/etc/init.d/yuneta_agent` up to date, the old one kept as a
+  non-executable `.bak` (compared with `sha256sum`: a minimal RHEL has no
+  `cmp`). **BREAKING** for an operator who edited that script.
+- The helper, the .deb postinst, the .rpm `%post` and `%pre` find an agent by
+  its executable (`/proc/<pid>/exe`), not by `pgrep -x` alone, which matched
+  the SysV script of the same name.
+- The agent's build warns about a stale `/etc/init.d/yuneta_agent` and a
+  missing `yuneta-agent-cert`. `test-yuneta-agent-cert.sh`: 142 checks.
+
+### The rest
+
+- `dba_postgres`: a message of a peer without its id or queue key is ONE
+  WARNING (it was ERRORs with a stack, and an id-less message went on).
+- `test_suite.md`: test26 has 64 steps; the OWS case of `test_c_llhttp_parser`.
+
 ## v7.30.16 (2026-11-08)
 
 A security release, deployed on every node: the kernel of 7.30.15 and of

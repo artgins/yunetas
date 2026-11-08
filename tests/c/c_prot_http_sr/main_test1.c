@@ -274,19 +274,25 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "HTTP headers larger than their limit, message refused",    // step 2, ONE
         "msg", "HTTP body larger than its limit, message refused",         // step 3, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 4, ONE
+        "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted", // the write in flight of the drop above
         "msg", "HTTP headers larger than their limit, message refused",    // step 8, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 9, ONE
+        "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted", // the write in flight of the drop above
         "msg", "HTTP requests held behind the answers owed passed max_rx_held, connection dropped", // step 10, ONE
+        "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted", // the write in flight of the drop above
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 13, ONE
+        "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted", // the write in flight of the drop above
         "msg", "tcp data sent while the connection closes, dropped",       // step 13, ONE
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 15, ONE
+        "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted", // the write in flight of the drop above
         "msg", "HTTP peer does not read its answers, connection dropped",  // step 17, ONE
+        "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted", // the write in flight of the drop above
         "msg", "HTTP body larger than its limit, message refused",         // step 18, ONE
         "msg", "HTTP body larger than its limit, message refused",         // step 19, ONE
         "msg", "An answer cannot be built (a body that cannot be dumped, or no memory), answered 500 in its place", // step 21, ONE

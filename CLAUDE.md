@@ -604,6 +604,31 @@ Corollaries:
   all for a `DTP_JSON`. A type that lies is what makes the guard necessary;
   `crypto` was `DTP_JSON` in seven gclasses and is a dict in all seven.
 
+- **A json from outside carries no binary keys.** `"gbuffer"` is the name of
+  the binary field of a kw (registered by `gobj_start_up()` with
+  `kw_add_binary_type()`): `kw_incref()`, `kw_decref()`, `kw_twin()`,
+  `kw_duplicate()` and `kw_update_missing()` take the integer under that name
+  for a `gbuffer_t *`, at the TOP level of a dict, and any dict of a peer's
+  json can become the top level of a kw (`C_NODE` makes one of a peer's
+  `record`). Where the keys are stripped: `gbuf2json_from_peer()` and
+  `anystring2json_from_peer()` drop `"gbuffer"` at any depth with one WARNING
+  (every ievent frame and every HTTP JSON body goes through them); the command
+  parser drops them from every json parameter given as text;
+  `drop_peer_binary_keys()` does it for a peer's json parsed some other way;
+  `kw_deserialize()` makes the only legitimate `"gbuffer"`, at the top level,
+  out of a peer's `"__gbuffer___"`. Never parse peer bytes with
+  `json_loads`/`legalstring2json`/`anystring2json` -- a value that is itself
+  json text (a `content64`) is peer bytes too. A treedb column is never named
+  `gbuffer` (`parse_schema_cols()` refuses it). **Copy a kw with
+  `kw_duplicate()` or `kw_twin()`, never `json_deep_copy()`**, when the copy is
+  released with `KW_DECREF`: the json copy holds the integer without its
+  reference (`json_deep_copy(kw_)`, `KW_DECREF(kw_)`, then the copy handed to
+  `gobj_command()` was a remote double free in the control center and the
+  agent). A new binary type must be dropped at that frontier too
+  (`drop_binary_keys` in `gbuffer.c`). An application that builds a kw from
+  a peer's json (an MQTT payload) puts it as a VALUE under a key of its own,
+  never as the kw itself.
+
 - **A proxy on the same host makes every client `yuneta`.** `C_AUTHZ` lets a
   peer of `127.0.0.*` (or of `allowed_ips`) with no token and no password log
   in as the local user `yuneta`, root, by its address alone. nginx in front of
@@ -2213,7 +2238,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.30.16) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.30.17) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |
