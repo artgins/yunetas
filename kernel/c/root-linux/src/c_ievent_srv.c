@@ -1075,7 +1075,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         /*
          *      __RESPONSE__ __MESSAGE__
          */
-        JSON_INCREF(kw)
+        KW_INCREF(kw)   // a kw: KW_DECREF()'d by msg_iev_set_back_metadata() and below
         json_t *kw_answer = msg_iev_set_back_metadata(
             gobj,
             kw,
@@ -1168,7 +1168,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     /*
      *      __RESPONSE__ __MESSAGE__
      */
-    JSON_INCREF(kw)
+    KW_INCREF(kw)   // a kw: KW_DECREF()'d by msg_iev_set_back_metadata() and at the end
     json_t *kw_answer = msg_iev_set_back_metadata(
         gobj,
         kw,
@@ -1207,7 +1207,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return 0;
 }
 
