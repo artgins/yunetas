@@ -179,6 +179,8 @@ PUBLIC int ytls_reload_certificates(
       - "not_before" (integer) Unix ts of certificate's notBefore
       - "not_after"  (integer) Unix ts of certificate's notAfter
       - "serial"     (string)  Serial number, uppercase hex
+      - "spki_sha256" (string) sha256 of its public key (SPKI, DER),
+                               lowercase hex
 
     Returns a new json object owned by the caller, or NULL if no cert info
     is available (e.g. a client without a certificate, or backend that
@@ -204,7 +206,8 @@ PUBLIC json_t *ytls_get_cert_info(hytls ytls);
     "optional" or "required"), or with ssl_verify_mode "request": the
     client's certificate taken as it comes, its chain not verified and not
     reported, for the owner to PIN by its spki_sha256 (a self-signed one is
-    the point). Trust an identity read here only with "verified" true, or
+    the point). Under "request" a ssl_trusted_certificate is not used, in
+    both backends: "verified" is false even for a client it signs. Trust an identity read here only with "verified" true, or
     with a spki_sha256 you pinned.
 
     Returns a new json object owned by the caller, or NULL when the peer

@@ -10,6 +10,11 @@
  *          same value `openssl pkey -pubout -outform DER | sha256sum` gives.
  *          A client without a certificate is let in, with no peer_cert.
  *
+ *          The server also has a CA, the one that signs the client's
+ *          certificate: "request" does not use it, so "verified" stays
+ *          false. Up to 7.30.14 mbedTLS verified the chain against it and
+ *          said true, where OpenSSL said false.
+ *
  *          Tasks
  *          - Start the input side (the server) and two clients: one with
  *            the test certificate as its own, one without

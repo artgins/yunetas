@@ -860,7 +860,8 @@ PRIVATE json_t *get_cert_info(hytls ytls_)
 /***************************************************************************
  *  The certificate the peer of a connection presented, with "verified":
  *  its chain was verified against the CA. Under MBEDTLS_SSL_VERIFY_NONE
- *  nothing was verified.
+ *  nothing was verified. Under "request" the CA is not used, as in the
+ *  openssl backend: a chain that verifies against one is not "verified".
  ***************************************************************************/
 PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
 {
@@ -875,6 +876,7 @@ PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
     json_t *info = cert_info(cert);
     BOOL verified = sskt->state_ref &&
         sskt->state_ref->authmode != MBEDTLS_SSL_VERIFY_NONE &&
+        !sskt->state_ref->request_only &&
         mbedtls_ssl_get_verify_result(&sskt->ssl) == 0;
     json_object_set_new(info, "verified", json_boolean(verified));
     return info;

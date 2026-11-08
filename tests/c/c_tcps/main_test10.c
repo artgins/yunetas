@@ -100,6 +100,7 @@ PRIVATE char variable_config[]= "\
                             'library': '" TEST10_TLS_LIBRARY "',    \n\
 'ssl_certificate': '/yuneta/agent/certs/localhost.crt',             \n\
 'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',         \n\
+'ssl_trusted_certificate': '/yuneta/agent/certs/localhost.crt',     \n\
                             'ssl_verify_mode': 'request',           \n\
                             'trace': false                          \n\
                         },                                          \n\
