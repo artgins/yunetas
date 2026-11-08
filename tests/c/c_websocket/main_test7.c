@@ -8,12 +8,14 @@
  *          - Open __output_side__, a C_WEBSOCKET client that reconnects
  *          - The server answers half a 101 and then nothing; then right
  *            101s, each followed by a frame the client must close for: RSV
- *            bits, a continuation with no message begun (final and not), a
- *            data frame inside a fragmented message (final and not); then a
- *            right 101 with OWS around its values, and a text frame
+ *            bits (final and not), a continuation with no message begun
+ *            (final and not), a ping not final, a text frame not utf-8, a
+ *            ping of 126 bytes; then a right 101 with OWS around its
+ *            values, and a text frame; then a data frame inside a
+ *            fragmented message
  *          - The client closes the first at timeout_handshake and each bad
- *            frame with ONE warning, takes the last one and delivers its
- *            frame: shutdown
+ *            frame with ONE warning, and takes the 101 with OWS and
+ *            delivers its frame; the last close ends the test: shutdown
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -207,7 +209,7 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Timeout waiting websocket handshake",                                          // case 0
@@ -217,8 +219,16 @@ static int register_yuno_and_more(void)
         "msg", "Timeout waiting websocket disconnected",
         "msg", "Websocket continuation frame with no message begun, connection closed",        // case 3
         "msg", "Timeout waiting websocket disconnected",
-        // case 4, the 101 with OWS: nothing to say
-        "msg", "Websocket data frame inside a fragmented message, connection closed",          // case 5
+        "msg", "Websocket frame with RSV bits and no extension, connection closed",            // case 4
+        "msg", "Timeout waiting websocket disconnected",
+        "msg", "Websocket control frame fragmented, connection closed",                        // case 5
+        "msg", "Timeout waiting websocket disconnected",
+        "msg", "Websocket text frame not utf-8, connection closed",                            // case 6
+        "msg", "Timeout waiting websocket disconnected",
+        "msg", "Websocket control frame of 126 bytes or more, connection closed",              // case 7
+        "msg", "Timeout waiting websocket disconnected",
+        // case 8, the 101 with OWS: nothing to say
+        "msg", "Websocket data frame inside a fragmented message, connection closed",          // case 9
         "msg", "Timeout waiting websocket disconnected",
         "msg", "Exit to die",
         "msg", "Pausing yuno",

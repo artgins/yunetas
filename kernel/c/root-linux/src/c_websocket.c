@@ -436,6 +436,26 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
 }
 
 /***************************************************************************
+ *  What a connection leaves of a message: the fragments of a message begun,
+ *  a payload half read. A connection starts and ends without them: up to
+ *  7.30.15 a fragment begun stayed in the gobj, and the next peer of a
+ *  static channel that sent a continuation got the bytes of the peer
+ *  before it. (The frame header is reset by start_wait_frame_header() when
+ *  the session begins.)
+ ***************************************************************************/
+PRIVATE void reset_message_state(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    GBUFFER_DECREF(priv->gbuf_message)
+    memset(&priv->message_head, 0, sizeof(FRAME_HEAD));
+    if(priv->istream_payload) {
+        istream_destroy(priv->istream_payload);
+        priv->istream_payload = 0;
+    }
+}
+
+/***************************************************************************
  *  mask or unmask data: a xor of each byte with the byte of the key of its
  *  position, the first one being at `offset` of the payload.
  *  Eight bytes at a time: the key, from that position, twice in a word, and
@@ -1058,6 +1078,7 @@ PRIVATE int frame_completed(hgobj gobj)
                      *  Check valid utf-8
                      */
                     if(!check_utf8(unmasked)) {
+                        log_bad_frame(gobj, "Websocket text frame not utf-8, connection closed", unmasked);
                         if(unmasked) {
                             gbuffer_decref(unmasked);
                             unmasked = 0;
@@ -1184,6 +1205,7 @@ PRIVATE int frame_completed(hgobj gobj)
 
             case OPCODE_CONTROL_PING:
                 if(frame_head->frame_length >= 126) {
+                    log_bad_frame(gobj, "Websocket control frame of 126 bytes or more, connection closed", unmasked);
                     if(unmasked) {
                         gbuffer_decref(unmasked);
                         unmasked = 0;
@@ -1238,6 +1260,22 @@ PRIVATE int frame_completed(hgobj gobj)
          *  control message MUST NOT be fragmented.
          *-------------------------------------------*/
         if (frame_head->h_opcode > OPCODE_BINARY_FRAME) {
+            log_bad_frame(gobj, "Websocket control frame fragmented, connection closed", unmasked);
+            if(unmasked) {
+                gbuffer_decref(unmasked);
+                unmasked = 0;
+            }
+            ws_close(gobj, STATUS_PROTOCOL_ERROR, 0);
+            return -1;
+        }
+
+        /*-------------------------------------------*
+         *  No extension is agreed: no RSV bit, in
+         *  any frame (up to 7.30.15 only a final
+         *  frame was looked at)
+         *-------------------------------------------*/
+        if (frame_head->h_reserved_bits) {
+            log_bad_frame(gobj, "Websocket frame with RSV bits and no extension, connection closed", unmasked);
             if(unmasked) {
                 gbuffer_decref(unmasked);
                 unmasked = 0;
@@ -1737,6 +1775,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->connected = TRUE;
     priv->inform_on_close = FALSE;
     priv->close_frame_sent = FALSE;
+    reset_message_state(gobj);
 
     /*
      *  Rebuild both handshake parsers for the new connection.
@@ -1816,10 +1855,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         (void)ghttp_parser_finish(priv->parsing_response);
     }
 
-    if(priv->istream_payload) {
-        istream_destroy(priv->istream_payload);
-        priv->istream_payload = 0;
-    }
+    reset_message_state(gobj);
     if (priv->inform_on_close) {
         /*
          *  We had a real session (EV_ON_OPEN was published after the
@@ -2098,8 +2134,14 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = framehead_consume(frame, istream, bf, ln);
         if (n <= 0) {
-            // Some error in parsing
-            // on error do break the connection
+            /*
+             *  No progress. After a frame of this read closed the session
+             *  (its own warning said why) the rest is not parsed; else it
+             *  is a header that cannot be decoded.
+             */
+            if(gobj_current_state(gobj) != ST_DISCONNECTED) {
+                log_bad_frame(gobj, "Websocket frame header not decoded, connection closed", NULL);
+            }
             ws_close(gobj, STATUS_PROTOCOL_ERROR, "");
             ret = -1;
             break;

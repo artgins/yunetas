@@ -504,15 +504,33 @@ warning (`MSGSET_PROTOCOL`, with `opcode`, `fin`, `rsv`, `frame_length`,
 
 | The frame | The warning |
 |---|---|
-| an RSV bit set (no extension is agreed) | *"Websocket frame with RSV bits and no extension, connection closed"* |
+| an RSV bit set, in any frame (no extension is agreed) | *"Websocket frame with RSV bits and no extension, connection closed"* |
 | a continuation (final or not) with no message begun | *"Websocket continuation frame with no message begun, connection closed"* |
 | a text or binary frame (final or not) inside a fragmented message | *"Websocket data frame inside a fragmented message, connection closed"* |
+| a control frame (ping, pong, close) not final | *"Websocket control frame fragmented, connection closed"* |
+| a text frame that is not utf-8 (closed with `1007`) | *"Websocket text frame not utf-8, connection closed"* |
+| a ping of 126 bytes or more | *"Websocket control frame of 126 bytes or more, connection closed"* |
+| a frame header that cannot be decoded | *"Websocket frame header not decoded, connection closed"* |
 
-Up to 7.30.15 these closes left no log. For example, a text frame `hi` with
-RSV1 set, as a server writes it (not masked):
+Up to 7.30.15 these closes left no log, and the RSV bits of a frame that is
+not final were not looked at. For example, a text frame `hi` with RSV1 set,
+as a server writes it (not masked):
 
 ```text
 c1 02 68 69         FIN + RSV1 + text, length 2, "hi"  ->  the warning, and a Close 1002
+```
+
+A message is never carried from one connection to the next: the fragments
+of a message begun and a payload half read are dropped when a connection
+opens and when it closes. Up to 7.30.15 a fragment begun stayed in the gobj,
+and on a server's static channel the next peer that sent a final
+continuation was delivered the bytes of the peer before it:
+
+```text
+peer A:  01 88 <key> "A-secret"    (text, not final), then leaves
+peer B:  80 81 <key> "b"           (continuation, final), same channel
+         -> 7.30.15: "A-secretb" delivered to B's session
+         -> now: the continuation warning above, and a Close 1002
 ```
 
 What arrives in between -- the rest of the frame the client gave up on, the
@@ -594,4 +612,5 @@ Tests: `tests/c/c_websocket` (`test_websocket_test1`; `test_websocket_test4`
 for the subprotocol a server answers; `test_websocket_test5` for the
 handshake a client refuses; `test_websocket_test6` for a server's half
 handshakes; `test_websocket_test7` for what a client closes for, and a `101`
-with OWS).
+with OWS; `test_websocket_test8` for a message that must not cross from one
+connection to the next).

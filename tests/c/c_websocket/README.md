@@ -96,15 +96,29 @@ answers one case per connection, and the client reconnects:
 | a right `101` and `c1 02 "hi"` (RSV1) | closes, ONE warning, then *"Timeout waiting websocket disconnected"* |
 | a right `101` and `80 02 "hi"` (a final continuation, no message begun) | the same |
 | a right `101` and `00 02 "hi"` (a continuation not final) | the same |
+| a right `101` and `41 01 "a"` (RSV1, a text frame not final) | the same |
+| a right `101` and `09 02 "hi"` (a ping not final) | the same |
+| a right `101` and `81 02 c3 28` (a text frame not utf-8) | closes with `1007`, ONE warning, then the disconnect timeout |
+| a right `101` and `89 7e 00 7e` + 126 bytes (a ping of 126 bytes) | closes, ONE warning, then the disconnect timeout |
 | `Upgrade: websocket `, `Connection:\t Upgrade \t`, `Sec-WebSocket-Accept: <accept> ` and `81 05 "hello"` | opens the session and delivers `hello`; the server drops it |
 | a right `101`, `01 01 "a"` and `81 01 "b"` (data inside a fragmented message) | closes, ONE warning, then the disconnect timeout: the test ends |
 
 Up to 7.30.15 the client waited for the rest of the half `101` for ever (red:
-*"Not every case was answered"*), the bad frames were closed with no log, and
-the `101` with OWS was refused (red: *"The frame of the 101 with OWS was not
-delivered"*). A text frame not final inside a fragmented message is test6's:
-a fragment begun stays in the gobj after its connection,
-so this client cannot take a second case of it.
+*"Not every case was answered"*), the bad frames were closed with no log, a
+text frame not final with an RSV bit was taken, and the `101` with OWS was
+refused (red: *"The frame of the 101 with OWS was not delivered"*). A text
+frame not final inside a fragmented message is test6's.
+
+`test8` (`main_test8.c` + `c_test8.c`) is a message that must not cross from
+one connection to the next. The `C_WEBSOCKET` server has ONE channel. Raw
+client A upgrades, sends `01 88 <key> "A-secret"` (a text frame not final,
+masked) and a ping; at the pong (the server read the fragment) it leaves.
+Raw client B then upgrades on the same channel and sends `80 81 <key> "b"`, a
+final continuation: the server closes it with ONE warning, *"Websocket
+continuation frame with no message begun, connection closed"*, and delivers
+no message. Up to 7.30.15 the fragment stayed in the gobj, and B's session
+was delivered `A-secretb` (red: *"The second connection got a message with
+the bytes of the first one"*).
 
 The raw servers of test1, test2, test3, test5 and test7 answer the
 `Sec-WebSocket-Accept` of the key the client sent, computed by

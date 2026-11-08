@@ -15,19 +15,25 @@
  *          2. a right 101 and a final continuation frame, with no message
  *             begun: closed, ONE warning;
  *          3. the same, the continuation not final: closed, ONE warning;
- *          4. a 101 with OWS around its values ("Upgrade: websocket ", a
+ *          4. a text frame not final with an RSV bit: closed, ONE warning
+ *             (up to 7.30.15 the RSV bits of a frame not final were not
+ *             looked at);
+ *          5. a ping not final (a control frame fragmented): closed, ONE
+ *             warning;
+ *          6. a text frame that is not utf-8: closed (1007), ONE warning;
+ *          7. a ping of 126 bytes: closed, ONE warning;
+ *          8. a 101 with OWS around its values ("Upgrade: websocket ", a
  *             tab and a space around "Upgrade", a space after the accept),
  *             and a text frame "hello" in the same write: the session opens
  *             and the client delivers the frame; the server then drops the
  *             connection. Up to 7.30.15 the parser kept the trailing OWS,
  *             and the client refused this legal 101 (red);
- *          5. a right 101, a text frame not final and a text frame final:
+ *          9. a right 101, a text frame not final and a text frame final:
  *             data inside a fragmented message, closed, ONE warning; the
  *             test ends when that connection is closed.
- *          Up to 7.30.15 the closes of 1, 2, 3 and 5 left no log (red). A
- *          data frame inside a fragmented message that is not final is
- *          test6 (the server side): a fragment begun stays in the gobj
- *          after its connection, so this client cannot take a second one.
+ *          Up to 7.30.15 the closes of 1 to 7 and 9 left no log (red), and
+ *          4 was taken. A data frame inside a fragmented message that is
+ *          not final is test6 (the server side).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -44,9 +50,13 @@
 #define CASE_RSV            1
 #define CASE_CONT_FINAL     2
 #define CASE_CONT           3
-#define CASE_OWS            4
-#define CASE_DATA_IN_FRAG   5
-#define WS_CASES            6
+#define CASE_RSV_NOT_FINAL  4
+#define CASE_CONTROL_FRAG   5
+#define CASE_NOT_UTF8       6
+#define CASE_PING_TOO_LONG  7
+#define CASE_OWS            8
+#define CASE_DATA_IN_FRAG   9
+#define WS_CASES            10
 #define FIRST_FRAME         "hello"     // written with the 101 of CASE_OWS
 #define WATCHDOG_MS         20000
 
@@ -256,6 +266,24 @@ PRIVATE gbuffer_t *build_answer(int ws_case, const char *accept)
             break;
         case CASE_CONT:
             append_frame(answer, 0x00, "hi");               // continuation, not final
+            break;
+        case CASE_RSV_NOT_FINAL:
+            append_frame(answer, 0x40|0x01, "a");           // RSV1, text, not final
+            break;
+        case CASE_CONTROL_FRAG:
+            append_frame(answer, 0x09, "hi");               // ping, not final
+            break;
+        case CASE_NOT_UTF8:
+            append_frame(answer, 0x80|0x01, "\xc3\x28");    // FIN, text: not utf-8
+            break;
+        case CASE_PING_TOO_LONG:
+            gbuffer_append_char(answer, (char)(0x80|0x09)); // FIN, ping
+            gbuffer_append_char(answer, (char)126);         // and 2 bytes of length: 126
+            gbuffer_append_char(answer, (char)0);
+            gbuffer_append_char(answer, (char)126);
+            for(int i = 0; i < 126; i++) {
+                gbuffer_append_char(answer, 'p');
+            }
             break;
         case CASE_OWS:
             append_frame(answer, 0x80|0x01, FIRST_FRAME);   // FIN, text
