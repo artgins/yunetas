@@ -854,14 +854,28 @@ PRIVATE int process_msg(
     /*-----------------------------*
      *      Build task name
      *-----------------------------*/
-    const char *id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
-    json_int_t __msg_key__ = kw_get_int(gobj, kw, "__md_trq__`__msg_key__", 0, KW_REQUIRED);
-    if(!__msg_key__) {
-        gobj_log_error(gobj, 0,
+    /*
+     *  The message is a peer's: one without its id or its queue key is
+     *  refused with ONE warning, no stack (up to 7.30.16 an ERROR with a
+     *  stack per missing field, and an id-less one went on)
+     */
+    const char *id = json_string_value(json_object_get(kw, "id"));
+    json_t *__md_trq__ = json_object_get(kw, __MD_TRQ__);
+    json_t *jn_msg_key = json_is_object(__md_trq__)? json_object_get(__md_trq__, "__msg_key__") : NULL;
+    json_int_t __msg_key__ = json_is_integer(jn_msg_key)? json_integer_value(jn_msg_key) : 0;
+    if(empty_string(id) || !__msg_key__) {
+        hgobj channel_gobj = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+        const char *peername = "";
+        if(channel_gobj && gobj_has_bottom_attr(channel_gobj, "peername")) {
+            peername = gobj_read_str_attr(channel_gobj, "peername");
+        }
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "Not __msg_key__, free queue's msg",
-            "src",          "%s", gobj_full_name(src),
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "Message of a peer without its id or its queue key, refused",
+            "peername",     "%s", peername?peername:"",
+            "has_id",       "%d", empty_string(id)? 0 : 1,
+            "has_msg_key",  "%d", __msg_key__? 1 : 0,
             NULL
         );
         return 0; // free the queue's msg
