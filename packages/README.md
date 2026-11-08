@@ -37,7 +37,11 @@ see its header). Both agents' units run it, after `yuneta-node-uuid`;
 disk against a fake `/sys`, with `yuneta-node-uuid`), and that
 `yunos/c/yuno_agent/service/` (`yuneta_agent`, `install-yuneta-service.sh`,
 `remove-yuneta-service.sh`) holds the `.deb`'s files (a node that builds from
-source installs that copy). `install-yuneta-agent-cert.sh`
+source installs that copy). It also runs both packagers'
+`install-yuneta-service.sh` in a fake root, with stubs for `systemctl`,
+`pgrep` and `su` (systemd with and without the units, a unit that does not
+restart, an old `/etc/init.d/yuneta_agent`), and the agent build's warning
+about the installed scripts (`cmake -P`). `install-yuneta-agent-cert.sh`
 installs it by hand on a node without the package, once
 `install-yuneta-node-uuid.sh` has run. The packages carry no agent pair: only
 `certs/controlcenter.crt`.

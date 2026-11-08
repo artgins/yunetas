@@ -139,9 +139,12 @@ install(CODE "
 
 #   The agents' units run the scripts that packages/install-yuneta-node-uuid.sh
 #   and packages/install-yuneta-agent-cert.sh put in /usr/libexec/yuneta, and
-#   a `git pull` does not update them: say it when they are not this tree's
-#   (nothing when the node never took them).
+#   a `git pull` does not update them, nor /etc/init.d/yuneta_agent (which
+#   service/install-yuneta-service.sh puts there): say it when they are not
+#   this tree's (nothing when the node never took them; one of the two
+#   scripts without the other is said).
 install(CODE "set(_yuneta_templates \"${YUNETAS_BASE}/packages/templates\")")
+install(CODE "set(_yuneta_sysv \"${CMAKE_CURRENT_SOURCE_DIR}/service/yuneta_agent\")")
 install(CODE [[
     set(_stale "")
     foreach(_s yuneta-node-uuid yuneta-agent-cert)
@@ -154,7 +157,7 @@ install(CODE [[
             if(NOT _same_rc EQUAL 0)
                 list(APPEND _stale "${_installed} is not this tree's")
             endif()
-        elseif(EXISTS "/usr/libexec/yuneta/yuneta-agent-cert")
+        elseif(EXISTS "/usr/libexec/yuneta/yuneta-node-uuid" OR EXISTS "/usr/libexec/yuneta/yuneta-agent-cert")
             list(APPEND _stale "${_installed} is missing (the pair is bound to the node uuid)")
         endif()
     endforeach()
@@ -167,6 +170,15 @@ install(CODE [[
     if(_stale)
         string(REPLACE ";" "; " _stale_text "${_stale}")
         message(WARNING "${_stale_text}. From this checkout, as root, one after the other: packages/install-yuneta-node-uuid.sh, then packages/install-yuneta-agent-cert.sh")
+    endif()
+    if(EXISTS "/etc/init.d/yuneta_agent")
+        execute_process(
+            COMMAND "${CMAKE_COMMAND}" -E compare_files "/etc/init.d/yuneta_agent" "${_yuneta_sysv}"
+            RESULT_VARIABLE _same_rc
+        )
+        if(NOT _same_rc EQUAL 0)
+            message(WARNING "/etc/init.d/yuneta_agent is not this tree's (without the units it starts the agents, and up to 7.30.15 it ran neither yuneta-node-uuid nor yuneta-agent-cert). As root: /yuneta/agent/service/install-yuneta-service.sh (it keeps the old one beside it, and starts or restarts both agents)")
+        endif()
     endif()
 ]])
 

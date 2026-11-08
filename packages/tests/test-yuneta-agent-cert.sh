@@ -1,6 +1,8 @@
 #!/bin/bash
 #
-#   Test of packages/templates/yuneta-agent-cert in a private directory.
+#   Test of packages/templates/yuneta-agent-cert in a private directory,
+#   and of what a node that builds from source installs beside it: the
+#   agent's service/ helpers (in a fake root) and the build's warning.
 #   Runs as a NORMAL user, never as root: as root the script drops to the
 #   yuneta user, who cannot write in this test's private directory.
 #
@@ -401,6 +403,250 @@ done
 #
 check "install-yuneta-agent-cert.sh: says to restart both agents" \
     "$(grep -c 'systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22' "${HERE}/../install-yuneta-agent-cert.sh")" "1"
+
+#
+#   install-yuneta-service.sh, the .deb's and the .rpm's, in a fake root:
+#   the helper's paths are moved under it, and systemctl, pgrep, su, sleep
+#   and the SysV tools are stubs that write what they are asked in a log
+#
+SROOT="${WORK}/sroot"
+STUBS="${WORK}/stubs"
+SLOG="${WORK}/service.log"
+SERVICE_DIR="${HERE}/../../yunos/c/yuno_agent/service"
+mkdir -p "$STUBS"
+cat > "${STUBS}/systemctl" <<'EOF'
+#!/bin/sh
+echo "systemctl $*" >> "$SLOG"
+case "$1" in
+    show)
+        echo 0
+        ;;
+    restart)
+        for _d in usr/lib/systemd/system lib/systemd/system etc/systemd/system run/systemd/generator.late; do
+            if [ -f "${SROOT}/${_d}/$2" ]; then
+                case " ${FAIL_RESTART} " in
+                    *" $2 "*)
+                        exit 1
+                        ;;
+                esac
+                exit 0
+            fi
+        done
+        echo "Failed to restart $2: Unit $2 not found." >&2
+        exit 5
+        ;;
+esac
+exit 0
+EOF
+cat > "${STUBS}/pgrep" <<'EOF'
+#!/bin/sh
+if [ "$1" = "-x" ] && [ -f "${SROOT}/pgrep/$2" ]; then
+    cat "${SROOT}/pgrep/$2"
+    exit 0
+fi
+exit 1
+EOF
+for stub in su invoke-rc.d service chkconfig; do
+    printf '#!/bin/sh\necho "%s $*" >> "$SLOG"\nexit 0\n' "$stub" > "${STUBS}/${stub}"
+done
+printf '#!/bin/sh\nexit 0\n' > "${STUBS}/sleep"
+chmod 0755 "$STUBS"/*
+
+service_root() {    # 1: a systemd that runs, 0: none
+    rm -rf "${SROOT:?}"
+    mkdir -p "${SROOT}/yuneta/agent/service" "${SROOT}/etc/init.d" "${SROOT}/usr/sbin" \
+        "${SROOT}/pgrep" "${SROOT}/proc"
+    cp "${SERVICE_DIR}/yuneta_agent" "${SROOT}/yuneta/agent/service/yuneta_agent"
+    cp "${STUBS}/su" "${SROOT}/usr/sbin/update-rc.d"
+    sed -i 's/"su /"update-rc.d /' "${SROOT}/usr/sbin/update-rc.d"
+    if [ "$1" = "1" ]; then
+        mkdir -p "${SROOT}/run/systemd/system"
+    fi
+}
+service_units() {
+    mkdir -p "${SROOT}/usr/lib/systemd/system"
+    touch "${SROOT}/usr/lib/systemd/system/yuneta_agent.service" \
+        "${SROOT}/usr/lib/systemd/system/yuneta_agent22.service"
+}
+agent_running() {    # name pid executable
+    echo "$2" >> "${SROOT}/pgrep/$1"
+    mkdir -p "${SROOT}/proc/$2"
+    ln -s "$3" "${SROOT}/proc/$2/exe"
+}
+run_helper() {    # helper; FAIL_RESTART: the units whose restart fails
+    sed "s#\([ \"'(=]\)/\(run\|usr\|lib\|etc\|yuneta\|proc\)/#\1${SROOT}/\2/#g" "$1" > "${WORK}/helper.sh"
+    : > "$SLOG"
+    env PATH="${STUBS}:${PATH}" SLOG="$SLOG" SROOT="$SROOT" FAIL_RESTART="${FAIL_RESTART:-}" \
+        sh "${WORK}/helper.sh" > "${WORK}/helper.out" 2>&1
+}
+stops() {
+    grep -c -- '--stop' "$SLOG"
+}
+restarts() {
+    grep '^systemctl restart' "$SLOG" | sed 's/.* //' | paste -sd' ' -
+}
+sysv_starts() {
+    grep -cE '^(invoke-rc.d|service) yuneta_agent start$' "$SLOG"
+}
+
+rpm_helper="${WORK}/rpm-install-yuneta-service.sh"
+sed -n '/^cat > "${STAGE}\/yuneta\/agent\/service\/install-yuneta-service.sh" <<'"'"'EOF'"'"'$/,/^EOF$/p' \
+    "${HERE}/../rpm/make-yuneta-agent-rpm.sh" | sed '1d;$d' > "$rpm_helper"
+check "the .rpm's install-yuneta-service.sh: found" "$( [ -s "$rpm_helper" ] && echo found)" "found"
+deb_helper="${WORK}/deb-install-yuneta-service.sh"
+sed -n '/^cat > "${WORKDIR}\/yuneta\/agent\/service\/install-yuneta-service.sh" <<'"'"'EOF'"'"'$/,/^EOF$/p' \
+    "${HERE}/../deb/make-yuneta-agent-deb.sh" | sed '1d;$d' > "$deb_helper"
+check "install-yuneta-service.sh: the .rpm's is the .deb's up to the SysV enable" "$(
+    if [ "$(sed '/^# Enable SysV/,$d' "$deb_helper")" = "$(sed '/^if command -v chkconfig/,$d' "$rpm_helper")" ]; then
+        echo same
+    else
+        echo different
+    fi)" "same"
+
+for helper in "${SERVICE_DIR}/install-yuneta-service.sh" "$rpm_helper"; do
+    case "$helper" in
+        "$rpm_helper")
+            flavour=".rpm"
+            ;;
+        *)
+            flavour=".deb"
+            ;;
+    esac
+
+    #   A node that builds from source, systemd and no units, the agents
+    #   started by hand: none of them stopped, the SysV start (up to 7.30.16
+    #   both were stopped and left down, and the helper said 0)
+    service_root 1
+    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent"
+    agent_running yuneta_agent22 102 "${SROOT}/yuneta/agent/yuneta_agent22"
+    run_helper "$helper"
+    rc=$?
+    check "$flavour service, systemd without units: 0" "$rc" "0"
+    check "$flavour service, systemd without units: no agent stopped" "$(stops)" "0"
+    check "$flavour service, systemd without units: no unit restarted" "$(grep -c '^systemctl restart' "$SLOG")" "0"
+    check "$flavour service, systemd without units: the SysV start" "$(sysv_starts)" "1"
+
+    #   ... with the unit systemd generated from the SysV script: agent22
+    #   has no unit, and stays up
+    mkdir -p "${SROOT}/run/systemd/generator.late"
+    touch "${SROOT}/run/systemd/generator.late/yuneta_agent.service"
+    run_helper "$helper"
+    check "$flavour service, a generated unit: no agent stopped" "$(stops)" "0"
+    check "$flavour service, a generated unit: the SysV start" "$(sysv_starts)" "1"
+
+    #   The units: each agent running outside its unit is stopped, then its
+    #   unit restarted, the main agent first
+    service_root 1
+    service_units
+    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent"
+    agent_running yuneta_agent22 102 "${SROOT}/yuneta/agent/yuneta_agent22 (deleted)"
+    run_helper "$helper"
+    rc=$?
+    check "$flavour service, the units: 0" "$rc" "0"
+    check "$flavour service, the units: both agents outside stopped first" \
+        "$(grep -E '^(su |systemctl restart)' "$SLOG" | sed 's/^su .*\/\(yuneta_agent[0-9]*\) .*/stop:\1/; s/^systemctl restart \(.*\)\.service/restart:\1/' | paste -sd' ' -)" \
+        "stop:yuneta_agent restart:yuneta_agent stop:yuneta_agent22 restart:yuneta_agent22"
+    check "$flavour service, the units: no SysV start" "$(sysv_starts)" "0"
+
+    #   ... a restart that fails: said, not 0, and agent22 left as it is
+    FAIL_RESTART="yuneta_agent.service" run_helper "$helper"
+    rc=$?
+    check "$flavour service, the main agent's unit fails: not 0" "$( [ "$rc" -ne 0 ] && echo failed)" "failed"
+    check "$flavour service, the main agent's unit fails: agent22 untouched" "$(restarts)" "yuneta_agent.service"
+    check "$flavour service, the main agent's unit fails: agent22 not stopped" "$(stops)" "1"
+    FAIL_RESTART="yuneta_agent22.service" run_helper "$helper"
+    rc=$?
+    check "$flavour service, agent22's unit fails: not 0" "$( [ "$rc" -ne 0 ] && echo failed)" "failed"
+
+    #   ... a process named like an agent that is not its binary (the SysV
+    #   script, a build tree's agent) is not stopped
+    service_root 1
+    service_units
+    agent_running yuneta_agent 201 /usr/bin/dash
+    agent_running yuneta_agent22 202 "${SROOT}/yuneta/development/yunetas/outputs/yunos/yuneta_agent22"
+    run_helper "$helper"
+    check "$flavour service, a process named like an agent: not stopped" "$(stops)" "0"
+    check "$flavour service, a process named like an agent: both units restarted" \
+        "$(restarts)" "yuneta_agent.service yuneta_agent22.service"
+
+    #   No systemd: an /etc/init.d/yuneta_agent of an earlier agent is
+    #   replaced, the old one kept beside it, not executable
+    service_root 0
+    printf '#!/bin/sh\nexit 0\n' > "${SROOT}/etc/init.d/yuneta_agent"
+    chmod 0755 "${SROOT}/etc/init.d/yuneta_agent"
+    run_helper "$helper"
+    rc=$?
+    check "$flavour service, an old SysV script: 0" "$rc" "0"
+    check "$flavour service, an old SysV script: replaced" "$(
+        cmp -s "${SROOT}/etc/init.d/yuneta_agent" "${SERVICE_DIR}/yuneta_agent" && echo replaced)" "replaced"
+    old_sysv="$(ls "${SROOT}/etc/init.d/" | grep -c '^yuneta_agent\..*\.bak$')"
+    check "$flavour service, an old SysV script: kept beside it" "$old_sysv" "1"
+    check "$flavour service, an old SysV script: kept, not executable" \
+        "$(stat -c %a "${SROOT}"/etc/init.d/yuneta_agent.*.bak 2>/dev/null)" "644"
+    check "$flavour service, an old SysV script: the SysV start" "$(sysv_starts)" "1"
+    run_helper "$helper"
+    check "$flavour service, the SysV script of this agent: untouched" \
+        "$(ls "${SROOT}/etc/init.d/" | grep -c '^yuneta_agent\..*\.bak$')" "1"
+    #   ... and none: installed
+    rm -f "${SROOT}/etc/init.d/"*
+    run_helper "$helper"
+    check "$flavour service, no SysV script: installed" "$(
+        cmp -s "${SROOT}/etc/init.d/yuneta_agent" "${SERVICE_DIR}/yuneta_agent" && echo installed)" "installed"
+    check "$flavour service, no SysV script: nothing kept" \
+        "$(ls "${SROOT}/etc/init.d/" | grep -c '\.bak$')" "0"
+
+    #   The units, and an old SysV script (`service yuneta_agent` runs it):
+    #   replaced too
+    service_root 1
+    service_units
+    printf '#!/bin/sh\nexit 0\n' > "${SROOT}/etc/init.d/yuneta_agent"
+    run_helper "$helper"
+    check "$flavour service, the units and an old SysV script: replaced" "$(
+        cmp -s "${SROOT}/etc/init.d/yuneta_agent" "${SERVICE_DIR}/yuneta_agent" && echo replaced)" "replaced"
+done
+
+#
+#   The warning of the agent's build (yuno_agent/CMakeLists.txt) about the
+#   scripts a git pull does not update, against a fake root
+#
+if command -v cmake >/dev/null 2>&1; then
+    CROOT="${WORK}/croot"
+    cmake_warning() {
+        {
+            echo "set(_yuneta_templates \"${TEMPLATES}\")"
+            echo "set(_yuneta_sysv \"${SERVICE_DIR}/yuneta_agent\")"
+            sed -n '/^install(CODE \[\[$/,/^\]\])$/p' "${HERE}/../../yunos/c/yuno_agent/CMakeLists.txt" \
+                | sed '1d;$d' \
+                | sed "s#\"/usr/libexec/#\"${CROOT}/usr/libexec/#g; s#\"/etc/#\"${CROOT}/etc/#g"
+        } > "${WORK}/warning.cmake"
+        cmake -P "${WORK}/warning.cmake" 2>&1
+    }
+    cmake_root() {
+        rm -rf "${CROOT:?}"
+        mkdir -p "${CROOT}/usr/libexec/yuneta" "${CROOT}/etc/init.d"
+    }
+    cmake_root
+    check "build warning: a node that took neither script: quiet" \
+        "$( [ -z "$(cmake_warning)" ] && echo quiet)" "quiet"
+    cp "${TEMPLATES}/yuneta-node-uuid" "${CROOT}/usr/libexec/yuneta/"
+    check "build warning: the node uuid without the pair's script: said" \
+        "$(cmake_warning | grep -c 'yuneta-agent-cert is missing')" "1"
+    cp "${TEMPLATES}/yuneta-agent-cert" "${CROOT}/usr/libexec/yuneta/"
+    check "build warning: both scripts of this tree: quiet" \
+        "$( [ -z "$(cmake_warning)" ] && echo quiet)" "quiet"
+    rm -f "${CROOT}/usr/libexec/yuneta/yuneta-node-uuid"
+    check "build warning: the pair's script without the node uuid: said" \
+        "$(cmake_warning | grep -c 'yuneta-node-uuid is missing')" "1"
+    cp "${TEMPLATES}/yuneta-node-uuid" "${CROOT}/usr/libexec/yuneta/"
+    printf '#!/bin/sh\nexit 0\n' > "${CROOT}/etc/init.d/yuneta_agent"
+    check "build warning: an old SysV script: said" \
+        "$(cmake_warning | grep -c '/etc/init.d/yuneta_agent is not this tree')" "1"
+    cp "${SERVICE_DIR}/yuneta_agent" "${CROOT}/etc/init.d/yuneta_agent"
+    check "build warning: the SysV script of this tree: quiet" \
+        "$( [ -z "$(cmake_warning)" ] && echo quiet)" "quiet"
+else
+    echo "skip - no cmake: the build warning is not checked"
+fi
 
 #
 #   Usage

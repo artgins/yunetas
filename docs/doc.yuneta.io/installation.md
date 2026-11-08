@@ -686,6 +686,38 @@ CMake Warning: /usr/libexec/yuneta/yuneta-agent-cert is not this tree's;
   packages/install-yuneta-agent-cert.sh
 ```
 
+It also warns when only one of the two scripts is installed: the pair is
+bound to the node uuid, so each one needs the other.
+
+The same build compares `/etc/init.d/yuneta_agent` with the checkout's SysV
+script (`yunos/c/yuno_agent/service/yuneta_agent`). Without the units, this
+script starts the agents, and the script of up to 7.30.15 does not run
+`yuneta-node-uuid` or `yuneta-agent-cert`. The warning tells you to run the
+service helper, which replaces it:
+
+```
+CMake Warning: /etc/init.d/yuneta_agent is not this tree's (without the
+  units it starts the agents, and up to 7.30.15 it ran neither
+  yuneta-node-uuid nor yuneta-agent-cert).  As root:
+  /yuneta/agent/service/install-yuneta-service.sh (it keeps the old one
+  beside it, and starts or restarts both agents)
+```
+
+```bash
+sudo /yuneta/agent/service/install-yuneta-service.sh
+# /etc/init.d/yuneta_agent replaced by this agent's, the old one kept as
+#   /etc/init.d/yuneta_agent.20261108120000.bak
+```
+
+The old script stays beside the new one, not executable, so no init system
+runs it. Then the helper restarts the units, but only where
+`yuneta_agent.service` exists, as the SysV script decides. On a node without
+the units it enables and starts the SysV script, also under systemd. Up to
+7.30.16 a systemd without the units was enough: the helper stopped the
+agents that ran outside, could not restart a unit that does not exist, and
+left them stopped with exit 0. Now, when a restart fails, the helper says so
+and exits 1, and it leaves `yuneta_agent22` as it is.
+
 A client that trusted the old certificate to reach a node's port 1993 needs
 the node's new one -- it is public, copy it (a node whose agent serves a
 certificate of a public CA on 1993, set in its json, is not concerned):
