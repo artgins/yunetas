@@ -57,6 +57,15 @@ PRIVATE char fixed_config[]= "\
  *  presented as the client certificate of the link (mutual TLS, 7.30.10+):
  *  the controlcenter pins the node uuid to that key (accept-node).
  *
+ *  The channels of 1991 and 1993 are ONE pool of 301, so a connection that
+ *  never says anything holds a channel any local `ycommand` needs. Each is
+ *  bounded twice, at 5 s: the TLS handshake (`timeout_tls_handshake` of
+ *  C_TCP, 1993 only) and then the websocket upgrade (`timeout_handshake` of
+ *  C_WEBSOCKET, both ports; its default is 30 s). Up to 7.30.16 a silent
+ *  TLS connection held its channel for ever, and a silent plain one for
+ *  30 s: some 10 connections a second kept the whole pool busy; now it
+ *  takes some 60. A local `ycommand` upgrades in milliseconds.
+ *
  *  A top-level `__json_config_variables__` has the scope of its own json
  *  text: these are replaced in THIS text when it is loaded, before the
  *  agent's json file is merged, so the input urls leave fixed -- no json
@@ -262,12 +271,16 @@ PRIVATE char variable_config[]= "\
                                     'name': 'input-(^^__range__^^)',    \n\
                                     'gclass': 'C_WEBSOCKET',            \n\
                                     'kw': {                             \n\
-                                        'iamServer': true               \n\
+                                        'iamServer': true,              \n\
+                                        'timeout_handshake': 5000       \n\
                                     },                                  \n\
                                     'children': [                               \n\
                                         {                                       \n\
                                             'name': 'input-(^^__range__^^)',    \n\
-                                            'gclass': 'C_TCP'                   \n\
+                                            'gclass': 'C_TCP',                  \n\
+                                            'kw': {                             \n\
+                                                'timeout_tls_handshake': 5000   \n\
+                                            }                                   \n\
                                         }                                       \n\
                                     ]                                           \n\
                                 }                               \n\
