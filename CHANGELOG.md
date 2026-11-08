@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### BREAKING: a TLS server without its certificate no longer ends the yuno; it degrades that listener
+
+A yuno never dies because a secondary service fails. Up to 7.30.17 a TLS
+server whose certificate, key or trusted certificate could not be loaded
+ended the yuno with code 0 at its start (`LOG_OPT_EXIT_ZERO`; OpenSSL always,
+mbedTLS since 7.30.15), and an unknown `crypto.library` ended it for a
+client too. Code 0 told the watcher not to relaunch: an agent without its
+pair stayed dead, and on a node with no SSH nothing could bring it back.
+
+- `ytls_init()` is never fatal: one ERROR of the cause, and `NULL`, for a
+  server as for a client.
+- `C_TCP_S` with a TLS url and no context **does not listen** (its port is
+  closed: up to 7.30.14 mbedTLS listened and the first peer crashed the
+  yuno), says it once -- ERROR *"TLS server without its TLS context: not
+  listening, trying again"* --, and tries again on its timer, from 1 s up to
+  each 60 s. A try whose files and `crypto` did not change loads nothing and
+  says nothing. When they load: INFO *"TLS context loaded: listening"*, and
+  the port opens, with no restart. `reload-certs` tries at once (cert-sync
+  sends it). New stats `listening` and `tls_ready`; `view-cert` says the
+  state.
+- **What changes for an operator or a log watcher:** a yuno (the agent above
+  all) that used to stop with code 0 now STAYS UP with that listener closed:
+  alert on the ERROR *"TLS server without its TLS context"* or on
+  `listening: false`, not on the yuno being down. The agent without its pair
+  keeps 1991, its realms and yunos, and opens 1993 when `yuneta-agent-cert
+  ensure` (a unit restart) or cert-sync puts the pair in place:
+
+      ycommand -c 'stats-agent service=agent_secure_port'   # "listening": false, "tls_ready": false
+      sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
+      ycommand -c 'command-agent service=agent_secure_port command=reload-certs'
+
+Tests: `c_tcps/test14` (+ `test14_mbedtls`), `ytls/test_server_init_not_fatal`;
+`test_c_tcp_s_busy_channel` now fails saying its TLS port is not listening when
+`/yuneta/agent/certs/localhost.*` is missing (it relied on the exit).
+
 - **`C_AUTHZ`: a `jwks` key of kid `*` is refused when the keys load.**
   **BREAKING** for a configuration with such a key: it no longer loads, and
   `C_AUTHZ` logs ONE ERROR, *"A jwks key with kid '*' is not allowed: its kid

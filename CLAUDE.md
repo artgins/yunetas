@@ -1069,6 +1069,21 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   find why the pointer is NULL. A semantic guard
   (`if(!gobj_is_playing(gobj))`) is fine; a pointer-existence test papering
   over the cause is not.
+- **A yuno never dies because a secondary service fails.** The process is
+  the primary role (the agent's: managing its realms and yunos); a listener,
+  a client link, a TLS context, a secondary store are services of it. When
+  one fails, THAT service degrades -- says it ONCE on the transition (an
+  ERROR, then an INFO when it recovers), exposes the state (a stat/attr such
+  as `listening`, `tls_ready`), and tries again on its own timer with a
+  backoff (or at an explicit command) -- and the process goes on. A yuno
+  that exits can only be brought back over SSH, and a sealed node has none.
+  So no `LOG_OPT_EXIT_ZERO` / `exit()` / `abort()` for a failure of a
+  secondary service: not "exit 0 so the watcher does not relaunch", not
+  "exit -1 so it does". Exits are for the yuno's own primary contract (no
+  event loop, a broken internal invariant, its own store corrupt, an
+  operator's stop). Canonical: `ytls_init()` answers NULL, and `C_TCP_S`
+  does not listen without a TLS context and opens the port when the
+  certificate appears (`tests/c/c_tcps/test14`).
 - **Explicit lifecycle — Yuneta is not a JVM.** Prefer, in order: (1) static
   child gobjs whose create/start/stop/destroy pair with the parent's
   lifecycle; (2) self-destroy at a clear end-of-work point
