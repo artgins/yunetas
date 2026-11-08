@@ -473,6 +473,21 @@ PUBLIC json_t *anystring2json_from_peer(
 );
 
 /*
+ *  The frontier of the two above, for a json of a peer parsed elsewhere
+ *  (the command parser reads a json parameter given as text): every
+ *  "gbuffer" key of `jn`, at any depth, dropped with ONE warning. `bf` and
+ *  `len` are the text it was parsed from (walked only when it can hold the
+ *  name), NULL to walk it always. Return how many were dropped.
+ */
+PUBLIC size_t drop_peer_binary_keys(
+    hgobj gobj,
+    json_t *jn,
+    const char *bf,
+    size_t len,
+    hgobj peer_gobj         // the channel it came through, NULL if unknown
+);
+
+/*
  *  Convert a json config with comments in gbuffer to json
  */
 PUBLIC json_t *config_gbuffer2json(

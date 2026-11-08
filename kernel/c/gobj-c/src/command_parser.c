@@ -680,6 +680,7 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, co
             *refused = "a text that does not read as one";
             return NULL;
         }
+        drop_peer_binary_keys(0, jn, s, strlen(s), 0);  // a json text carries no binary field
         return jn;
     }
 
@@ -695,6 +696,8 @@ PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, co
                 return NULL;
             }
             jn = json_string(s);    // a bare word, a date: text
+        } else {
+            drop_peer_binary_keys(0, jn, s, strlen(s), 0);  // a json text carries no binary field
         }
         return jn;
     }

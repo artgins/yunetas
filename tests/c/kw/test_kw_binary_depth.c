@@ -254,6 +254,17 @@ static void test_peer_json_frontier(void)
     KW_DECREF(own)
     KW_DECREF(kw)
 
+    /*  The same with verbose 0: the frontier does not depend on it  */
+    gbuf = gbuffer_create(strlen(frame)+1, strlen(frame)+1);
+    gbuffer_append_string(gbuf, frame);
+    kw = iev_create_from_gbuffer(0, NULL, gbuf, 0);    // gbuf owned
+    warnings = logged;
+    check("iev_create_from_gbuffer, verbose 0: no gbuffer in the kw", kw &&
+        !json_object_get(kw, "gbuffer") &&
+        !json_object_get(json_object_get(kw, "record"), "gbuffer"), NULL);
+    check("iev_create_from_gbuffer, verbose 0: one warning", warnings == 1 && error_logged(), NULL);
+    KW_DECREF(kw)
+
     check("no other log", !error_logged(), NULL);
 }
 

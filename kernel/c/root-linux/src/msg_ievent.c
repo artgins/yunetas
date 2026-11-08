@@ -253,6 +253,10 @@ PUBLIC json_t *iev_create_from_gbuffer(
          */
         return NULL;
     }
+    if(!verbose) {
+        /*  The frontier of gbuf2json_from_peer() holds with 0 too  */
+        drop_peer_binary_keys(gobj, jn_msg, NULL, 0, gobj);
+    }
 
     /*
      *  Get fields

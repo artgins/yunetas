@@ -553,6 +553,25 @@ int main(int argc, char *argv[])
         jn = command_parameter_from_text(DTP_REAL, "1e999", &why);
         check("from_text real 1e999", "refused: out of its range",
             jn == NULL && why && strcmp(why, "a number out of its range")==0);
+
+        /*
+         *  A json text carries no binary field: its "gbuffer" keys (the
+         *  name of a kw's binary field) are dropped, at any depth, with one
+         *  warning. Up to 7.30.16 they reached the handler, and a dict of
+         *  it promoted to a kw had its integer taken for a pointer.
+         */
+        int warnings = g_warnings;
+        jn = command_parameter_from_text(DTP_DICT, "{\"gbuffer\": 4096, \"a\": {\"gbuffer\": 1}}", &why);
+        check("from_text dict with gbuffer keys", "dropped, one warning",
+            json_is_object(jn) && !json_object_get(jn, "gbuffer") &&
+            json_object_size(json_object_get(jn, "a")) == 0 && g_warnings == warnings + 1);
+        JSON_DECREF(jn)
+        warnings = g_warnings;
+        jn = command_parameter_from_text(DTP_JSON, "[{\"gbuffer\": 4096}]", &why);
+        check("from_text json with a gbuffer key", "dropped, one warning",
+            json_is_array(jn) && json_object_size(json_array_get(jn, 0)) == 0 &&
+            g_warnings == warnings + 1);
+        JSON_DECREF(jn)
     }
 
     /*

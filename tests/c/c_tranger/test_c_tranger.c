@@ -2634,6 +2634,28 @@ PRIVATE int do_test(void)
     JSON_DECREF(r)
     check_int("add-record: the key holds both",
         (json_int_t)tranger2_topic_key_size(tranger, TOPIC_NAME, "K"), 2);
+    /*
+     *  The record as a peer's json text: its "gbuffer" key (the name of a
+     *  kw's binary field) is dropped, with one WARNING, and the record is
+     *  added. Up to 7.30.16 the key was stored as it came.
+     */
+    r = gobj_command(yuno, "add-record",
+        as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME,
+            "record", "{\"id\":\"GBK\",\"tm\":946689801,\"gbuffer\":4096}")), yuno);
+    check_int("add-record of a peer's text with a gbuffer key", kw_get_int(0, r, "result", -999, 0), 0);
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "open-list",
+        json_pack("{s:s, s:s, s:s, s:b}", "list_id", "lstG", "topic_name", TOPIC_NAME,
+            "key", "GBK", "return_data", 1), yuno);
+    {
+        json_t *rows = kw_get_list(0, r, "data", 0, 0);
+        json_t *first = json_array_get(rows, 0);
+        check_bool("the record added has no gbuffer key",
+            json_array_size(rows) == 1 && !json_object_get(first, "gbuffer"), TRUE);
+    }
+    JSON_DECREF(r)
+    r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstG"), yuno);
+    JSON_DECREF(r)
     r = gobj_command(yuno, "open-list",
         json_pack("{s:s, s:s, s:s, s:b}", "list_id", "lstK", "topic_name", TOPIC_NAME,
             "key", "K", "return_data", 1), yuno);

@@ -97,7 +97,7 @@ it by hand, run the script.
 
 16. [**`print_track_mem`**](helpers/memory.md#print_track_mem) — `PUBLIC void print_track_mem(void)`
 
-### `gbuffer.h` — 31 functions
+### `gbuffer.h` — 32 functions
 
 **Source:** `kernel/c/gobj-c/src/gbuffer.h`
 
@@ -157,11 +157,13 @@ it by hand, run the script.
 
 28. [**`anystring2json_from_peer`**](helpers/gbuffer.md#anystring2json_from_peer) — `PUBLIC json_t *anystring2json_from_peer( hgobj gobj, const char *bf, size_t len, hgobj peer_gobj )`
 
-29. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
+29. [**`drop_peer_binary_keys`**](helpers/gbuffer.md#drop_peer_binary_keys) — `PUBLIC size_t drop_peer_binary_keys( hgobj gobj, json_t *jn, const char *bf, size_t len, hgobj peer_gobj )`
 
-30. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+30. [**`config_gbuffer2json`**](helpers/gbuffer.md#config_gbuffer2json) — `PUBLIC json_t *config_gbuffer2json( gbuffer_t *gbuf, int verbose )`
 
-31. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+31. [**`gobj_trace_dump_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_gbuf) — `PUBLIC void gobj_trace_dump_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
+
+32. [**`gobj_trace_dump_full_gbuf`**](helpers/gbuffer.md#gobj_trace_dump_full_gbuf) — `PUBLIC void gobj_trace_dump_full_gbuf( hgobj gobj, gbuffer_t *gbuf, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 3, 4)))`
 
 ### `glogger.h` — 35 functions
 
@@ -1331,7 +1333,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 630 functions**
+**Total: 631 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2432,7 +2434,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1058 functions** sorted alphabetically with their source header.
+All **1059 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2511,6 +2513,7 @@ All **1058 functions** sorted alphabetically with their source header.
 | [**`dl_init`**](helpers/dl.md#dl_init) | `dl_list.h` | gobj-c (Core Framework) |
 | [**`dl_insert`**](helpers/dl.md#dl_insert) | `dl_list.h` | gobj-c (Core Framework) |
 | [**`dl_nfind`**](helpers/dl.md#dl_nfind) | `dl_list.h` | gobj-c (Core Framework) |
+| [**`drop_peer_binary_keys`**](helpers/gbuffer.md#drop_peer_binary_keys) | `gbuffer.h` | gobj-c (Core Framework) |
 | [**`file_exists`**](helpers/file_system.md#file_exists) | `helpers.h` | gobj-c (Core Framework) |
 | [**`file_permission`**](helpers/file_system.md#file_permission) | `helpers.h` | gobj-c (Core Framework) |
 | [**`file_remove`**](helpers/file_system.md#file_remove) | `helpers.h` | gobj-c (Core Framework) |

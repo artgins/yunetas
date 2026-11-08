@@ -3828,27 +3828,38 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *jn_record = kw_get_dict_value(gobj, kw, "record", 0, 0);
     json_t *record = NULL;  // yours
     const char *not_a_record = "the record is not a json object";
+    BOOL said = FALSE;
     if(json_is_string(jn_record)) {
         const char *s = json_string_value(jn_record);
         if(json_string_length(jn_record) != strlen(s)) {
             /*  Its json text, parsed up to the NUL  */
             not_a_record = "the json text of the record holds a NUL";
         } else {
-            record = anystring2json(s, strlen(s), FALSE);
+            /*
+             *  Json text of a peer: its "gbuffer" keys (a binary field
+             *  name) are dropped, as of every json of a peer
+             */
+            record = anystring2json_from_peer(gobj, s, strlen(s), src);
+            if(!record) {
+                not_a_record = "the json text of the record is not json";
+                said = TRUE;    // a WARNING of anystring2json_from_peer()
+            }
         }
     } else if(jn_record) {
         record = json_incref(jn_record);
     }
     if(!json_is_object(record)) {
         /*  A peer's data: it answered -1 with no log  */
-        log_refusal(gobj, command_is_external(kw),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "record of a wrong shape, refused",
-            "why",          "%s", not_a_record,
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
+        if(!said || !command_is_external(kw)) {
+            log_refusal(gobj, command_is_external(kw),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "record of a wrong shape, refused",
+                "why",          "%s", not_a_record,
+                "topic_name",   "%s", topic_name,
+                NULL
+            );
+        }
         JSON_DECREF(record)
         return msg_iev_build_response(
             gobj,

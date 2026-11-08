@@ -140,6 +140,48 @@ if(!jn_body) {
 
 ---
 
+(drop_peer_binary_keys)=
+## `drop_peer_binary_keys()`
+
+The frontier of [`gbuf2json_from_peer()`](#gbuf2json_from_peer) and [`anystring2json_from_peer()`](#anystring2json_from_peer), for a json of a peer that was parsed some other way. It drops every `"gbuffer"` key of `jn`, at any depth, and says it with ONE warning (`MSGSET_PROTOCOL`, *"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*, the `peername` and the number dropped). `gbuffer` is the name of the binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)): the integer under it is taken for a pointer wherever a dict of the json becomes the top level of a kw.
+
+The command parser calls it on every parameter given as json text (a `DTP_DICT`, `DTP_LIST` or `DTP_JSON` written as text, as `ycommand` and `command-yuno` send them). Up to 7.30.16 a peer's `add-record` with `"record": "{\"id\": \"K\", \"gbuffer\": 4096}"` stored the key as it came.
+
+```C
+size_t drop_peer_binary_keys(
+    hgobj gobj,
+    json_t *jn,
+    const char *bf,
+    size_t len,
+    hgobj peer_gobj     // the channel it came through, NULL if unknown
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the warning. |
+| `jn` | `json_t *` | The json of the peer. Not owned: its keys are dropped in place. |
+| `bf` | `const char *` | The text `jn` was parsed from: the walk runs only when it holds `gbuffer` or a `\u` escape (the only way to spell a letter in a json string). `NULL` walks `jn` always. |
+| `len` | `size_t` | The length of `bf`. |
+| `peer_gobj` | `hgobj` | Any gobj above the transport the json came through: its `peername` goes into the warning. `NULL` if unknown. |
+
+**Returns**
+
+How many keys were dropped.
+
+**Example**
+
+```C
+json_t *jn = string2json(text, FALSE);
+if(jn) {
+    drop_peer_binary_keys(gobj, jn, text, strlen(text), src);
+}
+```
+
+---
+
 (json_error_for_log)=
 ## `json_error_for_log()`
 

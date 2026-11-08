@@ -1555,11 +1555,11 @@ PRIVATE size_t drop_binary_keys(json_t *jn)
     return dropped;
 }
 
-PRIVATE void drop_peer_binary_keys(
+PRIVATE size_t drop_peer_binary_keys_(
     hgobj gobj,
     const char *function,
     json_t *jn,
-    const char *bf,         // the text jn was parsed from
+    const char *bf,         // the text jn was parsed from, NULL: walk it
     size_t len,
     hgobj peer_gobj
 )
@@ -1569,13 +1569,13 @@ PRIVATE void drop_peer_binary_keys(
      *  without the name cannot hold the key. Only a \u escape can spell a
      *  letter, so a text with one is walked too.
      */
-    if(!memmem(bf, len, "gbuffer", sizeof("gbuffer")-1) &&
+    if(bf && !memmem(bf, len, "gbuffer", sizeof("gbuffer")-1) &&
             !memmem(bf, len, "\\u", 2)) {
-        return;
+        return 0;
     }
     size_t dropped = drop_binary_keys(jn);
     if(dropped == 0) {
-        return;
+        return 0;
     }
     const char *peername = "";
     if(peer_gobj && gobj_has_bottom_attr(peer_gobj, "peername")) {
@@ -1589,6 +1589,18 @@ PRIVATE void drop_peer_binary_keys(
         "dropped",      "%d", (int)dropped,
         NULL
     );
+    return dropped;
+}
+
+PUBLIC size_t drop_peer_binary_keys(
+    hgobj gobj,
+    json_t *jn,
+    const char *bf,
+    size_t len,
+    hgobj peer_gobj
+)
+{
+    return drop_peer_binary_keys_(gobj, __FUNCTION__, jn, bf, len, peer_gobj);
 }
 
 PUBLIC json_t *gbuf2json_from_peer(
@@ -1606,7 +1618,7 @@ PUBLIC json_t *gbuf2json_from_peer(
     if(!jn_msg) {
         log_json_from_peer_failed(gobj, __FUNCTION__, "frame is not json", &jn_error, p, len, peer_gobj);
     } else {
-        drop_peer_binary_keys(gobj, __FUNCTION__, jn_msg, p, len, peer_gobj);
+        drop_peer_binary_keys_(gobj, __FUNCTION__, jn_msg, p, len, peer_gobj);
     }
     gbuffer_decref(gbuf);
     return jn_msg;
@@ -1639,7 +1651,7 @@ PUBLIC json_t *anystring2json_from_peer(
     if(!jn) {
         log_json_from_peer_failed(gobj, __FUNCTION__, "data of a peer is not json", &jn_error, bf, len, peer_gobj);
     } else {
-        drop_peer_binary_keys(gobj, __FUNCTION__, jn, bf, len, peer_gobj);
+        drop_peer_binary_keys_(gobj, __FUNCTION__, jn, bf, len, peer_gobj);
     }
     return jn;
 }

@@ -19,7 +19,9 @@ What it checks:
   refused to another (`-403`), and through the agent's one link a handle of
   one user refused to another user.
 - **Writes** -- `add-record` asks `write`, answers `-403` on a refusal, and
-  appends a dict or its json text; `delete-key` with `force`;
+  appends a dict or its json text; the json text of a peer loses its
+  `"gbuffer"` key (the name of a kw's binary field), read back from the
+  record (up to 7.30.16 it was stored as it came); `delete-key` with `force`;
   `delete-key-files` by date, by an integer and of every key, its `purged` in
   `list-keys`, and its refusals (a `before` in the future, no date, `"007"`
   -- the 7th of this month up to 7.29.3, and it purged --, `"1,5"` and

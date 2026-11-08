@@ -75,6 +75,13 @@ too often (*"BAD gbuf_decref()"*).
 | `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number of the JSON grammar with nothing before or after it, in its range: a JSON integer for a `DTP_INTEGER`, a JSON number for a `DTP_REAL`; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a JSON integer |
 | `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused -- on the command line or as a default. In `kw` a string is a json too, and stays as it came: `"{x"` given in `kw` arrives as that string |
 
+**A json read from text has no `"gbuffer"` key**, at any depth: the parser
+drops each one with one warning ([`drop_peer_binary_keys()`](#drop_peer_binary_keys)).
+`gbuffer` is the name of the binary field of a kw, and a dict of a parameter
+can become the top level of a kw (a treedb record, a tranger record). Up to
+7.30.16 `add-record` with `record='{"id": "K", "gbuffer": 4096}'` stored the
+key as it came.
+
 **The handler gets the EXACT type** (7.27.0+), so it can read a parameter
 with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
 `KW_WILD_NUMBER`:
