@@ -12,7 +12,12 @@
             ...
         ]
                 being "$local_method" a local method of gobj_jobs
-                "exec_timeout" in milliseconds
+                "exec_timeout" in milliseconds: the time of the job, armed when it
+                runs first. C_TASK runs a job again each time gobj_results
+                says EV_ON_OPEN (a connection that was cut and opens again),
+                and that run keeps the time left: up to 7.30.14 each one armed
+                exec_timeout again, and a connection that broke more often
+                than exec_timeout kept the task alive for ever.
 
         "input_data": tasks can use for they want
         "output_data": tasks can use for they want
@@ -94,6 +99,13 @@
  *  not, as it always was -- also after a restart, whose dropped end is of
  *  the run before: the owner that started it again took it back, and may
  *  keep it stopped to start it once more.
+ *
+ *  The end, when it runs, stops the task BEFORE it publishes EV_END_TASK,
+ *  and a volatile task is destroyed on the next turn: what a subscriber
+ *  does with the task in EV_END_TASK stands, and nothing reads the task
+ *  after that publication. An owner may start the task again there (up to
+ *  7.30.14 the end stopped that new run as soon as the publication
+ *  returned); a volatile task started again is not destroyed.
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2024-2026, ArtGins.
@@ -220,6 +232,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_results;
 
     json_int_t run;     // each start begins a run; a posted end names its own
+    int armed_job;      // the job whose exec_timeout runs in this run, -1: none yet
 } PRIVATE_DATA;
 
 
@@ -355,6 +368,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_change_state(gobj, ST_IDLE);   // a task that ended is left in ST_WAIT_STOPPED
     priv->run++;
     priv->idx_job = 0; // First job at start
+    priv->armed_job = -1;
     if(gobj_read_bool_attr(gobj, "connected")) {
         execute_action(gobj);
     }
@@ -494,17 +508,26 @@ PRIVATE int stop_task(hgobj gobj, int result)
         }
     }
 
+    /*
+     *  Stopped, and a volatile one its destroy posted, BEFORE the end is
+     *  published: the publication is the last thing done with the task here,
+     *  so what a subscriber does with it there stands (it starts it again,
+     *  or destroys it, which drops the posted destroy)
+     */
+    if(gobj_is_running(gobj)) {
+        gobj_stop(gobj);
+    }
+    if(gobj_is_volatil(gobj)) {
+        json_t *kw_destroy = json_pack("{s:i, s:I}", "result", result, "run", priv->run);
+        if(gobj_post_event(gobj, EV_FINISH_TASK, kw_destroy, gobj) < 0) {
+            // Error already logged: the task stays, its owner destroys it with its own
+        }
+    }
+
     gobj_publish_event(gobj,
         EV_END_TASK,
         kw_task
     );
-    if(gobj_is_running(gobj)) {
-        gobj_stop(gobj);
-    }
-
-    if(gobj_is_volatil(gobj)) {
-        gobj_destroy(gobj);
-    }
     return 0;
 }
 
@@ -600,7 +623,9 @@ PRIVATE int execute_action(hgobj gobj)
 
     if(ret < 0) {
         end_task(gobj, -1);
-    } else {
+    } else if(priv->armed_job != priv->idx_job) {
+        // a job run again (EV_ON_OPEN) keeps its time: a connection that breaks sooner would keep it for ever
+        priv->armed_job = priv->idx_job;
         set_timeout(priv->timer, exec_timeout);
     }
 
@@ -772,7 +797,7 @@ PRIVATE int ac_finish_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 
     if(!gobj_is_running(gobj)) {
         if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_MESSAGES2)) {
-            gobj_trace_msg(gobj, "💎💎Task ⏳ stopped by its owner before its end, no end published, gobj %s",
+            gobj_trace_msg(gobj, "💎💎Task ⏳ stopped: by its owner before its end, or its end already published, gobj %s",
                 gobj_name(gobj)
             );
         }

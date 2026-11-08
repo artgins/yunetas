@@ -40,6 +40,19 @@
  *         of the first run does not end the second: EV_END_TASK arrives
  *         once, with the result of the second run.
  *
+ *      G) The connection of the job breaks and opens again more often than
+ *         its exec_timeout (EV_ON_OPEN every 100 ms, a timeout of 400 ms):
+ *         the job runs again each time, and keeps the time it had. The task
+ *         ends by timeout, -2, long before the reopenings stop. Up to
+ *         7.30.14 each run armed exec_timeout again, and the task lived as
+ *         long as the connection kept breaking.
+ *
+ *      H) The owner starts a task that is not volatile AGAIN inside its
+ *         EV_END_TASK, and the new run is answered: a second EV_END_TASK,
+ *         with result 0. Up to 7.30.14 the end stopped the task when the
+ *         publication returned, the new run included, and the second end
+ *         never came.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -53,6 +66,9 @@
  ***************************************************************************/
 #define SHORT_TIMEOUT_MS    300     // case A: fires on the timer of the task
 #define LONG_TIMEOUT_MS     60000   // cases B and C: never fires
+#define REOPEN_TIMEOUT_MS   400     // case G: the time of the job
+#define REOPEN_EVERY_MS     100     // case G: the connection opens again so often
+#define REOPENS_MAX         20      // case G: then it stops breaking (2 s)
 
 /***************************************************************************
  *              Structures
@@ -68,6 +84,8 @@ PRIVATE int start_case_c(hgobj gobj);
 PRIVATE int start_case_d(hgobj gobj);
 PRIVATE int start_case_e(hgobj gobj);
 PRIVATE int start_case_f(hgobj gobj);
+PRIVATE int start_case_g(hgobj gobj);
+PRIVATE int start_case_h(hgobj gobj);
 PRIVATE int check_case(
     hgobj gobj,
     const char *case_name,
@@ -109,14 +127,17 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj results;              // the gobj_results of every task
+    hgobj timer;                // case G: the connection that opens again
 
-    char cur_case[2];           // "A" ... "F"
+    char cur_case[2];           // "A" ... "H"
     int ends;                   // EV_END_TASK of the current case
     int last_result;
     int last_job;
     char last_comment[NAME_MAX];
     int results_processed;      // job_result calls of the current case
     BOOL answer_in_action;      // case D: the results answers inside job_action
+    int reopens;                // case G: EV_ON_OPEN sent again so far
+    int reopens_at_end;         // case G: when EV_END_TASK came
 } PRIVATE_DATA;
 
 
@@ -137,6 +158,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->results = gobj_create_service("results", C_TEST_RESULTS, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -167,6 +189,9 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->timer);
     return 0;
 }
 
@@ -387,6 +412,42 @@ PRIVATE int start_case_f(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Case G: the connection opens again every REOPEN_EVERY_MS, more often
+ *  than the time of the job.
+ ***************************************************************************/
+PRIVATE int start_case_g(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "G");
+    priv->reopens = 0;
+    priv->reopens_at_end = -1;
+    if(!create_task(gobj, "task_g", REOPEN_TIMEOUT_MS, TRUE)) {
+        // Error already logged
+        return -1;
+    }
+    set_timeout_periodic(priv->timer, REOPEN_EVERY_MS);
+    return 0;
+}
+
+/***************************************************************************
+ *  Case H: answered; the owner starts it again in its EV_END_TASK
+ *  (ac_end_task), and answers the new run.
+ ***************************************************************************/
+PRIVATE int start_case_h(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    snprintf(priv->cur_case, sizeof(priv->cur_case), "%s", "H");
+    if(!create_task(gobj, "task_h", LONG_TIMEOUT_MS, FALSE)) {
+        // Error already logged
+        return -1;
+    }
+    gobj_send_event(priv->results, EV_TEST_ANSWER, 0, gobj);
+    return 0;
+}
+
+/***************************************************************************
  *  What the end of a case must have left.
  ***************************************************************************/
 PRIVATE int check_case(
@@ -478,11 +539,49 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         kw_get_str(gobj, kw, "output_data`comment", "", 0)
     );
 
+    if(strcmp(priv->cur_case, "G")==0) {
+        priv->reopens_at_end = priv->reopens;
+        clear_timeout(priv->timer);
+    }
+
+    if(strcmp(priv->cur_case, "H")==0 && priv->ends == 1) {
+        /*
+         *  The new run: its job runs on EV_TEST_OPEN, and is answered. The
+         *  check comes after its end, posted on the next turn
+         */
+        if(gobj_is_running(src)) {
+            gobj_stop(src);
+        }
+        gobj_start(src);
+        gobj_send_event(priv->results, EV_TEST_OPEN, 0, gobj);
+        gobj_send_event(priv->results, EV_TEST_ANSWER, 0, gobj);
+        gobj_post_event(gobj, EV_TEST_CHECK, 0, gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
     if(priv->ends == 1) {
         gobj_post_event(gobj, EV_TEST_CHECK, 0, gobj);
     }
 
     KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Case G: the connection of the job opens again
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    KW_DECREF(kw)
+
+    priv->reopens++;
+    if(priv->reopens >= REOPENS_MAX) {
+        clear_timeout(priv->timer);
+    }
+    gobj_send_event(priv->results, EV_TEST_OPEN, 0, gobj);
     return 0;
 }
 
@@ -557,7 +656,7 @@ PRIVATE int ac_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
         start_case_f(gobj);
 
-    } else {
+    } else if(strcmp(priv->cur_case, "F")==0) {
         hgobj task = gobj_child_by_name(gobj, "task_f");
         if(task) {
             if(gobj_is_running(task)) {
@@ -569,6 +668,54 @@ PRIVATE int ac_check(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "case F ok",
+            NULL
+        );
+        start_case_g(gobj);
+
+    } else if(strcmp(priv->cur_case, "G")==0) {
+        check_case(gobj, "G", -2, 0, "Task failed by timeout", 0);  // Error already logged
+        if(priv->reopens_at_end < 0 || priv->reopens_at_end >= REOPENS_MAX) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A job run again on each EV_ON_OPEN had its time armed again",
+                "reopens",      "%d", priv->reopens_at_end,
+                "reopens_max",  "%d", REOPENS_MAX,
+                NULL
+            );
+        }
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "case G ok",
+            NULL
+        );
+        start_case_h(gobj);
+
+    } else {
+        /*
+         *  Case H: two ends, the second of the run started in the first
+         */
+        hgobj task = gobj_child_by_name(gobj, "task_h");
+        if(task) {
+            if(gobj_is_running(task)) {
+                gobj_stop(task);
+            }
+            gobj_destroy(task);
+        }
+        if(priv->ends != 2 || priv->last_result != 0 || priv->results_processed != 2) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "A run started inside EV_END_TASK did not end",
+                "ends",         "%d", priv->ends,
+                "result",       "%d", priv->last_result,
+                "results",      "%d", priv->results_processed,
+                NULL
+            );
+        }
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "case H ok",
             NULL
         );
         set_yuno_must_die();
@@ -640,6 +787,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_RUN,               ac_run,                 0},
         {EV_END_TASK,               ac_end_task,            0},
         {EV_TEST_CHECK,             ac_check,               0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout,             0},
         {0,0,0}
     };
 
@@ -655,6 +803,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TEST_RUN,               0},
         {EV_END_TASK,               0},
         {EV_TEST_CHECK,             0},
+        {EV_TIMEOUT_PERIODIC,       0},
         {NULL, 0}
     };
 

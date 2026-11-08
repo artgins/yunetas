@@ -37,7 +37,18 @@ At its start the task runs the first action if `gobj_results` says it is
 the result (`CONTINUE_TASK()`; the job's timeout is armed) or `-1` to stop
 (`STOP_TASK()`). The result arrives as `EV_ON_MESSAGE` of `gobj_results`,
 and goes to the job's result method: `-1` stops, anything else goes on to the
-next job. The end is `EV_END_TASK`:
+next job.
+
+The job runs AGAIN each time `gobj_results` says `EV_ON_OPEN` (a connection
+that was cut and opens again: a database client that reconnects, an HTTP
+client after a close). The job's action decides whether to send its request
+again. The time of the job does not start again: `exec_timeout` is armed once
+per job, when it runs first, so a connection that breaks more often than
+`exec_timeout` cannot keep a task alive. Up to 7.30.14 each run armed it
+again. With `"exec_timeout": 20000`, a job that ran at 0 s and again at 15 s
+and 30 s (the connection was cut twice) ends by timeout at 20 s.
+
+The end is `EV_END_TASK`:
 
 | `result` | When |
 |---|---|
@@ -46,8 +57,26 @@ next job. The end is `EV_END_TASK`:
 | `-2` | A job timed out (`output_data` says *"Task failed by timeout"*). |
 
 The kw is `{result, last_job, input_data, output_data}`. It is published on
-the turn of the loop after the end is decided (see below), and a volatile task
-destroys itself after it.
+the turn of the loop after the end is decided (see below). The task is
+stopped BEFORE `EV_END_TASK` is published, and a volatile task destroys itself
+on the turn after. The publication is the last thing the end does with the
+task, so what a subscriber does with it in `EV_END_TASK` stands: it can start
+the task again for a new run (a volatile one is then not destroyed). Up to
+7.30.14 the task was stopped after the publication, which stopped that new
+run too.
+
+```C
+PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->requests_waiting > 0) {    // a task that is not volatile: its next run
+        gobj_start(src);
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
 
 ```C
 json_t *kw_task = json_pack("{s:I, s:I, s:[{s:s, s:s, s:i}]}",

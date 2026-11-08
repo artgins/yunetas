@@ -290,9 +290,12 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  *  (`timeout_response`, ac_timeout_data()) it drops the query and
  *  reconnects, and nobody sends it again. The job then waits in vain, and
  *  the task ends by its exec_timeout, 20 s after the query (ac_end_task(),
- *  "Task End by timeout"): that row is not written and has no ack. Pushing
- *  it again here is not the answer: the job cannot know whether the query
- *  of the timeout reached the server.
+ *  "Task End by timeout"): that row is not written and has no ack. The
+ *  runs of the job on each reconnection do not move that end: C_TASK arms
+ *  exec_timeout once per job (up to 7.30.14 each run armed it again, so a
+ *  Postgres that cut more often than every 20 s kept the task alive for
+ *  ever). Pushing it again here is not the answer: the job cannot know
+ *  whether the query of the timeout reached the server.
  ***************************************************************************/
 PRIVATE BOOL query_pushed_before(hgobj gobj, hgobj task, const char *job)
 {
