@@ -318,7 +318,9 @@ authorization node. `delete-idp-user` does NOT touch the local authz record.
 
 **One request at a time.** Every command enters one queue and one volatile
 `C_TASK` drives it through the shared HTTP client; the admin token is job 0
-and is skipped while the cached one is fresh. The queue holds 32: a caller
+and is skipped while the cached one is fresh: for its `expires_in` less 30 s,
+timed on the monotonic clock (up to 7.30.15 on the wall clock, so a clock set
+back took an expired token as good, until the IdP answered `401`). The queue holds 32: a caller
 beyond that is refused, never left waiting.
 
 **What goes again.** `C_TASK` runs its job again each time the connection

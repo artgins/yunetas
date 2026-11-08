@@ -299,7 +299,7 @@ typedef struct _PRIVATE_DATA {
     hgobj       gobj_kc;                /* C_PROT_HTTP_CL to kc_base_url */
     char        kc_name[NAME_MAX];      /* base name for kc gobjs */
     char        kc_token[8192];         /* cached admin bearer token ("" = none) */
-    time_t      kc_token_expiry;        /* epoch s; refresh when now >= expiry - skew */
+    uint64_t    kc_token_expiry;        /* msectimer: refresh when it fires (expiry - skew) */
     BOOL        kc_processing;          /* one KC round-trip task in flight */
     hgobj       gobj_kc_task;           /* current volatile C_TASK */
     dl_list_t   dl_pending;             /* queued IDP_PENDING requests */
@@ -1336,7 +1336,13 @@ PRIVATE json_t *kc_save_token(hgobj gobj, const char *lmethod, json_t *kw, hgobj
     }
 
     snprintf(priv->kc_token, sizeof(priv->kc_token), "%s", access_token);
-    priv->kc_token_expiry = time(NULL) + (time_t)expires_in;
+    /*
+     *  On the monotonic clock: on the wall clock (up to 7.30.15) a clock
+     *  set back took an expired token as good
+     */
+    priv->kc_token_expiry = start_msectimer(
+        expires_in > KC_TOKEN_SKEW_S? (uint64_t)(expires_in - KC_TOKEN_SKEW_S) * 1000 : 0
+    );
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -1732,7 +1738,7 @@ PRIVATE void process_next_kc(hgobj gobj)
     priv->kc_processing = TRUE;
 
     BOOL have_token = !empty_string(priv->kc_token) &&
-        time(NULL) < priv->kc_token_expiry - KC_TOKEN_SKEW_S;
+        !test_msectimer(priv->kc_token_expiry);
 
     json_int_t timeout_ms = gobj_read_integer_attr(gobj, "kc_timeout_ms");
     if(timeout_ms <= 0) {
