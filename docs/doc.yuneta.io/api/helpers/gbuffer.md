@@ -63,7 +63,7 @@ json_t *gbuf2json_from_peer(
 
 A `json_t *` (yours) if the data is JSON, `NULL` otherwise.
 
-**A json of a peer has no `"gbuffer"` key, at any depth.** `gbuffer` is the name of the binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)), and [`kw_incref()`](#kw_incref), [`kw_decref()`](#kw_decref), [`kw_twin()`](#kw_twin) and [`kw_duplicate()`](#kw_duplicate) take the integer under it for a pointer wherever a dict of the json ends up as the top level of a kw: a treedb record, an HTTP body, an MQTT payload. Every such key is dropped, and said with ONE warning (`MSGSET_PROTOCOL`, *"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*, the `peername` and the number dropped). A binary field of a peer arrives serialized (`"__gbuffer___"`, see [`kw_deserialize()`](#kw_deserialize)), never as a `"gbuffer"`. Up to 7.30.16 the keys were kept: a `create-node` of a peer with `{"record": {"id": "a", "gbuffer": 4096}}` crashed the yuno. A text that holds neither the name nor a `\u` escape (the only way to spell a letter in a json string) is not walked: the check costs a scan of the bytes, not a walk of the json.
+**A json of a peer has no `"gbuffer"` key, at any depth.** `gbuffer` is the name of the binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)), and [`kw_incref()`](#kw_incref), [`kw_decref()`](#kw_decref), [`kw_twin()`](#kw_twin) and [`kw_duplicate()`](#kw_duplicate) take the integer under it for a pointer wherever a dict of the json ends up as the top level of a kw: a treedb record, an HTTP body, an MQTT payload. Every such key is dropped, and said with ONE warning (`MSGSET_PROTOCOL`, *"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*, the `peername` and the number dropped). A binary field of a peer arrives serialized (`"__gbuffer___"`, see [`kw_deserialize()`](#kw_deserialize)), never as a `"gbuffer"`. Up to 7.30.16 the keys were kept: a `create-node` of a peer with `{"record": {"id": "a", "gbuffer": 4096}}` crashed the yuno. A text that holds neither the name nor a `\u006` or `\u007` (a letter in a json string is spelled literally or with a `\u` escape, and the letters of `gbuffer` escape only as `\u006X` or `\u007X`) is not walked: the check costs a scan of the bytes, not a walk of the json. So `{"gb\u0075ffer": 1}` is walked and its key dropped, while `{"name": "caf\u00e9"}` is not walked. Up to 7.30.17 any `\u` escape walked the json (one `\u00e9` in 1 MB cost +12-30% of the parse).
 
 ```json
 {"gbuffer": 4096, "a": {"gbuffer": 1, "l": [{"gbuffer": 2}, 3]}, "b": "gbuffer"}
@@ -163,7 +163,7 @@ size_t drop_peer_binary_keys(
 |---|---|---|
 | `gobj` | `hgobj` | The gobj that logs the warning. |
 | `jn` | `json_t *` | The json of the peer. Not owned: its keys are dropped in place. |
-| `bf` | `const char *` | The text `jn` was parsed from: the walk runs only when it holds `gbuffer` or a `\u` escape (the only way to spell a letter in a json string). `NULL` walks `jn` always. |
+| `bf` | `const char *` | The text `jn` was parsed from: the walk runs only when it holds `gbuffer`, `\u006` or `\u007` (the only escapes that spell a letter of the name). `NULL` walks `jn` always. |
 | `len` | `size_t` | The length of `bf`. |
 | `peer_gobj` | `hgobj` | Any gobj above the transport the json came through: its `peername` goes into the warning. `NULL` if unknown. |
 

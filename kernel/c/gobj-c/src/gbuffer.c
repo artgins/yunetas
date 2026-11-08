@@ -1567,10 +1567,14 @@ PRIVATE size_t drop_peer_binary_keys_(
     /*
      *  The walk costs ~20% of the parse of a json of small dicts: a text
      *  without the name cannot hold the key. Only a \u escape can spell a
-     *  letter, so a text with one is walked too.
+     *  letter, and the letters of "gbuffer" only as \u006X or \u007X (a
+     *  lowercase `u` and four hex digits is the one escape json has; a
+     *  surrogate pair is above U+FFFF): a text with one of those is walked
+     *  too. Any \u walked it up to 7.30.17: one "\u00e9" in 1 MB was +30%.
      */
     if(bf && !memmem(bf, len, "gbuffer", sizeof("gbuffer")-1) &&
-            !memmem(bf, len, "\\u", 2)) {
+            !memmem(bf, len, "\\u006", sizeof("\\u006")-1) &&
+            !memmem(bf, len, "\\u007", sizeof("\\u007")-1)) {
         return 0;
     }
     size_t dropped = drop_binary_keys(jn);

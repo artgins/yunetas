@@ -21,7 +21,8 @@ list (up to 7.30.16 they did, and a peer's `{"x": {"gbuffer": 4096}}` crashed
 in `gbuffer_incref()`), and still take one of the top-level one. It also
 checks the frontier: `gbuf2json_from_peer()`, `anystring2json_from_peer()`
 and `iev_create_from_gbuffer()` leave no `"gbuffer"` key at any depth in a
-peer's json (spelled with a `\u` escape too), with ONE warning:
+peer's json (spelled with `\u` escapes too: each of the 127 ways, beside a
+`\u00e9` that is no letter of it), with ONE warning:
 
 ```
 --- a nested gbuffer is data, not the kw's binary field ---

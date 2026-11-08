@@ -18,7 +18,8 @@
  *
  *          And the frontier: gbuf2json_from_peer() and
  *          anystring2json_from_peer() drop every "gbuffer" key of a json a
- *          peer wrote, at any depth, with one warning.
+ *          peer wrote, at any depth, with one warning, however the name is
+ *          spelled with \u escapes (each of the 127 ways).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -228,6 +229,41 @@ static void test_peer_json_frontier(void)
     check("the name spelled with a \\u escape: dropped",
         jn && json_object_size(json_object_get(jn, "a")) == 0 && warnings == 1 && error_logged(), NULL);
     JSON_DECREF(jn)
+
+    /*
+     *  Every spelling of the name with escapes: each subset of its letters
+     *  written as \u00XX, beside an escape that is no letter of it. The
+     *  text is walked only when it holds "gbuffer", "\u006" or "\u007"
+     *  (up to 7.30.17, any "\u"): each of these must still be dropped.
+     */
+    {
+        const char *name = "gbuffer";
+        int kept = 0;
+        for(int mask = 1; mask < (1 << 7); mask++) {
+            char key[7*6 + 1];
+            size_t n = 0;
+            for(int i = 0; i < 7; i++) {
+                if(mask & (1 << i)) {
+                    n += (size_t)snprintf(key + n, sizeof(key) - n, "\\u%04x", (unsigned)name[i]);
+                } else {
+                    key[n++] = name[i];
+                    key[n] = 0;
+                }
+            }
+            char spelled[256];
+            snprintf(spelled, sizeof(spelled),
+                "{\"t\": \"caf\\u00e9\", \"a\": {\"%s\": 5}, \"%s\": 6}", key, key);
+            jn = anystring2json_from_peer(0, spelled, strlen(spelled), 0);
+            warnings = logged;
+            if(!jn || json_object_size(json_object_get(jn, "a")) != 0 ||
+                    json_object_get(jn, "gbuffer") || warnings != 1 || !error_logged()) {
+                printf("     kept: %s\n", spelled);
+                kept++;
+            }
+            JSON_DECREF(jn)
+        }
+        check("every spelling of the name with \\u escapes: dropped", kept == 0, NULL);
+    }
 
     const char *clean = "{\"a\": {\"b\": [1, {\"c\": \"gbuffer\"}]}}";
     jn = anystring2json_from_peer(0, clean, strlen(clean), 0);
