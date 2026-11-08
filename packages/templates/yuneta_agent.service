@@ -35,7 +35,11 @@
 #   it drops to yuneta for the files), and
 #   without stopping the start if it fails (the `-`). On the first boot
 #   of a cloned disk it gives the clone its own uuid. Both units run it;
-#   it locks, and a second run changes nothing.
+#   it locks, and a second run changes nothing. Then yuneta-agent-cert, the
+#   same way: it makes the agents' pair when there is none, when it is a
+#   published one, or when it was made for another node uuid (a cloned
+#   disk: after the uuid, so the clone's first boot gets its own key). Both
+#   agents serve that pair, so both units run it; it locks too.
 #
 #   An agent started by hand with `--start` runs outside this unit, and
 #   systemd does not see it: start and stop it with systemctl.

@@ -256,7 +256,19 @@ check "box B: the key is the certificate's" \
     "$( [ "$("$OPENSSL" x509 -in "$CRT" -noout -pubkey)" = "$("$OPENSSL" pkey -in "$KEY" -pubout 2>/dev/null)" ] && echo yes)" "yes"
 check "box B: a WARNING that says it" "$(echo "$out" | grep -c 'WARNING: .*made for node uuid')" "1"
 check "box B: bound to its own uuid" "$(cat "$UUID_MARK" 2>/dev/null)" "$uuid_b"
-check "box B: the two old files kept" "$(copies)" "2"
+check "box B: the old certificate kept" \
+    "$(ls -A "$YUNETA_AGENT_CERT_DIR" | grep -c '^yuneta_agent\.crt\.replaced-')" "1"
+check "box B: the old key NOT kept" \
+    "$(ls -A "$YUNETA_AGENT_CERT_DIR" | grep -c '^yuneta_agent\.key\.')" "0"
+check "box B: A's key in no file" "$(
+    n=0
+    for f in "$YUNETA_AGENT_CERT_DIR"/* "$YUNETA_AGENT_CERT_DIR"/.[!.]*; do
+        if [ -f "$f" ] && [ "$("$OPENSSL" pkey -in "$f" -pubout -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$key_a" ]; then
+            n=$((n + 1))
+        fi
+    done
+    echo "$n")" "0"
+check "box B: the WARNING says the old key is gone" "$(echo "$out" | grep -c 'its key removed')" "1"
 out="$(run ensure)"
 check "box B again: kept" "$( [ -z "$out" ] && echo quiet)" "quiet"
 
@@ -314,6 +326,42 @@ mkdir "${YUNETA_AGENT_CERT_DIR}/.lock"
 out="$(run ensure)"
 check "a .lock it cannot open: says it" "$(echo "$out" | grep -c 'WARNING: cannot open .*\.lock, going on without the lock')" "1"
 check "a .lock it cannot open: made all the same" "$(echo "$out" | grep -c 'certificate made')" "1"
+
+#
+#   Two ensures at once (the two agents' units share the pair): one pair,
+#   made once
+#
+reset
+"$SCRIPT" ensure > "${WORK}/e1" 2>&1 &
+p1=$!
+"$SCRIPT" ensure > "${WORK}/e2" 2>&1 &
+p2=$!
+wait "$p1"
+wait "$p2"
+check "two at once: made once" "$(cat "${WORK}/e1" "${WORK}/e2" | grep -c 'certificate made')" "1"
+check "two at once: the key is the certificate's" \
+    "$( [ "$("$OPENSSL" x509 -in "$CRT" -noout -pubkey)" = "$("$OPENSSL" pkey -in "$KEY" -pubout 2>/dev/null)" ] && echo yes)" "yes"
+check "two at once: no copy" "$(copies)" "0"
+
+#
+#   Both agents' units run it, after the node uuid; so does the drop-in of a
+#   node that builds from source (drop-ins run in the order of their names)
+#
+TEMPLATES="${HERE}/../templates"
+for unit in yuneta_agent yuneta_agent22; do
+    check "$unit.service: the node uuid, then the pair" "$(
+        grep -E '^ExecStartPre=.*/yuneta-(node-uuid|agent-cert) ensure$' "${TEMPLATES}/${unit}.service" \
+            | sed 's/.*yuneta-\(node-uuid\|agent-cert\).*/\1/' | paste -sd' ' -)" "node-uuid agent-cert"
+done
+installer_value() {    # file variable
+    sed -n "s/^$2=\"\(.*\)\"\$/\1/p" "$1"
+}
+check "install-yuneta-agent-cert.sh: both units" \
+    "$(installer_value "${HERE}/../install-yuneta-agent-cert.sh" UNITS)" "yuneta_agent yuneta_agent22"
+uuid_dropin="$(installer_value "${HERE}/../install-yuneta-node-uuid.sh" DROPIN_NAME)"
+cert_dropin="$(installer_value "${HERE}/../install-yuneta-agent-cert.sh" DROPIN_NAME)"
+check "install-yuneta-agent-cert.sh: its drop-in runs after the node uuid's" \
+    "$(printf '%s\n%s\n' "$cert_dropin" "$uuid_dropin" | LC_ALL=C sort | paste -sd' ' -)" "$uuid_dropin $cert_dropin"
 
 #
 #   Usage

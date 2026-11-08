@@ -19,7 +19,9 @@
 #       started container. Each pair made here is bound to the node uuid it
 #       was made for (yuneta-node-uuid, /yuneta/store/agent/uuid/uuid.json),
 #       written beside it in yuneta_agent.uuid; when the node uuid is no
-#       longer that one, the copy gets a new pair. The key IS the node to its
+#       longer that one, the copy gets a new pair, and the old KEY is not
+#       kept (overwritten and removed: it is the other node's), only the old
+#       certificate. The key IS the node to its
 #       control center (its login since 7.30.11): every clone with the same
 #       key could claim the node of any other. A pair made here by an
 #       earlier version (no yuneta_agent.uuid) is bound to the node uuid it
@@ -37,7 +39,9 @@
 #   certificate needs this node's new one (copy it, it is public).
 #
 #   It is /usr/libexec/yuneta/yuneta-agent-cert, run as root by the
-#   package's postinst / %post and by the agent's unit (ExecStartPre=+), and
+#   package's postinst / %post and by both agents' units (ExecStartPre=+,
+#   after yuneta-node-uuid; the two share the pair, and the lock below makes
+#   their runs one after the other), and
 #   by the agent's build on a node that builds from source (as the user that
 #   builds). As root it drops to yuneta before it touches a file: the
 #   directory is yuneta's.
@@ -49,9 +53,9 @@
 #                                     public pair, and the node uuid it is
 #                                     bound to
 #
-#   The agent reads the pair when it starts: after a new one, restart it
+#   The agents read the pair when they start: after a new one, restart them
 #   (and whatever else serves the files). The old files are kept as
-#   <file>.replaced-<UTC time>[.<n>]. Environment, for tests:
+#   <file>.replaced-<UTC time>[.<n>], but for the key of another node. Environment, for tests:
 #   YUNETA_AGENT_CERT_DIR (default /yuneta/agent/certs),
 #   YUNETA_NODE_UUID_DIR (default /yuneta/store/agent/uuid) and
 #   YUNETA_AGENT_CERT_OPENSSL (the openssl to run).
@@ -218,7 +222,25 @@ keep_a_copy() {    # file
     fi
 }
 
-make_pair() {
+#
+#   The key of a pair made for another node (a cloned disk): that node's
+#   login, so no copy of it stays here. Overwritten first where it is a file
+#   of its own (never through a link)
+#
+remove_other_nodes_key() {
+    if [ -f "$KEY" ] && [ ! -L "$KEY" ] && command -v shred >/dev/null 2>&1; then
+        if shred -u -- "$KEY" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    if ! rm -f -- "$KEY"; then
+        log_error "cannot remove $KEY, the key of another node"
+        return 1
+    fi
+}
+
+make_pair() {    # [other_node]: the key there is another node's, not kept
+    local other_node="${1:-}"
     local tmp_key="${CERT_DIR}/.yuneta_agent.key.new.$$"
     local tmp_crt="${CERT_DIR}/.yuneta_agent.crt.new.$$"
     local tmp_cnf="${CERT_DIR}/.yuneta_agent.cnf.new.$$"
@@ -260,7 +282,16 @@ make_pair() {
     fi
     chmod 0640 "$tmp_key" && chmod 0644 "$tmp_crt"
 
-    if ! keep_a_copy "$KEY" || ! keep_a_copy "$CRT"; then
+    if [ "$other_node" = "other_node" ]; then
+        if ! remove_other_nodes_key; then
+            rm -f -- "$tmp_key" "$tmp_crt"
+            return 1    # Error already logged
+        fi
+    elif ! keep_a_copy "$KEY"; then
+        rm -f -- "$tmp_key" "$tmp_crt"
+        return 1    # Error already logged
+    fi
+    if ! keep_a_copy "$CRT"; then
         rm -f -- "$tmp_key" "$tmp_crt"
         return 1    # Error already logged
     fi
@@ -292,9 +323,12 @@ cmd_ensure() {
             return 1
             ;;
     esac
-    local was
+    local was other_node=""
     was="$(head -n 1 "$UUID_MARK" 2>/dev/null)"
-    if ! make_pair; then
+    if [ "$state" = "cloned" ]; then
+        other_node="other_node"
+    fi
+    if ! make_pair "$other_node"; then
         return 1    # Error already logged
     fi
     local fpr
@@ -307,7 +341,7 @@ cmd_ensure() {
             log_warning "the agent's key did not match its certificate: a new pair (sha256 $fpr), the old files kept"
             ;;
         cloned)
-            log_warning "the agent's pair was made for node uuid $was, and this node is $NODE_UUID (a cloned disk or image): a new pair (sha256 $fpr), the old files kept. Restart the agent, and accept this node's new key in its control center"
+            log_warning "the agent's pair was made for node uuid $was, and this node is $NODE_UUID (a cloned disk or image): a new pair (sha256 $fpr), the old certificate kept and its key removed (it is the other node's login). Restart both agents, and accept this node's new key in its control center"
             ;;
         missing)
             log_info "this node's agent certificate made (sha256 $fpr)"

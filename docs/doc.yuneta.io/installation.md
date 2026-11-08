@@ -557,9 +557,9 @@ with the package or without it.
 The agent serves `/yuneta/agent/certs/yuneta_agent.{crt,key}` on its secure
 port (`wss://...:1993`). Up to 7.30.5 that pair came with the agent, the same
 on every node, and its key was published with the source. Since 7.30.6 each
-node makes its own: `yuneta-agent-cert ensure` (the package's install, the
-agent's unit before each start, and the agent's build on a node that builds
-from source) makes a pair when there is none or when it is the published one,
+node makes its own: `yuneta-agent-cert ensure` (the package's install, both
+agents' units before each start, after `yuneta-node-uuid ensure`, and the
+agent's build on a node that builds from source) makes a pair when there is none or when it is the published one,
 keeping a copy of the old files, and keeps any other pair. The new pair is EC
 P-256, valid from 2000 to 2126, named `yuneta_agent.yuneta.io` (the name the
 clients already check) with the host's name in its SAN.
@@ -585,9 +585,13 @@ claim the node of another. Each pair that `yuneta-agent-cert` makes is bound
 to the node uuid it was made for, written beside it in
 `/yuneta/agent/certs/yuneta_agent.uuid`. A copy gets its own node uuid on its
 first start (`yuneta-node-uuid`, which runs first), so `ensure` finds a pair
-made for another uuid (`state: cloned`): it makes a new pair, keeps a copy of
-the old files and logs a warning. Accept the copy's key in the control
-center as a new node's. A pair made by an earlier version has no
+made for another uuid (`state: cloned`): it makes a new pair and logs a
+warning. It keeps a copy of the old certificate (it is public), but **not of
+the old key**: that key is the other node's login, so it is overwritten and
+removed. Both agents' units run `ensure` (the two agents serve the same pair;
+the script locks, so their runs do not overlap), so neither serves the copied
+key. Restart both agents if they were already running, and accept the copy's
+key in the control center as a new node's. A pair made by an earlier version has no
 `yuneta_agent.uuid`: `ensure` binds it to the node uuid it finds, so take
 the image after one `ensure` of this version. A pair that the script did not
 make (a certificate of your own CA) is never bound and never replaced.
@@ -600,7 +604,8 @@ sudo /usr/libexec/yuneta/yuneta-agent-cert show
 #          a pair made for another node uuid (a cloned disk): run 'ensure'
 sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
 # WARNING: the agent's pair was made for node uuid ab81a85f-..., and this
-# node is 16b087c8-... (a cloned disk or image): a new pair ...
+# node is 16b087c8-... (a cloned disk or image): a new pair (sha256 ...), the
+# old certificate kept and its key removed (it is the other node's login) ...
 ```
 
 ```bash
@@ -610,7 +615,10 @@ sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
 sudo systemctl restart yuneta_agent      # it serves the new pair from now on
 ```
 
-A node that builds from source gets the unit's step by hand, as for the uuid:
+A node that builds from source gets the units' step by hand, as for the uuid
+(a drop-in `zz-yuneta-agent-cert.conf` in both units: systemd runs drop-ins
+in the order of their names, so it runs after `yuneta-node-uuid.conf`; the
+`yuneta-agent-cert.conf` of up to 7.30.14 ran before it and is removed):
 
 ```bash
 sudo packages/install-yuneta-agent-cert.sh -n   # what it would do

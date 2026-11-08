@@ -11,9 +11,12 @@
 #
 #     1. installs the script as /usr/libexec/yuneta/yuneta-agent-cert, root's,
 #        0755 (restorecon where SELinux runs: /usr/libexec is bin_t);
-#     2. makes the agent's unit run it before it starts: a drop-in
-#        /etc/systemd/system/yuneta_agent.service.d/yuneta-agent-cert.conf,
-#        unless the unit itself already does (the package's unit);
+#     2. makes both agents' units run it before they start, after the node
+#        uuid: a drop-in
+#        /etc/systemd/system/<unit>.service.d/zz-yuneta-agent-cert.conf,
+#        unless the unit itself already does (the package's unit). The
+#        drop-in of up to 7.30.14 (yuneta-agent-cert.conf, which ran before
+#        yuneta-node-uuid.conf) is removed;
 #     3. runs `yuneta-agent-cert ensure` and says the certificate before and
 #        after.
 #
@@ -60,8 +63,12 @@ SRC="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/templates/yuneta-agent-cert
 DST_DIR="/usr/libexec/yuneta"
 DST="${DST_DIR}/yuneta-agent-cert"
 CRT="/yuneta/agent/certs/yuneta_agent.crt"
-UNITS="yuneta_agent"
-DROPIN_NAME="yuneta-agent-cert.conf"
+UNITS="yuneta_agent yuneta_agent22"
+#   systemd runs the drop-ins in the order of their names: this one after
+#   yuneta-node-uuid.conf, so the pair sees the node uuid of this boot. Up to
+#   7.30.14 it was yuneta-agent-cert.conf, which ran before it: removed.
+DROPIN_NAME="zz-yuneta-agent-cert.conf"
+OLD_DROPIN_NAME="yuneta-agent-cert.conf"
 DROPIN_BODY="# Written by packages/install-yuneta-agent-cert.sh: what the package's unit
 # carries, for a node that builds from source. See yuneta-agent-cert.
 [Service]
@@ -138,6 +145,11 @@ else
         if [ -z "$fragment" ] || [ ! -f "$fragment" ]; then
             say "${unit}: no systemd unit, skipped"
             continue
+        fi
+        old_dropin="${dropin_dir}/${OLD_DROPIN_NAME}"
+        if [ -f "$old_dropin" ] && act "remove $old_dropin (it ran before the node uuid)"; then
+            rm -f "$old_dropin" || exit 1
+            RELOAD=1
         fi
         if grep -q "yuneta-agent-cert" "$fragment"; then
             say "${unit}: its unit already runs it ($fragment)"

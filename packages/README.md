@@ -31,7 +31,8 @@ source and does not take the package (idempotent: run it again to check).
 (`/yuneta/agent/certs/yuneta_agent.{crt,key}`) on the node, when there is none,
 when it is the pair published with Yuneta up to 7.30.5, or when it is a pair
 it made for another node uuid (a cloned disk: `yuneta_agent.uuid` holds the
-uuid each pair was made for; see its header);
+uuid each pair was made for, and the other node's key is removed, not kept;
+see its header). Both agents' units run it, after `yuneta-node-uuid`;
 `tests/test-yuneta-agent-cert.sh` checks it in a private directory (a cloned
 disk against a fake `/sys`, with `yuneta-node-uuid`), and
 `install-yuneta-agent-cert.sh` installs it by hand on a node without the
