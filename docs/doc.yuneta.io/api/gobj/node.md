@@ -131,7 +131,7 @@ json_t *gobj_get_node(
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance representing the tree database. |
 | `topic_name` | `const char *` | The name of the topic in the tree database. |
-| `kw` | `json_t *` | A JSON object containing key-value filters to identify the node. This parameter is owned and will be decremented. |
+| `kw` | `json_t *` | A JSON object containing key-value filters to identify the node. Owned: `C_NODE` releases it with `KW_DECREF`, so a command that keeps its own `kw` hands it over with `kw_incref(kw)`, which takes a reference of its gbuffer too. |
 | `jn_options` | `json_t *` | A JSON object specifying additional options such as foreign key and hook options. This parameter is owned and will be decremented. |
 | `src` | `hgobj` | The source `hgobj` instance requesting the node. |
 
@@ -207,7 +207,7 @@ json_t *gobj_list_instances(
 | `gobj` | `hgobj` | The GObj handler representing the tree database. |
 | `topic_name` | `const char *` | The name of the topic whose instances are to be listed. |
 | `pkey2_field` | `const char *` | The secondary key field used for filtering instances. |
-| `jn_filter` | `json_t *` | A JSON object containing filter criteria for selecting instances. |
+| `jn_filter` | `json_t *` | A JSON object containing filter criteria for selecting instances. Owned, released with `JSON_DECREF`: a command that keeps its own `kw` hands it over with `json_incref(kw)`, as for [`gobj_list_nodes()`](#gobj_list_nodes). |
 | `jn_options` | `json_t *` | A JSON object specifying additional options such as foreign key and hook options. |
 | `src` | `hgobj` | The source GObj initiating the request. |
 
@@ -242,8 +242,8 @@ json_t *gobj_list_nodes(
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance from which to retrieve the nodes. |
 | `topic_name` | `const char *` | The name of the topic from which nodes will be listed. |
-| `jn_filter` | `json_t *` | A JSON object containing filter criteria to apply to the node list. Owned by the caller. |
-| `jn_options` | `json_t *` | A JSON object specifying additional options such as 'include-instances' and fkey/hook options. Owned by the caller. |
+| `jn_filter` | `json_t *` | A JSON object containing filter criteria to apply to the node list. Owned, released with `JSON_DECREF`: a command that keeps its own `kw` hands it over with `json_incref(kw)` (see the example). |
+| `jn_options` | `json_t *` | A JSON object specifying additional options such as 'include-instances' and fkey/hook options. Owned. |
 | `src` | `hgobj` | The source `hgobj` making the request. |
 
 **Returns**
@@ -253,6 +253,26 @@ Returns a JSON object containing the list of nodes that match the specified crit
 **Notes**
 
 If `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned. If the `mt_list_nodes` method is not defined in the gclass, an error is logged and `NULL` is returned.
+
+The filter is released as json, not as a kw: a gbuffer in it keeps the
+reference it had. A command whose `kw` is the filter, and which answers with
+that same `kw` afterwards, hands it over with `json_incref()`. With
+`kw_incref()` every call leaked the gbuffer of a peer's kw: up to 7.30.17
+the agent's `list-yunos` and `command-yuno`, and `C_NODE`'s `snaps`, leaked
+200 KB per call for a 200 KB `__gbuffer___`.
+
+```C
+json_t *iter = gobj_list_nodes(
+    priv->resource,
+    "yunos",
+    json_incref(kw),    // a filter: released with JSON_DECREF
+    json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+    src
+);
+// ... use iter ...
+JSON_DECREF(iter)
+return msg_iev_build_response(gobj, 0, 0, 0, jn_data, kw);  // kw owned: KW_DECREF
+```
 
 ---
 
@@ -274,7 +294,7 @@ json_t *gobj_list_snaps(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance from which to retrieve the snapshots. |
-| `filter` | `json_t *` | A JSON object containing filter criteria for the snapshots. Owned by the caller. |
+| `filter` | `json_t *` | A JSON object containing filter criteria for the snapshots. Owned, released with `JSON_DECREF`: hand a kept `kw` over with `json_incref(kw)`. |
 | `src` | `hgobj` | The source `hgobj` requesting the snapshot list. |
 
 **Returns**

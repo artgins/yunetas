@@ -5385,7 +5385,7 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     json_t *jn_data = gobj_list_snaps(
         gobj,
-        kw_incref(kw),
+        json_incref(kw),    // a filter: released with JSON_DECREF
         src
     );
 

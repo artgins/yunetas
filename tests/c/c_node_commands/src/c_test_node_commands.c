@@ -928,10 +928,13 @@ PRIVATE int run_tests(hgobj gobj)
      *  A kw that carries a gbuffer: the commands that keep a reference to
      *  their kw take it with kw_incref(), which takes one of the gbuffer
      *  too. With json_incref() (up to 7.25.4) the kw's two decrefs each
-     *  dropped the gbuffer: "BAD gbuf_decref()".
+     *  dropped the gbuffer: "BAD gbuf_decref()". And a kw handed as a
+     *  FILTER is released with JSON_DECREF, so it goes with json_incref():
+     *  up to 7.30.17 `snaps` took it with kw_incref() and leaked the
+     *  gbuffer of every call (the leak check of main.c).
      */
     {
-        const char *with_gbuffer[] = {"treedbs", "links", "hooks", "node", NULL};
+        const char *with_gbuffer[] = {"treedbs", "links", "hooks", "node", "snaps", NULL};
         for(int i = 0; with_gbuffer[i]; i++) {
             gbuffer_t *gbuf = gbuffer_create(32, 32);
             gbuffer_append_string(gbuf, "carried along");

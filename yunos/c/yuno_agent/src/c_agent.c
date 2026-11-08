@@ -110,6 +110,7 @@ PRIVATE int run_yuno(
 PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id);
 PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno);
 PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
+PRIVATE void kill_refused_card_pid(hgobj gobj, json_t *yuno, const char *yuno_id, pid_t pid);
 PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
 PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno, json_t *jn_killed);
 PRIVATE void restart_wait_tick(hgobj gobj);
@@ -1855,7 +1856,7 @@ PRIVATE json_t *cmd_dir_logs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *node = gobj_get_node(
         priv->resource,
         "yunos",
-        json_incref(kw),
+        kw_incref(kw),
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -1909,7 +1910,7 @@ PRIVATE json_t *cmd_dir_local_data(hgobj gobj, const char *cmd, json_t *kw, hgob
     json_t *node = gobj_get_node(
         priv->resource,
         "yunos",
-        json_incref(kw),
+        kw_incref(kw),
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -2535,7 +2536,7 @@ PRIVATE json_t *cmd_list_public_services(hgobj gobj, const char *cmd, json_t *kw
     json_t *jn_data = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -2570,7 +2571,7 @@ PRIVATE json_t *cmd_update_public_service(hgobj gobj, const char *cmd, json_t *k
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw),
+        json_incref(kw),
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -2666,7 +2667,7 @@ PRIVATE json_t *cmd_delete_public_service(hgobj gobj, const char *cmd, json_t *k
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -2748,7 +2749,7 @@ PRIVATE json_t *cmd_list_realms(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *jn_data = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -2789,7 +2790,7 @@ PRIVATE json_t *cmd_check_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *node = gobj_get_node(
         priv->resource,
         resource,
-        json_incref(kw),
+        kw_incref(kw),
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -2956,7 +2957,7 @@ PRIVATE json_t *cmd_update_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -3052,7 +3053,7 @@ PRIVATE json_t *cmd_delete_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -3198,7 +3199,7 @@ PRIVATE json_t *cmd_list_binaries(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_data = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -3627,7 +3628,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *node = gobj_get_node(
         priv->resource,
         resource,
-        json_incref(kw),
+        kw_incref(kw),
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -3919,7 +3920,7 @@ PRIVATE json_t *list_delete_targets(
             priv->resource,
             topic_name,
             pkey2_field,
-            kw_incref(kw),  // filter
+            json_incref(kw),  // filter
             json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
             src
         );
@@ -3928,7 +3929,7 @@ PRIVATE json_t *list_delete_targets(
     return gobj_list_nodes(
         priv->resource,
         topic_name,
-        kw_incref(kw),  // filter
+        json_incref(kw),  // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -4466,7 +4467,7 @@ PRIVATE json_t *cmd_list_configs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *jn_data = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -4992,7 +4993,7 @@ PRIVATE json_t *cmd_set_tag(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw),  // filter
+        json_incref(kw),  // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -5070,7 +5071,7 @@ PRIVATE json_t *cmd_set_multiple(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw),  // filter
+        json_incref(kw),  // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -5160,7 +5161,7 @@ PRIVATE json_t *cmd_top_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -5225,7 +5226,7 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -5267,7 +5268,7 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
     json_t *jn_rows = find_new_yunos(
         gobj,
         priv->resource,
-        kw_incref(kw),  // filter
+        json_incref(kw),  // filter
         force,
         src
     );
@@ -5860,7 +5861,7 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *jn_data = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw),  // filter
+        json_incref(kw),  // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -5904,7 +5905,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6139,7 +6140,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6387,7 +6388,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6574,7 +6575,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6749,7 +6750,7 @@ PRIVATE json_t* cmd_enable_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj s
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6822,7 +6823,7 @@ PRIVATE json_t* cmd_disable_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj 
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6914,7 +6915,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -6988,7 +6989,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7075,7 +7076,7 @@ PRIVATE json_t *cmd_command_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7140,7 +7141,7 @@ PRIVATE json_t *cmd_stats_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7403,7 +7404,7 @@ PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7706,7 +7707,7 @@ PRIVATE json_t *cmd_realms_instances(hgobj gobj, const char *cmd, json_t *kw, hg
         priv->resource,
         resource,
         "",
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7739,7 +7740,7 @@ PRIVATE json_t *cmd_yunos_instances(hgobj gobj, const char *cmd, json_t *kw, hgo
         priv->resource,
         resource,
         "",
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7772,7 +7773,7 @@ PRIVATE json_t *cmd_binaries_instances(hgobj gobj, const char *cmd, json_t *kw, 
         priv->resource,
         resource,
         "",
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7807,7 +7808,7 @@ PRIVATE json_t *cmd_configs_instances(hgobj gobj, const char *cmd, json_t *kw, h
         priv->resource,
         resource,
         "",
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -7840,7 +7841,7 @@ PRIVATE json_t *cmd_public_services_instances(hgobj gobj, const char *cmd, json_
         priv->resource,
         resource,
         "",
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -10585,6 +10586,62 @@ PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno)
 }
 
 /***************************************************************************
+ *  SIGKILL the process that sent an identity card the agent refuses, only
+ *  when it is one of the processes of that yuno (find_living_yuno_pids():
+ *  argv[0] its role, its configuration in its bin dir). The pid of a card
+ *  is the peer's word: up to 7.30.17 whatever pid it said got the SIGKILL,
+ *  a process of anybody's, and -1 every process of the user, yuneta_agent22
+ *  included. `yuno` is the agent's record of that id, NULL if it has none.
+ ***************************************************************************/
+PRIVATE void kill_refused_card_pid(hgobj gobj, json_t *yuno, const char *yuno_id, pid_t pid)
+{
+    if(!pid) {
+        return; // the card names no process
+    }
+
+    BOOL its_own = FALSE;
+    if(yuno && pid > 1) {
+        json_t *jn_pids = find_living_yuno_pids(gobj, yuno);
+        if(!jn_pids) {
+            return; // Error already logged
+        }
+        int idx; json_t *jn_pid;
+        json_array_foreach(jn_pids, idx, jn_pid) {
+            if((pid_t)json_integer_value(jn_pid) == pid) {
+                its_own = TRUE;
+                break;
+            }
+        }
+        JSON_DECREF(jn_pids)
+    }
+
+    if(!its_own) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "identity card refused: its pid is not a process of that yuno, not killed",
+            "yuno_id",      "%s", yuno_id?yuno_id:"",
+            "pid",          "%d", (int)pid,
+            NULL
+        );
+        return;
+    }
+
+    if(kill(pid, SIGKILL) < 0 && errno != ESRCH) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot kill the process of a refused identity card",
+            "yuno_id",      "%s", yuno_id?yuno_id:"",
+            "pid",          "%d", (int)pid,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  A bounce of the node (restart_nodes()) kills every yuno before it runs
  *  them again: also the ones alive that the agent does not know running,
  *  or they would outlive it beside their new instance
@@ -11049,6 +11106,7 @@ PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 {
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
     if(!channel_gobj) {
+        KW_DECREF(kw);
         return -1;
     }
     json_object_set_new(kw, "service", json_string("__root__"));
@@ -11078,6 +11136,7 @@ PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 {
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
     if(!channel_gobj) {
+        KW_DECREF(kw);
         return -1;
     }
     json_object_set_new(kw, "service", json_string("__root__"));
@@ -12760,7 +12819,7 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             gobj
         );
     }
-    KW_INCREF(kw);
+    JSON_INCREF(kw);
     json_t *iter = gobj_list_instances(
         priv->resource,
         resource,
@@ -12838,7 +12897,7 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             gobj
         );
     }
-    KW_INCREF(kw);
+    JSON_INCREF(kw);
     json_t *iter = gobj_list_instances(
         priv->resource,
         resource,
@@ -12907,7 +12966,7 @@ PRIVATE int ac_edit_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -13021,7 +13080,7 @@ PRIVATE int ac_view_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -13510,7 +13569,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -13636,7 +13695,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
-        kw_incref(kw), // filter
+        json_incref(kw), // filter
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
@@ -14092,9 +14151,15 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "yuno_id",      "%s", yuno_id,
             NULL
         );
-        if(pid) {
-            kill(pid, SIGKILL);
-        }
+        json_t *yuno_of_id = gobj_get_node(
+            priv->resource,
+            "yunos",
+            json_pack("{s:s}", "id", yuno_id?yuno_id:""),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            channel_gobj
+        );
+        kill_refused_card_pid(gobj, yuno_of_id, yuno_id, pid);
+        JSON_DECREF(yuno_of_id);
         JSON_DECREF(iter_yunos);
         KW_DECREF(kw);
         return -1;
@@ -14119,9 +14184,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "yuno_release", "%s", yuno_release,
             NULL
         );
-        if(pid) {
-            kill(pid, SIGKILL);
-        }
+        kill_refused_card_pid(gobj, yuno, yuno_id, pid);
         KW_DECREF(kw);
         JSON_DECREF(iter_yunos);
         return -1;
@@ -14139,9 +14202,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "new pid",      "%d", (int)pid,
             NULL
         );
-        if(pid) {
-            kill(pid, SIGKILL);
-        }
+        kill_refused_card_pid(gobj, yuno, yuno_id, pid);
         KW_DECREF(kw);
         JSON_DECREF(iter_yunos);
         return -1;
@@ -14159,9 +14220,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "new pid",      "%d", (int)pid,
             NULL
         );
-        if(pid) {
-            kill(pid, SIGKILL);
-        }
+        kill_refused_card_pid(gobj, yuno, yuno_id, pid);
         KW_DECREF(kw);
         JSON_DECREF(iter_yunos);
         return -1;
@@ -14180,9 +14239,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "new pid",      "%d", (int)pid,
             NULL
         );
-        if(pid) {
-            kill(pid, SIGKILL);
-        }
+        kill_refused_card_pid(gobj, yuno, yuno_id, pid);
         KW_DECREF(kw);
         JSON_DECREF(iter_yunos);
         return -1;
@@ -14201,9 +14258,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "new pid",      "%d", (int)pid,
             NULL
         );
-        if(pid) {
-            kill(pid, SIGKILL);
-        }
+        kill_refused_card_pid(gobj, yuno, yuno_id, pid);
         KW_DECREF(kw);
         JSON_DECREF(iter_yunos);
         return -1;
@@ -14738,7 +14793,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 0,  // comment
                 0,  // schema
                 json_pack("{s:s}", "name", name?name:""),   // owned
-                json_incref(kw)  // owned, echoes __md_iev__ back
+                kw_incref(kw)  // owned, echoes __md_iev__ back
             ),
             gobj
         );

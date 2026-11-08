@@ -29,7 +29,10 @@ hook `departments`), users under departments (`users`), items with a pkey2
 - A kw that carries a gbuffer through `treedbs`, `links`, `hooks` and
   `node`: each keeps its reference to the kw with `kw_incref()`, which takes
   one of the gbuffer too (red with `json_incref()`, as up to 7.25.4: eight
-  *"BAD gbuf_decref()"*).
+  *"BAD gbuf_decref()"*). And through `snaps`, whose kw is a FILTER,
+  released with `JSON_DECREF`: it goes in with `json_incref()`. Up to 7.30.17
+  it went with `kw_incref()` and the gbuffer of every call leaked (the leak
+  check of `main.c` fails).
 - The snaps, on the data: `shoot-snap s1`, the node changed and saved;
   `activate-snap s1` marks it active (`snaps` says so) and the treedb opened
   again (C_NODE stopped and started, as the agent's `restart_nodes()` does)

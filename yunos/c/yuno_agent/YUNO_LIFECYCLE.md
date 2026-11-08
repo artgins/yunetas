@@ -421,6 +421,25 @@ Driven by [`run_yuno()`](https://github.com/artgins/yunetas/blob/7.30.17/yunos/c
 becomes `running` from the agent's point of view, even if `ps` shows the
 process alive. See §5 *Stale pid*.
 
+**A card the agent refuses.** `ac_on_open()` refuses the card of a yuno it
+does not know (*"yuno NOT FOUND"*), of a second instance of a yuno that is
+alive (*"yuno ALREADY living, killing new yuno"*), and of a yuno whose role,
+name, release or realm do not match its record. Then it sends SIGKILL to the
+`pid` of the card, but only when that pid is one of the processes of that
+yuno: `argv[0]` is its role and its configuration is in its `bin/`, the test
+`find_living_yuno_pids()` makes. The pid of a card is the peer's word, and
+any session of the agent can write one. Any other pid, a pid of 1 or less,
+or a yuno with no record, gets one WARNING and no signal:
+
+```text
+WARNING ... "msg": "identity card refused: its pid is not a process of that yuno, not killed", "yuno_id": "4242", "pid": 31337
+```
+
+Up to 7.30.17 every pid that a refused card gave got the SIGKILL, so a
+session could kill any process of the user. With `"pid": -1` that was every
+process of the user, `yuneta_agent22` included.
+`tests/c/c_agent_sandbox` runs the real agent and sends these cards.
+
 #### Command response: one answer per command, and the `play=0` knob
 
 `run-yuno` returns a **single** command answer once all launched yunos have
