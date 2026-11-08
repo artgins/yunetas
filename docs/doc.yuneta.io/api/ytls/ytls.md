@@ -620,33 +620,39 @@ Returns a handle to the newly created TLS context (`hytls`) on success, or `NULL
 
 The `jn_config` parameter must include necessary TLS settings such as certificates, ciphers, and buffer sizes. See the structure documentation for valid configuration fields.
 
-**A server that cannot load its certificates exits the process with code
-0.** When `server` is `TRUE` and the certificate, its key, or the
-`ssl_trusted_certificate` cannot be loaded (a missing file, a key that does
-not match), `ytls_init()` logs the ERROR with `LOG_OPT_EXIT_ZERO` and the
-yuno ends with exit code 0. This is deliberate. The watcher of a yuno
-relaunches it after a signal or a non-zero exit code: after 2 s, then the
-wait doubles up to 60 s, and it never stops. A certificate that is not there
-does not come back with a retry, so code 0 tells the watcher NOT to
-relaunch the yuno. The mbedTLS backend does the same since the
-7.30.15; up to 7.30.14 it returned `NULL`, `C_TCP_S` went on
-listening with no TLS context, and the first peer crashed the yuno.
+**`ytls_init()` is never fatal: it answers `NULL`, and the process goes
+on.** When the certificate, its key or the `ssl_trusted_certificate` cannot
+be loaded (a missing file, a key that does not match), or `library` names a
+backend this build does not have, `ytls_init()` logs ONE ERROR with the cause
+and returns `NULL`. This holds for a server as for a client. What fails is
+that one TLS context, never the yuno: a client's connection fails, and a
+server's owner degrades that listener. [`C_TCP_S`](#gclass-c-tcp-s) does not
+listen without a context, and tries again until the files are there (see
+*A TLS server without its TLS context* on its page): the yuno and its other
+listeners go on.
 
-What the operator sees:
+Up to 7.30.17 a server exited the process with code 0 here
+(`LOG_OPT_EXIT_ZERO`, the OpenSSL backend always, mbedTLS since 7.30.15), and
+an unknown `library` exited it for a client too. Code 0 told the watcher not
+to relaunch the yuno, so an agent without its pair stayed dead, and on a
+node with no SSH nothing could bring it back. Up to 7.30.14 the mbedTLS
+backend returned `NULL`, `C_TCP_S` listened with no context, and the first
+peer crashed the yuno.
 
-- The ERROR is the last line of the yuno's log, for example
-  `"msg": "SSL_CTX_use_certificate_chain_file() FAILED", "cert":
-  "/yuneta/agent/certs/yuneta_agent.crt", "exiting": "0"`.
-- The watcher of the yuno does not relaunch it, and `list-yunos` shows it
-  with `running` false until it is run again (`run-yuno`).
-- The agent itself runs under its watcher. When the agent exits 0, its
-  watcher also ends with 0, so systemd shows `yuneta_agent.service` as
-  `inactive (dead)`, not `failed`. Read the log of the agent, not the state
-  of the unit. Put the certificate back, then
-  `sudo systemctl start yuneta_agent`.
+What the operator sees for a server, for example the agent's 1993 without
+`/yuneta/agent/certs/yuneta_agent.key`:
 
-A client is never fatal: `ytls_init()` returns `NULL` and only that
-connection fails. A hot reload is never fatal either:
+- The ERROR of the cause, from ytls: `"msg": "SSL_CTX_use_PrivateKey_file()
+  FAILED", "cert": "/yuneta/agent/certs/yuneta_agent.key"` (mbedTLS:
+  `"mbedtls_pk_parse_keyfile() FAILED"`).
+- The ERROR of the listener, once: `"msg": "TLS server without its TLS
+  context: not listening, trying again"`, with `url` and the three paths.
+- The yuno keeps running: `list-yunos` shows it `running`, and the agent
+  still answers `ycommand` on 1991.
+- When the files are there, one INFO, `"msg": "TLS context loaded:
+  listening"`, and the port opens. No restart.
+
+A hot reload is never fatal either:
 [`ytls_reload_certificates()`](<#ytls_reload_certificates>) keeps the
 previous certificates.
 
@@ -656,8 +662,11 @@ json_t *crypto = json_pack("{s:s, s:s, s:s}",
     "ssl_certificate",      "/yuneta/agent/certs/localhost.crt",
     "ssl_certificate_key",  "/yuneta/agent/certs/localhost.key"
 );
-hytls ytls = ytls_init(gobj, crypto, TRUE);   /* a server: no file -> exit(0) */
+hytls ytls = ytls_init(gobj, crypto, TRUE);   /* a server: no file -> NULL, the ERROR of the cause */
 JSON_DECREF(crypto)
+if(!ytls) {
+    // Error already logged: do not listen, and try again later
+}
 ```
 
 ---

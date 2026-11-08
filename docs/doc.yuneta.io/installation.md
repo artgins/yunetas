@@ -586,6 +586,19 @@ keeping a copy of the old files, and keeps any other pair. The new pair is EC
 P-256, valid from 2000 to 2126, named `yuneta_agent.yuneta.io` (the name the
 clients already check) with the host's name in its SAN.
 
+**An agent without its pair keeps running.** Its secure port does not
+listen, and it says why once (the ERROR of the missing file, then *"TLS server
+without its TLS context: not listening, trying again"*). 1991 still serves
+`ycommand`, and the agent still manages its realms and yunos. The port opens
+by itself when the pair is there (the next try, 60 s at most), or at once
+with `reload-certs`. Up to 7.30.17 the agent exited with code 0, and only a
+start by hand brought it back:
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
+ycommand -c 'command-agent service=agent_secure_port command=reload-certs'
+```
+
 Since 7.30.10 the same pair is also **who the node is to its control center**:
 the agent presents it as the client certificate of its link, and the control
 center pins the node's uuid to its key once an operator accepts it

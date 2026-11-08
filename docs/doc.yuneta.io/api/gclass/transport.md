@@ -367,6 +367,8 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
 | `exitOnError` | `integer` | Exit code of the yuno when the listen fails (default `-1`, which its watcher relaunches); `0`: the start fails and the yuno goes on. |
 | `listen_retry_msec` | `integer` | How long a listen whose address is in use (`EADDRINUSE`) is tried again before it fails as any other listen (default `5000`; `0`: no retry). See *Address in use at the start*. |
+| `listening` | `bool` | Listening now (stat). False while stopped, while an address in use is tried again, and while a TLS url has no TLS context. |
+| `tls_ready` | `bool` | A TLS url (`use_ssl`) with its TLS context loaded (stat). `use_ssl` true and `tls_ready` false: the certificates of `crypto` cannot be loaded, and the server does not listen. See *A TLS server without its TLS context*. |
 | `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
 | `tconnxs` | `integer` | Connections accepted since the gobj was created (stat; a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
@@ -492,6 +494,62 @@ is held after the reap for a few ms on an idle machine, and for more than
 failed at the first refusal: a yuno that binds early (an `auth_bff`) exited,
 and its watcher launched it again 2 s later with a *"Daemon relaunched"*
 ERROR. `tests/c/c_tcp_s_addr_in_use`.
+
+(tcp_s_no_tls_context)=
+### A TLS server without its TLS context
+
+A TLS url (`tcps`, `wss`, `https`, `mqtts`, ...) whose certificate, key or
+trusted certificate cannot be loaded does **not listen, and the yuno goes
+on**. The server stays running in `ST_STOPPED`, with `use_ssl` true and
+`listening` and `tls_ready` false. Its port is closed: a peer is refused at
+connect, it does not reach a handshake. The yuno's other listeners and
+services are not touched: the agent without its pair keeps 1991 (`ycommand`),
+manages its realms and yunos, and opens 1993 when the pair is there.
+
+It tries again at each timeout of its timer, the wait doubling from 1 s up to
+60 s. A try loads nothing while `crypto` and the files it names are as at the
+last refusal (their inode, size, mtime and ctime, as the start again of
+*Stop and start again* compares them): such a try costs a `stat()` of each
+file and says nothing. When something changed it loads them, and when they
+load it listens, with one INFO. `reload-certs` (the yuno's, or the
+listener's) tries at once, so the agent's cert-sync, which sends it after it
+copies renewed certificates, opens the port without waiting. A stop takes
+back the tries; a start tries again.
+
+What is said, in order, for a certificate that is not there:
+
+1. ERROR from ytls, the cause: *"SSL_CTX_use_certificate_chain_file()
+   FAILED"* (OpenSSL) or *"mbedtls_x509_crt_parse_file() FAILED"* (mbedTLS),
+   with the file.
+2. ERROR from the server, ONCE: *"TLS server without its TLS context: not
+   listening, trying again"*, with `url`, `ssl_certificate`,
+   `ssl_certificate_key` and `ssl_trusted_certificate`.
+3. Nothing at the tries that find the files unchanged. The ERROR of the cause
+   again at a try whose files changed and still do not load, and at each
+   `reload-certs`.
+4. INFO when they load: *"TLS context loaded: listening"*.
+
+To see it and to fix it on a node (the agent's secure port):
+
+```bash
+ycommand -c 'stats-agent service=agent_secure_port'
+# {"listening": false, "tls_ready": false, ...}
+sudo /usr/libexec/yuneta/yuneta-agent-cert ensure      # makes the pair
+ycommand -c 'command-agent service=agent_secure_port command=reload-certs'
+# listens now; without it, the next try of its timer (60 s at most)
+```
+
+`reload-certs` answers `-1` (*"TLS context cannot be loaded (check logs):
+not listening, trying again"*) while the files still fail, and `0` (*"TLS
+context loaded: listening"*) when they load. `view-cert` answers `-1`, *"TLS
+server without its TLS context: not listening"*.
+
+Up to 7.30.17 ytls exited the yuno with code 0 at the start, so its watcher
+did not relaunch it: an agent without its pair stayed dead, and on a node
+with no SSH nothing could bring it back. Up to 7.30.14 the mbedTLS backend
+listened with no context, and the first peer crashed the yuno in
+`ytls_new_secure_filter()`. `tests/c/c_tcps` (`test14`, and
+`test14_mbedtls` when both backends are built).
 
 ### IP lists at accept
 
