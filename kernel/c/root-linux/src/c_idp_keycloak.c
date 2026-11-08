@@ -45,7 +45,6 @@
  ***********************************************************************/
 #include <string.h>
 #include <limits.h>
-#include <time.h>
 #include <ctype.h>
 
 #include <gobj.h>
