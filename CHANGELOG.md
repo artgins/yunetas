@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v7.30.15 (2026-11-08)
+
+A light release, deployed for the control center only: the identity of the
+nodes before the control center, and the logins of a peer by its address.
+It also carries the kernel fixes made since 7.30.14 (HTTP and websocket,
+the BFF and `C_TASK`, `time2date`/`time2range`, TLS and `C_TCP_S`, the
+packages); they reach the other yunos with the next full release. The
+tests of each change ran, not the whole suite; no performance study (the
+next one is against 7.30.0).
+
 - **maplibre-gl 6.17.0** in the JS layer: gobj-ui's lockfile and its demo
   (no gobj-ui release, the peer floor stays `^6.14.0`), gui_treedb 1.2.4 and
   the `gui/` of the project templates. No breaking change for Yuneta: the

@@ -609,7 +609,7 @@ Corollaries:
   in as the local user `yuneta`, root, by its address alone. nginx in front of
   a yuno's `C_IEVENT_SRV` on the same host connects from `127.0.0.1`, so every
   browser behind it is such a peer. A yuno behind a proxy sets
-  `"Authz.trust_peer_ip": false` (after 7.30.14; per yuno, not per listener);
+  `"Authz.trust_peer_ip": false` (7.30.15+; per yuno, not per listener);
   the agents keep the default. On an older SDK the stopgap is
   `proxy_bind 127.0.1.1;` in every proxied `location` (the prefix checked is
   exactly `127.0.0.`). Denying addresses (it cuts the users with a token too)
@@ -2213,7 +2213,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.30.14) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.30.15) — used to generate `yuneta_version.h` |
 | `Kconfig` | Root Kconfig definition |
 | `TODO.md` | API renames/removals/additions between versions |
 | `CHANGELOG.md` | Release history |
