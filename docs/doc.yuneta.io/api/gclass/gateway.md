@@ -165,7 +165,8 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `min_free_disk_percentage` | `integer` | The gate refuses new messages while the disk of `tranger_path` has less free space than this, in percent (default `10`). `0` or less: it refuses them only when the queue cannot save one. Example: `'kw': {'min_free_disk_percentage': 5}`. |
 | `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
 | `pending_acks` | `integer` (stats) | Messages sent and waiting for their ack: a gauge, read live. |
-| `dropped_msgs` | `integer` (stats) | Messages refused because the queue could not save them, since the yuno started. |
+| `dropped_msgs` | `integer` (stats) | Messages refused because the queue could not save them, or could not be opened, since the yuno started. |
+| `queue_ready` | `bool` (stats) | The queue is open. False while stopped, and when it could not be opened at the start (see *A queue that cannot be opened*). |
 
 `msgs_in_queue` and `pending_acks` are stats attributes, so they are in the
 stats of the gate itself and in those of a `C_MQIOGATE` above it, one entry
@@ -205,6 +206,44 @@ A sender sees the refusal in the return of the event:
 if(gobj_send_event(gobj_output_side, EV_SEND_MESSAGE, kw, gobj) < 0) {
     // the queue refused it: see dropped_msgs and the gate's ERROR
 }
+```
+
+### A queue that cannot be opened
+
+A gate whose queue cannot be opened at its start (a `tranger_path` that
+cannot be made, a disk, a permission) **goes on without it**: `queue_ready`
+false, and every message refused (`-1` to its sender, counted in
+`dropped_msgs`, no log per message). It says it ONCE, *"Queue cannot be
+opened: the gate refuses messages, trying again"* (with `path`, `queue`,
+`topic_name`), after the causes logged by timeranger2, and tries to open the
+queue again at each timeout of its timer, the wait doubling from 1 s up to
+60 s. Each try writes the causes of timeranger2 again. When it opens: one
+INFO, *"Queue opened: the gate accepts messages"*; what the queue held is
+loaded, and sent if the bottom side is open. An empty `tranger_path`,
+`tranger_database` or `topic_name` is not tried again (they are read only):
+*"Queue cannot be opened, its config is bad: the gate refuses messages"*. A
+stop takes the tries back.
+
+Up to 7.30.17 the first message to such a gate aborted the yuno (CRITICAL
+*"trq_msgs NULL"*), and its watcher launched it into the same failure. A log
+watcher alerts on the ERROR, or on `queue_ready` false:
+
+```bash
+ycommand -c 'stats-yuno id=<id> service=__output_side__'
+# {"output-qiogate-aire": {"queue_ready": false, "dropped_msgs": 40, ...}, ...}
+```
+
+### What the queue keeps
+
+The queue keeps JSON: what the gate saves is a copy of the message, its
+metadata (`__*__` keys) taken out unless `with_metadata`. A binary field at
+its top level (a `gbuffer`) is saved as its content, in the serialized form
+of `kw_serialize()` (`__gbuffer___`), and the copy keeps no reference of it. Up to 7.30.17 the copy increfed the gbuffer and nobody gave
+it back -- one leaked per message -- and its address was saved as a number.
+
+```C
+json_t *kw = json_pack("{s:s, s:I}", "id", "1", "gbuffer", (json_int_t)(uintptr_t)gbuf);
+gobj_send_event(qiogate, EV_SEND_MESSAGE, kw, gobj);   // queued as {"id": "1", "__gbuffer___": ...}
 ```
 
 ### Commands
