@@ -66,6 +66,16 @@ server and connect again"*), the deadline not cleared when the handshake ends
 connection ends (*"Cannot connect tcp gobj"* in the quiet wait), no
 `EV_TIMEOUT` in `ST_WAIT_HANDSHAKE` (*"Event NOT DEFINED in state"*).
 
+`test12` (`main_test12.c` + `c_test12.c`, plain TCP) is the inactivity timer
+of a client after a local drop. The `C_TCP` (`timeout_inactivity` 1000,
+`timeout_stop_tx` 3000) connects to a listener of the test with a 4 KB
+receive buffer that nobody accepts, and is sent 8 MB at once, so a write
+stays in flight. 300 ms later it is dropped: the drop waits in
+`ST_WAIT_STOPPED` for that write. 3 s later the `C_TCP` must still be in
+`ST_WAIT_STOPPED`, with nothing logged. Up to 7.30.16 the drop left the
+inactivity timer armed, and its `EV_TIMEOUT` landed in `ST_WAIT_STOPPED`
+(red: *"Event NOT DEFINED in state"*).
+
 ## Run
 
 ```bash

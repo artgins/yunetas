@@ -1723,8 +1723,17 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         return;
     }
 
-    if(priv->gobj_timer && gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE)) {
-        clear_timeout(priv->gobj_timer);    // the deadline of the handshake (set_connected())
+    /*
+     *  The timer of a connection: the deadline of the TLS handshake, or the
+     *  inactivity timer. Either would fire into ST_WAIT_STOPPED, where a
+     *  drop waits for its write in flight (up to 7.30.16 the inactivity
+     *  one did: "Event NOT DEFINED in state"). A client's reconnect timer
+     *  is armed afterwards, by set_disconnected().
+     */
+    if(priv->gobj_timer && (
+            gobj_in_this_state(gobj, ST_WAIT_HANDSHAKE) ||
+            gobj_in_this_state(gobj, ST_CONNECTED))) {
+        clear_timeout(priv->gobj_timer);
     }
 
     uint32_t trace_level = gobj_trace_level(gobj);
