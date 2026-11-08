@@ -38,14 +38,37 @@ server answers. Five raw clients send an upgrade each, by hand: with no
 ` , mqtt ,x` answers `mqtt`, the first value of the list; `bad value, chat` and
 a token of 600 bytes answer none, with a warning. Up to 7.29.3 the 101 echoed
 the whole header, and at 512 bytes it was cut along with the end of the head,
-so the answer never ended (red).
+so the answer never ended (red). Two more clients test the exact limit: a
+token of `NAME_MAX` bytes (255) is answered, one of 256 answers none, with a
+warning (the buffer holds 255 and its NUL: with `>` for `>=` in
+`select_subprotocol()` the 256 bytes are answered, and written one byte past
+it).
+
+`test5` (`main_test5.c` + `c_test5.c`) is the handshake a `C_WEBSOCKET`
+**client** accepts (RFC 6455 4.1). A raw server answers four upgrades, one per
+connection, and the client reconnects after each refusal:
+
+| The 101 | The client |
+|---|---|
+| no `Sec-WebSocket-Accept` | refuses it, ONE warning |
+| a wrong `Sec-WebSocket-Accept` | refuses it, ONE warning |
+| the right one, and `Sec-WebSocket-Protocol: chat` (not offered) | refuses it, ONE warning |
+| the right one | opens the session (`EV_ON_OPEN`): the test ends |
+
+Up to 7.30.14 the client looked only at the 101 and opened the session with
+the first one (red: *"The client opened a session with a handshake it must
+refuse"*, case 0).
+
+The raw servers of test1, test2, test3 and test5 answer the
+`Sec-WebSocket-Accept` of the key the client sent, computed by
+`ws_handshake.c` (the SHA-1 of `sha1.c` and `gbuffer_binary_to_base64()`).
 
 `ws_accept` (`test_ws_accept.c`, no yuno) is the `Sec-WebSocket-Accept` a
 `C_WEBSOCKET` server answers: the SHA-1 of `sha1.c` (root-linux, private,
 written again from FIPS 180-4 after 7.28.4) against the FIPS vectors and
 every length around the padding, and its base64 against the example of
-RFC 6455 (1.3). A browser refuses a wrong accept; the C client does not check
-it, so test1 and test2 (whose server is raw) would never see one.
+RFC 6455 (1.3). A browser refuses a wrong accept, and so does the C client
+(test5).
 
 ## Run
 

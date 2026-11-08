@@ -56,6 +56,7 @@ SET(SRCS
     test2
     test3
     test4
+    test5
 )
 
 ##############################################
@@ -63,7 +64,10 @@ SET(SRCS
 ##############################################
 foreach(test ${SRCS})
     set(binary "test_websocket_${test}")
-    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" "ws_handshake.c")
+    target_include_directories(${binary} PRIVATE
+        ${YUNETAS_BASE}/kernel/c/root-linux/src     # sha1.h, private: the accept of ws_handshake.c
+    )
 
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES

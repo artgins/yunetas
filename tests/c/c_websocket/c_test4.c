@@ -10,7 +10,9 @@
  *
  *          Each raw client (C_PROT_RAW) sends one upgrade request, by hand,
  *          with the case of its channel, and reads the 101. All the answers
- *          read, the yuno ends.
+ *          read, the yuno ends. A token of NAME_MAX bytes is the longest
+ *          answered: one more is refused, with a warning (the buffer of the
+ *          answer holds NAME_MAX and its NUL).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -24,13 +26,16 @@
  *              Constants
  ***************************************************************************/
 #define LONG_TOKEN_SIZE 600
+#define TOKEN_LONGEST   NAME_MAX        // the longest subprotocol answered
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
 typedef struct {
-    const char *offered;    // NULL: no header; "": a token too long
-    const char *answered;   // NULL: no header in the 101
+    const char *offered;    // NULL: no header, or the token of token_len
+    size_t token_len;       // > 0: a token of that many 'a' is offered
+    const char *answered;   // NULL: no header in the 101, or the token
+    BOOL token_answered;    // the token of token_len is answered
 } ws_case_t;
 
 /***************************************************************************
@@ -41,11 +46,13 @@ typedef struct {
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE const ws_case_t ws_cases[] = {
-    {NULL,              NULL},
-    {"chat, superchat", "chat"},
-    {" , mqtt ,x",      "mqtt"},
-    {"bad value, chat", NULL},
-    {"",                NULL},
+    {NULL,              0,                  NULL,   FALSE},
+    {"chat, superchat", 0,                  "chat", FALSE},
+    {" , mqtt ,x",      0,                  "mqtt", FALSE},
+    {"bad value, chat", 0,                  NULL,   FALSE},
+    {NULL,              LONG_TOKEN_SIZE,    NULL,   FALSE},
+    {NULL,              TOKEN_LONGEST,      NULL,   TRUE},
+    {NULL,              TOKEN_LONGEST + 1,  NULL,   FALSE},
 };
 #define WS_CASES (sizeof(ws_cases)/sizeof(ws_cases[0]))
 
@@ -215,12 +222,12 @@ PRIVATE gbuffer_t *build_upgrade_request(const ws_case_t *ws_case)
         "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
         "Sec-WebSocket-Version: 13\r\n"
     );
-    if(ws_case->offered) {
+    if(ws_case->offered || ws_case->token_len > 0) {
         gbuffer_printf(gbuf, "Sec-WebSocket-Protocol: ");
-        if(*ws_case->offered) {
+        if(ws_case->offered) {
             gbuffer_printf(gbuf, "%s", ws_case->offered);
         } else {
-            for(int i = 0; i < LONG_TOKEN_SIZE; i++) {
+            for(size_t i = 0; i < ws_case->token_len; i++) {
                 gbuffer_append_char(gbuf, 'a');
             }
         }
@@ -236,15 +243,22 @@ PRIVATE gbuffer_t *build_upgrade_request(const ws_case_t *ws_case)
 PRIVATE void check_answer(hgobj gobj, size_t n, const char *answer, size_t len)
 {
     static const char header[] = "Sec-Websocket-Protocol: ";
-    char expected[256] = {0};
+    char expected[NAME_MAX + 64] = {0};
+    BOOL answered = ws_cases[n].answered || ws_cases[n].token_answered;
     if(ws_cases[n].answered) {
         snprintf(expected, sizeof(expected), "%s%s\r\n", header, ws_cases[n].answered);
+    } else if(ws_cases[n].token_answered) {
+        size_t len = (size_t)snprintf(expected, sizeof(expected), "%s", header);
+        for(size_t i = 0; i < ws_cases[n].token_len && len + 3 < sizeof(expected); i++) {
+            expected[len++] = 'a';
+        }
+        snprintf(expected + len, sizeof(expected) - len, "\r\n");
     }
 
     BOOL right;
     if(!memmem(answer, len, "101 Switching Protocols", 23)) {
         right = FALSE;
-    } else if(ws_cases[n].answered) {
+    } else if(answered) {
         right = memmem(answer, len, expected, strlen(expected)) != NULL;
     } else {
         right = memmem(answer, len, header, strlen(header)) == NULL;

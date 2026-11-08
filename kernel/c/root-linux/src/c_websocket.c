@@ -199,6 +199,7 @@ typedef struct _PRIVATE_DATA {
 
     GHTTP_PARSER *parsing_request;      // A request parser instance
     GHTTP_PARSER *parsing_response;     // A response parser instance
+    char accept_due[SHA1_DIGEST_SIZE * 2];  // client: the Sec-WebSocket-Accept of the key it sent
     char ginsfsm_user_agent;    // True when user-agent is ginsfsm
                                 // When user is a browser, it'll be sockjs.
                                 // when user is not browser, at the moment,
@@ -1316,6 +1317,22 @@ PRIVATE int bin_to_base64_str(hgobj gobj, const uint8_t *in, size_t in_len, char
 }
 
 /***************************************************************************
+ *  The Sec-WebSocket-Accept of a Sec-WebSocket-Key (RFC 6455 4.2.2): the
+ *  SHA-1 of the key and the GUID, in base64. 0, or -1 (logged), with
+ *  `accept` empty.
+ ***************************************************************************/
+PRIVATE int accept_of_key(hgobj gobj, const char *key, char *accept, size_t size)
+{
+    static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    char concat[100];
+    uint8_t sha1mac[SHA1_DIGEST_SIZE];
+
+    snprintf(concat, sizeof(concat), "%s%s", key, magic);
+    sha1_digest(concat, strlen(concat), sha1mac);
+    return bin_to_base64_str(gobj, sha1mac, sizeof(sha1mac), accept, size);
+}
+
+/***************************************************************************
  *  Send a http message
  ***************************************************************************/
 PRIVATE int send_http_message(hgobj gobj, const char *http_message)
@@ -1393,8 +1410,11 @@ PRIVATE BOOL do_request(
     unsigned char uuid[16];
     char key_b64[40];
 
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     generate_uuid(uuid);
     bin_to_base64_str(gobj, uuid, sizeof(uuid), key_b64, sizeof(key_b64));
+    accept_of_key(gobj, key_b64, priv->accept_due, sizeof(priv->accept_due));
 
     gbuf = gbuffer_create(256, 4*1024);
     if(!gbuf) {
@@ -1610,13 +1630,8 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             );
         }
 
-        static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        char concat[100], b64_sha[SHA1_DIGEST_SIZE * 2];
-        uint8_t sha1mac[SHA1_DIGEST_SIZE];
-
-        snprintf(concat, sizeof(concat), "%s%s", sec_websocket_key, magic);
-        sha1_digest(concat, strlen(concat), sha1mac);
-        bin_to_base64_str(gobj, sha1mac, sizeof(sha1mac), b64_sha, sizeof(b64_sha));
+        char b64_sha[SHA1_DIGEST_SIZE * 2];
+        accept_of_key(gobj, sec_websocket_key, b64_sha, sizeof(b64_sha));
 
         send_http_message2(gobj,
             "HTTP/1.1 101 Switching Protocols\r\n"
@@ -1880,7 +1895,24 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
         } else if (result > 0) {
-            if (llhttp_get_status_code(&priv->parsing_response->llhttp) == 101) {
+            /*
+             *  RFC 6455 4.1: a 101 that proves the server read our key, and
+             *  no subprotocol, because this client offers none
+             */
+            int status = llhttp_get_status_code(&priv->parsing_response->llhttp);
+            json_t *jn_headers = priv->parsing_response->jn_headers;
+            const char *accept = json_string_value(json_object_get(jn_headers, "SEC-WEBSOCKET-ACCEPT"));
+            const char *protocol = json_string_value(json_object_get(jn_headers, "SEC-WEBSOCKET-PROTOCOL"));
+            const char *refused = NULL;
+            if(status != 101) {
+                refused = "NO 101 HTTP Response";
+            } else if(!accept || empty_string(priv->accept_due) || strcmp(accept, priv->accept_due) != 0) {
+                refused = "Websocket handshake refused: Sec-WebSocket-Accept missing or wrong";
+            } else if(!empty_string(protocol)) {
+                refused = "Websocket handshake refused: a subprotocol that was not offered";
+            }
+
+            if(!refused) {
                 /*------------------------------------*
                  *   Upgrade to websocket
                  *------------------------------------*/
@@ -1894,15 +1926,18 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PROTOCOL,
-                    "msg",          "%s", "NO 101 HTTP Response",
-                    "status",       "%d", 0, //response->status,
+                    "msg",          "%s", refused,
+                    "status",       "%d", status,
+                    "accept",       "%.64s", accept? accept : "",
+                    "protocol",     "%.64s", protocol? protocol : "",
                     "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
                     "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
                     NULL
                 );
+                gbuffer_reset_rd(gbuf);     // the read of the end of the head
                 size_t ln = gbuffer_leftbytes(gbuf);
                 char *bf = gbuffer_cur_rd_pointer(gbuf);
-                gobj_trace_dump(gobj, bf, MIN(ln, MAX_LOG_DUMP_SIZE), "NO 101 HTTP Response");
+                gobj_trace_dump(gobj, bf, MIN(ln, MAX_LOG_DUMP_SIZE), "%s", refused);
 
                 priv->close_frame_sent = TRUE;
                 priv->inform_on_close = FALSE;

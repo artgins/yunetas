@@ -491,5 +491,36 @@ Sec-WebSocket-Protocol: chat, superchat     ->  Sec-Websocket-Protocol: chat
 Sec-WebSocket-Protocol: bad value, chat     ->  (none, and a warning)
 ```
 
-Tests: `tests/c/c_websocket` (`test_websocket_test1`, and `test_websocket_test4`
-for the subprotocol).
+The longest value answered is `NAME_MAX` bytes (255): one of 256 gets none.
+
+### The handshake a client accepts
+
+A `C_WEBSOCKET` **client** opens the session only with a `101` that proves
+the server read its request (RFC 6455 §4.1): its `Sec-WebSocket-Accept` must
+be the SHA-1 of the `Sec-WebSocket-Key` the client sent and the GUID
+`258EAFA5-E914-47DA-95CA-C5AB0DC85B11`, in base64. A client offers no
+subprotocol, so a `101` that names one is refused too. A refused handshake
+logs ONE warning (`MSGSET_PROTOCOL`, with `status`, `accept`, `protocol` and
+a dump of the read, capped at 256 bytes), publishes no `EV_ON_OPEN`, and drops
+the connection; the transport reconnects as after any drop. The example of
+RFC 6455 §1.3:
+
+```text
+GET /chat HTTP/1.1                                  HTTP/1.1 101 Switching Protocols
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==   ->    Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+```
+
+| The `101` | The client |
+|---|---|
+| no `Sec-WebSocket-Accept`, or a wrong one | warning *"Websocket handshake refused: Sec-WebSocket-Accept missing or wrong"* |
+| a `Sec-WebSocket-Protocol` | warning *"Websocket handshake refused: a subprotocol that was not offered"* |
+| any status but `101` | warning *"NO 101 HTTP Response"*, with the status |
+
+Up to 7.30.14 the client looked only at the `101` and opened the session with
+any of them. A server that answered a wrong accept worked with a Yuneta
+client and failed with a browser; it now fails with both. A `C_WEBSOCKET`
+server, and a proxy that passes the upgrade through, answer the right one.
+
+Tests: `tests/c/c_websocket` (`test_websocket_test1`; `test_websocket_test4`
+for the subprotocol a server answers; `test_websocket_test5` for the
+handshake a client refuses).

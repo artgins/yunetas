@@ -14,8 +14,8 @@
  *          on a simulator of clients too busy to read a frame in time.
  *
  *          The server here is raw (C_PROT_RAW) and plays websocket by hand:
- *          it answers the upgrade (the client checks only the 101 and drops
- *          whatever comes behind it in the same read, so the frame goes
+ *          it answers the upgrade (the client drops whatever comes behind
+ *          the 101 in the same read, so the frame goes
  *          HEADER_DELAY_MS later), sends the header of a frame of FRAME_LEN
  *          bytes with the first FIRST_PART of them, and the rest
  *          REST_DELAY_MS later -- after the client's timeout_payload (1 s)
@@ -28,6 +28,7 @@
  ***********************************************************************/
 #include <string.h>
 
+#include "ws_handshake.h"
 #include "c_test1.h"
 
 /***************************************************************************
@@ -254,7 +255,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  The server gets the client's bytes: its upgrade request, answered by
- *  hand once complete (the client checks only the 101)
+ *  hand once complete, with the Sec-WebSocket-Accept of its key
  ***************************************************************************/
 PRIVATE int ac_server_message(hgobj gobj, json_t *kw)
 {
@@ -277,13 +278,16 @@ PRIVATE int ac_server_message(hgobj gobj, json_t *kw)
     priv->answered = TRUE;
     priv->server_channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
 
+    char accept[64];
+    ws_accept_of_request(p, len, accept, sizeof(accept));
     gbuffer_t *answer = gbuffer_create(1024, 1024);
     gbuffer_printf(answer,
         "HTTP/1.1 101 Switching Protocols\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Accept: whatever\r\n"
-        "\r\n"
+        "Sec-WebSocket-Accept: %s\r\n"
+        "\r\n",
+        accept
     );
     gobj_send_event(
         priv->server_channel,

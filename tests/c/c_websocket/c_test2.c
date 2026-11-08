@@ -26,6 +26,7 @@
  ***********************************************************************/
 #include <string.h>
 
+#include "ws_handshake.h"
 #include "c_test2.h"
 
 /***************************************************************************
@@ -253,7 +254,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  The server gets the client's bytes: its upgrade request, answered by
- *  hand once complete (the client checks only the 101)
+ *  hand once complete, with the Sec-WebSocket-Accept of its key
  ***************************************************************************/
 PRIVATE int ac_server_message(hgobj gobj, json_t *kw)
 {
@@ -276,13 +277,16 @@ PRIVATE int ac_server_message(hgobj gobj, json_t *kw)
     priv->answered = TRUE;
     priv->server_channel = (hgobj)(uintptr_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
 
+    char accept[64];
+    ws_accept_of_request(p, len, accept, sizeof(accept));
     gbuffer_t *answer = gbuffer_create(1024, 1024);
     gbuffer_printf(answer,
         "HTTP/1.1 101 Switching Protocols\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Accept: whatever\r\n"
-        "\r\n"
+        "Sec-WebSocket-Accept: %s\r\n"
+        "\r\n",
+        accept
     );
     gobj_send_event(
         priv->server_channel,
