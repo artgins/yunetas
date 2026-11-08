@@ -5328,12 +5328,23 @@ PRIVATE int load_record_callback(
 
     const char *fields = kw_get_str(gobj, match_cond, "fields", "", 0);
     if(!empty_string(fields)) {
+        /*
+         *  A record read from disk is a json, not a kw: a top-level
+         *  "gbuffer" in it is data. Trimmed as a kw (kw_clone_by_path), its
+         *  decref took the integer for a gbuffer and crashed the yuno.
+         */
         const char **field_keys = split2(fields, ", ", 0);
-        jn_record = kw_clone_by_path(
-            gobj,
-            jn_record,   // owned
-            field_keys
-        );
+        if(field_keys && field_keys[0]) {
+            json_t *jn_fields = json_object();
+            for(int i = 0; field_keys[i]; i++) {
+                json_t *jn_value = kw_get_dict_value(gobj, jn_record, field_keys[i], 0, 0);
+                if(jn_value) {
+                    json_object_set(jn_fields, field_keys[i], jn_value);
+                }
+            }
+            JSON_DECREF(jn_record)
+            jn_record = jn_fields;
+        }
         split_free2(field_keys);
     }
     json_array_append(list_data, jn_record);

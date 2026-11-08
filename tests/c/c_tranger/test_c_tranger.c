@@ -3678,6 +3678,45 @@ PRIVATE int do_test(void)
     }
 
     /*-------------------------------------------------*
+     *      A record on disk with a top-level "gbuffer" key (a store written
+     *      by 7.30.16 or before, or a C add-record of a dict): an open-list
+     *      with `fields` trims it as the json it is. Up to 7.30.17 it was
+     *      trimmed as a kw (kw_clone_by_path), whose decref took the
+     *      integer for a gbuffer and crashed the yuno.
+     *-------------------------------------------------*/
+    set_expected_results("a record with a gbuffer key, trimmed by fields", json_array(), NULL, NULL, 1);
+    {
+        md2_record_ex_t md = {0};
+        check_int("append a record with a gbuffer key",
+            tranger2_append_record(tranger, TOPIC_NAME, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s, s:I}",
+                    "id", "KGB",
+                    "tm", (json_int_t)BASE_T,
+                    "content", "kept",
+                    "gbuffer", (json_int_t)4096
+                )
+            ), 0);
+        r = gobj_command(yuno, "open-list",
+            json_pack("{s:s, s:s, s:s, s:s, s:b}",
+                "list_id", "lstGB",
+                "topic_name", TOPIC_NAME,
+                "key", "KGB",
+                "fields", "id, content",
+                "return_data", 1
+            ), yuno);
+        check_int("open-list with fields of a record with a gbuffer key",
+            kw_get_int(0, r, "result", -999, 0), 0);
+        data = kw_get_list(0, r, "data", 0, 0);
+        check_int("its one record", json_array_size(data), 1);
+        json_t *rec = json_array_get(data, 0);
+        check_str("trimmed: its id", kw_get_str(0, rec, "id", "", 0), "KGB");
+        check_str("trimmed: its content", kw_get_str(0, rec, "content", "", 0), "kept");
+        check_int("trimmed: only the fields asked", (json_int_t)json_object_size(rec), 2);
+        JSON_DECREF(r)
+    }
+    global_result += test_json(NULL);
+
+    /*-------------------------------------------------*
      *      A master that LOST its lock (another process took the store
      *      while it was stopped) goes on as a replica: its tranger says
      *      `master` false. (7.25.4: the `master` attribute of C_TRANGER

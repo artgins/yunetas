@@ -110,6 +110,11 @@
  *  match_cond, and the open of the first wrote the date into it in ITS
  *  unit: a topic in ms after one in seconds listed every record.
  *
+ *  The tools trim a record with -f, and tr2list matches its --filter, as
+ *  the json it is: a record on disk with a top-level "gbuffer" key is
+ *  listed. Up to 7.30.17 they trimmed it as a kw, whose decref took the
+ *  integer for a gbuffer, and the tool crashed.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -133,6 +138,8 @@
 #define DATABASE    "tr_date_bound_units"
 #define TOPIC_T_MS  "topic_t_ms"    // t in ms, tm in seconds
 #define TOPIC_TM_MS "topic_tm_ms"   // t in seconds, tm in ms
+#define DATABASE_GBUFFER "tr_tools_gbuffer_record"
+#define TOPIC_GBUFFER    "topic_gbuffer"
 #define DAY1        946684800       // 2000-01-01
 #define DAY_SECS    86400
 
@@ -264,6 +271,39 @@ PRIVATE int tool_count(const char *bin, const char *path, const char *recursive,
         return -1;
     }
     return count;
+}
+
+/*
+ *  TRUE if the tool runs on the topic at `path` with -l3 and exits 0
+ *  printing `text`
+ */
+PRIVATE BOOL tool_prints(const char *bin, const char *path, const char *options, const char *text)
+{
+    if(access(bin, X_OK) != 0) {
+        printf("%sERROR%s --> tool not found at %s: %s (built by `yunetas build`)\n",
+            On_Red BWhite, Color_Off, bin, strerror(errno));
+        return FALSE;
+    }
+    char cmd[3*PATH_MAX];
+    snprintf(cmd, sizeof(cmd), "'%s' '%s' %s -l3 2>&1", bin, path, options);
+    FILE *f = popen(cmd, "r");
+    if(!f) {
+        printf("%sERROR%s --> popen(%s): %s\n", On_Red BWhite, Color_Off, cmd, strerror(errno));
+        return FALSE;
+    }
+    BOOL printed = FALSE;
+    char line[1024];
+    while(fgets(line, sizeof(line), f)) {
+        if(strstr(line, text)) {
+            printed = TRUE;
+        }
+    }
+    int status = pclose(f);
+    if(status != 0) {
+        printf("%sERROR%s --> %s: exit status %d\n", On_Red BWhite, Color_Off, cmd, status);
+        return FALSE;
+    }
+    return printed;
 }
 
 PRIVATE int expect(const char *what, const char *got, const char *expected)
@@ -1551,6 +1591,73 @@ PRIVATE int do_test(void)
                 }
             }
         }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  The tools trim a record with -f (and tr2list matches its --filter)
+     *  as the json it is: a top-level "gbuffer" in a record on disk is
+     *  data. Up to 7.30.17 they trimmed it as a kw, whose decref took the
+     *  integer for a gbuffer: the tool crashed.
+     */
+    set_expected_results(
+        "a record with a gbuffer key: the tools trim it",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        char path_database2[PATH_MAX];
+        char path_topic[PATH_MAX];
+        build_path(path_database2, sizeof(path_database2), path_root, DATABASE_GBUFFER, NULL);
+        build_path(path_topic, sizeof(path_topic), path_database2, TOPIC_GBUFFER, NULL);
+        rmrdir(path_database2);
+        json_t *tranger2 = tranger2_startup(0,
+            json_pack("{s:s, s:s, s:b, s:i}",
+                "path", path_root,
+                "database", DATABASE_GBUFFER,
+                "master", 1,
+                "on_critical_error", LOG_OPT_TRACE_STACK
+            ),
+            yev_loop
+        );
+        if(!tranger2 || !create_topic(tranger2, TOPIC_GBUFFER, sf_int_key)) {
+            result += -1;
+        } else {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger2, TOPIC_GBUFFER, DAY1 + DAY_SECS + 3600, 0, &md,
+                json_pack("{s:I, s:I, s:s, s:I}",
+                    "id", (json_int_t)1,
+                    "tm", (json_int_t)(DAY1 + DAY_SECS + 3600),
+                    "content", "kept",
+                    "gbuffer", (json_int_t)4096
+                )
+            );
+        }
+        if(tranger2) {
+            tranger2_shutdown(tranger2);
+            for(int i = 0; i < 10; i++) {
+                yev_loop_run_once(yev_loop);
+            }
+        }
+        const struct {
+            const char *bin;
+            const char *options;
+        } runs[] = {
+            {TR2LIST_BIN,   "-m table -f id,content"},
+            {TR2LIST_BIN,   "--filter='{\"content\":\"kept\"}'"},
+            {TR2SEARCH_BIN, "--search-content-key=content -f id,content"},
+        };
+        for(size_t i = 0; i < sizeof(runs)/sizeof(runs[0]); i++) {
+            if(!tool_prints(runs[i].bin, path_topic, runs[i].options, "kept")) {
+                printf("%sERROR%s --> %s %s: a record with a gbuffer key\n",
+                    On_Red BWhite, Color_Off, runs[i].bin, runs[i].options);
+                result += -1;
+            }
+        }
+        rmrdir(path_database2);
     }
     result += test_json(NULL);
 

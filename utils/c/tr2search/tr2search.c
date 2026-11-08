@@ -366,6 +366,27 @@ PRIVATE int list_topics(const char *path)
 }
 
 /***************************************************************************
+ *  A new json with the values of `paths` in the record, each under its
+ *  path. A record read from disk is a json, not a kw: a top-level
+ *  "gbuffer" in it is data. Trimmed as a kw (kw_clone_by_path), its
+ *  decref took the integer for a gbuffer and the tool crashed.
+ ***************************************************************************/
+PRIVATE json_t *fields_of_record(
+    json_t *jn_record,  // NOT owned
+    const char **paths
+)
+{
+    json_t *jn_fields = json_object();
+    for(int i = 0; paths && paths[i]; i++) {
+        json_t *jn_value = kw_get_dict_value(0, jn_record, paths[i], 0, 0);
+        if(jn_value) {
+            json_object_set(jn_fields, paths[i], jn_value);
+        }
+    }
+    return jn_fields;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int load_record_callback(
@@ -466,13 +487,12 @@ PRIVATE int load_record_callback(
         if(!empty_string(arguments.fields)) {
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
-            json_t *jn_record_with_fields = kw_clone_by_path(
-                gobj,
-                jn_record,   // owned
-                keys
-            );
+            if(keys && keys[0]) {
+                json_t *jn_record_with_fields = fields_of_record(jn_record, keys);
+                JSON_DECREF(jn_record)
+                jn_record = jn_record_with_fields;
+            }
             split_free2(keys);
-            jn_record = jn_record_with_fields;
 
         }
         if(json_object_size(jn_record)>0 && verbose >= 3) {
