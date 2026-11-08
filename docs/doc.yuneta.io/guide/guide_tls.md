@@ -218,7 +218,7 @@ clients and are unaffected.
 | `ssl_disable_renegotiation` | `true` | OpenSSL renegotiation off |
 | `ssl_verify_mode` | computed (table above) | `required` / `optional` / `none` / `request` (a server that pins its clients' keys) |
 | `ssl_trusted_certificate` | unset | path to a CA bundle (PEM) used to verify the peer |
-| `ssl_use_system_ca` | `false` | also trust the OS CA store (OpenSSL only) |
+| `ssl_use_system_ca` | `false` | also trust the OS CA store (both backends: mbed-TLS parses the system bundle) |
 | `ssl_verify_depth` | `2` | max certificate chain depth (leaf → intermediate → root) |
 | `ssl_allow_insecure_client` | `false` | `true` → run an unverified **client** anyway (accept the MITM risk) |
 | `ssl_ciphers` | backend default | cipher list (`@SECLEVEL=0` to reach legacy suites) |
