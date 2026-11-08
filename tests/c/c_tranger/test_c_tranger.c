@@ -3750,6 +3750,16 @@ PRIVATE int do_test(void)
         r = gobj_command(yuno, "close-list",
             json_pack("{s:s}", "list_id", "lstGB2"), yuno);
         JSON_DECREF(r)
+
+        /*  A topic is a json too: a "gbuffer" in its topic_var.json (another
+         *  version, a C caller's jn_var) is merged into it, and its desc
+         *  cloned it as a kw (tranger2_topic_desc(), kw_clone_by_path())  */
+        check_int("a topic_var with a gbuffer key",
+            tranger2_write_topic_var(tranger, TOPIC_NAME,
+                json_pack("{s:I}", "gbuffer", (json_int_t)4096)), 0);
+        r = gobj_command(yuno, "topics", json_pack("{s:b}", "expanded", 1), yuno);
+        check_int("topics expanded with a gbuffer key in a topic", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
     }
     global_result += test_json(NULL);
 

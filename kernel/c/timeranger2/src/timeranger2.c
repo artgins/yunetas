@@ -3440,8 +3440,8 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
      *  synthetic (a `rowid`/`uuid` flagged id) is unreadable without it,
      *  because the name a human knows the record by lives in the
      *  secondary key. A viewer that only gets the pkey can do nothing
-     *  but print the rowid. Absent keys are skipped by kw_clone_by_path,
-     *  so a topic without secondary keys is unaffected.
+     *  but print the rowid. Absent keys are skipped, so a topic without
+     *  secondary keys is unaffected.
      *
      *  So do the two marks a topic can carry beyond its columns:
      *  `system_topic` (it cannot be deleted) and `main_topic` (the tree
@@ -3460,11 +3460,18 @@ PUBLIC json_t *tranger2_topic_desc( // Return MUST be decref
         0
     };
 
-    json_t *desc = kw_clone_by_path(
-        gobj,
-        json_incref(topic),
-        fields
-    );
+    /*
+     *  The topic is a json, not a kw: what topic_var.json gave it is merged
+     *  into it, a "gbuffer" key included, and a clone as a kw
+     *  (kw_clone_by_path) took that integer for a gbuffer (up to 7.30.17).
+     */
+    json_t *desc = json_object();
+    for(int i = 0; fields[i]; i++) {
+        json_t *jn_value = json_object_get(topic, fields[i]);
+        if(jn_value) {
+            json_object_set(desc, fields[i], jn_value);
+        }
+    }
 
     json_t *cols = kwid_new_list(gobj, topic, KW_VERBOSE, "cols");
     json_object_set_new(desc, "cols", cols);
