@@ -620,6 +620,71 @@ If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup. In production deployments
 `yuneta` usually owns every role.
 
+(yuno-auth-login-by-address)=
+**The login without a token is a login by ADDRESS.** `C_AUTHZ` lets in a
+peer that sends no token and no password when its address says so:
+
+| The peer | Logged in as | Roles |
+|---|---|---|
+| `127.0.0.*` (the local host), user `yuneta` | `yuneta` (*"User yuneta authenticated by local ip"*) | its real roles: `root` in the seed of every yuno, so a superuser that reaches every service, `__yuno__` included |
+| an address of the yuno's `allowed_ips` (`add-allowed-ip`), user `yuneta` | `yuneta` (*"User authenticated by Ip allowed"*) | its roles in the users store |
+| any other address | refused, *"Without JWT/passw only localhost is allowed"* | -- |
+
+This is how `ycommand` reaches the agent of its own node:
+
+```bash
+ycommand -c 'list-yunos'      # ws://127.0.0.1:1991, no token: yuneta, root
+```
+
+**The trap: a proxy on the same host.** nginx on the host of a yuno, in front
+of its `C_IEVENT_SRV`, connects from `127.0.0.1`, so every browser behind it
+is a local peer. A client that sends an identity card with an empty `jwt`, no
+cookie and the user `yuneta` is `yuneta`, root, with no login at all. Nothing
+else helps: a denied address cuts the users with a token too (they come from
+`127.0.0.1` as well), and the seed `yuneta` cannot be deleted. A yuno behind a
+proxy turns the login by address off with `trust_peer_ip` (after 7.30.14;
+`SDF_RD`, default `true`):
+
+```json
+"global": {
+    "Authz.trust_peer_ip": false
+}
+```
+
+Then a peer with no token and no password is refused, from any address, with
+a WARNING *"Without JWT/passw the peer address is not trusted"*; the BFF
+cookie, the `jwt` of the card and a password log in as before. The setting is
+per yuno (all its logins go through its one `C_AUTHZ`), so a yuno behind a
+proxy whose local clients log in without a token gives them one first. The
+agents keep the default. On an older SDK the stopgap is to make the proxy
+connect from an address out of `127.0.0.*`, in every `location` it proxies:
+
+```nginx
+location /ws {
+    proxy_bind 127.0.1.1;
+    proxy_pass https://127.0.0.1:1840/;
+}
+```
+
+It is fragile: the next `location` added without it opens the trap again.
+The page of [`C_AUTHZ`](../../../docs/doc.yuneta.io/api/gclass/auth.md) and the
+[BFF guide](../../../docs/doc.yuneta.io/guide/guide_oauth2_pkce_bff.md) say the
+same; `tests/c/authz_login` pins it.
+
+**`allow_anonymous_in_localhost` true widens it to ANY user.** That attr
+(`SDF_RD`, default `false`) drops the *"only yuneta"* check: a local peer, or
+one of `allowed_ips`, then logs in as whatever username it writes in its
+card, with no password -- from `127.0.0.*` with the roles of that user, which
+may be an administrator's email:
+
+```json
+{"username": "admin@example.com", "jwt": "", "__md_iev__": {...}}
+```
+
+is `admin@example.com`, with no password, from any local process (or from
+every browser behind a local proxy). Leave it `false`. `trust_peer_ip` false
+closes this too.
+
 **The seed cannot be deleted.** `Authz.initial_load` holds the seed `root`
 role and the `yuneta` user ([`c_agent.c`](https://github.com/artgins/yunetas/blob/7.30.14/yunos/c/yuno_agent/src/c_agent.c) `main.c`). `C_AUTHZ` hands the
 attr down to its treedb's `C_NODE` at `mt_create`, and `C_NODE` applies it on
@@ -926,6 +991,8 @@ The `C_AUTHZ` gclass reads a small set of attrs at boot (see
 | `authz.tranger_path`      | optional              | External tranger storage path (when sharing the authz treedb across instances).          |
 | `authz.max_token_age`     | int, default `0`      | Seconds a login token may have lived (`now - iat`) to open a session. `0`: no limit (7.30.14+). |
 | `authz.token_age_exempt_users` | list, default `[]` | Users (the token's `email`) whose token `max_token_age` does not check (7.30.14+). |
+| `authz.trust_peer_ip`     | bool, default `true`  | A peer with no token and no password logs in by its address (`127.0.0.*` as `yuneta`, or `allowed_ips`). `false` in a yuno behind a proxy on the same host (after 7.30.14). See [§4.2](#yuno-auth-login-by-address). |
+| `authz.allow_anonymous_in_localhost` | bool, default `false` | With it `true`, a peer logged in by its address may name ANY user, with no password. Leave it `false`. See [§4.2](#yuno-auth-login-by-address). |
 
 Same `Authz.*` keys (capital A) appear in some legacy configs — both
 spellings are accepted by jansson's path resolution, but the canonical
@@ -1731,7 +1798,7 @@ authenticated user can therefore subscribe to any public event, the
 authz enforcement, even for the custom `gobj_user_has_authz` calls
 inside individual gclasses. The default is open.
 
-### 8.6 The `yuneta` bypass is authentication-only
+### 8.6 The `yuneta` bypass is authentication-only, and by address
 
 [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.30.14/kernel/c/root-linux/src/c_authz.c) permits the `yuneta` user to authenticate without
 JWT/password. It does **not** give `yuneta` automatic authz over
@@ -1739,6 +1806,28 @@ everything. The user must still own roles. In practice the agent's
 `yuneta` user owns every role in production, but a fresh deployment
 can authenticate as `yuneta` and still hit "no permission" on a
 custom-gated operation.
+
+What lets `yuneta` in is the **address** of the peer, `127.0.0.*` or one of
+`allowed_ips`, and nothing else ([§4.2](#yuno-auth-login-by-address)). Two
+cases make that address a lie:
+
+- **A proxy on the same host** (nginx in front of a `C_IEVENT_SRV`): every
+  client of the proxy connects from `127.0.0.1`, and is `yuneta`, root, with
+  an empty `jwt`. Set `"Authz.trust_peer_ip": false` in that yuno (after
+  7.30.14), or `proxy_bind 127.0.1.1;` in every proxied `location` on an older
+  SDK.
+- **`allow_anonymous_in_localhost` true**: a local peer names any user,
+  administrators included, with no password.
+
+Checklist for a yuno that an nginx of its own host serves:
+
+```bash
+grep -rn 'proxy_pass https\?://127\.0\.0\.' /etc/nginx/       # what nginx proxies locally
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-config' | grep -i 'trust_peer_ip\|allow_anonymous'
+```
+
+Each yuno that the first line names must show `trust_peer_ip` false in the
+second, and none `allow_anonymous_in_localhost` true.
 
 ### 8.7 Legacy `idp_url` + `realm` still works
 
