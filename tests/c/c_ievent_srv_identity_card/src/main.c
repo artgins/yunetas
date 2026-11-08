@@ -99,7 +99,8 @@ PRIVATE char variable_config[]= "\
                             'name': 'input-(^^__range__^^)',        \n\
                             'gclass': 'C_IEVENT_SRV',               \n\
                             'kw': {                                 \n\
-                                'max_pre_session_frame': 1048576    \n\
+                                'max_pre_session_frame': 1048576,   \n\
+                                'timeout_idgot': 2000               \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -158,10 +159,19 @@ time_measure_t time_measure;
 /***************************************************************************
  *  Authentication without a C_AUTHZ: the user is the `jwt` of the card
  *  (`tester` for the jwt of the good card), and it may reach the `tester`.
+ *  The jwt `tester-refused` is refused, as a C_AUTHZ refuses a bad token
+ *  (its own WARNING, none here).
  ***************************************************************************/
 static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
     const char *username = kw_get_str(gobj_service, kw, "jwt", "", 0);
+    if(strcmp(username, "tester-refused")==0) {
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s}",
+            "result", -1,
+            "comment", "test authentication: refused"
+        );
+    }
     if(strcmp(username, "tester-jwt-credential")==0) {
         username = "tester";    // the jwt itself must reach no log, the user may
     }
@@ -389,7 +399,7 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0};
     set_memory_check_list(memory_check_list);
 
-    set_auto_kill_time(20);    // a crash-free hang must not hang the suite
+    set_auto_kill_time(30);    // a crash-free hang must not hang the suite (the test takes ~16 s)
 
     /*------------------------------------------------*
      *          Start yuneta

@@ -36,8 +36,16 @@ refused and its channel closed; the client connects again and sends the next:
     and a dump of its bytes raw showed the JWT's payload;
 11. a frame that is not json, with the same cut JWT: *"frame is not json"*,
     and a DEBUG dump of its first 256 bytes, the cut JWT masked;
-12. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session;
-13. in that session, a second card, good, of ANOTHER user: refused, a
+12. a card the authentication refuses (its jwt `tester-refused`), carrying
+    a serialized gbuffer (`"__gbuffer___": {"data": "cGVlciBieXRlcw=="}`,
+    which `kw_deserialize()` turns into a real gbuffer of the kw, as it does
+    for any frame of a peer): a negative `EV_IDENTITY_CARD_ACK`, no session,
+    and the channel closed at `timeout_idgot` (2 s here). Up to 7.30.14 the
+    gate released that gbuffer twice (2 x *"BAD gbuf_decref()"*: a double
+    free in a yuno without `CONFIG_DEBUG_TRACK_MEMORY`), before any
+    authentication -- red against the `c_ievent_srv.c` of 7.30.14;
+13. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session;
+14. in that session, a second card, good, of ANOTHER user: refused, a
     negative `EV_IDENTITY_CARD_ACK` and ONE warning (*"Identity card in a
     session, refused: the session keeps its identity"*); the session keeps its
     user and its channel, and no second `EV_ON_OPEN` is published. Up to
@@ -46,7 +54,8 @@ refused and its channel closed; the client connects again and sends the next:
     `EV_ON_OPEN` was published again -- which `C_CHANNEL` does not pass up, so
     the services above never checked the new identity.
 
-Each refusal is caused by the peer, so it is ONE warning (`MSGSET_PROTOCOL`,
+Each refusal is caused by the peer, so it is ONE warning (the authentication
+of card 12 says nothing here: a `C_AUTHZ` writes its own warning) (`MSGSET_PROTOCOL`,
 `peername`, the kw capped, no stack; the dump of a frame that is not json is a
 DEBUG trace besides, masked), and the jwt of the card is never
 written to the log (`main.c` counts the lines of each, their priority and

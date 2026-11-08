@@ -27,8 +27,15 @@
  *                 and a dump of its bytes raw, the JWT cut by the window)
  *             11. a frame that is not json, a JWT cut by the window of its
  *                 dump: "frame is not json", the dump masked
- *             12. a good card: EV_IDENTITY_CARD_ACK, the session opens
- *             13. in that session, a second card, good, of ANOTHER user:
+ *             12. a card the authentication refuses, carrying a serialized
+ *                 gbuffer (`__gbuffer___`, which kw_deserialize() turns
+ *                 into a real gbuffer of the kw): a negative
+ *                 EV_IDENTITY_CARD_ACK, and the channel closed at
+ *                 timeout_idgot. Up to 7.30.14 that gbuffer was released
+ *                 twice ("BAD gbuf_decref()", a double free in a yuno
+ *                 without the memory tracking), before any session
+ *             13. a good card: EV_IDENTITY_CARD_ACK, the session opens
+ *             14. in that session, a second card, good, of ANOTHER user:
  *                 refused (a negative EV_IDENTITY_CARD_ACK, one warning), and
  *                 the session keeps its user and its channel; no second
  *                 EV_ON_OPEN. Up to 7.30.14 it was authenticated again and
@@ -55,8 +62,9 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define LAST_CARD   12
-#define SESSION_CARD 13     // sent in the session of LAST_CARD, of another user: refused
+#define REFUSED_CARD 12     // refused by the authentication, a gbuffer in its kw
+#define LAST_CARD   13
+#define SESSION_CARD 14     // sent in the session of LAST_CARD, of another user: refused
 
 /***************************************************************************
  *              Structures
@@ -407,6 +415,19 @@ PRIVATE int send_card(hgobj gobj, int card)
                 "abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz.c2lnbmF0dXJl"
             );
 
+        case REFUSED_CARD:
+            /*
+             *  A serialized gbuffer: what a peer writes, the gate reads it
+             *  as a gbuffer of the kw
+             */
+            json_object_set_new(kw, "jwt", json_string("tester-refused"));
+            json_object_set_new(kw, "__gbuffer___", json_pack("{s:s, s:s}",
+                "label", "",
+                "data", "cGVlciBieXRlcw=="  // "peer bytes"
+            ));
+            jn_routing = card_routing("", role, "tester", role, "cli");
+            break;
+
         case SESSION_CARD:
             json_object_set_new(kw, "jwt", json_string("tester-other-user"));
             jn_routing = card_routing("", role, "tester", role, "cli");
@@ -534,13 +555,23 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         check(gobj, "the session keeps its user", strcmp(session_user(gobj), "tester")==0);
         check(gobj, "the session keeps its channel", priv->client_closes == LAST_CARD);
         check(gobj, "no second EV_ON_OPEN", priv->server_opens == 1);
-        check(gobj, "two ACKs: the good card's and the refused one's", priv->acks == 2);
+        check(gobj, "three ACKs: the refused card's, the good one's and the one in session",
+            priv->acks == 3);
         set_yuno_must_die();
+    } else if(priv->card == REFUSED_CARD) {
+        /*
+         *  The gate closes the channel at timeout_idgot: the next card
+         *  goes on the next connection
+         */
+        check(gobj, "the ACK of the card the authentication refuses is negative",
+            kw_get_int(gobj, iev_kw, "result", 0, 0) < 0);
+        check(gobj, "no session for the refused card", priv->server_opens == 0);
     } else {
         check(gobj, "the ACK answers the last card", priv->card == LAST_CARD);
         check(gobj, "the ACK is positive", kw_get_int(gobj, iev_kw, "result", -1, 0) == 0);
         check(gobj, "each refused card closed its channel", priv->client_closes == LAST_CARD);
         check(gobj, "only the good card opened a session", priv->server_opens == 1);
+        check(gobj, "two ACKs: the refused card's and the good one's", priv->acks == 2);
 
         priv->card = SESSION_CARD;
         send_card(gobj, priv->card);
