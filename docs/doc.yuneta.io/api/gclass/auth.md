@@ -124,10 +124,20 @@ token only as `jwt_sha256` (the first 16 hex characters of its sha256) and
 the line, so a token good elsewhere that reached the wrong port ended in the
 log. A token with no `email` or no `email_verified` is refused with a
 WARNING (*"Username must be an email address"*, *"Email not verified"*);
-up to 7.30.14 the reader logged an ERROR first. The claims of a token whose
-`exp`, `nbf`, `iss`, `sub` or `aud` fails are not traced either: libjwt
-traced them all, unverified, before the signature was checked; it traces
-which claims failed (`failed_claims=0x...`) now.
+up to 7.30.14 the reader logged an ERROR first. So is a token with no `iss`
+that a key of kid `*` (any issuer) verified: its `status` is *"Token of no
+issuer configured here (its iss)"* (an ERROR of the reader up to 7.30.14).
+The claims of a token whose `exp`, `nbf`, `iss`, `sub` or `aud` fails are not
+traced either: libjwt traced them all, unverified, before the signature was
+checked; it traces which claims failed (`failed_claims=0x...`) now. When more
+than one fails, the `status` names them, never their values:
+
+```text
+"msg": "Authentication failed: Invalid token", "status": "Failed claims: exp, nbf",
+"jwt_sha256": "3f2a9c0e1b7d4a55", "jwt_length": 412
+```
+
+Up to 7.30.14 that `status` was *"What JWT_CLAIM_???"*.
 
 ---
 

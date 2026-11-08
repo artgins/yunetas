@@ -31,6 +31,12 @@
  *            8. alice, a good token expired an hour ago, a claim of its own:
  *               refused; no log line carries its claims (up to 7.30.14 libjwt
  *               traced the claims of every token whose claims failed)
+ *            9. a token with no `iss`, good for the key of kid `*` (any
+ *               issuer): refused, a warning, no error (up to 7.30.14 an ERROR
+ *               of the reader of `iss` first)
+ *           10. alice, a token expired AND not valid yet: refused, its status
+ *               names both claims, "Failed claims: exp, nbf" (up to 7.30.14
+ *               "What JWT_CLAIM_???")
  *          and no memory is left.
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
@@ -95,6 +101,8 @@ PRIVATE int s_warnings = 0;     /* logs of priority WARNING and up */
 PRIVATE int s_errors = 0;       /* logs of priority ERROR and up */
 PRIVATE int s_token_logged = 0; /* log lines that carry a token of the test */
 PRIVATE int s_claims_logged = 0;/* log lines that carry the claims of a token */
+PRIVATE int s_claims_named = 0; /* log lines that name the claims that failed */
+PRIVATE int s_claims_unnamed = 0;/* log lines with the old "What JWT_CLAIM_???" */
 PRIVATE char *s_tokens[MAX_TOKENS] = {0};
 
 GOBJ_DEFINE_GCLASS(C_TEST_AUTHZ_LOGIN);
@@ -151,6 +159,12 @@ PRIVATE char variable_config[]= "\
                 'jwks': [                                           \n\
                     {                                               \n\
                         'kid': '" TEST_ISS "',                      \n\
+                        'kty': 'oct',                               \n\
+                        'alg': 'HS256',                             \n\
+                        'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
+                    },                                              \n\
+                    {                                               \n\
+                        'kid': '*',                                 \n\
                         'kty': 'oct',                               \n\
                         'alg': 'HS256',                             \n\
                         'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
@@ -232,6 +246,14 @@ PRIVATE int find_tokens(void *h, int priority, const char *bf, size_t len)
     }
     if(memmem(bf, len, CLAIMS_MARKER, strlen(CLAIMS_MARKER))) {
         s_claims_logged++;
+    }
+    const char *named = "Failed claims: exp, nbf";
+    if(memmem(bf, len, named, strlen(named))) {
+        s_claims_named++;
+    }
+    const char *unnamed = "What JWT_CLAIM_";
+    if(memmem(bf, len, unnamed, strlen(unnamed))) {
+        s_claims_unnamed++;
     }
     return 0;
 }
@@ -431,6 +453,19 @@ PRIVATE void run_checks(hgobj gobj)
     check_login(gobj, "8. alice, a good token expired an hour ago", "127.0.0.1:40000",
         "", make_token(4, LOGIN_JWK, claims),
         -1, "Authentication failed: Invalid token", 1, -1);
+
+    claims = alice_claims();
+    json_object_del(claims, "iss");
+    check_login(gobj, "9. a token with no iss (the key of kid *)", "127.0.0.1:40000",
+        "", make_token(5, LOGIN_JWK, claims),
+        -1, "Authentication failed: Invalid token", 1, -1);
+
+    claims = alice_claims();
+    json_object_set_new(claims, "exp", json_integer((json_int_t)(now - 3600)));
+    json_object_set_new(claims, "nbf", json_integer((json_int_t)(now + 3600)));
+    check_login(gobj, "10. alice, expired and not valid yet", "127.0.0.1:40000",
+        "", make_token(6, LOGIN_JWK, claims),
+        -1, "Authentication failed: Invalid token", 1, -1);
 }
 
 /***************************************************************
@@ -620,6 +655,8 @@ int main(int argc, char *argv[])
 
     check_int("no log line carries a token of the test", s_token_logged, 0);
     check_int("no log line carries the claims of a token", s_claims_logged, 0);
+    check_int("10. a line names the claims that failed", s_claims_named > 0? 1 : 0, 1);
+    check_int("10. no line says 'What JWT_CLAIM_'", s_claims_unnamed, 0);
     size_t leaked = get_cur_system_memory();
     check_int("no memory leak", (int)leaked, 0);
 

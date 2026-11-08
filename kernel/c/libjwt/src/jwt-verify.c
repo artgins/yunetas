@@ -295,9 +295,29 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 			case JWT_CLAIM_JWT:
 				jwt_write_error(jwt, "Malformed or invalid JWT");
 				break;
-			default:
-				jwt_write_error(jwt, "What JWT_CLAIM_???");
+			default: {
+				/* More than one: their names, never their values
+				 * (ArtGins; it was "What JWT_CLAIM_???") */
+				static const struct {
+					jwt_claims_t claim;
+					const char *name;
+				} claim_names[] = {
+					{JWT_CLAIM_ISS, "iss"}, {JWT_CLAIM_SUB, "sub"},
+					{JWT_CLAIM_AUD, "aud"}, {JWT_CLAIM_EXP, "exp"},
+					{JWT_CLAIM_NBF, "nbf"}, {JWT_CLAIM_IAT, "iat"},
+					{JWT_CLAIM_JTI, "jti"}, {JWT_CLAIM_JWT, "jwt"},
+				};
+				char names[64] = "";
+				size_t len = 0;
+				for (size_t i = 0; i < sizeof(claim_names)/sizeof(claim_names[0]); i++) {
+					if (failed_claims & claim_names[i].claim) {
+						len += (size_t)snprintf(names + len, sizeof(names) - len,
+							"%s%s", len? ", " : "", claim_names[i].name);
+					}
+				}
+				jwt_write_error(jwt, "Failed claims: %s", names);
 				break;
+			}
 		}
 		return failed_claims;
 	}

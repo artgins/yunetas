@@ -38,13 +38,17 @@ In both:
 7. a good token with no `email_verified`: refused, *"Email not verified"*, a
    warning and no error;
 8. alice, a good token that expired an hour ago, with a claim of its own:
-   refused.
+   refused;
+9. a token with no `iss`, good for a second key of the config whose kid is
+   `*` (any issuer): refused, a warning and no error;
+10. alice, a token expired AND not valid yet: refused, and its `status` names
+    both claims, *"Failed claims: exp, nbf"*.
 
 And no log line carries a token of the test, nor the claims of the expired
 one, and no memory is left. Up to 7.30.14 there was no `trust_peer_ip`, the
-warning of case 5 (and 8) carried the token whole, cases 6 and 7 logged an
-ERROR of the reader before their warning, and libjwt traced the claims of
-case 8, unverified.
+warning of case 5 (and 8) carried the token whole, cases 6, 7 and 9 logged
+an ERROR of the reader before their warning, libjwt traced the claims of
+case 8, unverified, and the status of case 10 was *"What JWT_CLAIM_???"*.
 
 ```bash
 ctest -R authz_login --output-on-failure --test-dir build

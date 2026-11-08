@@ -3415,8 +3415,10 @@ PRIVATE BOOL verify_token(
             continue;
         }
 
-        const char *jn_jwt_iss = kw_get_str(gobj, payload, "iss", "", KW_REQUIRED);
+        // the token's: one with no iss is refused by the caller, a WARNING
+        const char *jn_jwt_iss = kw_get_str(gobj, payload, "iss", "", 0);
         if(empty_string(jn_jwt_iss) || strcmp(jn_validation_iss, jn_jwt_iss)!=0) {
+            *status = "Token of no issuer configured here (its iss)";
             JSON_DECREF(payload)
             continue;
         }
