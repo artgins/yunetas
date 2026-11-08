@@ -2672,7 +2672,9 @@ PRIVATE int test_open_leaves_no_name(hgobj gobj, hgobj client)
  *      that is not a string is refused (a WARNING), and nothing that looks
  *      for an agent after it (command-agent, list-agents, another agent's
  *      open) logs. In 7.30.15 it was let in, and each of them gave an
- *      ERROR with a stack.
+ *      ERROR with a stack. A `knows_operator_assertion` that is not a
+ *      boolean (1, "yes") is no: the command goes with no assertion, and
+ *      nothing logs (in 7.30.15 an ERROR with a stack at each command).
  ***************************************************************************/
 PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
 {
@@ -2713,6 +2715,38 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
     close_session(other);
     for(int i=0; i<2; i++) {
         close_session(bad[i]);
+    }
+
+    /*
+     *  `knows_operator_assertion` that is not a boolean: the agent does not
+     *  know it (no assertion is sent), and nothing is logged
+     */
+    json_t *knows[] = {json_integer(1), json_string("yes"), 0};
+    for(int i=0; knows[i]; i++) {
+        char name[NAME_MAX];
+        char uuid[NAME_MAX];
+        snprintf(name, sizeof(name), "p7-knows-%d", i);
+        snprintf(uuid, sizeof(uuid), "uuid-p7k%d", i);
+        json_t *card = json_pack("{s:s, s:o, s:{s:[{s:s}]}}",
+            "id", uuid,
+            "knows_operator_assertion", knows[i],
+            "__md_iev__", "ievent_gate_stack", "host", name
+        );
+        hgobj k = open_session_card(gobj, name, card, NULL, NULL);
+        json_t *kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "__username__", json_string("alice@example.com"));
+        json_object_set_new(kw, "agent_id", json_string(uuid));
+        json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+        ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+            0, "sent to 1 nodes", "command-agent to an agent whose knows_operator_assertion is no boolean");
+        json_t *received = take_received(wire_of(k));
+        size_t n = json_array_size(received);
+        json_t *request = n? json_object_get(json_array_get(received, n-1), "kw") : NULL;
+        if(!request || json_object_get(request, "__operator_assertion__")) {
+            ret += fail(gobj, "an agent whose knows_operator_assertion is no boolean gets an assertion", name);
+        }
+        JSON_DECREF(received)
+        close_session(k);
     }
     return ret;
 }

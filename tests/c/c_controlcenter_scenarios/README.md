@@ -333,8 +333,11 @@ still reported and fails the test.
     logged in by the key gets it. And a session of a token whose card has an
     `id` or a `host` that is not a string is refused (a WARNING each);
     `command-agent`, `list-agents` and another agent's open after it log
-    nothing. In 7.30.15 the first session got it, and the bad card was let
-    in, with an ERROR from each of those.
+    nothing. A `knows_operator_assertion` that is not a boolean (`1`,
+    `"yes"`) is no: `command-agent` reaches that agent with no
+    `__operator_assertion__`, and nothing logs. In 7.30.15 the first session
+    got it, the bad card was let in, with an ERROR from each of those, and
+    the non-boolean gave an ERROR with a stack at each command.
 35. A scenario ("amb") with a yuno on a name that two nodes without a key
     give: its start is refused, saying so (*"is the hostname of more than
     one node"*), and no step is sent; its stop stops the yuno on the agent

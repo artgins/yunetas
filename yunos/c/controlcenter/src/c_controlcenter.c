@@ -4808,7 +4808,7 @@ PRIVATE int add_operator_assertion(
         return 0;
     }
     json_t *jn_agent_card = gobj_read_json_attr(agent_channel, "identity_card");
-    if(!kw_get_bool(gobj, jn_agent_card, "knows_operator_assertion", FALSE, 0)) {
+    if(!json_is_true(json_object_get(jn_agent_card, "knows_operator_assertion"))) {
         return 0;
     }
     const char *node = card_str(jn_agent_card, "id");
