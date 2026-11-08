@@ -379,6 +379,15 @@ SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "The master is the only one that can write the authzs store, and the only one that creates its directory. Not set internally: configure it (Authz.master)"),
 
 SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
+/*
+ *  A peer with no token and no password logs in by its ADDRESS alone: one
+ *  of 127.0.0.* as the local user yuneta, with its real roles (root, in
+ *  the seed of every yuno), or one of the yuno's allowed_ips. Behind a
+ *  proxy on the same host (nginx in front of a C_IEVENT_SRV) the address
+ *  is the proxy's, and every client of the proxy would be yuneta: such a
+ *  yuno sets it false. The agents keep it: their local CLI logs in so.
+ */
+SDATA (DTP_BOOLEAN, "trust_peer_ip",    SDF_RD,     "1",        "A peer with no token and no password logs in by its address: 127.0.0.* as the local user yuneta, or an address of allowed_ips. Set it false in a yuno behind a proxy on the same host (nginx): its peers' address is the proxy's. Set in the config only"),
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
 SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create. Set in the config only: add-jwk/remove-jwk change the running set, not the config"),
 SDATA (DTP_LIST,    "assertion_jwks",       SDF_RD,         "[]",   "Public keys (JWK, its kid = the iss) of the issuers of operator assertions: short tokens a controlcenter signs for one node (aud). Read only by the local method verify_jwt asked with an audience; a login never reads them"),
@@ -958,6 +967,30 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 }
             }
 
+            if(!gobj_read_bool_attr(gobj, "trust_peer_ip")) {
+                /*
+                 *  The address is a proxy's: it says nothing of the client
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "Without JWT/passw the peer address is not trusted",
+                    "username",     "%s", username,
+                    "service",      "%s", dst_service,
+                    "peername",     "%s", peername,
+                    "sockname",     "%s", sockname,
+                    NULL
+                );
+                json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+                    "result", -1,
+                    "comment", "Without JWT/passw the peer address is not trusted",
+                    "username", username,
+                    "service", dst_service
+                );
+                KW_DECREF(kw)
+                return jn_resp;
+            }
+
             if(is_ip_allowed(peername)) {
                 /*
                  *  IP autorizada sin user/passw, usa logged user
@@ -1010,6 +1043,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         if(!verify_token(gobj, priv->jn_validations, jwt, &jwt_payload, &status)) {
             char temp[512];
             snprintf(temp, sizeof(temp), "%s", status);
+            /*
+             *  Never the token: one good elsewhere that reached the wrong
+             *  port would be in the log. Its digest tells two apart.
+             */
+            char jwt_sha256[SHA256_HEX_LEN + 1] = "";
+            sha256_hex(jwt, strlen(jwt), jwt_sha256, sizeof(jwt_sha256));  // Error already logged
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
@@ -1019,7 +1058,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "service",      "%s", dst_service,
                 "peername",     "%s", peername,
                 "sockname",     "%s", sockname,
-                "jwt",          "%s", jwt,
+                "jwt_sha256",   "%.16s", jwt_sha256,
+                "jwt_length",   "%lu", (unsigned long)strlen(jwt),
                 NULL
             );
             json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
@@ -1036,8 +1076,11 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         /*-------------------------------------------------*
          *  Get username and validate against our system
          *-------------------------------------------------*/
-        username = kw_get_str(gobj, jwt_payload, "email", "", KW_REQUIRED);
-        BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, KW_REQUIRED);
+        /*
+         *  A token without them is the issuer's: refused below, a WARNING
+         */
+        username = kw_get_str(gobj, jwt_payload, "email", "", 0);
+        BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, 0);
         if(!email_verified) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -5096,7 +5139,10 @@ PRIVATE BOOL payload_has_audience(json_t *jwt_payload, const char *audience)
  *  alike -- the signer is trusted to say who, as it was when it said it in
  *  `__username__`; what the signature adds is that nobody else can. A controlcenter signs one for
  *  each command it forwards to an agent (C_IEVENT_CLI `verify_operator`),
- *  so a token taken from one node is good on no other, and for a minute.
+ *  so a token taken from one node is good on no other, and only while it
+ *  lives: until its `exp` (the controlcenter gives it a minute), plus the
+ *  `assertion_time_leeway` of this yuno -- a day on the agents, whose clock
+ *  may have no NTP.
  *  The keys of a login (`jwks`) are not asked, nor are these at a login.
  *
  *  Without one, it is a token of an issuer of `jwks`, of a verified email

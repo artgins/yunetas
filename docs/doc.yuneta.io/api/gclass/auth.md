@@ -71,6 +71,64 @@ whose **v1** SPA edits `treedb_authzs` turns it off in its config:
 {"name": "authz", "gclass": "C_AUTHZ", "kw": {"with_link_events": false}}
 ```
 
+(authz-trust-peer-ip)=
+### A login by the peer's address, and a proxy (`trust_peer_ip`)
+
+A peer with no token and no password logs in by its **address** alone:
+
+- from `127.0.0.*`, as the local user `yuneta`, with its real roles. The
+  seed of every yuno gives `yuneta` the `root` role, so this is a superuser
+  that reaches every service of the yuno, `__yuno__` included. This is how
+  `ycommand` logs in to the agent of its own node;
+- from an address of the yuno's `allowed_ips` (`add-allowed-ip`), as the
+  user it names (`yuneta`, unless `allow_anonymous_in_localhost`).
+
+**The trap: a proxy on the same host.** nginx (or any proxy) on the host of
+a yuno, in front of its `C_IEVENT_SRV`, connects from `127.0.0.1`. Every
+browser behind it then reaches the yuno from `127.0.0.1`, and one that sends
+an identity card with no token and the user `yuneta` is `yuneta`, root, with
+no login at all. A firewall does not help (the peer IS the local host), nor
+does a denied address (it cuts the users with a token too), nor does deleting
+`yuneta` (a seed record cannot be deleted).
+
+A yuno behind such a proxy sets `trust_peer_ip` to `false`:
+
+| Attribute | Default | Meaning |
+|-----------|---------|---------|
+| `trust_peer_ip` | `true` | A peer with no token and no password logs in by its address (`127.0.0.*`, `allowed_ips`). `false`: never; a token or a password is the only way in. Set in the config only (`SDF_RD`). |
+
+```json
+"global": {
+    "Authz.trust_peer_ip": false
+}
+```
+
+With it `false`, such a card is refused with a WARNING *"Without JWT/passw
+the peer address is not trusted"* (`username`, `peername`), and the client
+gets that comment. A token (the BFF cookie, or the `jwt` of the card) and a
+password log in as before. The default stays `true`: the agents need it, and
+so does any yuno that the CLI of its node reaches without a token. The
+setting is per yuno, not per listener: all the logins of a yuno go through
+its one `C_AUTHZ`. So a yuno behind a proxy whose local clients log in
+without a token must give them one (or a password) before it turns the
+setting off. Until then, a stopgap only: make the proxy connect from an
+address out of `127.0.0.*`, nginx `proxy_bind 127.0.1.1;` in each `location`
+it proxies to the yuno -- and keep that address out of `allowed_ips`.
+
+`tests/c/authz_login` (`_no_peer_ip` with it `false`).
+
+**What a refused login writes.** A token that does not verify gives the
+WARNING *"Authentication failed: Invalid token"* with its `status`, and the
+token only as `jwt_sha256` (the first 16 hex characters of its sha256) and
+`jwt_length`: never the token itself. Up to 7.30.14 the whole token was in
+the line, so a token good elsewhere that reached the wrong port ended in the
+log. A token with no `email` or no `email_verified` is refused with a
+WARNING (*"Username must be an email address"*, *"Email not verified"*);
+up to 7.30.14 the reader logged an ERROR first. The claims of a token whose
+`exp`, `nbf`, `iss`, `sub` or `aud` fails are not traced either: libjwt
+traced them all, unverified, before the signature was checked; it traces
+which claims failed (`failed_claims=0x...`) now.
+
 ---
 
 

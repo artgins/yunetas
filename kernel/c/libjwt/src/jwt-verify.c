@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <gobj.h>   /* gobj_trace_json() */
+#include <gobj.h>   /* gobj_trace_msg() */
 
 #include "jwt.h"
 
@@ -265,7 +265,9 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 	/* Yes, we do this before checking a signature. */
     jwt_claims_t failed_claims = __verify_claims(jwt);
 	if (failed_claims) {
-		gobj_trace_json(0, jwt->claims, "JWT verify: failed_claims=0x%X", (unsigned)failed_claims);
+		/* Which claims, not their values: they are not verified yet,
+		 * and a peer writes them (ArtGins) */
+		gobj_trace_msg(0, "JWT verify: failed_claims=0x%X", (unsigned)failed_claims);
 		/* Pass back the ORd list of claims failed. */
 		// jwt_write_error(jwt, "Failed one or more claims");
 		switch(failed_claims) {

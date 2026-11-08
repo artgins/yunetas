@@ -612,6 +612,48 @@ that SPA strict.
 
 ---
 
+(bff-proxy-same-host)=
+## A Proxy on the Same Host as the Backend
+
+A common deployment puts nginx on the host of the yunos, in front of the
+BFF (`/auth/`) and of the WebSocket of the backend (`/ws`):
+
+```nginx
+location /ws {
+    proxy_pass https://127.0.0.1:1840/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+**This is a trap.** The backend's `C_AUTHZ` lets a peer of `127.0.0.*` with
+no token log in as the local user `yuneta`, root, without a login: that is
+how the CLI of a node reaches its agent. Behind the proxy EVERY browser
+connects from `127.0.0.1`. A client that sends an identity card with an empty
+`jwt`, no cookie, and the user `yuneta` is `yuneta`, with every command of
+the backend. The cookie and the `Origin` checks do not help: they are what
+the attacker leaves out.
+
+The backend behind the proxy turns the login by address off, in its batch:
+
+```json
+"global": {
+    "Authz.trust_peer_ip": false
+}
+```
+
+Then only a token (the BFF cookie, or the `jwt` of the card) or a password
+logs in, and a card with neither is refused: *"Without JWT/passw the peer
+address is not trusted"*. Keep it `true` (the default) on the agents. See
+[`trust_peer_ip`](#authz-trust-peer-ip) in `C_AUTHZ` (new after 7.30.14).
+On an older SDK, make the proxy connect from an
+address out of `127.0.0.*` (`proxy_bind 127.0.1.1;` in each `location` that
+proxies to the backend): a stopgap, which the next `location` added without
+it opens again.
+
+---
+
 ## Security Properties
 
 | Property | How it is achieved |
