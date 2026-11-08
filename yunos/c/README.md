@@ -179,7 +179,7 @@ Other:
 **Extra files:**
 - `certs/` — Self-signed TLS certificates (`yuneta_agent.crt`, `yuneta_agent.key`, `localhost.crt`, `localhost.key`)
 - `create-certs-self-signed/` — Scripts to generate certificates
-- `service/` — SysV init script (`install-yuneta-service.sh`, `remove-yuneta-service.sh`, `yuneta_agent`)
+- `service/` — the `.deb`'s start and stop helpers (`install-yuneta-service.sh`, `remove-yuneta-service.sh`: they enable/disable the systemd units, or the SysV script without systemd) and the SysV script `yuneta_agent`, all byte-identical to the packager's
 
 ### yuneta_agent22
 
