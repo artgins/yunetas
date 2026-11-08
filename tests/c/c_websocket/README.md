@@ -73,7 +73,40 @@ refuse"*), its key was the clock in hex (red: *"The Sec-WebSocket-Key is not
 rest of that read (red: *"Not every case of the handshake was answered"*).
 Without the case-insensitive match of `Upgrade`, the last case is refused.
 
-The raw servers of test1, test2, test3 and test5 answer the
+`test6` (`main_test6.c` + `c_test6.c`) is a `C_WEBSOCKET` **server** with
+2 channels and a `timeout_handshake` of 1 s. Two raw clients connect and send
+ONE byte each, `G`, and no more: the server must close both at
+`timeout_handshake` (warning *"Timeout waiting websocket handshake"*, not
+before 0.9 s nor after 5 s). Then a third raw client sends a whole upgrade
+and gets its `101`: the channels are free again. In that session it sends a
+text frame not final and another text frame not final, masked: the server
+closes it with ONE warning, *"Websocket data frame inside a fragmented
+message, connection closed"*. Up to 7.30.15 every read stopped the timer of
+the handshake and nothing armed it again: the two clients held their
+connections, and the pool, for ever (red: *"A half handshake held its
+connection"*); and the bad frame was closed with no log (red).
+
+`test7` (`main_test7.c` + `c_test7.c`) is what a `C_WEBSOCKET` **client**
+(`timeout_handshake` 1 s, `timeout_close` 0.5 s) closes for. A raw server
+answers one case per connection, and the client reconnects:
+
+| The server writes | The client |
+|---|---|
+| half a `101`, and nothing more | closes at `timeout_handshake`, ONE warning |
+| a right `101` and `c1 02 "hi"` (RSV1) | closes, ONE warning, then *"Timeout waiting websocket disconnected"* |
+| a right `101` and `80 02 "hi"` (a final continuation, no message begun) | the same |
+| a right `101` and `00 02 "hi"` (a continuation not final) | the same |
+| `Upgrade: websocket `, `Connection:\t Upgrade \t`, `Sec-WebSocket-Accept: <accept> ` and `81 05 "hello"` | opens the session and delivers `hello`; the server drops it |
+| a right `101`, `01 01 "a"` and `81 01 "b"` (data inside a fragmented message) | closes, ONE warning, then the disconnect timeout: the test ends |
+
+Up to 7.30.15 the client waited for the rest of the half `101` for ever (red:
+*"Not every case was answered"*), the bad frames were closed with no log, and
+the `101` with OWS was refused (red: *"The frame of the 101 with OWS was not
+delivered"*). A text frame not final inside a fragmented message is test6's:
+a fragment begun stays in the gobj after its connection,
+so this client cannot take a second case of it.
+
+The raw servers of test1, test2, test3, test5 and test7 answer the
 `Sec-WebSocket-Accept` of the key the client sent, computed by
 `ws_handshake.c` (the SHA-1 of `sha1.c` and `gbuffer_binary_to_base64()`).
 

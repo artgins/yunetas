@@ -430,7 +430,7 @@ with frame masking, ping/pong, and graceful close handshake.
 | `url` | `string` | WebSocket URL (`ws://` or `wss://`). |
 | `iamServer` | `bool` | `TRUE` for server mode. |
 | `cert_pem` | `string` | TLS certificate (PEM). |
-| `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
+| `timeout_handshake` | `integer` | Milliseconds from the connection to the end of the handshake (default `30000`), server and client. A part of the handshake does not stop it: when it runs out, a warning (*"Timeout waiting websocket handshake"*) and the connection is dropped. Up to 7.30.15 every read stopped it and nothing armed it again, so a peer that sent one byte (`G`) held its connection, and a channel of the server's pool, for ever. |
 | `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `pingT` | `integer` | Ping interval in milliseconds (`0` = disabled). |
@@ -455,7 +455,8 @@ connection is dropped. Up to 7.29.3 it had no limit.
     "gclass": "C_WEBSOCKET",
     "kw": {
         "iamServer": true,
-        "max_payload_size": 1048576
+        "max_payload_size": 1048576,
+        "timeout_handshake": 10000
     }
 }
 ```
@@ -496,6 +497,23 @@ the server closes the TCP connection (7.1.1), and an endpoint that sent a
 Close may go on receiving (5.5.1). The client drops it itself when
 `timeout_close` runs out (warning *"Timeout waiting websocket
 disconnected"*).
+
+A frame the peer must not send closes the connection (`1002`) with ONE
+warning (`MSGSET_PROTOCOL`, with `opcode`, `fin`, `rsv`, `frame_length`,
+`peername`, and a trace dump of the payload capped at 256 bytes):
+
+| The frame | The warning |
+|---|---|
+| an RSV bit set (no extension is agreed) | *"Websocket frame with RSV bits and no extension, connection closed"* |
+| a continuation (final or not) with no message begun | *"Websocket continuation frame with no message begun, connection closed"* |
+| a text or binary frame (final or not) inside a fragmented message | *"Websocket data frame inside a fragmented message, connection closed"* |
+
+Up to 7.30.15 these closes left no log. For example, a text frame `hi` with
+RSV1 set, as a server writes it (not masked):
+
+```text
+c1 02 68 69         FIN + RSV1 + text, length 2, "hi"  ->  the warning, and a Close 1002
+```
 
 What arrives in between -- the rest of the frame the client gave up on, the
 server's own Close -- belongs to a session that is over: it is discarded, and
@@ -561,6 +579,12 @@ Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==   ->    Sec-WebSocket-Accept: s3pPLM
 | a `Sec-WebSocket-Extensions` | warning *"Websocket handshake refused: an extension that was not asked for"* |
 | any status but `101` | warning *"NO 101 HTTP Response"*, with the status |
 
+The values of the headers are read without the OWS around them (RFC 9110
+§5.5, see [`ghttp_parser`](#ghttp_parser_create)): `Upgrade: websocket ` is
+`websocket`. Up to 7.30.15 the trailing OWS stayed in the value, and this
+client refused such a legal `101` (and a server answered `400` to a key
+followed by a space).
+
 Up to 7.30.14 the client looked only at the `101` and opened the session with
 any of them. A server that answered a wrong accept worked with a Yuneta
 client and failed with a browser; it now fails with both. A `C_WEBSOCKET`
@@ -568,4 +592,6 @@ server, and a proxy that passes the upgrade through, answer the right one.
 
 Tests: `tests/c/c_websocket` (`test_websocket_test1`; `test_websocket_test4`
 for the subprotocol a server answers; `test_websocket_test5` for the
-handshake a client refuses).
+handshake a client refuses; `test_websocket_test6` for a server's half
+handshakes; `test_websocket_test7` for what a client closes for, and a `101`
+with OWS).

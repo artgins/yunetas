@@ -883,6 +883,37 @@ PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
 }
 
 /***************************************************************************
+ *  A frame the peer must not send, and the connection is closed for it:
+ *  ONE warning, and the first bytes of its payload in a trace dump
+ ***************************************************************************/
+PRIVATE void log_bad_frame(hgobj gobj, const char *msg, gbuffer_t *payload)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    FRAME_HEAD *frame_head = &priv->frame_head;
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", msg,
+        "opcode",       "%d", (int)frame_head->h_opcode,
+        "fin",          "%d", frame_head->h_fin? 1 : 0,
+        "rsv",          "%d", (int)(frame_head->h_reserved_bits >> 4),
+        "frame_length", "%lu", (unsigned long)frame_head->frame_length,
+        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+        NULL
+    );
+    if(payload && gbuffer_leftbytes(payload) > 0) {
+        gobj_trace_dump(
+            gobj,
+            gbuffer_cur_rd_pointer(payload),
+            MIN(gbuffer_leftbytes(payload), MAX_LOG_DUMP_SIZE),
+            "%s", msg
+        );
+    }
+}
+
+/***************************************************************************
  *  Check utf8
  ***************************************************************************/
 PRIVATE BOOL check_utf8(gbuffer_t *gbuf)
@@ -947,7 +978,7 @@ PRIVATE int frame_completed(hgobj gobj)
              *  End of Fragmented data
              *---------------------------*/
             if (!priv->gbuf_message) {
-                // No gbuf_message available?
+                log_bad_frame(gobj, "Websocket continuation frame with no message begun, connection closed", unmasked);
                 if(unmasked) {
                     gbuffer_decref(unmasked);
                     unmasked = 0;
@@ -974,6 +1005,7 @@ PRIVATE int frame_completed(hgobj gobj)
                     /*
                     *  We cannot have data of previous fragmented data
                     */
+                    log_bad_frame(gobj, "Websocket data frame inside a fragmented message, connection closed", unmasked);
                     if(unmasked) {
                         gbuffer_decref(unmasked);
                         unmasked = 0;
@@ -1007,6 +1039,7 @@ PRIVATE int frame_completed(hgobj gobj)
             /*
              *  If there is no extensions, break the connection
              */
+            log_bad_frame(gobj, "Websocket frame with RSV bits and no extension, connection closed", unmasked);
             if(unmasked) {
                 gbuffer_decref(unmasked);
                 unmasked = 0;
@@ -1221,6 +1254,7 @@ PRIVATE int frame_completed(hgobj gobj)
                 /*
                  *  The first fragmented frame must be a valid opcode.
                  */
+                log_bad_frame(gobj, "Websocket continuation frame with no message begun, connection closed", unmasked);
                 if(unmasked) {
                     gbuffer_decref(unmasked);
                     unmasked = 0;
@@ -1255,6 +1289,7 @@ PRIVATE int frame_completed(hgobj gobj)
                 /*
                  *  Next frames must be OPCODE_CONTINUATION_FRAME
                  */
+                log_bad_frame(gobj, "Websocket data frame inside a fragmented message, connection closed", unmasked);
                 if(unmasked) {
                     gbuffer_decref(unmasked);
                     unmasked = 0;
@@ -1831,19 +1866,24 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Process handshake rx data.
  *  We can be server or client.
+ *  A part of the handshake does not stop timeout_handshake: only its end
+ *  does. Up to 7.30.15 every read stopped it and nothing armed it again,
+ *  so a peer that sent one byte held its connection, and a channel of the
+ *  pool, for ever.
  ***************************************************************************/
 PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
-    clear_timeout(priv->timer);
-
     if (priv->iamServer) {
         /*
          * analyze the request and respond
          */
         int result = parse_http_message(gobj, gbuf, priv->parsing_request);
+        if(result != 0) {
+            clear_timeout(priv->timer);
+        }
         if (result < 0) {
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
@@ -1894,6 +1934,9 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
          * analyze the response
          */
         int result = parse_http_message(gobj, gbuf, priv->parsing_response);
+        if(result != 0) {
+            clear_timeout(priv->timer);
+        }
         if (result < 0) {
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
