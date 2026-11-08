@@ -204,10 +204,35 @@ int main(int argc, char *argv[])
             exit(-1);
         }
     } else {
-        timestamp = strtoull(arguments.args[0], NULL, 0);
-        if(arguments.time_in_miliseconds) {
-            timestamp /= 1000;
+        /*
+         *  A JSON integer, -?(0|[1-9][0-9]*), as the command parser reads
+         *  one. Up to 7.30.14 strtoull(arg, NULL, 0): "abc" was 0 (1970,
+         *  exit code 0), "007" octal, "0x10" hex, and milliseconds before
+         *  the epoch were divided as unsigned
+         */
+        const char *arg = arguments.args[0];
+        const char *digits = (*arg == '-')? arg + 1 : arg;
+        BOOL json_integer = ((*digits >= '1' && *digits <= '9') ||
+            (*digits == '0' && digits[1] == 0))? TRUE : FALSE;
+        for(const char *p = digits; json_integer && *p; p++) {
+            if(*p < '0' || *p > '9') {
+                json_integer = FALSE;
+            }
         }
+        if(!json_integer) {
+            fprintf(stderr, "TIME_T refused, it is no integer: '%s'\n\n", arg);
+            exit(-1);
+        }
+        errno = 0;
+        long long value = strtoll(arg, NULL, 10);
+        if(errno != 0) {
+            fprintf(stderr, "TIME_T refused, out of range: '%s'\n\n", arg);
+            exit(-1);
+        }
+        if(arguments.time_in_miliseconds) {
+            value /= 1000;
+        }
+        timestamp = (timestamp_t)value;     // the bits of a time_t: gmtime() reads it as one
     }
 
     setlocale(LC_ALL, "en_US.UTF-8"); //Deja el numero (PRItime) tal cual

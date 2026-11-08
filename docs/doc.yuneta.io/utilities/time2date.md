@@ -12,7 +12,7 @@ time2date [TIME_T]            # no arg => current time; also accepts a date stri
 
 | Option | Purpose |
 |--------|---------|
-| `[TIME_T]` | Epoch seconds, or an ISO-ish date string (optional positional) |
+| `[TIME_T]` | Epoch seconds as a JSON integer (`1792573200`, `0`, `-5`), or a date with a `T` (`2026-10-01T10:00:00Z`); optional positional, now when absent |
 | `--TZ` / `-z` | Time zone for the conversion |
 | `--miliseconds` / `-m` | Treat the input as milliseconds |
 
@@ -40,8 +40,22 @@ A refusal prints no answer and exits with code -1 (255 in the shell):
   taken as UTC"* is printed once on stdout. Up to 7.30.14 the ERROR went
   nowhere, and the time was printed in UTC with the name of that zone, exit
   code 0.
+- A number (a text with no `T`) that is no JSON integer,
+  `-?(0|[1-9][0-9]*)`, as the command parser of a yuno reads one:
+  `time2date abc`, `007`, `0x10`, `" 5"`, `+5`, `1e3` print
+  *"TIME_T refused, it is no integer: 'abc'"*, and one outside the 64 bits of
+  a `time_t` (`9223372036854775808`) *"TIME_T refused, out of range: '...'"*.
+  Up to 7.30.14 it was read with `strtoull(arg, NULL, 0)`: `abc` printed
+  1970 with exit code 0, `007` was octal (7) and `0x10` hex (16).
 
-A number with no `T` is still read with `strtoull()`.
+A time before the epoch is a negative number, written after `--` so that it
+is not taken as an option; with `-m` it is divided as a signed number (up to
+7.30.14 as an unsigned one):
+
+```bash
+time2date -- -5           # UTC 1969-12-31T23:59:55+0000
+time2date -m -- -5000     # the same second
+```
 
 ## See also
 

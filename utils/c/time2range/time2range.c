@@ -150,10 +150,14 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
                     json_integer = FALSE;
                 }
             }
-            errno = 0;
-            long value = json_integer? strtol(arg, NULL, 10) : 0;
-            if(!json_integer || errno != 0 || value < INT_MIN || value > INT_MAX) {
+            if(!json_integer) {
                 fprintf(stderr, "RANGE refused, it is no integer: '%s'\n\n", arg);
+                exit(-1);
+            }
+            errno = 0;
+            long value = strtol(arg, NULL, 10);
+            if(errno != 0 || value < INT_MIN || value > INT_MAX) {
+                fprintf(stderr, "RANGE refused, out of range: '%s'\n\n", arg);
                 exit(-1);
             }
             arguments->range = (int)value;

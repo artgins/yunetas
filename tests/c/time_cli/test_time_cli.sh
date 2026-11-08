@@ -91,6 +91,22 @@ check "time2date an unknown zone" refused "Unknown time zone" "gmtime of" \
     "$TIME2DATE" -z Nowhere/Zone 1792573200
 check_said_once "time2date an unknown zone" "Unknown time zone" \
     "$TIME2DATE" -z Nowhere/Zone 1792573200
+check "time2date 0" 0 "gmtime of 0 " "" \
+    "$TIME2DATE" 0
+check "time2date a time before the epoch" 0 "UTC 1969-12-31T23:59:55+0000" "" \
+    "$TIME2DATE" -- -5
+check "time2date milliseconds" 0 "gmtime of 1792573200 " "" \
+    "$TIME2DATE" -m 1792573200123
+check "time2date milliseconds before the epoch" 0 "UTC 1969-12-31T23:59:55+0000" "" \
+    "$TIME2DATE" -m -- -5000
+for number in "abc" "007" "0x10" " 5" "+5" "5 " "1e3" "5.0" "-" ""; do
+    check "time2date '$number'" refused "TIME_T refused, it is no integer: '$number'" "gmtime of" \
+        "$TIME2DATE" -- "$number"
+done
+for number in "9223372036854775808" "-9223372036854775809" "18446744073709551615"; do
+    check "time2date '$number'" refused "TIME_T refused, out of range: '$number'" "gmtime of" \
+        "$TIME2DATE" -- "$number"
+done
 
 #
 #   time2range
@@ -105,8 +121,12 @@ check "time2range -r -0" 0 "Start: 2026-10-21T00:00:00+0000, End: 2026-10-21T00:
     "$TIME2RANGE" -t 1792573200 -p days -r -0
 check "time2range the first day of the epoch, range 0" 0 "Start: 1970-01-01T00:00:00+0000, End: 1970-01-01T00:00:00+0000" "" \
     "$TIME2RANGE" -t 1 -p days -r 0
-for range in " 5" "+5" "05" "5 " "5.0" "1e2" "-" "" "abc" "2147483648" "-2147483649"; do
-    check "time2range -r '$range'" refused "RANGE refused" "Start:" \
+for range in " 5" "+5" "05" "5 " "5.0" "1e2" "-" "" "abc"; do
+    check "time2range -r '$range'" refused "RANGE refused, it is no integer: '$range'" "Start:" \
+        "$TIME2RANGE" -t 1792573200 -p days -r "$range"
+done
+for range in "2147483648" "-2147483649" "9223372036854775808"; do
+    check "time2range -r '$range'" refused "RANGE refused, out of range: '$range'" "Start:" \
         "$TIME2RANGE" -t 1792573200 -p days -r "$range"
 done
 check "time2range an unknown zone" refused "Unknown time zone" "Start:" \
