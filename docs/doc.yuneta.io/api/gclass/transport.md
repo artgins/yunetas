@@ -1116,8 +1116,11 @@ boot left the yuno down for good.
   try at each timeout of its timer, the wait doubling from 1 s up to 60 s.
   Each try writes the cause of `yev_create_accept_event()` (the WARNING
   *"bind() FAILED"* for an address in use); the server says nothing more.
-  When it listens: *"UDP listening ..."* and one INFO, *"Listening again
-  after a failed listen"*.
+  A read that cannot be started is the same, its ERROR *"Cannot start the
+  read of the UDP server: not listening, trying again"*, and its cause from
+  `yev_start_event()` at each try. *"UDP listening ..."* is said when it
+  listens, once, and after a failure one more INFO, *"Listening again after
+  a failed listen"*.
 - **A bad url** (empty, with no schema, of port 0, `udps://`): one ERROR at
   each start (*"URL NULL"*, *"Parsing url failed"*, *"Cannot Listen on port
   0"*, the `udps://` one above), and no try: `url` is read only, a new config

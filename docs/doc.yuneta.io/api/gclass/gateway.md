@@ -250,8 +250,22 @@ gobj_send_event(qiogate, EV_SEND_MESSAGE, kw, gobj);   // queued as {"id": "1", 
 
 | Command | Description |
 |---------|-------------|
-| `queue_mark_pending` | Mark a queued message as pending. |
-| `queue_mark_notpending` | Mark a queued message as not pending. |
+| `queue_mark_pending` | Mark the messages of a range (`from-rowid`, `to-rowid`) as pending on disk: a load sends them again. |
+| `queue_mark_notpending` | Mark them as not pending: a load does not send them. |
+
+Both need the yuno paused, and act on the OPEN queue: the range is read into
+a list of its own, the live queue and its messages in memory are not touched,
+and a mark is taken at the next load (the next start of the gate). On a gate
+whose queue is not open (`queue_ready` false) they answer `-1`, *"the queue
+is not open (queue_ready false): nothing marked"*. Up to 7.30.17 they opened
+the queue again over the open one (*"tranger NOT NULL"*, the live store shut
+down) and closed it after them, leaving the gate with no queue; and on a
+queue that could not be opened they crashed the yuno.
+
+```bash
+ycommand -c 'command-yuno id=<id> service=<the C_QIOGATE> command=queue_mark_pending from-rowid=1200 to-rowid=1300'
+# 101 messages marked as PENDING
+```
 
 ---
 
