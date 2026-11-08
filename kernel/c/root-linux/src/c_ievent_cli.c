@@ -1169,7 +1169,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *          trace inter_event
      *---------------------------------------*/
     uint32_t trace_level = gobj_trace_level(gobj);
-    char prefix[256];
+    char prefix[256] = "";  // the faults below trace with it, trace levels or not
     if(trace_level) {
         snprintf(prefix, sizeof(prefix),
             "INTRA-EVENT(%s^%s) %s <== %s",

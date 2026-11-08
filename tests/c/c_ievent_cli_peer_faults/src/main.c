@@ -208,12 +208,23 @@ peer_log_count_t peer_log_counts[] = {
 };
 
 int secret_logged = 0;  // lines that carry a credential of the server: none
+int traces_without_msg = 0; // trace lines of a fault without their msg (its prefix): none
 
 static int peer_log_write(void *v, int priority, const char *bf, size_t len)
 {
     const char *secret = "tester-secret";
     if(memmem(bf, len, secret, strlen(secret))) {
         secret_logged++;
+    }
+    /*
+     *  A fault is traced (trace_inter_event()) with a prefix as its msg. Up
+     *  to 7.30.14 that prefix was bytes of the stack, never written: the
+     *  log dropped them as not text, or wrote them.
+     */
+    const char *trace = "\"msgset\": \"trace_json\"";
+    const char *msg = "\"msg\": ";
+    if(memmem(bf, len, trace, strlen(trace)) && !memmem(bf, len, msg, strlen(msg))) {
+        traces_without_msg++;
     }
     for(int i=0; peer_log_counts[i].mark && priority <= LOG_WARNING; i++) {
         peer_log_count_t *c = &peer_log_counts[i];
@@ -305,6 +316,15 @@ static void cleaning(void)
             On_Red BWhite,
             "a credential in a name the server wrote went to the log",
             secret_logged,
+            Color_Off
+        );
+        result += -1;
+    }
+    if(traces_without_msg) {
+        printf("%sERROR --> %s: %d lines%s\n",
+            On_Red BWhite,
+            "a fault was traced without its msg (an uninitialized prefix)",
+            traces_without_msg,
             Color_Off
         );
         result += -1;

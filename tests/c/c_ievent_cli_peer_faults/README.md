@@ -49,6 +49,12 @@ credential reaches the log (`main.c` counts the lines of each, their priority,
 and looks for the credentials in every line). A fault before the session also
 gives the client's own warning, *"EV_ON_OPEN_ERROR: cannot open connection"*.
 
+The faults of cases 0, 1 and 2 are also traced (`trace_inter_event()`, a
+DEBUG line with the frame's routing, masked), traces on or off; each such
+line carries its `msg`. Up to 7.30.14 that `msg` was a prefix the client
+filled only when its traces were on: bytes of the stack, which the log
+dropped as not text (the line had no `msg`) or wrote as they were.
+
 Up to 7.26.9 each fault was an error with the names in clear (the `service`
 of a request, a warning in clear); both
 subscriptions said *"subscription event ignored"*; and the session event
