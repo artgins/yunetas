@@ -446,11 +446,16 @@ if [ "$1" = "-x" ] && [ -f "${SROOT}/pgrep/$2" ]; then
 fi
 exit 1
 EOF
-for stub in su invoke-rc.d service chkconfig; do
+for stub in su runuser invoke-rc.d service chkconfig; do
     printf '#!/bin/sh\necho "%s $*" >> "$SLOG"\nexit 0\n' "$stub" > "${STUBS}/${stub}"
 done
 printf '#!/bin/sh\nexit 0\n' > "${STUBS}/sleep"
 chmod 0755 "$STUBS"/*
+#   A node without diffutils (a minimal RHEL): cmp is not found
+NOCMP="${WORK}/nocmp"
+mkdir -p "$NOCMP"
+printf '#!/bin/sh\necho "cmp: not found" >&2\nexit 127\n' > "${NOCMP}/cmp"
+chmod 0755 "${NOCMP}/cmp"
 
 service_root() {    # 1: a systemd that runs, 0: none
     rm -rf "${SROOT:?}"
@@ -476,8 +481,8 @@ agent_running() {    # name pid executable
 run_helper() {    # helper; FAIL_RESTART: the units whose restart fails
     sed "s#\([ \"'(=]\)/\(run\|usr\|lib\|etc\|yuneta\|proc\)/#\1${SROOT}/\2/#g" "$1" > "${WORK}/helper.sh"
     : > "$SLOG"
-    env PATH="${STUBS}:${PATH}" SLOG="$SLOG" SROOT="$SROOT" FAIL_RESTART="${FAIL_RESTART:-}" \
-        sh "${WORK}/helper.sh" > "${WORK}/helper.out" 2>&1
+    env PATH="${EXTRA_PATH:+${EXTRA_PATH}:}${STUBS}:${PATH}" SLOG="$SLOG" SROOT="$SROOT" \
+        FAIL_RESTART="${FAIL_RESTART:-}" sh "${WORK}/helper.sh" > "${WORK}/helper.out" 2>&1
 }
 stops() {
     grep -c -- '--stop' "$SLOG"
@@ -603,7 +608,69 @@ for helper in "${SERVICE_DIR}/install-yuneta-service.sh" "$rpm_helper"; do
     run_helper "$helper"
     check "$flavour service, the units and an old SysV script: replaced" "$(
         cmp -s "${SROOT}/etc/init.d/yuneta_agent" "${SERVICE_DIR}/yuneta_agent" && echo replaced)" "replaced"
+
+    #   No cmp (no diffutils): the SysV script of this agent is left as it
+    #   is, and an old one is still replaced
+    service_root 0
+    cp "${SERVICE_DIR}/yuneta_agent" "${SROOT}/etc/init.d/yuneta_agent"
+    EXTRA_PATH="$NOCMP" run_helper "$helper"
+    EXTRA_PATH="$NOCMP" run_helper "$helper"
+    check "$flavour service, no cmp, the SysV script of this agent: untouched" \
+        "$(ls "${SROOT}/etc/init.d/" | grep -c '\.bak$')" "0"
+    printf '#!/bin/sh\nexit 0\n' > "${SROOT}/etc/init.d/yuneta_agent"
+    EXTRA_PATH="$NOCMP" run_helper "$helper"
+    check "$flavour service, no cmp, an old SysV script: replaced" "$(
+        cmp -s "${SROOT}/etc/init.d/yuneta_agent" "${SERVICE_DIR}/yuneta_agent" && echo replaced)" "replaced"
 done
+
+#
+#   The packages' own scripts find an agent by its executable too: the
+#   postinsts' _agent_into_its_unit() (the .deb's, the .rpm's %post) and the
+#   .rpm's %pre, which stops the main agent for an upgrade
+#
+deb_into="$(sed -n '/^_agent_into_its_unit() {$/,/^}$/p' "${HERE}/../deb/make-yuneta-agent-deb.sh")"
+rpm_into="$(sed -n '/^    _agent_into_its_unit() {$/,/^    }$/p' "${HERE}/../rpm/make-yuneta-agent-rpm.sh")"
+rpm_pre="$(sed -n '/^%pre$/,/^%post$/p' "${HERE}/../rpm/make-yuneta-agent-rpm.sh" \
+    | sed -n '/^if \[ "\$1" = "2" \]; then$/,/^fi$/p')"
+check "the .deb's postinst: _agent_into_its_unit found" "$( [ -n "$deb_into" ] && echo found)" "found"
+check "the .rpm's %post: _agent_into_its_unit found" "$( [ -n "$rpm_into" ] && echo found)" "found"
+check "the .rpm's %pre: the upgrade's stop found" "$( [ -n "$rpm_pre" ] && echo found)" "found"
+run_snippet() {    # code call [args]
+    printf '%s\n%s\n' "$1" "$2" > "${WORK}/snippet.in"
+    sed "s#\([ \"'(=]\)/\(run\|usr\|lib\|etc\|yuneta\|proc\)/#\1${SROOT}/\2/#g" "${WORK}/snippet.in" \
+        > "${WORK}/snippet.sh"
+    : > "$SLOG"
+    shift 2
+    env PATH="${STUBS}:${PATH}" SLOG="$SLOG" SROOT="$SROOT" FAIL_RESTART="" \
+        sh "${WORK}/snippet.sh" "$@" > "${WORK}/snippet.out" 2>&1
+}
+for into in deb rpm; do
+    if [ "$into" = "deb" ]; then
+        code="$deb_into"
+    else
+        code="$rpm_into"
+    fi
+    service_root 1
+    service_units
+    agent_running yuneta_agent 201 /usr/bin/dash
+    run_snippet "$code" "_agent_into_its_unit yuneta_agent"
+    check ".$into postinst, a process named like the agent: not stopped" "$(stops)" "0"
+    check ".$into postinst, a process named like the agent: the unit restarted" "$(restarts)" "yuneta_agent.service"
+    service_root 1
+    service_units
+    agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent"
+    run_snippet "$code" "_agent_into_its_unit yuneta_agent"
+    check ".$into postinst, the agent outside its unit: stopped" "$(stops)" "1"
+done
+service_root 1
+printf '#!/bin/sh\n' > "${SROOT}/yuneta/agent/yuneta_agent"
+chmod 0755 "${SROOT}/yuneta/agent/yuneta_agent"
+agent_running yuneta_agent 201 /usr/bin/dash
+run_snippet "$rpm_pre" "" 2
+check ".rpm %pre, a process named like the agent: not stopped" "$(stops)" "0"
+agent_running yuneta_agent 101 "${SROOT}/yuneta/agent/yuneta_agent (deleted)"
+run_snippet "$rpm_pre" "" 2
+check ".rpm %pre, the agent on its old binary: stopped" "$(stops)" "1"
 
 #
 #   The warning of the agent's build (yuno_agent/CMakeLists.txt) about the

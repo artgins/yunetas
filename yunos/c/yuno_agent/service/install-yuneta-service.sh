@@ -7,8 +7,10 @@ set -eu
 # An /etc/init.d/yuneta_agent of an earlier agent is replaced by this one's,
 # the old one kept beside it, not executable (up to 7.30.16 it was kept, and
 # a node without systemd started the agents without the node uuid and the
-# agent's pair)
-if [ -e /etc/init.d/yuneta_agent ] && ! cmp -s /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent; then
+# agent's pair). Compared with sha256sum (coreutils): a minimal RHEL has no
+# cmp (diffutils)
+if [ -e /etc/init.d/yuneta_agent ] \
+        && [ "$(sha256sum < /yuneta/agent/service/yuneta_agent)" != "$(sha256sum < /etc/init.d/yuneta_agent)" ]; then
     _old="/etc/init.d/yuneta_agent.$(date +%Y%m%d%H%M%S).bak"
     install -m 0644 /etc/init.d/yuneta_agent "$_old"
     install -m 0755 /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent

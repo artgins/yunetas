@@ -1192,8 +1192,10 @@ set -eu
 # An /etc/init.d/yuneta_agent of an earlier agent is replaced by this one's,
 # the old one kept beside it, not executable (up to 7.30.16 it was kept, and
 # a node without systemd started the agents without the node uuid and the
-# agent's pair)
-if [ -e /etc/init.d/yuneta_agent ] && ! cmp -s /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent; then
+# agent's pair). Compared with sha256sum (coreutils): a minimal RHEL has no
+# cmp (diffutils)
+if [ -e /etc/init.d/yuneta_agent ] \
+        && [ "$(sha256sum < /yuneta/agent/service/yuneta_agent)" != "$(sha256sum < /etc/init.d/yuneta_agent)" ]; then
     _old="/etc/init.d/yuneta_agent.$(date +%Y%m%d%H%M%S).bak"
     install -m 0644 /etc/init.d/yuneta_agent "$_old"
     install -m 0755 /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent
@@ -1958,7 +1960,17 @@ fi
 #
 # $1 == 2 is an upgrade; on a fresh install ($1 == 1) there is nothing to stop.
 if [ "$1" = "2" ]; then
-    if [ -x /yuneta/agent/yuneta_agent ] && pgrep -x yuneta_agent >/dev/null 2>&1; then
+    # found by its executable (the old one is "(deleted)" once replaced):
+    # `pgrep -x` alone also finds the SysV script, named yuneta_agent too
+    _running=0
+    for _p in $(pgrep -x yuneta_agent 2>/dev/null); do
+        case "$(readlink "/proc/$_p/exe" 2>/dev/null || true)" in
+            "/yuneta/agent/yuneta_agent"|"/yuneta/agent/yuneta_agent (deleted)")
+                _running=1
+                ;;
+        esac
+    done
+    if [ -x /yuneta/agent/yuneta_agent ] && [ "$_running" = "1" ]; then
         echo "[pre] stopping yuneta_agent for the upgrade (yuneta_agent22 stays up)"
         runuser -u yuneta -- /yuneta/agent/yuneta_agent \
             --config-file=/yuneta/agent/yuneta_agent.json --stop >/dev/null 2>&1 \
@@ -2341,7 +2353,17 @@ else
     #   the unit's ExecStop. Then the unit is (re)started.
     _agent_into_its_unit() {
         _a="$1"
-        if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && pgrep -x "${_a}" >/dev/null 2>&1; then
+        # found by its executable: `pgrep -x` alone also finds the SysV script
+        # (named yuneta_agent too) or another binary of the same name
+        _outside=0
+        for _p in $(pgrep -x "$_a" 2>/dev/null); do
+            case "$(readlink "/proc/$_p/exe" 2>/dev/null || true)" in
+                "/yuneta/agent/${_a}"|"/yuneta/agent/${_a} (deleted)")
+                    _outside=1
+                    ;;
+            esac
+        done
+        if [ "$(systemctl show -p MainPID --value "${_a}.service")" = "0" ] && [ "$_outside" = "1" ]; then
             su -s /bin/sh -c "/yuneta/agent/${_a} --config-file=/yuneta/agent/${_a}.json --stop" yuneta >/dev/null 2>&1 || true
             sleep 2
         fi
