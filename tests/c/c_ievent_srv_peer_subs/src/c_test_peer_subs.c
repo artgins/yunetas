@@ -88,6 +88,11 @@
  *                 `__md_iev__`, 50 KB): a warning, capped, and her channel
  *                 is closed. Up to 7.25.4 each such frame logged an error
  *                 with a stack and the whole kw, and was processed.
+ *              8b. The transport of bob's channel says EV_ON_OPEN to its
+ *                 gate in the session: an event of the gate's own tree that
+ *                 its FSM does not take there is an ERROR, and is not sent to
+ *                 bob. Up to 7.30.14 every such event went to the peer as a
+ *                 frame (the EV_TIMEOUT of a card refused in a session).
  *              8. The server sends `bob` two events of its own, through the
  *                 gate of his channel: with no __service__ it reaches the
  *                 subscribers of his transport (the service of his identity
@@ -988,6 +993,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_unsubscribe_event(priv->publisher, EV_TEST_BIN, 0, priv->sink_local);
             gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, priv->sink_local);
             gobj_unsubscribe_event(priv->publisher, EV_TEST_FEED, 0, priv->sink_strip);
+
+            /*
+             *  8b. An event of the gate's own tree that its session does
+             *  not take (its transport says EV_ON_OPEN again): an error,
+             *  and nothing to bob
+             */
+            {
+                hgobj gate_bob = find_gate_of(gobj, "bob");
+                check(gobj, "the gate of bob's channel, again", gate_bob != NULL);
+                if(gate_bob) {
+                    int ret = gobj_send_event(gate_bob, EV_ON_OPEN, json_object(),
+                        gobj_bottom_gobj(gate_bob)
+                    );
+                    check(gobj, "an event of the gate's own tree is not sent to the peer", ret < 0);
+                }
+            }
             gobj_stop_tree(priv->cli_bob);
 
             /*

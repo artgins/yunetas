@@ -28,12 +28,12 @@
  *             11. a frame that is not json, a JWT cut by the window of its
  *                 dump: "frame is not json", the dump masked
  *             12. a good card: EV_IDENTITY_CARD_ACK, the session opens
- *             13. in that session, a second card that the authentication
- *                 refuses: a negative EV_IDENTITY_CARD_ACK, and the channel
- *                 closed after `timeout_idgot`, as before a session. Up to
- *                 7.30.14 the timeout found no EV_TIMEOUT in ST_SESSION
- *                 ("Event NOT DEFINED in state", an ERROR) and the channel
- *                 stayed open
+ *             13. in that session, a second card, good, of ANOTHER user:
+ *                 refused (a negative EV_IDENTITY_CARD_ACK, one warning), and
+ *                 the session keeps its user and its channel; no second
+ *                 EV_ON_OPEN. Up to 7.30.14 it was authenticated again and
+ *                 replaced the user of the session, and EV_ON_OPEN was
+ *                 published again
  *
  *          Each refusal is caused by the peer: ONE warning, with the kw
  *          capped and no stack (main.c counts the lines, their priority and
@@ -56,7 +56,7 @@
  *              Constants
  ***************************************************************************/
 #define LAST_CARD   12
-#define SESSION_CARD 13     // sent in the session of LAST_CARD, refused
+#define SESSION_CARD 13     // sent in the session of LAST_CARD, of another user: refused
 
 /***************************************************************************
  *              Structures
@@ -76,6 +76,7 @@ PRIVATE json_t *card_routing(
     const char *src_service
 );
 PRIVATE void check(hgobj gobj, const char *what, BOOL ok);
+PRIVATE const char *session_user(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -407,7 +408,7 @@ PRIVATE int send_card(hgobj gobj, int card)
             );
 
         case SESSION_CARD:
-            json_object_set_new(kw, "jwt", json_string("tester-refused"));
+            json_object_set_new(kw, "jwt", json_string("tester-other-user"));
             jn_routing = card_routing("", role, "tester", role, "cli");
             break;
 
@@ -421,6 +422,28 @@ PRIVATE int send_card(hgobj gobj, int card)
         msg_iev_set_msg_type(gobj, kw, "__identity__");
     }
     return send_frame(gobj, EV_IDENTITY_CARD, kw);
+}
+
+/***************************************************************************
+ *  The user of the session: of the C_IEVENT_SRV of the channel in session
+ ***************************************************************************/
+PRIVATE const char *session_user(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj channel = gobj_first_child(priv->gobj_input_side);
+    while(channel) {
+        hgobj gate = gobj_first_child(channel);
+        while(gate) {
+            if(strcmp(gobj_gclass_name(gate), C_IEVENT_SRV)==0 &&
+                    gobj_read_bool_attr(gate, "authenticated")) {
+                return gobj_read_str_attr(gate, "__username__");
+            }
+            gate = gobj_next_child(gate);
+        }
+        channel = gobj_next_child(channel);
+    }
+    return "";
 }
 
 /***************************************************************************
@@ -482,12 +505,6 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->cli_gate) {
         priv->client_closes++;
-        if(priv->card == SESSION_CARD) {
-            check(gobj, "the refused card of the session closed its channel",
-                priv->client_closes == LAST_CARD + 1);
-            check(gobj, "two ACKs: the good card's and the refused one's", priv->acks == 2);
-            set_yuno_must_die();
-        }
     }
 
     KW_DECREF(kw)
@@ -514,7 +531,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->card == SESSION_CARD) {
         check(gobj, "the ACK of the card of the session is negative",
             kw_get_int(gobj, iev_kw, "result", 0, 0) < 0);
-        // the gate closes the channel after timeout_idgot: ac_on_close
+        check(gobj, "the session keeps its user", strcmp(session_user(gobj), "tester")==0);
+        check(gobj, "the session keeps its channel", priv->client_closes == LAST_CARD);
+        check(gobj, "no second EV_ON_OPEN", priv->server_opens == 1);
+        check(gobj, "two ACKs: the good card's and the refused one's", priv->acks == 2);
+        set_yuno_must_die();
     } else {
         check(gobj, "the ACK answers the last card", priv->card == LAST_CARD);
         check(gobj, "the ACK is positive", kw_get_int(gobj, iev_kw, "result", -1, 0) == 0);

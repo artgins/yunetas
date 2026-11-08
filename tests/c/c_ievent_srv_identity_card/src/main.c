@@ -99,8 +99,7 @@ PRIVATE char variable_config[]= "\
                             'name': 'input-(^^__range__^^)',        \n\
                             'gclass': 'C_IEVENT_SRV',               \n\
                             'kw': {                                 \n\
-                                'max_pre_session_frame': 1048576,   \n\
-                                'timeout_idgot': 300                \n\
+                                'max_pre_session_frame': 1048576    \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -157,18 +156,14 @@ PRIVATE char variable_config[]= "\
 time_measure_t time_measure;
 
 /***************************************************************************
- *  Authentication without a C_AUTHZ: the user is the `jwt` of the card,
- *  and it may reach the `tester`. The jwt `tester-refused` is refused.
+ *  Authentication without a C_AUTHZ: the user is the `jwt` of the card
+ *  (`tester` for the jwt of the good card), and it may reach the `tester`.
  ***************************************************************************/
 static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
     const char *username = kw_get_str(gobj_service, kw, "jwt", "", 0);
-    if(strcmp(username, "tester-refused")==0) {
-        KW_DECREF(kw)
-        return json_pack("{s:i, s:s}",
-            "result", -1,
-            "comment", "test authentication refused"
-        );
+    if(strcmp(username, "tester-jwt-credential")==0) {
+        username = "tester";    // the jwt itself must reach no log, the user may
     }
     gobj_write_str_attr(src, "__username__", username);
 
@@ -206,6 +201,7 @@ peer_log_count_t peer_log_counts[] = {
     {"Frame of an event that is not public, refused",   0, -1, 0},
     {"Frame is not an inter-event",                     0, -1, 0},
     {"frame is not json",                               0, -1, 0},
+    {"Identity card in a session, refused",             0, -1, 0},
     {0, 0, 0, 0}
 };
 
@@ -275,7 +271,7 @@ static int register_yuno_and_more(void)
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per refused
          *  card, and no error  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Identity card without its routing (__md_iev__ ievent stack), refused",
             "msg", "Identity card refused, dst_role NOT MATCH",
             "msg", "Identity card refused, dst_yuno NOT MATCH",
@@ -287,7 +283,8 @@ static int register_yuno_and_more(void)
             "msg", "Frame before the identity card too big, channel closed",
             "msg", "Frame of an event that is not public, refused",
             "msg", "Frame is not an inter-event (an \"event\" string and a \"kw\" dict), refused",
-            "msg", "frame is not json"
+            "msg", "frame is not json",
+            "msg", "Identity card in a session, refused: the session keeps its identity"
         ),
         NULL,   // expected
         NULL,   // ignore_keys

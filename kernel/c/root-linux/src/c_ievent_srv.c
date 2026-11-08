@@ -60,6 +60,7 @@ typedef enum {
     PEER_LOG_NO_ROUTING,
     PEER_LOG_BAD_REQUEST,
     PEER_LOG_UNROUTED,
+    PEER_LOG_CARD_IN_SESSION,
     PEER_LOG_KINDS
 } peer_log_kind_t;
 
@@ -501,6 +502,30 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *  This path carries to the peer what comes from OUTSIDE this gate: the
+     *  events of a service that the peer subscribed, an answer of a service
+     *  to a request of the peer, what an app or the agent sends to it (by
+     *  its channel, EV_SEND_IEV). An event of the gate's own tree (its
+     *  timer, its transport) that its FSM does not take in this state is a
+     *  broken FSM, not a message: up to 7.30.14 it went to the peer as one
+     *  (the EV_TIMEOUT of a card refused in a session).
+     */
+    for(hgobj g = src; g; g = gobj_parent(g)) {
+        if(g == gobj) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Event of the gate's own tree not taken in this state, not sent to the peer",
+                "event",        "%s", event,
+                "src",          "%s", gobj_short_name(src),
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
+    }
+
     if(gobj_current_state(gobj) != ST_SESSION) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1184,6 +1209,45 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     JSON_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  remote ask
+ *  An identity card in a session: refused, the session keeps its identity.
+ *
+ *  The services above this gate checked the FIRST card, in the EV_ON_OPEN
+ *  it published (the agent registers the yuno, the controlcenter binds the
+ *  node to its key), and C_CHANNEL does not pass a second EV_ON_OPEN up (it
+ *  takes none in ST_OPENED). Up to 7.30.14 a second card was authenticated
+ *  again and replaced the user, the services the channel may reach, the
+ *  superuser flag and the identity card the services read later, without
+ *  those checks. A client sends one card per connection; a second one is a
+ *  client that sent its card again before the ACK of the first arrived, so
+ *  the channel is not closed.
+ ***************************************************************************/
+PRIVATE int ac_identity_card_in_session(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    json_int_t suppressed = 0;
+    if(peer_log_allowed(gobj, PEER_LOG_CARD_IN_SESSION, &suppressed)) {
+        log_identity_card_refused(gobj, kw,
+            "Identity card in a session, refused: the session keeps its identity",
+            "username", gobj_read_str_attr(gobj, "__username__")
+        );
+    }
+
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
+    json_t *kw_answer = msg_iev_set_back_metadata(
+        gobj,
+        kw,     // owned
+        json_pack("{s:i, s:s}",
+            "result", -1,
+            "comment", "Identity card refused: the session has its identity already"
+        ),
+        TRUE
+    );
+    return send_static_iev(gobj, EV_IDENTITY_CARD_ACK, kw_answer, src);
 }
 
 /***************************************************************************
@@ -3261,11 +3325,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_session[] = {
         {EV_ON_MESSAGE,         ac_on_message,          0},
-        {EV_TIMEOUT,            ac_timeout_wait_idGot,  0}, // a card refused in the session
         {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,   0},
         {EV_MT_COMMAND,         ac_mt_command,          0},
         {EV_MT_STATS,           ac_mt_stats,            0},
-        {EV_IDENTITY_CARD,      ac_identity_card,       0},
+        {EV_IDENTITY_CARD,      ac_identity_card_in_session, 0},
         {EV_GOODBYE,            ac_goodbye,             0},
         {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
         {EV_DROP,               ac_drop,                0},

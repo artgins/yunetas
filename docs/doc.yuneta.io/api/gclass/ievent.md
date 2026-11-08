@@ -617,10 +617,31 @@ raises it:
 
 A card refused by the authentication is answered with a negative
 `EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is
-dropped at `timeout_idgot` (default 5000 ms). So is a second card sent IN a
-session and refused: up to 7.30.14 its timeout was an event the session did
-not have, the channel stayed open with its first identity, and the timeout
-went on to the peer as a frame of its own. Up to 7.25.20 each refusal above was an error
+dropped at `timeout_idgot` (default 5000 ms).
+
+**A session has one identity.** A card sent IN a session is refused without
+being authenticated: a negative `EV_IDENTITY_CARD_ACK` (*"Identity card
+refused: the session has its identity already"*), ONE warning per 10 s
+(*"Identity card in a session, refused: the session keeps its identity"*,
+with the `username` of the session), and the session goes on, with its user,
+its services and its channel. The services above the gate checked the first
+card, in the `EV_ON_OPEN` it published -- the agent registers the yuno, the
+controlcenter binds the node to its key -- and `C_CHANNEL` does not pass a
+second `EV_ON_OPEN` up. A client sends one card per connection; a second one
+is a client that sent its card again before the first ACK arrived, which is
+why the channel stays. Up to 7.30.14 the second card was authenticated again:
+a good one replaced the user, the services, the superuser flag and the
+`identity_card` that the services read later, without their checks; a
+refused one armed `timeout_idgot`, and the timeout went to the peer as a frame.
+
+**What the gate sends to its peer on its own** (`mt_inject_event`, the events
+its FSM does not take in the session) comes from outside its tree: what a
+service publishes to a remote subscription, the answer of a service to a
+request of the peer, what an app or the agent sends to the peer (`EV_SEND_IEV`
+by its channel, or to the gate itself). An event of the gate's own tree -- its
+timer, its transport -- is not a message: an ERROR (*"Event of the gate's own
+tree not taken in this state, not sent to the peer"*) and nothing sent. Up to
+7.30.14 every such event went to the peer as a frame. Up to 7.25.20 each refusal above was an error
 with the whole kw (its jwt with it), followed by a second error, *"event
 UNKNOWN in not-session state"*, with the whole kw again, credentials and
 all; a jwt that was not a string went on to the authentication.

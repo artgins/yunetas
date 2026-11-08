@@ -319,7 +319,7 @@ static int register_yuno_and_more(void)
          *  main() takes nothing below a warning), each ONCE although the
          *  peer repeats what causes it. A wrong result is an error, which is
          *  not in this list.  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "SUBSCRIBING keys a peer may not set, ignored",
             "msg", "SUBSCRIBING refused, its routing is bigger than max_subscription_size",
             "msg", "SUBSCRIBING refused, the peer holds max_subscriptions",
@@ -329,6 +329,7 @@ static int register_yuno_and_more(void)
             "msg", "event ignored, dst_service not authorized for this channel",
             "msg", "Request without the command or stats it asks, refused",
             "msg", "SUBSCRIBING repeated, the one held is kept",
+            "msg", "Event of the gate's own tree not taken in this state, not sent to the peer",
             "msg", "Frame without its routing (__md_iev__ ievent stack), channel closed"
         ),
         NULL,   // expected

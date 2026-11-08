@@ -76,7 +76,13 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    to 7.25.4 each such frame logged an error with a stack trace and the
    whole kw, and the frame without routing was processed.
 
-9. The server sends `bob` (an anonymous yuno: no `yuno_name`) two events of
+9. The transport of `bob`'s channel says `EV_ON_OPEN` to its gate in the
+   session: an event of the gate's own tree that its FSM does not take there
+   is ONE error (*"Event of the gate's own tree not taken in this state, not
+   sent to the peer"*), and `bob` gets nothing. Up to 7.30.14 every such event
+   went to the peer as a frame (the `EV_TIMEOUT` of a card refused in a
+   session did).
+10. The server sends `bob` (an anonymous yuno: no `yuno_name`) two events of
    its own, `EV_TEST_OPEN`, through the `C_IEVENT_SRV` of his channel, as an
    app does: with no `__service__` the gate addresses it to the service of his
    identity card, his transport, which publishes it to its subscribers (the

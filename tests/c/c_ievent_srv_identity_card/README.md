@@ -37,12 +37,14 @@ refused and its channel closed; the client connects again and sends the next:
 11. a frame that is not json, with the same cut JWT: *"frame is not json"*,
     and a DEBUG dump of its first 256 bytes, the cut JWT masked;
 12. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session;
-13. in that session, a second card that the authentication refuses (the
-    test's parser refuses the jwt `tester-refused`): a negative
-    `EV_IDENTITY_CARD_ACK`, and the channel closed after `timeout_idgot`
-    (300 ms in this test), as a refused card before a session. Up to 7.30.14
-    the timeout found no `EV_TIMEOUT` in `ST_SESSION`: *"Event NOT DEFINED in
-    state"*, an error, and the channel stayed open with its first identity.
+13. in that session, a second card, good, of ANOTHER user: refused, a
+    negative `EV_IDENTITY_CARD_ACK` and ONE warning (*"Identity card in a
+    session, refused: the session keeps its identity"*); the session keeps its
+    user and its channel, and no second `EV_ON_OPEN` is published. Up to
+    7.30.14 the card was authenticated again and replaced the user of the
+    session (and its services, its superuser flag, its identity card), and
+    `EV_ON_OPEN` was published again -- which `C_CHANNEL` does not pass up, so
+    the services above never checked the new identity.
 
 Each refusal is caused by the peer, so it is ONE warning (`MSGSET_PROTOCOL`,
 `peername`, the kw capped, no stack; the dump of a frame that is not json is a
