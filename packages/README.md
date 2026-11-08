@@ -28,9 +28,12 @@ header); `tests/test-yuneta-node-uuid.sh` checks it against a fake `/sys`.
 source and does not take the package (idempotent: run it again to check).
 
 `templates/yuneta-agent-cert` makes the agent's own pair
-(`/yuneta/agent/certs/yuneta_agent.{crt,key}`) on the node, when there is none
-or when it is the pair published with Yuneta up to 7.30.5 (see its header);
-`tests/test-yuneta-agent-cert.sh` checks it in a private directory, and
+(`/yuneta/agent/certs/yuneta_agent.{crt,key}`) on the node, when there is none,
+when it is the pair published with Yuneta up to 7.30.5, or when it is a pair
+it made for another node uuid (a cloned disk: `yuneta_agent.uuid` holds the
+uuid each pair was made for; see its header);
+`tests/test-yuneta-agent-cert.sh` checks it in a private directory (a cloned
+disk against a fake `/sys`, with `yuneta-node-uuid`), and
 `install-yuneta-agent-cert.sh` installs it by hand on a node without the
 package. The packages carry no agent pair: only `certs/controlcenter.crt`.
 

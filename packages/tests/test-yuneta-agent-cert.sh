@@ -15,6 +15,7 @@ fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="${HERE}/../templates/yuneta-agent-cert"
+NODE_UUID_SCRIPT="${HERE}/../templates/yuneta-node-uuid"
 if ! WORK="$(mktemp -d)" || [ -z "$WORK" ] || [ ! -d "$WORK" ]; then
     echo "FAIL - cannot create a work directory" >&2
     exit 1
@@ -24,6 +25,9 @@ trap 'rm -rf "$WORK"' EXIT
 export YUNETA_AGENT_CERT_DIR="${WORK}/certs"
 CRT="${YUNETA_AGENT_CERT_DIR}/yuneta_agent.crt"
 KEY="${YUNETA_AGENT_CERT_DIR}/yuneta_agent.key"
+UUID_MARK="${YUNETA_AGENT_CERT_DIR}/yuneta_agent.uuid"
+#   The node uuid of the test, never the machine's: none until a case makes one
+export YUNETA_NODE_UUID_DIR="${WORK}/uuid"
 OPENSSL="${YUNETA_AGENT_CERT_OPENSSL:-}"
 if [ -z "$OPENSSL" ]; then
     if [ -x /yuneta/development/yunetas/outputs_ext/bin/openssl ]; then
@@ -99,7 +103,7 @@ copies() {
 }
 
 reset() {
-    rm -rf "${WORK:?}/certs"
+    rm -rf "${WORK:?}/certs" "${WORK:?}/uuid" "${WORK:?}/root"
     mkdir -p "$YUNETA_AGENT_CERT_DIR"
 }
 
@@ -211,6 +215,105 @@ out="$(OPENSSL_CONF=/nonexistent/openssl.cnf run ensure)"
 check "no default config: made" "$(echo "$out" | grep -c 'certificate made')" "1"
 check "no default config: nothing left behind" \
     "$(ls -A "$YUNETA_AGENT_CERT_DIR" | grep -c '\.new\.')" "0"
+
+#
+#   A cloned disk: box A makes its uuid (yuneta-node-uuid, against a fake
+#   /sys) and its pair; the disk is copied to box B, another DMI: B gets
+#   another uuid, and another key. The key of A stays A's.
+#
+reset
+SYSROOT="${WORK}/root"
+set_dmi() {
+    mkdir -p "${SYSROOT}/sys/class/dmi/id" "${SYSROOT}/sys/class/net"
+    printf '%s\n' "$1" > "${SYSROOT}/sys/class/dmi/id/product_uuid"
+}
+node_uuid_ensure() {
+    YUNETA_NODE_UUID_SYSROOT="$SYSROOT" "$NODE_UUID_SCRIPT" ensure >/dev/null 2>&1
+}
+node_uuid() {
+    sed -n 's/.*"uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${YUNETA_NODE_UUID_DIR}/uuid.json"
+}
+spki() {
+    "$OPENSSL" pkey -in "$KEY" -pubout -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E32"
+node_uuid_ensure
+uuid_a="$(node_uuid)"
+run ensure >/dev/null
+key_a="$(spki)"
+check "box A: the pair is bound to its uuid" "$(cat "$UUID_MARK" 2>/dev/null)" "$uuid_a"
+out="$(run ensure)"
+check "box A again: kept" "$(spki)" "$key_a"
+check "box A again: says nothing" "$( [ -z "$out" ] && echo quiet)" "quiet"
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E33"
+node_uuid_ensure
+uuid_b="$(node_uuid)"
+check "box B: another uuid" "$( [ -n "$uuid_b" ] && [ "$uuid_b" != "$uuid_a" ] && echo other)" "other"
+check "box B: show says cloned" "$(run show | grep -c 'state:   cloned')" "1"
+out="$(run ensure)"
+check "box B: another key" "$( [ -n "$(spki)" ] && [ "$(spki)" != "$key_a" ] && echo other)" "other"
+check "box B: the key is the certificate's" \
+    "$( [ "$("$OPENSSL" x509 -in "$CRT" -noout -pubkey)" = "$("$OPENSSL" pkey -in "$KEY" -pubout 2>/dev/null)" ] && echo yes)" "yes"
+check "box B: a WARNING that says it" "$(echo "$out" | grep -c 'WARNING: .*made for node uuid')" "1"
+check "box B: bound to its own uuid" "$(cat "$UUID_MARK" 2>/dev/null)" "$uuid_b"
+check "box B: the two old files kept" "$(copies)" "2"
+out="$(run ensure)"
+check "box B again: kept" "$( [ -z "$out" ] && echo quiet)" "quiet"
+
+#
+#   A pair made here by an earlier version, no uuid beside it: bound to the
+#   node uuid it finds, then replaced on a clone
+#
+rm -f "$UUID_MARK"
+key_b="$(spki)"
+out="$(run ensure)"
+check "made before the binding: kept" "$(spki)" "$key_b"
+check "made before the binding: bound now" "$(cat "$UUID_MARK" 2>/dev/null)" "$uuid_b"
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E34"
+node_uuid_ensure
+run ensure >/dev/null
+check "made before the binding, then cloned: another key" \
+    "$( [ -n "$(spki)" ] && [ "$(spki)" != "$key_b" ] && echo other)" "other"
+
+#
+#   A pair not made here (its own CA) on a clone: kept, never bound, even
+#   where a pair made here and bound was before it
+#
+check "a pair of its own: put over a bound one" "$( [ -e "$UUID_MARK" ] && echo bound)" "bound"
+make_other_pair "$CRT" "$KEY"
+own="$(fpr "$CRT")"
+run ensure >/dev/null
+check "a pair of its own: kept" "$(fpr "$CRT")" "$own"
+set_dmi "4C4C4544-0042-3510-8051-B4C04F4A4E35"
+node_uuid_ensure
+run ensure >/dev/null
+check "a pair of its own, on a clone: kept" "$(fpr "$CRT")" "$own"
+rm -rf "${WORK:?}/certs"
+mkdir -p "$YUNETA_AGENT_CERT_DIR"
+make_other_pair "$CRT" "$KEY"
+run ensure >/dev/null
+check "a pair of its own: not bound" "$( [ ! -e "$UUID_MARK" ] && echo none)" "none"
+
+#
+#   No node uuid yet (a source node before the agent's first start): a pair,
+#   bound at the first ensure that finds the uuid
+#
+reset
+run ensure >/dev/null
+check "no node uuid: a pair" "$( [ -s "$KEY" ] && echo made)" "made"
+check "no node uuid: not bound" "$( [ ! -e "$UUID_MARK" ] && echo none)" "none"
+node_uuid_ensure
+run ensure >/dev/null
+check "the node uuid appears: bound" "$(cat "$UUID_MARK" 2>/dev/null)" "$(node_uuid)"
+
+#
+#   The lock: a .lock that cannot be opened is said, and the work is done
+#
+reset
+mkdir "${YUNETA_AGENT_CERT_DIR}/.lock"
+out="$(run ensure)"
+check "a .lock it cannot open: says it" "$(echo "$out" | grep -c 'WARNING: cannot open .*\.lock, going on without the lock')" "1"
+check "a .lock it cannot open: made all the same" "$(echo "$out" | grep -c 'certificate made')" "1"
 
 #
 #   Usage

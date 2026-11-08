@@ -401,7 +401,7 @@ and `ensure` logs a warning at each start.
 
 ```bash
 sudo /usr/libexec/yuneta/yuneta-node-uuid show
-# hardware: devicetree-serial gives the stored uuid from a placeholder, no identity: ensure replaces it with soc-serial -> 08741cd6-...
+# hardware: devicetree-serial gives the stored uuid from a placeholder, no identity: ensure replaces it with soc-serial -> c9936647-...
 sudo /usr/libexec/yuneta/yuneta-node-uuid ensure
 ```
 
@@ -518,9 +518,16 @@ The package's install stores nothing in a container or a chroot
 (a `RUN` step of a `docker build` too).
 Without systemd, the install also does not start the agents there: their
 start would store a uuid in the image. Start them in the container
-(`/etc/init.d/yuneta_agent start`); their first start makes the uuid. A
-container that starts the agents without their units or the SysV script
-runs `/usr/libexec/yuneta/yuneta-node-uuid ensure` (as root) first.
+(`/etc/init.d/yuneta_agent start`); their first start makes the uuid and the
+agent's pair. A container that starts the agents without their units or the
+SysV script runs both scripts first, as root and in this order: the pair is
+bound to the node uuid (see [the agent's own certificate](#agent-own-certificate)).
+
+```bash
+/usr/libexec/yuneta/yuneta-node-uuid ensure
+/usr/libexec/yuneta/yuneta-agent-cert ensure
+# then the agents, as yuneta
+```
 
 The agents and the yunos read the uuid when they start. If the uuid changes
 (a disk moved to other hardware, or `yuneta-node-uuid set <uuid>`), restart
@@ -544,6 +551,7 @@ both agent units, as a drop-in) and only what differs, so a second run says
 *"Nothing changed"* with the same uuid: that is also how to check any node,
 with the package or without it.
 
+(agent-own-certificate)=
 ### The agent's own certificate
 
 The agent serves `/yuneta/agent/certs/yuneta_agent.{crt,key}` on its secure
@@ -568,6 +576,31 @@ key the control center will show for a node (`spki_sha256`):
 ```bash
 openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
     | openssl pkey -pubin -outform DER | sha256sum
+```
+
+So a **copy of a node must not keep its key**: a disk or SD copied from a box
+that already started, a VM template, a `docker commit` of a started
+container. Every copy would present the same key, and any of them could
+claim the node of another. Each pair that `yuneta-agent-cert` makes is bound
+to the node uuid it was made for, written beside it in
+`/yuneta/agent/certs/yuneta_agent.uuid`. A copy gets its own node uuid on its
+first start (`yuneta-node-uuid`, which runs first), so `ensure` finds a pair
+made for another uuid (`state: cloned`): it makes a new pair, keeps a copy of
+the old files and logs a warning. Accept the copy's key in the control
+center as a new node's. A pair made by an earlier version has no
+`yuneta_agent.uuid`: `ensure` binds it to the node uuid it finds, so take
+the image after one `ensure` of this version. A pair that the script did not
+make (a certificate of your own CA) is never bound and never replaced.
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-agent-cert show
+# state:   cloned
+# node:    c05bfc5c-9f86-8e93-8678-5561a0bd954b
+# bound:   0204075f-4a9a-8ace-9696-0d92648cadcd
+#          a pair made for another node uuid (a cloned disk): run 'ensure'
+sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
+# WARNING: the agent's pair was made for node uuid 0204075f-..., and this
+# node is c05bfc5c-... (a cloned disk or image): a new pair ...
 ```
 
 ```bash

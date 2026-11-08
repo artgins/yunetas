@@ -14,8 +14,20 @@
 #       anew over a published key is still that key), or a key that is not
 #       the certificate's: a new pair is made here, a copy of the old files
 #       kept;
+#     - a pair made here on another node: a cloned disk, a VM template, an
+#       SD copied from a box that already started, a `docker commit` of a
+#       started container. Each pair made here is bound to the node uuid it
+#       was made for (yuneta-node-uuid, /yuneta/store/agent/uuid/uuid.json),
+#       written beside it in yuneta_agent.uuid; when the node uuid is no
+#       longer that one, the copy gets a new pair. The key IS the node to its
+#       control center (its login since 7.30.11): every clone with the same
+#       key could claim the node of any other. A pair made here by an
+#       earlier version (no yuneta_agent.uuid) is bound to the node uuid it
+#       finds the first time; with no node uuid yet, the binding waits for
+#       one. A copy made before that binding is not told apart;
 #     - any other pair is the node's own: kept, whatever made it (a node
-#       whose agent serves a certificate of its own CA keeps it).
+#       whose agent serves a certificate of its own CA keeps it, cloned or
+#       not).
 #
 #   The new pair: an EC P-256 key, a self-signed certificate valid from
 #   2000-01-01 (a box that starts with its clock behind does not take it for
@@ -33,13 +45,15 @@
 #   Usage:
 #       yuneta-agent-cert [ensure]    make the pair when it is missing or the
 #                                     public one; else keep it
-#       yuneta-agent-cert show        what is there, and whether it is the
-#                                     public pair
+#       yuneta-agent-cert show        what is there, whether it is the
+#                                     public pair, and the node uuid it is
+#                                     bound to
 #
 #   The agent reads the pair when it starts: after a new one, restart it
 #   (and whatever else serves the files). The old files are kept as
 #   <file>.replaced-<UTC time>[.<n>]. Environment, for tests:
-#   YUNETA_AGENT_CERT_DIR (default /yuneta/agent/certs) and
+#   YUNETA_AGENT_CERT_DIR (default /yuneta/agent/certs),
+#   YUNETA_NODE_UUID_DIR (default /yuneta/store/agent/uuid) and
 #   YUNETA_AGENT_CERT_OPENSSL (the openssl to run).
 #
 #   Copyright (c) 2026, ArtGins.
@@ -49,6 +63,9 @@ set -u
 CERT_DIR="${YUNETA_AGENT_CERT_DIR:-/yuneta/agent/certs}"
 CRT="${CERT_DIR}/yuneta_agent.crt"
 KEY="${CERT_DIR}/yuneta_agent.key"
+UUID_MARK="${CERT_DIR}/yuneta_agent.uuid"
+NODE_UUID_DIR="${YUNETA_NODE_UUID_DIR:-/yuneta/store/agent/uuid}"
+NODE_UUID=""
 OWNER="yuneta"
 NAME="yuneta_agent.yuneta.io"
 #   sha256 of the public key (SPKI, DER) of the keys published with Yuneta:
@@ -93,7 +110,47 @@ find_openssl() {
 }
 
 #
-#   What is there: missing | public | mismatch | own
+#   The node uuid (yuneta-node-uuid's file), or nothing when there is none yet
+#
+read_node_uuid() {
+    local f="${NODE_UUID_DIR}/uuid.json" u
+    if [ ! -e "$f" ]; then
+        return 0
+    fi
+    if [ ! -r "$f" ]; then
+        log_warning "cannot read $f: the pair is not bound to the node uuid"
+        return 0
+    fi
+    u="$(sed -n 's/.*"uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -n 1)"
+    if ! printf '%s' "$u" | grep -Eqx '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'; then
+        log_warning "$f holds no valid uuid: the pair is not bound to the node uuid"
+        return 0
+    fi
+    printf '%s' "$u"
+}
+
+#
+#   A pair made by this script: self-signed, with the subject it gives
+#
+made_here() {
+    local subject issuer
+    subject="$("$OPENSSL" x509 -in "$CRT" -noout -subject -nameopt RFC2253 2>/dev/null)"
+    issuer="$("$OPENSSL" x509 -in "$CRT" -noout -issuer -nameopt RFC2253 2>/dev/null)"
+    [ "${subject#subject=}" = "CN=${NAME},O=Yuneta" ] && [ "${issuer#issuer=}" = "${subject#subject=}" ]
+}
+
+bind_to_node_uuid() {
+    local tmp="${CERT_DIR}/.yuneta_agent.uuid.new.$$"
+    rm -f -- "$tmp"
+    if ! printf '%s\n' "$NODE_UUID" > "$tmp" || ! chmod 0644 "$tmp" || ! mv -f -- "$tmp" "$UUID_MARK"; then
+        rm -f -- "$tmp"
+        log_error "cannot write $UUID_MARK"
+        return 1
+    fi
+}
+
+#
+#   What is there: missing | public | mismatch | cloned | own
 #
 pair_state() {
     if [ ! -s "$CRT" ] || [ ! -s "$KEY" ]; then
@@ -120,6 +177,12 @@ pair_state() {
     if [ -z "$pub_crt" ] || [ "$pub_crt" != "$pub_key" ]; then
         echo mismatch
         return 0
+    fi
+    if [ -n "$NODE_UUID" ] && [ -e "$UUID_MARK" ] && made_here; then
+        if [ "$(head -n 1 "$UUID_MARK" 2>/dev/null)" != "$NODE_UUID" ]; then
+            echo cloned
+            return 0
+        fi
     fi
     echo own
 }
@@ -205,6 +268,9 @@ make_pair() {
         log_error "cannot put the new pair in $CERT_DIR"
         return 1
     fi
+    if [ -n "$NODE_UUID" ]; then
+        bind_to_node_uuid || return 1    # Error already logged
+    fi
     return 0
 }
 
@@ -213,15 +279,21 @@ cmd_ensure() {
     state="$(pair_state)"
     case "$state" in
         own)
+            if [ -n "$NODE_UUID" ] && [ ! -e "$UUID_MARK" ] && made_here; then
+                bind_to_node_uuid || return 1    # Error already logged
+                log_info "the agent's certificate bound to node uuid $NODE_UUID"
+            fi
             return 0
             ;;
-        missing|public|mismatch)
+        missing|public|mismatch|cloned)
             ;;
         *)
             log_error "unknown state '$state'"
             return 1
             ;;
     esac
+    local was
+    was="$(head -n 1 "$UUID_MARK" 2>/dev/null)"
     if ! make_pair; then
         return 1    # Error already logged
     fi
@@ -233,6 +305,9 @@ cmd_ensure() {
             ;;
         mismatch)
             log_warning "the agent's key did not match its certificate: a new pair (sha256 $fpr), the old files kept"
+            ;;
+        cloned)
+            log_warning "the agent's pair was made for node uuid $was, and this node is $NODE_UUID (a cloned disk or image): a new pair (sha256 $fpr), the old files kept. Restart the agent, and accept this node's new key in its control center"
             ;;
         missing)
             log_info "this node's agent certificate made (sha256 $fpr)"
@@ -246,12 +321,17 @@ cmd_show() {
     state="$(pair_state)"
     echo "dir:     $CERT_DIR"
     echo "state:   $state"
+    echo "node:    ${NODE_UUID:-(no node uuid yet)}"
+    echo "bound:   $(head -n 1 "$UUID_MARK" 2>/dev/null || echo '(none)')"
     if [ -s "$CRT" ]; then
         "$OPENSSL" x509 -in "$CRT" -noout -subject -dates -fingerprint -sha256 2>/dev/null \
             | sed 's/^/         /'
     fi
     if [ "$state" = "public" ]; then
         echo "         a key published with Yuneta: run 'ensure'"
+    fi
+    if [ "$state" = "cloned" ]; then
+        echo "         a pair made for another node uuid (a cloned disk): run 'ensure'"
     fi
 }
 
@@ -273,7 +353,8 @@ if [ "$(id -u)" = "0" ]; then
         exit 1
     fi
     exec setpriv --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
-        env YUNETA_AGENT_CERT_DIR="$CERT_DIR" YUNETA_AGENT_CERT_OPENSSL="${YUNETA_AGENT_CERT_OPENSSL:-}" \
+        env YUNETA_AGENT_CERT_DIR="$CERT_DIR" YUNETA_NODE_UUID_DIR="$NODE_UUID_DIR" \
+        YUNETA_AGENT_CERT_OPENSSL="${YUNETA_AGENT_CERT_OPENSSL:-}" \
         "$SELF" "$CMD"
 fi
 
@@ -290,11 +371,15 @@ fi
 #
 #   One writer at a time: the agent units, the postinst, a build
 #
-if command -v flock >/dev/null 2>&1 && { exec 9>"${CERT_DIR}/.lock"; } 2>/dev/null; then
-    if ! flock -w 10 9; then
-        log_warning "could not lock ${CERT_DIR}/.lock, going on"
-    fi
+if ! command -v flock >/dev/null 2>&1; then
+    log_warning "no flock, going on without the lock"
+elif ! { exec 9>"${CERT_DIR}/.lock"; } 2>/dev/null; then
+    log_warning "cannot open ${CERT_DIR}/.lock, going on without the lock"
+elif ! flock -w 10 9; then
+    log_warning "could not lock ${CERT_DIR}/.lock, going on"
 fi
+
+NODE_UUID="$(read_node_uuid)"
 
 case "$CMD" in
     ensure)
