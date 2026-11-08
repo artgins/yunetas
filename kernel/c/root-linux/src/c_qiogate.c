@@ -51,6 +51,14 @@
  */
 #define ALERT_EMAIL_MS  (60*1000)
 
+/*
+ *  A queue that cannot be opened at the start is tried again on the timer,
+ *  the wait doubling from QUEUE_RETRY_FIRST_MS up to QUEUE_RETRY_MAX_MS
+ *  (queue_not_ready()). The gate refuses messages meanwhile.
+ */
+#define QUEUE_RETRY_FIRST_MS    1000
+#define QUEUE_RETRY_MAX_MS      60000
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -59,6 +67,9 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int open_queue(hgobj gobj);
+PRIVATE void queue_not_ready(hgobj gobj, BOOL retry);
+PRIVATE void open_queue_again(hgobj gobj);
+PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg);
 PRIVATE int close_queue(hgobj gobj);
 PRIVATE void raise_timeout_poll_to_floor(hgobj gobj);
 PRIVATE BOOL queue_refuses_messages(hgobj gobj);
@@ -128,7 +139,8 @@ SDATA (DTP_STRING,      "alert_to",         SDF_WR|SDF_PERSIST, "",         "Ale
 
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   "0",        "Messages in the persistent queue, not acked yet (a gauge)"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   "0",        "Messages sent and waiting for their ack (a gauge)"),
-SDATA (DTP_INTEGER,     "dropped_msgs",     SDF_RD|SDF_STATS,   "0",        "Messages refused because the queue could not save them (a full disk), since the yuno started"),
+SDATA (DTP_INTEGER,     "dropped_msgs",     SDF_RD|SDF_STATS,   "0",        "Messages refused because the queue could not save them (a full disk), or could not be opened (queue_ready false), since the yuno started"),
+SDATA (DTP_BOOLEAN,     "queue_ready",      SDF_RD|SDF_STATS,   0,          "The persistent queue is open. False while stopped, and when it could not be opened at the start: the gate refuses messages (dropped_msgs), says it with ONE ERROR, and tries to open it again (from 1 s up to each 60 s); the yuno goes on"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -183,6 +195,8 @@ typedef struct _PRIVATE_DATA {
 
     json_int_t alert_level;     // the last level alerted: queue size / alert_queue_size
     uint64_t t_alert_email;
+
+    json_int_t queue_retry_ms;  // the wait of the next try to open the queue; 0: open, or no try armed
 
 } PRIVATE_DATA;
 
@@ -286,9 +300,14 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Output queue
      *--------------------------------*/
-    open_queue(gobj);
-    trq_load(priv->trq_msgs);
-    priv->alert_level = queue_alert_level(gobj);
+    if(open_queue(gobj) < 0) {
+        queue_not_ready(gobj, FALSE);   // its config: nothing to wait for
+    } else if(!priv->trq_msgs) {
+        queue_not_ready(gobj, TRUE);
+    } else {
+        trq_load(priv->trq_msgs);
+        priv->alert_level = queue_alert_level(gobj);
+    }
 
     return 0;
 }
@@ -301,6 +320,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    priv->queue_retry_ms = 0;   // a stop takes back the tries of its start
 
     close_queue(gobj);
 
@@ -329,6 +349,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "dropped_msgs")==0) {
         v.found = 1;
         v.v.i = priv->dropped_msgs;
+    } else if(strcmp(name, "queue_ready")==0) {
+        v.found = 1;
+        v.v.b = priv->trq_msgs != NULL;
     }
     return v;
 }
@@ -688,11 +711,94 @@ PRIVATE int close_queue(hgobj gobj)
     /*----------------------------------*
      *      Close Timeranger queues
      *----------------------------------*/
-    gobj_stop(priv->gobj_tranger_queues);
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
+    if(priv->gobj_tranger_queues) {     // none when the config of the queue is bad
+        gobj_stop(priv->gobj_tranger_queues);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
+    }
     priv->tranger_queues = 0;
 
     return 0;
+}
+
+/***************************************************************************
+ *  The queue could not be opened at the start: the gate goes on without
+ *  it, and refuses the messages (dropped_msgs) until it opens. Up to
+ *  7.30.17 the first message aborted the yuno ("trq_msgs NULL"), and its
+ *  watcher launched it again into the same failure. Said ONCE, here; each
+ *  try still writes the causes of timeranger2.
+ *
+ *  `retry` (the store could not be opened: a path that cannot be made, a
+ *  disk, a permission): tried again at the next timeout of the timer, the
+ *  wait doubling from QUEUE_RETRY_FIRST_MS up to QUEUE_RETRY_MAX_MS. One
+ *  INFO when it opens (open_queue_again()). Not `retry` (an empty
+ *  tranger_path, tranger_database or topic_name, read only): nothing to
+ *  wait for.
+ ***************************************************************************/
+PRIVATE void queue_not_ready(hgobj gobj, BOOL retry)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->queue_retry_ms == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_QUEUE,
+            "msg",          "%s", retry?
+                "Queue cannot be opened: the gate refuses messages, trying again" :
+                "Queue cannot be opened, its config is bad: the gate refuses messages",
+            "path",         "%s", gobj_read_str_attr(gobj, "tranger_path"),
+            "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
+            "topic_name",   "%s", gobj_read_str_attr(gobj, "topic_name"),
+            NULL
+        );
+    }
+    if(!retry) {
+        return;
+    }
+    if(priv->queue_retry_ms == 0) {
+        priv->queue_retry_ms = QUEUE_RETRY_FIRST_MS;
+    } else {
+        priv->queue_retry_ms *= 2;
+        if(priv->queue_retry_ms > QUEUE_RETRY_MAX_MS) {
+            priv->queue_retry_ms = QUEUE_RETRY_MAX_MS;
+        }
+    }
+    set_timeout(priv->timer, priv->queue_retry_ms);
+}
+
+/***************************************************************************
+ *  A try to open the queue (queue_not_ready()). Opened: what it holds is
+ *  loaded, and sent if the bottom side is open, as at the start.
+ ***************************************************************************/
+PRIVATE void open_queue_again(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    close_queue(gobj);  // what the failed open left: its C_TRANGER
+    if(open_queue(gobj) < 0 || !priv->trq_msgs) {
+        queue_not_ready(gobj, TRUE);    // Error already logged: said once, tried again later
+        return;
+    }
+    priv->queue_retry_ms = 0;
+    trq_load(priv->trq_msgs);
+    priv->alert_level = queue_alert_level(gobj);
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_QUEUE,
+        "msg",          "%s", "Queue opened: the gate accepts messages",
+        "path",         "%s", gobj_read_str_attr(gobj, "tranger_path"),
+        "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
+        "msgs_in_queue","%ld", (long)trq_size(priv->trq_msgs),
+        NULL
+    );
+
+    if(priv->bottom_side_opened) {
+        send_batch_messages(gobj, 0);
+        set_timeout(priv->timer, priv->timeout_poll);
+        if(priv->timeout_backup > 0) {
+            priv->t_backup = start_sectimer(priv->timeout_backup);
+        }
+    }
 }
 
 /***************************************************************************
@@ -741,13 +847,8 @@ PRIVATE q_msg_t *enqueue_message(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(!priv->trq_msgs) {
-        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "trq_msgs NULL",
-            NULL
-        );
-        return 0;
+        priv->dropped_msgs++;
+        return 0;   // Logged once, when the queue could not be opened (queue_not_ready())
     }
 
     if(queue_refuses_messages(gobj)) {
@@ -756,13 +857,22 @@ PRIVATE q_msg_t *enqueue_message(
         return 0;   // Logged once, when the queue started to refuse them
     }
 
+    /*
+     *  The queue keeps JSON, and frees it with json_decref(): a binary field
+     *  (a gbuffer) of the message goes in as its content (kw_serialize(),
+     *  which gives its reference back), in a copy, so the sender's kw is not
+     *  changed. Up to 7.30.17 the copy increfed the gbuffer and nobody gave
+     *  it back (one leaked per message), and its address was saved as a
+     *  number.
+     */
     json_t *kw_clean_clone;
-
     if(!priv->with_metadata) {
         kw_clean_clone = kw_filter_metadata(gobj, kw_incref(kw));
     } else {
-        kw_clean_clone = kw_incref(kw);
+        kw_clean_clone = kw_duplicate(gobj, kw);
     }
+    kw_serialize(gobj, kw_clean_clone);
+
     q_msg_t *msg = trq_append(
         priv->trq_msgs,
         kw_clean_clone
@@ -991,6 +1101,10 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!priv->trq_msgs) {
+        return 0;   // the queue is not open: nothing to send (said once, queue_not_ready())
+    }
+
     /*------------------------------*
      *      Sending one message
      *------------------------------*/
@@ -1201,7 +1315,9 @@ PRIVATE int process_ack(
         );
     }
 
-    dequeue_msg(gobj, __t__, rowid, result);
+    if(priv->trq_msgs) {
+        dequeue_msg(gobj, __t__, rowid, result);
+    }   // else the queue is not open, nothing was sent from it (said once, queue_not_ready())
 
     JSON_DECREF(jn_ack_message)
 
@@ -1230,7 +1346,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->gobj_bottom_side) {
+    if(src == priv->gobj_bottom_side && !priv->trq_msgs) {
+        priv->bottom_side_opened = TRUE;    // the timer is the queue's try; its open sends (open_queue_again())
+
+    } else if(src == priv->gobj_bottom_side) {
         priv->bottom_side_opened = TRUE;
         send_batch_messages(gobj, 0);  // On open send or resend
         set_timeout(priv->timer, priv->timeout_poll);
@@ -1262,7 +1381,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(src == priv->gobj_bottom_side) {
-        clear_timeout(priv->timer);     // Active only when bottom side is open
+        if(priv->trq_msgs) {
+            clear_timeout(priv->timer);     // Active only when bottom side is open, or the queue is not
+        }
         priv->bottom_side_opened = FALSE;
         reset_soft_queue(gobj); // Resetea los timeout_ack y los TRQ_MSG_PENDING
     } else {
@@ -1333,6 +1454,14 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->trq_msgs) {
+        if(priv->queue_retry_ms > 0) {
+            open_queue_again(gobj);
+        }
+        KW_DECREF(kw);
+        return 0;
+    }
 
     if(priv->bottom_side_opened) {
         send_batch_messages(gobj, 0); // Resend by periodic timeout

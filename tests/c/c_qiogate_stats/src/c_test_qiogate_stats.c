@@ -31,11 +31,24 @@
  *            gate of the broadcast takes them. With 0 it accepts them again,
  *            with one INFO. Up to 7.28.3 a message the queue could not save
  *            aborted the yuno
+ *          - A gate whose queue cannot be opened at its start (its path is
+ *            under a regular file) goes on: ONE ERROR, queue_ready false,
+ *            the messages refused (-1) and counted in dropped_msgs, and the
+ *            open tried again on its timer. The file removed, the next try
+ *            opens the queue (one INFO) and the next message goes in. Up to
+ *            7.30.17 the first message aborted the yuno ("trq_msgs NULL")
+ *          - A message that carries a gbuffer is queued without keeping a
+ *            reference of it: the queue keeps json, and frees it with
+ *            json_decref(). Up to 7.30.17 the copy for the queue increfed
+ *            the gbuffer and nobody gave it back: one gbuffer leaked per
+ *            message
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "c_test_qiogate_stats.h"
 
@@ -44,6 +57,7 @@
  ***************************************************************************/
 #define N_MSGS      5
 #define N_REFUSED   3
+#define N_HELD      2
 
 /***************************************************************************
  *              Structures
@@ -83,6 +97,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_output_side;
+    hgobj gobj_q3;
     int phase;
 } PRIVATE_DATA;
 
@@ -337,7 +352,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             break;
 
-        default:
+        case 2:
             {
                 hgobj q1 = gobj_find_service("output-q1", TRUE);
                 int ret = gobj_send_event(
@@ -354,6 +369,97 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 );
 
                 gobj_stop_tree(priv->gobj_output_side);
+
+                /*
+                 *  A gate whose queue cannot be opened: its path is under a
+                 *  regular file
+                 */
+                int fd = open(QUEUES_PATH "/blocked", O_CREAT|O_WRONLY, 0660);
+                check(gobj, "the file that blocks the path of the queue", fd >= 0);
+                if(fd >= 0) {
+                    close(fd);
+                }
+                priv->gobj_q3 = gobj_create_service(
+                    "output-q3",
+                    C_QIOGATE,
+                    json_pack("{s:s, s:s, s:s, s:s, s:s}",
+                        "tranger_path", QUEUES_PATH "/blocked/q3",
+                        "tranger_database", "q3",
+                        "topic_name", "msgs",
+                        "tkey", "tm",
+                        "system_flag", "sf_string_key"
+                    ),
+                    gobj
+                );
+                gobj_start(priv->gobj_q3);
+                check(gobj, "a queue that cannot be opened: queue_ready false",
+                    !gobj_read_bool_attr(priv->gobj_q3, "queue_ready")
+                );
+                int refused = 0;
+                for(int i = 0; i < N_HELD; i++) {
+                    if(gobj_send_event(
+                        priv->gobj_q3,
+                        EV_SEND_MESSAGE,
+                        json_pack("{s:s, s:i}", "id", "1", "n", i),
+                        gobj
+                    ) < 0) {
+                        refused++;
+                    }
+                }
+                check(gobj, "its messages are refused, and the yuno goes on", refused == N_HELD);
+                check(gobj, "and counted in dropped_msgs",
+                    gobj_read_integer_attr(priv->gobj_q3, "dropped_msgs") == N_HELD
+                );
+                unlink(QUEUES_PATH "/blocked");
+                set_timeout(priv->timer, 2000);     // its try at 1 s, ample on a busy box; the next at 3 s
+            }
+            break;
+
+        default:
+            {
+                check(gobj, "the try of the gate opens the queue: queue_ready true",
+                    gobj_read_bool_attr(priv->gobj_q3, "queue_ready")
+                );
+                int ret = gobj_send_event(
+                    priv->gobj_q3,
+                    EV_SEND_MESSAGE,
+                    json_pack("{s:s, s:i}", "id", "1", "n", N_HELD),
+                    gobj
+                );
+                check(gobj, "and takes the next message",
+                    ret == 0 && gobj_read_integer_attr(priv->gobj_q3, "msgs_in_queue") == 1
+                );
+
+                gbuffer_t *gbuf = gbuffer_create(32, 32);
+                gbuffer_append_string(gbuf, "carried along");
+                gbuffer_incref(gbuf);   // the test's own, to read its count after
+                ret = gobj_send_event(
+                    priv->gobj_q3,
+                    EV_SEND_MESSAGE,
+                    json_pack("{s:s, s:i, s:I}",
+                        "id", "1",
+                        "n", N_HELD + 1,
+                        "gbuffer", (json_int_t)(uintptr_t)gbuf
+                    ),
+                    gobj
+                );
+                check(gobj, "a message with a gbuffer is queued",
+                    ret == 0 && gobj_read_integer_attr(priv->gobj_q3, "msgs_in_queue") == 2
+                );
+                check(gobj, "and the queue keeps no reference of its gbuffer",
+                    gbuf->refcount == 1
+                );
+                if(gbuf->refcount != 1) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "TEST: gbuffer references",
+                        "refcount",     "%d", (int)gbuf->refcount,
+                        NULL
+                    );
+                }
+                GBUFFER_DECREF(gbuf)
+                gobj_stop(priv->gobj_q3);
                 set_yuno_must_die();
             }
             break;

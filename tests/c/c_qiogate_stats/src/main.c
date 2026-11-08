@@ -11,7 +11,6 @@
 #include <yunetas.h>
 #include "c_test_qiogate_stats.h"
 
-#define QUEUES_PATH     "/tmp/test_c_qiogate_stats"
 
 /***************************************************************************
  *                      Names
@@ -210,13 +209,32 @@ static int register_yuno_and_more(void)
      *  The warnings and errors, in order: the floor of timeout_poll, for
      *  each C_QIOGATE (-5 and 0), and for the 0 written once started; then
      *  the gate that refuses messages (its INFO when it accepts them again
-     *  is not a warning nor an error: not in the list)
+     *  is not a warning nor an error: not in the list); then the queue that
+     *  cannot be opened: the causes of timeranger2, the ONE error of the
+     *  gate, and at its try the stop of the store that never started (its
+     *  INFO when it opens is not in the list either)
      */
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, "
+        "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, "
+        "{s:s}, "
+        "{s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "timeout_poll 0 or less never polls, the floor is used",
         "msg", "timeout_poll 0 or less never polls, the floor is used",
         "msg", "timeout_poll 0 or less never polls, the floor is used",
-        "msg", "Queue refuses new messages"
+        "msg", "Queue refuses new messages",
+        "msg", "Not a directory: the path exists and is not a directory",
+        "msg", "Not a directory: the path exists and is not a directory",
+        "msg", "Cannot create directory",
+        "msg", "Cannot load json, file not exist",
+        "msg", "Cannot create __timeranger2__.json",
+        "msg", "kw must be list or dict",
+        "msg", "path NOT FOUND, default value returned",
+        "msg", "Cannot open TimeRanger topic. Not found and no master",
+        "msg", "Queue cannot be opened: the gate refuses messages, trying again",
+        "msg", "kw must be list or dict",
+        "msg", "path NOT FOUND, default value returned",
+        "msg", "kw must be list or dict",
+        "msg", "path NOT FOUND, default value returned"
     );
 
     set_expected_results( // Check that no logs happen

@@ -38,6 +38,27 @@ again (one INFO), and the next message goes into its queue. Up to 7.28.3 the
 gate had no such threshold, and a message its queue could not save aborted
 the yuno (red: the messages go in, and the checks fail).
 
+Then a third gate, `output-q3`, is created with its `tranger_path` under a
+regular file (`/tmp/test_c_qiogate_stats/blocked`), so its queue cannot be
+opened at the start:
+
+- the causes of timeranger2, and ONE ERROR of the gate, *"Queue cannot be
+  opened: the gate refuses messages, trying again"*; `queue_ready` false;
+- 2 messages are refused (`-1`) and counted in `dropped_msgs`, with no log;
+- the file is removed, and the next try of the gate (1 s later) opens the
+  queue (one INFO, *"Queue opened: the gate accepts messages"*, after the
+  stop of the store that never started, two ERROR pairs of timeranger2);
+  `queue_ready` true, and the next message goes in.
+
+Up to 7.30.17 the first message aborted the yuno (CRITICAL *"trq_msgs
+NULL"*; red: *"Subprocess aborted"*).
+
+Last, a message that carries a `gbuffer` is queued: the gbuffer must keep
+only the test's own reference (`refcount` 1). Up to 7.30.17 the copy for the
+queue increfed it and nobody gave it back, because the queue frees its json
+with `json_decref()` (red: `refcount` 2, and *"system memory not free"* at
+the end).
+
 ## Run
 
 ```bash
