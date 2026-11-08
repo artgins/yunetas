@@ -1250,6 +1250,26 @@ Simple resource persistence — stores each resource as a flat JSON file.
 | `service` | `string` | Service name. |
 | `database` | `string` | Database name. |
 
+### Resource names
+
+A resource of a persistent store is the file `<name>.json` of
+`store/resources/<service>/<yuno role^name>/<database>/`, and its name is
+usually a peer's: an MQTT gate keeps its clients by client id. A name is taken
+only when it is ONE file name: no `/`, no leading `.`, no `..`, and
+`<name>.json` within `NAME_MAX`. Each other name is refused with one WARNING
+(*"Resource name refused: not one file name (a '/', a leading '.', '..', too
+long)"*), and [`gobj_create_resource()`](#gobj_create_resource) answers NULL.
+Up to 7.30.16 such a resource was made in memory, every save of it logged an
+ERROR (three per connect of an MQTT client with such an id), and `.hidden`
+was taken and wrote `.hidden.json`. `C_PROT_MQTT` answers a client id its store
+refuses with the CONNACK *"Client identifier not valid"* (MQTT 5, `0x85`;
+3.1.1: identifier rejected):
+
+```C
+json_t *client = gobj_create_resource(gobj_mqtt_clients, "dev-0042", kw_client, 0);  // dev-0042.json
+json_t *none = gobj_create_resource(gobj_mqtt_clients, ".hidden", kw_other, 0);       // NULL, a WARNING
+```
+
 ---
 
 (gclass-c-assets)=

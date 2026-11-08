@@ -5665,12 +5665,16 @@ PRIVATE int connect_on_authorised(
             );
             client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, kw_client, 0);
             if(!client) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "Mqtt auth: cannot create client",
-                    NULL
-                );
+                /*
+                 *  Error already logged by the store: a client id it cannot
+                 *  keep (C_RESOURCE2: '/', a leading '.') is the peer's, a
+                 *  WARNING. The client is told its id was refused.
+                 */
+                if(priv->protocol_version == mosq_p_mqtt5) {
+                    send_connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
+                } else {
+                    send_connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+                }
                 JSON_DECREF(connack_props);
                 return -1;
             }

@@ -242,6 +242,32 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
         return 0;
     }
 
+    /*
+     *  The name of a resource of a persistent store is a file name, and it
+     *  is usually a peer's (an MQTT client id, a username): the key rule of
+     *  timeranger2, one component, no '/', no leading '.' (a hidden file:
+     *  ".hidden" wrote "clients/.hidden.json"), no ".." (which
+     *  build_resource_path() refuses), the file name within NAME_MAX.
+     *  Refused here, ONE warning: up to 7.30.16 the resource was
+     *  made anyway, and each save of it logged an ERROR.
+     */
+    if(priv->persistent &&
+            (strchr(resource, '/') || resource[0] == '.' || strstr(resource, "..") ||
+             strlen(resource) + sizeof(".json") - 1 > NAME_MAX)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Resource name refused: not one file name (a '/', a leading '.', '..', too long)",
+            "service",      "%s", priv->service,
+            "database",     "%s", priv->database,
+            "resource",     "%.64s", resource,
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+
     json_t *jn_resource = get_resource_record(priv->db_resources, resource);
     if(jn_resource) {
         char path[PATH_MAX];
@@ -635,11 +661,12 @@ PRIVATE int build_resource_path(hgobj gobj, char *bf, int bflen, const char *res
      *  build_path() clamps ".." at path_database, so it could not escape
      *  it, but it would quietly name another file: refused and said.
      */
-    if(empty_string(resource) || strchr(resource, '/') || strstr(resource, "..")) {
+    if(empty_string(resource) || strchr(resource, '/') || strstr(resource, "..") ||
+            resource[0] == '.') {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "Invalid resource name: '/' and '..' not allowed",
+            "msg",          "%s", "Invalid resource name: '/', '..' and a leading '.' not allowed",
             "resource",     "%s", resource?resource:"",
             NULL
         );
