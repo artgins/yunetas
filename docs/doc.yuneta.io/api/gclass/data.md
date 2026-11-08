@@ -1255,8 +1255,8 @@ Simple resource persistence — stores each resource as a flat JSON file.
 A resource of a persistent store is the file `<name>.json` of
 `store/resources/<service>/<yuno role^name>/<database>/`, and its name is
 usually a peer's: an MQTT gate keeps its clients by client id. A name is taken
-only when it is ONE file name: no `/`, no leading `.`, no `..`, and
-`<name>.json` within `NAME_MAX`. Each other name is refused with one WARNING
+only when it is ONE file name: no `/`, no leading `.`, no `..` anywhere in it
+(`a..b` is refused too), and `<name>.json` within `NAME_MAX`. Each other name is refused with one WARNING
 (*"Resource name refused: not one file name (a '/', a leading '.', '..', too
 long)"*), and [`gobj_create_resource()`](#gobj_create_resource) answers NULL.
 Up to 7.30.16 such a resource was made in memory, every save of it logged an
@@ -1269,6 +1269,21 @@ refuses with the CONNACK *"Client identifier not valid"* (MQTT 5, `0x85`;
 json_t *client = gobj_create_resource(gobj_mqtt_clients, "dev-0042", kw_client, 0);  // dev-0042.json
 json_t *none = gobj_create_resource(gobj_mqtt_clients, ".hidden", kw_other, 0);       // NULL, a WARNING
 ```
+
+At its start a persistent store loads every file of its directory that ENDS
+in `.json`, under its name less that last `.json`. A name may hold `.json`
+itself, and comes back as it was saved:
+
+```C
+gobj_create_resource(gobj_mqtt_clients, "x.jsonz", kw_x, 0);         // x.jsonz.json -> "x.jsonz"
+gobj_create_resource(gobj_mqtt_clients, "victim.json", kw_v, 0);     // victim.json.json -> "victim.json"
+// "x.json.bak" in the directory is no resource: it is not loaded
+```
+
+Up to 7.30.17 the name was cut at its FIRST `.json` and any file holding
+`.json` was loaded: after a restart `x.jsonz` came back as `x`, over the
+record of `x`, and `victim.json` and `victim` competed for one name by the
+order of the directory.
 
 ---
 

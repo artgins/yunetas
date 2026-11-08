@@ -17,6 +17,14 @@
  *          file is written for any of them. Then "client-1" is created and
  *          saved: its file is the only one in the directory.
  *
+ *          A reload (a stop and a start of the store) takes each file
+ *          back under the name it was saved with: "x", "x.jsonz",
+ *          "victim" and "victim.json" are each their own record, and a
+ *          file not ending in ".json" ("other.json.bak") is no resource.
+ *          Up to 7.30.17 the name was cut at its FIRST ".json": "x.jsonz"
+ *          came back as "x" with the record of one of the two, and
+ *          "victim.json" competed with "victim" by the order of readdir().
+ *
  *          Up to 7.30.16 every one of them was made in memory, and every
  *          save of it logged an ERROR (three per connect of an MQTT client
  *          with such an id); ".hidden" was accepted and wrote
@@ -43,6 +51,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int dir_of_store(hgobj gobj, char *dir, size_t dirsize);
 PRIVATE int files_of_store(hgobj gobj, char *bf, size_t bfsize);
 
 /***************************************************************************
@@ -183,16 +192,27 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
+ *  The directory of the store
+ ***************************************************************************/
+PRIVATE int dir_of_store(hgobj gobj, char *dir, size_t dirsize)
+{
+    char path_service[PATH_MAX];
+    if(!build_path(path_service, sizeof(path_service),
+            STORE_SERVICE, gobj_yuno_role_plus_name(), STORE_DATABASE, NULL) ||
+            !yuneta_store_dir(dir, dirsize, "resources", path_service, FALSE)) {
+        return -1;  // Error already logged
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  The names of the files of the store, sorted, joined by a space
  ***************************************************************************/
 PRIVATE int files_of_store(hgobj gobj, char *bf, size_t bfsize)
 {
-    char path_service[PATH_MAX];
     char dir[PATH_MAX];
     bf[0] = 0;
-    if(!build_path(path_service, sizeof(path_service),
-            STORE_SERVICE, gobj_yuno_role_plus_name(), STORE_DATABASE, NULL) ||
-            !yuneta_store_dir(dir, sizeof(dir), "resources", path_service, FALSE)) {
+    if(dir_of_store(gobj, dir, sizeof(dir)) < 0) {
         return -1;  // Error already logged
     }
     json_t *names = json_array();
@@ -287,6 +307,63 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         bad++;
+    }
+
+    /*
+     *  A reload takes each file back under the name it was saved with:
+     *  `<name>.json` less its LAST ".json". A file that does not end in
+     *  ".json" is not a resource.
+     */
+    const char *dotted[] = {"x", "x.jsonz", "victim", "victim.json", NULL};
+    for(int i = 0; dotted[i]; i++) {
+        gobj_create_resource(
+            priv->gobj_store,
+            dotted[i],
+            json_pack("{s:s}", "id", dotted[i]),
+            0
+        );
+    }
+    char dir[PATH_MAX];
+    char stray[PATH_MAX];
+    if(dir_of_store(gobj, dir, sizeof(dir)) < 0 ||
+            !build_path(stray, sizeof(stray), dir, "other.json.bak", NULL)) {
+        bad++;  // Error already logged
+    } else {
+        json_t *jn_stray = json_pack("{s:s}", "id", "other.json.bak");
+        json_dump_file(jn_stray, stray, 0);
+        JSON_DECREF(jn_stray)
+    }
+
+    gobj_stop(priv->gobj_store);
+    gobj_start(priv->gobj_store);
+
+    for(int i = 0; dotted[i]; i++) {
+        json_t *kept = gobj_get_resource(priv->gobj_store, dotted[i], 0, 0);
+        const char *id = kept? kw_get_str(gobj, kept, "id", "", 0) : "";
+        if(strcmp(id, dotted[i]) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a reload took a resource under another name",
+                "resource",     "%s", dotted[i],
+                "id",           "%s", id,
+                NULL
+            );
+            bad++;
+        }
+    }
+    const char *not_resources[] = {"other", "other.json.bak", "other.json", NULL};
+    for(int i = 0; not_resources[i]; i++) {
+        if(gobj_get_resource(priv->gobj_store, not_resources[i], 0, 0)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "TEST: a reload took a file that is no resource",
+                "resource",     "%s", not_resources[i],
+                NULL
+            );
+            bad++;
+        }
     }
 
     if(!bad) {

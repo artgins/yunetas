@@ -600,9 +600,15 @@ PRIVATE BOOL load_resource_cb(
     json_error_t error;
     json_t *record = json_load_file(fullpath, flags, &error);
     if(record) {
-        char *p = strstr(name, ".json");
-        if(p) {
-            *p = 0;
+        /*
+         *  The file of a resource is `<resource>.json` (build_resource_path)
+         *  and the name may hold ".json" itself: only the LAST one goes. Cut
+         *  at the first, "x.jsonz" came back as "x", over another's record.
+         */
+        size_t len = strlen(name);
+        if(len > sizeof(".json") - 1 &&
+                strcmp(name + len - (sizeof(".json") - 1), ".json") == 0) {
+            name[len - (sizeof(".json") - 1)] = 0;
         }
         json_object_set_new(priv->db_resources, name, record);
     } else {
@@ -624,7 +630,7 @@ PRIVATE int load_persistent_resources(hgobj gobj)
     return walk_dir_tree(
         gobj,
         priv->path_database,
-        ".*\\.json",
+        "\\.json$",    // a resource's file ENDS in .json ("x.json.bak" is none)
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         load_resource_cb,
         gobj
