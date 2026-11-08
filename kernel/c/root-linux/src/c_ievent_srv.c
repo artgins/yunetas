@@ -3015,6 +3015,48 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
+    /*----------------------------------------*
+     *  Check AUTHZ: cross-service
+     *  As the stats: a named "service" outside the services this channel
+     *  is authorized to reach is denied. Up to 7.30.14 a command was not
+     *  checked, and a session authorized for one service reached any
+     *  other of the yuno through it (__yuno__: write-attr, shutdown).
+     *----------------------------------------*/
+    if(!is_service_authorized(gobj, gobj_service)) {
+        json_int_t suppressed = 0;
+        if(peer_log_allowed(gobj, PEER_LOG_UNROUTED, &suppressed)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Not authorized to request commands of a different service",
+                "service",      "%.128s", service,
+                "event",        "%s", event,
+                "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                "suppressed",   "%ld", (long)suppressed,
+                NULL
+            );
+        }
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Not authorized to request commands of service: '%.*s'",
+                utf8_prefix_len(service, 60), service),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        kw_response = msg_iev_set_back_metadata(
+            gobj,
+            kw,             // owned, kw request, used to extract ONLY __md_iev__
+            kw_response,    // like owned, is returned!, created if null, the body of answer message
+            TRUE            // reverse_dst
+        );
+
+        return send_static_iev(gobj,
+            EV_MT_COMMAND_ANSWER,
+            kw_response,
+            src
+        );
+    }
 
     /*------------------------------------*
      *   Dispatch command
@@ -3219,6 +3261,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_session[] = {
         {EV_ON_MESSAGE,         ac_on_message,          0},
+        {EV_TIMEOUT,            ac_timeout_wait_idGot,  0}, // a card refused in the session
         {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,   0},
         {EV_MT_COMMAND,         ac_mt_command,          0},
         {EV_MT_STATS,           ac_mt_stats,            0},

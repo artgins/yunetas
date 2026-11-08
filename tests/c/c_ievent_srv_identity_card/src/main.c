@@ -99,7 +99,8 @@ PRIVATE char variable_config[]= "\
                             'name': 'input-(^^__range__^^)',        \n\
                             'gclass': 'C_IEVENT_SRV',               \n\
                             'kw': {                                 \n\
-                                'max_pre_session_frame': 1048576    \n\
+                                'max_pre_session_frame': 1048576,   \n\
+                                'timeout_idgot': 300                \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -157,11 +158,18 @@ time_measure_t time_measure;
 
 /***************************************************************************
  *  Authentication without a C_AUTHZ: the user is the `jwt` of the card,
- *  and it may reach the `tester`.
+ *  and it may reach the `tester`. The jwt `tester-refused` is refused.
  ***************************************************************************/
 static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
     const char *username = kw_get_str(gobj_service, kw, "jwt", "", 0);
+    if(strcmp(username, "tester-refused")==0) {
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s}",
+            "result", -1,
+            "comment", "test authentication refused"
+        );
+    }
     gobj_write_str_attr(src, "__username__", username);
 
     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:{s:[]}}",

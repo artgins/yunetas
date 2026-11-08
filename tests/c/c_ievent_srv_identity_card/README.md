@@ -36,7 +36,13 @@ refused and its channel closed; the client connects again and sends the next:
     and a dump of its bytes raw showed the JWT's payload;
 11. a frame that is not json, with the same cut JWT: *"frame is not json"*,
     and a DEBUG dump of its first 256 bytes, the cut JWT masked;
-12. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session.
+12. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session;
+13. in that session, a second card that the authentication refuses (the
+    test's parser refuses the jwt `tester-refused`): a negative
+    `EV_IDENTITY_CARD_ACK`, and the channel closed after `timeout_idgot`
+    (300 ms in this test), as a refused card before a session. Up to 7.30.14
+    the timeout found no `EV_TIMEOUT` in `ST_SESSION`: *"Event NOT DEFINED in
+    state"*, an error, and the channel stayed open with its first identity.
 
 Each refusal is caused by the peer, so it is ONE warning (`MSGSET_PROTOCOL`,
 `peername`, the kw capped, no stack; the dump of a frame that is not json is a

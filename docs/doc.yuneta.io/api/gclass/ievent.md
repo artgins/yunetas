@@ -423,7 +423,7 @@ and how:
 | For a service that does not exist | The same. | *"event ignored, service not found"*, WARNING, same pace. |
 | A subscription or a withdrawal of an event that is not public | Refused; the channel stays. | *"SUBSCRIBING event ignored, not PUBLIC..."*, WARNING, same pace. |
 | A command or a stats request that names no command (neither `__command__` in the kw nor in its stack), or whose `service` is not a string | Answered with an error; the channel stays. | *"Request without the command or stats it asks, refused"*, WARNING, the kw capped, same pace. |
-| A command or a stats request whose `service` does not exist, or (stats) is one the channel may not reach | Answered with an error; the channel stays. | *"Service not found"* / *"Not authorized to request stats of a different service"*, WARNING, same pace. |
+| A command or a stats request whose `service` does not exist, or is one the channel may not reach | Answered with an error; the channel stays. | *"Service not found"* / *"Not authorized to request commands of a different service"* / *"Not authorized to request stats of a different service"*, WARNING, `MSGSET_AUTH`, same pace (one kind with the *"dst_service not authorized"* above). |
 | An event no gclass has as public (any state) | Closes the channel. | *"Frame of an event that is not public, refused"*, WARNING, `MSGSET_PROTOCOL`, the name masked and THEN capped to 64 bytes ([`mask_secrets_inline_capped()`](#mask_secrets_inline_capped): capped first, a token the cap cut showed its first bytes), the kw masked and capped to 256 bytes -- said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer), once per connection. Up to 7.26.9 it was silent there, and the gate traced the whole kw raw (*"iev_event NULL"*), credentials before the session among it. `C_IEVENT_CLI` the same. |
 | `EV_REMOTE_LOG`: a log line of the peer's app (gobj-js `set_remote_log_functions()`), in session | Logged. | *"Remote Error"*, ERROR, `MSGSET_APP`, the `remote msg` capped to 1 KB and masked ([`mask_secrets_inline()`](#mask_secrets_inline)), its whole size and the `username`; the kw is not dumped. Up to 7.26.9 the text was written whole, and the kw traced raw. |
 
@@ -435,6 +435,21 @@ command to a service the channel may not reach logged an error, the whole
 kw, the authorized services and the routing, for each frame; and a
 subscription to an event that is not public returned an error without
 closing the channel, which left it connected and deaf.
+
+The `service` of a command is checked as the one of a stats request: a
+channel reaches the service of its identity card, the services its user has
+roles in (`services_roles`, see [`C_AUTHZ`](#gclass-c-authz)), and any
+service when its user is a superuser (a role of `service: "*"`). A session of
+a user who may reach only `controlcenter`:
+
+```text
+kw      {"__command__": "help", "service": "__yuno__"}
+answer  -1: "Not authorized to request commands of service: '__yuno__'"
+```
+
+Up to 7.30.14 the `service` of a command was not checked (only its routing
+was): that session reached every service of the yuno through it --
+`__yuno__` with its `write-attr`, `shutdown`, `add-denied-ip`.
 
 `tests/c/c_ievent_srv_peer_subs`.
 
@@ -602,7 +617,10 @@ raises it:
 
 A card refused by the authentication is answered with a negative
 `EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is
-dropped at `timeout_idgot`. Up to 7.25.20 each refusal above was an error
+dropped at `timeout_idgot` (default 5000 ms). So is a second card sent IN a
+session and refused: up to 7.30.14 its timeout was an event the session did
+not have, the channel stayed open with its first identity, and the timeout
+went on to the peer as a frame of its own. Up to 7.25.20 each refusal above was an error
 with the whole kw (its jwt with it), followed by a second error, *"event
 UNKNOWN in not-session state"*, with the whole kw again, credentials and
 all; a jwt that was not a string went on to the authentication.

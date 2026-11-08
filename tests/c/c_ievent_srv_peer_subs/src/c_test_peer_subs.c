@@ -80,7 +80,11 @@
  *              7. `alice` sends 3 commands, with a 2 KB key, to `tester`, a
  *                 service her channel may not reach: 3 negative answers,
  *                 ONE warning, capped; 2 commands that name no command: 2
- *                 negative answers, ONE warning; then a frame without routing (no
+ *                 negative answers, ONE warning; a command whose routing is
+ *                 her own service and whose `service` is `__yuno__`: a
+ *                 negative answer, no warning more (the same kind of log,
+ *                 capped; up to 7.30.14 it reached `__yuno__`: its `help`,
+ *                 and `write-attr`, `shutdown`...); then a frame without routing (no
  *                 `__md_iev__`, 50 KB): a warning, capped, and her channel
  *                 is closed. Up to 7.25.4 each such frame logged an error
  *                 with a stack and the whole kw, and was processed.
@@ -877,6 +881,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     json_pack("{s:s}", "junk", big)
                 );
             }
+            /*
+             *  7b. The same reach through the `service` of the command,
+             *  its routing to her own service: `__yuno__`
+             */
+            send_raw_iev(gobj, priv->cli_alice, "__command__", EV_MT_COMMAND,
+                json_pack("{s:s, s:s}", "__command__", "help", "service", "__yuno__")
+            );
 
             /*
              *  3. bob withdraws his subscription, as C_IEVENT_CLI does it
@@ -903,7 +914,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check_stamped(gobj, "command");
             check_stamped(gobj, "stats");
             check_stamped(gobj, "event");
-            check(gobj, "5 negative answers: a service not authorized, no command", negative_answers == 5);
+            check(gobj, "6 negative answers: a service not authorized (by routing, by `service`), no command",
+                negative_answers == 6);
             check_alice_routing(gobj);
 
             /*

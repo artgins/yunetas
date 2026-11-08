@@ -67,8 +67,11 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    warning. Up to 7.25.4 each repeat was deleted and made again, with a
    warning carrying a stack trace and the whole kw.
 8. `alice` sends 3 commands to `tester`, a service her channel may not
-   reach: 3 negative answers, one warning, capped; and 2 commands that name
-   no command: 2 negative answers, one warning. Then a frame with no
+   reach: 3 negative answers, one warning, capped; 2 commands that name
+   no command: 2 negative answers, one warning; and a command routed to her
+   own service whose `service` is `__yuno__`: a negative answer, and no
+   warning more (the same kind, capped). Up to 7.30.14 that command reached
+   `__yuno__` -- its `help`, and `write-attr`, `shutdown`, ... Then a frame with no
    `__md_iev__` (50 KB): one warning, capped, and her channel is closed. Up
    to 7.25.4 each such frame logged an error with a stack trace and the
    whole kw, and the frame without routing was processed.
