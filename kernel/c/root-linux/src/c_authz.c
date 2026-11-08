@@ -177,6 +177,15 @@ static const json_desc_t jwk_desc[] = {
 {0}
 };
 
+/*
+ *  A key's kid is the issuer (iss) of the tokens it validates. `*` was a
+ *  wildcard in 7.0.0; since 7.2.0 verify_token asks kid == iss, so such a
+ *  key validated nothing and nobody was told. It is refused now, in the
+ *  config (`jwks`) and in `add-jwk`, as in `assertion_jwks`
+ */
+#define JWK_KID_STAR_REFUSED \
+    "A jwks key with kid '*' is not allowed: its kid must be the issuer (iss) of the tokens it validates"
+
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
@@ -389,7 +398,7 @@ SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user i
  */
 SDATA (DTP_BOOLEAN, "trust_peer_ip",    SDF_RD,     "1",        "A peer with no token and no password logs in by its address: 127.0.0.* as the local user yuneta, or an address of allowed_ips. Set it false in a yuno behind a proxy on the same host (nginx): its peers' address is the proxy's. Set in the config only"),
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
-SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create. Set in the config only: add-jwk/remove-jwk change the running set, not the config"),
+SDATA (DTP_JSON,    "jwks",                 SDF_RD,         "[]",   "JWKS public keys (JWK, its kid = the iss of its tokens; kid '*' is refused), OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create. Set in the config only: add-jwk/remove-jwk change the running set, not the config"),
 SDATA (DTP_LIST,    "assertion_jwks",       SDF_RD,         "[]",   "Public keys (JWK, its kid = the iss) of the issuers of operator assertions: short tokens a controlcenter signs for one node (aud). Read only by the local method verify_jwt asked with an audience; a login never reads them"),
 SDATA (DTP_INTEGER, "max_assertion_lifetime",SDF_RD,        "300",  "Seconds an operator assertion may live (exp - iat): a longer one is refused, as one with no iat or exp"),
 SDATA (DTP_INTEGER, "assertion_time_leeway",SDF_RD,         "0",    "Seconds this yuno's clock may be off the signer's when an operator assertion's exp/nbf is checked: a box whose clock drifts (no NTP) must not refuse every assertion. Its audience, not its time, is what binds an assertion"),
@@ -1613,6 +1622,16 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             gobj,
             -1,
             json_sprintf("%s: What kid (iss)?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(strcmp(kid, "*")==0) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), JWK_KID_STAR_REFUSED),
             0,
             0,
             kw  // owned
@@ -3141,6 +3160,17 @@ PRIVATE int create_jwt_validations(hgobj gobj)
 
     int idx; json_t *jn_record;
     json_array_foreach(jwks, idx, jn_record) {
+        const char *kid = kw_get_str(gobj, jn_record, "kid", "", 0);
+        if(strcmp(kid, "*")==0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_CONFIGURATION,
+                "msg",              "%s", JWK_KID_STAR_REFUSED,
+                "kid",              "%s", kid,
+                NULL
+            );
+            continue;
+        }
         json_t *jn_jwk = create_json_record(gobj, jwk_desc);
         json_object_update_new(jn_jwk, json_deep_copy(jn_record));
         create_validation_key(gobj, jn_jwk, priv->jwks, priv->jn_validations);
@@ -3233,6 +3263,19 @@ PRIVATE int create_validation_key(
     const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
     const char *algorithm = kw_get_str(gobj, jn_jwk, "alg", "", KW_REQUIRED);
 
+    if(empty_string(kid) || strcmp(kid, "*")==0) {
+        // the callers refuse it: a checker with no issuer takes any iss
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_CONFIGURATION,
+            "msg",              "%s", "A key needs the issuer (iss) of its tokens as its kid",
+            "kid",              "%s", kid,
+            NULL
+        );
+        JSON_DECREF(jn_jwk)
+        return -1;
+    }
+
     /*
      *  Convert Encryption algorithm string to enum
      */
@@ -3307,9 +3350,7 @@ PRIVATE int create_validation_key(
 
     jwt_checker_time_leeway(jwt_checker, JWT_CLAIM_NBF, 0);
     jwt_checker_time_leeway(jwt_checker, JWT_CLAIM_EXP, 0);
-    if(!empty_string(kid) && strcmp(kid, "*")!=0) {
-        jwt_checker_claim_set(jwt_checker, JWT_CLAIM_ISS, kid);
-    }
+    jwt_checker_claim_set(jwt_checker, JWT_CLAIM_ISS, kid);
     if(jwt_checker_error(jwt_checker) != 0) {
         const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
@@ -3415,7 +3456,7 @@ PRIVATE BOOL verify_token(
             continue;
         }
 
-        // the token's: one with no iss is refused by the caller, a WARNING
+        // the checker asks iss == kid already (create_validation_key): a second lock
         const char *jn_jwt_iss = kw_get_str(gobj, payload, "iss", "", 0);
         if(empty_string(jn_jwt_iss) || strcmp(jn_validation_iss, jn_jwt_iss)!=0) {
             *status = "Token of no issuer configured here (its iss)";

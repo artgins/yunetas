@@ -71,6 +71,46 @@ whose **v1** SPA edits `treedb_authzs` turns it off in its config:
 {"name": "authz", "gclass": "C_AUTHZ", "kw": {"with_link_events": false}}
 ```
 
+(authz-jwks)=
+### The login keys (`jwks`)
+
+`jwks` holds the public keys (JWK) that verify login tokens. The `kid` of each
+key is the **issuer** of its tokens: a token verifies only with a key whose
+`kid` is the token's `iss`. Set `jwks` in the config only (`SDF_RD`).
+`add-jwk` and `remove-jwk` change the running set until the yuno restarts.
+
+Example: the key of a Keycloak realm. The `kid` is the realm's issuer URL,
+not the `kid` that Keycloak gives the key. `n` is the RSA modulus (base64url);
+[`keycloak_pkey_to_jwks`](../../utilities/keycloak_pkey_to_jwks.md) writes
+the entry from the realm's public key.
+
+```json
+"global": {
+    "Authz.jwks": [
+        {
+            "kid": "https://auth.example.com/realms/example",
+            "kty": "RSA",
+            "alg": "RS256",
+            "use": "sig",
+            "e": "AQAB",
+            "n": "<base64url modulus of the realm's public key>"
+        }
+    ]
+}
+```
+
+**A `kid` of `*` is refused** (new after 7.30.17). In 7.0.0 `*` was a
+wildcard for any issuer. Since 7.2.0 a token must have `iss` equal to the
+`kid`, so a `*` key verified no token, and nothing said so. Now:
+
+- a `*` key in the config is not loaded. `C_AUTHZ` logs ONE ERROR, *"A jwks
+  key with kid '*' is not allowed: its kid must be the issuer (iss) of the
+  tokens it validates"*. The other keys load.
+- `add-jwk kid=*` answers `-1` with the same text, and adds nothing.
+
+Give one key for each issuer, with the issuer as its `kid`.
+`assertion_jwks` refuses `*` too. `tests/c/authz_login` (cases 11 and 12).
+
 (authz-trust-peer-ip)=
 ### A login by the peer's address, and a proxy (`trust_peer_ip`)
 
@@ -124,9 +164,8 @@ token only as `jwt_sha256` (the first 16 hex characters of its sha256) and
 the line, so a token good elsewhere that reached the wrong port ended in the
 log. A token with no `email` or no `email_verified` is refused with a
 WARNING (*"Username must be an email address"*, *"Email not verified"*);
-up to 7.30.14 the reader logged an ERROR first. So is a token with no `iss`
-that a key of kid `*` (any issuer) verified: its `status` is *"Token of no
-issuer configured here (its iss)"* (an ERROR of the reader up to 7.30.14).
+up to 7.30.14 the reader logged an ERROR first. So is a token with no `iss`:
+the key checks the `iss` claim, and the `status` is *"Invalid 'iss' claim"*.
 The claims of a token whose `exp`, `nbf`, `iss`, `sub` or `aud` fails are not
 traced either: libjwt traced them all, unverified, before the signature was
 checked; it traces which claims failed (`failed_claims=0x...`) now. When more

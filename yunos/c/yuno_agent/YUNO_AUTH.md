@@ -1002,7 +1002,7 @@ There is also a JWKS migration analogous to §2.5:
 
 | Key                       | Status                | Purpose                                                          |
 |---------------------------|-----------------------|------------------------------------------------------------------|
-| `Authz.jwks`              | preferred             | Array of full JWK objects (the standard format).                  |
+| `Authz.jwks`              | preferred             | Array of full JWK objects (the standard format). The `kid` of each is the issuer (`iss`) of its tokens; a `kid` of `*` is refused with an ERROR and not loaded (new after 7.30.17; it verified no token since 7.2.0). Example: [the login keys](../../../docs/doc.yuneta.io/api/gclass/auth.md#authz-jwks). |
 | `Authz.jwt_public_keys`   | legacy                | Older `iss` + `pkey` (raw PEM) tuple. Superseded by `Authz.jwks`. Drop from new configs. |
 
 **Gotcha:** if you use the deprecated `authz.authz_yuno_role`, the

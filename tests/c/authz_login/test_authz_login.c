@@ -31,12 +31,17 @@
  *            8. alice, a good token expired an hour ago, a claim of its own:
  *               refused; no log line carries its claims (up to 7.30.14 libjwt
  *               traced the claims of every token whose claims failed)
- *            9. a token with no `iss`, good for the key of kid `*` (any
- *               issuer): refused, a warning, no error (up to 7.30.14 an ERROR
+ *            9. a token with no `iss`, signed by the key of the test
+ *               issuer: refused, a warning, no error (up to 7.30.14 an ERROR
  *               of the reader of `iss` first)
  *           10. alice, a token expired AND not valid yet: refused, its status
  *               names both claims, "Failed claims: exp, nbf" (up to 7.30.14
  *               "What JWT_CLAIM_???")
+ *           11. the config's key of kid `*`, before the key of the test
+ *               issuer: refused at start up with ONE error, and the key after
+ *               it still logs alice in (case 4). Since 7.2.0 such a key
+ *               validated nothing, and nobody was told
+ *           12. add-jwk kid=*: refused, its comment says why, no log
  *          and no memory is left.
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
@@ -80,6 +85,7 @@
 #define MAX_TOKENS      8
 
 #define NOT_TRUSTED     "Without JWT/passw the peer address is not trusted"
+#define KID_STAR_REFUSED "A jwks key with kid '*' is not allowed"
 
 /*
  *  The key of the test issuer (its jwks is in the config, the same `k`),
@@ -103,6 +109,7 @@ PRIVATE int s_token_logged = 0; /* log lines that carry a token of the test */
 PRIVATE int s_claims_logged = 0;/* log lines that carry the claims of a token */
 PRIVATE int s_claims_named = 0; /* log lines that name the claims that failed */
 PRIVATE int s_claims_unnamed = 0;/* log lines with the old "What JWT_CLAIM_???" */
+PRIVATE int s_kid_star_refused = 0;/* log lines that refuse the key of kid '*' */
 PRIVATE char *s_tokens[MAX_TOKENS] = {0};
 
 GOBJ_DEFINE_GCLASS(C_TEST_AUTHZ_LOGIN);
@@ -158,13 +165,13 @@ PRIVATE char variable_config[]= "\
                 'trust_peer_ip': " TRUST ",                         \n\
                 'jwks': [                                           \n\
                     {                                               \n\
-                        'kid': '" TEST_ISS "',                      \n\
+                        'kid': '*',                                 \n\
                         'kty': 'oct',                               \n\
                         'alg': 'HS256',                             \n\
                         'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
                     },                                              \n\
                     {                                               \n\
-                        'kid': '*',                                 \n\
+                        'kid': '" TEST_ISS "',                      \n\
                         'kty': 'oct',                               \n\
                         'alg': 'HS256',                             \n\
                         'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
@@ -254,6 +261,9 @@ PRIVATE int find_tokens(void *h, int priority, const char *bf, size_t len)
     const char *unnamed = "What JWT_CLAIM_";
     if(memmem(bf, len, unnamed, strlen(unnamed))) {
         s_claims_unnamed++;
+    }
+    if(memmem(bf, len, KID_STAR_REFUSED, strlen(KID_STAR_REFUSED))) {
+        s_kid_star_refused++;
     }
     return 0;
 }
@@ -408,6 +418,13 @@ PRIVATE void run_checks(hgobj gobj)
     time_t now = time(NULL);
 
     /*
+     *  11. Start up is over: the key of kid '*' was refused, once, and that
+     *  was the only error (the key after it is case 4)
+     */
+    check_int("11. the key of kid '*' refused at start up", s_kid_star_refused, 1);
+    check_int("11. errors at start up", s_errors, 1);
+
+    /*
      *  An address the yuno allows
      */
     json_object_set_new(
@@ -456,7 +473,7 @@ PRIVATE void run_checks(hgobj gobj)
 
     claims = alice_claims();
     json_object_del(claims, "iss");
-    check_login(gobj, "9. a token with no iss (the key of kid *)", "127.0.0.1:40000",
+    check_login(gobj, "9. a token with no iss", "127.0.0.1:40000",
         "", make_token(5, LOGIN_JWK, claims),
         -1, "Authentication failed: Invalid token", 1, -1);
 
@@ -466,6 +483,24 @@ PRIVATE void run_checks(hgobj gobj)
     check_login(gobj, "10. alice, expired and not valid yet", "127.0.0.1:40000",
         "", make_token(6, LOGIN_JWK, claims),
         -1, "Authentication failed: Invalid token", 1, -1);
+
+    /*
+     *  12. add-jwk refuses kid '*' as the config does, before the key is
+     *  in the running set
+     */
+    hgobj authz = gobj_find_service("authz", TRUE);
+    int warnings_before = s_warnings;
+    json_t *r = gobj_command(authz, "add-jwk",
+        json_pack("{s:s, s:s, s:s, s:s}",
+            "kid", "*", "kty", "oct", "alg", "HS256", "n", "AQAB"
+        ),
+        gobj
+    );
+    check_int("12. add-jwk kid=*: result", (int)kw_get_int(gobj, r, "result", -99, 0), -1);
+    check_int("12. add-jwk kid=*: the comment says why",
+        strstr(kw_get_str(gobj, r, "comment", "", 0), KID_STAR_REFUSED)? 1 : 0, 1);
+    check_int("12. add-jwk kid=*: logs", s_warnings - warnings_before, 0);
+    JSON_DECREF(r)
 }
 
 /***************************************************************
