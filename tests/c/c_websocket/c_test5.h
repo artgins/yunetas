@@ -7,9 +7,11 @@
  *          Tasks
  *          - Play a raw server that answers each upgrade by hand
  *          - Open __output_side__, a websocket client that reconnects
- *          - The server answers no accept, a wrong one, a subprotocol, and a
- *            right handshake
- *          - The client refuses the first three and opens with the last one
+ *          - The server answers no accept, a wrong one, a subprotocol, no
+ *            Upgrade, Upgrade: h2c, no Connection, an extension, and a right
+ *            handshake with a frame behind it in the same write
+ *          - The client refuses the first seven, opens with the last one and
+ *            delivers the frame
  *          - Shutdown
  *
  *          Copyright (c) 2026, ArtGins.
