@@ -157,6 +157,25 @@ previous response — similar to [`ybatch`](ybatch.md) but with the line-oriente
 Script file format: one command per line, `#` comments and blank lines ignored,
 each line can itself contain `;`-chained commands.
 
+### A connection that does not open
+
+The connection must open in 10 s. If it does not, `ycommand` says why, with
+the cause of the last attempt of its transport, and exits with an error
+(code 255): on stderr in a script, on stdout with `-i` or `-l`. The log
+(`-l 1`) says more, for example the name that a certificate does not match.
+
+```bash
+$ ycommand -u wss://127.0.0.1:1630 -c 'help'; echo "exit=$?"
+Cannot connect to wss://127.0.0.1:1630: TLS handshake failed: error:0A000086:SSL routines::certificate verify failed
+Abort.
+exit=255
+```
+
+A refused port says `Connection refused`; a peer that accepts and says
+nothing, `no answer`. Up to 7.30.17 `ycommand` waited for ever, and said
+nothing without `-l`: the transport retries a failed connection, as every
+client does, and tells its host nothing until one opens.
+
 ## Other features
 
 - **did-you-mean** — on a `command not available` error, `ycommand` compares the

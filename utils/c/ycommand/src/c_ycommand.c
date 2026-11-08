@@ -81,6 +81,15 @@
 #define MKEY_ALT_RIGHT          {0x1B, 0x5B, 0x31, 0x3B, 0x33, 0x43} // .[1;3C
 #define MKEY_CTRL_RIGHT         {0x1B, 0x5B, 0x31, 0x3B, 0x35, 0x43} // .[1;5C
 
+/*
+ *  The connection must open in this time, or ycommand says why it did not
+ *  and exits with an error (ac_timeout_connect()). The transport retries a
+ *  failed connection for ever and tells its host nothing until one opens,
+ *  so without it a refused connection or a certificate that does not
+ *  verify left ycommand waiting, silent, for ever (up to 7.30.17).
+ */
+#define CONNECT_TIMEOUT_MS      10000
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -1119,6 +1128,7 @@ PRIVATE int cmd_connect(hgobj gobj)
     );
 
     gobj_start_tree(priv->gobj_remote_agent);
+    set_timeout(priv->timer, CONNECT_TIMEOUT_MS);
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
@@ -2339,6 +2349,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *yuno_role = kw_get_str(gobj, kw, "remote_yuno_role", "", 0);
     const char *yuno_name = kw_get_str(gobj, kw, "remote_yuno_name", "", 0);
 
+    clear_timeout(priv->timer);     // the deadline of the connection (cmd_connect())
+
     if(priv->verbose || priv->interactive) {
         printf("Connected to '%s^%s', url:'%s'.\n",
             yuno_role,
@@ -3330,6 +3342,38 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  The connection did not open in CONNECT_TIMEOUT_MS: say why, with the
+ *  cause of the last attempt that the transport (C_TCP) keeps, and exit
+ *  with an error. Its log (-l) says more, as a TLS name that does not match.
+ ***************************************************************************/
+PRIVATE int ac_timeout_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *cause = "";
+    hgobj gobj_transport = priv->gobj_remote_agent?
+        gobj_last_bottom_gobj(priv->gobj_remote_agent) : 0;
+    if(gobj_transport && gobj_has_attr(gobj_transport, "disconnect_cause")) {
+        cause = gobj_read_str_attr(gobj_transport, "disconnect_cause");
+    }
+    if(empty_string(cause)) {
+        cause = "no answer";
+    }
+
+    const char *url = gobj_read_str_attr(gobj, "url");
+    if(priv->verbose || priv->interactive) {
+        printf("\nCannot connect to %s: %s\nAbort.\n\n", url, cause);
+    } else {
+        // the stdout of a script is its answer: why there is none goes apart
+        fprintf(stderr, "Cannot connect to %s: %s\nAbort.\n", url, cause);
+    }
+    exit(-1);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -3454,6 +3498,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_ID_NAK,              ac_on_close,            0},
         {EV_ON_OPEN_ERROR,          ac_on_close,            0}, // cannot connect / id NAK drop
         {EV_COMMAND,                ac_command,             0}, // avoid traces
+        {EV_TIMEOUT,                ac_timeout_connect,     0},
         {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
