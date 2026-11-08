@@ -2,6 +2,137 @@
 
 ## Unreleased
 
+## v7.30.16 (2026-11-08)
+
+A security release, deployed on every node: the kernel of 7.30.15 and of
+this release reaches every yuno that serves inter-events, and the agents.
+The tests of each change ran, not the whole suite; no performance study (the
+next one is against 7.30.0).
+
+### Security
+
+- **`C_IEVENT_SRV`: a peer that is not authenticated could make a yuno
+  release a gbuffer twice** (up to 7.30.14, since the first 7.x releases;
+  fixed in 7.30.15, which said nothing of it and was deployed only for the
+  control center). Every frame of a peer goes through `kw_deserialize()`,
+  which turns a `"__gbuffer___": {"data": <base64>}` the peer writes into a
+  real gbuffer of the kw; when the authentication refused an identity card,
+  `ac_identity_card()` released it twice (*"BAD gbuf_decref()"*: a double
+  free, heap corruption in a yuno built without `CONFIG_DEBUG_TRACK_MEMORY`).
+  Any host that reaches a port with a `C_IEVENT_SRV` could do it before any
+  login: the public port of every agent, and every yuno that serves
+  inter-events. **Every yuno with a `C_IEVENT_SRV` must run 7.30.15 or
+  later.** Test: `test_c_ievent_srv_identity_card` (a refused card with a
+  serialized gbuffer).
+- **`C_WEBSOCKET`: a message no longer crosses from one connection to the
+  next.** The fragments of a message begun stayed in the gobj after its
+  connection: on a server's static channel (the agent's pool, every
+  `C_IEVENT_SRV` over websocket) peer A could send a text frame that is not
+  final and leave, and the next peer B of that channel that sent a final
+  continuation was delivered A's bytes followed by its own. The fragments
+  and a payload half read are dropped when a connection opens and when it
+  closes. Present since 7.x. Test: `test_websocket_test8`.
+- **`C_WEBSOCKET`: a half handshake no longer holds a connection for ever.**
+  Every read stopped `timeout_handshake` and nothing armed it again, so a
+  peer that sent one byte kept a channel of the server's pool for ever: on an
+  agent, 301 such connections filled the pool the local and the public port
+  share, and `ycommand` was refused too, with no log but *"no free child
+  tree"*. A client that got half a `101` and then silence waited for ever
+  too. The timer now runs until the handshake is resolved, on both sides.
+  Present since 7.x. **BREAKING** for a log watcher: a slow handshake ends in
+  *"Timeout waiting websocket handshake"*. Tests: `test_websocket_test6`,
+  `test_websocket_test7`.
+- **`C_IEVENT_SRV`: the identity card a gate keeps (`identity_card`) and
+  publishes in `EV_ON_OPEN` no longer carries the `"gbuffer"` of the frame**,
+  a pointer to memory freed with the frame, which the control center's list
+  of agents showed to an operator (a heap address). Both are a copy of the
+  card without that field.
+- **`gbuffer_deserialize_from_peer()` (new): a serialized gbuffer from a
+  peer that cannot be read is ONE WARNING**, not an ERROR with a stack (two
+  for a bad base64) that any peer could write once per frame before any
+  login. It is the deserializer of the `gbuffer` binary type now;
+  `kw_deserialize()` is documented as for a kw received from a peer, and
+  `gbuffer_deserialize()` is unchanged (an ERROR for what we serialized
+  ourselves). **BREAKING** for a log watcher.
+- **controlcenter: a session of the token no longer takes the hostname of a node without a key** (security; the defect is in 7.30.15, since that release). A hostname named a node through every `nodes` record that was not refused, and the record of a node not accepted was written by any open that gave its uuid -- a refused one (the token and any key) and a session of the token with no key alike. Such an open renamed the node's record; a session with a new uuid that gave the node's hostname then got `command-agent`, `write-tty` (the console's keys) and the steps of the saved scenarios meant for it, and every agent before 7.30.10 is such a node. Gone, it left its record behind: the name was two nodes' for ever, an accepted node's included, until a `refuse-node` of the other uuid. Now an accepted node is named by its record (written only by a session that logged in by its key), even while away; any other node only by the card of its agent in session, so a session that goes leaves no name behind. **BREAKING:**
+    - an open the control center refuses writes nothing in `nodes`: a node never seen that presents a key is kept `knocking` in memory (INFO *"A node knocking"* instead of *"A node to accept"*), and an accepted node refused for another key no longer records it as `presented_spki` (the WARNING *"Agent refused"* carries it);
+    - a node without a key is reached by its hostname only while its agent is in session.
+- **controlcenter: a name that more than one node gives is said as such by the scenarios** (since 7.30.15). A run in order (`start`, `resume`, `on`) is refused before its first step (*"node 'x' is the hostname of more than one node: give its node uuid"*); a run at once does what it reaches and fails the rest with that comment; the stop of a `max_run` on such a name is tried again in a minute. In 7.30.15 they said *"not connected"*, a start did its steps up to that one, and the `max_run` stop waited for a node to connect and nothing ended the wait.
+- **controlcenter: of two sessions of an accepted node's uuid, the one that logged in by the node's key gets what goes to it** (since 7.30.10). With `enforce_node_keys` off a session of the token is let in with that uuid, and the first session got the commands.
+- **controlcenter: the identity card of a session of the token is checked** (since 7.30.10). An `id` or `host` that is not a string, or too long, is refused with a WARNING (*"Agent refused: its identity card is not valid"*) and dropped, `enforce_node_keys` or not; every reader of a card reads it by its type. Before, the session was let in and each command that looked for an agent logged an ERROR with a stack. **BREAKING** for a log watcher: a new WARNING.
+- **controlcenter: an agent that reconnects from a new port does not write its node's record** (since 7.30.15): the port is no change of address.
+- **controlcenter: an agent's `knows_operator_assertion` is read by its type** (since 7.30.9). A value that is not a boolean in an agent's identity card logged an ERROR with a stack (and dumped the card) at every command sent to it; it is "no" now, and logs nothing. **BREAKING** for a log watcher: that ERROR is gone.
+
+### The packages and their scripts
+
+- **BREAKING (operators): a node whose uuid changes is said to need a new
+  `accept-node`.** `yuneta-node-uuid` says it on every change of the uuid
+  (`set <uuid>`, a disk on other hardware, a random or a placeholder uuid
+  replaced by the hardware's): the agents' start makes a new pair, because
+  the pair is bound to the node uuid, and the old key is removed. Accept the
+  node again in each control center, with its uuid and its new key. Up to
+  7.30.15 it said only to restart (since 7.30.15, when the pair was bound to
+  the uuid). installation.md shows it with an example, and lists the copies
+  that keep the uuid, and so the key, without any warning: a box with no
+  hardware identifier, a copy with the same or a filler DMI uuid, a copy made
+  before the first `ensure` of 7.30.15, and a source node without
+  `yuneta-node-uuid`. It gives `yuneta-node-uuid set <uuid>` + `yuneta-agent-cert
+  ensure` as the remedy (the promise "a copy gets its own node uuid" had no
+  exceptions, since 7.30.15).
+- **BREAKING (operators of source nodes):** `install-yuneta-agent-cert.sh`
+  refuses a node without `/usr/libexec/yuneta/yuneta-node-uuid` (run
+  `install-yuneta-node-uuid.sh` first), and warns when that script is not the
+  checkout's. Up to 7.30.15 it bound the pair to whatever uuid it found (since
+  7.30.6).
+- The agent's build warns when the installed `yuneta-node-uuid` or
+  `yuneta-agent-cert` are not the checkout's (a `git pull` does not update
+  them), when the second is installed without the first, or when the drop-in
+  `yuneta-agent-cert.conf` of 7.30.14 is still there, and names both
+  installers. Up to 7.30.15 a source node kept running the scripts and the
+  drop-in of 7.30.14 after a pull, with no binding to the node uuid.
+- `install-yuneta-agent-cert.sh` and `yuneta-agent-cert` (a published pair
+  replaced) say to restart both agents, one at a time. They named the main
+  agent only, so agent22 served the old pair until it was restarted (since
+  7.30.6).
+- `yunos/c/yuno_agent/service/yuneta_agent`, the SysV script a source node
+  installs (and its postinst seeds `/etc/init.d/yuneta_agent` from), is the
+  `.deb`'s again. Up to 7.30.15 it drove no systemd unit and ran neither
+  `yuneta-node-uuid` nor `yuneta-agent-cert` (it fell behind in 7.25.22).
+  `test-yuneta-agent-cert.sh` checks the copy, and that both packagers' SysV
+  start runs the uuid first, then the pair.
+- `yunos/c/yuno_agent/service/install-yuneta-service.sh` and
+  `remove-yuneta-service.sh`, which a node that builds from source installs,
+  are the `.deb`'s again: up to 7.30.15 they were SysV only (no systemd unit
+  enabled, started or disabled), and the remove one ran `chkconfig` and
+  deleted `/etc/init.d/yuneta_agent`, a conffile (they fell behind when the
+  agents moved to systemd units, 7.25.22). `test-yuneta-agent-cert.sh`
+  checks them.
+
+### Logs, HTTP and the rest
+
+- **`C_WEBSOCKET`: every close for a frame the peer must not send leaves ONE
+  warning** (`opcode`, `fin`, `rsv`, `frame_length`, `peername`, a capped
+  dump): an RSV bit with no extension (now also on a frame that is not
+  final, which was taken), a continuation with no message begun, a data
+  frame inside a fragmented message, a fragmented control frame, a text
+  frame that is not UTF-8 (1007), a ping of 126 bytes or more. Up to 7.30.15
+  they left no log. **BREAKING** for a log watcher, and a fragment with an
+  RSV bit now closes the connection.
+- **`ghttp_parser`: a header value is read without its trailing OWS** (RFC
+  9110 §5.5; llhttp already dropped the leading one). The strict
+  `C_WEBSOCKET` client refused a legal `101` with `Upgrade: websocket `, and a
+  server answered `400` to a key followed by a space. Every HTTP consumer
+  sees it. **BREAKING** (small) for a reader that relied on the trailing OWS.
+- **`C_IEVENT_SRV`: a refused subscription** (*"No permission to subscribe
+  event"*) is a WARNING; a peer causes it. **BREAKING** for a log watcher.
+- **`C_IDP_KEYCLOAK`: the cached admin token is timed on the monotonic
+  clock**; on `time()` a clock set back took an expired token as good until
+  the IdP answered `401`.
+- Tests: `c_auth_bff` test26 step 64 (ONE `Host` line that is a list);
+  `test_c_llhttp_parser` (the trailing OWS); `c_controlcenter_scenarios`
+  cases 27 and 32-36.
+- Docs: invented example values in `mqtt_tui` and the modbus page.
+
 ## v7.30.15 (2026-11-08)
 
 A light release, deployed for the control center only: the identity of the
