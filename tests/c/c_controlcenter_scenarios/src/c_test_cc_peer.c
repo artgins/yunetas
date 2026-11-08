@@ -3,9 +3,11 @@
  *
  *          The far end of the control center's gates, in a test.
  *
- *          One gclass plays three parts:
+ *          One gclass plays four parts:
  *              - a SIDE: the `__top_side__` or `__input_side__` service,
  *                whose children are its channels;
+ *              - the `authz` service: what logout-user sends it
+ *                (EV_REJECT_USER) is recorded;
  *              - a CHANNEL of a side: a web client (`opened` says whether
  *                it is connected), or the channel of an agent;
  *              - the TRANSPORT below an agent's C_IEVENT_SRV: what the
@@ -166,6 +168,15 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  A user to log out (the `authz` service: logout-user), recorded
+ ***************************************************************************/
+PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    record(gobj, event, kw);
+    return 0;
+}
+
+/***************************************************************************
  *  EV_STOPPED
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -217,6 +228,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_IEV,               ac_send_iev,        0},
         {EV_SEND_MESSAGE,           ac_send_message,    0},
         {EV_DROP,                   ac_drop,            0},
+        {EV_REJECT_USER,            ac_reject_user,     0},
         {EV_STOPPED,                ac_stopped,         0},
         {0, 0, 0}
     };
@@ -233,6 +245,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_IEV,               0},
         {EV_SEND_MESSAGE,           0},
         {EV_DROP,                   0},
+        {EV_REJECT_USER,            0},
         {EV_STOPPED,                0},
         {0, 0}
     };

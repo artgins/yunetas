@@ -65,7 +65,24 @@ list-nodes state=knocking
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 ```
 
+One key is for one node: `accept-node` refuses a key that is accepted for
+another node (a copy of a node's disk carries its pair). A decision drops the
+node's sessions that it no longer lets in: a new key drops the session of the
+old one, and `refuse-node` drops the node's agent. Without
+`enforce_node_keys` only a session that logged in by its key is dropped.
+
 Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".
+
+## A node is reached by its uuid
+
+`command-agent`, `stats-agent`, `write-tty` and the scenarios name a node by
+its uuid or by its hostname. The uuid is the identity that the session of the
+agent was accepted for. The hostname is only what the agent writes in its
+card, so it names a node through the node's record in `nodes`, and only when
+one record has it. When two nodes give one hostname, a command by that name is
+refused (*"is the hostname of more than one node: give its node uuid"*), and
+the control center logs a WARNING when the second one opens its session.
+`write-tty` goes to one agent only, and is refused without `agent_id`.
 
 ## Who asks: operator assertions (7.30.9+)
 
@@ -92,12 +109,12 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 |------------------|-------------------------------------------------------------------------------|
 | `help`           | List commands.                                                                |
 | `authzs`         | Authz help for this service.                                                  |
-| `logout-user`    | Force a connected user to log out.                                            |
+| `logout-user`    | Force a user to log out (`username=`, permission `logout-user`). `disabled=1` also disables the user, `disabled=0` enables it; without `disabled` the user stays as it is. |
 | `list-agents`    | List currently connected nodes (UUID, hostname, status).                      |
-| `command-agent`  | Forward an arbitrary command to a specific node (`SDF_WILD_CMD`). `agent_id` is a UUID or hostname. |
+| `command-agent`  | Forward an arbitrary command to a specific node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
 | `stats-agent`    | Get stats from a specific node.                                               |
 | `drop-agent`     | Drop the connection to a specific node.                                       |
-| `write-tty`      | Write bytes to a node's PTY console (the `yuno_agent22` backdoor).            |
+| `write-tty`      | Write bytes to the PTY console of one node (the `yuno_agent22` backdoor). `agent_id` is required. |
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
 | `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated; `revision=` (the `__md_treedb__.g_rowid` it was read at) refuses it when somebody saved it since. |
 | `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |

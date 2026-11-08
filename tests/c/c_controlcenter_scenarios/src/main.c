@@ -286,6 +286,7 @@ PRIVATE const char *expected_msgs[] = {
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-stranger
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-stranger, pending
     "Node key decided",                                                             // 22: refuse-node
+    "A session of the node dropped: its key is not accepted now",                   // 22: refuse-node drops it
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-auth
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-auth, pending
     "Node key decided",                                                             // 22: accept uuid-auth
@@ -296,7 +297,33 @@ PRIVATE const char *expected_msgs[] = {
     "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k1
     "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k2
     "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k3
-    "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)",   // 0: the copy, not the same host
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: A
+    "Node key decided",                                                             // 23: accept A
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: B
+    "Node key decided",                                                             // 23: accept B
+    "Two nodes give one hostname: command-agent by that name is refused, give the node uuid||||WARNING", // 23: A gives B's
+    "write-tty: the agent_id names more than one node, nothing written",           // 23
+    "write-tty without agent_id, nothing written",                                 // 23
+    "Two nodes give one hostname: command-agent by that name is refused, give the node uuid||||WARNING", // 23: no key, B's
+    "Node not accepted: its key is accepted for another node||||WARNING",          // 24
+    "Node key decided",                                                             // 24: A, its own key
+    "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: id not a string
+    "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: host not a string
+    "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: a backtick in the id
+    "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: an id of 300
+    "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: a host too long
+    "Agent not authenticated: its node key is not the one accepted|||The node is refused|WARNING", // 26
+    "A node to accept: its agent presents a key never accepted (accept-node)",     // 28: R
+    "Node key decided",                                                             // 28: accept R
+    "Node key decided",                                                             // 28: accept R, same key
+    "Node key decided",                                                             // 28: accept R, new key
+    "A session of the node dropped: its key is not accepted now",                   // 28
+    "Node key decided",                                                             // 28: refuse R
+    "A session of the node dropped: its key is not accepted now",                   // 28
+    "Node key decided",                                                             // 28: accept R, enforcing
+    "Node key decided",                                                             // 28: accept R, the old key
+    "A session of the node dropped: its key is not accepted now",                   // 28
+    "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING",   // 0: the copy, not the same host
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer for a web client that is gone, dropped: its channel holds another connection now",
@@ -362,7 +389,8 @@ static int register_yuno_and_more(void)
     json_t *jn_expected = json_array();
     for(int i=0; expected_msgs[i]; i++) {
         /*
-         *  "msg" alone, or "msg|when|dropped": an empty `when` is not checked
+         *  "msg" alone, or "msg|when|dropped|refusal|priority": an empty
+         *  field is not checked
          */
         int n = 0;
         const char **parts = split3(expected_msgs[i], "|", &n);
@@ -370,8 +398,14 @@ static int register_yuno_and_more(void)
         if(n > 1 && !empty_string(parts[1])) {
             json_object_set_new(jn_msg, "when", json_string(parts[1]));
         }
-        if(n > 2) {
+        if(n > 2 && !empty_string(parts[2])) {
             json_object_set_new(jn_msg, "dropped", json_integer(atoll(parts[2])));
+        }
+        if(n > 3 && !empty_string(parts[3])) {
+            json_object_set_new(jn_msg, "refusal", json_string(parts[3]));
+        }
+        if(n > 4 && !empty_string(parts[4])) {
+            json_object_set_new(jn_msg, "__priority__", json_string(parts[4]));
         }
         split_free3(parts);
         json_array_append_new(jn_expected, jn_msg);

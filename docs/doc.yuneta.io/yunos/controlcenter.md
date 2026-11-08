@@ -96,8 +96,12 @@ uuid. Each record holds:
 - `state`: `pending`, `accepted` or `refused`;
 - `spki_sha256`: the accepted key;
 - `presented_spki`: the last key presented that is not the accepted key;
-- `hostname` and `peername`: the node's host name and address;
-- `first_seen`, `last_seen`, `decided_by` and `decided_at`.
+- `hostname` and `peername`: the node's host name and address, as its agent
+  gave them at its last session;
+- `first_seen`, `last_seen`, `decided_by` and `decided_at`. An agent that
+  opens a session again with the same hostname, address and key writes
+  nothing, unless `last_seen` is an hour old: a link that comes and goes does
+  not add a record each time.
 
 When an agent opens its session, the control center checks it as follows:
 
@@ -119,6 +123,22 @@ agent reconnects on its own schedule.
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
 | `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`; a new one evicts the one that knocked least recently. |
 
+The three are read-only at run time: set them in the `kw` of the
+`controlcenter` service in its realm config, and restart it. For example, once
+every node has its key accepted, refuse the agents of before and keep a
+smaller table of the boxes that knock:
+
+```json
+{
+    "name": "controlcenter",
+    "kw": {
+        "enforce_node_keys": true,
+        "allow_nodes_without_key": false,
+        "max_knocking_nodes": 64
+    }
+}
+```
+
 **3 — accept the nodes** (permission `manage-nodes`; `list-nodes` asks
 `list-agents`). Before you accept a node, compare the key it presented with the
 key of its own pair, read on the node:
@@ -130,14 +150,40 @@ openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
 
 # through the control center
 list-nodes state=pending
-accept-node node_id=7fb83a14-1aeb-8f0a-868b-244e75c5fd70 spki_sha256=<the key read on the node>
-refuse-node node_id=7fb83a14-...
+accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b spki_sha256=<the key read on the node>
+refuse-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b
 ```
 
 `accept-node` pins the key you give in `spki_sha256`, read on the node
 itself. It never pins the key that was presented, because anyone who reaches
-the port can make a key. With `enforce_node_keys`, `refuse-node` also drops
-the node's agent if it is in session. Each decision is an INFO, *"Node key decided"*.
+the port can make a key. Each decision is an INFO, *"Node key decided"*.
+
+**One key, one node.** `accept-node` refuses a key that is accepted for
+another node, with a WARNING (*"Node not accepted: its key is accepted for
+another node"*):
+
+```
+accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b spki_sha256=<the key accepted for 3c4d5e6f-...>
+# -> -1 "controlcenter^cc: node '0f1e2d3c-...': its key is already accepted for node '3c4d5e6f-7a8b-4c0d-9e2f-3a4b5c6d7e8f'
+#        (a copy of that node? give the copy its own pair, and accept that key)"
+```
+
+A copy of a node's disk carries the node's pair. Under its own uuid, the copy
+could then log in as both nodes. Make a new pair on the copy, and accept that
+key.
+
+**A decision holds for the sessions in course.** The control center drops
+each session of the node that the decision does not let in any more, with an
+INFO (*"A session of the node dropped: its key is not accepted now"*):
+
+- `accept-node` with a new key drops a session that presents the old key;
+- `refuse-node` drops every session of the node.
+
+Without `enforce_node_keys`, only a session that logged in by its key
+(`agent:<uuid>`, below) is dropped: a session of a token is let in with any
+key then, as when it opens. Up to 7.30.14 a session stayed after its key was
+revoked, until it reconnected, and `refuse-node` dropped one session of the
+node, and only with `enforce_node_keys`.
 
 **The transition, with nobody cut off:**
 
@@ -168,6 +214,18 @@ for an accepted node but is not the accepted key, the control center logs a
 WARNING (*"Agent not authenticated: its node key is not the one accepted"*).
 Everything else goes to `C_AUTHZ` as before: the operators, and the agents of
 before with their token.
+
+The card of an agent that presents a key is checked before anything of it is
+kept, because its agent is not authenticated yet. The control center refuses
+the card, with a WARNING (*"Agent not authenticated: its identity card is not
+valid"*, and the reason in `refusal`), when:
+
+- its `id` is not a string of 1 to 63 letters, digits and `-` (what
+  `node_uuid()` gives);
+- its `host` is not a string, or is longer than a host name (64).
+
+Up to 7.30.14 a value that was not a string gave an ERROR with a stack, and
+the control center kept an id or a hostname of any length in memory.
 
 ### The user the agents log in as
 
@@ -215,7 +273,7 @@ assertion**. The agent verifies the assertion and believes it, not the
 | Claim | Value |
 |-------|-------|
 | `iss` | `operator_assertion_issuer` (`controlcenter`) |
-| `sub` | the operator: the user that `C_IEVENT_SRV` authenticated (an email, or a local `yuneta`), or the user who started a scenario run |
+| `sub` | the operator: the user that `C_IEVENT_SRV` authenticated (an email, or a local `yuneta`), or the user who started a scenario run. The stop that a scenario's `max_run` schedules is a run of the control center itself, so its `sub` is `<role>^<name>` of the control center (`controlcenter^cc`); the run's comment names the user who started the scenario |
 | `aud` | the node uuid of that agent (the `id` of its identity card) |
 | `iat`, `exp` | now, and now + `operator_assertion_lifetime` (60 s) |
 
@@ -271,7 +329,8 @@ agents with the same uuid are taken for one node: the first one found gets
 the command. A copy of a node's disk gives the same uuid, and so does a board
 whose hardware gives every board of its model the same identifier. When an
 agent opens its session with the uuid of an agent in session from **another**
-host, the control center logs an ERROR (7.30.3+):
+host, the control center logs a WARNING (an ERROR from 7.30.3 to 7.30.14:
+an agent can cause it):
 
 ```
 Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)
@@ -282,6 +341,40 @@ The same host is not reported: that is a node whose link came back before its
 old session was seen to close. To give the copy its own uuid, see
 [`node_uuid()`](../api/helpers/misc.md#node_uuid) (`yuneta-node-uuid show` / `ensure` /
 `set`), then restart both agents and every yuno of the node.
+
+(controlcenter-node-names)=
+### A node is reached by its uuid
+
+`command-agent`, `stats-agent`, `write-tty` and the scenarios name a node by
+its uuid or by its hostname, in that order:
+
+- **The uuid** is the identity that the agent's session was accepted for: by
+  its key at the login, and against the node's record in `nodes` when the
+  session opens.
+- **The hostname** is only what the agent writes in its identity card. So it
+  names a node through the records of `nodes` (each record keeps the hostname
+  of the node's last session), and only when ONE record has it.
+
+When two nodes give one hostname, a command by that name is refused, and the
+control center logs a WARNING when the second one opens its session (*"Two
+nodes give one hostname: command-agent by that name is refused, give the node
+uuid"*):
+
+```
+command-agent agent_id=board-b cmd2agent=list-yunos
+# -> -1 "controlcenter^cc: 'board-b' is the hostname of more than one node: give its node uuid"
+command-agent agent_id=3c4d5e6f-7a8b-4c0d-9e2f-3a4b5c6d7e8f cmd2agent=list-yunos
+# -> 0 "Command sent to 1 nodes"
+```
+
+The name stays refused while both records keep it, also while one of the two
+nodes is away, until the node that took the other's name opens its session
+with its own. `write-tty` goes to ONE agent, and is refused without
+`agent_id` (a WARNING, *"write-tty without agent_id, nothing written"*). Up to
+7.30.14 the first agent whose uuid or hostname matched got the command, so an
+agent could take the commands of another node by giving its hostname, or its
+uuid as hostname; and `write-tty` went to every agent that matched, to all of
+them without `agent_id`.
 
 ## Reaching nodes through the control center (ycommand)
 
@@ -310,7 +403,7 @@ ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
 Connected nodes are discovered live: the control center scans `__input_side__`
 for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and reads each one's
 `identity_card` — a node is addressed by its **UUID** (`identity_card.id`) or
-its **hostname**.
+its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)).
 
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
 
@@ -320,8 +413,8 @@ ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-ag
 
 Parameters: `agent_id` (UUID or hostname), `agent_service`, and `cmd2agent`
 (the command to run on the node — this is the exact key the handler reads). The
-control center routes the command to the one matching connected agent
-(`gobj_command`, first match only). The node's agent then executes it, and can
+control center routes the command to the one connected agent of that node
+(`gobj_command`). The node's agent then executes it, and can
 itself target a specific yuno via its own `command-yuno` (`command=… service=…`).
 
 `command-agent` answers AT ONCE, before the node does: the first answer is
@@ -909,8 +1002,8 @@ never armed: all six read 0.
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
 | `drop-agent` | Drop a node's connection |
-| `write-tty` | Write to a node's PTY console (via `agent22`) |
-| `logout-user` | Log out a user session |
+| `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required |
+| `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |
 | `scenarios` | List the scenarios, or one (`scenario_id`) |
 | `save-scenario` | Create or replace a scenario (`scenario`) |
 | `delete-scenario` | Delete a scenario and its runs (`scenario_id`) |
@@ -920,6 +1013,17 @@ never armed: all six read 0.
 | `my-permissions` | The permissions of the user who asks: `true`, `false`, or the scenarios it is granted for; `EV_PERMISSIONS_CHANGED` says when to ask again |
 | `authzs` | Authorization help |
 | `help` | Command help |
+
+`logout-user` drops the sessions of a user. `disabled` is passed on only when
+it is given:
+
+```bash
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=logout-user username=bob@example.com'
+ycommand -c 'command-yuno id=<cc> service=controlcenter command=logout-user username=bob@example.com disabled=1'
+```
+
+The first leaves bob as he is: up to 7.30.14 it also enabled him if he was
+disabled, and no permission was asked.
 
 ## Ports
 

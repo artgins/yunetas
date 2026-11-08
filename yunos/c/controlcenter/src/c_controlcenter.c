@@ -101,9 +101,16 @@
  *  look for an agent. Without `enforce_node_keys` nothing is refused: the
  *  keys are recorded, so an operator can accept the nodes that run before
  *  it is switched on. `list-nodes`, `accept-node` (pins the key GIVEN, read
- *  on the node itself: never the one presented) and `refuse-node`
- *  (permission `manage-nodes`). The keys are the listeners' business: a C_TCP_S with
+ *  on the node itself: never the one presented; one key for one node: a
+ *  key accepted for another node is refused) and `refuse-node`
+ *  (permission `manage-nodes`). A decision drops the node's sessions it
+ *  does not let in now (with `enforce_node_keys`, or logged in by the key).
+ *  The keys are the listeners' business: a C_TCP_S with
  *  "ssl_verify_mode": "request" asks the client for its certificate.
+ *  A node is reached (command-agent, stats-agent, write-tty, the
+ *  scenarios) by the uuid its session was accepted for, or by a hostname
+ *  that ONE `nodes` record has: a hostname is only what an agent writes in
+ *  its card, and a name two nodes give is refused (find_agent_channel()).
  *  An accepted key is also the agent's LOGIN (7.30.11+): mt_authenticate()
  *  authenticates the identity card of an agent that presents it, as
  *  `agent:<node uuid>` reaching this service only, with no token; a key not
@@ -118,7 +125,9 @@
  *  `knows_operator_assertion` carries `__operator_assertion__`: a JWT
  *  (ES256) signed here, `iss` = `operator_assertion_issuer`, `sub` = the
  *  operator (the user C_IEVENT_SRV authenticated -- an email, or a local
- *  `yuneta` -- or the user who started a run), `aud` = the node uuid of
+ *  `yuneta` -- or the user who started a run; the stop a max_run schedules
+ *  is a run of this yuno, `<role>^<name>`, its comment naming who started
+ *  the scenario), `aud` = the node uuid of
  *  that agent (its identity card),
  *  living `operator_assertion_lifetime` seconds. The agent verifies it
  *  with the public key in its C_AUTHZ `assertion_jwks`. The operator's
@@ -154,6 +163,14 @@
 /*  The longest max_run of a scenario: a week, in seconds  */
 #define MAX_RUN_LIMIT   (7*24*3600)
 
+/*  The longest node uuid: what node_uuid() holds (its buffer of 64)  */
+#define NODE_ID_MAX     63
+
+/*  An open with nothing else changed writes the last_seen of its node
+ *  only when it is this old, in seconds: a link that comes and goes does
+ *  not append a record at every open  */
+#define LAST_SEEN_STEP  3600
+
 /*  What the users store publishes when something in it changes  */
 #define AUTHZ_STORE_EVENTS {                \
     EV_TREEDB_NODE_CREATED,                 \
@@ -186,7 +203,14 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
-PRIVATE BOOL note_knocking_node(
+PRIVATE BOOL node_id_shaped(json_t *jn_id);
+PRIVATE void drop_sessions_not_accepted(
+    hgobj gobj,
+    const char *node_id,
+    const char *state,
+    const char *spki
+);
+PRIVATE const char *note_knocking_node(
     hgobj gobj,
     const char *node_id,
     const char *hostname,
@@ -203,7 +227,8 @@ PRIVATE const char *record_node_key(
     const char **warning
 );
 PRIVATE BOOL agent_is_refused(hgobj agent_srv);
-PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id);
+PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid);
+PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguous);
 PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -722,6 +747,10 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  box connects with nothing but its key, and an operator accepts it with
  *  the key read on the box). Anything else -- an operator, an
  *  agent of before with its token -- is C_AUTHZ's, as for any service.
+ *  The card of an agent that presents a key is checked first, being a
+ *  peer's not authenticated yet: an `id` that is no node uuid, or a `host`
+ *  that is not a string or is longer than a host name, is refused (a
+ *  WARNING), and nothing of it is kept.
  ***************************************************************************/
 PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
@@ -734,9 +763,45 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         kw_get_str(gobj, peer_cert, "spki_sha256", "", 0) : "";
 
     if(!empty_string(spki) && strcmp(dst_service, gobj_name(gobj))==0) {
-        const char *node_id = kw_get_str(gobj, kw, "id", "", 0);
-        const char *hostname = kw_get_str(gobj, kw, "__md_iev__`ievent_gate_stack`0`host", "", 0);
-        json_t *node = (!empty_string(node_id) && priv->gobj_treedb_controlcenter)?
+        const char *peername = gobj_has_bottom_attr(src, "peername")?
+            gobj_read_str_attr(src, "peername") : "";
+        json_t *jn_id = json_object_get(kw, "id");
+        json_t *jn_host = json_object_get(
+            json_array_get(
+                json_object_get(json_object_get(kw, "__md_iev__"), "ievent_gate_stack"),
+                0
+            ),
+            "host"
+        );
+        const char *bad_card = NULL;
+        if(!node_id_shaped(jn_id)) {
+            bad_card = "its id is not a node uuid";
+        } else if(jn_host && !json_is_string(jn_host)) {
+            bad_card = "its host is not a string";
+        } else if(jn_host && json_string_length(jn_host) > HOST_NAME_MAX) {
+            bad_card = "its host is longer than a host name";
+        }
+        if(bad_card) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Agent not authenticated: its identity card is not valid",
+                "refusal",      "%s", bad_card,
+                "peername",     "%s", peername? peername : "",
+                "spki_sha256",  "%s", spki,
+                NULL
+            );
+            json_t *jn_resp = json_pack("{s:i, s:s, s:s}",
+                "result", -1,
+                "comment", "The identity card is not valid",
+                "dst_service", dst_service
+            );
+            KW_DECREF(kw)
+            return jn_resp;
+        }
+        const char *node_id = json_string_value(jn_id);
+        const char *hostname = jn_host? json_string_value(jn_host) : "";
+        json_t *node = priv->gobj_treedb_controlcenter?
             gobj_get_node(
                 priv->gobj_treedb_controlcenter,
                 "nodes",
@@ -768,21 +833,19 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         }
 
         if(empty_string(kw_get_str(gobj, kw, "jwt", "", 0))) {
-            const char *peername = gobj_has_bottom_attr(src, "peername")?
-                gobj_read_str_attr(src, "peername") : "";
             /*
              *  Nothing of an unauthenticated peer is written to the store:
              *  anyone who reaches the port can make a key. It is kept in
              *  memory, capped, for list-nodes (knocking), and an operator
              *  accepts it giving the key read on the node itself.
              */
-            BOOL accepted_node = note_knocking_node(gobj, node_id, hostname, peername, spki);
-            if(accepted_node) {
+            const char *refusal = note_knocking_node(gobj, node_id, hostname, peername, spki);
+            if(refusal) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
                     "msg",          "%s", "Agent not authenticated: its node key is not the one accepted",
-                    "refusal",      "%s", "The agent of an accepted node presents another key",
+                    "refusal",      "%s", refusal,
                     "node",         "%s", node_id,
                     "hostname",     "%s", hostname,
                     "peername",     "%s", peername? peername : "",
@@ -1161,14 +1224,30 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  Drop the sessions of a user (C_AUTHZ). `disabled` goes only when it is
+ *  given: C_AUTHZ writes it in the user's record, and a false that nobody
+ *  asked for enables a user disabled before.
  ***************************************************************************/
 PRIVATE json_t *cmd_logout_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "logout-user";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
-    BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, KW_WILD_NUMBER);
 
     if(empty_string(username)) {
         return msg_iev_build_response(
@@ -1181,13 +1260,16 @@ PRIVATE json_t *cmd_logout_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    json_t *kw_reject = json_pack("{s:s}", "username", username);
+    if(!json_absent(json_object_get(kw, "disabled"))) {
+        json_object_set_new(kw_reject, "disabled",
+            json_boolean(kw_get_bool(gobj, kw, "disabled", 0, KW_WILD_NUMBER))
+        );
+    }
     int result = gobj_send_event(
         priv->gobj_authz,
         EV_REJECT_USER,
-        json_pack("{s:s, s:b}",
-            "username", username,
-            "disabled", disabled
-        ),
+        kw_reject,  // owned
         gobj
     );
 
@@ -1371,29 +1453,22 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
         );
     }
 
-    json_t *jn_filter = json_pack("{s:s, s:s}",
-        "__gclass_name__", C_IEVENT_SRV,
-        "__state__", ST_SESSION
-    );
-
-    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+    BOOL ambiguous = FALSE;
+    hgobj child = empty_string(agent_id)?
+        agent_channel_of_uuid(gobj, NULL) : find_agent_channel(gobj, agent_id, &ambiguous);
+    if(ambiguous) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: '%s' is the hostname of more than one node: give its node uuid",
+                gobj_yuno_role_plus_name(), agent_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     int some = 0;
-    int idx; json_t *jn_child;
-    json_array_foreach(dl_children, idx, jn_child) {
-        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-        if(agent_is_refused(child)) {
-            continue;
-        }
-        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        if(!empty_string(agent_id)) {
-            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
-            const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
-            if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
-                continue;
-            }
-        }
-
+    if(child) {
         record_link_request(gobj, src, child);
         priv->txMsgs++;
         json_t *webix = gobj_command( // debe retornar siempre 0.
@@ -1404,10 +1479,7 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
         );
         JSON_DECREF(webix);
         some++;
-        break; // connect ONLY one
     }
-
-    gobj_free_iter(dl_children);
 
     return msg_iev_build_response(gobj, // Asynchronous response too
         some?0:-1,
@@ -1472,28 +1544,22 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         json_object_set_new(kw, "service", json_string(agent_service));
     }
 
-    json_t *jn_filter = json_pack("{s:s, s:s}",
-        "__gclass_name__", C_IEVENT_SRV,
-        "__state__", ST_SESSION
-    );
-    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+    BOOL ambiguous = FALSE;
+    hgobj child = empty_string(agent_id)?
+        agent_channel_of_uuid(gobj, NULL) : find_agent_channel(gobj, agent_id, &ambiguous);
+    if(ambiguous) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: '%s' is the hostname of more than one node: give its node uuid",
+                gobj_yuno_role_plus_name(), agent_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     int some = 0;
-    int idx; json_t *jn_child;
-    json_array_foreach(dl_children, idx, jn_child) {
-        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-        if(agent_is_refused(child)) {
-            continue;
-        }
-        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        if(!empty_string(agent_id)) {
-            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
-            const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
-            if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
-                continue;
-            }
-        }
-
+    if(child) {
         record_link_request(gobj, src, child);
         priv->txMsgs++;
         json_t *webix = gobj_stats( // debe retornar siempre 0.
@@ -1504,10 +1570,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         );
         JSON_DECREF(webix);
         some++;
-        break; // connect ONLY one
     }
-
-    gobj_free_iter(dl_children);
 
     return msg_iev_build_response(gobj, // Asynchronous response too
         some?0:-1,
@@ -1625,7 +1688,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     size_t idx; json_t *jn_node;
     json_array_foreach(jn_data, idx, jn_node) {
-        hgobj agent = find_agent_channel(gobj, kw_get_str(gobj, jn_node, "id", "", 0));
+        hgobj agent = agent_channel_of_uuid(gobj, kw_get_str(gobj, jn_node, "id", "", 0));
         json_object_set_new(jn_node, "connected", json_boolean(agent? TRUE : FALSE));
     }
     if(empty_string(state) || strcmp(state, "knocking")==0) {
@@ -1652,7 +1715,9 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 /***************************************************************************
  *  Write the decision about a node: `state` accepted (with its key) or
  *  refused, who decided and when. Return the node written, yours, or NULL
- *  with the reason in `comment`.
+ *  with the reason in `comment`. A key accepted for another node is not
+ *  accepted for this one. The sessions of the node that the decision does
+ *  not let in any more are dropped (drop_sessions_not_accepted()).
  ***************************************************************************/
 PRIVATE json_t *decide_node(
     hgobj gobj,
@@ -1711,6 +1776,47 @@ PRIVATE json_t *decide_node(
             JSON_DECREF(node)
             return NULL;
         }
+        /*
+         *  One key, one node: a copy of a node's disk carries its pair,
+         *  and the copy, under another uuid, would log in as both
+         */
+        json_t *holders = gobj_list_nodes(
+            priv->gobj_treedb_controlcenter,
+            "nodes",
+            json_pack("{s:s, s:s}", "spki_sha256", spki, "state", "accepted"),
+            0,
+            gobj
+        );
+        const char *other = NULL;
+        size_t idx; json_t *jn_holder;
+        json_array_foreach(holders, idx, jn_holder) {
+            const char *holder_id = kw_get_str(gobj, jn_holder, "id", "", 0);
+            if(strcmp(holder_id, node_id)!=0) {
+                other = holder_id;
+                break;
+            }
+        }
+        if(other) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Node not accepted: its key is accepted for another node",
+                "node",         "%s", node_id,
+                "other_node",   "%s", other,
+                "spki_sha256",  "%s", spki,
+                "decided_by",   "%s", username_of(gobj, kw, src),
+                NULL
+            );
+            *comment = json_sprintf("%s: node '%s': its key is already accepted for node '%s' "
+                "(a copy of that node? give the copy its own pair, and accept that key)",
+                gobj_yuno_role_plus_name(), node_id, other);
+            JSON_DECREF(holders)
+            JSON_DECREF(update)
+            JSON_DECREF(node)
+            return NULL;
+        }
+        JSON_DECREF(holders)
+
         json_object_set_new(update, "spki_sha256", json_string(spki));
         json_object_set_new(update, "presented_spki", json_string(""));
         if(!node) {
@@ -1751,6 +1857,7 @@ PRIVATE json_t *decide_node(
         "decided_by",   "%s", kw_get_str(gobj, written, "decided_by", "", 0),
         NULL
     );
+    drop_sessions_not_accepted(gobj, node_id, state, kw_get_str(gobj, written, "spki_sha256", "", 0));
     *comment = json_sprintf("%s: node '%s' %s", gobj_yuno_role_plus_name(), node_id, state);
     return written;
 }
@@ -1794,8 +1901,9 @@ PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 }
 
 /***************************************************************************
- *  Refuse a node: with enforce_node_keys its agent is dropped now, and
- *  refused when it comes back.
+ *  Refuse a node: its agent is dropped now (decide_node(): with
+ *  enforce_node_keys, or if it logged in by the key), and refused when it
+ *  comes back.
  ***************************************************************************/
 PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1814,13 +1922,6 @@ PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
     json_t *comment = NULL;
     json_t *written = decide_node(gobj, node_id, "refused", "", kw, src, &comment);
-    if(written && gobj_read_bool_attr(gobj, "enforce_node_keys")) {
-        hgobj agent = find_agent_channel(gobj, node_id);
-        if(agent) {
-            gobj_write_user_data(gobj_parent(agent), "node_refused", json_true());
-            gobj_send_event(agent, EV_DROP, json_object(), gobj);
-        }
-    }
     return msg_iev_build_response(
         gobj,
         written? 0 : -1,
@@ -3416,10 +3517,14 @@ PRIVATE json_t *sort_runs_newest_first(json_t *runs) // owned, returned
 }
 
 /***************************************************************************
- *  The channel of a connected agent, by its UUID or its hostname -- the
- *  same match command-agent makes.
+ *  The channel of a connected agent of the node `uuid`: the uuid its
+ *  session was accepted for (by its key in mt_authenticate(), against the
+ *  node's record in check_node_key()). Two sessions of one uuid (a link
+ *  that came back before the old one closed, or a copy of a node:
+ *  report_twin_agents()) give the first. NULL `uuid`: the first agent in
+ *  session (command-agent and stats-agent with no agent_id).
  ***************************************************************************/
-PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
+PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3437,15 +3542,146 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id)
             continue;
         }
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
-        const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
-        if(strcmp(id_, agent_id)==0 || strcmp(host_, agent_id)==0) {
+        if(!uuid || strcmp(kw_get_str(gobj, jn_attrs, "id", "", 0), uuid)==0) {
             found = child;
             break;
         }
     }
     gobj_free_iter(dl_children);
     return found;
+}
+
+/***************************************************************************
+ *  The channel of the connected agent named `agent_id`: a node uuid, or a
+ *  hostname. A uuid wins. A hostname is only what an agent writes in its
+ *  card, so it names a node through the `nodes` records (each holds the
+ *  hostname of its node's last session), and only when ONE record has it:
+ *  a name that two nodes give is no name (NULL, `ambiguous` TRUE), and an
+ *  agent cannot take the commands, or the keyboard, of another by giving
+ *  its name -- even while the other is away.
+ ***************************************************************************/
+PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguous)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(ambiguous) {
+        *ambiguous = FALSE;
+    }
+    if(empty_string(agent_id)) {
+        return 0;
+    }
+    hgobj found = agent_channel_of_uuid(gobj, agent_id);
+    if(found || !priv->gobj_treedb_controlcenter) {
+        return found;
+    }
+
+    json_t *named = gobj_list_nodes(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s}", "hostname", agent_id),
+        0,
+        gobj
+    );
+    if(json_array_size(named) > 1) {
+        if(ambiguous) {
+            *ambiguous = TRUE;
+        }
+    } else if(json_array_size(named) == 1) {
+        found = agent_channel_of_uuid(gobj,
+            kw_get_str(gobj, json_array_get(named, 0), "id", "", 0)
+        );
+    }
+    JSON_DECREF(named)
+    return found;
+}
+
+/***************************************************************************
+ *  A node uuid as an agent's card says it (C_IEVENT_CLI writes
+ *  node_uuid()): a string of letters, digits and '-', of 1 to NODE_ID_MAX.
+ *  Not the strict 8-4-4-4-12: node_uuid() reads uuid.json as it is written.
+ ***************************************************************************/
+PRIVATE BOOL node_id_shaped(json_t *jn_id)
+{
+    if(!json_is_string(jn_id)) {
+        return FALSE;
+    }
+    size_t len = json_string_length(jn_id);
+    if(len == 0 || len > NODE_ID_MAX) {
+        return FALSE;
+    }
+    const char *id = json_string_value(jn_id);
+    for(size_t i = 0; i < len; i++) {
+        char c = id[i];
+        BOOL ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            c == '-';
+        if(!ok) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A decision about a node (decide_node()) holds for its sessions in
+ *  course too: each session of `node_id` whose key is not the one accepted
+ *  now -- every one, if the node is refused -- is dropped (an INFO), and
+ *  marked so that nothing goes to it meanwhile. Without enforce_node_keys
+ *  only a session that logged in BY the key (agent:<uuid>) goes: a session
+ *  of a token is let in with any key then, as at its open.
+ ***************************************************************************/
+PRIVATE void drop_sessions_not_accepted(
+    hgobj gobj,
+    const char *node_id,
+    const char *state,
+    const char *spki    // the key accepted now
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL enforce = gobj_read_bool_attr(gobj, "enforce_node_keys");
+    BOOL accepted = strcmp(state, "accepted")==0;
+    char by_key[NAME_MAX];
+    snprintf(by_key, sizeof(by_key), "agent:%s", node_id);
+
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", C_IEVENT_SRV,
+        "__state__", ST_SESSION
+    );
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
+        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
+        if(strcmp(kw_get_str(gobj, jn_attrs, "id", "", 0), node_id)!=0) {
+            continue;
+        }
+        json_t *peer_cert = gobj_read_json_attr(child, "peer_cert");
+        const char *presented = json_is_object(peer_cert)?
+            kw_get_str(gobj, peer_cert, "spki_sha256", "", 0) : "";
+        if(accepted && strcmp(presented, spki)==0) {
+            continue;
+        }
+        const char *username = gobj_read_str_attr(child, "__username__");
+        if(!enforce && strcmp(username? username : "", by_key)!=0) {
+            continue;
+        }
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "A session of the node dropped: its key is not accepted now",
+            "node",         "%s", node_id,
+            "state",        "%s", state,
+            "spki_sha256",  "%s", presented,
+            NULL
+        );
+        gobj_write_user_data(gobj_parent(child), "node_refused", json_true());
+        gobj_send_event(child, EV_DROP, json_object(), gobj);
+    }
+    gobj_free_iter(dl_children);
 }
 
 /***************************************************************************
@@ -3466,10 +3702,10 @@ PRIVATE BOOL agent_is_refused(hgobj agent_srv)
  *  it), said once per uuid (INFO), and shown by list-nodes. At most
  *  `max_knocking_nodes`: a new one evicts the one knocked least recently, so
  *  a flood cannot keep the table full of its own (and accept-node does not
- *  depend on it). Returns TRUE if the uuid is of a node in the store
- *  (an accepted or refused one: another key for it).
+ *  depend on it). Returns, for the uuid of a node in the store that is not
+ *  pending, why its agent is not let in (NULL otherwise: knocking).
  ***************************************************************************/
-PRIVATE BOOL note_knocking_node(
+PRIVATE const char *note_knocking_node(
     hgobj gobj,
     const char *node_id,
     const char *hostname,
@@ -3480,7 +3716,7 @@ PRIVATE BOOL note_knocking_node(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(empty_string(node_id)) {
-        return FALSE;
+        return NULL;
     }
     json_t *node = priv->gobj_treedb_controlcenter?
         gobj_get_node(
@@ -3490,10 +3726,16 @@ PRIVATE BOOL note_knocking_node(
             0,
             gobj
         ) : NULL;
-    BOOL known = (node && strcmp(kw_get_str(gobj, node, "state", "", 0), "pending")!=0)? TRUE : FALSE;
+    const char *state = node? kw_get_str(gobj, node, "state", "", 0) : "";
+    const char *refusal = NULL;
+    if(strcmp(state, "refused")==0) {
+        refusal = "The node is refused";
+    } else if(strcmp(state, "accepted")==0) {
+        refusal = "The agent of an accepted node presents another key";
+    }
     JSON_DECREF(node)
-    if(known) {
-        return TRUE;
+    if(refusal) {
+        return refusal;
     }
 
     json_int_t now = (json_int_t)time(NULL);
@@ -3505,11 +3747,11 @@ PRIVATE BOOL note_knocking_node(
         } else {
             json_object_set_new(entry, "other_keys", json_true());
         }
-        return FALSE;
+        return NULL;
     }
     json_int_t max_knocking = gobj_read_integer_attr(gobj, "max_knocking_nodes");
     if(max_knocking <= 0) {
-        return FALSE;
+        return NULL;
     }
     while((json_int_t)json_object_size(priv->knocking) >= max_knocking) {
         const char *oldest = NULL;
@@ -3545,7 +3787,7 @@ PRIVATE BOOL note_knocking_node(
         "spki_sha256",  "%s", spki,
         NULL
     );
-    return FALSE;
+    return NULL;
 }
 
 /***************************************************************************
@@ -3554,7 +3796,10 @@ PRIVATE BOOL note_knocking_node(
  *  with a key: a node to accept), its hostname, address and last_seen each
  *  time, and the key presented when it is not the accepted one. Returns why
  *  such an agent would be refused (NULL: it may be let in), and in
- *  `warning` what is said even when nothing is refused.
+ *  `warning` what is said even when nothing is refused. An open that
+ *  changes nothing (its hostname, address and key presented) is not
+ *  written, unless its last_seen is LAST_SEEN_STEP old: a link that comes
+ *  and goes does not append a record at every open.
  ***************************************************************************/
 PRIVATE const char *record_node_key(
     hgobj gobj,
@@ -3587,6 +3832,7 @@ PRIVATE const char *record_node_key(
     }
 
     const char *refusal = NULL;
+    BOOL unchanged = FALSE;
     json_int_t now = (json_int_t)time(NULL);
     json_t *node = gobj_get_node(
         priv->gobj_treedb_controlcenter,
@@ -3637,7 +3883,17 @@ PRIVATE const char *record_node_key(
                 refusal = "The node is not accepted (pending)";
             }
         }
+        unchanged =
+            strcmp(kw_get_str(gobj, node, "hostname", "", 0), hostname? hostname : "")==0 &&
+            strcmp(kw_get_str(gobj, node, "peername", "", 0), peername? peername : "")==0 &&
+            strcmp(kw_get_str(gobj, node, "presented_spki", "", 0),
+                kw_get_str(gobj, update, "presented_spki", "", 0))==0 &&
+            now - kw_get_int(gobj, node, "last_seen", 0, KW_WILD_NUMBER) < LAST_SEEN_STEP;
         JSON_DECREF(node)
+    }
+    if(unchanged) {
+        JSON_DECREF(update)
+        return refusal;
     }
     json_t *written = gobj_update_node(
         priv->gobj_treedb_controlcenter,
@@ -3721,6 +3977,10 @@ PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
  *  by its uuid, and they would reach the first of the two. The same host
  *  is not reported: it is a node whose link came back before its old
  *  session was seen to close.
+ *  And two nodes with one hostname: an agent that gives the hostname of an
+ *  agent in session of another uuid. Both records have it then, so
+ *  command-agent by that name is refused (find_agent_channel()).
+ *  WARNINGs: an agent can make either happen.
  ***************************************************************************/
 PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
 {
@@ -3738,6 +3998,8 @@ PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
     );
     json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
 
+    BOOL twin_uuid = FALSE;
+    BOOL twin_name = FALSE;
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
@@ -3747,8 +4009,8 @@ PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
         const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
-        if(strcmp(id_, id)==0 && strcmp(host_, host)!=0) {
-            gobj_log_error(gobj, 0,
+        if(!twin_uuid && strcmp(id_, id)==0 && strcmp(host_, host)!=0) {
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)",
@@ -3757,7 +4019,19 @@ PRIVATE void report_twin_agents(hgobj gobj, json_t *identity_card)
                 "hostname2",    "%s", host_,
                 NULL
             );
-            break;
+            twin_uuid = TRUE;
+        }
+        if(!twin_name && !empty_string(host) && strcmp(host_, host)==0 && strcmp(id_, id)!=0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Two nodes give one hostname: command-agent by that name is refused, give the node uuid",
+                "hostname",     "%s", host,
+                "uuid",         "%s", id,
+                "uuid2",        "%s", id_,
+                NULL
+            );
+            twin_name = TRUE;
         }
     }
     gobj_free_iter(dl_children);
@@ -3778,7 +4052,7 @@ PRIVATE int run_send_step(hgobj gobj)
     const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
     const char *line = kw_get_str(gobj, step, "line", "", KW_REQUIRED);
 
-    hgobj channel = find_agent_channel(gobj, node);
+    hgobj channel = find_agent_channel(gobj, node, NULL);
     if(!channel) {
         json_object_set_new(step, "result", json_integer(-1));
         json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
@@ -3823,7 +4097,7 @@ PRIVATE int run_send_all_steps(hgobj gobj)
     size_t idx; json_t *step;
     json_array_foreach(steps, idx, step) {
         const char *node = kw_get_str(gobj, step, "node", "", KW_REQUIRED);
-        hgobj channel = find_agent_channel(gobj, node);
+        hgobj channel = find_agent_channel(gobj, node, NULL);
         if(!channel) {
             json_object_set_new(step, "result", json_integer(-1));
             json_object_set_new(step, "comment", json_sprintf("node '%s' is not connected", node));
@@ -3847,7 +4121,7 @@ PRIVATE int run_send_all_steps(hgobj gobj)
             }
             continue;
         }
-        hgobj channel = find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", KW_REQUIRED));
+        hgobj channel = find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", KW_REQUIRED), NULL);
         if(!channel) {
             continue;   // registered just above: it cannot be gone in between
         }
@@ -5311,7 +5585,7 @@ PRIVATE BOOL steps_reach_a_node(hgobj gobj, json_t *steps)
 {
     size_t idx; json_t *step;
     json_array_foreach(steps, idx, step) {
-        if(find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", 0))) {
+        if(find_agent_channel(gobj, kw_get_str(gobj, step, "node", "", 0), NULL)) {
             return TRUE;
         }
     }
@@ -5729,36 +6003,28 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *----------------------------------------*/
     priv->rxMsgs++;
     const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
+    if(empty_string(agent_id)) {
+        /*
+         *  Keystrokes for no node in particular went to every agent
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "write-tty without agent_id, nothing written",
+            NULL
+        );
+        KW_DECREF(kw);
+        return 0;
+    }
 
-    json_t *jn_filter = json_pack("{s:s, s:s}",
-        "__gclass_name__", C_IEVENT_SRV,
-        "__state__", ST_SESSION
-    );
-    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
-
-    int some = 0;
-    int idx; json_t *jn_child;
-    json_array_foreach(dl_children, idx, jn_child) {
-        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-        if(agent_is_refused(child)) {
-            continue;
-        }
-        json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
-        if(!empty_string(agent_id)) {
-            /*
-             *  Match by UUID OR hostname, like command-agent (a caller such
-             *  as the browser console addresses nodes by hostname). Matching
-             *  only the UUID here silently missed every hostname-addressed
-             *  write-tty.
-             */
-            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
-            const char *host_ = kw_get_str(gobj, jn_attrs,
-                "__md_iev__`ievent_gate_stack`0`host", "", 0);
-            if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
-                continue;
-            }
-        }
-
+    /*
+     *  By uuid or hostname, like command-agent (the browser console
+     *  addresses nodes by hostname), and to ONE agent: what is typed in a
+     *  console, passwords included, is for that node only
+     */
+    BOOL ambiguous = FALSE;
+    hgobj child = find_agent_channel(gobj, agent_id, &ambiguous);
+    if(child) {
         priv->txMsgs++;
         json_t *webix = gobj_command( // debe retornar siempre 0.
             child,
@@ -5766,13 +6032,16 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             kw_incref(kw),
             src
         );
-        some++;
         JSON_DECREF(webix);
-    }
-
-    gobj_free_iter(dl_children);
-
-    if(!some) {
+    } else if(ambiguous) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "write-tty: the agent_id names more than one node, nothing written",
+            "agent_id",     "%s", agent_id,
+            NULL
+        );
+    } else {
         /*
          *  No connected agent matched agent_id. Do NOT drop src: it is a
          *  shared control channel (the browser console multiplexes every

@@ -243,6 +243,53 @@ still reported and fails the test.
       (`knocking` in `list-nodes`); a second key for it does not replace the
       first; `accept-node` with the key creates its record, and it logs in.
       `accept-node` without `spki_sha256` is refused.
+    - `refuse-node` drops the agent in session with an INFO (*"A session of
+      the node dropped"*).
+
+23. A node is reached by its uuid, and by a hostname only when one node has
+    it. Nodes A and B are accepted with their keys, `enforce_node_keys` on:
+    - A gives B's hostname, its channel first: two nodes have that name (a
+      WARNING when the second opens), so `command-agent`, `stats-agent` and
+      `write-tty` by it are refused and reach neither; `write-tty` without
+      `agent_id` reaches no agent (a WARNING each); B's uuid reaches B;
+    - A gives B's uuid as its hostname, its channel first: B's uuid reaches B,
+      for `command-agent` and `stats-agent`;
+    - A back with its own name: B's hostname reaches B;
+    - a session with no key (`allow_nodes_without_key`) that gives B's
+      hostname, its channel first, takes nothing either.
+
+    Up to 7.30.14 the first channel whose hostname or uuid matched took it,
+    and `write-tty` went to every match (to all agents without `agent_id`).
+24. One key, one node: `accept-node` of a key accepted for another node is
+    refused (a WARNING), and nothing is written. Up to 7.30.14 it was
+    accepted.
+25. The card of an agent not authenticated yet: an `id` that is not a string
+    or not shaped as a node uuid (a backtick, 300 characters), and a `host`
+    that is not a string or is longer than a host name, are refused (a
+    WARNING each), and none of them is kept knocking. Up to 7.30.14 a value
+    that was not a string gave an ERROR with a stack, and the rest was kept.
+26. A refused node whose agent presents its key: the WARNING's `refusal` says
+    *"The node is refused"*. Up to 7.30.14 it said *"another key"*.
+27. An open with nothing changed (hostname, address, key) writes nothing in
+    `nodes` (its `g_rowid` stays); a new hostname is written. Up to 7.30.14
+    every open wrote the record.
+28. A decision drops the sessions of the node that it no longer lets in (an
+    INFO each). `enforce_node_keys` off: `accept-node` with the key a session
+    logged in by (`agent:<uuid>`) keeps it; with a new key it drops it, and
+    keeps a session of a token; `refuse-node` drops a session logged in by
+    the key. `enforce_node_keys` on: a new key drops a session that presents
+    the old one. Up to 7.30.14 such sessions stayed until they reconnected.
+29. `logout-user` asks the permission `logout-user` ("viewer" has not: the
+    `authz` service, played by the peer, gets nothing), and passes `disabled`
+    only when given: absent, `true` or `false` as given. Up to 7.30.14
+    anybody logged anybody out, and a missing `disabled` went as `false` (a
+    disabled user was enabled again).
+
+The agent of `node1` opens its session as in production (`EV_ON_OPEN`), so its
+node has a record in `nodes`, whose hostname names it. Case 0's copy, from
+another host, renames that record, so the agent opens its session again after
+it. Case 0's report is a WARNING (an ERROR up to 7.30.14), and the expected
+logs check the priority (`msg|when|dropped|refusal|priority` in `main.c`).
 
 ## Run
 
