@@ -10,7 +10,7 @@
  *          (C_PROT_RAW, no TLS) connect: one sends nothing, the other one
  *          byte, 0x16 (the first byte of a TLS record). The server must
  *          drop both at timeout_tls_handshake (not before 0.9 s, and with a
- *          wide margin, before 5 s), with ONE warning each. Then a raw
+ *          wide margin, before 5 s). Then a raw
  *          client sends a line that is not TLS to a TLS server of the new
  *          method (no child_tree_filter: its clisrv stays running between
  *          connections): the server drops it at once, for the TLS error,
@@ -21,9 +21,13 @@
  *
  *          The client: a wss client (timeout_tls_handshake 1 s) connects
  *          to a plain TCP server that accepts and says nothing. The client
- *          must drop the connection at timeout_tls_handshake, with ONE
- *          warning, and connect again (its reconnect): the second
- *          connection seen by the mute server ends the test.
+ *          must drop the connection at timeout_tls_handshake and connect
+ *          again (its reconnect): the second connection seen by the mute
+ *          server ends the test.
+ *
+ *          The three deadlines come within 10 s: they write ONE warning,
+ *          the first ("suppressed" 0), as every deadline of a yuno does in
+ *          a window of 10 s (c_tcp's test11 counts the next window).
  *
  *          Up to 7.30.16 C_TCP armed no timer while its TLS handshake ran,
  *          and C_WEBSOCKET's timeout_handshake starts only at EV_CONNECTED,

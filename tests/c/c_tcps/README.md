@@ -50,10 +50,12 @@ backends are built) is the deadline of the TLS handshake,
 
 | Who | Does | Must |
 |---|---|---|
-| a wss server of 2 channels (`child_tree_filter`) | gets two raw TCP clients: one sends nothing, one the byte `0x16` | drop both between 0.9 s and 5 s, ONE warning each (*"TLS handshake not ended in time, connection dropped"*) |
+| a wss server of 2 channels (`child_tree_filter`) | gets two raw TCP clients: one sends nothing, one the byte `0x16` | drop both between 0.9 s and 5 s |
 | a TLS server of the new method (no `child_tree_filter`) | gets a raw client that sends `hello` | drop it at once (*"TLS handshake rejected"*), and fire NOTHING in the 3 s after: its clisrv stays running between connections, and a deadline left armed would fire there |
 | a wss client | connects to the first server, whose channels are free again | open its session, and keep it past the deadline |
-| a wss client (`timeout_between_connections` 300) | connects to a plain TCP server that accepts and says nothing | drop the connection between 0.9 s and 5 s, ONE warning, and connect again: the end |
+| a wss client (`timeout_between_connections` 300) | connects to a plain TCP server that accepts and says nothing | drop the connection between 0.9 s and 5 s, and connect again: the end |
+
+The three deadlines come within 10 s, so they write ONE warning (*"TLS handshake not ended in time, connection dropped"*, `"suppressed": 0`): since the fixes after 7.30.17 the warning is one per 10 s for the whole yuno (`c_tcp`'s `test11` counts the next window).
 
 Up to 7.30.16 `C_TCP` armed nothing while its handshake ran, and
 `EV_CONNECTED` (which starts `C_WEBSOCKET`'s `timeout_handshake`) comes only

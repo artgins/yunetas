@@ -60,8 +60,11 @@
     default, 0: none), on a server and on a client: armed on the C_TIMER of
     the gobj when ST_WAIT_HANDSHAKE begins (a clisrv with TLS gets its
     timer at its start), cleared when the handshake ends or the connection
-    does. Its EV_TIMEOUT drops the connection with ONE warning naming the
-    peer; a client then reconnects as after any failed connection. It costs
+    does. Its EV_TIMEOUT drops the connection with a warning naming the
+    peer, one per 10 s for the whole yuno, with the count of the ones not
+    written ("suppressed"); a client then reconnects as after any failed
+    connection. While the handshake runs the timer is its deadline only:
+    the inactivity timer of a client is armed in ST_CONNECTED. It costs
     nothing per read. Before it (up to 7.30.16), a peer that sent nothing
     held a connection for ever: EV_CONNECTED comes only after the
     handshake, so no deadline of the host above (C_WEBSOCKET's
@@ -139,6 +142,13 @@
  *  said nothing. The same floor as gobj-js's C_IEVENT_CLI (RETRY_FLOOR_MS).
  */
 #define RECONNECT_FLOOR_MS  1000
+
+/*
+ *  The warning of a TLS handshake not ended in time is the peer's to
+ *  cause, as often as it connects: one per interval for the whole yuno,
+ *  with the count of the ones not written (see ac_timeout_tls_handshake()).
+ */
+#define PEER_LOG_INTERVAL_MS (10*1000)
 
 /***************************************************************
  *              Prototypes
@@ -287,6 +297,13 @@ typedef struct _PRIVATE_DATA {
 
     alive_t *alive;                 // the markers of the publishes in progress (see alive_t)
 } PRIVATE_DATA;
+
+/*
+ *  Not of one connection: a peer that opens many mute connections, each
+ *  one a C_TCP of its own (a channel, or a volatile clisrv), is one cause
+ */
+PRIVATE uint64_t handshake_log_t_next = 0;      // msectimer: no warning before it
+PRIVATE json_int_t handshake_log_suppressed = 0;  // not written since the last one
 
 
 
@@ -719,12 +736,17 @@ PRIVATE void alive_pop(PRIVATE_DATA *priv, alive_t *marker)
 /***************************************************************************
  *  Arm the inactivity timer (client only, one-shot, reset on each activity).
  *  No-op unless this is a pure tcp client with timeout_inactivity > 0.
+ *  Only in ST_CONNECTED: the timer is the deadline of the TLS handshake in
+ *  ST_WAIT_HANDSHAKE, and up to 7.30.17 each byte read there re-armed it
+ *  with the inactivity time, so a peer that sent a byte now and then kept
+ *  the handshake open past its deadline.
  ***************************************************************************/
 PRIVATE void set_inactivity_timeout(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(IS_CLI && priv->gobj_timer && priv->timeout_inactivity > 0) {
+    if(IS_CLI && priv->gobj_timer && priv->timeout_inactivity > 0 &&
+            gobj_in_this_state(gobj, ST_CONNECTED)) {
         set_timeout(priv->gobj_timer, priv->timeout_inactivity);
     }
 }
@@ -1713,7 +1735,8 @@ PRIVATE void bound_the_write_in_flight(hgobj gobj)
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  *
  *  The socket of a clisrv is its own (a client's is its connect event's,
- *  closed by the free of that event), and it is closed only once all its
+ *  closed by the stop of that event, which waits as well for the write in
+ *  flight), and it is closed only once all its
  *  io_uring events are stopped (tx_in_progress is then 0). shutdown(SHUT_WR)
  *  goes before close(): Linux sends a RST instead of a FIN when close() is
  *  called with unread data in the receive buffer (the peer's FIN arrived
@@ -1772,7 +1795,14 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         bound_the_write_in_flight(gobj);
     }
 
-    if(priv->yev_connect) {
+    /*
+     *  The stop of the connect event closes a client's socket: not while a
+     *  write is in flight. Its completion may be short, and its rest is
+     *  written with the number of the socket; up to 7.30.17 that number was
+     *  already closed, and the rest went to whatever file or socket had
+     *  taken it. The completion of the last write calls here again.
+     */
+    if(priv->yev_connect && priv->tx_in_progress == 0) {
         if(!yev_event_is_stopped(priv->yev_connect)) {
             yev_stop_event(priv->yev_connect);
             if(!yev_event_is_stopped(priv->yev_connect)) {
@@ -2666,16 +2696,28 @@ PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hg
  ***************************************************************************/
 PRIVATE int ac_timeout_tls_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_log_warning(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL,
-        "msg",          "%s", "TLS handshake not ended in time, connection dropped",
-        "timeout_tls_handshake", "%d", (int)gobj_read_integer_attr(gobj, "timeout_tls_handshake"),
-        "url",          "%s", gobj_read_str_attr(gobj, "url"),
-        "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
-        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
-        NULL
-    );
+    /*
+     *  One warning per PEER_LOG_INTERVAL_MS, saying how many were not
+     *  written before it. Up to 7.30.17 each mute connection wrote one: a
+     *  peer that kept opening them wrote the log at its will.
+     */
+    if(handshake_log_t_next && !test_msectimer(handshake_log_t_next)) {
+        handshake_log_suppressed++;
+    } else {
+        handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "TLS handshake not ended in time, connection dropped",
+            "timeout_tls_handshake", "%d", (int)gobj_read_integer_attr(gobj, "timeout_tls_handshake"),
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
+            "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
+            "suppressed",   "%ld", (long)handshake_log_suppressed,
+            NULL
+        );
+        handshake_log_suppressed = 0;
+    }
 
     set_disconnect_cause(gobj, "TLS: the handshake did not end in time");
     try_to_stop_yevents(gobj);

@@ -8,16 +8,16 @@
  *          Tasks
  *          - Play a wss server of 2 channels, timeout_tls_handshake 1 s
  *          - Two raw clients (no TLS) connect: one sends nothing, one the
- *            byte 0x16. The server drops both at the deadline, ONE warning
- *            each
+ *            byte 0x16. The server drops both at the deadline
  *          - A raw client sends a line that is not TLS to a TLS server
  *            of the new method (no child_tree_filter): dropped at once,
  *            and nothing fires after it
  *          - A wss client opens a session (the channels are free again)
  *            and keeps it past the deadline
  *          - A wss client (timeout_tls_handshake 1 s) connects to a plain
- *            server that says nothing: it drops at the deadline, ONE
- *            warning, and connects again: the end
+ *            server that says nothing: it drops at the deadline, and
+ *            connects again: the end
+ *          - The three deadlines come in one window of 10 s: ONE warning
  *          - Shutdown
  *
  *          Copyright (c) 2026, ArtGins.
@@ -410,11 +410,10 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",
-        "msg", "TLS handshake not ended in time, connection dropped",   // the raw client of nothing
-        "msg", "TLS handshake not ended in time, connection dropped",   // the raw client of 0x16
-        "msg", "TLS handshake rejected",                                // the raw client of a line
-        "msg", "TLS handshake not ended in time, connection dropped"    // the wss client of the silent server
+    json_t *errors_list = json_pack("[{s:s, s:i}, {s:s}]",
+        "msg", "TLS handshake not ended in time, connection dropped",   // the raw clients, then the wss client: one window
+        "suppressed", 0,
+        "msg", "TLS handshake rejected"                                 // the raw client of a line
     );
 
     set_expected_results( // Check that no logs happen
