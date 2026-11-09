@@ -38,6 +38,62 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<C_PR
 # {"C_PROT_MQTT2^<name>": "********"}
 ```
 
+### `C_PROT_MQTT`: the records of the clients and their limits
+
+`C_PROT_MQTT` keeps one record per client id in the store its gate gives it
+as `gobj_mqtt_clients` (a [`C_RESOURCE2`](#gclass-c-resource2)). Only a
+client with a session to keep has its record on disk: MQTT 3.1.1 with clean
+session 0, MQTT 5 with a session expiry interval above 0. Every other client
+(MQTT 3.1.1 clean session 1, MQTT 5 with no session expiry, an id the gate
+assigned) has its record in memory only, and the record is removed when the
+client disconnects.
+
+- A later CONNECT with the same id and clean session 0 starts a new session:
+  CONNACK with session present 0, no subscriptions.
+- A CONNECT with clean session 1 over a session that exists ends that
+  session: its record and its file are removed when the client disconnects.
+- A subscription to a filter that the client already holds replaces it, as
+  MQTT says: SUBACK granted, the client stays connected.
+
+Two attributes limit what clients can keep. `0` is no limit.
+
+| Attribute | Default | Past the limit |
+|---|---|---|
+| `max_subscriptions_per_client` | `100` | Each new filter of the SUBSCRIBE is refused in the SUBACK (MQTT 5 `0x97` Quota exceeded, MQTT 3.1.1 `0x80` Failure). The client stays connected. One WARNING per connection. |
+| `max_persistent_sessions` | `1000` | A CONNECT that adds a session is refused (CONNACK: MQTT 5 `0x97`, MQTT 3.1.1 `3` Server unavailable) and the connection closes. A client without a session, and a client whose session exists, still connect. One WARNING per minute in the process, with the CONNECTs refused since the last one. |
+
+Set them in the `kw` of the protocol gobj, in the gclass tree of the gate's
+channel:
+
+```json
+{
+    "name": "mqtt",
+    "gclass": "C_PROT_MQTT",
+    "kw": {
+        "iamServer": true,
+        "max_subscriptions_per_client": 20,
+        "max_persistent_sessions": 200
+    }
+}
+```
+
+The WARNINGs (`msgset` `Mqtt`):
+
+```text
+"msg": "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused", "max_subscriptions_per_client": 100, "client_id": "dev-17", "peername": "203.0.113.5:40112", "sub": "m/100"
+"msg": "Mqtt: CONNECT past max_persistent_sessions, new sessions refused", "max_persistent_sessions": 1000, "refused": 1, "client_id": "x-91", "peername": "203.0.113.5:40114"
+```
+
+A PUBLISH looks up its topic once in the subscriptions of each record, so its
+cost grows with the records, not with their subscriptions.
+
+Up to 7.30.21 every client id left a record that was never removed, in memory
+and on disk; a client could hold any number of subscriptions; each PUBLISH
+walked every subscription of every record; and a re-subscription was taken
+for a malformed packet and disconnected the client. One anonymous client that
+connected with new ids, or that subscribed many filters and left, slowed
+every later message of the gate, and a few of them took it down by memory.
+
 ## C_MQTT_BROKER
 
 Full MQTT message broker — subscriber management, message routing,

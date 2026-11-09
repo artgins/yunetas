@@ -255,6 +255,24 @@ PRIVATE int mt_save_resource(
     return 0;
 }
 
+/***************************************************************************
+ *      Framework Method delete_resource: a client without a session goes
+ *      when it disconnects
+ ***************************************************************************/
+PRIVATE int mt_delete_resource(
+    hgobj gobj,
+    const char *resource,
+    json_t *record,     // owned
+    json_t *jn_options  // owned
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_object_del(priv->resources, resource);
+    JSON_DECREF(record)
+    JSON_DECREF(jn_options)
+    return 0;
+}
+
 
 
 
@@ -638,6 +656,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_create_resource = mt_create_resource,
     .mt_get_resource    = mt_get_resource,
     .mt_save_resource   = mt_save_resource,
+    .mt_delete_resource = mt_delete_resource,
 };
 
 /*------------------------*

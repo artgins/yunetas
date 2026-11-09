@@ -467,12 +467,17 @@ PRIVATE int mt_delete_resource(
         return -1;
     }
 
-    if(priv->persistent) {
+    /*
+     *  A resource created "volatil" was never written: it has no file
+     */
+    BOOL volatil = jn_options?kw_get_bool(gobj, jn_options, "volatil", 0, 0):FALSE;
+    if(priv->persistent && !volatil) {
         delete_record(gobj, resource);
     }
 
     json_object_del(priv->db_resources, resource);
 
+    JSON_DECREF(record)     // owned
     JSON_DECREF(jn_options)
     return 0;
 }

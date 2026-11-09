@@ -1292,6 +1292,23 @@ order of the directory; a `.json` of a subdirectory was loaded under its bare
 name; and the save of a record with a top-level `"gbuffer"` took the integer
 for a gbuffer (SIGSEGV).
 
+### Resources in memory only (`volatil`)
+
+A resource created with the option `volatil` is never written, also in a
+persistent store: it lives in memory until it is deleted. Delete it with the
+same option, so that the store does not look for a file it never wrote (a
+`volatil` delete removes no file). `C_PROT_MQTT` keeps that way the record of a
+client without a session, and deletes it when the client disconnects.
+
+```C
+json_t *rec = gobj_create_resource(store, "tmp-1", kw, json_pack("{s:b}", "volatil", 1));      // no file
+gobj_delete_resource(store, "tmp-1", json_incref(rec), json_pack("{s:b}", "volatil", 1));    // no unlink
+```
+
+[`gobj_delete_resource()`](#gobj_delete_resource) takes the record it is
+given (owned) and releases it. Up to 7.30.21 `C_RESOURCE2` released it only
+on its error paths: a delete that succeeded leaked the reference.
+
 ---
 
 (gclass-c-assets)=

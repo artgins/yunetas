@@ -97,7 +97,34 @@ subscription may be left. Up to 7.25.20 the topic was read in the packet as a
 C string: `a/b` ran on into the length of the next topic, so it answered 0x11
 and `a/b` stayed subscribed. Then, on a new connection, a CONNECT with a
 300-byte password and one byte too many: the dump of the refused frame must
-not carry the password (up to 7.25.20 it carried the whole CONNECT).
+not carry the password (up to 7.25.20 it carried the whole CONNECT). Its
+client has a clean start: the driver also deletes its record, as the protocol
+asks when the client disconnects.
+
+`test_mqtt_legacy_sessions` (`main_legacy_sessions.c` + `c_legacy_sessions.c`)
+drives four `C_PROT_MQTT` gobjs the same way, each on its own
+`C_FAKE_TRANSPORT`, with the clients in a persistent `C_RESOURCE2` (as an MQTT
+gate keeps them) and the protocol's default limits. 1. A device `dev` (clean
+session 0) subscribes `dev/t` and `pub` publishes to it 1000 times: the
+reference time. 300 clients with clean session (3.1.1 clean session 1; MQTT 5
+clean start with no session expiry; MQTT 5 no clean start, expiry 0) connect,
+subscribe and go: no record is left in memory or on disk. One more gets a QoS 1
+message: still no file. One of the ids comes back with clean session 0 (session
+present 0, a record and its file) and then with clean session 1 (both removed).
+A clean session taken over by a second connection of the same id: the first is
+dropped and the record goes with the second. 2. A re-subscription is granted
+and the client kept, also after a reconnection with clean session 0. 160
+filters in two packets: 100 granted, 60 refused with 0x80 in the SUBACK, the
+client kept; an MQTT 5 client with 101: the last one refused with 0x97; one
+WARNING each. 3. New ids with clean session 0 and 100 filters each, up to 1000
+sessions: the next one is refused at CONNECT (3.1.1: 3, MQTT 5: 0x97), one
+WARNING; a new clean session and an id with a session still connect. 4. The
+1000 publications again, with 1000 sessions and 100000 subscriptions: within
+3 s of the reference (about 10 ms and 150 ms on the dev machine). Up to 7.30.21
+every id left a record for ever, a client held any number of subscriptions,
+each PUBLISH walked all of them, and a re-subscription disconnected the client
+(red: 302 records left after the clean sessions, the re-subscription dropped,
+160 subscriptions kept, and the flood ended in *"REACHED MAX_SYSTEM_MEMORY"*).
 
 `test_mqtt_client_pubrec` (`main_client_pubrec.c` + `c_client_pubrec.c`) drives
 `C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with its queues in a
@@ -110,7 +137,7 @@ WARNING that must name the client (`client_id`, checked in the log), and
 DISCONNECT 0x82.
 
 The tests that keep a store (`acl`, `queued_in`, `client_queues`,
-`out_flight`, `wrong_ack`, `legacy_prot`, `client_pubrec`) work in a dir of
+`out_flight`, `wrong_ack`, `legacy_prot`, `legacy_sessions`, `client_pubrec`) work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.
 So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed
