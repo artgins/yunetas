@@ -118,16 +118,26 @@ endforeach()
 
 ##############################################
 #   An authzs store that is there and does not open at start up: corrupt in
-#   a master, empty in a replica; on_critical_error 0 (the agent's: local
-#   access only) and the default (_exit: the yuno exits with 0)
+#   a master, empty or missing in a replica; on_critical_error 0 (the
+#   agent's: local access only) and the default (_exit: the yuno exits
+#   with 0). And no store directory at all (_no_directory): the same local
+#   access only mode, of always
 ##############################################
 foreach(binary
         test_authz_store_corrupt test_authz_store_corrupt_exit
-        test_authz_store_empty_replica test_authz_store_empty_replica_exit)
+        test_authz_store_empty_replica test_authz_store_empty_replica_exit
+        test_authz_store_missing_replica test_authz_store_missing_replica_exit
+        test_authz_store_no_directory)
     add_yuno_executable(${binary} test_authz_store_unopenable.c)
 
     if(binary MATCHES "_empty_replica")
         target_compile_definitions(${binary} PRIVATE EMPTY_REPLICA)
+    endif()
+    if(binary MATCHES "_missing_replica")
+        target_compile_definitions(${binary} PRIVATE MISSING_REPLICA)
+    endif()
+    if(binary MATCHES "_no_directory")
+        target_compile_definitions(${binary} PRIVATE NO_DIRECTORY)
     endif()
     if(binary MATCHES "_exit$")
         target_compile_definitions(${binary} PRIVATE EXIT_DEFAULT)
@@ -151,7 +161,7 @@ foreach(binary
     )
 
     add_test("${current_directory_name}/${binary}" ${binary})
-    # one .c names the four stores (#ifdef): the checker sees all in each
+    # one .c names the seven stores (#ifdef): the checker sees all in each
     set_tests_properties("${current_directory_name}/${binary}" PROPERTIES
         TIMEOUT 60 RESOURCE_LOCK authz_store_unopenable_store)
 endforeach()

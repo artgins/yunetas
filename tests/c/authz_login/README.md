@@ -80,20 +80,44 @@ the store cannot write, the disk full by a file size limit of 0
   yuno with code 0, its line says `"exiting": "0"` (an `atexit()` handler
   checks it was there).
 
-`test_authz_store_corrupt`, `test_authz_store_empty_replica`, and `_exit`
-of each (store `/tmp/<test>_store`): a store that is there and does not
-open at start up, its `__timeranger2__.json` corrupt in a master, or empty
-in a replica (`master` false; only a master makes an empty one again).
+`test_authz_store_corrupt`, `test_authz_store_empty_replica`,
+`test_authz_store_missing_replica`, and `_exit` of each (store
+`/tmp/<test>_store`): a store that is there and does not open at start up,
+its `__timeranger2__.json` corrupt in a master, or empty or missing in a
+replica (`master` false; only a master makes one again). And
+`test_authz_store_no_directory`: no store directory at all, the local access
+only mode of always (*"No authz db, authz only to local access"*).
 
-- With `Authz.on_critical_error` `0` (the agent's): the yuno stays up with
-  ONE *"The authz db cannot be opened, authz only to local access"*;
-  `yuneta` with no token from `127.0.0.1` logs in; alice with a good token
-  of a key of the config is refused (no JWT is validated in local access).
+- With `Authz.on_critical_error` `0` (the agent's), and in
+  `_no_directory`:
+  1. the yuno stays up with ONE *"The authz db cannot be opened, authz only
+     to local access"* (*"No authz db, ..."* without the directory);
+  2. `yuneta` with no token from `127.0.0.1` logs in;
+  3. alice with a good token of a key of the config is refused (no login
+     token is validated in local access);
+  4. the yuno opens a treedb of its own through a `C_TREEDB` (store
+     `/tmp/<test>_store_treedbs`) with `open-treedb`, as the agent opens its
+     treedb at start up: it opens;
+  5. a permission asked for `yuneta` from outside (its `__username__` in the
+     kw): allowed;
+  6. the same for alice: refused, with ONE *"Authz only to local access:
+     only yuneta has permissions"* and no *"hgobj NULL or DESTROYED"*;
+  7. an operator assertion signed by the key of `assertion_jwks`: verified
+     (`verify_jwt` with an audience), its operator is its `sub`;
+  8. alice's good login token at `verify_jwt` with no audience: refused.
+
   Up to 7.30.19 the yuno exited with code 0 at start up (*"tranger NULL"*:
   `C_AUTHZ` gave its `C_NODE` a fixed `exit_on_error`; red: *"the yuno
-  exited before the end of the test, at start up"*).
+  exited before the end of the test, at start up"*). In 7.30.20 4, 5, 6
+  (the line) and 7 failed: every permission was asked to the treedb that was
+  not there (an ERROR with a stack each, the agent exited at its
+  `open-treedb`), and the assertion keys were loaded only with the store
+  open.
 - `_exit`, the default (`2`): the yuno exits with code 0 at start up, its
-  line says `"exiting": "0"`.
+  line says `"exiting": "0"`. The corrupt and the empty store exit before
+  `C_AUTHZ`, in timeranger2; the missing one in a replica exits with the line
+  of `C_AUTHZ` (*"The authz db cannot be opened"*), which `_missing_replica_exit`
+  asks for.
 
 ```bash
 ctest -R authz_login --output-on-failure --test-dir build

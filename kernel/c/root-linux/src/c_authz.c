@@ -139,6 +139,7 @@ PRIVATE int destroy_validation_key(
 );
 
 PRIVATE int create_jwt_validations(hgobj gobj);
+PRIVATE int create_assertion_validations(hgobj gobj);
 PRIVATE int destroy_jwt_validations(hgobj gobj);
 PRIVATE BOOL verify_token(
     hgobj gobj,
@@ -387,10 +388,14 @@ PRIVATE sdata_desc_t attrs_table[] = {
  *  "No authz db, authz only to local access" and opens no treedb; when it
  *  exists (another yuno is its master), it is opened as a READ-ONLY replica,
  *  and every write command answers READ-ONLY. When it exists and does not
- *  open (a corrupt __timeranger2__.json, an empty one in a replica), the
- *  yuno exits with code 0 at the default `on_critical_error`; with
- *  `on_critical_error` 0 it goes on with local access only, as without the
- *  directory ("The authz db cannot be opened, authz only to local access").
+ *  open (a corrupt __timeranger2__.json, an empty or missing one in a
+ *  replica), the yuno exits with code 0 at the default `on_critical_error`;
+ *  with `on_critical_error` 0 it goes on with local access only, as without
+ *  the directory ("The authz db cannot be opened, authz only to local
+ *  access"). With local access only, yuneta and the yuno itself have every
+ *  permission and nobody else has any (local_access_authz_checker()), no
+ *  login token is validated, and the operator assertions are, with
+ *  `assertion_jwks`.
  */
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty then it will be the yuno_role"),
@@ -597,6 +602,16 @@ PRIVATE void mt_create(hgobj gobj)
          *------------------------------------*/
     }
 
+    /*
+     *  The keys of the operator assertions are of the config, not of the
+     *  store: loaded whether the store opens or not, so a yuno with local
+     *  access only (agent22 with its replica unopenable) still knows who a
+     *  controlcenter says asks. Up to 7.30.20 they were loaded only with
+     *  the store open, and every command a controlcenter forwarded to such
+     *  an agent was refused.
+     */
+    create_assertion_validations(gobj);
+
     /*--------------------------------------------------------*
      *  If path not exist check then authz only local access
      *--------------------------------------------------------*/
@@ -669,7 +684,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else {
         /*
-         *  Create validators
+         *  The validators of a login token: with the store open only
          */
         create_jwt_validations(gobj);
 
@@ -3214,7 +3229,8 @@ PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hg
 
 
 /***************************************************************************
- *  Create validations for public keys
+ *  Create validations for the keys of a login (`jwks`): made only with the
+ *  store open, a yuno with local access only validates no login token
  ***************************************************************************/
 PRIVATE int create_jwt_validations(hgobj gobj)
 {
@@ -3243,13 +3259,22 @@ PRIVATE int create_jwt_validations(hgobj gobj)
         create_validation_key(gobj, jn_jwk, priv->jwks, priv->jn_validations);
     }
 
-    /*
-     *  The keys of the operator assertions: an EC key has no place in
-     *  jwk_desc (crv, x, y), so the record is taken as it is written
-     */
+    return 0;
+}
+
+/***************************************************************************
+ *  Create validations for the keys of the operator assertions: an EC key
+ *  has no place in jwk_desc (crv, x, y), so the record is taken as it is
+ *  written. Of the config: made whether the store opens or not
+ ***************************************************************************/
+PRIVATE int create_assertion_validations(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     priv->assertion_jwks = jwks_create(NULL);
     priv->jn_assertion_validations = json_array();
 
+    int idx; json_t *jn_record;
     json_t *assertion_jwks = gobj_read_json_attr(gobj, "assertion_jwks");
     json_array_foreach(assertion_jwks, idx, jn_record) {
         if(!json_is_object(jn_record) ||
@@ -4640,6 +4665,61 @@ PRIVATE json_t *get_user_permissions(
 }
 
 /***************************************************************************
+ *  The permissions of a yuno with local access only (no users treedb: no
+ *  store directory, or a store that does not open with on_critical_error
+ *  0), where nobody's roles can be asked. The local user `yuneta` -- the
+ *  one the login lets in from 127.0.0.* -- has every permission, and so
+ *  has the yuno asking itself (an internal call: no `__username__` nor
+ *  `__md_iev__` in kw, and a src with no user of its own); anybody else
+ *  has none, said in ONE warning. The user is the kw's `__username__`,
+ *  else the src's, as with the store. Up to
+ *  7.30.20 the question went to the treedb that was not there: every one
+ *  was refused with an ERROR with a stack, the agent's own open-treedb at
+ *  start up too, and the agent exited.
+ ***************************************************************************/
+PRIVATE BOOL local_access_authz_checker(
+    hgobj gobj,
+    hgobj gobj_to_check,
+    const char *authz,
+    json_t *kw, // owned
+    hgobj src
+)
+{
+    json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
+    if(!jn_authz_desc) {
+        // Error already logged
+        KW_DECREF(kw)
+        return FALSE;
+    }
+    JSON_DECREF(jn_authz_desc)
+
+    const char *username = kw_get_str(gobj, kw, "__username__", "", 0);
+    if(empty_string(username) && gobj_has_attr(src, "__username__")) {
+        username = gobj_read_str_attr(src, "__username__");
+    }
+    if(!username) {
+        username = "";
+    }
+    BOOL internal = (empty_string(username) && !kw_has_key(kw, "__md_iev__"))? TRUE : FALSE;
+
+    BOOL allow = (internal || strcmp(username, "yuneta")==0)? TRUE : FALSE;
+    if(!allow) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Authz only to local access: only yuneta has permissions",
+            "username",     "%s", username,
+            "service",      "%s", gobj_short_name(gobj_to_check),
+            "authz",        "%s", authz,
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return allow;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int add_user_login(
@@ -5630,6 +5710,11 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         );
         KW_DECREF(kw)
         return FALSE;
+    }
+
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->gobj_treedb) {
+        return local_access_authz_checker(gobj, gobj_to_check, authz, kw, src);
     }
 
     const char *__username__ = kw_get_str(gobj, kw, "__username__", 0, 0);

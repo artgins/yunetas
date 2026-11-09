@@ -2,28 +2,55 @@
  *          test_authz_store_unopenable.c
  *
  *          An authzs store that is there and does not open at start up.
- *          Two stores, each built from one .c (#ifdef):
+ *          Three stores, each built from one .c (#ifdef):
  *            - its __timeranger2__.json corrupt, in a master (the agent);
  *            - its __timeranger2__.json EMPTY, in a replica (master false,
  *              agent22): a first write that did not end, which only a
- *              master makes again.
+ *              master makes again;
+ *            - its __timeranger2__.json MISSING, in a replica: the only
+ *              store whose default exit is C_AUTHZ's own line (the other
+ *              two exit before it, in timeranger2).
+ *          And test_authz_store_no_directory: no store directory at all,
+ *          the local access only mode of always ("No authz db, authz only
+ *          to local access", never an exit): the same checks.
  *
- *          test_authz_store_corrupt, test_authz_store_empty_replica
+ *          test_authz_store_corrupt, test_authz_store_empty_replica,
+ *          test_authz_store_missing_replica
  *          (Authz on_critical_error 0, the agent's):
  *            1. the yuno stays up, with ONE "The authz db cannot be
  *               opened, authz only to local access"
  *            2. yuneta, no token, from 127.0.0.1: in (local access)
  *            3. alice, a good token of a key of the config: refused, as
  *               without the directory (no JWT is validated there)
+ *            4. the yuno opens a treedb of its own through a C_TREEDB, as
+ *               the agent opens its treedb at start up (`open-treedb`, an
+ *               internal call from a src whose user is yuneta): it opens;
+ *               and a question of the yuno from a src with no user: allowed
+ *            5. yuneta, asked from outside (`__username__`): every
+ *               permission
+ *            6. alice, asked from outside: none, ONE "Authz only to local
+ *               access: only yuneta has permissions" and no ERROR; and none
+ *               to a peer's event (`__md_iev__`) nor to a src of another
+ *               user, ONE line each
+ *            7. an operator assertion signed by a key of `assertion_jwks`
+ *               (config keys, not the store's): verified, its `sub` is the
+ *               operator
+ *            8. alice's good token at verify_jwt with no audience (a token
+ *               of a login): refused, "No OAuth2 Issuer found"
  *          Up to 7.30.19 C_AUTHZ gave its C_NODE a fixed exit_on_error
  *          LOG_OPT_EXIT_ZERO: the yuno exited with code 0 at start up
  *          ("tranger NULL"; red: "the yuno exited before the end of the
- *          test").
+ *          test"). In 7.30.20 it stayed up, but every permission was asked
+ *          to the treedb it had not (4 and 5 refused, with an ERROR with a
+ *          stack each: the agent exited at its open-treedb), and the
+ *          assertion keys were not loaded (7 refused).
  *
- *          test_authz_store_corrupt_exit, test_authz_store_empty_replica_exit
+ *          test_authz_store_corrupt_exit, test_authz_store_empty_replica_exit,
+ *          test_authz_store_missing_replica_exit
  *          (on_critical_error not set, 2): the yuno exits with code 0 at
  *          start up, as always. Green when the exit comes before the play
- *          and its line says "exiting": "0".
+ *          and its line says "exiting": "0"; for the missing one, that line
+ *          is C_AUTHZ's "The authz db cannot be opened".
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -36,7 +63,15 @@
 #include <jwt.h>
 #include <yunetas.h>
 
-#ifdef EMPTY_REPLICA
+#if defined(NO_DIRECTORY)
+    #define KIND        "no_directory"
+    #define MASTER      "true"
+    #define CONTENT     NULL
+#elif defined(MISSING_REPLICA)
+    #define KIND        "missing_replica"
+    #define MASTER      "false"
+    #define CONTENT     NULL
+#elif defined(EMPTY_REPLICA)
     #define KIND        "empty_replica"
     #define MASTER      "false"
     #define CONTENT     ""
@@ -52,7 +87,13 @@
     #define APP         "test_authz_store_" KIND
     #define ON_CRITICAL "'on_critical_error': 0,"
 #endif
-#if defined(EMPTY_REPLICA) && defined(EXIT_DEFAULT)
+#if defined(NO_DIRECTORY)
+    #define STORE       "/tmp/test_authz_store_no_directory_store"
+#elif defined(MISSING_REPLICA) && defined(EXIT_DEFAULT)
+    #define STORE       "/tmp/test_authz_store_missing_replica_exit_store"
+#elif defined(MISSING_REPLICA)
+    #define STORE       "/tmp/test_authz_store_missing_replica_store"
+#elif defined(EMPTY_REPLICA) && defined(EXIT_DEFAULT)
     #define STORE       "/tmp/test_authz_store_empty_replica_exit_store"
 #elif defined(EMPTY_REPLICA)
     #define STORE       "/tmp/test_authz_store_empty_replica_store"
@@ -74,7 +115,17 @@
 
 #define TEST_ISS        "https://idp.test.example/realms/test"
 #define ALICE           "alice@example.com"
-#define NOT_OPENED      "The authz db cannot be opened, authz only to local access"
+#ifdef NO_DIRECTORY
+    #define NOT_OPENED  "No authz db, authz only to local access"
+#else
+    #define NOT_OPENED  "The authz db cannot be opened, authz only to local access"
+#endif
+#define LOCAL_DENIED    "Authz only to local access: only yuneta has permissions"
+#define NULL_GOBJ       "hgobj NULL or DESTROYED"
+#define ASSERTION_ISS   "test-controlcenter"
+#define NODE            "test-node"
+#define TREEDB_NAME     "treedb_local_access"
+#define TREEDBS_STORE   STORE "_treedbs"
 
 /*
  *  The key of the test issuer (its jwks is in the config, the same `k`).
@@ -84,12 +135,50 @@ PRIVATE const char *LOGIN_JWK =
     "{\"kty\":\"oct\",\"k\":\"eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY\","
     "\"alg\":\"HS256\",\"use\":\"sig\"}";
 
+/*
+ *  The key of the operator assertions (EC P-256: its public part is the
+ *  assertion_jwks of the config). A test key, good for nothing else.
+ */
+PRIVATE const char *ASSERTION_JWK =
+    "{\"kid\":\"test-controlcenter\",\"kty\":\"EC\",\"crv\":\"P-256\",\"alg\":\"ES256\",\"use\":\"sig\","
+    "\"x\":\"nXhUxejW5sVCIMMt5VPATGJS_nsEIvIHbw_xYLdpa1Q\",\"y\":\"EmyPj6BtdnzvQTYMrLgqtRxTZig5KqIS1hh2YEB2kW8\","
+    "\"d\":\"As0_L5bAc2Ga27EKaeu0KhDW5IjXIHxKfgXw2nFDKPo\"}";
+
+/*
+ *  The schema of the treedb the yuno opens itself, as the agent its own
+ */
+PRIVATE char treedb_schema_local_access[] = "\
+{                                                                   \n\
+    'id': '" TREEDB_NAME "',                                        \n\
+    'schema_version': '1',                                          \n\
+    'topics': [                                                     \n\
+        {                                                           \n\
+            'id': 'items',                                          \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                }                                                   \n\
+            }                                                       \n\
+        }                                                           \n\
+    ]                                                               \n\
+}                                                                   \n\
+";
+
 /***************************************************************
  *              Data
  ***************************************************************/
 PRIVATE int s_result = 0;       /* accumulated check result */
 PRIVATE int s_not_opened = 0;   /* lines that say the store cannot be opened */
 PRIVATE int s_exiting_zero = 0; /* lines of an exit with code 0 */
+PRIVATE int s_not_opened_exiting = 0;   /* C_AUTHZ's line, exiting with code 0 */
+PRIVATE int s_local_denied = 0; /* refusals of the local access only mode */
+PRIVATE int s_null_gobj = 0;    /* questions to a treedb that is not there */
 PRIVATE int s_played = 0;       /* the driver reached its play */
 PRIVATE int s_done = 0;         /* the checks ended */
 PRIVATE char *s_token = NULL;
@@ -98,6 +187,7 @@ GOBJ_DEFINE_GCLASS(C_TEST_AUTHZ_UNOPENABLE);
 
 typedef struct {
     hgobj   timer;
+    hgobj   gobj_treedbs;
 } PRIVATE_DATA;
 
 /***************************************************************
@@ -144,6 +234,17 @@ PRIVATE char variable_config[]= "\
                 'tranger_path': '" STORE "',                        \n\
                 'master': " MASTER ",                               \n\
                 " ON_CRITICAL "                                     \n\
+                'assertion_jwks': [                                 \n\
+                    {                                               \n\
+                        'kid': '" ASSERTION_ISS "',                 \n\
+                        'kty': 'EC',                                \n\
+                        'crv': 'P-256',                             \n\
+                        'alg': 'ES256',                             \n\
+                        'use': 'sig',                               \n\
+                        'x': 'nXhUxejW5sVCIMMt5VPATGJS_nsEIvIHbw_xYLdpa1Q', \n\
+                        'y': 'EmyPj6BtdnzvQTYMrLgqtRxTZig5KqIS1hh2YEB2kW8'  \n\
+                    }                                               \n\
+                ],                                                  \n\
                 'jwks': [                                           \n\
                     {                                               \n\
                         'kid': '" TEST_ISS "',                      \n\
@@ -179,6 +280,15 @@ PRIVATE int find_lines(void *h, int priority, const char *bf, size_t len)
     const char *exiting = "\"exiting\": \"0\"";
     if(memmem(bf, len, exiting, strlen(exiting))) {
         s_exiting_zero++;
+        if(memmem(bf, len, NOT_OPENED, strlen(NOT_OPENED))) {
+            s_not_opened_exiting++;
+        }
+    }
+    if(memmem(bf, len, LOCAL_DENIED, strlen(LOCAL_DENIED))) {
+        s_local_denied++;
+    }
+    if(memmem(bf, len, NULL_GOBJ, strlen(NULL_GOBJ))) {
+        s_null_gobj++;
     }
     return 0;
 }
@@ -193,9 +303,17 @@ PRIVATE void check_exit(void)
         return;
     }
     rmrdir(STORE);
+    rmrdir(TREEDBS_STORE);
 #ifdef EXIT_DEFAULT
-    if(!s_played && s_exiting_zero > 0) {
-        printf("ok   the yuno exited with code 0 at start up\n");
+#ifdef MISSING_REPLICA
+    int exited = s_not_opened_exiting;
+#else
+    int exited = s_exiting_zero;
+#endif
+    if(!s_played && exited > 0) {
+        printf("ok   the yuno exited with code 0 at start up%s\n",
+            s_not_opened_exiting? ", by C_AUTHZ's line" : ""
+        );
         printf("\n%s: PASS\n", APP);
         fflush(stdout);
         _exit(0);
@@ -209,12 +327,16 @@ PRIVATE void check_exit(void)
     _exit(1);
 }
 
-PRIVATE const char *make_token(void)
+/*
+ *  A token of `claims` (owned) signed by the key of `jwk_json`: yours
+ *  (GBMEM_FREE), or NULL
+ */
+PRIVATE char *sign_token(const char *jwk_json, jwt_alg_t alg, json_t *claims)
 {
-    jwk_set_t *jwk_set = jwks_create(LOGIN_JWK);
+    jwk_set_t *jwk_set = jwks_create(jwk_json);
     const jwk_item_t *key = jwk_set? jwks_item_get(jwk_set, 0) : NULL;
     jwt_builder_t *b = key? jwt_builder_new() : NULL;
-    if(!b || jwt_builder_setkey(b, JWT_ALG_HS256, key) != 0) {
+    if(!b || jwt_builder_setkey(b, alg, key) != 0) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_INTERNAL,
@@ -227,27 +349,42 @@ PRIVATE const char *make_token(void)
         if(jwk_set) {
             jwks_free(jwk_set);
         }
-        return "";
+        JSON_DECREF(claims)
+        return NULL;
     }
 
-    time_t now = time(NULL);
-    jwt_value_t jval;
-    jwt_builder_enable_iat(b, 0);
-    jwt_set_SET_STR(&jval, "iss", TEST_ISS);
-    jwt_builder_claim_set(b, &jval);
-    jwt_set_SET_STR(&jval, "sid", "session-alice");
-    jwt_builder_claim_set(b, &jval);
-    jwt_set_SET_STR(&jval, "email", ALICE);
-    jwt_builder_claim_set(b, &jval);
-    jwt_set_SET_BOOL(&jval, "email_verified", 1);
-    jwt_builder_claim_set(b, &jval);
-    jwt_set_SET_INT(&jval, "iat", (jwt_long_t)(now - 60));
-    jwt_builder_claim_set(b, &jval);
-    jwt_set_SET_INT(&jval, "exp", (jwt_long_t)(now + 30*86400));
-    jwt_builder_claim_set(b, &jval);
-    s_token = jwt_builder_generate(b);
+    jwt_builder_enable_iat(b, 0);   // the iat is the claims', not now
+    const char *name; json_t *jn_value;
+    json_object_foreach(claims, name, jn_value) {
+        jwt_value_t jval;
+        if(json_is_string(jn_value)) {
+            jwt_set_SET_STR(&jval, name, json_string_value(jn_value));
+        } else if(json_is_boolean(jn_value)) {
+            jwt_set_SET_BOOL(&jval, name, json_is_true(jn_value)? 1 : 0);
+        } else {
+            jwt_set_SET_INT(&jval, name, (jwt_long_t)json_integer_value(jn_value));
+        }
+        jwt_builder_claim_set(b, &jval);
+    }
+
+    char *token = jwt_builder_generate(b);
     jwt_builder_free(b);
     jwks_free(jwk_set);
+    JSON_DECREF(claims)
+    return token;
+}
+
+PRIVATE const char *make_token(void)
+{
+    time_t now = time(NULL);
+    s_token = sign_token(LOGIN_JWK, JWT_ALG_HS256, json_pack("{s:s, s:s, s:s, s:b, s:I, s:I}",
+        "iss", TEST_ISS,
+        "sid", "session-alice",
+        "email", ALICE,
+        "email_verified", 1,
+        "iat", (json_int_t)(now - 60),
+        "exp", (json_int_t)(now + 30*86400)
+    ));
     return s_token? s_token : "";
 }
 
@@ -284,6 +421,83 @@ PRIVATE int login(hgobj gobj, const char *username, const char *jwt)
     return result;
 }
 
+/*
+ *  The yuno opens a treedb of its own, as the agent opens its treedb at
+ *  start up (agent_treedb.c): an internal open-treedb, from a gobj whose
+ *  __username__ is the yuno's. The answer's result
+ */
+PRIVATE int open_own_treedb(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_write_str_attr(gobj, "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"));
+    gobj_start_tree(priv->gobj_treedbs);
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs,
+        "open-treedb",
+        json_pack("{s:s, s:i, s:s, s:o, s:b}",
+            "filename_mask", "%Y",
+            "exit_on_error", 0,
+            "treedb_name", TREEDB_NAME,
+            "treedb_schema", legalstring2json(treedb_schema_local_access, TRUE),
+            "impose_c_schema", 1
+        ),
+        gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -99, 0);
+    if(result < 0) {
+        printf("     open-treedb: %s\n", kw_get_str(gobj, jn_resp, "comment", "", 0));
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
+/*
+ *  A permission of the C_TREEDB asked for `username` as a peer's command
+ *  asks it (its `__username__` in the kw)
+ */
+PRIVATE int asked_from_outside(hgobj gobj, const char *username)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return gobj_user_has_authz(
+        priv->gobj_treedbs,
+        "open-close",
+        json_pack("{s:s}", "__username__", username),
+        gobj
+    )? 1 : 0;
+}
+
+/*
+ *  A permission of the C_TREEDB asked with `kw` (owned) from `src`
+ */
+PRIVATE int asked_from(hgobj gobj, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    return gobj_user_has_authz(priv->gobj_treedbs, "open-close", kw, src)? 1 : 0;
+}
+
+/*
+ *  verify_jwt of the C_AUTHZ: its result; `username` is set with the
+ *  username it answers
+ */
+PRIVATE int verify_jwt(hgobj gobj, const char *jwt, const char *audience, char *username, size_t size)
+{
+    hgobj authz = gobj_find_service("authz", TRUE);
+    json_t *jn_resp = gobj_local_method(
+        authz,
+        "verify_jwt",
+        json_pack("{s:s, s:s}", "jwt", jwt? jwt : "", "audience", audience),
+        gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -99, 0);
+    snprintf(username, size, "%s", kw_get_str(gobj, jn_resp, "username", "", 0));
+    if(result < 0) {
+        printf("     verify_jwt: %s\n", kw_get_str(gobj, jn_resp, "comment", "", 0));
+    }
+    JSON_DECREF(jn_resp)
+    return result;
+}
+
 PRIVATE void run_checks(hgobj gobj)
 {
     make_token();
@@ -291,9 +505,46 @@ PRIVATE void run_checks(hgobj gobj)
 #ifdef EXIT_DEFAULT
     check_int("1. the yuno exited at start up", 0, 1);
 #endif
-    check_int("1. the yuno is up: ONE line, the store cannot be opened", s_not_opened, 1);
+    check_int("1. the yuno is up: ONE line, authz only to local access", s_not_opened, 1);
     check_int("2. yuneta, no token, from 127.0.0.1: in", login(gobj, "yuneta", ""), 0);
     check_int("3. alice, a good token: refused, no JWT is validated", login(gobj, "", s_token? s_token : ""), -1);
+
+    check_int("4. the yuno opens its own treedb (open-treedb, internal)", open_own_treedb(gobj), 0);
+    check_int("4. its treedb is there", gobj_find_service(TREEDB_NAME, FALSE)? 1 : 0, 1);
+
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    check_int("4. the yuno asking itself, a src with no user: allowed",
+        asked_from(gobj, json_object(), priv->gobj_treedbs), 1);
+
+    check_int("5. yuneta, asked from outside: allowed", asked_from_outside(gobj, "yuneta"), 1);
+    int denied_before = s_local_denied;
+    check_int("6. alice, asked from outside: refused", asked_from_outside(gobj, ALICE), 0);
+    check_int("6. ONE line says why", s_local_denied - denied_before, 1);
+    check_int("6. a peer's event (__md_iev__), a src with no user: refused",
+        asked_from(gobj, json_pack("{s:{}}", "__md_iev__"), priv->gobj_treedbs), 0);
+    gobj_write_str_attr(gobj, "__username__", ALICE);
+    check_int("6. no __username__ in kw, a src of another user: refused",
+        asked_from(gobj, json_object(), gobj), 0);
+    gobj_write_str_attr(gobj, "__username__", "yuneta");
+    check_int("6. ONE line for each refusal", s_local_denied - denied_before, 3);
+    check_int("6. no question went to a treedb that is not there", s_null_gobj, 0);
+
+    char username[NAME_MAX];
+    time_t now = time(NULL);
+    char *assertion = sign_token(ASSERTION_JWK, JWT_ALG_ES256, json_pack("{s:s, s:s, s:s, s:I, s:I}",
+        "iss", ASSERTION_ISS,
+        "sub", ALICE,
+        "aud", NODE,
+        "iat", (json_int_t)now,
+        "exp", (json_int_t)(now + 60)
+    ));
+    check_int("7. an operator assertion (assertion_jwks): verified",
+        verify_jwt(gobj, assertion, NODE, username, sizeof(username)), 0);
+    check_int("7. its operator is its sub", strcmp(username, ALICE)==0? 1 : 0, 1);
+    GBMEM_FREE(assertion)
+
+    check_int("8. alice's good token at verify_jwt, a login's: refused",
+        verify_jwt(gobj, s_token, "", username, sizeof(username)), -1);
 }
 
 /***************************************************************
@@ -304,6 +555,24 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(!gobj_read_bool_attr(gobj, "is_peer")) {
         priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+        /*
+         *  A C_TREEDB service as the agent's (c_agent.c), started and
+         *  asked for its treedb after the play
+         */
+        priv->gobj_treedbs = gobj_create_service(
+            "treedbs",
+            C_TREEDB,
+            json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+                "path", TREEDBS_STORE,
+                "filename_mask", "%Y",
+                "master", 1,
+                "xpermission", 02770,
+                "rpermission", 0660,
+                "exit_on_error", 0
+            ),
+            gobj
+        );
     }
 }
 
@@ -329,6 +598,9 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->timer) {
         gobj_stop(priv->timer);
+    }
+    if(priv->gobj_treedbs && gobj_is_running(priv->gobj_treedbs)) {
+        gobj_stop_tree(priv->gobj_treedbs);
     }
     return 0;
 }
@@ -441,24 +713,31 @@ int main(int argc, char *argv[])
 
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
+    helper_quote2doublequote(treedb_schema_local_access);
 
     /*
      *  The store is there (C_AUTHZ checks is_directory), its metadata
-     *  corrupt or empty
+     *  corrupt, empty or missing
      */
     rmrdir(STORE);
+    rmrdir(TREEDBS_STORE);
+#ifndef NO_DIRECTORY
     mkrdir(STORE, 02770);
-    char path[PATH_MAX];
-    if(!build_path(path, sizeof(path), STORE, "__timeranger2__.json", NULL)) {
-        return -1;  // Error already logged
+#endif
+    const char *content = CONTENT;
+    if(content) {
+        char path[PATH_MAX];
+        if(!build_path(path, sizeof(path), STORE, "__timeranger2__.json", NULL)) {
+            return -1;  // Error already logged
+        }
+        FILE *f = fopen(path, "w");
+        if(!f) {
+            printf("FAIL the store's metadata cannot be written: %s\n", path);
+            return -1;
+        }
+        fputs(content, f);
+        fclose(f);
     }
-    FILE *f = fopen(path, "w");
-    if(!f) {
-        printf("FAIL the store's metadata cannot be written: %s\n", path);
-        return -1;
-    }
-    fputs(CONTENT, f);
-    fclose(f);
 
     atexit(check_exit);
 
@@ -486,6 +765,7 @@ int main(int argc, char *argv[])
 
     s_done = 1;
     rmrdir(STORE);
+    rmrdir(TREEDBS_STORE);
 
     size_t leaked = get_cur_system_memory();
     check_int("no memory leak", (int)leaked, 0);

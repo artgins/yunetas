@@ -154,31 +154,82 @@ full disk exited every yuno where `C_AUTHZ` is master, the agent included.
 default).
 
 The same value decides what happens when the store is there and does not
-open at start up: its `__timeranger2__.json` corrupt, or empty in a replica
-(`master` false; only a master makes an empty one again).
+open at start up: its `__timeranger2__.json` corrupt, or empty or missing in
+a replica (`master` false; only a master makes one again).
 
 | Value | The store does not open at start up |
 |---|---|
-| `2` (the default) | The yuno exits with code 0, as always. |
-| `0` | The yuno goes on with local access only, as a `C_AUTHZ` without its store directory: ONE ERROR, *"The authz db cannot be opened, authz only to local access"*. `yuneta` logs in from `127.0.0.*` with no token; no JWT is validated (a good token is refused, *"Authentication failed: Invalid token"*); the user commands answer *"no users treedb in this yuno"*. |
+| `2` (the default) | The yuno exits with code 0, as always. A corrupt or empty `__timeranger2__.json` exits in timeranger2 (*"Cannot load json file, bad json"*); a missing one in a replica exits with the line of `C_AUTHZ`, *"The authz db cannot be opened, authz only to local access"*, its `"exiting"` field `"0"`. |
+| `0` | The yuno goes on in [the local access only mode](#authz-local-access), as a `C_AUTHZ` without its store directory: ONE ERROR, *"The authz db cannot be opened, authz only to local access"*. |
 
-For example, an agent22 that replicates the agent's store, with that store's
-`__timeranger2__.json` left empty by a first write that did not end:
+For example, the agent, with its store's `__timeranger2__.json` corrupt:
 
 ```json
 "global": {
-    "Authz.master": false,
+    "Authz.master": true,
     "Authz.authz_service": "agent",
     "Authz.on_critical_error": 0
 }
 ```
 
-stays up, and its operator logs in as `yuneta` from the node. Up to 7.30.19
-`C_AUTHZ` gave its `C_NODE` a fixed `exit_on_error` of `LOG_OPT_EXIT_ZERO`,
-so the yuno exited with code 0 (*"tranger NULL"*) whatever
-`on_critical_error` said. `tests/c/authz_login`
-(`test_authz_store_corrupt`, `test_authz_store_empty_replica`, and `_exit`
-for the default of each).
+stays up: it opens its own treedb, listens on its ports, and `ycommand` from
+the node (`yuneta` from `127.0.0.1`) runs every command. An agent22 that
+replicates that store (`"Authz.master": false`, the same `authz_service`)
+stays up too, and runs the commands its controlcenter forwards: it verifies
+their operator assertions with `assertion_jwks`. Up to 7.30.19 `C_AUTHZ` gave
+its `C_NODE` a fixed `exit_on_error` of `LOG_OPT_EXIT_ZERO`, so the yuno
+exited with code 0 (*"tranger NULL"*) whatever `on_critical_error` said. In
+7.30.20 `C_AUTHZ` stayed up, but the agent exited at its own `open-treedb`
+(*"No permission to 'open-close' in service 'treedbs'"*), and agent22
+refused every forwarded command (*"The assertion of the operator is refused:
+No OAuth2 Issuer found"*). `tests/c/authz_login`
+(`test_authz_store_corrupt`, `test_authz_store_empty_replica`,
+`test_authz_store_missing_replica`, and `_exit` for the default of each).
+
+(authz-local-access)=
+### Local access only
+
+A `C_AUTHZ` without its users treedb runs in the *local access only* mode.
+It has no treedb in two cases:
+
+- its store directory does not exist: ONE WARNING, *"No authz db, authz only
+  to local access"*. A yuno that does not hold users (`logcenter`,
+  `auth_bff`, `sgateway`) is always in this mode;
+- its store is there and does not open, with `on_critical_error` `0` (see
+  above).
+
+What the mode does:
+
+| Question | Answer |
+|---|---|
+| A login of `yuneta` with no token, from `127.0.0.*` (or `allowed_ips`) | In. |
+| A login with a token | Refused, *"Authentication failed: Invalid token"*. No `jwks` key is loaded: the mode validates no login token. |
+| An operator assertion (`verify_jwt` with an audience, from a controlcenter's request) | Verified with the keys of `assertion_jwks`, as with the store. They are config keys: loaded whether the store opens or not (7.30.21+). |
+| A permission (`gobj_user_has_authz()`) of `yuneta` | Every permission (7.30.21+). |
+| A permission of the yuno itself: an internal call, no `__username__` nor `__md_iev__` in its kw, from a gobj with no user of its own | Every permission (7.30.21+). The agent's own `open-treedb` at start up is asked as `yuneta` (the `__username__` of the agent's gobj), and opens. |
+| A permission of any other user (an operator of an assertion, a `service_principal`), or of a peer's event with no user | Refused, with ONE WARNING for each question: *"Authz only to local access: only yuneta has permissions"* (with `username`, `service` and `authz`). |
+
+The user asked about is the `__username__` of the kw, else the one of the
+gobj that asks (`src`), as with the store.
+| The user commands (`users`, `create-user`, `add-jwk`, ...) | *"no users treedb in this yuno"*. |
+
+For example, the question a `C_TREEDB` command asks, from inside the yuno and
+from a peer:
+
+```c
+/*  the yuno itself: allowed  */
+gobj_user_has_authz(gobj_treedbs, "open-close", json_object(), gobj);
+
+/*  a peer's command, its user set by the entry gate: allowed for yuneta only  */
+gobj_user_has_authz(gobj_treedbs, "open-close",
+    json_pack("{s:s}", "__username__", "yuneta"), gobj);
+```
+
+Up to 7.30.20 every permission was asked to the treedb that was not there:
+each one was refused, with an ERROR with a stack (*"hgobj NULL or
+DESTROYED"*) and a WARNING *"User not found"*, and the assertion keys were
+loaded only with the store open. `tests/c/authz_login`
+(`test_authz_store_no_directory` and the three stores above: cases 4 to 8).
 
 (authz-trust-peer-ip)=
 ### A login by the peer's address, and a proxy (`trust_peer_ip`)

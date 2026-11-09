@@ -618,7 +618,9 @@ its local CLI calls.
 
 If a check is enforced (see §4.5), `yuneta` does *not* automatically
 pass. The authz check is a separate lookup. In production deployments
-`yuneta` usually owns every role.
+`yuneta` usually owns every role. The one exception is a `C_AUTHZ` with no
+users treedb (*local access only*, §4.8): there nobody's roles can be asked,
+and `yuneta` has every permission (7.30.21+).
 
 (yuno-auth-login-by-address)=
 **The login without a token is a login by ADDRESS.** `C_AUTHZ` lets in a
@@ -993,6 +995,46 @@ The `C_AUTHZ` gclass reads a small set of attrs at boot (see
 | `authz.token_age_exempt_users` | list, default `[]` | Users (the token's `email`) whose token `max_token_age` does not check (7.30.14+). |
 | `authz.trust_peer_ip`     | bool, default `true`  | A peer with no token and no password logs in by its address (`127.0.0.*` as `yuneta`, or `allowed_ips`). `false` in a yuno behind a proxy on the same host (7.30.15+). See [§4.2](#yuno-auth-login-by-address). |
 | `authz.allow_anonymous_in_localhost` | bool, default `false` | With it `true`, a peer logged in by its address may name ANY user, with no password. Leave it `false`. See [§4.2](#yuno-auth-login-by-address). |
+| `authz.on_critical_error` | int, default `2` (`LOG_OPT_EXIT_ZERO`) | What a failure of the authz store does to the yuno. `2`: a write the store refuses (a full disk) exits with code 0, and so does a store that is there and does not open at start up. `0`: a refused write is ONE ERROR and the logins go on; a store that does not open puts the yuno in the *local access only* mode (below). The agent and agent22 set `0` in their `main.c` (`'Authz.on_critical_error': 0`): their store is secondary to their role. Set in the config only. |
+
+**A store that is there and does not open** (its `__timeranger2__.json`
+corrupt, or empty or missing in a replica) is decided by
+`authz.on_critical_error`. With the default the yuno exits with code 0. With
+`0` (the agents) it logs ONE ERROR, *"The authz db cannot be opened, authz
+only to local access"*, and goes on in the same *local access only* mode as a
+`C_AUTHZ` whose store directory does not exist (*"No authz db, authz only to
+local access"*). In that mode (7.30.21+):
+
+- the local user `yuneta` has every permission, and so has the yuno asking
+  itself (an internal call: no `__username__` nor `__md_iev__` in the kw,
+  from a gobj with no user of its own). The agent's own `open-treedb` at
+  start up is asked as `yuneta` (its gobj's `__username__`): it opens, and
+  the agent listens;
+- any other user has none: ONE WARNING for each question, *"Authz only to
+  local access: only yuneta has permissions"*;
+- no login token is validated (no `jwks` key is loaded), but the operator
+  assertions are: `assertion_jwks` are config keys, loaded whether the store
+  opens or not. So an agent22 whose replica does not open still runs the
+  commands its controlcenter forwards.
+
+For example, the agent with its authz store corrupt:
+
+```json
+"global": {
+    "Authz.master": true,
+    "Authz.on_critical_error": 0
+}
+```
+
+```bash
+ycommand -c 'list-yunos'      # ws://127.0.0.1:1991, yuneta: every permission
+```
+
+Up to 7.30.20 every permission of the mode was asked to the treedb that was
+not there, and refused with an ERROR with a stack: the agent exited with
+code 0 at its `open-treedb`, and agent22 refused every forwarded command. The
+page of [`C_AUTHZ`](../../../docs/doc.yuneta.io/api/gclass/auth.md) has the
+whole table; `tests/c/authz_login` pins it.
 
 Same `Authz.*` keys (capital A) appear in some legacy configs — both
 spellings are accepted by jansson's path resolution, but the canonical
