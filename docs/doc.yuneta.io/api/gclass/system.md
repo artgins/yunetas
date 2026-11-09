@@ -404,7 +404,12 @@ tells it from a stop made from outside. `C_GSS_UDP_S` then:
 - says it once: *"UDP server stopped by itself, it is started again after a
   backoff"*, WARNING, with `backoff_ms`;
 - starts the `C_UDP_S` again after that backoff, and says *"UDP server
-  started again"*, INFO, with `tx_dropped`, the sends refused meanwhile. The
+  started again"*, INFO, with `tx_dropped`, the sends refused meanwhile --
+  only when it LISTENS (its `listening` attr). A start whose listen fails (its
+  port held by another socket) is said and tried again by the `C_UDP_S`
+  (*"Listen failed: ..."*, ERROR, then *"UDP listening ..."* when it listens),
+  if it does not exit the yuno; up to 7.30.18 *"UDP server started again"*
+  came too, for a server that did not listen. The
   backoff is `timeout_base` first, and DOUBLES (up to 5 minutes) each time
   the `C_UDP_S` stops again, or cannot start (*"UDP server cannot start
   again, it is tried again after a backoff"*), within a minute of the last

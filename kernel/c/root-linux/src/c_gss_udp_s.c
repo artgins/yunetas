@@ -27,6 +27,11 @@
  *          first, doubled (up to RESTART_BACKOFF_MAX_MS) each time it stops
  *          again, or cannot start, within RESTART_HOLD_MS of the last try.
  *          Up to 7.25.20 the EV_STOPPED was taken with no action.
+ *          "UDP server started again" (INFO) is said when it listens: a
+ *          start whose listen failed (a C_UDP_S that does not exit on it)
+ *          is said and tried again by the C_UDP_S, which says "UDP
+ *          listening ..." when it listens. Up to 7.30.18 the INFO came
+ *          anyway.
  *
  *          A send is refused (one warning a stop, the count when it starts
  *          again or when this gobj stops) whenever the C_UDP_S is not in
@@ -472,6 +477,9 @@ PRIVATE void restart_udp_server(hgobj gobj)
     }
     if(priv->udp_stopped) {
         return; // stopped again inside its start: said, and scheduled
+    }
+    if(!gobj_read_bool_attr(priv->gobj_udp_s, "listening")) {
+        return; // its listen failed: the C_UDP_S said why, and tries again by itself
     }
 
     gobj_log_info(gobj, 0,
