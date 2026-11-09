@@ -410,10 +410,12 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s, s:i}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s, s:i}, {s:s}, {s:s, s:i}]",
         "msg", "TLS handshake not ended in time, connection dropped",   // the raw clients, then the wss client: one window
         "suppressed", 0,
-        "msg", "TLS handshake rejected"                                 // the raw client of a line
+        "msg", "TLS handshake rejected",                                // the raw client of a line
+        "msg", "TLS handshakes not ended in time, connections dropped, not said in their window",
+        "suppressed", 2                                                 // the two others of the window, said at the end
     );
 
     set_expected_results( // Check that no logs happen

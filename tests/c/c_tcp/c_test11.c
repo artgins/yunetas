@@ -20,10 +20,14 @@
  *          - Three TLS clients (timeout_tls_handshake 1000) connect to the
  *            mute listener at the same time: the four deadlines of the
  *            first window write ONE warning ("suppressed" 0).
- *          - 11 s later a fifth client connects to the mute listener: its
- *            deadline writes the next warning, "suppressed" 3. Up to
- *            7.30.17 each deadline wrote a warning (red: "Unexpected
- *            error").
+ *          - 11 s later three more clients connect to the mute listener:
+ *            the first deadline writes the next warning, "suppressed" 3.
+ *            Up to 7.30.17 each deadline wrote a warning (red:
+ *            "Unexpected error").
+ *          - The two other deadlines of that window are said when the yuno
+ *            ends, in a warning of their own, "suppressed" 2. Up to
+ *            7.30.18 nobody said them (red: the expected warning is not
+ *            in the log).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -91,7 +95,7 @@ typedef struct _PRIVATE_DATA {
     hgobj drip_timer;       // the drip and the accepts (milliseconds)
     hgobj gobj_drip_client;
     hgobj gobj_mute_clients[MUTE_CLIENTS];
-    hgobj gobj_late_client;
+    hgobj gobj_late_clients[MUTE_CLIENTS];
     int fd_listen_drip;
     int fd_listen_mute;
     int fd_drip_peer;
@@ -193,7 +197,11 @@ PRIVATE void mt_create(hgobj gobj)
         snprintf(name, sizeof(name), "mute_client%d", i + 1);
         priv->gobj_mute_clients[i] = create_tls_client(gobj, name, url_mute, -1);
     }
-    priv->gobj_late_client = create_tls_client(gobj, "late_client", url_mute, -1);
+    for(int i = 0; i < MUTE_CLIENTS; i++) {
+        char name[NAME_MAX];
+        snprintf(name, sizeof(name), "late_client%d", i + 1);
+        priv->gobj_late_clients[i] = create_tls_client(gobj, name, url_mute, -1);
+    }
 }
 
 /***************************************************************************
@@ -255,8 +263,10 @@ PRIVATE int mt_stop(hgobj gobj)
             gobj_stop(priv->gobj_mute_clients[i]);
         }
     }
-    if(gobj_is_running(priv->gobj_late_client)) {
-        gobj_stop(priv->gobj_late_client);
+    for(int i = 0; i < MUTE_CLIENTS; i++) {
+        if(gobj_is_running(priv->gobj_late_clients[i])) {
+            gobj_stop(priv->gobj_late_clients[i]);
+        }
     }
 
     return 0;
@@ -433,23 +443,28 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 }
             }
             /*
-             *  The window of the warning is over: one more deadline
+             *  The window of the warning is over: three more deadlines
              */
             priv->phase = PHASE_LATE_CLIENT;
-            gobj_start(priv->gobj_late_client);
+            for(int i = 0; i < MUTE_CLIENTS; i++) {
+                gobj_start(priv->gobj_late_clients[i]);
+            }
             set_timeout(priv->timer, DROP_BEFORE_MS);
             break;
 
         case PHASE_LATE_CLIENT:
-            if(strcmp(gobj_read_str_attr(priv->gobj_late_client, "disconnect_cause"),
-                    "TLS: the handshake did not end in time")!=0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "TEST: the late client was not dropped at its deadline",
-                    "cause",        "%s", gobj_read_str_attr(priv->gobj_late_client, "disconnect_cause"),
-                    NULL
-                );
+            for(int i = 0; i < MUTE_CLIENTS; i++) {
+                const char *cause = gobj_read_str_attr(priv->gobj_late_clients[i], "disconnect_cause");
+                if(strcmp(cause, "TLS: the handshake did not end in time")!=0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "TEST: a late client was not dropped at its deadline",
+                        "client",       "%s", gobj_name(priv->gobj_late_clients[i]),
+                        "cause",        "%s", cause,
+                        NULL
+                    );
+                }
             }
             priv->phase = PHASE_END;
             set_yuno_must_die();

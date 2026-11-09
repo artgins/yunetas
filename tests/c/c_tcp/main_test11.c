@@ -100,14 +100,17 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(30);
 
     /*------------------------------*
-     *  The four deadlines of the first window: ONE warning; the one
-     *  after the window: the next, with the count of the three
+     *  The four deadlines of the first window: ONE warning; the three
+     *  after the window: the next, with the count of the three before it,
+     *  and the two others of its window said at the end of the yuno
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s, s:i}, {s:s, s:i}]",
+    json_t *errors_list = json_pack("[{s:s, s:i}, {s:s, s:i}, {s:s, s:i}]",
         "msg", "TLS handshake not ended in time, connection dropped",
         "suppressed", 0,
         "msg", "TLS handshake not ended in time, connection dropped",
-        "suppressed", 3
+        "suppressed", 3,
+        "msg", "TLS handshakes not ended in time, connections dropped, not said in their window",
+        "suppressed", 2
     );
 
     set_expected_results(

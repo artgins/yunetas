@@ -35,7 +35,8 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `disconnect_cause` | `string` | Why the last connection, or the last attempt to connect, ended: the error of the socket (`Connection refused`), a TLS failure with the backend's reason when it has one (`TLS handshake failed: SSL - An invalid SSL record was received`, `TLS: decrypt failed: ...`; up to 7.25.21 the mbedTLS backend gave none), `Local dropping`, `Inactivity timeout`, `Local stop`, a write or a connect that could not start. The FIRST cause of an end is kept: the cancel of the read that a drop or an inactivity close makes (`Operation canceled`) does not replace it. Emptied when a connection attempt starts (`EV_CONNECT`, or the reconnect timer, both through `ac_connect`) and when a connection begins (a clisrv gets no `EV_CONNECT`). A cause longer than 512 bytes is truncated with a warning. The `Disconnected` trace says it as its `cause`. A failed attempt publishes no event, only state changes: an owner that wants the cause reads this attr when it sees the change out of `ST_WAIT_CONNECTED` / `ST_WAIT_HANDSHAKE` -- `gobj_read_str_attr(tcp, "disconnect_cause")` -- rather than `gobj_log_last_message()`, which is the last ERROR of the whole process (added after 7.25.20). |
 | `timeout_stop_tx` | `integer` | A stop (or a drop) waits for the write in flight, which ends when the peer takes its data. A peer that never does (it does not read, its window stays at zero) held the stop for ever -- a clisrv in `ST_WAIT_STOPPED`, and its `C_TCP_S`, waiting for it, never listening again (up to 7.25.21). Now the socket gets a `TCP_USER_TIMEOUT` of this many ms when the stop has to wait for a write: data not acknowledged for that long aborts the connection, the write ends with an error (`disconnect_cause`), and the stop ends. A window that stays at zero counts too: the kernel aborts at its first zero-window probe past the timeout, and the probes back off, so the abort can come some seconds later. The abort is said with ONE warning, *"The peer did not take the data in flight in timeout_stop_tx, connection aborted"* (`peername`, `sockname`, `url`). Up to 7.30.16 this bounded a clisrv only: the stop of a CLIENT closed its socket before looking for it, so a client's stop waited for ever for a peer that did not read. Default `10000`; `0`: no bound. A peer that reads, however slowly, is not affected. A server sets it on its clisrvs with `clisrv_kw`: `json_pack("{s:s, s:{s:i}}", "url", url, "clisrv_kw", "timeout_stop_tx", 1000)`. |
 | `timeout_tls_handshake` | `integer` | The deadline of the TLS handshake, in ms (default `10000`; `0`: none), on a server and on a client. A handshake that has not ended when it runs out drops the connection with a warning, *"TLS handshake not ended in time, connection dropped"* (`peername`, `sockname`, `url`, `suppressed`): ONE per 10 s for the whole yuno, and `suppressed` is how many deadlines in the 10 s before it wrote none (up to 7.30.17 each one wrote its own: a peer that kept opening mute connections wrote the log at its will); a client then reconnects after `timeout_between_connections`, as after any failed connection. See *The deadline of the TLS handshake* (added in 7.30.17). |
-| `txBytes` | `integer` | Total bytes transmitted (stat). |
+| `rx_paused` | `bool` | Flow control of the host (default `false`, writable). `true`: no more reads of data are started; the read in flight still ends and publishes its `EV_RX_DATA`, and the reads of a TLS handshake go on. `false`: the read held by the pause starts again. See *Flow control: rx_paused* (added after 7.30.18). |
+| `txBytes` | `integer` | Total bytes written to the socket (stat): what the kernel took, not what the peer received (see *The close resets the connection*). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
 | `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
 | `peername` | `string` | Remote peer address (read-only). |
@@ -138,20 +139,66 @@ and one period after it.
 
 The drop is said with ONE warning per 10 s for the whole yuno, not per
 connection: a peer that opens mute connections one after the other is one
-cause. The next warning carries the count of the deadlines it did not write:
+cause. The deadlines of a window that no warning wrote are counted, and the
+count is said when the window closes:
+
+- the next deadline within 10 s of the end of the window writes the next
+  warning, and it carries the count (`suppressed`);
+- otherwise the count goes in a warning of its own, *"TLS handshakes not
+  ended in time, connections dropped, not said in their window"*, written at
+  the next deadline or at the stop of any `C_TCP`, the end of the yuno
+  included.
+
+Up to 7.30.18 the deadlines after the last warning were said by nobody when
+no other deadline came, and when one came, even hours later, its warning
+carried them as if they were its own window's.
 
 ```json
 {"msg": "TLS handshake not ended in time, connection dropped",
  "timeout_tls_handshake": 1000, "url": "",
  "peername": "203.0.113.7:51544", "sockname": "10.0.0.2:1991",
  "suppressed": 902}
+{"msg": "TLS handshakes not ended in time, connections dropped, not said in their window",
+ "suppressed": 14}
 ```
 
 `tests/c/c_tcp` (`test_tcp_test11`): a client with `timeout_inactivity` 2000
 and `timeout_tls_handshake` 1000 against a peer that drips one byte each
 200 ms is dropped at its deadline (up to 7.30.17 the drip held it open), and
-four deadlines in one window write one warning, the next one after the window
-`"suppressed": 3`.
+four deadlines in one window write one warning; three after the window write
+the next one, `"suppressed": 3`, and the two others of that window are said
+at the end of the yuno, `"suppressed": 2`.
+
+### Flow control: rx_paused
+
+A host that writes what one `C_TCP` reads to another one (a relay) must not
+read the first faster than the second writes: the queue of the second
+(`max_tx_queue` is `0`, no limit) grows with everything the fast peer sends.
+`rx_paused` is the host's brake. Written `true`, the connection starts no
+more reads of data: the read in flight still ends and publishes its
+`EV_RX_DATA`, and the reads of a TLS handshake go on, so a handshake never
+waits for it. Written `false`, the read held by the pause starts again. The
+peer is then held back by TCP itself (its window closes).
+
+```C
+// EV_RX_DATA of tcp_a: relay a COPY to tcp_b, then pause tcp_a
+gobj_send_event(tcp_b, EV_TX_DATA, kw_copy, gobj);
+gobj_write_bool_attr(tcp_a, "rx_paused", TRUE);
+
+// EV_TX_READY of tcp_b (subscribed with
+// gobj_subscribe_event(tcp_b, EV_TX_READY, NULL, gobj)): resume tcp_a
+gobj_write_bool_attr(tcp_a, "rx_paused", FALSE);
+```
+
+Relay a copy: the gbuffer of an `EV_RX_DATA` is the read buffer of the
+connection, read into again as soon as the publish returns, while a gbuffer
+handed to a transport is that transport's until its `EV_TX_READY`.
+
+While the reading is paused, an end of the connection by the peer is seen
+when the reading resumes (a write sees it at once). The pause is the host's
+and outlives a connection: a host that reuses a client sets it back to
+`false` before starting it. `sgateway` uses it in both directions (see the
+[sgateway](#yuno-sgateway) page; the copy and the pause came after 7.30.18).
 
 ### The stop
 
@@ -207,6 +254,9 @@ The socket of a CLIENT, which belongs to its connect event, is closed the same
 way: only when its last write has completed. A drop or a stop with a write in
 flight waits for it in `ST_WAIT_STOPPED` with the socket open, and a write that
 completes short sends its rest to that socket, bounded by `timeout_stop_tx`.
+A write completes when the kernel has TAKEN its bytes, not when the peer has
+received them; see *The close resets the connection* below for what happens
+to the bytes still in the socket.
 Up to 7.30.17 the stop of the connect event closed the socket at once, and a
 rest written in `ST_WAIT_STOPPED` went to that closed number: to EBADF (the
 data lost, with no trace), or to whatever file or socket an `open()`,
@@ -219,6 +269,31 @@ peer gets every byte of the write in flight).
 gobj_send_event(gobj_tcp, EV_DROP, 0, gobj);    // a write in flight: ST_WAIT_STOPPED, socket open
 // ... the write completes, its rest included: then the socket closes,
 // and EV_DISCONNECTED comes
+```
+
+#### The close resets the connection
+
+Every socket of `C_TCP` has `SO_LINGER` on with a time of `0`
+(`set_tcp_socket_options()`), so its `close()` resets the connection: the
+bytes still in the socket's send buffer -- taken by the kernel, not yet
+received by a slow peer -- are discarded, and the peer gets a RST, not a FIN.
+So a drop or a stop with a write in flight does NOT deliver that write whole
+to a slow peer: the write completes into the send buffer, the socket closes,
+and what the buffer still held is lost. `txBytes` counts it all. For
+example, 8 MB written and a drop at once, against a peer that reads slowly:
+the peer gets some 6 MB and a RST. (The CHANGELOG of 7.30.18 says of this case that *"the rest reaches
+its peer"*: what 7.30.18 fixed is that the rest no longer goes to another file
+or socket; it reaches the socket of its connection, and from there the close
+decides.) It is a decision of the design, kept: a peer that does not read
+holds no socket after its close. A protocol that must deliver everything
+before closing waits for its peer to acknowledge it (an answer of the
+protocol), then closes.
+
+```C
+// 8 MB sent, then at once:
+gobj_send_event(gobj_tcp, EV_DROP, 0, gobj);
+// the write completes into the send buffer; the close discards what the
+// peer has not read yet, and the peer gets a RST
 ```
 
 A stopped client starts again with `gobj_start()`: a new connect event, a new

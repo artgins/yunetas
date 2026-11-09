@@ -63,8 +63,14 @@
     does. Its EV_TIMEOUT drops the connection with a warning naming the
     peer, one per 10 s for the whole yuno, with the count of the ones not
     written ("suppressed"); a client then reconnects as after any failed
-    connection. While the handshake runs the timer is its deadline only:
-    the inactivity timer of a client is armed in ST_CONNECTED. It costs
+    connection. The count of a window is said when the window closes: in
+    the next warning when it comes within the next 10 s, else in a warning
+    of its own, at that next deadline or at the stop of any C_TCP (the end
+    of the yuno included). Up to 7.30.18 the deadlines after the last
+    warning were said by nobody when no other came, and when one came, even
+    hours later, they were added to its count. While the handshake runs
+    the timer is its deadline only: the inactivity timer of a client is
+    armed in ST_CONNECTED. It costs
     nothing per read. Before it (up to 7.30.16), a peer that sent nothing
     held a connection for ever: EV_CONNECTED comes only after the
     handshake, so no deadline of the host above (C_WEBSOCKET's
@@ -123,6 +129,20 @@
     its url after the publish, and over TLS took -2222 for a TLS error and
     wrote the cause and stopped the destroyed gobj again.
 
+    Flow control of the host: `rx_paused`. Written TRUE, no more reads of
+    data are started: the read in flight still ends and publishes its data,
+    and the reads of a TLS handshake go on. Written FALSE, the read held by
+    the pause starts again. A relay (sgateway) pauses the side it reads
+    while the other side has data to write, and resumes it at the
+    EV_TX_READY of that side, so the queue of the slow side does not grow
+    with what the fast side reads. While the reading is paused the end of
+    the connection by the peer is seen when it resumes (a write still sees
+    it at once).
+
+        gobj_write_bool_attr(tcp_in, "rx_paused", TRUE);    // after sending its data
+        ...
+        gobj_write_bool_attr(tcp_in, "rx_paused", FALSE);   // EV_TX_READY of the other side
+
     The write in flight is kept (yev_tx, one at a time). A host that
     destroys its C_TCP before EV_STOPPED (in the turn of its stop, with a
     write in flight) gets it canceled at the destroy, and the loop frees it
@@ -158,6 +178,8 @@ PRIVATE void bound_the_write_in_flight(hgobj gobj);
 PRIVATE void log_closing_drops(hgobj gobj);
 PRIVATE void set_connected(hgobj gobj, int fd);
 PRIVATE void set_inactivity_timeout(hgobj gobj);
+PRIVATE void resume_reading(hgobj gobj);
+PRIVATE void say_suppressed_handshakes(hgobj gobj);
 PRIVATE int start_pending_writes(hgobj gobj);
 PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event);
 PRIVATE void release_the_write(hgobj gobj, yev_event_h yev_write_event);
@@ -200,6 +222,7 @@ SDATA (DTP_BOOLEAN, "no_tx_ready_event",SDF_RD,         0,          "Set TRUE if
 
 SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         0,          "Maximum messages in tx queue. Default is 0: no limit."),
 SDATA (DTP_INTEGER, "cur_tx_queue",     SDF_RD,         0,          "Current messages in tx queue"),
+SDATA (DTP_BOOLEAN, "rx_paused",        SDF_WR,         "FALSE",    "Flow control of the host. TRUE: no more reads of data are started (the read in flight still ends and publishes its data; the reads of a TLS handshake go on). FALSE: the read held by the pause starts again. A relay pauses the side it reads while the other side has data to write, and resumes it at the EV_TX_READY of that side"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_PERSIST,    "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_RD, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
@@ -292,6 +315,9 @@ typedef struct _PRIVATE_DATA {
     json_int_t max_tx_in_progress;
     yev_event_h yev_tx;             // the write in flight: one at a time (see the header)
 
+    BOOL rx_paused;                 // the host's flow control (see resume_reading())
+    BOOL rx_held;                   // a read not started again because of rx_paused
+
     json_int_t closing_dropped_msgs;    // EV_TX_DATA while closing, said when the close ends
     json_int_t closing_dropped_bytes;
 
@@ -349,6 +375,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
+    SET_PRIV(rx_paused,             gobj_read_bool_attr)
 }
 
 /***************************************************************************
@@ -367,7 +394,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(rx_paused,             gobj_read_bool_attr)
     END_EQ_SET_PRIV()
+
+    if(path && strcmp(path, "rx_paused")==0 && !priv->rx_paused) {
+        resume_reading(gobj);
+    }
 
     /*
      *  `stats=__reset__` writes the defaults of the SDF_RSTATS attrs: the
@@ -569,6 +601,8 @@ PRIVATE int mt_stop(hgobj gobj)
         gobj_stop(priv->gobj_timer);
     }
 
+    say_suppressed_handshakes(gobj);
+
     if(!gobj_in_this_state(gobj, ST_STOPPED) && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
         set_disconnect_cause(gobj, "Local stop");
     }
@@ -752,6 +786,49 @@ PRIVATE void set_inactivity_timeout(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The host resumes the reading it paused (rx_paused): the read held by
+ *  the pause starts again. Only a held read: one in flight goes on as it
+ *  is, and the one of a publish in progress is started by its callback.
+ ***************************************************************************/
+PRIVATE void resume_reading(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->rx_held) {
+        return;
+    }
+    priv->rx_held = FALSE;
+    if(priv->yev_reading && yev_event_is_idle(priv->yev_reading) &&
+            gobj_in_this_state(gobj, ST_CONNECTED)) {
+        gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+        yev_start_event(priv->yev_reading); // on failure: logged by yev_loop
+    }
+}
+
+/***************************************************************************
+ *  The deadlines of a closed window that no warning said (see
+ *  ac_timeout_tls_handshake()): said in a warning of their own, when the
+ *  window has closed or the yuno ends
+ ***************************************************************************/
+PRIVATE void say_suppressed_handshakes(hgobj gobj)
+{
+    if(handshake_log_suppressed == 0) {
+        return;
+    }
+    if(!test_msectimer(handshake_log_t_next) && !gobj_is_shutdowning()) {
+        return;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "TLS handshakes not ended in time, connections dropped, not said in their window",
+        "suppressed",   "%ld", (long)handshake_log_suppressed,
+        NULL
+    );
+    handshake_log_suppressed = 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void set_connected(hgobj gobj, int fd)
@@ -827,6 +904,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             gbuffer_clear(yev_get_gbuf(priv->yev_reading));
         }
 
+        priv->rx_held = FALSE;
         yev_start_event(priv->yev_reading);
     }
 
@@ -2179,11 +2257,16 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *  re-armed. A subscriber that answered an error does not
                      *  stop the reading: up to 7.25.21 it did (ret was asked
                      *  to be 0), and the connection hung in silence, neither
-                     *  read nor stopped.
+                     *  read nor stopped. A host that paused the reading
+                     *  (rx_paused) gets it held until it resumes it.
                      */
                     if(yev_event_is_idle(yev_event)) {
                         gbuffer_clear(gbuf);
-                        yev_start_event(yev_event);
+                        if(priv->rx_paused && gobj_in_this_state(gobj, ST_CONNECTED)) {
+                            priv->rx_held = TRUE;
+                        } else {
+                            yev_start_event(yev_event);
+                        }
                     }
 
                 } else {
@@ -2704,6 +2787,18 @@ PRIVATE int ac_timeout_tls_handshake(hgobj gobj, gobj_event_t event, json_t *kw,
     if(handshake_log_t_next && !test_msectimer(handshake_log_t_next)) {
         handshake_log_suppressed++;
     } else {
+        /*
+         *  The count of the window just closed goes in this warning; that
+         *  of an older one in its own (up to 7.30.18 it went in this one
+         *  however old it was)
+         */
+        json_int_t suppressed = 0;
+        if(test_msectimer(handshake_log_t_next + PEER_LOG_INTERVAL_MS)) {
+            say_suppressed_handshakes(gobj);
+        } else {
+            suppressed = handshake_log_suppressed;
+            handshake_log_suppressed = 0;
+        }
         handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2713,10 +2808,9 @@ PRIVATE int ac_timeout_tls_handshake(hgobj gobj, gobj_event_t event, json_t *kw,
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
             "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
             "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
-            "suppressed",   "%ld", (long)handshake_log_suppressed,
+            "suppressed",   "%ld", (long)suppressed,
             NULL
         );
-        handshake_log_suppressed = 0;
     }
 
     set_disconnect_cause(gobj, "TLS: the handshake did not end in time");
