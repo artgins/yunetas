@@ -36,7 +36,11 @@
  *          A send is refused (one warning a stop, the count when it starts
  *          again or when this gobj stops) whenever the C_UDP_S is not in
  *          ST_IDLE: stopped, or still stopping (ST_WAIT_STOPPED, a send in
- *          flight), the window before its EV_STOPPED.
+ *          flight), the window before its EV_STOPPED, or started again with
+ *          its listen failed. In that last case the count is said with the
+ *          first send taken once the C_UDP_S listens by itself (INFO "UDP
+ *          server listening again, sends refused while it was not"); up to
+ *          7.30.19 it was said by nobody, and went into the next count.
  *
  *          A C_UDP_S stopped from outside (gobj_stop() of it alone: it no
  *          longer runs when its EV_STOPPED comes) is not started again: that
@@ -719,6 +723,22 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         }
         KW_DECREF(kw);
         return -1;  // the first one logged, the count at the restart or at the stop
+    }
+    if(priv->tx_dropped > 0) {
+        /*
+         *  It listens again by itself, after a restart whose listen failed:
+         *  the count is said with the first send it takes. Up to 7.30.19
+         *  nobody said it, and it went into the count of the next restart
+         */
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "UDP server listening again, sends refused while it was not",
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+            "tx_dropped",   "%ld", (long)priv->tx_dropped,
+            NULL
+        );
+        priv->tx_dropped = 0;
     }
 
     /*

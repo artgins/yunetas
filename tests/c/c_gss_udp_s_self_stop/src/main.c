@@ -104,7 +104,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s, s:i},{s:s},{s:s},{s:s, s:i},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "timeout_base <= 0 would arm no timer (no peer forgotten, no restart of the UDP server): the default is used",
             "msg", "UDP listening ...",
@@ -118,13 +118,17 @@ static int register_yuno_and_more(void)
             "msg", "Cannot start event: gbuffer WITHOUT space to read",
             "msg", "UDP: the read cannot be started again, the server stops listening",
             "msg", "UDP server stopped by itself, it is started again after a backoff",
+            "msg", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",  // "down"; "deaf" counted, no warning
             "msg", "bind() FAILED",
             "msg", "yev_create_accept_event() FAILED",
             "msg", "UDP listening ...",
             "msg", "Listening again after a failed listen",
-            "msg", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",
+            "msg", "UDP server listening again, sends refused while it was not",   // with "heard"
+            "tx_dropped", 2,
+            "msg", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",  // "after"
             "msg", "UDP server stopped from outside, it is not started again",
             "msg", "UDP server stops with sends refused while it was stopped",
+            "tx_dropped", 1,
             "msg", "UDP listening ...",
             "msg", "UDP listening ...",
             "msg", "UDP server started again",

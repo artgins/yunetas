@@ -27,18 +27,25 @@
  *                 Then the C_UDP_S is made to stop by itself again ("three"
  *                 kept, rx_buffer_size 0), within RESTART_HOLD_MS of its
  *                 restart: the backoff doubles, 2 s.
- *              5. (1.3 s after that stop) it must still be down; its port
- *                 is then taken by another socket.
+ *              5. (1.3 s after that stop) it must still be down, and the
+ *                 host's "down" is refused (ONE warning); its port is then
+ *                 taken by another socket.
  *              6. (2.3 s) the restart started it, and its listen failed
  *                 (exitOnError FALSE: ONE error, its own try later, and no
- *                 "UDP server started again"); the port is freed, and at
- *                 its try it listens ("Listening again after a failed
- *                 listen"). Then it is stopped from
+ *                 "UDP server started again"); the host's "deaf" is refused
+ *                 (no second warning); the port is freed, and at its try it
+ *                 listens ("Listening again after a failed listen"). The
+ *                 host's "heard" goes out, and with it the INFO "UDP server
+ *                 listening again, sends refused while it was not",
+ *                 tx_dropped 2 (up to 7.30.19 said by nobody: the count
+ *                 went into the next one, and the next refused send wrote
+ *                 no warning). Then it is stopped from
  *                 outside (gobj_stop() of the C_UDP_S): said, not started
- *                 again, and a send meanwhile refused.
- *              7. (1.2 s) it must still be down. The C_GSS_UDP_S is then
+ *                 again, and a send meanwhile refused (its own warning).
+ *              7. (1.2 s) it must still be down, and the peer must have got
+ *                 "heard" only. The C_GSS_UDP_S is then
  *                 stopped and started again (a pause and a play of its host):
- *                 at its stop it says the sends refused since, and its start
+ *                 at its stop it says the sends refused since (1), and its start
  *                 finds its timers stopped (no "GObj ALREADY RUNNING").
  *              8. The peer sends "four": the host must get it.
  *              9. The C_GSS_UDP_S is stopped and started again in the SAME
@@ -447,6 +454,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, !gobj_in_this_state(priv->gobj_udp_s, ST_IDLE),
                 "the C_UDP_S started again before its doubled backoff (2 s)"
             );
+            host_send(gobj, "down");
             /*
              *  Its port taken while it is down: the restart starts it, and
              *  its listen fails
@@ -467,6 +475,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, !gobj_read_bool_attr(priv->gobj_udp_s, "listening"),
                 "the C_UDP_S listens on a port held by another socket"
             );
+            host_send(gobj, "deaf");
             close(priv->squatter_fd);
             priv->squatter_fd = -1;
             set_timeout(priv->timer, 1500);
@@ -476,6 +485,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, gobj_in_this_state(priv->gobj_udp_s, ST_IDLE),
                 "the C_UDP_S did not listen once its port was free"
             );
+
+            host_send(gobj, "heard");
 
             /*
              *  Stopped from outside: not started again
@@ -495,7 +506,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 check(gobj, strcmp(priv->received, "one two three ")==0,
                     "the host got more or less than 'one two three'"
                 );
-                check(gobj, got[0] == 0, "the peer got a refused send");
+                check(gobj, strcmp(got, "heard ")==0,
+                    "the peer did not get 'heard' only (a refused send went out, or the taken one did not)"
+                );
 
                 /*
                  *  The C_GSS_UDP_S stopped and started again, as a pause and

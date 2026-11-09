@@ -439,7 +439,20 @@ window before its `EV_STOPPED`). The event answers -1, and ONE warning is
 logged per stop, *"EV_SEND_MESSAGE while the UDP server is stopped,
 dropped"*, with `udp_state`; the count comes with the restart, or, if the
 `C_GSS_UDP_S` is stopped first, with its stop (*"UDP server stops with sends
-refused while it was stopped"*, `tx_dropped`).
+refused while it was stopped"*, `tx_dropped`). After a restart whose listen
+failed (`exitOnError` false), the sends are refused until the `C_UDP_S`
+listens by itself, and the count comes with the first send it takes then:
+
+```json
+{"msg": "EV_SEND_MESSAGE while the UDP server is stopped, dropped", "udp_state": "ST_STOPPED"}
+{"msg": "yev_create_accept_event() FAILED"}
+{"msg": "Listening again after a failed listen"}
+{"msg": "UDP server listening again, sends refused while it was not",
+ "url": "udp://127.0.0.1:34296", "tx_dropped": 2}
+```
+
+Up to 7.30.19 that count was said by nobody: it went into the count of the
+next restart or stop, and the next refused send wrote no warning.
 
 A `C_UDP_S` stopped from OUTSIDE (a `gobj_stop()` of it alone: it no longer
 runs when its `EV_STOPPED` comes) is not started again -- that stop was

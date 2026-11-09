@@ -30,8 +30,14 @@ plain UDP socket, the peer:
    that stop; its port is then taken by another socket. At 2.3 s the restart
    has started it and its listen failed: ONE ERROR (*"yev_create_accept_event()
    FAILED"*), and no *"UDP server started again"* (up to 7.30.18 it was said
-   anyway). The port is freed, and at its own try the `C_UDP_S` listens
-   (*"Listening again after a failed listen"*).
+   anyway). The host's `down` (while it is down) and `deaf` (while it does
+   not listen) are refused, ONE warning for both. The port is freed, and at
+   its own try the `C_UDP_S` listens (*"Listening again after a failed
+   listen"*). The host's `heard` goes out with the INFO *"UDP server
+   listening again, sends refused while it was not"*, `tx_dropped` 2; the
+   peer gets `heard`. Up to 7.30.19 nobody said that count: it went into the
+   count of the stop in case 6 (3 instead of 1), and the send refused in
+   case 5 wrote no warning.
 5. Then it is stopped from outside (`gobj_stop()` of the `C_UDP_S`): *"UDP
    server stopped from outside, it is not started again"*, a send meanwhile
    refused with one warning, and 1.2 s later it is still down.
