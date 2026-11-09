@@ -102,10 +102,10 @@ client has a clean start: the driver also deletes its record, as the protocol
 asks when the client disconnects.
 
 `test_mqtt_legacy_sessions` (`main_legacy_sessions.c` + `c_legacy_sessions.c`)
-drives twelve `C_PROT_MQTT` gobjs the same way, each on its own
+drives nineteen `C_PROT_MQTT` gobjs the same way, each on its own
 `C_FAKE_TRANSPORT`, with the clients in a persistent `C_RESOURCE2` (as an MQTT
 gate keeps them) and the protocol's default limits (but the two of the
-expiry). 1. A device `dev` (clean
+expiry, and one with `allow_zero_length_clientid`). 1. A device `dev` (clean
 session 0) subscribes `dev/t` and `pub` publishes to it 1000 times: the
 reference time. 300 clients with clean session (3.1.1 clean session 1; MQTT 5
 clean start with no session expiry; MQTT 5 no clean start, expiry 0) connect,
@@ -119,7 +119,8 @@ filters in two packets: 100 granted, 60 refused with 0x80 in the SUBACK, the
 client kept; an MQTT 5 client with 101: the last one refused with 0x97; one
 WARNING each. 3. New ids with clean session 0 and 100 filters each, up to 1000
 sessions: the next one is refused at CONNECT (3.1.1: 3, MQTT 5: 0x97), one
-WARNING; a new clean session and an id with a session still connect. 4. The
+WARNING; a new clean session and an id with a session still connect, and the
+CONNACK of the latter removes its `disconnected_t`. 4. The
 1000 publications again, with 1000 sessions and 100000 subscriptions: within
 3 s of the reference (about 10 ms and 150 ms on the dev machine). Up to 7.30.21
 every id left a record for ever, a client held any number of subscriptions,
@@ -128,14 +129,17 @@ each PUBLISH walked all of them, and a re-subscription disconnected the client
 160 subscriptions kept, and the flood ended in *"REACHED MAX_SYSTEM_MEMORY"*).
 5. 2.5 s later, a protocol with `persistent_session_expiry` 1: a new id with
 clean session 0 is accepted and every session disconnected longer is removed,
-in memory and on disk (the connected `dev` stays). 6. 2.5 s later, a protocol
+in memory and on disk (the connected `dev` stays); a record as 7.30.22 wrote
+it (no `disconnected_t`) is dated by that pass, not removed. 6. 2.5 s later, a protocol
 with `max_persistent_sessions` 3 and `persistent_session_expiry` 0 (never): an
 MQTT 5 session expired by its own Session Expiry Interval (1 s) makes room, the
 next new id is refused (a 3.1.1 session never expires there). 50 persistent
 QoS 1 subscribers of `w/t`, disconnected, and `dev` connected: 200 QoS 1
 PUBLISH write 0 bytes (`wchar` of `/proc/self/io`) and `dev` gets packet ids
-1..200. Filters of 257 bytes are refused (SUBACK 0x80 / 0x8F, UNSUBACK 0x8F),
-one of 256 is granted, the client is kept, one WARNING per connection. CONNECTs
+1..200 (20 in flight, each PUBACK sends the next). Filters of 257 bytes are
+refused (SUBACK 0x80 / 0x8F), one of 256 is granted, the client is kept, one
+WARNING per connection; an UNSUBSCRIBE of a 257-byte filter the client holds
+removes it (UNSUBACK 0x00). CONNECTs
 refused for keep alive 0 leave no record: new ids with clean session 1 and 0,
 and clean session 0 or 1 over a connected clean session 1, whose connection,
 not dropped yet, subscribes with no error. A record shaped as reloaded after
@@ -143,7 +147,26 @@ an unclean stop (connected, with no connection): a PUBLISH to it and its
 CONNECT log no error. Up to 7.30.22 (red): the new ids refused (CONNACK 3),
 4.9 MB written by the 200 publications and every packet id 1, the long
 filters granted, the refused CONNECTs left their records, *"client not
-found"* and *"path NOT FOUND"* ERRORs.
+found"* and *"path NOT FOUND"* ERRORs. 8. A QoS 2 PUBLISH, the same again with
+DUP, then its PUBREL twice: two PUBREC, two PUBCOMP, the subscriber gets it
+once. 20 QoS 2 with no PUBREL are kept; the 21st drops the client (MQTT 5:
+DISCONNECT 0x93, no PUBREC), one WARNING each. A subscriber that does not ack
+gets 20 of 1100 QoS 1 messages, 1000 wait and 80 are dropped (one WARNING); its
+PUBACKs bring the 1000, in order. A DISCONNECT of MQTT 5 with a Reason String
+and no Session Expiry Interval logs nothing. An assigned id gets QoS 1
+messages with ids 1, 2. `saver` holds 50 filters of 200 bytes, then 401
+SUBSCRIBE and UNSUBSCRIBE inside one second write 0 bytes and the last change
+is not on disk yet. 9. 1.2 s later, a PINGREQ writes it. 10. 1.2 s later, a
+re-subscription with the same options, a refused filter and an UNSUBSCRIBE of a
+filter not held write under 4 KB (a WARNING; a record is ~30 KB); an
+UNSUBSCRIBE is written at once, the SUBSCRIBE that follows inside the second at
+the disconnection, and the session comes back with its 51 filters. Up to
+7.30.23 (red, `SEGFAULT`): the PUBREL after the duplicate read the freed
+message (no PUBCOMP, the client dropped as malformed) and the disconnection
+freed it again; with the crash fixed, the 21st QoS 2 got its PUBREC, the
+subscriber got all 1100 at once, the 401 packets wrote 11.6 MB, the UNSUBACK
+of the long filter was 0x8F, and the DISCONNECT and the assigned id logged
+ERRORs.
 
 `test_mqtt_legacy_prot` runs with `max_topic_filter_length` 0 (no limit): its
 300-byte topic is there to check a length with a non-zero high byte.

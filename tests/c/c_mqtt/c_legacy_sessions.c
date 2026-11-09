@@ -3,14 +3,15 @@
  *
  *          Driver of the test of the client records of C_PROT_MQTT, the
  *          deprecated MQTT protocol gclass, as a server. No broker and no
- *          socket: twelve protocol gobjs are children of this driver, each
+ *          socket: nineteen protocol gobjs are children of this driver, each
  *          with a C_FAKE_TRANSPORT as its bottom, and the driver writes the
  *          clients' packets into them by hand. The clients are kept in a
  *          persistent C_RESOURCE2, as an MQTT gate keeps them. The
  *          protocol's limits are its defaults (100 subscriptions per
  *          client, 1000 persistent sessions, filters of 256 bytes, a
- *          session kept one day after its disconnection), but in the two
- *          protocols of the expiry, "exp" and "exp2".
+ *          session kept one day after its disconnection, 20 messages in
+ *          flight, 1000 queued), but in the two protocols of the expiry,
+ *          "exp" and "exp2", and in "asg" (allow_zero_length_clientid).
  *
  *              1. A device "dev" (clean session 0) subscribes "dev/t", and
  *                 "pub" (clean session 1) publishes to it 1000 times: the
@@ -41,15 +42,18 @@
  *                 1000 persistent sessions: the next one is refused at
  *                 CONNECT (3.1.1: 3, Server unavailable; MQTT 5: 0x97), one
  *                 WARNING. A new id with clean session 1 and an id that has
- *                 a session are still accepted.
+ *                 a session are still accepted; the CONNACK of the one that
+ *                 has a session removes its "disconnected_t".
  *              4. The 1000 publications of 1 again, with the 1000 sessions
  *                 and their 100000 subscriptions: what they take is bounded
  *                 (within 3 s of the reference). A third new id is refused,
  *                 and says nothing more within the window of the WARNING.
+ *                 A record as 7.30.22 wrote it (no "disconnected_t").
  *              5. 2.5 s later, a protocol whose persistent_session_expiry is
  *                 1 s: a new id with clean session 0 is accepted, the
  *                 sessions disconnected longer than that are removed, in
- *                 memory and on disk (the connected "dev" stays). An MQTT 5
+ *                 memory and on disk (the connected "dev" stays); the record
+ *                 with no "disconnected_t" is dated, not removed. An MQTT 5
  *                 session with a Session Expiry Interval of 1 s is kept.
  *              6. 2.5 s later, a protocol with max_persistent_sessions 3 and
  *                 persistent_session_expiry 0 (never): the MQTT 5 session
@@ -58,11 +62,12 @@
  *                 50 persistent subscribers of "w/t" (QoS 1), disconnected,
  *                 and "dev" (connected) subscribed too: 200 QoS 1 PUBLISH
  *                 write nothing (the bytes the process writes), "dev" gets
- *                 them with the packet ids 1..200.
+ *                 them with the packet ids 1..200 (20 in flight, each PUBACK
+ *                 sends the next).
  *                 A filter of 257 bytes is refused in the SUBACK (3.1.1
- *                 0x80, MQTT 5 0x8F) and in the UNSUBACK (MQTT 5 0x8F), one of
- *                 256 is granted, the client is kept; one WARNING each
- *                 connection.
+ *                 0x80, MQTT 5 0x8F), one of 256 is granted, the client is
+ *                 kept; one WARNING each connection. An UNSUBSCRIBE of a
+ *                 filter of 257 bytes that the client holds removes it.
  *                 Refused CONNECTs (keep alive 0) leave no record: a new id
  *                 with clean session 1, a new id with clean session 0, and a
  *                 clean session 0 or 1 that takes over a connected clean
@@ -74,6 +79,23 @@
  *                 connected, with no connection): a QoS 1 PUBLISH to its
  *                 subscription and its client's CONNECT log no error.
  *              7. The refused and taken over connections were dropped.
+ *              8. A QoS 2 PUBLISH, again with DUP, then its PUBREL twice:
+ *                 two PUBREC, two PUBCOMP, the subscriber gets it once.
+ *                 20 QoS 2 with no PUBREL are kept, the 21st drops the
+ *                 client (MQTT 5: DISCONNECT 0x93), one WARNING each.
+ *                 A subscriber that does not ack gets 20 of 1100 QoS 1, 1000
+ *                 wait, 80 are dropped (one WARNING); its PUBACKs bring the
+ *                 1000, in order. A DISCONNECT of MQTT 5 with a Reason
+ *                 String and no Session Expiry Interval: no error. An
+ *                 assigned id gets QoS 1 messages with ids 1, 2, no error.
+ *                 "saver" holds 50 filters of 200 bytes; 401 SUBSCRIBE and
+ *                 UNSUBSCRIBE inside one second write nothing more.
+ *              9. Past the second, a PINGREQ writes the last change.
+ *             10. A re-subscription with the same options, a refused filter
+ *                 and an UNSUBSCRIBE of a filter not held write nothing; an
+ *                 UNSUBSCRIBE past the second is written at once, a SUBSCRIBE
+ *                 inside it at the disconnection; the session comes back
+ *                 with its 51 filters.
  *
  *          Up to 7.30.21 every client id made a record that was never
  *          removed, on disk and in memory, a client could hold any number
@@ -85,6 +107,12 @@
  *          refused CONNECT of a session left its record, the SUBSCRIBE of a
  *          connection taken over logged "client not found", and a record
  *          reloaded after an unclean stop logged an ERROR per message.
+ *          Up to 7.30.23 a duplicate QoS 2 PUBLISH freed the message still
+ *          waiting for its PUBREL (a crash), max_inflight_messages was not
+ *          applied, every (UN)SUBSCRIBE rewrote the record, an UNSUBSCRIBE
+ *          was capped by max_topic_filter_length, a DISCONNECT of MQTT 5
+ *          with properties and no Session Expiry Interval logged an ERROR,
+ *          and an assigned id logged "path NOT FOUND" at its first QoS 1.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -92,6 +120,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <unistd.h>
 #include <yunetas.h>
 #include <c_prot_mqtt.h>
 #include "c_fake_transport.h"
@@ -110,6 +139,13 @@
 #define W_PUBLICATIONS      200
 #define W_WRITE_MARGIN      (64*1024)   // bytes; 7.30.22 wrote ~2.5 MB
 #define EXPIRY_WAIT_MS      2500
+#define MAX_INFLIGHT        20      // default max_inflight_messages
+#define MAX_QUEUED          1000    // default max_queued_messages
+#define SLOW_PUBLICATIONS   1100
+#define SAVE_FILTERS        50
+#define SAVE_BURST          200
+#define SAVE_WINDOW_WAIT_MS 1200    // past the window of one second
+#define SAVE_NOOP_MARGIN    4096    // bytes; a record of saver is ~14 KB
 
 #define STORE_SERVICE       "mqtt"
 #define STORE_DATABASE      "legacy_sessions_clients"
@@ -127,6 +163,13 @@ enum {
     R4,
     R5,
     LONGF,
+    Q2,         // a QoS 2 PUBLISH twice, then its PUBREL
+    IN4,        // QoS 2 unreleased past max_inflight_messages, MQTT 3.1.1
+    IN5,        // the same, MQTT 5
+    SLOW,       // a subscriber that does not ack
+    DISC5,      // DISCONNECT of MQTT 5 with properties
+    ASG,        // allow_zero_length_clientid 1: an assigned id
+    SAVER,      // the writes of its (UN)SUBSCRIBEs
     N_PEERS
 };
 
@@ -144,6 +187,9 @@ typedef struct {
     int publications;       // PUBLISH received
     int last_mid;           // packet id of the last PUBLISH QoS > 0 received
     int mids_out_of_order;  // PUBLISH QoS > 0 whose id is not the last one + 1
+    int pubrecs;            // PUBREC received
+    int pubcomps;           // PUBCOMP received
+    int disconnect_reason;  // reason code of the last DISCONNECT received, -1 none
 } peer_t;
 
 /***************************************************************************
@@ -225,7 +271,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     static const char *names[N_PEERS] = {
         "dev", "pub", "att", "att2", "exp", "exp2", "r1", "r2", "r3", "r4", "r5",
-        "longf"
+        "longf", "q2", "in4", "in5", "slow", "disc5", "asg", "saver"
     };
     for(int i=0; i<N_PEERS; i++) {
         peer_t *peer = &priv->peers[i];
@@ -233,6 +279,7 @@ PRIVATE void mt_create(hgobj gobj)
         peer->suback_codes = json_array();
         peer->connack_flags = -1;
         peer->connack_reason = -1;
+        peer->disconnect_reason = -1;
 
         json_t *kw_prot = json_pack("{s:b}", "iamServer", 1);
         if(i == EXP) {
@@ -240,6 +287,8 @@ PRIVATE void mt_create(hgobj gobj)
         } else if(i == EXP2) {
             json_object_set_new(kw_prot, "persistent_session_expiry", json_integer(0));
             json_object_set_new(kw_prot, "max_persistent_sessions", json_integer(3));
+        } else if(i == ASG) {
+            json_object_set_new(kw_prot, "allow_zero_length_clientid", json_true());
         }
 
         char name[NAME_MAX];
@@ -471,7 +520,9 @@ PRIVATE void put_string(gbuffer_t *gbuf, const char *s)
     size_t len = strlen(s);
     uint8_t l[2] = {(uint8_t)(len >> 8), (uint8_t)(len & 0xFF)};
     gbuffer_append(gbuf, l, 2);
-    gbuffer_append(gbuf, (void *)s, len);
+    if(len > 0) {   // an empty client id
+        gbuffer_append(gbuf, (void *)s, len);
+    }
 }
 
 /***************************************************************************
@@ -667,6 +718,91 @@ PRIVATE void mqtt_publish(hgobj gobj, peer_t *peer, const char *topic, const cha
 }
 
 /***************************************************************************
+ *  PUBLISH QoS 2 with the packet id `mid`, DUP set or not
+ ***************************************************************************/
+PRIVATE void mqtt_publish_qos2(
+    hgobj gobj,
+    peer_t *peer,
+    const char *topic,
+    const char *payload,
+    uint16_t mid,
+    BOOL dup
+) {
+    gbuffer_t *body = gbuffer_create(256, 256);
+    put_string(body, topic);
+    uint8_t m[2] = {(uint8_t)(mid >> 8), (uint8_t)(mid & 0xFF)};
+    gbuffer_append(body, m, 2);
+    if(peer->version == 5) {
+        uint8_t props[] = {0x00};
+        gbuffer_append(body, props, sizeof(props));
+    }
+    gbuffer_append(body, (void *)payload, strlen(payload));
+    peer_sends(gobj, peer, dup? 0x3C : 0x34, body);
+}
+
+/***************************************************************************
+ *  A packet with only a packet id: PUBACK (0x40), PUBREL (0x62)
+ ***************************************************************************/
+PRIVATE void mqtt_ack(hgobj gobj, peer_t *peer, uint8_t type, uint16_t mid)
+{
+    gbuffer_t *body = gbuffer_create(2, 2);
+    uint8_t m[2] = {(uint8_t)(mid >> 8), (uint8_t)(mid & 0xFF)};
+    gbuffer_append(body, m, 2);
+    peer_sends(gobj, peer, type, body);
+}
+
+/***************************************************************************
+ *  PINGREQ
+ ***************************************************************************/
+PRIVATE void mqtt_pingreq(hgobj gobj, peer_t *peer)
+{
+    uint8_t pingreq[] = {0xC0, 0x00};   // no body: not through peer_sends()
+    gbuffer_t *gbuf = gbuffer_create(sizeof(pingreq), sizeof(pingreq));
+    gbuffer_append(gbuf, pingreq, sizeof(pingreq));
+    gobj_send_event(
+        peer->prot,
+        EV_RX_DATA,
+        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+        peer->fake
+    );
+}
+
+/***************************************************************************
+ *  The record of a client as it is on disk, NULL if it has no file
+ ***************************************************************************/
+PRIVATE json_t *record_on_disk(hgobj gobj, const char *client_id)
+{
+    char path_service[PATH_MAX];
+    char dir[PATH_MAX];
+    char filename[NAME_MAX];
+    if(!build_path(path_service, sizeof(path_service),
+            STORE_SERVICE, gobj_yuno_role_plus_name(), STORE_DATABASE, NULL) ||
+            !yuneta_store_dir(dir, sizeof(dir), "resources", path_service, FALSE)) {
+        return NULL;  // Error already logged
+    }
+    snprintf(filename, sizeof(filename), "%s.json", client_id);
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), dir, filename, NULL)) {
+        return NULL;  // Error already logged
+    }
+    if(access(path, F_OK) != 0) {
+        return NULL;
+    }
+    return load_json_from_file(gobj, dir, filename, 0);
+}
+
+/***************************************************************************
+ *  Has the record of the client on disk this subscription?
+ ***************************************************************************/
+PRIVATE BOOL subscribed_on_disk(hgobj gobj, const char *client_id, const char *filter)
+{
+    json_t *record = record_on_disk(gobj, client_id);
+    BOOL found = json_is_object(json_object_get(json_object_get(record, "subscriptions"), filter));
+    JSON_DECREF(record)
+    return found;
+}
+
+/***************************************************************************
  *  The "socket" of the client closes
  ***************************************************************************/
 PRIVATE void mqtt_close(hgobj gobj, peer_t *peer)
@@ -717,6 +853,15 @@ PRIVATE void parse_rx(hgobj gobj, peer_t *peer)
                         peer->last_mid = mid;
                     }
                 }
+                break;
+            case 5:     // PUBREC
+                peer->pubrecs++;
+                break;
+            case 7:     // PUBCOMP
+                peer->pubcomps++;
+                break;
+            case 14:    // DISCONNECT
+                peer->disconnect_reason = (remaining >= 1)? v[0] : 0;
                 break;
             case 9:     // SUBACK
             case 11:    // UNSUBACK
@@ -1062,6 +1207,10 @@ PRIVATE void phase_persistent_sessions(hgobj gobj)
     mqtt_connect(gobj, att2, 4, FALSE, "resub", -1);
     check_int(gobj, "TEST: a session that exists, with the sessions full", att2->connack_reason, 0);
     check_int(gobj, "TEST: session present of resub", att2->connack_flags, 0);
+    json_t *resub = gobj_get_resource(priv->clients, "resub", 0, 0);
+    check_int(gobj, "TEST: the record of resub, connected again, keeps disconnected_t",
+        json_object_get(resub, "disconnected_t")? 1 : 0, 0
+    );
     mqtt_close(gobj, att2);
 
     mqtt_connect(gobj, att2, 5, FALSE, "p-over-2", 3600);
@@ -1109,6 +1258,23 @@ PRIVATE void phase_publications(hgobj gobj)
     check_int(gobj, "TEST: a third persistent session past the limit",
         att->connack_reason, 3
     );
+
+    /*
+     *  A record as 7.30.22 wrote it: disconnected, with no "disconnected_t"
+     */
+    json_t *legacy = gobj_create_resource(
+        priv->clients,
+        "legacy",
+        json_pack("{s:s, s:b, s:i, s:b, s:{}}",
+            "id", "legacy",
+            "assigned_id", 0,
+            "last_mid", 0,
+            "isConnected", 0,
+            "subscriptions"
+        ),
+        0
+    );
+    check_int(gobj, "TEST: the legacy record not created", legacy? 1 : 0, 1);
 }
 
 /***************************************************************************
@@ -1130,10 +1296,28 @@ PRIVATE void phase_expiry(hgobj gobj)
         exp->connack_reason, 0
     );
     mqtt_close(gobj, exp);
-    check_int(gobj, "TEST: records in memory after the expiry (dev, pub, p-after)",
-        records_in_memory(gobj), 3
+    check_int(gobj, "TEST: records in memory after the expiry (dev, pub, p-after, legacy)",
+        records_in_memory(gobj), 4
     );
-    check_int(gobj, "TEST: records on disk after the expiry (dev, p-after)",
+    check_int(gobj, "TEST: records on disk after the expiry (dev, p-after, legacy)",
+        records_on_disk(gobj), 3
+    );
+
+    /*
+     *  The record with no date was dated by that pass, not removed; then
+     *  its client ends the session
+     */
+    json_t *legacy = gobj_get_resource(priv->clients, "legacy", 0, 0);
+    check_int(gobj, "TEST: the legacy record removed at its first pass",
+        legacy? 1 : 0, 1
+    );
+    check_int(gobj, "TEST: the legacy record not dated by its first pass",
+        json_integer_value(json_object_get(legacy, "disconnected_t")) > 0? 1 : 0, 1
+    );
+    mqtt_connect(gobj, att, 4, TRUE, "legacy", -1);
+    check_int(gobj, "TEST: CONNECT of legacy, clean session 1", att->connack_reason, 0);
+    mqtt_close(gobj, att);
+    check_int(gobj, "TEST: records on disk after legacy ended its session",
         records_on_disk(gobj), 2
     );
 
@@ -1209,6 +1393,9 @@ PRIVATE void phase_records(hgobj gobj)
     for(int i=0; i<W_PUBLICATIONS; i++) {
         mqtt_publish_qos(gobj, pub, "w/t", "on", (uint16_t)(i + 1));
     }
+    for(int i=0; i<W_PUBLICATIONS; i++) {
+        mqtt_ack(gobj, dev, 0x40, (uint16_t)(i + 1));   // each ack sends one more of the queue
+    }
     uint64_t t = time_in_milliseconds_monotonic() - t0;
     json_int_t written = bytes_written(gobj) - w0;
     gobj_log_info(gobj, 0,
@@ -1273,8 +1460,18 @@ PRIVATE void phase_records(hgobj gobj)
     mqtt_connect(gobj, longf, 5, TRUE, "longf5", -1);
     mqtt_filters(gobj, longf, 0x82, 1, f2, 1);
     check_suback(gobj, longf, "TEST: SUBACK of MQTT 5 of a filter past the length", 0, 1, 0x8F);
+    /*  A filter past the length that it holds (from 7.30.22, or a cap
+     *  lowered since): the UNSUBSCRIBE removes it  */
+    json_t *subs = json_object_get(gobj_get_resource(priv->clients, "longf5", 0, 0), "subscriptions");
+    json_object_set_new(subs, long_filter, json_pack("{s:s, s:i, s:I, s:b, s:b}",
+        "id", long_filter, "qos", 0, "identifier", (json_int_t)0,
+        "no_local", 0, "retain_as_published", 0
+    ));
     mqtt_filters(gobj, longf, 0xA2, 2, f2, 1);
-    check_suback(gobj, longf, "TEST: UNSUBACK of MQTT 5 of a filter past the length", 0, 1, 0x8F);
+    check_suback(gobj, longf, "TEST: UNSUBACK of MQTT 5 of a filter past the length it holds", 1, 0, 0);
+    check_int(gobj, "TEST: subscriptions of longf5 after the UNSUBSCRIBE",
+        subscriptions_of(gobj, "longf5"), 0
+    );
     check_kept(gobj, LONGF, "TEST: a filter past the length dropped the MQTT 5 client");
     mqtt_close(gobj, longf);
 
@@ -1373,6 +1570,251 @@ PRIVATE void phase_drops(hgobj gobj)
     check_kept(gobj, LONGF, "TEST: longf was dropped");
 }
 
+/***************************************************************************
+ *  The long prefix of the filters of saver: ~200 bytes each
+ ***************************************************************************/
+PRIVATE const char *saver_prefix(void)
+{
+    static char prefix[200];
+    if(!prefix[0]) {
+        memset(prefix, 's', sizeof(prefix) - 2);
+        prefix[sizeof(prefix) - 2] = '/';
+        prefix[sizeof(prefix) - 1] = 0;
+    }
+    return prefix;
+}
+
+/***************************************************************************
+ *  8. A QoS 2 PUBLISH twice; QoS 2 unreleased past max_inflight_messages;
+ *  a subscriber that does not ack; the DISCONNECT of MQTT 5 with
+ *  properties; an assigned id; a burst of (UN)SUBSCRIBE
+ ***************************************************************************/
+PRIVATE void phase_flight(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *dev = &priv->peers[DEV];
+    peer_t *pub = &priv->peers[PUB];
+    peer_t *q2 = &priv->peers[Q2];
+    peer_t *in4 = &priv->peers[IN4];
+    peer_t *in5 = &priv->peers[IN5];
+    peer_t *slow = &priv->peers[SLOW];
+    peer_t *disc5 = &priv->peers[DISC5];
+    peer_t *asg = &priv->peers[ASG];
+    peer_t *saver = &priv->peers[SAVER];
+
+    /*
+     *  The same QoS 2 PUBLISH twice (the second with DUP), then its PUBREL:
+     *  the subscriber gets it once
+     */
+    mqtt_subscribe(gobj, dev, 3, "q2/t", -1, 1);
+    check_suback(gobj, dev, "TEST: SUBACK of dev to q2/t", 1, 0, 0);
+    mqtt_connect(gobj, q2, 4, TRUE, "q2", -1);
+    check_int(gobj, "TEST: CONNECT of q2", q2->connack_reason, 0);
+    dev->publications = 0;
+    mqtt_publish_qos2(gobj, q2, "q2/t", "twice", 7, FALSE);
+    mqtt_publish_qos2(gobj, q2, "q2/t", "twice", 7, TRUE);
+    check_int(gobj, "TEST: PUBREC of the QoS 2 PUBLISH and of its duplicate", q2->pubrecs, 2);
+    mqtt_ack(gobj, q2, 0x62, 7);
+    check_int(gobj, "TEST: PUBCOMP of the PUBREL", q2->pubcomps, 1);
+    check_int(gobj, "TEST: the QoS 2 message dev got", dev->publications, 1);
+    mqtt_ack(gobj, q2, 0x62, 7);
+    check_int(gobj, "TEST: PUBCOMP of the PUBREL again", q2->pubcomps, 2);
+    check_int(gobj, "TEST: the QoS 2 message dev got, after its PUBREL again", dev->publications, 1);
+    check_kept(gobj, Q2, "TEST: the duplicate QoS 2 dropped the client");
+    mqtt_close(gobj, q2);
+
+    /*
+     *  QoS 2 waiting for their PUBREL: max_inflight_messages of them, and
+     *  one more is a protocol error, the client is dropped
+     */
+    mqtt_connect(gobj, in4, 4, TRUE, "in4", -1);
+    for(int i=0; i<MAX_INFLIGHT; i++) {
+        mqtt_publish_qos2(gobj, in4, "in/t", "x", (uint16_t)(i + 1), FALSE);
+    }
+    check_int(gobj, "TEST: PUBREC of the QoS 2 up to max_inflight_messages", in4->pubrecs, MAX_INFLIGHT);
+    check_kept(gobj, IN4, "TEST: QoS 2 up to max_inflight_messages dropped the client");
+    mqtt_publish_qos2(gobj, in4, "in/t", "x", MAX_INFLIGHT + 1, FALSE);
+    check_int(gobj, "TEST: PUBREC of a QoS 2 past max_inflight_messages", in4->pubrecs, MAX_INFLIGHT);
+    check_dropped(gobj, IN4, "TEST: a QoS 2 past max_inflight_messages did not drop the client");
+
+    mqtt_connect(gobj, in5, 5, TRUE, "in5", -1);
+    for(int i=0; i<MAX_INFLIGHT + 1; i++) {
+        mqtt_publish_qos2(gobj, in5, "in/t", "x", (uint16_t)(i + 1), FALSE);
+    }
+    check_int(gobj, "TEST: DISCONNECT of MQTT 5 past the Receive Maximum (0x93)",
+        in5->disconnect_reason, 0x93
+    );
+    check_dropped(gobj, IN5, "TEST: a QoS 2 past the Receive Maximum did not drop the MQTT 5 client");
+
+    /*
+     *  A subscriber that does not ack: max_inflight_messages in flight,
+     *  max_queued_messages queued, the rest dropped; each ack sends the next
+     */
+    mqtt_connect(gobj, slow, 4, TRUE, "slow", -1);
+    mqtt_subscribe_qos(gobj, slow, 1, "s/t", -1, 1, 1);
+    check_suback(gobj, slow, "TEST: SUBACK QoS 1 of slow", 0, 1, 1);
+    for(int i=0; i<SLOW_PUBLICATIONS; i++) {
+        mqtt_publish_qos(gobj, pub, "s/t", "x", (uint16_t)(i + 1));
+    }
+    check_int(gobj, "TEST: messages in flight to a subscriber that does not ack",
+        slow->publications, MAX_INFLIGHT
+    );
+    for(int i=0; i<MAX_INFLIGHT + MAX_QUEUED + 5; i++) {
+        mqtt_ack(gobj, slow, 0x40, (uint16_t)(i + 1));
+    }
+    check_int(gobj, "TEST: messages slow got, after acking them",
+        slow->publications, MAX_INFLIGHT + MAX_QUEUED
+    );
+    check_int(gobj, "TEST: the packet ids of slow not in order", slow->mids_out_of_order, 0);
+    check_kept(gobj, SLOW, "TEST: a subscriber that does not ack was dropped");
+    mqtt_close(gobj, slow);
+
+    /*
+     *  DISCONNECT of MQTT 5 with a property and no Session Expiry Interval
+     */
+    mqtt_connect(gobj, disc5, 5, TRUE, "disc5", -1);
+    check_int(gobj, "TEST: CONNECT of disc5", disc5->connack_reason, 0);
+    gbuffer_t *body = gbuffer_create(16, 16);
+    uint8_t disconnect[] = {0x00, 0x06, 0x1F, 0x00, 0x03, 'b', 'y', 'e'};  // reason string
+    gbuffer_append(body, disconnect, sizeof(disconnect));
+    peer_sends(gobj, disc5, 0xE0, body);
+    check_dropped(gobj, DISC5, "TEST: the DISCONNECT of MQTT 5 did not drop the client");
+
+    /*
+     *  An assigned id gets QoS 1 messages
+     */
+    mqtt_connect(gobj, asg, 4, TRUE, "", -1);
+    check_int(gobj, "TEST: CONNECT with an empty client id", asg->connack_reason, 0);
+    mqtt_subscribe_qos(gobj, asg, 1, "asg/t", -1, 1, 1);
+    check_suback(gobj, asg, "TEST: SUBACK QoS 1 of the assigned id", 0, 1, 1);
+    mqtt_publish_qos(gobj, pub, "asg/t", "on", 1);
+    mqtt_publish_qos(gobj, pub, "asg/t", "on", 2);
+    check_int(gobj, "TEST: the QoS 1 messages of the assigned id", asg->publications, 2);
+    check_int(gobj, "TEST: the last packet id of the assigned id", asg->last_mid, 2);
+    mqtt_close(gobj, asg);
+
+    /*
+     *  A session with SAVE_FILTERS filters of ~200 bytes, then a burst of
+     *  SUBSCRIBE and UNSUBSCRIBE inside the window of one second: nothing
+     *  more is written; the last change waits
+     */
+    mqtt_connect(gobj, saver, 4, FALSE, "saver", -1);
+    check_int(gobj, "TEST: CONNECT of saver", saver->connack_reason, 0);
+    mqtt_subscribe(gobj, saver, 1, saver_prefix(), 0, SAVE_FILTERS);
+    char filter0[NAME_MAX];
+    snprintf(filter0, sizeof(filter0), "%s0", saver_prefix());
+    check_int(gobj, "TEST: the first SUBSCRIBE of saver not written at once",
+        subscribed_on_disk(gobj, "saver", filter0)? 1 : 0, 1
+    );
+    const char *fx[] = {"sv/x"};
+    const char *flast[] = {"sv/last"};
+    json_int_t w0 = bytes_written(gobj);
+    for(int i=0; i<SAVE_BURST; i++) {
+        mqtt_filters(gobj, saver, 0x82, (uint16_t)(2*i + 2), fx, 1);
+        mqtt_filters(gobj, saver, 0xA2, (uint16_t)(2*i + 3), fx, 1);
+    }
+    mqtt_filters(gobj, saver, 0x82, 1, flast, 1);
+    json_int_t written = bytes_written(gobj) - w0;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TEST: a burst of SUBSCRIBE and UNSUBSCRIBE",
+        "packets",      "%d", 2*SAVE_BURST + 1,
+        "written",      "%lld", (long long)written,
+        NULL
+    );
+    if(written > W_WRITE_MARGIN) {
+        json_t *got = json_integer(written);
+        json_t *expected = json_integer(W_WRITE_MARGIN);
+        test_error(gobj, "TEST: a burst of (UN)SUBSCRIBE wrote the record, bytes", got, expected);
+        JSON_DECREF(got)
+        JSON_DECREF(expected)
+    }
+    check_int(gobj, "TEST: a change inside the window written at once",
+        subscribed_on_disk(gobj, "saver", "sv/last")? 1 : 0, 0
+    );
+}
+
+/***************************************************************************
+ *  9. Past the window: the next frame writes the change
+ ***************************************************************************/
+PRIVATE void phase_save_window(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *saver = &priv->peers[SAVER];
+
+    mqtt_pingreq(gobj, saver);
+    check_int(gobj, "TEST: the change of saver not written by the first frame past the window",
+        subscribed_on_disk(gobj, "saver", "sv/last")? 1 : 0, 1
+    );
+}
+
+/***************************************************************************
+ *  10. What changes nothing writes nothing; the disconnection writes the
+ *  last change; the session comes back with its subscriptions
+ ***************************************************************************/
+PRIVATE void phase_save_noop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *saver = &priv->peers[SAVER];
+
+    char long_filter[MAX_FILTER_LENGTH + 2];
+    memset(long_filter, 'x', MAX_FILTER_LENGTH + 1);
+    long_filter[MAX_FILTER_LENGTH + 1] = 0;
+    const char *flast[] = {"sv/last"};
+    const char *flong[] = {long_filter};
+    const char *fnone[] = {"sv/none"};
+    const char *ffinal[] = {"sv/final"};
+
+    json_int_t w0 = bytes_written(gobj);
+    mqtt_filters(gobj, saver, 0x82, 1, flast, 1);   // the same filter, the same options
+    check_suback(gobj, saver, "TEST: SUBACK of the same subscription", 1, 0, 0);
+    mqtt_filters(gobj, saver, 0x82, 2, flong, 1);   // refused
+    check_suback(gobj, saver, "TEST: SUBACK of a filter past the length", 0, 1, 0x80);
+    mqtt_filters(gobj, saver, 0xA2, 3, fnone, 1);   // not held
+    mqtt_pingreq(gobj, saver);
+    json_int_t written = bytes_written(gobj) - w0;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TEST: (UN)SUBSCRIBE that change nothing",
+        "written",      "%lld", (long long)written,
+        NULL
+    );
+    if(written > SAVE_NOOP_MARGIN) {
+        json_t *got = json_integer(written);
+        json_t *expected = json_integer(SAVE_NOOP_MARGIN);
+        test_error(gobj, "TEST: (UN)SUBSCRIBE that change nothing wrote the record, bytes", got, expected);
+        JSON_DECREF(got)
+        JSON_DECREF(expected)
+    }
+
+    mqtt_filters(gobj, saver, 0xA2, 4, flast, 1);   // written at once: out of the window
+    check_int(gobj, "TEST: an UNSUBSCRIBE past the window not written at once",
+        subscribed_on_disk(gobj, "saver", "sv/last")? 1 : 0, 0
+    );
+    mqtt_filters(gobj, saver, 0x82, 5, ffinal, 1);  // inside the window: waits
+    check_int(gobj, "TEST: a SUBSCRIBE inside the window written at once",
+        subscribed_on_disk(gobj, "saver", "sv/final")? 1 : 0, 0
+    );
+    mqtt_close(gobj, saver);
+    check_int(gobj, "TEST: the disconnection did not write the last change",
+        subscribed_on_disk(gobj, "saver", "sv/final")? 1 : 0, 1
+    );
+    json_t *record = record_on_disk(gobj, "saver");
+    check_int(gobj, "TEST: the subscriptions of saver on disk",
+        (json_int_t)json_object_size(json_object_get(record, "subscriptions")), SAVE_FILTERS + 1
+    );
+    JSON_DECREF(record)
+
+    mqtt_connect(gobj, saver, 4, FALSE, "saver", -1);
+    check_int(gobj, "TEST: CONNECT of saver again", saver->connack_reason, 0);
+    check_int(gobj, "TEST: the subscriptions of saver after reconnecting",
+        subscriptions_of(gobj, "saver"), SAVE_FILTERS + 1
+    );
+    mqtt_close(gobj, saver);
+}
+
 
 
 
@@ -1425,6 +1867,21 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 7:
             phase_drops(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 8:
+            phase_flight(gobj);
+            set_timeout(priv->timer, SAVE_WINDOW_WAIT_MS);
+            break;
+
+        case 9:
+            phase_save_window(gobj);
+            set_timeout(priv->timer, SAVE_WINDOW_WAIT_MS);
+            break;
+
+        case 10:
+            phase_save_noop(gobj);
             set_timeout(priv->timer, 100);
             break;
 

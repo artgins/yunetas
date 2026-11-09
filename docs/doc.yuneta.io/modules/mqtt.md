@@ -66,7 +66,7 @@ Four attributes limit what clients can keep. `0` is no limit, or never.
 | Attribute | Default | Past the limit |
 |---|---|---|
 | `max_subscriptions_per_client` | `100` | Each new filter of the SUBSCRIBE is refused in the SUBACK (MQTT 5 `0x97` Quota exceeded, MQTT 3.1.1 `0x80` Failure). The client stays connected. One WARNING per connection. |
-| `max_topic_filter_length` | `256` | A filter longer than this, in bytes, is refused: in the SUBACK (MQTT 5 `0x8F` Topic Filter invalid, MQTT 3.1.1 `0x80` Failure) and in the UNSUBACK (MQTT 5 `0x8F`). The client stays connected. One WARNING per connection. MQTT allows 65535. |
+| `max_topic_filter_length` | `256` | A filter of a SUBSCRIBE longer than this, in bytes, is refused in the SUBACK (MQTT 5 `0x8F` Topic Filter invalid, MQTT 3.1.1 `0x80` Failure). The client stays connected. One WARNING per connection. MQTT allows 65535. An UNSUBSCRIBE is never refused by it: a longer filter that the client holds (kept by 7.30.22, or before the limit went down) is removed. |
 | `max_persistent_sessions` | `1000` | A CONNECT that adds a session is refused (CONNACK: MQTT 5 `0x97`, MQTT 3.1.1 `3` Server unavailable) and the connection closes, unless an expired session makes room (next row). A client without a session, and a client whose session exists, still connect. One WARNING per minute in the process, with the CONNECTs refused since the last one. |
 | `persistent_session_expiry` | `86400` (one day) | Seconds a session is kept after its client disconnects. It applies to MQTT 3.1.1 clean session 0, and it is the maximum for the Session Expiry Interval of MQTT 5 (a shorter interval of the client applies). When the sessions reach `max_persistent_sessions`, the CONNECT that needs room removes every session that expired, record and file. Under the limit nothing is removed, and with `max_persistent_sessions` `0` no session is removed. |
 
@@ -112,6 +112,52 @@ cost grows with the records, not with their subscriptions. It writes nothing
 to disk: a QoS 1 or 2 message goes only to a connected subscriber, with the
 next packet id of that client.
 
+A SUBSCRIBE or UNSUBSCRIBE writes the record only when it changes it, and at
+most once a second for each connection. A change inside that second is
+written by the next packet of the client after it (a PINGREQ is enough), or
+when the client disconnects. A re-subscription with the same options, a
+refused filter and an UNSUBSCRIBE of a filter that the client does not hold
+write nothing. So a client that sends 400 SUBSCRIBE and UNSUBSCRIBE in one
+second writes its record once, and once more at its next packet; if the gate
+stops without an orderly shutdown in that second, the change is lost and the
+client subscribes again when it connects.
+
+#### Messages in flight and queued
+
+Two more attributes limit the QoS 1 and 2 messages of one connection, in
+memory. `0` is no limit.
+
+| Attribute | Default | Past the limit |
+|---|---|---|
+| `max_inflight_messages` | `20` | To the client: a message waits in the client's queue, and goes out, with the packet id it got, when a PUBACK, PUBCOMP or failed PUBREC frees a slot. From the client: it is also the Receive Maximum announced to MQTT 5 clients. A client with this many QoS 2 messages waiting for their PUBREL that sends one more PUBLISH breaks the protocol: MQTT 5 gets DISCONNECT `0x93` (Receive Maximum exceeded), and the connection closes, also for MQTT 3.1.1. One WARNING. |
+| `max_queued_messages` | `1000` | A message to the client past `max_inflight_messages` + this is dropped. The client stays connected. One WARNING per connection. |
+
+```json
+{
+    "name": "mqtt",
+    "gclass": "C_PROT_MQTT",
+    "kw": {
+        "iamServer": true,
+        "max_inflight_messages": 10,
+        "max_queued_messages": 500
+    }
+}
+```
+
+With this configuration, a device that does not acknowledge gets 10 QoS 1
+messages; the next 500 wait, and the rest are dropped. Each PUBACK of the
+device sends the oldest waiting message. A client that sends 11 QoS 2
+messages with no PUBREL is disconnected at the 11th, with no PUBREC for it.
+The messages of a connection, in flight and queued, are freed when it
+closes.
+
+```text
+"msg": "Mqtt: PUBLISH with max_inflight_messages QoS 2 unreleased, disconnecting", "max_inflight_messages": 10, "client_id": "dev-17", "peername": "203.0.113.5:40112"
+"msg": "Mqtt: messages to the client past max_queued_messages, dropped", "max_inflight_messages": 10, "max_queued_messages": 500, "client_id": "dev-17", "peername": "203.0.113.5:40112"
+```
+
+`max_inflight_bytes` and `max_queued_bytes` are not applied.
+
 Up to 7.30.21 every client id left a record that was never removed, in memory
 and on disk; a client could hold any number of subscriptions; each PUBLISH
 walked every subscription of every record; and a re-subscription was taken
@@ -126,6 +172,20 @@ subscriber with a session, connected or not (every packet id was 1); a
 refused CONNECT could leave a record; the SUBSCRIBE of a connection that
 another CONNECT took over logged *"client not found"*; and a record reloaded
 after an unclean stop logged an ERROR for each message to it.
+
+Up to 7.30.23 a QoS 2 PUBLISH sent twice (the second one a duplicate, as a
+client does when it retries) freed a message that was still waiting for its
+PUBREL: the PUBREL read freed memory and the disconnection freed it again,
+which took the gate down (from 7.0.0). `max_inflight_messages` was announced
+and not applied: a client that did not acknowledge, or that sent QoS 2
+messages with no PUBREL, made the gate keep all of them in memory. Each
+SUBSCRIBE and UNSUBSCRIBE rewrote the whole record, also when it changed
+nothing: one connection whose record held 100 long filters could write about
+200 MB a second. The topic-filter
+length also refused an UNSUBSCRIBE, so a filter kept from before could not be
+removed. A DISCONNECT of MQTT 5 with properties and no Session Expiry
+Interval logged an ERROR; and a client with an id the gate assigned logged
+*"path NOT FOUND"* at its first QoS 1 or 2 message.
 
 ## C_MQTT_BROKER
 

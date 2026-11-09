@@ -420,6 +420,7 @@ typedef enum mosq_err_t {
     MOSQ_ERR_SUB_EXISTS = -42,
     MOSQ_ERR_CONN_PENDING = -41,
     MOSQ_ERR_QUOTA_EXCEEDED = -45,  // not mosquitto's: a limit of the config refuses it
+    MOSQ_ERR_RECEIVE_MAXIMUM = -46, // not mosquitto's: more QoS 2 unreleased than max_inflight_messages
 } mosq_err_t;
 
 /* Option values */
@@ -674,11 +675,11 @@ SDATA (DTP_POINTER,     "gobj_mqtt_users",  0,                          0,      
 
 SDATA (DTP_INTEGER,     "max_inflight_bytes",SDF_WR|SDF_PERSIST,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
 
-SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR|SDF_PERSIST,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR|SDF_PERSIST,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously, per client: the next ones wait in its queue (max_queued_messages) until an ack frees a slot. Also the Receive Maximum announced to an MQTT 5 client: a client with more QoS 2 messages waiting for their PUBREL is disconnected (MQTT 5: DISCONNECT 0x93), one WARNING. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
 
 SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR|SDF_PERSIST,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
 
-SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR|SDF_PERSIST,       "1000",   "The maximum number of QoS 1 or 2 messages to hold in the queue (per client) above those messages that are currently in flight. Defaults to 1000. Set to 0 for no maximum (not recommended). See also the queue_qos0_messages and max_queued_bytes options."),
+SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR|SDF_PERSIST,       "1000",   "The maximum number of QoS 1 or 2 messages to hold in the queue (per connected client) above those messages that are currently in flight (max_inflight_messages). The next ones are dropped, said with one WARNING per connection. Defaults to 1000. Set to 0 for no maximum (not recommended)."),
 
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
@@ -706,7 +707,7 @@ SDATA (DTP_INTEGER,     "max_persistent_sessions",SDF_RD,               "1000", 
 
 SDATA (DTP_INTEGER,     "persistent_session_expiry",SDF_RD,            "86400",  "Seconds a session is kept after its client disconnects, 0 never. It applies to MQTT 3.1.1 clean session 0, and caps the Session Expiry Interval of MQTT 5. An expired session (record and file) is removed when the sessions reach max_persistent_sessions, at the CONNECT that needs the room; with max_persistent_sessions 0 none is removed."),
 
-SDATA (DTP_INTEGER,     "max_topic_filter_length",SDF_RD,              "256",    "Maximum length in bytes of a topic filter, 0 no limit (MQTT allows 65535). A filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x8F Topic Filter invalid; 3.1.1: 0x80 Failure), of an UNSUBSCRIBE in the UNSUBACK (MQTT 5: 0x8F), and the client is kept. Said with one WARNING per connection."),
+SDATA (DTP_INTEGER,     "max_topic_filter_length",SDF_RD,              "256",    "Maximum length in bytes of a topic filter, 0 no limit (MQTT allows 65535). A filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x8F Topic Filter invalid; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection. An UNSUBSCRIBE is never refused by it."),
 
 /*
  *  Dynamic Data
@@ -813,6 +814,9 @@ typedef struct _PRIVATE_DATA {
     json_t *client;
     BOOL subscriptions_capped;  // max_subscriptions_per_client said in this connection
     BOOL filters_capped;        // max_topic_filter_length said in this connection
+    BOOL out_dropping;          // max_queued_messages said in this connection
+    BOOL client_changed;        // its record changed by a (UN)SUBSCRIBE, not written yet
+    uint64_t client_save_window;// msectimer: no (UN)SUBSCRIBE write before it
     const char *protocol_name;
     uint32_t protocol_version;
     BOOL is_bridge;
@@ -4706,13 +4710,33 @@ PRIVATE int db__message_update_outgoing(
 }
 
 /***************************************************************************
- * Is this context ready to take more in flight messages right now?
- * @param context the client context of interest
- * @param qos qos for the packet of interest
- * @return TRUE if more in flight are allowed.
+ *  Is there room for one more QoS 1 or 2 message in flight?
+ *  max_inflight_messages, 0 no limit. OUT: the messages sent to the client
+ *  and not acknowledged yet (the queued ones wait). IN: the QoS 2 messages
+ *  of the client waiting for their PUBREL.
+ *  Up to 7.30.23 it was always TRUE.
  ***************************************************************************/
 PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mosquitto_msg_direction dir, int qos)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(qos == 0 || priv->max_inflight_messages == 0) {
+        return TRUE;
+    }
+
+    /*  From the oldest: the ones in flight are there, the queued are newer  */
+    dl_list_t *dl = (dir == mosq_md_out)? &priv->dl_msgs_out : &priv->dl_msgs_in;
+    uint32_t inflight = 0;
+    struct mosquitto_client_msg *msg = dl_last(dl);
+    while(msg) {
+        if(msg->state != mosq_ms_queued) {
+            inflight++;
+            if(inflight >= priv->max_inflight_messages) {
+                return FALSE;
+            }
+        }
+        msg = dl_prev(msg);
+    }
     return TRUE;
 }
 
@@ -4853,6 +4877,62 @@ PRIVATE int db__message_delete_outgoing(
 }
 
 /***************************************************************************
+ *  A message acknowledged: the queued ones go in flight while there is
+ *  room, in their order (the oldest is the last: dl_insert() puts a new
+ *  one first), with the packet id they got when queued
+ ***************************************************************************/
+PRIVATE int db__message_write_queued_out(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct mosquitto_client_msg *msg = dl_last(&priv->dl_msgs_out);
+    while(msg) {
+        struct mosquitto_client_msg *next = dl_prev(msg);
+        if(msg->state != mosq_ms_queued) {
+            msg = next;
+            continue;
+        }
+        if(!db__ready_for_flight(gobj, mosq_md_out, msg->qos)) {
+            break;
+        }
+
+        uint32_t expiry_interval = 0;
+        if(msg->store->message_expiry_time) {
+            if(time_in_seconds() > msg->store->message_expiry_time) {
+                dl_delete(&priv->dl_msgs_out, msg, db_free_client_msg);    // expired, not sent
+                msg = next;
+                continue;
+            }
+            expiry_interval = (uint32_t)(msg->store->message_expiry_time - time_in_seconds());
+        }
+
+        int rc = send_publish(
+            gobj,
+            msg->mid,
+            msg->store->topic,
+            msg->store->payloadlen,
+            msg->store->payload,
+            msg->qos,
+            msg->retain,
+            msg->dup,
+            msg->properties,
+            msg->store->properties,
+            expiry_interval
+        );
+        if(rc == MOSQ_ERR_SUCCESS) {
+            msg->timestamp = time_in_seconds();
+            msg->dup = 1; /* Any retry attempts are a duplicate. */
+            msg->state = (msg->qos == 1)? mosq_ms_wait_for_puback : mosq_ms_wait_for_pubrec;
+        } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
+            dl_delete(&priv->dl_msgs_out, msg, db_free_client_msg);
+        }
+        msg = next;
+    }
+
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
  *  Publishing: send the message to subscriber
  ***************************************************************************/
 PRIVATE int XXX_db__message_insert(
@@ -4895,6 +4975,33 @@ PRIVATE int XXX_db__message_insert(
         case 2:
             state = mosq_ms_publish_qos2;
             break;
+    }
+
+    /*
+     *  Past max_inflight_messages it waits in the queue, as in mosquitto;
+     *  past max_queued_messages (0 no limit) it is dropped. Up to 7.30.23
+     *  every one was sent at once and kept until its ack, with no limit.
+     */
+    if(!db__ready_for_flight(gobj, mosq_md_out, qos)) {
+        if(priv->max_queued_messages > 0 &&
+                dl_size(&priv->dl_msgs_out) >= priv->max_inflight_messages + priv->max_queued_messages) {
+            if(!priv->out_dropping) {
+                priv->out_dropping = TRUE;
+                hgobj bottom = gobj_bottom_gobj(gobj);
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT,
+                    "msg",          "%s", "Mqtt: messages to the client past max_queued_messages, dropped",
+                    "max_inflight_messages", "%d", (int)priv->max_inflight_messages,
+                    "max_queued_messages", "%d", (int)priv->max_queued_messages,
+                    "client_id",    "%.64s", SAFE_PRINT(priv->client_id),
+                    "peername",     "%s", bottom? gobj_read_str_attr(bottom, "peername") : "",
+                    NULL
+                );
+            }
+            return MOSQ_ERR_SUCCESS;
+        }
+        state = mosq_ms_queued;
     }
 
     msg = GBMEM_MALLOC(sizeof(struct mosquitto_client_msg));
@@ -5304,6 +5411,13 @@ PRIVATE int add_subscription(
             );
             return MOSQ_ERR_NOMEM;
         }
+        const char *key; json_t *value;
+        json_object_foreach(kw_subscription, key, value) {
+            if(!json_equal(json_object_get(subscription_record, key), value)) {
+                priv->client_changed = TRUE;
+                break;
+            }
+        }
         json_object_update_new(subscription_record, kw_subscription);
 
     } else {
@@ -5349,6 +5463,7 @@ PRIVATE int add_subscription(
             gobj_trace_json(gobj, subscription_record, "new subscription");
         }
         json_object_set_new(subscriptions, sub, subscription_record);
+        priv->client_changed = TRUE;
     }
 
     // TODO don't save if qos == 0
@@ -5401,6 +5516,7 @@ PRIVATE int remove_subscription(
         *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
     } else {
         json_object_del(subscriptions, sub);
+        priv->client_changed = TRUE;
     }
 
     return 0;
@@ -5674,11 +5790,32 @@ PRIVATE int save_client(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    priv->client_changed = FALSE;
     if(!priv->assigned_id && priv->session_expiry_interval > 0 &&
             !empty_string(priv->client_id)) {
         gobj_save_resource(priv->gobj_mqtt_clients, priv->client_id, priv->client, 0);
     }
     return 0;
+}
+
+/***************************************************************************
+ *  The record changed by a SUBSCRIBE or UNSUBSCRIBE is written at most
+ *  once a second: a change inside the window is written by the first frame
+ *  after it, or by the disconnection. A (UN)SUBSCRIBE that changes nothing
+ *  writes nothing. Up to 7.30.23 each one rewrote the whole record.
+ ***************************************************************************/
+PRIVATE void save_client_changes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->client_changed) {
+        return;
+    }
+    if(priv->client_save_window && !test_msectimer(priv->client_save_window)) {
+        return;
+    }
+    save_client(gobj);
+    priv->client_save_window = start_msectimer(1000);
 }
 
 /***************************************************************************
@@ -5878,6 +6015,7 @@ PRIVATE int connect_on_authorised(
         }
         kw_set_dict_value(gobj, client, "id", json_string(priv->client_id));
         kw_set_dict_value(gobj, client, "assigned_id", json_true());
+        kw_set_dict_value(gobj, client, "last_mid", json_integer(0));
         kw_set_dict_value(gobj, client, "subscriptions", json_object());
         kw_set_dict_value(gobj, client, "_volatil", json_true());
     } else {
@@ -6656,14 +6794,16 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         }
     }
     if(properties) {
+        /*  Up to 7.30.23 a DISCONNECT with properties and no Session Expiry
+         *  Interval logged an ERROR (the property read on NULL)  */
         json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
-        int session_expiry_interval = kw_get_int(gobj, property, "value", -1, 0);
-        if(session_expiry_interval != -1) {
-            if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
+        if(property) {
+            json_int_t session_expiry_interval = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+            if(priv->session_expiry_interval == 0 && session_expiry_interval != 0) {
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
             }
-            priv->session_expiry_interval = session_expiry_interval;
+            priv->session_expiry_interval = (uint32_t)session_expiry_interval;
         }
         JSON_DECREF(properties)
     }
@@ -7045,6 +7185,9 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             );
             return MOSQ_ERR_SUCCESS;
         } else {
+            if(rc == MOSQ_ERR_SUCCESS) {
+                db__message_write_queued_out(gobj);
+            }
             return rc;
         }
     } else {
@@ -7148,7 +7291,11 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         if(reason_code < 0x80) {
             rc = db__message_update_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
         } else {
-            return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubrec, 2);
+            rc = db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubrec, 2);
+            if(rc == MOSQ_ERR_SUCCESS) {
+                db__message_write_queued_out(gobj);
+            }
+            return rc;
         }
     } else {
         gobj_log_warning(gobj, 0,
@@ -7775,9 +7922,23 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
                 return rc;
             }
         } else {
-            /* Client isn't allowed any more incoming messages, so fail early */
-            reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            goto process_bad_message;
+            /*
+             *  More QoS 2 messages waiting for their PUBREL than the Receive
+             *  Maximum announced (max_inflight_messages): a protocol error
+             *  of the peer (MQTT 5, 3.3.4), its connection is dropped.
+             */
+            hgobj bottom = gobj_bottom_gobj(gobj);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", "Mqtt: PUBLISH with max_inflight_messages QoS 2 unreleased, disconnecting",
+                "max_inflight_messages", "%d", (int)priv->max_inflight_messages,
+                "client_id",    "%.64s", SAFE_PRINT(priv->client_id),
+                "peername",     "%s", bottom? gobj_read_str_attr(bottom, "peername") : "",
+                NULL
+            );
+            db_free_msg_store(msg);
+            return MOSQ_ERR_RECEIVE_MAXIMUM;
         }
         stored = msg;
         msg = NULL;
@@ -7846,7 +8007,10 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
             break;
     }
 
-    db_free_msg_store(stored);
+    /*  A duplicate's `stored` is the one of dl_msgs_in, released by its PUBREL  */
+    if(!dup) {
+        db_free_msg_store(stored);
+    }
     return rc;
 
 process_bad_message:
@@ -8110,8 +8274,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
     GBMEM_FREE(payload)
 
-    save_client(gobj);
-
     json_t *kw = json_pack("{s:s, s:s, s:o}",
         "client_id", priv->client_id,
         "mqtt_action", "subscribing",
@@ -8242,11 +8404,9 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 sub
             );
         }
-        BOOL too_long = topic_filter_too_long(gobj, sub, slen);
-        if(too_long) {
-            reason = MQTT_RC_TOPIC_FILTER_INVALID;  // no reason codes in 3.1.1
-            rc = MOSQ_ERR_SUCCESS;
-        } else if(allowed) {
+        /*  Not capped by max_topic_filter_length: a filter kept from before
+         *  the cap (7.30.22, or a cap lowered since) must be removable  */
+        if(allowed) {
             rc = remove_subscription(gobj, sub, &reason);
         } else {
             rc = MOSQ_ERR_SUCCESS;
@@ -8259,9 +8419,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             return rc;
         }
 
-        if(!too_long) {
-            json_array_append_new(jn_list, json_string(sub));
-        }
+        json_array_append_new(jn_list, json_string(sub));
         GBMEM_FREE(sub)
 
         reason_codes[reason_code_count] = reason;
@@ -8281,7 +8439,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     /* We don't use Reason String or User Property yet. */
     rc = send__unsuback(gobj, mid, reason_code_count, reason_codes, NULL);
     GBMEM_FREE(reason_codes);
-    save_client(gobj);
 
     json_t *kw = json_pack("{s:s, s:s, s:o}",
         "client_id", priv->client_id,
@@ -8439,7 +8596,9 @@ PRIVATE int frame_completed(hgobj gobj)
             break;
     }
 
-    if(ret < 0 && ret != MOSQ_ERR_CONN_REFUSED && gbuf) {
+    save_client_changes(gobj);
+
+    if(ret < 0 && ret != MOSQ_ERR_CONN_REFUSED && ret != MOSQ_ERR_RECEIVE_MAXIMUM && gbuf) {
         dump_malformed_frame(gobj, frame->command, gbuf);   // a refusal is no malformed frame
     }
 
@@ -8456,6 +8615,8 @@ PRIVATE int frame_completed(hgobj gobj)
             send_disconnect(gobj, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
         } else if(ret == MOSQ_ERR_TOPIC_ALIAS_INVALID) {
             send_disconnect(gobj, MQTT_RC_TOPIC_ALIAS_INVALID, NULL);
+        } else if(ret == MOSQ_ERR_RECEIVE_MAXIMUM) {
+            send_disconnect(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED, NULL);
         } else if(ret == MOSQ_ERR_UNKNOWN || ret == MOSQ_ERR_NOMEM) {
             send_disconnect(gobj, MQTT_RC_UNSPECIFIED, NULL);
         } else if(ret<0) {
@@ -8498,6 +8659,9 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     start_wait_frame_header(gobj);
     priv->send_disconnect = FALSE;
     priv->subscriptions_capped = FALSE;
+    priv->out_dropping = FALSE;
+    priv->client_changed = FALSE;
+    priv->client_save_window = 0;
     priv->filters_capped = FALSE;
     gobj_write_bool_attr(gobj, "connected", TRUE);
     GBUFFER_DECREF(priv->gbuf_will_payload);

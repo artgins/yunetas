@@ -123,12 +123,16 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused",  // many
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused",  // many5
             "msg", "Mqtt: CONNECT past max_persistent_sessions, new sessions refused",    // once
             "msg", "Mqtt: topic filter longer than max_topic_filter_length, refused",     // longf
-            "msg", "Mqtt: topic filter longer than max_topic_filter_length, refused"      // longf5
+            "msg", "Mqtt: topic filter longer than max_topic_filter_length, refused",     // longf5
+            "msg", "Mqtt: PUBLISH with max_inflight_messages QoS 2 unreleased, disconnecting", // in4
+            "msg", "Mqtt: PUBLISH with max_inflight_messages QoS 2 unreleased, disconnecting", // in5
+            "msg", "Mqtt: messages to the client past max_queued_messages, dropped",      // slow
+            "msg", "Mqtt: topic filter longer than max_topic_filter_length, refused"      // saver
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
