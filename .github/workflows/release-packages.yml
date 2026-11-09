@@ -90,7 +90,10 @@ jobs:
           # Container runs as root and is throwaway, so install into the system
           # (--break-system-packages: Debian 13 marks it externally managed)
           # and skip the pipx PATH juggling the host runner needed.
-          pip3 install --break-system-packages kconfiglib yunetas
+          # --ignore-installed: pip cannot uninstall a package Debian installed
+          # (no RECORD file), so a newer dependency of the CLI over a Debian one
+          # (typing-extensions in 7.30.24) failed the job.
+          pip3 install --break-system-packages --ignore-installed kconfiglib yunetas
 
       - name: Create writable /yuneta tree
         run: mkdir -p /yuneta
