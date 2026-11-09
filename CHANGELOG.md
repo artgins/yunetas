@@ -2,6 +2,80 @@
 
 ## Unreleased
 
+## v7.30.21 (2026-11-09)
+
+A correction release, deployed on every node. The agent with a corrupt authz
+store now really stays up: in local access only, `yuneta` and the yuno
+itself have every permission, and agent22 still verifies its operators'
+assertions. An mbedTLS client no longer loses its connection after the
+server's TLS 1.3 session tickets; client TLS contexts share one window of
+rejected-handshake warnings; `--stop` speaks under `hidepid=1`. The whole
+suite ran on the dev machine (437 of 437); no performance study (the next
+one is against 7.30.0).
+
+### Agent and auth
+
+- **BREAKING (operators, log watchers): `C_AUTHZ` with local access only
+  gives the local user `yuneta` and the yuno itself every permission, and
+  still verifies operator assertions.** This is the mode of a `C_AUTHZ`
+  with no users treedb: no store directory (*"No authz db"*), or a store
+  that does not open with `on_critical_error` 0 (7.30.20).
+    - **The defect, in 7.30.20.** Every permission in this mode was asked to
+      the treedb that was not there, and refused with an ERROR with a stack
+      (*"hgobj NULL or DESTROYED"*) and *"User not found"*. So the agent with
+      a corrupt authz store, which 7.30.20 kept up, refused its own
+      `open-treedb` at start up and exited with code 0 (*"No permission to
+      'open-close' in service 'treedbs'"*). The refusal of every permission is
+      as old as the *"No authz db"* mode.
+    - **Assertions.** The keys of `assertion_jwks` were loaded only with the
+      store open, so an agent22 whose replica does not open refused every
+      command its controlcenter forwarded (*"No OAuth2 Issuer found"*). Since
+      7.30.9.
+    - **Now:** `yuneta`, and an internal call (no `__username__` nor
+      `__md_iev__` in the kw, from a gobj with no user), are allowed. Any
+      other user is refused, with ONE WARNING per question *"Authz only to
+      local access: only yuneta has permissions"*: an operator of a
+      controlcenter too, in the commands that ask a permission (consoles,
+      treedb operations). `assertion_jwks` is loaded whether the store opens
+      or not. Login tokens (`jwks`) are still not validated in this mode.
+    - **A yuno without its users store behind a proxy on the same host**
+      (nginx connects from `127.0.0.1`, so every browser is `yuneta`) now
+      passes the permission checks where they were refused. It is the trap a
+      yuno WITH a store already had (`yuneta` holds the root role there), and
+      the remedy is the same: `"Authz.trust_peer_ip": false`.
+- **BREAKING (operators, scripts): `ydaemon --stop` with `/proc` mounted
+  `hidepid=1`** says *"not known if it runs: the name of N process(es) of
+  other users cannot be read ... run --stop as root"* and exits 1 when
+  nothing of the name is its own. Up to 7.30.20 it said nothing and exited
+  0, whether another user's daemon ran or not (`/proc/<pid>/comm` of another
+  user cannot even be stat'ed there). With `hidepid=2` that cannot be known:
+  it still says nothing and exits 0.
+
+### TLS
+
+- **ytls (mbedTLS): a TLS client writes after the TLS 1.3 server sent its
+  session tickets.** mbedTLS reports the last ticket from the next write
+  (`MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET`, -31488), and ytls took it
+  for a fatal error (*"mbedtls_ssl_write() FAILED"*): an mbedTLS client that
+  wrote after the tickets arrived lost its connection, against OpenSSL,
+  nginx, Python or a `C_TCP_S` on OpenSSL (all send two tickets by default),
+  and a retry did not help. Now it writes again. In 7.30.20, since 7.28.0.
+- **BREAKING (log watchers): the CLIENT TLS contexts share one window of
+  *"TLS handshake rejected"* for the process**; a listener keeps its own.
+  `C_TCP` makes a TLS context at each start of a client, so a client that
+  connects again and again (to an IdP with a bad certificate) wrote a line
+  per connection, plus a *"TLS handshakes rejected, not said in their
+  window"* when each context ended: 20 client contexts with 2 rejects each
+  wrote 40 lines, now 1. Nothing closes a window by time: its count is said
+  at the next reject after it, or when a listener ends (a client context:
+  when it ends after the window). In 7.30.20, since 7.30.20. (The 7.30.20
+  entry below says "when its window closes": read it this way.)
+
+### Docs
+
+- The README's rendered views of the 7.27.5 and 7.26.9 performance reports
+  point at a tag, not at `main`.
+
 ## v7.30.20 (2026-11-09)
 
 A correction release, deployed on every node. The agent no longer dies when
