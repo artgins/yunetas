@@ -46,6 +46,19 @@ has no `websockets`.
    7.30.17 the agent recorded the card's pids, and that `kill-yuno` sent
    SIGQUIT to every process of the user (the peer dumped a core).
 
+6. `trace-on-yuno` and `trace-off-yuno` of the relaunched `logcenter`, three
+   times each: each answers 0, and the yuno's answer goes to the agent, which
+   logs no *"a command of the agent to a yuno failed"*. Up to 7.30.18 the
+   command named no gobj (the yuno answered *"gobj not found: ''"*), the
+   answer of `trace-off-yuno` reached the peer as a second answer (its next
+   question read it), and every call left the yunos it found in the agent
+   (421 blocks at the end of this test).
+
+The test does not have a process of another user (the sandbox maps one uid
+only), so it cannot show that `find_living_yuno_pids()` skips one: it shows
+that the agent still takes its own processes (the card with the yuno's own
+pid is killed, `kill-yuno` ends the yuno).
+
 At the end the agent is stopped in order (SIGINT) and its log must have no
 *"BAD gbuf_decref()"*, no *"system memory not free"* (the gbmem audit of
 `CONFIG_DEBUG_TRACK_MEMORY`), three WARNINGs *"identity card refused: its pid

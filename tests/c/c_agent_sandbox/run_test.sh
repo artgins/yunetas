@@ -8,7 +8,8 @@
 #   sees. client.py speaks to it; then the agent is stopped in order, and
 #   its log must have no "BAD gbuf_decref()" and no "system memory not free"
 #   (the gbmem audit of an orderly end, CONFIG_DEBUG_TRACK_MEMORY), and the
-#   WARNINGs of the pids of cards not killed (3) and not recorded (1).
+#   WARNINGs of the pids of cards not killed (3) and not recorded (1), and
+#   no "a command of the agent to a yuno failed" (trace-on/off-yuno).
 #
 #   Usage: run_test.sh <yuneta_agent binary> <logcenter binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
@@ -102,6 +103,11 @@ fi
 n=$(grep -ac "identity card accepted: its pid is not a process of that yuno, not recorded" "$WORK/agent.log")
 if [ "$n" != "1" ]; then
     echo "TEST FAILED: $n warnings of a card pid not recorded, expected 1"
+    failed=1
+fi
+n=$(grep -ac "a command of the agent to a yuno failed" "$WORK/agent.log")
+if [ "$n" != "0" ]; then
+    echo "TEST FAILED: $n x \"a command of the agent to a yuno failed\": trace-on/off-yuno refused by the yuno"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

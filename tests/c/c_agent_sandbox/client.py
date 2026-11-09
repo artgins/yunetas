@@ -25,6 +25,13 @@
 #      pid -1 and watcher_pid -1: neither is recorded (a WARNING), and a
 #      kill-yuno of it is refused (no pid). Up to 7.30.17 the agent recorded
 #      the card's pids and kill-yuno sent SIGQUIT to pid -1.
+#   6. trace-on-yuno and trace-off-yuno of the running logcenter, three
+#      times: each answers 0, and the yuno's own answer goes to the agent
+#      (run_test.sh: no "a command of the agent to a yuno failed", and no
+#      memory left). Up to 7.30.18 the command named no gobj (the yuno
+#      answered "gobj not found: ''"), trace-off-yuno's answer reached this
+#      peer as a second answer, and each call left the yunos found in the
+#      agent.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -197,6 +204,7 @@ async def main():
     if yuno is None:
         return
     realm_id = yuno["realm_id"][0] if isinstance(yuno["realm_id"], list) else yuno["realm_id"]
+
     same_yuno = {"yuno_id": yuno["id"], "yuno_name": yuno["yuno_name"],
         "yuno_release": yuno["yuno_release"], "realm_id": realm_id}
 
@@ -224,6 +232,14 @@ async def main():
         await asyncio.sleep(0.1)
     check("logcenter relaunched by its watcher, its new pid recorded", relaunched is not None)
     if relaunched:
+        #   6. trace-on-yuno and trace-off-yuno of the running logcenter
+        for i in range(3):
+            r = await ask(ws, "trace-on-yuno", {"id": relaunched["id"]})
+            check("trace-on-yuno of the running logcenter: %s" % r.get("comment"), r.get("result") == 0)
+            await asyncio.sleep(0.3)
+            r = await ask(ws, "trace-off-yuno", {"id": relaunched["id"]})
+            check("trace-off-yuno of the running logcenter: %s" % r.get("comment"), r.get("result") == 0)
+            await asyncio.sleep(0.3)
         r = await ask(ws, "kill-yuno", {"id": relaunched["id"]}, secs=30)
         check("kill-yuno of the running logcenter", r.get("result") == 0)
         for i in range(100):

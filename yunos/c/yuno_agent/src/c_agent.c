@@ -112,7 +112,7 @@ PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno);
 PRIVATE BOOL yuno_lives_unregistered(hgobj gobj, json_t *yuno);
 PRIVATE BOOL is_yuno_process(json_t *jn_pids, pid_t pid);
 PRIVATE void kill_refused_card_pid(hgobj gobj, json_t *yuno, const char *yuno_id, pid_t pid);
-PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, hgobj src);
+PRIVATE json_t *signal_unconnected_yunos(hgobj gobj, json_t *kw_filter, BOOL app, int signal2kill, int *not_signalled, hgobj src);
 PRIVATE void kill_yuno_unregistered(hgobj gobj, json_t *yuno, json_t *jn_killed);
 PRIVATE void restart_wait_tick(hgobj gobj);
 PRIVATE int read_process_stat(hgobj gobj, pid_t pid, char *state, uint64_t *start_time);
@@ -6159,9 +6159,17 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         signal_unconnected = SIGQUIT;
     }
     json_object_set_new(kw_unconnected, "yuno_running", json_false());
+    int not_signalled = 0;
     json_t *jn_unconnected = signal_unconnected_yunos(
-        gobj, kw_unconnected, app, signal_unconnected, src
+        gobj, kw_unconnected, app, signal_unconnected, &not_signalled, src
     );
+    char not_signalled_note[128] = "";
+    if(not_signalled > 0) {
+        snprintf(not_signalled_note, sizeof(not_signalled_note),
+            "; %d process(es) alive but not connected could not be signalled (see the log)",
+            not_signalled
+        );
+    }
 
     if(json_array_size(iter)==0) {
         JSON_DECREF(iter)
@@ -6169,8 +6177,9 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             return msg_iev_build_response(gobj,
                 0,
                 json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d), "
-                    "not waited for: a run-yuno before they are gone does not launch them again",
-                    gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected
+                    "not waited for: a run-yuno before they are gone does not launch them again%s",
+                    gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected,
+                    not_signalled_note
                 ),
                 0,
                 jn_unconnected, // owned
@@ -6178,6 +6187,18 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             );
         }
         JSON_DECREF(jn_unconnected)
+        if(not_signalled > 0) {
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: %d process(es) of yunos alive but not connected to the agent "
+                    "could not be signalled (see the log)",
+                    gobj_yuno_role_plus_name(), not_signalled
+                ),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
@@ -6261,10 +6282,11 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         JSON_DECREF(iter)
         JSON_DECREF(filterlist);
         json_t *jn_comment = json_sprintf(
-            "%s: Can't kill %d yuno(s): %s%s",
+            "%s: Can't kill %d yuno(s): %s%s%s",
             gobj_yuno_role_plus_name(), total_failed, failed_list,
             json_array_size(jn_unconnected) > 0?
-                "; alive but not connected to the agent: signalled, not waited for" : ""
+                "; alive but not connected to the agent: signalled, not waited for" : "",
+            not_signalled_note
         );
         GBUFFER_DECREF(gbuf_failed)
         return msg_iev_build_response(gobj,
@@ -6284,8 +6306,9 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             return msg_iev_build_response(gobj,
                 0,
                 json_sprintf("%s: %d yuno(s) alive but not connected to the agent: signalled (%d), "
-                    "not waited for: a run-yuno before they are gone does not launch them again",
-                    gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected
+                    "not waited for: a run-yuno before they are gone does not launch them again%s",
+                    gobj_yuno_role_plus_name(), (int)json_array_size(jn_unconnected), signal_unconnected,
+                    not_signalled_note
                 ),
                 0,
                 jn_unconnected, // owned
@@ -6293,6 +6316,18 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             );
         }
         JSON_DECREF(jn_unconnected)
+        if(not_signalled > 0) {
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("%s: %d process(es) of yunos alive but not connected to the agent "
+                    "could not be signalled (see the log)",
+                    gobj_yuno_role_plus_name(), not_signalled
+                ),
+                0,
+                0,
+                kw  // owned
+            );
+        }
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf("%s: Yuno not found to kill", gobj_yuno_role_plus_name()),
@@ -6318,6 +6353,9 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
     if(total_failed > 0) {
         gbuffer_printf(gbuf_info, "; %d could not be killed: %s", total_failed, failed_list);
+    }
+    if(not_signalled > 0) {
+        gbuffer_printf(gbuf_info, "%s", not_signalled_note);
     }
     gbuffer_append_char(gbuf_info, 0);
     GBUFFER_DECREF(gbuf_failed)
@@ -6960,6 +6998,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
             )
         );
     }
+    JSON_DECREF(iter)
 
     /*
      *  Inform
@@ -7034,6 +7073,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
             )
         );
     }
+    JSON_DECREF(iter)
 
     /*
      *  Inform
@@ -10482,6 +10522,11 @@ PRIVATE BOOL is_launching(hgobj gobj, const char *yuno_id)
  *  Its yuno.pid is no guide either: a yuno writes it where its own config
  *  says (logcenter's is under realms/agent/), not in the bin dir the agent
  *  made. A zombie has no cmdline: it is dead.
+ *
+ *  The command line is whatever its starter chose: a process of another
+ *  user is never one of the yunos this agent launched (they run as its
+ *  user), whatever it looks like. In 7.30.18 any local user could start
+ *  a look-alike that the agent took for a living yuno, not launched again.
  ***************************************************************************/
 PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno)
 {
@@ -10520,6 +10565,7 @@ PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno)
 
     json_t *jn_pids = json_array();
     pid_t self = getpid();
+    uid_t euid = geteuid();
     struct dirent *de;
     while((de = readdir(dir)) != NULL) {
         if(!all_numbers(de->d_name)) {
@@ -10545,6 +10591,17 @@ PRIVATE json_t *find_living_yuno_pids(hgobj gobj, json_t *yuno)
         }
         if(!strstr(end_argv0 + 1, config_mark)) {
             continue;
+        }
+        char proc_path[PATH_MAX];
+        if(!build_path(proc_path, sizeof(proc_path), "/proc", de->d_name, NULL)) {
+            continue;   // Error already logged
+        }
+        struct stat st;
+        if(stat(proc_path, &st) < 0) {
+            continue;   // gone meanwhile
+        }
+        if(st.st_uid != euid) {
+            continue;   // another user's: a look-alike
         }
         json_array_append_new(jn_pids, json_integer(pid));
     }
@@ -10703,13 +10760,17 @@ PRIVATE void kill_yuno_unregistered(
  *  kill-yuno of the yunos alive that the agent does not know running: the
  *  processes of each one (its watcher and its child) get `signal2kill`; a
  *  SIGQUIT tells the watcher not to relaunch, and it ends with its child's
- *  exit (or at once, when it is waiting to relaunch), SIGKILL takes both. Return a list of {id, yuno_role, yuno_name, pids}, owned.
+ *  exit (or at once, when it is waiting to relaunch), SIGKILL takes both. Return a list of {id, yuno_role, yuno_name, pids}, owned:
+ *  the pids signalled. A process that could not be signalled (logged) is
+ *  counted in `not_signalled`, not listed: in 7.30.18 it was said
+ *  "signalled" all the same.
  ***************************************************************************/
 PRIVATE json_t *signal_unconnected_yunos(
     hgobj gobj,
     json_t *kw_filter,  // owned
     BOOL app,
     int signal2kill,
+    int *not_signalled,
     hgobj src
 )
 {
@@ -10743,22 +10804,34 @@ PRIVATE json_t *signal_unconnected_yunos(
             JSON_DECREF(jn_pids)
             continue;
         }
+        json_t *jn_signalled_pids = json_array();
         int idx2; json_t *jn_pid;
         json_array_foreach(jn_pids, idx2, jn_pid) {
             pid_t pid = (pid_t)json_integer_value(jn_pid);
-            if(kill(pid, signal2kill) < 0 && errno != ESRCH) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot signal a yuno not connected to the agent",
-                    "yuno_id",      "%s", id,
-                    "pid",          "%d", (int)pid,
-                    "signal",       "%d", signal2kill,
-                    "errno",        "%d", errno,
-                    "serrno",       "%s", strerror(errno),
-                    NULL
-                );
+            if(kill(pid, signal2kill) < 0) {
+                if(errno != ESRCH) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM,
+                        "msg",          "%s", "Cannot signal a yuno not connected to the agent",
+                        "yuno_id",      "%s", id,
+                        "pid",          "%d", (int)pid,
+                        "signal",       "%d", signal2kill,
+                        "errno",        "%d", errno,
+                        "serrno",       "%s", strerror(errno),
+                        NULL
+                    );
+                    (*not_signalled)++;
+                }
+                continue;
             }
+            json_array_append_new(jn_signalled_pids, json_integer(pid));
+        }
+        JSON_DECREF(jn_pids)
+        jn_pids = jn_signalled_pids;
+        if(json_array_size(jn_pids) == 0) {
+            JSON_DECREF(jn_pids)
+            continue;
         }
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -11150,7 +11223,11 @@ PRIVATE int pause_yuno(hgobj gobj, json_t *yuno, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  The traces of the yuno's root gobj (`__root__`), every user level, set
+ *  or reset. The answer comes back to the agent itself, which says it when
+ *  it failed (ac_command_yuno_answer()). Up to 7.30.18 the command named
+ *  no gobj (the yuno answered "gobj not found: ''"), and trace-off-yuno's
+ *  answer went to the requester as a second answer, without its route.
  ***************************************************************************/
 PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 {
@@ -11165,7 +11242,7 @@ PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
     snprintf(
         command,
         sizeof(command),
-        "set-gobj-trace "
+        "set-gobj-trace gobj_name=__root__ "
         "level=%d set=1",
         TRACE_USER_LEVEL
     );
@@ -11180,7 +11257,7 @@ PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 }
 
 /***************************************************************************
- *
+ *  See trace_on_yuno()
  ***************************************************************************/
 PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 {
@@ -11195,7 +11272,7 @@ PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
     snprintf(
         command,
         sizeof(command),
-        "set-gobj-trace "
+        "set-gobj-trace gobj_name=__root__ "
         "level=%d set=0",
         TRACE_USER_LEVEL
     );
@@ -11203,7 +11280,7 @@ PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
         channel_gobj,
         command,
         kw,
-        src //gobj
+        gobj
     );
     JSON_DECREF(webix);
     return 0;
@@ -14077,11 +14154,20 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     if(strcmp(dst_service, gobj_name(gobj))==0) {
         /*
          *  Command requested by the agent itself: nothing to forward. The
-         *  answer to a publish-stats says whether the yuno publishes.
+         *  answer to a publish-stats says whether the yuno publishes; any
+         *  other that failed (a trace-on-yuno) is said.
          */
         json_t *jn_publish_md = kw_get_dict(gobj, kw, "__md_iev__`agent_publish", 0, 0);
         if(jn_publish_md) {
             publication_answer(gobj, jn_publish_md, kw);
+        } else if(kw_get_int(gobj, kw, "result", 0, KW_WILD_NUMBER) < 0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "a command of the agent to a yuno failed",
+                "comment",      "%s", kw_get_str(gobj, kw, "comment", "", 0),
+                NULL
+            );
         }
         JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);

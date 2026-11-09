@@ -420,8 +420,12 @@ search_process(name, ...);                  // again: what is left, relaunched o
 kill(pid, SIGKILL);                         // guarantee they go
 ```
 
-Every `kill()` is checked: one that fails (another user's agent: `EPERM`)
-is said on stderr, not waited for, and `--stop` exits 1. Up to 7.25.22 none
+A process of the name that another user runs is not taken, unless `--stop`
+runs as root (the owner of `/proc/<pid>` is compared with the effective
+uid): anybody can start a look-alike of the name. In 7.30.18 it was taken,
+its `kill()` failed with `EPERM`, and `--stop` exited 1. Every `kill()` is
+checked: one that fails is said on stderr, not waited for, and `--stop`
+exits 1. Up to 7.25.22 none
 was checked: an `EPERM` waited 10 s, printed *"killed (SIGKILL)"* and exited
 0; and an agent that crashed during its stop was relaunched by its watcher,
 the watcher was SIGKILLed at 10 s, and the new agent was left an orphan.

@@ -302,7 +302,7 @@ the command takes (`id`, `realm_id`, `yuno_role`, `yuno_name`,
 | `kill-yuno` | stops every running yuno (`app=1`: only those with an id of 1000 or more) |
 | `play-yuno`, `pause-yuno` | plays, or pauses, every running yuno that is not disabled |
 | `enable-yuno`, `disable-yuno` | enables every disabled yuno, or disables every enabled one (`disable-yuno` also pauses and kills them) |
-| `trace-on-yuno`, `trace-off-yuno` | turns the traces on in every yuno not traced, or off in every traced one, and marks it (`traced`) |
+| `trace-on-yuno`, `trace-off-yuno` | sets (or resets) every user trace level of the root gobj (`__root__`) of each yuno not traced (or traced), and marks it (`traced`): `set-gobj-trace gobj_name=__root__ level=65535 set=1`. The yuno answers the agent, which logs a WARNING *"a command of the agent to a yuno failed"* when it refuses. Up to 7.30.18 the command named no gobj and every yuno answered *"gobj not found: ''"* |
 | `command-yuno` | sends the command to every running yuno that is not disabled |
 | `stats-yuno`, `authzs-yuno` | asks every running yuno that is not disabled (read-only) |
 | `set-tag`, `set-multiple` | writes the tag, or `yuno_multiple`, into every yuno |
@@ -572,6 +572,14 @@ Up to 7.25.21 `kill-yuno` selected only the yunos the agent saw running, and
 answered *"Yuno not found or already not running"* for one that lived
 unconnected.
 
+A process that cannot be signalled (an ERROR *"Cannot signal a yuno not
+connected to the agent"* with its `errno`) is not in `pids`, and the answer
+says it: *"...; 1 process(es) alive but not connected could not be signalled
+(see the log)"*, or, when nothing else was signalled, result -1 and *"1
+process(es) of yunos alive but not connected to the agent could not be
+signalled (see the log)"*. In 7.30.18 such a process was answered as
+*"signalled"*.
+
 ### 4.6 Crash detection and reconciliation
 
 **From the agent's point of view**, a crash is indistinguishable from a
@@ -634,8 +642,10 @@ What the agent contributes on top:
    `run-yuno` look in `/proc` for a process of that yuno: `argv[0]` is its
    role and its command line names its configuration files in its `bin/`
    (so a release change does not hide it, nor does a launch by hand with
-   its `.sh`). If one lives, the yuno is skipped with a WARNING that names
-   its pids:
+   its `.sh`), and it runs as the agent's user (the owner of
+   `/proc/<pid>`): a look-alike of another user is not taken (in 7.30.18
+   any local user could keep a yuno from being launched with one). If one
+   lives, the yuno is skipped with a WARNING that names its pids:
 
    ```
    "msg": "yuno alive but not connected to the agent: not launched again",

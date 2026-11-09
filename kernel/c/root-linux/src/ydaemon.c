@@ -642,8 +642,9 @@ PUBLIC int daemon_run(
  *  order and exits, and its watcher with it. They are given STOP_WAIT_MS to
  *  be gone. Then every process of the name still there is killed --
  *  collected again, so a child relaunched meanwhile is not left an orphan.
- *  Each signal is checked and said when it fails (another user's process:
- *  EPERM). Return 0 when every process of the name is gone or killed, -1
+ *  A process of another user is not taken, unless the stop runs as root.
+ *  Each signal is checked and said when it fails. Return 0 when every
+ *  process of the name is gone or killed, -1
  *  if one could not be signalled, or could not be told the daemon or not
  *  (its cmdline unreadable), or the list could not grow (no memory).
  *
@@ -787,6 +788,30 @@ PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
         }
         if(!same) {
             return; // another program with the same comm (a script)
+        }
+    }
+    /*
+     *  Only a process of my own user, unless I am root: comm and argv[0]
+     *  are whatever a starter chose, and another user's look-alike cannot
+     *  be signalled (EPERM). In 7.30.18 it made --stop exit 1.
+     */
+    uid_t euid = geteuid();
+    if(euid != 0) {
+        char proc_path[PATH_MAX];
+        struct stat st;
+        snprintf(proc_path, sizeof(proc_path), "/proc/%d", (int)pid);
+        if(stat(proc_path, &st) < 0) {
+            if(errno == ENOENT || errno == ESRCH) {
+                return; // gone meanwhile
+            }
+            print_error(0, "--stop: cannot stat %.*s pid %d (errno %d %s): not known if it is the daemon",
+                (int)namelen, name, (int)pid, errno, strerror(errno)
+            );
+            stop->failed = TRUE;
+            return;
+        }
+        if(st.st_uid != euid) {
+            return; // another user's
         }
     }
     if(stop->n >= stop->size) {
