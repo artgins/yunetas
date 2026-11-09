@@ -702,7 +702,11 @@ SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR|SDF_PERSIST,         "10",   
 
 SDATA (DTP_INTEGER,     "max_subscriptions_per_client",SDF_RD,          "100",    "Maximum subscriptions one client may hold, 0 no limit. Each new filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x97 Quota exceeded; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection."),
 
-SDATA (DTP_INTEGER,     "max_persistent_sessions",SDF_RD,               "1000",   "Maximum client records kept with a session (MQTT 3.1.1 clean session 0, MQTT 5 a session expiry > 0), 0 no limit. A CONNECT that would add one past it is refused (MQTT 5: 0x97 Quota exceeded; 3.1.1: 3 Server unavailable). Said with one WARNING per minute in the process. A client without a session is not counted: its record lives only in memory and is removed when it disconnects."),
+SDATA (DTP_INTEGER,     "max_persistent_sessions",SDF_RD,               "1000",   "Maximum client records kept with a session (MQTT 3.1.1 clean session 0, MQTT 5 a session expiry > 0), 0 no limit. A CONNECT that would add one past it is refused (MQTT 5: 0x97 Quota exceeded; 3.1.1: 3 Server unavailable), unless a session expired (persistent_session_expiry) makes room. Said with one WARNING per minute in the process. A client without a session is not counted: its record lives only in memory and is removed when it disconnects."),
+
+SDATA (DTP_INTEGER,     "persistent_session_expiry",SDF_RD,            "86400",  "Seconds a session is kept after its client disconnects, 0 never. It applies to MQTT 3.1.1 clean session 0, and caps the Session Expiry Interval of MQTT 5. An expired session (record and file) is removed when the sessions reach max_persistent_sessions, at the CONNECT that needs the room; with max_persistent_sessions 0 none is removed."),
+
+SDATA (DTP_INTEGER,     "max_topic_filter_length",SDF_RD,              "256",    "Maximum length in bytes of a topic filter, 0 no limit (MQTT allows 65535). A filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x8F Topic Filter invalid; 3.1.1: 0x80 Failure), of an UNSUBSCRIBE in the UNSUBACK (MQTT 5: 0x8F), and the client is kept. Said with one WARNING per connection."),
 
 /*
  *  Dynamic Data
@@ -798,6 +802,8 @@ typedef struct _PRIVATE_DATA {
     uint32_t max_topic_alias;
     uint32_t max_subscriptions_per_client;
     uint32_t max_persistent_sessions;
+    uint32_t persistent_session_expiry;
+    uint32_t max_topic_filter_length;
 
     /*
      *  Dynamic data (reset per connection)
@@ -806,6 +812,7 @@ typedef struct _PRIVATE_DATA {
     BOOL send_disconnect;
     json_t *client;
     BOOL subscriptions_capped;  // max_subscriptions_per_client said in this connection
+    BOOL filters_capped;        // max_topic_filter_length said in this connection
     const char *protocol_name;
     uint32_t protocol_version;
     BOOL is_bridge;
@@ -913,6 +920,8 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
     SET_PRIV(max_subscriptions_per_client, gobj_read_integer_attr)
     SET_PRIV(max_persistent_sessions,   gobj_read_integer_attr)
+    SET_PRIV(persistent_session_expiry, gobj_read_integer_attr)
+    SET_PRIV(max_topic_filter_length,   gobj_read_integer_attr)
 
     SET_PRIV(protocol_name,             gobj_read_str_attr)
     SET_PRIV(protocol_version,          gobj_read_integer_attr)
@@ -5049,7 +5058,9 @@ PRIVATE int XXX_save_message_to_pubrec(
 }
 
 /***************************************************************************
- *
+ *  The next packet id of the client. Kept in its record in memory, written
+ *  with the record when the record is saved: up to 7.30.22 every packet id
+ *  was 1 (the new one was never kept), and each one rewrote the whole file.
  ***************************************************************************/
 PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
 {
@@ -5058,13 +5069,12 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
     json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
     uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
 
-    // TODO it seems that does nothing saving in resource
     last_mid++;
     if(last_mid == 0) {
         last_mid++;
     }
-    if(!kw_get_bool(gobj, client, "_volatil", 0, 0)) {
-        gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
+    if(client) {
+        json_object_set_new(client, "last_mid", json_integer(last_mid));
     }
 
     return last_mid;
@@ -5103,6 +5113,18 @@ PRIVATE int XXX_subs__send(
         msg_qos = qos;
     }
 
+    /*  Only a connected client gets it (TODO keep it if qos > 0). A record
+     *  reloaded from disk may say "isConnected" with no connection.  */
+    json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
+    hgobj gobj_client = 0;
+    if(kw_get_bool(gobj, client, "isConnected", 0, KW_REQUIRED)) {
+        gobj_client = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj", 0, 0);
+    }
+    if(!gobj_client) {
+        JSON_DECREF(properties)
+        return 0;
+    }
+
     uint16_t mid;
     if(msg_qos) {
         mid = mosquitto__mid_generate(gobj, client_id);
@@ -5121,17 +5143,7 @@ PRIVATE int XXX_subs__send(
         mosquitto_property_add_varint(gobj, properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER, identifier);
     }
 
-    json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
-    BOOL isConnected = kw_get_bool(gobj, client, "isConnected", 0, KW_REQUIRED);
-    if(isConnected) {
-        hgobj gobj_client = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj", 0, KW_REQUIRED);
-        if(gobj_client) {
-            XXX_db__message_insert(gobj_client, mid, msg_qos, client_retain, stored, properties);
-        }
-    } else {
-        // TODO save the message if qos > 0 ?
-        // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
-    }
+    XXX_db__message_insert(gobj_client, mid, msg_qos, client_retain, stored, properties);
 
     JSON_DECREF(properties)
     return 0;
@@ -5190,6 +5202,35 @@ PRIVATE int XXX_sub__messages_queue(
 }
 
 /***************************************************************************
+ *  A topic filter longer than max_topic_filter_length: refused, said once
+ *  per connection
+ ***************************************************************************/
+PRIVATE BOOL topic_filter_too_long(hgobj gobj, const char *sub, uint16_t slen)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->max_topic_filter_length == 0 || slen <= priv->max_topic_filter_length) {
+        return FALSE;
+    }
+    if(!priv->filters_capped) {
+        priv->filters_capped = TRUE;
+        hgobj bottom = gobj_bottom_gobj(gobj);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt: topic filter longer than max_topic_filter_length, refused",
+            "max_topic_filter_length", "%d", (int)priv->max_topic_filter_length,
+            "length",       "%d", (int)slen,
+            "client_id",    "%.64s", SAFE_PRINT(priv->client_id),
+            "peername",     "%s", bottom? gobj_read_str_attr(bottom, "peername") : "",
+            "sub",          "%.64s", sub,
+            NULL
+        );
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  Add a subscription, return MOSQ_ERR_SUB_EXISTS (replaced),
  *  MOSQ_ERR_QUOTA_EXCEEDED (refused, max_subscriptions_per_client)
  *  or MOSQ_ERR_SUCCESS
@@ -5209,11 +5250,9 @@ PRIVATE int add_subscription(
     BOOL no_local = ((options & MQTT_SUB_OPT_NO_LOCAL) != 0);
     BOOL retain_as_published = ((options & MQTT_SUB_OPT_RETAIN_AS_PUBLISHED) != 0);
 
-    /*
-     *  Find client
-     */
-    json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
-    if(!client) {
+    /*  Not looked up by id: a refused take-over may have removed it  */
+    json_t *client = priv->client;
+    if(!json_is_object(client)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -5331,11 +5370,9 @@ PRIVATE int remove_subscription(
 
     *reason = 0;
 
-    /*
-     *  Find client
-     */
-    json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
-    if(!client) {
+    /*  Not looked up by id: a refused take-over may have removed it  */
+    json_t *client = priv->client;
+    if(!json_is_object(client)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
@@ -5692,6 +5729,13 @@ PRIVATE int set_client_disconnected(hgobj gobj)
     if(priv->assigned_id || priv->session_expiry_interval == 0) {
         delete_client_record(gobj, priv->client);
     } else {
+        /*  For persistent_sessions_full(). The wall clock: a date on disk  */
+        kw_set_dict_value(gobj, priv->client, "disconnected_t",
+            json_integer((json_int_t)time_in_seconds())
+        );
+        kw_set_dict_value(gobj, priv->client, "session_expiry",
+            json_integer((json_int_t)priv->session_expiry_interval)
+        );
         save_client(gobj);
     }
     return 0;
@@ -5699,7 +5743,9 @@ PRIVATE int set_client_disconnected(hgobj gobj)
 
 /***************************************************************************
  *  A CONNECT refused once it had taken a record: a record without a file
- *  that no connection owns goes now, or nobody would ever remove it
+ *  that no connection owns goes now, or nobody would ever remove it. A
+ *  record that the CONNECT made, or made a session of, is still "_volatil"
+ *  until its CONNACK is sent (connect_on_authorised()).
  ***************************************************************************/
 PRIVATE void release_refused_client(hgobj gobj, json_t *client)
 {
@@ -5712,6 +5758,16 @@ PRIVATE void release_refused_client(hgobj gobj, json_t *client)
 /***************************************************************************
  *  Is there room for one more persistent session?
  *  Said with a WARNING once per window of the process.
+ *
+ *  When the sessions are full, the sessions whose client has been
+ *  disconnected longer than their expiry go first, record and file. Only
+ *  then, when the room is needed: under the limit nothing more is paid, and
+ *  no timer runs. The expiry is the one the client asked when it went
+ *  ("session_expiry": the MQTT 5 Session Expiry Interval, UINT32_MAX for
+ *  MQTT 3.1.1 clean session 0), capped by persistent_session_expiry;
+ *  UINT32_MAX with no cap is never. A record with no "disconnected_t"
+ *  (reloaded from disk with its client connected, or written by 7.30.22 or
+ *  before) counts from the first time it is seen here.
  ***************************************************************************/
 PRIVATE BOOL persistent_sessions_full(hgobj gobj)
 {
@@ -5727,6 +5783,36 @@ PRIVATE BOOL persistent_sessions_full(hgobj gobj)
     json_array_foreach(jn_clients, idx, client) {
         if(!kw_get_bool(gobj, client, "_volatil", 0, 0)) {
             sessions++;
+        }
+    }
+
+    if(sessions < priv->max_persistent_sessions) {
+        JSON_DECREF(jn_clients)
+        return FALSE;
+    }
+
+    json_array_foreach(jn_clients, idx, client) {
+        if(kw_get_bool(gobj, client, "_volatil", 0, 0) ||
+                kw_get_int(gobj, client, "_gobj", 0, 0) != 0) {
+            continue;   // no session, or connected
+        }
+        json_int_t expiry = kw_get_int(gobj, client, "session_expiry", UINT32_MAX, 0);
+        if(priv->persistent_session_expiry > 0 && expiry > priv->persistent_session_expiry) {
+            expiry = priv->persistent_session_expiry;
+        }
+        if(expiry >= UINT32_MAX) {
+            continue;   // never
+        }
+        json_int_t disconnected_t = kw_get_int(gobj, client, "disconnected_t", 0, 0);
+        if(disconnected_t <= 0) {
+            kw_set_dict_value(gobj, client, "disconnected_t",
+                json_integer((json_int_t)time_in_seconds())
+            );
+            continue;
+        }
+        if(test_sectimer((time_t)(disconnected_t + expiry))) {
+            delete_client_record(gobj, client);
+            sessions--;
         }
     }
     JSON_DECREF(jn_clients)
@@ -5809,18 +5895,16 @@ PRIVATE int connect_on_authorised(
             }
         }
         if(!client) {
-            // New client (device)
-            json_t *kw_client = json_pack("{s:s, s:b, s:i, s:{}}",
+            /*  New client (device): "_volatil" until its CONNACK, so a
+             *  refused CONNECT leaves nothing (release_refused_client())  */
+            json_t *kw_client = json_pack("{s:s, s:b, s:i, s:{}, s:b}",
                 "id", priv->client_id,
                 "assigned_id", 0,
                 "last_mid", 0,
-                "subscriptions"
+                "subscriptions",
+                "_volatil", 1
             );
-            json_t *jn_options = 0;
-            if(!keep_session) {
-                json_object_set_new(kw_client, "_volatil", json_true());
-                jn_options = json_pack("{s:b}", "volatil", 1);
-            }
+            json_t *jn_options = json_pack("{s:b}", "volatil", 1);
             client = gobj_create_resource(
                 priv->gobj_mqtt_clients, priv->client_id, kw_client, jn_options
             );
@@ -5838,9 +5922,6 @@ PRIVATE int connect_on_authorised(
                 JSON_DECREF(connack_props);
                 return -1;
             }
-        }
-        if(keep_session) {
-            json_object_del(client, "_volatil");    // written from now on
         }
     }
     if(!client) {
@@ -5894,7 +5975,8 @@ PRIVATE int connect_on_authorised(
     //mosquitto__set_state(found_context, mosq_cs_duplicate);
 
     if(isConnected) {
-        hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
+        /*  A record reloaded from disk may say connected with no connection  */
+        hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, 0);
         /*
          *  The record is not the dropped connection's any more: when it
          *  goes it must not mark it disconnected, nor remove it
@@ -6008,6 +6090,10 @@ PRIVATE int connect_on_authorised(
 
     int ret = send_connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
     if(ret == 0) {
+        if(keep_session) {
+            json_object_del(client, "_volatil");    // written from now on
+        }
+        json_object_del(client, "disconnected_t");
         kw_set_dict_value(gobj, client, "isConnected", json_true());
         kw_set_dict_value(gobj,
             client, "_gobj", json_integer((json_int_t)(uintptr_t)(gobj))
@@ -7940,6 +8026,18 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             allowed = TRUE;
             //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE);
 
+            if(topic_filter_too_long(gobj, sub, slen)) {
+                /*
+                 *  Refused in the SUBACK, the client is kept
+                 */
+                allowed = FALSE;
+                if(priv->protocol_version == mosq_p_mqtt5) {
+                    qos = MQTT_RC_TOPIC_FILTER_INVALID;
+                } else {
+                    qos = MQTT_RC_UNSPECIFIED;  // 0x80, Failure
+                }
+            }
+
             if(allowed) {
                 rc2 = add_subscription(
                     gobj,
@@ -8144,7 +8242,11 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 sub
             );
         }
-        if(allowed) {
+        BOOL too_long = topic_filter_too_long(gobj, sub, slen);
+        if(too_long) {
+            reason = MQTT_RC_TOPIC_FILTER_INVALID;  // no reason codes in 3.1.1
+            rc = MOSQ_ERR_SUCCESS;
+        } else if(allowed) {
             rc = remove_subscription(gobj, sub, &reason);
         } else {
             rc = MOSQ_ERR_SUCCESS;
@@ -8157,7 +8259,9 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             return rc;
         }
 
-        json_array_append_new(jn_list, json_string(sub));
+        if(!too_long) {
+            json_array_append_new(jn_list, json_string(sub));
+        }
         GBMEM_FREE(sub)
 
         reason_codes[reason_code_count] = reason;
@@ -8394,6 +8498,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     start_wait_frame_header(gobj);
     priv->send_disconnect = FALSE;
     priv->subscriptions_capped = FALSE;
+    priv->filters_capped = FALSE;
     gobj_write_bool_attr(gobj, "connected", TRUE);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();

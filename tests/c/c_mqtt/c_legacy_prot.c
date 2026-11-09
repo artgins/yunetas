@@ -115,10 +115,12 @@ PRIVATE void mt_create(hgobj gobj)
     memset(priv->long_topic + 2, 'x', LONG_TOPIC_LEN - 2);
     priv->long_topic[LONG_TOPIC_LEN] = 0;
 
+    /*  The topic of 300 bytes is past the default max_topic_filter_length
+     *  (256): 0, no limit, as the length is what this test reads  */
     priv->prot = gobj_create(
         "legacy_prot",
         C_PROT_MQTT,
-        json_pack("{s:b}", "iamServer", 1),
+        json_pack("{s:b, s:i}", "iamServer", 1, "max_topic_filter_length", 0),
         gobj
     );
     gobj_write_pointer_attr(priv->prot, "gobj_mqtt_clients", gobj);

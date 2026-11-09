@@ -102,9 +102,10 @@ client has a clean start: the driver also deletes its record, as the protocol
 asks when the client disconnects.
 
 `test_mqtt_legacy_sessions` (`main_legacy_sessions.c` + `c_legacy_sessions.c`)
-drives four `C_PROT_MQTT` gobjs the same way, each on its own
+drives twelve `C_PROT_MQTT` gobjs the same way, each on its own
 `C_FAKE_TRANSPORT`, with the clients in a persistent `C_RESOURCE2` (as an MQTT
-gate keeps them) and the protocol's default limits. 1. A device `dev` (clean
+gate keeps them) and the protocol's default limits (but the two of the
+expiry). 1. A device `dev` (clean
 session 0) subscribes `dev/t` and `pub` publishes to it 1000 times: the
 reference time. 300 clients with clean session (3.1.1 clean session 1; MQTT 5
 clean start with no session expiry; MQTT 5 no clean start, expiry 0) connect,
@@ -125,6 +126,27 @@ every id left a record for ever, a client held any number of subscriptions,
 each PUBLISH walked all of them, and a re-subscription disconnected the client
 (red: 302 records left after the clean sessions, the re-subscription dropped,
 160 subscriptions kept, and the flood ended in *"REACHED MAX_SYSTEM_MEMORY"*).
+5. 2.5 s later, a protocol with `persistent_session_expiry` 1: a new id with
+clean session 0 is accepted and every session disconnected longer is removed,
+in memory and on disk (the connected `dev` stays). 6. 2.5 s later, a protocol
+with `max_persistent_sessions` 3 and `persistent_session_expiry` 0 (never): an
+MQTT 5 session expired by its own Session Expiry Interval (1 s) makes room, the
+next new id is refused (a 3.1.1 session never expires there). 50 persistent
+QoS 1 subscribers of `w/t`, disconnected, and `dev` connected: 200 QoS 1
+PUBLISH write 0 bytes (`wchar` of `/proc/self/io`) and `dev` gets packet ids
+1..200. Filters of 257 bytes are refused (SUBACK 0x80 / 0x8F, UNSUBACK 0x8F),
+one of 256 is granted, the client is kept, one WARNING per connection. CONNECTs
+refused for keep alive 0 leave no record: new ids with clean session 1 and 0,
+and clean session 0 or 1 over a connected clean session 1, whose connection,
+not dropped yet, subscribes with no error. A record shaped as reloaded after
+an unclean stop (connected, with no connection): a PUBLISH to it and its
+CONNECT log no error. Up to 7.30.22 (red): the new ids refused (CONNACK 3),
+4.9 MB written by the 200 publications and every packet id 1, the long
+filters granted, the refused CONNECTs left their records, *"client not
+found"* and *"path NOT FOUND"* ERRORs.
+
+`test_mqtt_legacy_prot` runs with `max_topic_filter_length` 0 (no limit): its
+300-byte topic is there to check a length with a non-zero high byte.
 
 `test_mqtt_client_pubrec` (`main_client_pubrec.c` + `c_client_pubrec.c`) drives
 `C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with its queues in a

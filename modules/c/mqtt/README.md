@@ -20,7 +20,7 @@ and the gclasses below are registered.
 
 | GClass            | Source                  | Purpose                                                              |
 |-------------------|-------------------------|----------------------------------------------------------------------|
-| `C_PROT_MQTT`     | `c_prot_mqtt.c` (8.5k L) | MQTT v3.1 / v3.1.1 protocol gclass. Parses/builds CONNECT, PUBLISH, SUBSCRIBE, etc. frames over a transport (typically `C_TCP`). Deprecated. A client's record is written only with a session to keep (clean session 0), and is capped by `max_subscriptions_per_client` (100) and `max_persistent_sessions` (1000): see the MQTT page of the docs. |
+| `C_PROT_MQTT`     | `c_prot_mqtt.c` (8.5k L) | MQTT v3.1 / v3.1.1 protocol gclass. Parses/builds CONNECT, PUBLISH, SUBSCRIBE, etc. frames over a transport (typically `C_TCP`). Deprecated. A client's record is written only with a session to keep (clean session 0), and is capped by `max_subscriptions_per_client` (100), `max_topic_filter_length` (256 bytes) and `max_persistent_sessions` (1000); a session expires `persistent_session_expiry` (86400 s) after its client disconnects: see the MQTT page of the docs. |
 | `C_PROT_MQTT2`    | `c_prot_mqtt2.c` (9.3k L)| MQTT v5.0 protocol gclass. Same role with v5 properties (session-expiry-interval, message-expiry-interval, will properties, …). |
 | `C_MQTT_BROKER`   | `c_mqtt_broker.c` (4.7k L) | Broker logic on top: session/subscription/queue persistence via `tr2q_mqtt.c`, retained messages, shared subscriptions, per-tenant isolation, deny-lists. |
 

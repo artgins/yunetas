@@ -54,13 +54,27 @@ client disconnects.
   session: its record and its file are removed when the client disconnects.
 - A subscription to a filter that the client already holds replaces it, as
   MQTT says: SUBACK granted, the client stays connected.
+- A CONNECT that is refused (for example MQTT 3.1.1 with keep alive 0) leaves
+  no record: the record that the CONNECT made, or made a session of, stays in
+  memory only until the CONNACK is sent.
+- A record that is loaded from disk after an unclean stop says that its
+  client is connected. The protocol does not believe it: a message to it is
+  not sent, and its client connects again with no error.
 
-Two attributes limit what clients can keep. `0` is no limit.
+Four attributes limit what clients can keep. `0` is no limit, or never.
 
 | Attribute | Default | Past the limit |
 |---|---|---|
 | `max_subscriptions_per_client` | `100` | Each new filter of the SUBSCRIBE is refused in the SUBACK (MQTT 5 `0x97` Quota exceeded, MQTT 3.1.1 `0x80` Failure). The client stays connected. One WARNING per connection. |
-| `max_persistent_sessions` | `1000` | A CONNECT that adds a session is refused (CONNACK: MQTT 5 `0x97`, MQTT 3.1.1 `3` Server unavailable) and the connection closes. A client without a session, and a client whose session exists, still connect. One WARNING per minute in the process, with the CONNECTs refused since the last one. |
+| `max_topic_filter_length` | `256` | A filter longer than this, in bytes, is refused: in the SUBACK (MQTT 5 `0x8F` Topic Filter invalid, MQTT 3.1.1 `0x80` Failure) and in the UNSUBACK (MQTT 5 `0x8F`). The client stays connected. One WARNING per connection. MQTT allows 65535. |
+| `max_persistent_sessions` | `1000` | A CONNECT that adds a session is refused (CONNACK: MQTT 5 `0x97`, MQTT 3.1.1 `3` Server unavailable) and the connection closes, unless an expired session makes room (next row). A client without a session, and a client whose session exists, still connect. One WARNING per minute in the process, with the CONNECTs refused since the last one. |
+| `persistent_session_expiry` | `86400` (one day) | Seconds a session is kept after its client disconnects. It applies to MQTT 3.1.1 clean session 0, and it is the maximum for the Session Expiry Interval of MQTT 5 (a shorter interval of the client applies). When the sessions reach `max_persistent_sessions`, the CONNECT that needs room removes every session that expired, record and file. Under the limit nothing is removed, and with `max_persistent_sessions` `0` no session is removed. |
+
+A session's record keeps the time its client disconnected (`disconnected_t`,
+seconds of the wall clock, written with the record) and the expiry the client
+asked (`session_expiry`). A record that does not have `disconnected_t` (its
+client was connected when the process stopped, or a version before 7.30.23
+wrote it) counts from the first time a CONNECT needs the room.
 
 Set them in the `kw` of the protocol gobj, in the gclass tree of the gate's
 channel:
@@ -72,20 +86,31 @@ channel:
     "kw": {
         "iamServer": true,
         "max_subscriptions_per_client": 20,
-        "max_persistent_sessions": 200
+        "max_topic_filter_length": 128,
+        "max_persistent_sessions": 200,
+        "persistent_session_expiry": 604800
     }
 }
 ```
+
+With this configuration, a device that subscribes `cmnd/dev-17/#` gets its
+SUBACK. A filter of 129 bytes gets `0x80` (MQTT 3.1.1) and the device stays
+connected. A device that has been disconnected for more than 7 days loses its
+session when the 200 sessions are full and a new device connects with clean
+session 0.
 
 The WARNINGs (`msgset` `Mqtt`):
 
 ```text
 "msg": "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused", "max_subscriptions_per_client": 100, "client_id": "dev-17", "peername": "203.0.113.5:40112", "sub": "m/100"
+"msg": "Mqtt: topic filter longer than max_topic_filter_length, refused", "max_topic_filter_length": 256, "length": 1000, "client_id": "dev-17", "peername": "203.0.113.5:40112", "sub": "xxxxxxxx..."
 "msg": "Mqtt: CONNECT past max_persistent_sessions, new sessions refused", "max_persistent_sessions": 1000, "refused": 1, "client_id": "x-91", "peername": "203.0.113.5:40114"
 ```
 
 A PUBLISH looks up its topic once in the subscriptions of each record, so its
-cost grows with the records, not with their subscriptions.
+cost grows with the records, not with their subscriptions. It writes nothing
+to disk: a QoS 1 or 2 message goes only to a connected subscriber, with the
+next packet id of that client.
 
 Up to 7.30.21 every client id left a record that was never removed, in memory
 and on disk; a client could hold any number of subscriptions; each PUBLISH
@@ -93,6 +118,14 @@ walked every subscription of every record; and a re-subscription was taken
 for a malformed packet and disconnected the client. One anonymous client that
 connected with new ids, or that subscribed many filters and left, slowed
 every later message of the gate, and a few of them took it down by memory.
+
+Up to 7.30.22 a session never expired, so 1000 new ids with clean session 0
+refused every new device with a session for ever; a topic filter could be
+65535 bytes; each QoS 1 or 2 PUBLISH rewrote the whole file of every
+subscriber with a session, connected or not (every packet id was 1); a
+refused CONNECT could leave a record; the SUBSCRIBE of a connection that
+another CONNECT took over logged *"client not found"*; and a record reloaded
+after an unclean stop logged an ERROR for each message to it.
 
 ## C_MQTT_BROKER
 
