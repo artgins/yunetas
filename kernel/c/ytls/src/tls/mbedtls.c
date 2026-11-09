@@ -62,6 +62,7 @@ Here's how the schema translates to mbedTLS:
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define PEER_LOG_INTERVAL_MS (10*1000)  // one "TLS handshake rejected" per interval, with the count of the rest
 
 /***************************************************************
  *              Structures
@@ -133,6 +134,7 @@ typedef struct sskt_s {
  *              Prototypes
  ***************************************************************/
 PRIVATE int flush_clear_data(sskt_t *sskt);
+PRIVATE BOOL key_matches_cert(mbedtls_x509_crt *cert, mbedtls_pk_context *pkey);
 PRIVATE void mbedtls_debug_callback(
     void *ctx,
     int level,
@@ -195,6 +197,12 @@ PRIVATE api_tls_t api_tls = {
 /***************************************************************
  *              Data
  ***************************************************************/
+/*
+ *  Not of one session: a peer that opens many connections and fails each
+ *  handshake is one cause
+ */
+PRIVATE uint64_t handshake_log_t_next = 0;          // msectimer: no warning before it
+PRIVATE json_int_t handshake_log_suppressed = 0;    // not written since the last one
 
 /***************************************************************************
  *  Refcount helpers for mbedtls_state_t
@@ -220,6 +228,30 @@ PRIVATE void state_decref(mbedtls_state_t *s)
         mbedtls_x509_crt_free(&s->ca_cert);
         GBMEM_FREE(s);
     }
+}
+
+/***************************************************************************
+ *  Is `pkey` the private key of `cert`? Their public keys compared, as
+ *  SubjectPublicKeyInfo (DER). Not mbedtls_pk_check_pair(): in this mbedTLS
+ *  (4.2) it answers PSA_ERROR_INVALID_ARGUMENT for an RSA key read from
+ *  PKCS#8, whose public half the parser leaves empty -- a good pair too.
+ ***************************************************************************/
+PRIVATE BOOL key_matches_cert(mbedtls_x509_crt *cert, mbedtls_pk_context *pkey)
+{
+    unsigned char der_cert[MBEDTLS_PK_MAX_PUBKEY_RAW_LEN + 64];   // + the algorithm and the headers
+    unsigned char der_key[MBEDTLS_PK_MAX_PUBKEY_RAW_LEN + 64];
+
+    int len_cert = mbedtls_pk_write_pubkey_der(&cert->pk, der_cert, sizeof(der_cert));
+    int len_key = mbedtls_pk_write_pubkey_der(pkey, der_key, sizeof(der_key));
+    if(len_cert <= 0 || len_cert != len_key) {
+        return FALSE;   // the caller logs it
+    }
+    // written at the END of each buffer
+    return memcmp(
+        der_cert + sizeof(der_cert) - len_cert,
+        der_key + sizeof(der_key) - len_key,
+        (size_t)len_cert
+    ) == 0;
 }
 
 /***************************************************************************
@@ -303,7 +335,16 @@ PRIVATE mbedtls_state_t *build_state(
         gobj, jn_config, "ssl_certificate_key", "", server ? KW_REQUIRED : 0
     );
 
-    if(ssl_certificate && ssl_certificate[0] != '\0') {
+    /*
+     *  The server always has its certificate. A client has one when it is
+     *  given (mutual TLS), as in the OpenSSL backend. One that cannot be
+     *  loaded, or whose key is not its key, is refused (NULL), never fatal:
+     *  a client's connection fails, a server's listener degrades, a reload
+     *  keeps the previous state. Up to 7.30.18 a server without
+     *  ssl_certificate, or with the key of another certificate, got a
+     *  context, and every handshake failed.
+     */
+    if(server || !empty_string(ssl_certificate)) {
         if(mbedtls_x509_crt_parse_file(&s->cert, ssl_certificate) != 0) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
@@ -332,11 +373,24 @@ PRIVATE mbedtls_state_t *build_state(
             return NULL;
         }
 
+        if(!key_matches_cert(&s->cert, &s->pkey)) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS,
+                "msg",              "%s", "Key does not match cert",
+                "cert",             "%s", ssl_certificate,
+                "cert_key",         "%s", ssl_certificate_key,
+                NULL
+            );
+            state_decref(s);
+            return NULL;
+        }
+
         if(mbedtls_ssl_conf_own_cert(&s->conf, &s->cert, &s->pkey) != 0) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MBEDTLS,
-                "msg",              "%s", "mbedtls_ssl_conf_own_cert() FAILED (key does not match cert?)",
+                "msg",              "%s", "mbedtls_ssl_conf_own_cert() FAILED",
                 "cert",             "%s", ssl_certificate,
                 "cert_key",         "%s", ssl_certificate_key,
                 NULL
@@ -1290,17 +1344,27 @@ PRIVATE int do_handshake(hsskt sskt_)
             // peername/sockname come from the transport via set_peer_name()
             // (empty if unset, e.g. in unit tests) -> this default-on line is
             // self-contained without ytls reaching into user_data.
-            gobj_log_warning(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS,
-                "msg",              "%s", "TLS handshake rejected",
-                "error",            "%s", error_buf,
-                "peername",         "%s", sskt->peername,
-                "sockname",         "%s", sskt->sockname,
-                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
-                "negotiated_version", "%s", mbedtls_ssl_get_version(&sskt->ssl),
-                NULL
-            );
+            // One per PEER_LOG_INTERVAL_MS for the process, with the count
+            // of the ones not written: up to 7.30.18 each failed handshake
+            // wrote one, and a peer wrote the log at its own rate.
+            if(handshake_log_t_next && !test_msectimer(handshake_log_t_next)) {
+                handshake_log_suppressed++;
+            } else {
+                handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MBEDTLS,
+                    "msg",              "%s", "TLS handshake rejected",
+                    "error",            "%s", error_buf,
+                    "peername",         "%s", sskt->peername,
+                    "sockname",         "%s", sskt->sockname,
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    "negotiated_version", "%s", mbedtls_ssl_get_version(&sskt->ssl),
+                    "suppressed",       "%ld", (long)handshake_log_suppressed,
+                    NULL
+                );
+                handshake_log_suppressed = 0;
+            }
             alive_t marker;
             alive_push(sskt, &marker);
             sskt->on_handshake_done_cb(sskt->user_data, -1);

@@ -41,6 +41,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define PEER_LOG_INTERVAL_MS (10*1000)  // one "TLS handshake rejected" per interval, with the count of the rest
 
 /***************************************************************
  *              Structures
@@ -94,6 +95,13 @@ typedef struct sskt_s {
 PRIVATE char *rx_scratch = NULL;
 PRIVATE size_t rx_scratch_size = 0;
 PRIVATE size_t ytls_count = 0;
+
+/*
+ *  Not of one session: a peer that opens many connections and fails each
+ *  handshake is one cause
+ */
+PRIVATE uint64_t handshake_log_t_next = 0;          // msectimer: no warning before it
+PRIVATE json_int_t handshake_log_suppressed = 0;    // not written since the last one
 
 /***************************************************************
  *              Prototypes
@@ -1293,17 +1301,27 @@ PRIVATE int do_handshake(hsskt sskt_)
             // peername/sockname come from the transport via set_peer_name()
             // (empty if unset, e.g. in unit tests) -> this default-on line is
             // self-contained without ytls reaching into user_data.
-            gobj_log_warning(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_OPENSSL,
-                "msg",              "%s", "TLS handshake rejected",
-                "error",            "%s", sskt->last_error,
-                "peername",         "%s", sskt->peername,
-                "sockname",         "%s", sskt->sockname,
-                "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
-                "negotiated_version", "%s", SSL_get_version(sskt->ssl),
-                NULL
-            );
+            // One per PEER_LOG_INTERVAL_MS for the process, with the count
+            // of the ones not written: up to 7.30.18 each failed handshake
+            // wrote one, and a peer wrote the log at its own rate.
+            if(handshake_log_t_next && !test_msectimer(handshake_log_t_next)) {
+                handshake_log_suppressed++;
+            } else {
+                handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_OPENSSL,
+                    "msg",              "%s", "TLS handshake rejected",
+                    "error",            "%s", sskt->last_error,
+                    "peername",         "%s", sskt->peername,
+                    "sockname",         "%s", sskt->sockname,
+                    "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
+                    "negotiated_version", "%s", SSL_get_version(sskt->ssl),
+                    "suppressed",       "%ld", (long)handshake_log_suppressed,
+                    NULL
+                );
+                handshake_log_suppressed = 0;
+            }
             alive_t marker;
             alive_push(sskt, &marker);
             sskt->on_handshake_done_cb(sskt->user_data, -1);

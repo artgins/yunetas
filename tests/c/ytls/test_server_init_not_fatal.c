@@ -8,14 +8,21 @@
  *          services. Up to 7.30.17 the OpenSSL backend exited the process
  *          with code 0 there (LOG_OPT_EXIT_ZERO), the mbedTLS backend since
  *          7.30.15, and an unknown `library` exited it for a client too.
+ *          Up to 7.30.18 the mbedTLS backend gave a context for 2 and 3, and
+ *          took the reload of 5: it did not check the pair, and took a
+ *          server with no certificate. The server listened, said its TLS
+ *          context was loaded, and every handshake failed; the reload
+ *          dropped the good context.
  *
  *          On each backend compiled in:
  *          1. the certificate file does not exist  -> NULL
- *          2. the key does not match the certificate -> NULL (OpenSSL only:
- *             the mbedTLS backend does not check the pair)
- *          3. the trusted certificate does not exist -> NULL
- *          4. a good pair -> a context (the cases above were not "no
- *             server can be built here")
+ *          2. the key does not match the certificate -> NULL
+ *          3. no `ssl_certificate` at all -> NULL
+ *          4. the trusted certificate does not exist -> NULL
+ *          5. a good pair -> a context (the cases above were not "no
+ *             server can be built here"); then a reload of a new
+ *             certificate with the old key (the copy of a pair half done)
+ *             -> -1, and the context of the good pair kept
  *          And `library` unknown -> NULL, for a server and for a client.
  *
  *          The red of this test is an EXIT with code 0, which ctest would
@@ -120,18 +127,16 @@ int main(int argc, char *argv[])
             "ssl_certificate_key",  KEY_A
         ), TRUE);
 
-        if(strcmp(library, "openssl")==0) {
-            /*
-             *  mbedTLS takes a key of another certificate: its
-             *  mbedtls_ssl_conf_own_cert() does not check the pair, and
-             *  every handshake fails instead of the context (not covered)
-             */
-            expect_null(library, "key of another certificate", json_pack("{s:s, s:s, s:s}",
-                "library",              library,
-                "ssl_certificate",      CERT_A,
-                "ssl_certificate_key",  KEY_B
-            ), TRUE);
-        }
+        expect_null(library, "key of another certificate", json_pack("{s:s, s:s, s:s}",
+            "library",              library,
+            "ssl_certificate",      CERT_A,
+            "ssl_certificate_key",  KEY_B
+        ), TRUE);
+
+        expect_null(library, "no certificate", json_pack("{s:s, s:s}",
+            "library",              library,
+            "ssl_certificate_key",  KEY_A
+        ), TRUE);
 
         expect_null(library, "trusted certificate missing", json_pack("{s:s, s:s, s:s, s:s}",
             "library",                  library,
@@ -151,6 +156,29 @@ int main(int argc, char *argv[])
             printf("%s: FAIL, %s: a good pair gives no server context\n", APP, library);
             result = 1;
         } else {
+            /*
+             *  A new certificate with the old key (a copy of the pair
+             *  half done): refused, the context of A kept
+             */
+            jn_cfg = json_pack("{s:s, s:s, s:s}",
+                "library",              library,
+                "ssl_certificate",      CERT_B,
+                "ssl_certificate_key",  KEY_A
+            );
+            if(ytls_reload_certificates(ytls, jn_cfg) == 0) {
+                printf("%s: FAIL, %s: a reload with the key of another certificate answered 0\n",
+                    APP, library);
+                result = 1;
+            }
+            JSON_DECREF(jn_cfg)
+            json_t *jn_info = ytls_get_cert_info(ytls);
+            const char *subject = kw_get_str(0, jn_info, "subject", "", 0);
+            if(!strstr(subject, "ytls_not_fatal_A")) {
+                printf("%s: FAIL, %s: a refused reload did not keep the context: '%s'\n",
+                    APP, library, subject);
+                result = 1;
+            }
+            JSON_DECREF(jn_info)
             ytls_cleanup(ytls);
         }
     }

@@ -384,7 +384,7 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    | Log message | Meaning | Action |
    |---|---|---|
    | `TLS client WITHOUT server-certificate validation` | a client is not validating the server it dials | add a CA → Profile A |
-   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor) | if legitimate, move that gate to Profile B |
+   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor). One per 10 s for the whole yuno: `suppressed` counts the ones not written since the last one, so a peer that fails its handshake in a loop does not write the log at its own rate (up to 7.30.18 each one wrote it) | if legitimate, move that gate to Profile B |
    | `TLS handshake not ended in time, connection dropped` | a peer opened a TCP connection and did not end its handshake in `timeout_tls_handshake` (a scanner, a slowloris, a broken client); one per 10 s, `suppressed` counts the others | if a legitimate peer is slow, raise `timeout_tls_handshake` on that `C_TCP`; a high `suppressed` is a flood of mute connections |
    | `legacy floor below TLS1.2` | a gate is on a relaxed floor | confirm it is an intended IoT gate |
    | `renegotiation explicitly enabled` | a gate re-enabled renegotiation | confirm it is needed |

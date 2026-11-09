@@ -13,6 +13,8 @@
  *                 C_TCP puts in its disconnect_cause). Up to 7.25.21 the
  *                 mbedTLS backend never wrote it: the cause was a bare
  *                 "TLS handshake failed".
+ *          Two more peers fail theirs in a row: the callback is called for
+ *          each, and "TLS handshake rejected" is written ONCE for the three.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -57,6 +59,7 @@ int main(int argc, char *argv[])
  ***************************************************************/
 PRIVATE int     handshake_cb_calls = 0;
 PRIVATE int     handshake_cb_last_error = 0;
+PRIVATE int     rejected_logs = 0;     // "TLS handshake rejected" written
 
 /***************************************************************
  *              Prototypes
@@ -67,6 +70,7 @@ PRIVATE void  cleanup_tmp(void);
 PRIVATE int   on_handshake_done(void *user_data, int error);
 PRIVATE int   on_clear_data(void *user_data, gbuffer_t *gbuf);
 PRIVATE int   on_encrypted_data(void *user_data, gbuffer_t *gbuf);
+PRIVATE int   count_rejected_write(void *v, int priority, const char *bf, size_t len);
 
 /***************************************************************************
  *              Test
@@ -76,6 +80,9 @@ int main(int argc, char *argv[])
     int result = 0;
 
     gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
+
+    gobj_log_register_handler("count_rejected", 0, count_rejected_write, 0);
+    gobj_log_add_handler("count_rejected", "count_rejected", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *  Disposable self-signed cert
@@ -171,6 +178,47 @@ int main(int argc, char *argv[])
     }
 
     ytls_free_secure_filter(ytls, sskt);
+
+    /*------------------------------------------------*
+     *  Two more peers fail their handshake at once:
+     *  ONE "TLS handshake rejected" for the three (one
+     *  per 10 s for the process, the rest counted in
+     *  the next one). Up to 7.30.18 each one wrote it.
+     *------------------------------------------------*/
+    for(int i=0; i<2; i++) {
+        hsskt sskt2 = ytls_new_secure_filter(
+            ytls,
+            on_handshake_done,
+            on_clear_data,
+            on_encrypted_data,
+            NULL
+        );
+        if(!sskt2) {
+            fprintf(stderr, "%s: ytls_new_secure_filter FAILED\n", APP);
+            result++;
+            break;
+        }
+        (void)ytls_do_handshake(ytls, sskt2);
+        gbuf = gbuffer_create(sizeof(HTTP_GARBAGE), sizeof(HTTP_GARBAGE));
+        gbuffer_append(gbuf, (void *)HTTP_GARBAGE, sizeof(HTTP_GARBAGE) - 1);
+        (void)ytls_decrypt_data(ytls, sskt2, gbuf);
+        ytls_free_secure_filter(ytls, sskt2);
+    }
+    if(handshake_cb_calls != 3) {
+        fprintf(stderr,
+            "%s: on_handshake_done called %d times for three peers, expected 3\n",
+            APP, handshake_cb_calls
+        );
+        result++;
+    }
+    if(rejected_logs != 1) {
+        fprintf(stderr,
+            "%s: \"TLS handshake rejected\" written %d times for three peers in a row, expected 1\n",
+            APP, rejected_logs
+        );
+        result++;
+    }
+
     ytls_cleanup(ytls);
 
     if(result == 0) {
@@ -245,6 +293,20 @@ PRIVATE int on_encrypted_data(void *user_data, gbuffer_t *gbuf)
 {
     (void)user_data;
     GBUFFER_DECREF(gbuf)
+    return 0;
+}
+
+/***************************************************************************
+ *  Log handler: counts the "TLS handshake rejected"
+ ***************************************************************************/
+PRIVATE int count_rejected_write(void *v, int priority, const char *bf, size_t len)
+{
+    (void)v;
+    (void)priority;
+    const char *needle = "TLS handshake rejected";
+    if(bf && memmem(bf, len, needle, strlen(needle))) {
+        rejected_logs++;
+    }
     return 0;
 }
 

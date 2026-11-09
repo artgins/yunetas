@@ -622,6 +622,28 @@ listened with no context, and the first peer crashed the yuno in
 `ytls_new_secure_filter()`. `tests/c/c_tcps` (`test14`, and
 `test14_mbedtls` when both backends are built).
 
+Both backends give NO context, the same way, for a `crypto` of a server
+without `ssl_certificate`, and for a key that is not the key of the
+certificate:
+
+```json
+"crypto": {
+    "library": "mbedtls",
+    "ssl_certificate": "/yuneta/agent/certs/new.crt",
+    "ssl_certificate_key": "/yuneta/agent/certs/old.key"
+}
+```
+
+OpenSSL says *"SSL_CTX_use_PrivateKey_file() FAILED"* (`key values
+mismatch`), mbedTLS *"Key does not match cert"*. At the start the server
+does not listen, as above. At `reload-certs` (or a copy of a new pair that
+is half done: the new certificate is there, the old key still is) the
+reload answers `-1` and the server KEEPS the context it had: it goes on
+listening with the old pair. Up to 7.30.18 the mbedTLS backend took both: the
+server listened, said `tls_ready`, and every handshake failed; a reload with
+a new certificate and the old key said *"TLS certificates reloaded"* and
+dropped the good context. `tests/c/ytls/test_server_init_not_fatal`.
+
 ### IP lists at accept
 
 The yuno keeps two lists of peer ips: `denied_ips` and `allowed_ips`
