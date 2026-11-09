@@ -107,9 +107,51 @@ wildcard for any issuer. Since 7.2.0 a token must have `iss` equal to the
   key with kid '*' is not allowed: its kid must be the issuer (iss) of the
   tokens it validates"*. The other keys load.
 - `add-jwk kid=*` answers `-1` with the same text, and adds nothing.
+- `remove-jwk kid=*` answers `-1`, *"... it was never loaded, nothing to
+  remove"*, and logs nothing (up to 7.30.18 it answered `0` "deleted" and
+  logged three ERRORs, one with a stack).
 
 Give one key for each issuer, with the issuer as its `kid`.
-`assertion_jwks` refuses `*` too. `tests/c/authz_login` (cases 11 and 12).
+`assertion_jwks` refuses `*` too. `tests/c/authz_login` (cases 11 to 13).
+
+**A rotation keeps two keys of one issuer**: two entries with the same
+`kid`, each verifying the tokens signed with it. `remove-jwk` of that `kid`
+removes ALL of them, answers `0` with *"... deleted (2 keys) ..."*, and its
+`data` is the list of the records removed (one record, as before, when the
+kid had one key). Up to 7.30.18 only the first went, and the other key went
+on validating tokens until the yuno restarted. `tests/c/authz_login` (case
+14).
+
+```bash
+ycommand -c 'command-yuno id=<id> service=authz command=remove-jwk kid=https://auth.example.com/realms/example'
+```
+
+(authz-store-full)=
+### A store that refuses the login history (`on_critical_error`)
+
+A master `C_AUTHZ` writes a record of each login with a token and of each
+logout in its store (`users_accesses`). `on_critical_error` is the
+`on_critical_error` of that store (its `C_TRANGER`):
+
+| Value | A write the store refuses (a full disk, an I/O error) |
+|---|---|
+| `2` (`LOG_OPT_EXIT_ZERO`, the default) | The yuno exits with code 0 (its watcher does not launch it again), as always. A yuno whose store is its role ends on a full disk. A second master of the same store also stays down. |
+| `0` | The yuno goes on. Its users and keys are in memory, so logins go on; the login history is best-effort. ONE ERROR when the store refuses a record, *"Login history cannot be saved: logins go on without it, tried again from 1 s up to each 60 s"*; the records in between are not written (each refused write is a CRITICAL of timeranger2); one INFO when a record is saved again, *"Login history saved again"* (with `not_saved`). |
+
+The agent sets `0` (its login history is secondary for it; a dead agent is
+reachable only over SSH). Set it in the config only:
+
+```json
+"global": {
+    "Authz.master": true,
+    "Authz.on_critical_error": 0
+}
+```
+
+Up to 7.30.18 it was `LOG_OPT_EXIT_ZERO`, fixed: a login with a token on a
+full disk exited every yuno where `C_AUTHZ` is master, the agent included.
+`tests/c/authz_login` (`test_authz_store_full`, and `_exit` for the
+default).
 
 (authz-trust-peer-ip)=
 ### A login by the peer's address, and a proxy (`trust_peer_ip`)

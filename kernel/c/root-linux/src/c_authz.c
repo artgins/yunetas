@@ -87,6 +87,14 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+/*
+ *  A login history the store refuses (a full disk, with an on_critical_error
+ *  that does not exit): the next record is tried after a wait doubling from
+ *  ACCESS_RETRY_FIRST_MS up to ACCESS_RETRY_MAX_MS; the ones in between are
+ *  not written (save_user_access())
+ */
+#define ACCESS_RETRY_FIRST_MS   1000
+#define ACCESS_RETRY_MAX_MS     60000
 
 /***************************************************************************
  *              Structures
@@ -95,6 +103,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void save_user_access(hgobj gobj, json_t *access);
 PRIVATE int add_user_login(
     hgobj gobj,
     const char *username,
@@ -386,6 +395,7 @@ SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD|SDF_DEPRECATED, "", "If tranger_p
 
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "The master is the only one that can write the authzs store, and the only one that creates its directory. Not set internally: configure it (Authz.master)"),
+SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "on_critical_error of the authzs store (its C_TRANGER): 2 (LOG_OPT_EXIT_ZERO) a write it refuses (a full disk) exits the yuno with code 0, and a second master of the store stays down. 0: the yuno goes on; its users and keys are in memory, so logins go on, and the login history is best-effort: ONE ERROR when the store refuses it, one INFO when it saves again. Set 0 where the store is secondary for the yuno (the agent). Set in the config only"),
 
 SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
 /*
@@ -471,6 +481,10 @@ typedef struct _PRIVATE_DATA {
 
     json_t *jn_assertion_validations;   // the same, of the operator assertions
     jwk_set_t *assertion_jwks;
+
+    json_int_t access_retry_ms;     // the store refused the login history: the wait of the next try; 0: it saves
+    uint64_t t_access_retry;        // msectimer: the next record of the login history tried
+    json_int_t accesses_not_saved;  // records of the login history not saved since the store refused one
 
 } PRIVATE_DATA;
 
@@ -623,7 +637,7 @@ PRIVATE void mt_create(hgobj gobj)
         "path", path,
         "filename_mask", "%Y",
         "master", master,
-        "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
+        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
     );
     priv->gobj_tranger = gobj_create_service(
         "tranger_authz",
@@ -1769,22 +1783,44 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             kw  // owned
         );
     }
-
-    json_t *jwks = gobj_read_json_attr(gobj, "jwks");
+    if(strcmp(kid, "*")==0) {
+        /*
+         *  Never loaded (create_jwt_validations() refuses it): nothing
+         *  validates with it, nothing to remove. Up to 7.30.18 its record
+         *  was taken out of `jwks`, the answer was 0 "deleted", and the
+         *  missing validation logged three ERRORs, one with a stack.
+         */
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: %s: it was never loaded, nothing to remove",
+                gobj_yuno_role_plus_name(), JWK_KID_STAR_REFUSED
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
-     *  Check if the record already exists
+     *  Every record of the kid: a rotation keeps two keys of one issuer.
+     *  The running set only (see cmd_add_jwk). Up to 7.30.18 only the
+     *  first went, and the other key went on validating until the yuno
+     *  restarted.
      */
-    json_t *jn_record = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
-        gobj,
-        jwks,       // kw, NOT owned
-        kid,        // id
-        0,          // new_record, owned
-        jwk_desc,   // json_desc
-        NULL,       // idx pointer
-        0           // flag
-    );
-    if(!jn_record) {
+    json_t *jwks = gobj_read_json_attr(gobj, "jwks");
+    json_t *jn_removed = json_array();
+    size_t idx = json_array_size(jwks);
+    while(idx > 0) {
+        idx--;
+        json_t *jn_record = json_array_get(jwks, idx);
+        if(strcmp(kw_get_str(gobj, jn_record, "kid", "", 0), kid)==0) {
+            json_array_insert(jn_removed, 0, jn_record);
+            json_array_remove(jwks, idx);
+        }
+    }
+    if(json_array_size(jn_removed) == 0) {
+        JSON_DECREF(jn_removed)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1796,33 +1832,37 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
 
     /*
-     *  Remove the record
+     *  Destroy validation keys
      */
-    jn_record = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
-        gobj,
-        jwks,       // kw, NOT owned
-        kid,        // id
-        0,          // new_record, owned
-        jwk_desc,   // json_desc
-        NULL,       // idx pointer
-        KW_EXTRACT  // flag
-    );
+    int validations = destroy_validation_key(gobj, kid);
 
-    /*
-     *  The running set only (see cmd_add_jwk)
-     */
+    json_t *jn_comment;
+    if(validations == 0) {
+        jn_comment = json_sprintf(
+            "%s: kid (iss) '%s' deleted, it validated no token (its key was refused at load): take it out of the config (jwks) too",
+            gobj_yuno_role_plus_name(), kid
+        );
+    } else {
+        jn_comment = json_sprintf(
+            "%s: kid (iss) '%s' deleted (%d keys) until the yuno restarts: take it out of the config (jwks) too",
+            gobj_yuno_role_plus_name(), kid, (int)json_array_size(jn_removed)
+        );
+    }
 
-    /*
-     *  Destroy validation key
-     */
-    destroy_validation_key(gobj, kid);
+    json_t *jn_data;
+    if(json_array_size(jn_removed) == 1) {
+        jn_data = json_incref(json_array_get(jn_removed, 0));   // one key: its record, as always
+        JSON_DECREF(jn_removed)
+    } else {
+        jn_data = jn_removed;   // the keys of a rotation: their records
+    }
 
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%s: kid (iss) '%s' deleted until the yuno restarts: take it out of the config (jwks) too", gobj_yuno_role_plus_name(), kid),
+        jn_comment,
         json_desc_to_schema(jwk_desc),
-        jn_record, // owned
+        jn_data, // owned
         kw  // owned
     );
 }
@@ -3374,7 +3414,9 @@ PRIVATE int create_validation_key(
 }
 
 /***************************************************************************
- *  Destroy validations
+ *  Destroy the validations of a kid, all of them (a rotation keeps two keys
+ *  of one issuer), and their keys. Return how many validations went: 0 when
+ *  the key of the kid was refused at load, which is no error.
  ***************************************************************************/
 PRIVATE int destroy_validation_key(
     hgobj gobj,
@@ -3382,43 +3424,32 @@ PRIVATE int destroy_validation_key(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  Delete validation
-     */
-    json_t *jn_jwt = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
-        gobj,
-        priv->jn_validations,   // kw, NOT owned
-        kid,                    // id
-        0,                      // new_record, owned
-        jwk_desc,               // json_desc
-        NULL,                   // idx pointer
-        KW_EXTRACT              // flag
-    );
-
-    jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
-        gobj,
-        jn_jwt,
-        "jwt_checker",
-        0,
-        KW_REQUIRED
-    );
-    jwt_checker_free(jwt_checker);
-
-    jwk_item_t *jwk_item = jwks_find_bykid(priv->jwks, kid);
-    if(jwk_item) {
-        jwks_item_free2(priv->jwks, jwk_item);
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION,
-            "msg",              "%s", "kid NOT FOUND",
-            "kid",              "%s", kid,
-            NULL
+    int destroyed = 0;
+    size_t idx = json_array_size(priv->jn_validations);
+    while(idx > 0) {
+        idx--;
+        json_t *jn_validation = json_array_get(priv->jn_validations, idx);
+        if(strcmp(kw_get_str(gobj, jn_validation, "kid", "", 0), kid)!=0) {
+            continue;
+        }
+        jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
+            gobj,
+            jn_validation,
+            "jwt_checker",
+            0,
+            KW_REQUIRED
         );
+        jwt_checker_free(jwt_checker);
+        json_array_remove(priv->jn_validations, idx);
+        destroyed++;
     }
 
-    JSON_DECREF(jn_jwt)
-    return 0;
+    jwk_item_t *jwk_item;
+    while((jwk_item = jwks_find_bykid(priv->jwks, kid))) {
+        jwks_item_free2(priv->jwks, jwk_item);
+    }
+
+    return destroyed;
 }
 
 /***************************************************************************
@@ -4607,15 +4638,7 @@ PRIVATE int add_user_login(
             json_object_set(accesso, "jwt_payload", jwt_payload);
         }
 
-        json_decref(gobj_update_node(
-            priv->gobj_treedb,
-            "users_accesses",
-            accesso, // owned
-            json_pack("{s:b}",
-                "create", 1
-            ),
-            gobj
-        ));
+        save_user_access(gobj, accesso);
     }
 
     return 0;
@@ -4638,18 +4661,76 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
             "tm", (json_int_t)time_in_seconds()
         );
 
-        json_decref(gobj_update_node(
-            priv->gobj_treedb,
-            "users_accesses",
-            access, // owned
-            json_pack("{s:b}",
-                "create", 1
-            ),
-            gobj
-        ));
+        save_user_access(gobj, access);
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  A record of the login history (users_accesses), best-effort. With the
+ *  default on_critical_error (2) a write the store refuses has already
+ *  exited the yuno. Without the exit bit (the agent: its users and keys
+ *  are in memory, its logins must not depend on a disk) the login goes on,
+ *  and it is said ONCE, on the transition: one ERROR when the store
+ *  refuses a record, one INFO when it saves one again. In between, a
+ *  record is tried only after a wait doubling from ACCESS_RETRY_FIRST_MS
+ *  up to ACCESS_RETRY_MAX_MS, and the others are counted, not written: each
+ *  refused write is a CRITICAL of timeranger2 and an ERROR of the treedb.
+ ***************************************************************************/
+PRIVATE void save_user_access(hgobj gobj, json_t *access)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->access_retry_ms > 0 && !test_msectimer(priv->t_access_retry)) {
+        priv->accesses_not_saved++;
+        JSON_DECREF(access)
+        return;     // said once, when the store refused one
+    }
+
+    json_t *node = gobj_update_node(
+        priv->gobj_treedb,
+        "users_accesses",
+        access, // owned
+        json_pack("{s:b}",
+            "create", 1
+        ),
+        gobj
+    );
+    if(!node) {
+        priv->accesses_not_saved++;
+        if(priv->access_retry_ms == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB,
+                "msg",          "%s", "Login history cannot be saved: logins go on without it, tried again from 1 s up to each 60 s",
+                "path",         "%s", gobj_read_str_attr(gobj, "tranger_path"),
+                NULL
+            );
+            priv->access_retry_ms = ACCESS_RETRY_FIRST_MS;
+        } else {
+            priv->access_retry_ms *= 2;
+            if(priv->access_retry_ms > ACCESS_RETRY_MAX_MS) {
+                priv->access_retry_ms = ACCESS_RETRY_MAX_MS;
+            }
+        }
+        priv->t_access_retry = start_msectimer(priv->access_retry_ms);
+        return;
+    }
+    JSON_DECREF(node)
+
+    if(priv->access_retry_ms > 0) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB,
+            "msg",          "%s", "Login history saved again",
+            "not_saved",    "%ld", (long)(priv->accesses_not_saved),
+            "path",         "%s", gobj_read_str_attr(gobj, "tranger_path"),
+            NULL
+        );
+        priv->access_retry_ms = 0;
+        priv->accesses_not_saved = 0;
+    }
 }
 
 

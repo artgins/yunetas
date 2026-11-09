@@ -81,3 +81,37 @@ foreach(binary test_authz_login test_authz_login_no_peer_ip)
     set_tests_properties("${current_directory_name}/${binary}" PROPERTIES
         TIMEOUT 60 RESOURCE_LOCK authz_login_store)
 endforeach()
+
+##############################################
+#   A login whose history the store cannot write: on_critical_error 0 (the
+#   agent's: logins go on) and the default (_exit: the yuno exits with 0)
+##############################################
+foreach(binary test_authz_store_full test_authz_store_full_exit)
+    add_yuno_executable(${binary} test_authz_store_full.c)
+
+    if(binary STREQUAL "test_authz_store_full_exit")
+        target_compile_definitions(${binary} PRIVATE EXIT_DEFAULT)
+    endif()
+
+    if(CONFIG_FULLY_STATIC)
+        set_target_properties(${binary} PROPERTIES
+            LINK_SEARCH_START_STATIC TRUE
+            LINK_SEARCH_END_STATIC TRUE
+        )
+    endif()
+
+    target_link_libraries(${binary}
+        ${YUNETAS_KERNEL_LIBS}
+        ${YUNETAS_EXTERNAL_LIBS}
+        ${YUNETAS_PCRE_LIBS}
+        ${JWT_LIBS}
+        ${OPENSSL_LIBS}
+        ${MBEDTLS_LIBS}
+        ${DEBUG_LIBS}
+    )
+
+    add_test("${current_directory_name}/${binary}" ${binary})
+    # one .c names both stores (#ifdef): the checker sees both in each
+    set_tests_properties("${current_directory_name}/${binary}" PROPERTIES
+        TIMEOUT 60 RESOURCE_LOCK authz_store_full_store)
+endforeach()

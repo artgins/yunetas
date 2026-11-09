@@ -42,6 +42,13 @@
  *               it still logs alice in (case 4). Since 7.2.0 such a key
  *               validated nothing, and nobody was told
  *           12. add-jwk kid=*: refused, its comment says why, no log
+ *           13. remove-jwk kid=*: refused, it was never loaded, no log (up
+ *               to 7.30.18 it answered 0 "deleted" and logged three ERRORs,
+ *               one with a stack)
+ *           14. the two keys of a rotation (one kid): a token of the second
+ *               logs in; remove-jwk of the kid removes both, logs nothing,
+ *               and the token is refused (up to 7.30.18 only the first key
+ *               went, and the second went on validating until a restart)
  *          and no memory is left.
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
@@ -80,9 +87,10 @@
 #define MEM_MAX_SYSTEM_MEMORY   0
 
 #define TEST_ISS        "https://idp.test.example/realms/test"
+#define ROTATE_ISS      "https://idp.test.example/realms/rotate"
 #define ALICE           "alice@example.com"
 #define CLAIMS_MARKER   "claims-marker-of-the-test-0451"
-#define MAX_TOKENS      8
+#define MAX_TOKENS      10
 
 #define NOT_TRUSTED     "Without JWT/passw the peer address is not trusted"
 #define KID_STAR_REFUSED "A jwks key with kid '*' is not allowed"
@@ -169,6 +177,18 @@ PRIVATE char variable_config[]= "\
                         'kty': 'oct',                               \n\
                         'alg': 'HS256',                             \n\
                         'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
+                    },                                              \n\
+                    {                                               \n\
+                        'kid': '" ROTATE_ISS "',                    \n\
+                        'kty': 'oct',                               \n\
+                        'alg': 'HS256',                             \n\
+                        'k': 'eXVuZXRhLW9wZXJhdG9yLXRlc3Qta2V5LTAxMjM0NTY' \n\
+                    },                                              \n\
+                    {                                               \n\
+                        'kid': '" ROTATE_ISS "',                    \n\
+                        'kty': 'oct',                               \n\
+                        'alg': 'HS256',                             \n\
+                        'k': 'YW5vdGhlci1rZXktbm9ib2R5LXRydXN0cy0wMTIzNDU' \n\
                     },                                              \n\
                     {                                               \n\
                         'kid': '" TEST_ISS "',                      \n\
@@ -501,6 +521,48 @@ PRIVATE void run_checks(hgobj gobj)
         strstr(kw_get_str(gobj, r, "comment", "", 0), KID_STAR_REFUSED)? 1 : 0, 1);
     check_int("12. add-jwk kid=*: logs", s_warnings - warnings_before, 0);
     JSON_DECREF(r)
+
+    /*
+     *  13. remove-jwk kid=*: its key was never loaded (case 11)
+     */
+    warnings_before = s_warnings;
+    r = gobj_command(authz, "remove-jwk", json_pack("{s:s}", "kid", "*"), gobj);
+    check_int("13. remove-jwk kid=*: result", (int)kw_get_int(gobj, r, "result", -99, 0), -1);
+    check_int("13. remove-jwk kid=*: the comment says it was never loaded",
+        strstr(kw_get_str(gobj, r, "comment", "", 0), "never loaded")? 1 : 0, 1);
+    check_int("13. remove-jwk kid=*: logs", s_warnings - warnings_before, 0);
+    JSON_DECREF(r)
+
+    /*
+     *  14. The two keys of a rotation: the second validates; remove-jwk of
+     *  their kid takes both
+     */
+    claims = alice_claims();
+    json_object_set_new(claims, "iss", json_string(ROTATE_ISS));
+    const char *token_b = make_token(7, OTHER_JWK, claims);
+    claims = alice_claims();
+    json_object_set_new(claims, "iss", json_string(ROTATE_ISS));
+    const char *token_a = make_token(8, LOGIN_JWK, claims);
+    check_login(gobj, "14. alice, a token of the second key of a rotation", "127.0.0.1:40000",
+        "", token_b,
+        0, "", 0, 0);
+
+    warnings_before = s_warnings;
+    r = gobj_command(authz, "remove-jwk", json_pack("{s:s}", "kid", ROTATE_ISS), gobj);
+    check_int("14. remove-jwk of the rotation: result", (int)kw_get_int(gobj, r, "result", -99, 0), 0);
+    check_int("14. remove-jwk of the rotation: the comment says 2 keys",
+        strstr(kw_get_str(gobj, r, "comment", "", 0), "(2 keys)")? 1 : 0, 1);
+    check_int("14. remove-jwk of the rotation: its data has the 2 records",
+        (int)json_array_size(kw_get_list(gobj, r, "data", 0, 0)), 2);
+    check_int("14. remove-jwk of the rotation: logs", s_warnings - warnings_before, 0);
+    JSON_DECREF(r)
+
+    check_login(gobj, "14. the token of the second key, after remove-jwk", "127.0.0.1:40000",
+        "", token_b,
+        -1, "Authentication failed: Invalid token", 1, -1);
+    check_login(gobj, "14. a token of the first key, after remove-jwk", "127.0.0.1:40000",
+        "", token_a,
+        -1, "Authentication failed: Invalid token", 1, -1);
 }
 
 /***************************************************************
