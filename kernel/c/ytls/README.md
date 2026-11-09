@@ -89,9 +89,11 @@ client (`ytls_init()` answers `NULL`), never a fatal exit.
 
 A **server** is never fatal either (since 7.30.18): a certificate, key
 or trusted certificate that cannot be loaded, or an unknown `library`, makes
-`ytls_init()` answer `NULL` with one ERROR of the cause. Its owner degrades
-that listener: `C_TCP_S` does not listen and tries again until the files load,
-and the yuno goes on. Up to 7.30.17 it exited the process with code 0.
+`ytls_init()` answer `NULL` with one ERROR of the cause. Its owner decides:
+`C_TCP_S` never listens without a context, and exits the yuno with code 0 by
+default (`exitOnError`), or with `exitOnError` 0 tries again until the files
+load and the yuno goes on. Up to 7.30.17 ytls itself exited the process with
+code 0.
 `tests/c/ytls/test_server_init_not_fatal`.
 
 `ytls_get_peer_cert_info(ytls, sskt)` gives, after the handshake, the

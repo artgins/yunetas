@@ -84,6 +84,7 @@ PRIVATE char variable_config[]= "\
                     'kw': {                                         \n\
                         'url': 'tcp://127.0.0.1:7796',              \n\
                         'listen_retry_msec': 3000,                  \n\
+                        'exitOnError': 0,                           \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -165,11 +166,11 @@ static int register_yuno_and_more(void)
             "msg", "bind() FAILED", "__priority__", "WARNING",
             "msg", "Address in use: listening again", "__priority__", "WARNING",
             "msg", "bind() FAILED", "__priority__", "WARNING",
-            "msg", "Listen failed: not listening, trying again", "__priority__", "ERROR", "errno", 98,
+            "msg", "yev_create_accept_event() FAILED", "__priority__", "ERROR", "errno", 98,
             "msg", "bind() FAILED", "__priority__", "WARNING",   // its first try, said by nobody else
             "msg", "Listening again after a failed listen", "__priority__", "INFO",
             "msg", "bind() FAILED", "__priority__", "WARNING",
-            "msg", "Listen failed: not listening, trying again", "__priority__", "ERROR", "errno", 98,
+            "msg", "yev_create_accept_event() FAILED", "__priority__", "ERROR", "errno", 98,
             "msg", "URL NULL", "__priority__", "ERROR",
             "msg", "Cannot Listen on port 0", "__priority__", "ERROR",
             "msg", "parse_url() FAILED, no schema", "__priority__", "ERROR",

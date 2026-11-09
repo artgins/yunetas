@@ -352,6 +352,19 @@ json_t *kw_gss = json_pack("{s:s, s:I}",
 hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);    // gobj hears EV_ON_*
 ```
 
+`exitOnError` (default `true`) is passed to its `C_UDP_S`: a listen that
+fails, at the start or at a restart, exits the yuno with code 0 (logcenter:
+hearing the logs is its role). A yuno for which the UDP listener is
+secondary sets it `false`, and the `C_UDP_S` degrades instead (see
+[`C_UDP_S`](#gclass-c-udp-s), *A listen that fails*):
+
+```C
+json_t *kw_gss = json_pack("{s:s, s:b}",
+    "url", "udp://127.0.0.1:1992",
+    "exitOnError", 0        // the yuno goes on without its UDP listener
+);
+```
+
 ### Answer a peer
 
 The gbuffer of an `EV_ON_MESSAGE` carries its peer twice: as its LABEL
@@ -406,10 +419,11 @@ tells it from a stop made from outside. `C_GSS_UDP_S` then:
 - starts the `C_UDP_S` again after that backoff, and says *"UDP server
   started again"*, INFO, with `tx_dropped`, the sends refused meanwhile --
   only when it LISTENS (its `listening` attr). A start whose listen fails (its
-  port held by another socket) is said and tried again by the `C_UDP_S`
-  (*"Listen failed: ..."*, ERROR, then *"UDP listening ..."* when it listens),
-  if it does not exit the yuno; up to 7.30.18 *"UDP server started again"*
-  came too, for a server that did not listen. The
+  port held by another socket) exits the yuno with code 0 (`exitOnError`, the
+  default); with `exitOnError` false it is said and tried again by the
+  `C_UDP_S` (*"yev_create_accept_event() FAILED"*, ERROR, then *"UDP
+  listening ..."* when it listens); up to 7.30.18 *"UDP server started
+  again"* came too, for a server that did not listen. The
   backoff is `timeout_base` first, and DOUBLES (up to 5 minutes) each time
   the `C_UDP_S` stops again, or cannot start (*"UDP server cannot start
   again, it is tried again after a backoff"*), within a minute of the last

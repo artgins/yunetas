@@ -5,8 +5,9 @@ Tests `C_GSS_UDP_S` (`kernel/c/root-linux/src/c_gss_udp_s.c`) when its
 
 A driver gclass (`C_TEST_GSS_SELF_STOP`) creates a `C_GSS_UDP_S` child on
 `udp://127.0.0.1:34296` (`timeout_base` 1 s, `disable_end_of_frame`, so each
-datagram comes in the gbuffer `C_UDP_S` read it into) and a plain UDP socket,
-the peer:
+datagram comes in the gbuffer `C_UDP_S` read it into, and `"exitOnError": 0`,
+passed to its `C_UDP_S`: a listen that fails does not end the yuno) and a
+plain UDP socket, the peer:
 
 - At its create, a second `C_GSS_UDP_S` with `timeout_base` 0: refused with a
   warning (*"timeout_base <= 0 would arm no timer ..."*), and the attribute
@@ -26,7 +27,11 @@ the peer:
 3. The host sends `back`; the peer must get `early` and `back`, nothing else.
 4. The `C_UDP_S` stops by itself again (`three` kept), within a minute of its
    restart: the backoff doubles to 2 s. It must still be down 1.3 s after
-   that stop, and up again at 2.3 s.
+   that stop; its port is then taken by another socket. At 2.3 s the restart
+   has started it and its listen failed: ONE ERROR (*"yev_create_accept_event()
+   FAILED"*), and no *"UDP server started again"* (up to 7.30.18 it was said
+   anyway). The port is freed, and at its own try the `C_UDP_S` listens
+   (*"Listening again after a failed listen"*).
 5. Then it is stopped from outside (`gobj_stop()` of the `C_UDP_S`): *"UDP
    server stopped from outside, it is not started again"*, a send meanwhile
    refused with one warning, and 1.2 s later it is still down.

@@ -19,8 +19,8 @@ binds is exact.
   again"*, and at the retry *"Listening: its address in use was released"*;
   the server is in `ST_IDLE` and a client is accepted;
 - **held longer than `listen_retry_msec`** (1 ms): the retry is refused too,
-  and the listen fails: ONE ERROR, *"Listen failed: not listening, trying
-  again"* (`errno` 98), `listening` false, and the yuno goes on. Its first
+  and the listen fails: ONE ERROR, *"yev_create_accept_event() FAILED"*
+  (`errno` 98), `listening` false, and the yuno goes on. Its first
   try (1 s later) is refused too and says nothing more (only the `bind()`
   WARNING); the port is released, and the second try (2 s after the first)
   listens, with one INFO, *"Listening again after a failed listen"*; a
@@ -34,11 +34,26 @@ binds is exact.
   tried by itself; writing the good url listens at once, and a client is
   accepted.
 
-The config sets no `exitOnError`. Up to 7.30.17 the second case exited the
-yuno (`exitOnError`, `-1` by default): red, the test ends at *"Exiting"*.
+The server sets `"exitOnError": 0`, as the agent's do: without it the second
+case exits the yuno (`exitOnError`, `-1` by default), as up to 7.30.17 and
+again since 7.30.19: red, the test ends at *"Exiting"*.
+
+`test_exit_on_error` checks those defaults. Each case is a yuno of its own in
+a child process, whose exit code and output the parent reads:
+
+| Case | Must |
+|---|---|
+| `C_TCP_S`, its port (7784) held, `listen_retry_msec` 0 | *"Exiting"*, code 255 (`-1`) |
+| `C_TCP_S`, a TLS url (7798) whose certificate is not there | *"TLS server without its TLS context: exiting"*, code 0 |
+| `C_TCP_S`, a url of port 0, `exitOnError` 7 | *"Cannot Listen on port 0"*, code 7 |
+| `C_UDP_S`, its port (34301) held | *"exiting with code 0 (exitOnError)"*, code 0 |
+| `C_QIOGATE`, its queue under a regular file | *"Queue cannot be opened: exiting"*, code 255 |
+
+7.30.18 degraded every yuno and ignored `exitOnError`: red, each yuno reached
+its end (code 3, *"it did not exit"*).
 
 ## Run
 
 ```bash
-ctest -R test_c_tcp_s_addr_in_use --output-on-failure --test-dir build
+ctest -R "test_c_tcp_s_addr_in_use|test_exit_on_error" --output-on-failure --test-dir build
 ```

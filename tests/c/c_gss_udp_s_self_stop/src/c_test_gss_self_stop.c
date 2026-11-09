@@ -27,8 +27,13 @@
  *                 Then the C_UDP_S is made to stop by itself again ("three"
  *                 kept, rx_buffer_size 0), within RESTART_HOLD_MS of its
  *                 restart: the backoff doubles, 2 s.
- *              5. (1.3 s after that stop) it must still be down.
- *              6. (2.3 s) it must be up again. Then it is stopped from
+ *              5. (1.3 s after that stop) it must still be down; its port
+ *                 is then taken by another socket.
+ *              6. (2.3 s) the restart started it, and its listen failed
+ *                 (exitOnError FALSE: ONE error, its own try later, and no
+ *                 "UDP server started again"); the port is freed, and at
+ *                 its try it listens ("Listening again after a failed
+ *                 listen"). Then it is stopped from
  *                 outside (gobj_stop() of the C_UDP_S): said, not started
  *                 again, and a send meanwhile refused.
  *              7. (1.2 s) it must still be down. The C_GSS_UDP_S is then
@@ -113,6 +118,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_gss;
     hgobj gobj_udp_s;
     int peer_fd;
+    int squatter_fd;        // holds the port of the C_UDP_S while it is down
     int phase;
     BOOL keep_next;
     BOOL restart_on_udp_stopped;    // at the next EV_STOPPED of the C_UDP_S: stop and start the C_GSS_UDP_S
@@ -141,14 +147,16 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->peer_fd = -1;
+    priv->squatter_fd = -1;
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->gobj_gss = gobj_create(
         "gss",
         C_GSS_UDP_S,
-        json_pack("{s:s, s:i, s:b}",
+        json_pack("{s:s, s:i, s:b, s:b}",
             "url", GSS_URL,
             "timeout_base", 1000,
-            "disable_end_of_frame", 1
+            "disable_end_of_frame", 1,
+            "exitOnError", 0
         ),
         gobj
     );
@@ -184,6 +192,10 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     GBUFFER_DECREF(priv->kept)
+    if(priv->squatter_fd >= 0) {
+        close(priv->squatter_fd);
+        priv->squatter_fd = -1;
+    }
     if(priv->peer_fd >= 0) {
         close(priv->peer_fd);
         priv->peer_fd = -1;
@@ -435,12 +447,34 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, !gobj_in_this_state(priv->gobj_udp_s, ST_IDLE),
                 "the C_UDP_S started again before its doubled backoff (2 s)"
             );
+            /*
+             *  Its port taken while it is down: the restart starts it, and
+             *  its listen fails
+             */
+            priv->squatter_fd = socket(AF_INET, SOCK_DGRAM, 0);
+            check(gobj,
+                priv->squatter_fd >= 0 &&
+                bind(priv->squatter_fd, (struct sockaddr *)&priv->server_addr, sizeof(priv->server_addr)) == 0,
+                "TEST: cannot take the port of the C_UDP_S"
+            );
             set_timeout(priv->timer, 1000);
             break;
 
         case 6:
+            check(gobj, gobj_is_running(priv->gobj_udp_s),
+                "the C_UDP_S was not started again after its doubled backoff"
+            );
+            check(gobj, !gobj_read_bool_attr(priv->gobj_udp_s, "listening"),
+                "the C_UDP_S listens on a port held by another socket"
+            );
+            close(priv->squatter_fd);
+            priv->squatter_fd = -1;
+            set_timeout(priv->timer, 1500);
+            break;
+
+        case 7:
             check(gobj, gobj_in_this_state(priv->gobj_udp_s, ST_IDLE),
-                "the C_UDP_S did not start again after its doubled backoff"
+                "the C_UDP_S did not listen once its port was free"
             );
 
             /*
@@ -451,7 +485,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 1200);
             break;
 
-        case 7:
+        case 8:
             {
                 check(gobj, !gobj_is_running(priv->gobj_udp_s),
                     "the C_UDP_S stopped from outside was started again"
@@ -473,12 +507,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             break;
 
-        case 8:
+        case 9:
             peer_send(gobj, "four");
             set_timeout(priv->timer, 200);
             break;
 
-        case 9:
+        case 10:
             check(gobj, strcmp(priv->received, "one two three four ")==0,
                 "the C_GSS_UDP_S started again does not hear"
             );
@@ -496,12 +530,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 300);
             break;
 
-        case 10:
+        case 11:
             peer_send(gobj, "five");
             set_timeout(priv->timer, 200);
             break;
 
-        case 11:
+        case 12:
             check(gobj, strcmp(priv->received, "one two three four five ")==0,
                 "the C_GSS_UDP_S stopped and started in the same turn does not hear"
             );
@@ -528,12 +562,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 300);
             break;
 
-        case 12:
+        case 13:
             peer_send(gobj, "six");
             set_timeout(priv->timer, 200);
             break;
 
-        case 13:
+        case 14:
             check(gobj, strcmp(priv->received, "one two three four five six ")==0,
                 "the C_GSS_UDP_S does not hear after a start that overtook a posted one"
             );

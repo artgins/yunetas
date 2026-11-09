@@ -76,3 +76,29 @@ target_link_libraries(${PROJECT_NAME}
 #   Test
 ##############################################
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+
+##############################################
+#   test_exit_on_error: exitOnError of C_TCP_S, C_UDP_S and C_QIOGATE,
+#   each case a yuno in a child process
+##############################################
+add_yuno_executable(test_exit_on_error src/test_exit_on_error.c)
+
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(test_exit_on_error PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+
+target_link_libraries(test_exit_on_error
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${JWT_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+
+add_test(NAME test_exit_on_error COMMAND test_exit_on_error)
+set_tests_properties(test_exit_on_error PROPERTIES TIMEOUT 60)

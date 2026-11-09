@@ -140,12 +140,12 @@ SDATA (DTP_DICT,        "crypto",               SDF_WR|SDF_PERSIST, "{}",       
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",        "True if schema is secure. Set internally"),
-SDATA (DTP_BOOLEAN,     "listening",            SDF_RD|SDF_STATS,   0,              "Listening now. False while stopped, while an address in use is tried again (listen_retry_msec), while a failed listen is tried again or its url is bad, and while a TLS url has no TLS context (tls_ready). Running and not listening: the yuno goes on, one ERROR said why"),
-SDATA (DTP_BOOLEAN,     "tls_ready",            SDF_RD|SDF_STATS,   0,              "A TLS url (use_ssl) with its TLS context loaded. use_ssl and not tls_ready: the certificate, key or trusted certificate of 'crypto' cannot be loaded; the server does not listen and tries again (from 1 s up to each 60 s, and at reload-certs), the yuno goes on"),
+SDATA (DTP_BOOLEAN,     "listening",            SDF_RD|SDF_STATS,   0,              "Listening now. False while stopped, while an address in use is tried again (listen_retry_msec), and with exitOnError 0 while a failed listen is tried again or its url is bad, and while a TLS url has no TLS context (tls_ready). Running and not listening: the yuno goes on, one ERROR said why"),
+SDATA (DTP_BOOLEAN,     "tls_ready",            SDF_RD|SDF_STATS,   0,              "A TLS url (use_ssl) with its TLS context loaded. use_ssl and not tls_ready (exitOnError 0): the certificate, key or trusted certificate of 'crypto' cannot be loaded; the server does not listen and tries again (from 1 s up to each 60 s, and at reload-certs), the yuno goes on"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
-SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD|SDF_DEPRECATED, "0",        "Ignored: a listen that fails never ends the yuno, it is tried again (up to 7.30.17 the yuno exited with this code, -1 by default). Kept so that a config that sets it is not refused"),
-SDATA (DTP_INTEGER,     "listen_retry_msec",    SDF_WR|SDF_PERSIST, "5000",         "How long a listen whose address is in use (EADDRINUSE) is tried again, at each tick of the yuno's periodic timeout, before it fails as any other listen (tried again from 1 s up to each 60 s). A yuno killed and launched at once finds its port held by the dead one for a while: the io_uring ring of a process is torn down after it is gone, with the accept that holds the socket. 0: no fast retry"),
+SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",           "What a listen that fails does to the yuno (a bad url, a socket that cannot be made, an address in use past listen_retry_msec, a TLS url whose TLS context cannot be loaded). Not 0: the yuno exits with this code (-1: its watcher launches it again), and with code 0 when it is the TLS context (not launched again). 0: the server degrades, the yuno goes on: it does not listen, says it with ONE ERROR (listening, tls_ready), and tries again from 1 s up to each 60 s, a TLS url also at reload-certs. Set 0 where the listener is secondary for the yuno (the agent's)"),
+SDATA (DTP_INTEGER,     "listen_retry_msec",    SDF_WR|SDF_PERSIST, "5000",         "How long a listen whose address is in use (EADDRINUSE) is tried again, at each tick of the yuno's periodic timeout, before it fails as any other listen (exitOnError). A yuno killed and launched at once finds its port held by the dead one for a while: the io_uring ring of a process is torn down after it is gone, with the accept that holds the socket. 0: no fast retry"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept, legacy method"),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
@@ -181,6 +181,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     const char *url;
+    int exitOnError;
 
     json_t * clisrv_kw;
     BOOL trace_tls;
@@ -239,6 +240,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(url,               gobj_read_str_attr)
+    SET_PRIV(exitOnError,       gobj_read_integer_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
@@ -313,6 +315,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
                 // Error already logged
             }
         }
+    ELIF_EQ_SET_PRIV(exitOnError,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(trace_tls,         gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     END_EQ_SET_PRIV()
@@ -471,7 +474,7 @@ PRIVATE int start_listening(hgobj gobj)
         if(err == EADDRINUSE && priv->listen_backoff_msec == 0 && listen_again_later(gobj)) {
             return 0;   // it listens at a retry (EV_TIMEOUT)
         }
-        return listen_failed(gobj, "Listen failed: not listening, trying again", MSGSET_SYSTEM, err, TRUE);
+        return listen_failed(gobj, "yev_create_accept_event() FAILED", MSGSET_SYSTEM, err, TRUE);
     }
     priv->listen_backoff_msec = 0;
 
@@ -540,13 +543,27 @@ PRIVATE int start_listening(hgobj gobj)
             }
         }
 
+        if(!priv->ytls && priv->exitOnError) {
+            /*
+             *  As up to 7.30.17, when ytls itself exited: code 0, the
+             *  watcher does not launch it again. Never listen without a
+             *  context: up to 7.30.14 (mbedTLS) the first peer crashed the
+             *  yuno in ytls_new_secure_filter().
+             */
+            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "TLS server without its TLS context: exiting",
+                "url",          "%s", url,
+                "exitOnError",  "%d", priv->exitOnError,
+                NULL
+            );
+        }
         if(!priv->ytls) {
             /*
-             *  No TLS context: no listen. The socket is closed before any
-             *  accept was asked; the yuno and its other listeners go on.
-             *  Up to 7.30.14 (mbedTLS) it listened with none, and the first
-             *  peer crashed the yuno in ytls_new_secure_filter(); up to
-             *  7.30.17 ytls exited the yuno with code 0 instead.
+             *  exitOnError 0: no TLS context, no listen. The socket is
+             *  closed before any accept was asked; the yuno and its other
+             *  listeners go on (7.30.18 did this for every yuno).
              */
             yev_destroy_event(priv->yev_server_accept);
             priv->yev_server_accept = 0;
@@ -875,11 +892,12 @@ PRIVATE BOOL listen_again_later(hgobj gobj)
 }
 
 /***************************************************************************
- *  The listen failed: no listen, and the yuno goes on. Up to 7.30.17 it
- *  exited (exitOnError, -1 by default), and its watcher launched it again
- *  2 s later: a port held by another process relaunched the yuno over and
- *  over, and an agent whose 1991 or 1993 was held went down with all its
- *  other listeners. Return -1, or 0 when a try is armed.
+ *  The listen failed. With exitOnError (-1 by default) the yuno exits with
+ *  that code, as always: the listener is its role, its watcher launches it
+ *  again (2 s later, then longer). With exitOnError 0 -- a listener that is
+ *  secondary for its yuno, as the agent's 1991 and 1993 -- there is no
+ *  listen and the yuno goes on (7.30.18 did this for every yuno). Return
+ *  -1, or 0 when a try is armed.
  *
  *  `retry` (the socket could not be made: an address held past
  *  listen_retry_msec, a host not on this machine yet, a name that does not
@@ -895,6 +913,27 @@ PRIVATE BOOL listen_again_later(hgobj gobj)
 PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int err, BOOL retry)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->exitOnError) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", msgset,
+            "msg",          "%s", msg,
+            "url",          "%s", priv->url,
+            "errno",        "%d", err,
+            "strerror",     "%s", err? strerror(err) : "",
+            "listen_retries", "%d", priv->listen_retries,
+            NULL
+        );
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Exiting",
+            "exitOnError",  "%d", priv->exitOnError,
+            NULL
+        );
+        exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
+    }
 
     if(!retry || !priv->listen_down) {
         gobj_log_error(gobj, 0,
@@ -934,10 +973,11 @@ PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int e
  *  timeout of the timer, the wait doubling from RETRY_FIRST_MSEC up to
  *  RETRY_MAX_MSEC. Said on the transition: ONE error when it stops
  *  listening for it (after the ERROR of its cause, from ytls), one info when
- *  a context is loaded and it listens. A secondary listener of a yuno -- the
- *  1993 of the agent without its pair -- must not end the yuno: the yuno
- *  goes on with its other listeners, and this one opens the moment its
- *  certificates are there (`yuneta-agent-cert ensure`, cert-sync).
+ *  a context is loaded and it listens. Only with exitOnError 0: a secondary
+ *  listener of a yuno -- the 1993 of the agent without its pair -- must not
+ *  end the yuno: the yuno goes on with its other listeners, and this one
+ *  opens the moment its certificates are there (`yuneta-agent-cert ensure`,
+ *  cert-sync).
  ***************************************************************************/
 PRIVATE void tls_again_later(hgobj gobj)
 {

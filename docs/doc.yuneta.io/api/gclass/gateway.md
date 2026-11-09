@@ -166,7 +166,8 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
 | `pending_acks` | `integer` (stats) | Messages sent and waiting for their ack: a gauge, read live. |
 | `dropped_msgs` | `integer` (stats) | Messages refused because the queue could not save them, or could not be opened, since the yuno started. |
-| `queue_ready` | `bool` (stats) | The queue is open. False while stopped, and when it could not be opened at the start (see *A queue that cannot be opened*). |
+| `exitOnError` | `integer` | What a queue that cannot be opened at the start does to the yuno (default `-1`). Not `0`: one ERROR, *"Queue cannot be opened: exiting"*, and the yuno exits with this code (`-1`: its watcher launches it again). `0`: the gate degrades and the yuno goes on (see *A queue that cannot be opened*). Example: `'kw': {'exitOnError': 0}`. |
+| `queue_ready` | `bool` (stats) | The queue is open. False while stopped, and when it could not be opened at the start with `exitOnError` `0` (see *A queue that cannot be opened*). |
 
 `msgs_in_queue` and `pending_acks` are stats attributes, so they are in the
 stats of the gate itself and in those of a `C_MQIOGATE` above it, one entry
@@ -210,8 +211,18 @@ if(gobj_send_event(gobj_output_side, EV_SEND_MESSAGE, kw, gobj) < 0) {
 
 ### A queue that cannot be opened
 
-A gate whose queue cannot be opened at its start (a `tranger_path` that
-cannot be made, a disk, a permission) **goes on without it**: `queue_ready`
+The queue is the role of a qiogate, so by default a gate whose queue cannot
+be opened at its start (a `tranger_path` that cannot be made, a disk, a
+permission, a bad config) **ends the yuno, at the open**: the causes logged
+by timeranger2, one ERROR, *"Queue cannot be opened: exiting"* (with `path`,
+`queue`, `topic_name`, `exitOnError`), and the yuno exits with `exitOnError`
+(`-1`). Its watcher launches it again, from 2 s up to each 60 s, so the gate
+opens by itself when the cause is gone, the same cadence as the degraded
+gate below. Up to 7.30.17 the yuno went on without its queue and aborted at
+its first message (CRITICAL *"trq_msgs NULL"*); 7.30.18 degraded every gate.
+
+With `exitOnError` `0` (a queue that is secondary for its yuno), the gate
+**goes on without it**: `queue_ready`
 false, and every message refused (`-1` to its sender, counted in
 `dropped_msgs`, no log per message). It says it ONCE, *"Queue cannot be
 opened: the gate refuses messages, trying again"* (with `path`, `queue`,
@@ -224,14 +235,28 @@ loaded, and sent if the bottom side is open. An empty `tranger_path`,
 *"Queue cannot be opened, its config is bad: the gate refuses messages"*. A
 stop takes the tries back.
 
-Up to 7.30.17 the first message to such a gate aborted the yuno (CRITICAL
-*"trq_msgs NULL"*), and its watcher launched it into the same failure. A log
-watcher alerts on the ERROR, or on `queue_ready` false:
+A log watcher alerts on the ERROR, or on `queue_ready` false:
 
 ```bash
 ycommand -c 'stats-yuno id=<id> service=__output_side__'
 # {"output-qiogate-aire": {"queue_ready": false, "dropped_msgs": 40, ...}, ...}
 ```
+
+```json
+{
+    "name": "output-qiogate-aire",
+    "gclass": "C_QIOGATE",
+    "kw": {
+        "tranger_path": "/yuneta/store/queues/gate_aire",
+        "tranger_database": "aire",
+        "topic_name": "msgs",
+        "exitOnError": 0
+    }
+}
+```
+
+`tests/c/c_qiogate_stats` (`exitOnError` `0`) and
+`tests/c/c_tcp_s_addr_in_use`'s `test_exit_on_error` (the default exits).
 
 ### What the queue keeps
 

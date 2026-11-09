@@ -626,10 +626,11 @@ be loaded (a missing file, a key that does not match), or `library` names a
 backend this build does not have, `ytls_init()` logs ONE ERROR with the cause
 and returns `NULL`. This holds for a server as for a client. What fails is
 that one TLS context, never the yuno: a client's connection fails, and a
-server's owner degrades that listener. [`C_TCP_S`](#gclass-c-tcp-s) does not
-listen without a context, and tries again until the files are there (see
-*A TLS server without its TLS context* on its page): the yuno and its other
-listeners go on.
+server's owner decides. [`C_TCP_S`](#gclass-c-tcp-s) never listens without a
+context: by default (`exitOnError`) it exits the yuno with code 0, and with
+`exitOnError` `0` (the agent's) it tries again until the files are there and
+the yuno and its other listeners go on (see *A TLS server without its TLS
+context* on its page).
 
 Up to 7.30.17 a server exited the process with code 0 here
 (`LOG_OPT_EXIT_ZERO`, the OpenSSL backend always, mbedTLS since 7.30.15), and

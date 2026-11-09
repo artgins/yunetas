@@ -122,14 +122,14 @@ static int register_yuno_and_more(void)
             "msg", "A secure url (udps://) is not supported by C_UDP_S: there is no DTLS",
             "msg", "TEST: the self-stop of C_UDP_S ended, and udps:// was refused",
             "msg", "bind() FAILED", "__priority__", "WARNING",
-            "msg", "Listen failed: not listening, trying again", "__priority__", "ERROR", "errno", 98,
+            "msg", "yev_create_accept_event() FAILED", "__priority__", "ERROR", "errno", 98,
             "msg", "bind() FAILED", "__priority__", "WARNING",   // its first try, said by nobody else
             "msg", "UDP listening ...",
             "msg", "Listening again after a failed listen", "__priority__", "INFO",
             "msg", "URL NULL",
             "msg", "TEST: a failed listen of C_UDP_S listens at its try, and an empty url is refused",
             "msg", "Cannot start event: gbuffer WITHOUT space to read",
-            "msg", "Cannot start the read of the UDP server: not listening, trying again", "__priority__", "ERROR",
+            "msg", "Cannot start the read of the UDP server", "__priority__", "ERROR",
             "msg", "Cannot start event: gbuffer WITHOUT space to read",     // its first try, said by nobody else
             "msg", "UDP listening ...",
             "msg", "Listening again after a failed listen",

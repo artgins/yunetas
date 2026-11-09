@@ -105,8 +105,8 @@ SDATA (DTP_DICT,        "crypto",           SDF_WR|SDF_PERSIST, "{}", "Crypto co
 SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",          SDF_RD,  "FALSE", "Always FALSE: a secure url (udps://) is refused at the start, there is no DTLS"),
-SDATA (DTP_BOOLEAN,     "exitOnError",      SDF_RD|SDF_DEPRECATED, "0", "Ignored: a listen that fails never ends the yuno (up to 7.30.17 the yuno exited with code 0, TRUE by default). Kept so that a config that sets it is not refused"),
-SDATA (DTP_BOOLEAN,     "listening",        SDF_RD|SDF_STATS, 0, "Listening now. False while stopped, while a failed listen is tried again (from 1 s up to each 60 s), and when its url is bad (said at the start). Running and not listening: the yuno goes on, one ERROR said why"),
+SDATA (DTP_BOOLEAN,     "exitOnError",      SDF_RD,  "1", "What a listen that fails does to the yuno (a bad url, udps://, a socket or its read that cannot be made). TRUE: the yuno exits with code 0, its watcher does not launch it again. FALSE: the server degrades, the yuno goes on: it does not listen, says it with ONE ERROR (listening), and tries again from 1 s up to each 60 s (a bad url only at a start). Set FALSE where the listener is secondary for the yuno"),
+SDATA (DTP_BOOLEAN,     "listening",        SDF_RD|SDF_STATS, 0, "Listening now. False while stopped, and with exitOnError FALSE while a failed listen is tried again (from 1 s up to each 60 s), and when its url is bad (said at the start). Running and not listening: the yuno goes on, one ERROR said why"),
 SDATA (DTP_BOOLEAN,     "set_broadcast",    SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
 SDATA (DTP_BOOLEAN,     "shared",           SDF_WR|SDF_PERSIST, 0, "Share the port"),
 SDATA (DTP_INTEGER,     "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
@@ -165,6 +165,7 @@ typedef struct send_in_flight_s {
 typedef struct _PRIVATE_DATA {
     // Conf
     const char *url;
+    BOOL exitOnError;
 
     hgobj gobj_timer;               // the tries of a listen that failed
     BOOL listen_down;               // its listen failed, and it was said: until it listens, or stops
@@ -222,6 +223,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(url,               gobj_read_str_attr)
+    SET_PRIV(exitOnError,       gobj_read_bool_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
 
@@ -386,7 +388,7 @@ PRIVATE int start_listening(hgobj gobj)
     );
     if(!priv->yev_server_udp) {
         int err = errno;    // the cause, set by yev_create_accept_event()
-        return listen_failed(gobj, "Listen failed: not listening, trying again", MSGSET_SYSTEM, err, TRUE);
+        return listen_failed(gobj, "yev_create_accept_event() FAILED", MSGSET_SYSTEM, err, TRUE);
     }
 
     /*
@@ -405,6 +407,9 @@ PRIVATE int start_listening(hgobj gobj)
             NULL
         );
         EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
+        if(priv->exitOnError) {
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
+        }
         return -1;  // a url does not fix itself: said at each start
     }
 
@@ -448,7 +453,7 @@ PRIVATE int start_listening(hgobj gobj)
         EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
         return listen_failed(   // the cause logged by yev_start_event(), at each try
             gobj,
-            "Cannot start the read of the UDP server: not listening, trying again",
+            "Cannot start the read of the UDP server",
             MSGSET_SYSTEM,
             0,
             TRUE
@@ -901,11 +906,12 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 #endif
 
 /***************************************************************************
- *  The listen failed: no listen, and the yuno goes on. Up to 7.30.17 it
- *  exited with code 0 (exitOnError, TRUE by default), and code 0 told its
- *  watcher not to launch it again: a port held by another process, or a
- *  host not on the machine yet at boot, left the yuno down for good.
- *  Return -1, or 0 when a try is armed.
+ *  The listen failed. With exitOnError (TRUE by default) the yuno exits
+ *  with code 0, as always: its watcher does not launch it again. With
+ *  exitOnError FALSE -- a listener that is secondary for its yuno -- there
+ *  is no listen and the yuno goes on (7.30.18 did this for every yuno):
+ *  a port held by another process, or a host not on the machine yet at
+ *  boot, is tried again. Return -1, or 0 when a try is armed.
  *
  *  `retry` (the socket or its read could not be made: an address in use, a
  *  host not on this machine yet, a name that does not resolve yet): tried
@@ -920,6 +926,20 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 PRIVATE int listen_failed(hgobj gobj, const char *msg, const char *msgset, int err, BOOL retry)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->exitOnError) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", msgset,
+            "msg",          "%s", msg,
+            "url",          "%s", priv->url,
+            "errno",        "%d", err,
+            "strerror",     "%s", err? strerror(err) : "",
+            "then",         "%s", "exiting with code 0 (exitOnError)",
+            NULL
+        );
+        exit(0); //WARNING exit with 0 to stop daemon watcher!
+    }
 
     if(!retry || !priv->listen_down) {
         gobj_log_error(gobj, 0,

@@ -113,7 +113,11 @@ code 1 (red: *"the yuno exited before the end of the test"*).
 backends are built) is a TLS server without its certificate. Three `C_TCP_S`
 share one pool of channels, as the agent's two do: `plain_port` (7882) and two
 TLS servers, `tls_port` (7881) and `tls_port2` (7883), whose certificate and
-key name files of a dir of the run that are not there yet.
+key name files of a dir of the run that are not there yet. The three set
+`"exitOnError": 0`, as the agent's do: the listener degrades and the yuno goes
+on. With the default (`-1`) a TLS server without its certificate exits the yuno
+with code 0, as up to 7.30.17 (`test_exit_on_error`, in
+`tests/c/c_tcp_s_addr_in_use`).
 
 | When | Must |
 |---|---|
@@ -123,8 +127,9 @@ key name files of a dir of the run that are not there yet.
 | then | the files are copied; `reload-certs` of `tls_port2` answers 0, it listens at once and takes a peer; `tls_port` waits for its timer |
 | next try of `tls_port` | it listens (*"TLS context loaded: listening"*), and a TLS client opens its channel (the handshake ended), with no restart |
 
-Up to 7.30.17 ytls exited the yuno with code 0 at the start (red: *"the yuno
-exited before the end of the test"*, on both backends). Mutants of the fix and
+Up to 7.30.17 ytls exited the yuno with code 0 at the start, whatever
+`exitOnError` said (red: *"the yuno exited before the end of the test"*, on
+both backends); without `"exitOnError": 0` C_TCP_S exits there, the same red. Mutants of the fix and
 what kills them: listening without a context (a SIGSEGV at the first peer),
 no try of the timer (*"tls_port did not listen once its certificate was
 there"*), a try that loads unchanged files or a state error at each try (an

@@ -85,6 +85,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         'Authz.master': false,                                      \n\
+        'Authz.on_critical_error': 0,                               \n\
         'Authz.authz_service': 'agent',                             \n\
         'Authz.max_sessions_per_user': 4,                           \n\
         'Authz.initial_load': {                                     \n\

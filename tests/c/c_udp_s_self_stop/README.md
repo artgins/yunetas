@@ -18,24 +18,27 @@ plain UDP socket, the peer:
    with *"A secure url (udps://) is not supported by C_UDP_S: there is no
    DTLS"*, and nothing may listen on the port.
 3. A `C_UDP_S` whose port (`127.0.0.1:34299`) is held by a socket with no
-   `SO_REUSEADDR` is started: ONE ERROR, *"Listen failed: not listening,
-   trying again"* (`errno` 98), `listening` false. Its first try (1 s later)
+   `SO_REUSEADDR` is started: ONE ERROR, *"yev_create_accept_event()
+   FAILED"* (`errno` 98), `listening` false. Its first try (1 s later)
    fails too and says nothing more (only the `bind()` WARNING); the port is
    released, and the second try listens, with one INFO, *"Listening again
    after a failed listen"*.
 4. A `C_UDP_S` with an empty url is started: *"URL NULL"*, the start fails,
    the yuno goes on.
 5. A `C_UDP_S` whose read cannot be started (`rx_buffer_size` 0) is started:
-   ONE ERROR, *"Cannot start the read of the UDP server: not listening,
-   trying again"*, and at its first try only the cause of
+   ONE ERROR, *"Cannot start the read of the UDP server"*, and at its first
+   try only the cause of
    `yev_start_event()`. With `rx_buffer_size` 4096 its second try listens,
    and *"UDP listening ..."* is said then, once. Up to this fix each try said
    *"UDP listening ..."* and its own ERROR again (red).
 
-No `C_UDP_S` of the test sets `exitOnError`. Up to 7.30.17 cases 2 to 4
-exited the yuno with code 0 (`exitOnError`, `TRUE` by default), which ctest
-takes for a pass: an `atexit()` handler turns an exit before the end of the
-test into code 1 (red: *"the yuno exited before the end of the test"*).
+The `C_UDP_S` of cases 2 to 5 set `"exitOnError": 0`. With the default
+(`TRUE`) they exit the yuno with code 0, as up to 7.30.17 and since 7.30.19
+(`test_exit_on_error`, in `tests/c/c_tcp_s_addr_in_use`), which ctest takes
+for a pass: an `atexit()` handler turns an exit before the end of the test
+into code 1 (red: *"the yuno exited before the end of the test"*). 7.30.18
+said cases 3 and 5 as *"Listen failed: not listening, trying again"* and
+*"Cannot start the read of the UDP server: not listening, trying again"*.
 
 Up to 7.25.4:
 

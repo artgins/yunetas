@@ -40,7 +40,8 @@ the yuno (red: the messages go in, and the checks fail).
 
 Then a third gate, `output-q3`, is created with its `tranger_path` under a
 regular file (`/tmp/test_c_qiogate_stats/blocked`), so its queue cannot be
-opened at the start:
+opened at the start, and `"exitOnError": 0` (the default, `-1`, exits the
+yuno at the open: `test_exit_on_error`, in `tests/c/c_tcp_s_addr_in_use`):
 
 - the causes of timeranger2, and ONE ERROR of the gate, *"Queue cannot be
   opened: the gate refuses messages, trying again"*; `queue_ready` false;

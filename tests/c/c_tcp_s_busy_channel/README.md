@@ -25,11 +25,12 @@ Two `C_TCP_S` share ONE channel (`C_PROT_TCP4H` over `C_TCP`): `tls_port` on
    `kw_get_dict()` handed back): the memory audit at the end fails the test.
 
 `tls_port` needs `/yuneta/agent/certs/localhost.crt` and `.key`. Without them
-`tls_port` does not listen and the yuno goes on: the test fails with
-*"TEST: tls_port is not listening: are /yuneta/agent/certs/localhost.{crt,key}
-there?"*. Up to 7.30.17 the yuno exited with code 0 at the start, which ctest
-would take for a pass; an `atexit()` handler still turns an exit before the
-last phase into code 1 (*"the yuno exited before the end of the test"*).
+`C_TCP_S` exits the yuno with code 0 at the start (`exitOnError`, `-1` by
+default), which ctest would take for a pass: an `atexit()` handler turns an
+exit before the last phase into code 1 (*"the yuno exited before the end of
+the test"*). With `"exitOnError": 0` it would not listen and the test would
+fail with *"TEST: tls_port is not listening: are
+/yuneta/agent/certs/localhost.{crt,key} there?"*.
 
 Run it:
 

@@ -126,6 +126,7 @@ SDATA (DTP_STRING,      "topic_name",       SDF_RD,             "",         "trq
 SDATA (DTP_STRING,      "tkey",             SDF_RD,             "",         "trq_open tkey"),
 SDATA (DTP_STRING,      "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "16",       "LOG_OPT_TRACE_STACK (0x0010)"),
+SDATA (DTP_INTEGER,     "exitOnError",      SDF_RD,             "-1",       "What a queue that cannot be opened at the start does to the yuno (a disk, a permission, a path that cannot be made, a bad tranger_path/tranger_database/topic_name). Not 0: one ERROR, and the yuno exits with this code (-1: its watcher launches it again, from 2 s up to each 60 s, so it opens by itself when the cause is gone). 0: the gate degrades, the yuno goes on: it refuses messages (dropped_msgs, queue_ready false), says it with ONE ERROR, and tries to open the queue again from 1 s up to each 60 s"),
 SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERT Queuing", "Alert message"),
 SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "10000",    "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
@@ -141,7 +142,7 @@ SDATA (DTP_STRING,      "alert_to",         SDF_WR|SDF_PERSIST, "",         "Ale
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   "0",        "Messages in the persistent queue, not acked yet (a gauge)"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   "0",        "Messages sent and waiting for their ack (a gauge)"),
 SDATA (DTP_INTEGER,     "dropped_msgs",     SDF_RD|SDF_STATS,   "0",        "Messages refused because the queue could not save them (a full disk), or could not be opened (queue_ready false), since the yuno started"),
-SDATA (DTP_BOOLEAN,     "queue_ready",      SDF_RD|SDF_STATS,   0,          "The persistent queue is open. False while stopped, and when it could not be opened at the start: the gate refuses messages (dropped_msgs), says it with ONE ERROR, and tries to open it again (from 1 s up to each 60 s); the yuno goes on"),
+SDATA (DTP_BOOLEAN,     "queue_ready",      SDF_RD|SDF_STATS,   0,          "The persistent queue is open. False while stopped, and when it could not be opened at the start with exitOnError 0: the gate refuses messages (dropped_msgs), says it with ONE ERROR, and tries to open it again (from 1 s up to each 60 s); the yuno goes on"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -198,6 +199,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_alert_email;
 
     json_int_t queue_retry_ms;  // the wait of the next try to open the queue; 0: open, or no try armed
+    int exitOnError;
 
 } PRIVATE_DATA;
 
@@ -238,6 +240,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout_poll,              gobj_read_integer_attr)
     SET_PRIV(timeout_ack,               gobj_read_integer_attr)
+    SET_PRIV(exitOnError,               (int)gobj_read_integer_attr)
     SET_PRIV(timeout_backup,            gobj_read_integer_attr)
     SET_PRIV(with_metadata,             gobj_read_bool_attr)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
@@ -732,10 +735,13 @@ PRIVATE int close_queue(hgobj gobj)
 }
 
 /***************************************************************************
- *  The queue could not be opened at the start: the gate goes on without
- *  it, and refuses the messages (dropped_msgs) until it opens. Up to
- *  7.30.17 the first message aborted the yuno ("trq_msgs NULL"), and its
- *  watcher launched it again into the same failure. Said ONCE, here; each
+ *  The queue could not be opened at the start. The queue is the role of a
+ *  qiogate: with exitOnError (-1 by default) the yuno exits here, at the
+ *  open, with one ERROR, and its watcher launches it again (up to 7.30.17
+ *  it went on without its queue and the first message aborted it, "trq_msgs
+ *  NULL"). With exitOnError 0 -- a queue that is secondary for its yuno --
+ *  the gate goes on without it, and refuses the messages (dropped_msgs)
+ *  until it opens (7.30.18 did this for every yuno). Said ONCE, here; each
  *  try still writes the causes of timeranger2.
  *
  *  `retry` (the store could not be opened: a path that cannot be made, a
@@ -748,6 +754,20 @@ PRIVATE int close_queue(hgobj gobj)
 PRIVATE void queue_not_ready(hgobj gobj, BOOL retry)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->exitOnError) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_QUEUE,
+            "msg",          "%s", "Queue cannot be opened: exiting",
+            "path",         "%s", gobj_read_str_attr(gobj, "tranger_path"),
+            "queue",        "%s", gobj_read_str_attr(gobj, "tranger_database"),
+            "topic_name",   "%s", gobj_read_str_attr(gobj, "topic_name"),
+            "exitOnError",  "%d", priv->exitOnError,
+            NULL
+        );
+        exit(priv->exitOnError);
+    }
 
     if(priv->queue_retry_ms == 0) {
         gobj_log_error(gobj, 0,

@@ -150,6 +150,7 @@ PRIVATE char variable_config[]= "\
             '__output_url__': 'yunetacontrol.com:1988'                  \n\
         },                                                          \n\
         'Authz.master': true,                                       \n\
+        'Authz.on_critical_error': 0,                               \n\
         'Authz.authz_service': 'agent',                             \n\
         'Authz.assertion_time_leeway': 86400,                       \n\
         'Authz.assertion_jwks': [                                   \n\
@@ -220,6 +221,7 @@ PRIVATE char variable_config[]= "\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
                         'url': '(^^__input_url__^^)',           \n\
+                        'exitOnError': 0,                       \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -241,6 +243,7 @@ PRIVATE char variable_config[]= "\
                             'trace': false                          \n\
                         },                                          \n\
                         'url': '(^^__input_secure_url__^^)',        \n\
+                        'exitOnError': 0,                           \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\

@@ -1,9 +1,10 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test: a TLS server whose certificate cannot be loaded does not
- *          listen, the yuno goes on, and it listens when the certificate is
- *          there (see c_test14.c). On OpenSSL here, on mbedTLS as
+ *          Test: a TLS server whose certificate cannot be loaded, with
+ *          exitOnError 0 (as the agent's), does not listen, the yuno goes
+ *          on, and it listens when the certificate is there (see
+ *          c_test14.c). On OpenSSL here, on mbedTLS as
  *          test_tcps_test14_mbedtls.
  *
  *          The red of this test is an EXIT with code 0, which ctest would
@@ -92,6 +93,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': 'tcp://127.0.0.1:" TEST14_PORT_PLAIN "', \n\
+                        'exitOnError': 0,                       \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -112,6 +114,7 @@ PRIVATE char variable_config[]= "\
                             'trace': false                          \n\
                         },                                          \n\
                         'url': 'tcps://127.0.0.1:" TEST14_PORT_TLS "', \n\
+                        'exitOnError': 0,                       \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
@@ -132,6 +135,7 @@ PRIVATE char variable_config[]= "\
                             'trace': false                          \n\
                         },                                          \n\
                         'url': 'tcps://127.0.0.1:" TEST14_PORT_TLS2 "', \n\
+                        'exitOnError': 0,                       \n\
                         'child_tree_filter': {                      \n\
                             'kw': {                                 \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\

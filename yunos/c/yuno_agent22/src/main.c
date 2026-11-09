@@ -133,6 +133,7 @@ PRIVATE char variable_config[]= "\
             '__output_url__': 'yunetacontrol.ovh:1989'                  \n\
         },                                                          \n\
         'Authz.master': false,                                      \n\
+        'Authz.on_critical_error': 0,                               \n\
         'Authz.authz_service': 'agent',                             \n\
         'Authz.assertion_time_leeway': 86400,                       \n\
         'Authz.assertion_jwks': [                                   \n\

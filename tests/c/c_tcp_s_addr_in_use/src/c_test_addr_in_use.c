@@ -25,10 +25,11 @@
  *              (a channel opens).
  *
  *          Phase 2, held for longer than `listen_retry_msec` (1 ms): the
- *              retry fails too, and the listen fails. Up to 7.30.17 the yuno
- *              exited there (exitOnError, -1 by default). Now ONE ERROR,
- *              "Listen failed: not listening, trying again", `listening`
- *              false, and the yuno goes on. The port is released, and the
+ *              retry fails too, and the listen fails. With exitOnError -1,
+ *              the default, the yuno exits there (test_exit_on_error). The
+ *              server here sets exitOnError 0, as the agent's: ONE ERROR,
+ *              "yev_create_accept_event() FAILED", `listening` false, and
+ *              the yuno goes on. The port is released, and the
  *              next try of the server (1 s later) listens, with one INFO;
  *              a client connects.
  *

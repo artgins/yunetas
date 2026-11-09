@@ -405,7 +405,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
                 /*
                  *  A gate whose queue cannot be opened: its path is under a
-                 *  regular file
+                 *  regular file. exitOnError 0: it degrades (the default, -1,
+                 *  exits the yuno at the open, test_exit_on_error)
                  */
                 int fd = open(QUEUES_PATH "/blocked", O_CREAT|O_WRONLY, 0660);
                 check(gobj, "the file that blocks the path of the queue", fd >= 0);
@@ -415,12 +416,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 priv->gobj_q3 = gobj_create_service(
                     "output-q3",
                     C_QIOGATE,
-                    json_pack("{s:s, s:s, s:s, s:s, s:s}",
+                    json_pack("{s:s, s:s, s:s, s:s, s:s, s:i}",
                         "tranger_path", QUEUES_PATH "/blocked/q3",
                         "tranger_database", "q3",
                         "topic_name", "msgs",
                         "tkey", "tm",
-                        "system_flag", "sf_string_key"
+                        "system_flag", "sf_string_key",
+                        "exitOnError", 0
                     ),
                     gobj
                 );

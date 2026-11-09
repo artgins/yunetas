@@ -24,22 +24,22 @@
  *                 with no TLS session, and the first datagram crashed the
  *                 yuno (ytls_decrypt_data() with a NULL session).
  *              3. A C_UDP_S whose port is held by another socket is
- *                 started: the listen fails, ONE error, `listening` false,
- *                 and the yuno goes on. Up to 7.30.17 the yuno exited with
- *                 code 0 (exitOnError, TRUE by default), and code 0 told its
- *                 watcher not to launch it again. The first try of the
+ *                 started, with exitOnError FALSE (the default, TRUE, exits
+ *                 the yuno with code 0, test_exit_on_error): the listen
+ *                 fails, ONE error, `listening` false, and the yuno goes
+ *                 on. The first try of the
  *                 server (1 s later) fails too, and says nothing more; the
  *                 port is released, and the second (2 s after the first)
  *                 listens, with one info.
  *              4. A C_UDP_S with an empty url is started: one error, the
- *                 start fails, the yuno goes on (it exited with 0 too).
+ *                 start fails, the yuno goes on (exitOnError FALSE).
  *              5. A C_UDP_S whose read cannot be started (rx_buffer_size 0)
  *                 is started: ONE error, and its tries say nothing more
  *                 than the cause yev_start_event() writes. With
  *                 rx_buffer_size 4096 its next try listens, and only then
  *                 "UDP listening ..." is said. Up to the fix of this case
  *                 each try said "UDP listening ..." and its own error.
- *              2 and 4 used to need "exitOnError": 0 not to end the test.
+ *              2 to 5 set "exitOnError": 0, or they end the test.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -142,33 +142,37 @@ PRIVATE void mt_create(hgobj gobj)
     priv->gobj_held = gobj_create(
         "held",
         C_UDP_S,
-        json_pack("{s:s}",
-            "url", HELD_URL
+        json_pack("{s:s, s:b}",
+            "url", HELD_URL,
+            "exitOnError", 0
         ),
         gobj
     );
     priv->gobj_no_url = gobj_create(
         "no_url",
         C_UDP_S,
-        json_pack("{s:s}",
-            "url", ""
+        json_pack("{s:s, s:b}",
+            "url", "",
+            "exitOnError", 0
         ),
         gobj
     );
     priv->gobj_deaf = gobj_create(
         "deaf",
         C_UDP_S,
-        json_pack("{s:s, s:i}",
+        json_pack("{s:s, s:i, s:b}",
             "url", DEAF_URL,
-            "rx_buffer_size", 0
+            "rx_buffer_size", 0,
+            "exitOnError", 0
         ),
         gobj
     );
     priv->gobj_udps = gobj_create(
         "udps",
         C_UDP_S,
-        json_pack("{s:s, s:{s:s, s:s}}",
+        json_pack("{s:s, s:b, s:{s:s, s:s}}",
             "url", UDPS_URL,
+            "exitOnError", 0,
             "crypto",
                 "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
                 "ssl_certificate_key", "/yuneta/agent/certs/localhost.key"

@@ -116,16 +116,23 @@ Each [`C_TCP_S`](#gclass-c-tcp-s) / [`C_UDP_S`](#gclass-c-udp-s) listener also e
 `view-cert` directly, so a single listener can be targeted from
 [`ycommand`](#util-ycommand) without touching the rest of the yuno.
 
-## A server without its certificate degrades, the yuno goes on
+## A server without its certificate: the yuno decides
 
-A TLS context that cannot be built is never fatal. A server whose
+A TLS context that cannot be built is never fatal in ytls. A server whose
 certificate, key or trusted certificate cannot be loaded gets `NULL` from
 [`ytls_init()`](../api/ytls/ytls.md#ytls_init), with ONE ERROR of the cause,
-and its [`C_TCP_S`](#gclass-c-tcp-s) does not listen: its port stays closed,
-it says so once (*"TLS server without its TLS context: not listening, trying
-again"*), and it tries again until the files load, from 1 s up to each 60 s,
-or at once on `reload-certs`. The yuno keeps its other listeners and its
-work. A listener is a secondary service of its yuno: the agent's primary role
+and its [`C_TCP_S`](#gclass-c-tcp-s) never listens without a context. What
+happens then is the yuno's choice, with `exitOnError` of the `C_TCP_S`:
+
+- **the default (`-1`)**: the yuno exits with code 0, *"TLS server without
+  its TLS context: exiting"*, and its watcher does not launch it again. A
+  yuno whose mission is to serve over TLS stops there, as up to 7.30.17.
+- **`exitOnError` `0`**: the port stays closed, the server says so once
+  (*"TLS server without its TLS context: not listening, trying again"*), and
+  tries again until the files load, from 1 s up to each 60 s, or at once on
+  `reload-certs`. The yuno keeps its other listeners and its work.
+
+The agent sets `0`: its listeners are secondary services, its primary role
 is managing its realms and yunos, and its 1993 must not take that down. The
 agent without its pair keeps answering `ycommand` on 1991, and opens 1993 as
 soon as `yuneta-agent-cert ensure` (or cert-sync) puts the pair in place, with
@@ -138,9 +145,9 @@ sudo /usr/libexec/yuneta/yuneta-agent-cert ensure
 ycommand -c 'command-agent service=agent_secure_port command=reload-certs'
 ```
 
-Up to 7.30.17 such a server exited the yuno with code 0, and its watcher did
-not relaunch it. Details: [`C_TCP_S`, A TLS server without its TLS
-context](#tcp_s_no_tls_context).
+Up to 7.30.17 ytls itself exited the yuno with code 0, whatever the yuno
+wanted; 7.30.18 degraded every yuno. Details: [`C_TCP_S`, A TLS server
+without its TLS context](#tcp_s_no_tls_context).
 
 ## TLS security posture (hardening)
 

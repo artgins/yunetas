@@ -104,7 +104,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]", // errors_list
             "msg", "Starting yuno",
             "msg", "timeout_base <= 0 would arm no timer (no peer forgotten, no restart of the UDP server): the default is used",
             "msg", "UDP listening ...",
@@ -118,8 +118,10 @@ static int register_yuno_and_more(void)
             "msg", "Cannot start event: gbuffer WITHOUT space to read",
             "msg", "UDP: the read cannot be started again, the server stops listening",
             "msg", "UDP server stopped by itself, it is started again after a backoff",
+            "msg", "bind() FAILED",
+            "msg", "yev_create_accept_event() FAILED",
             "msg", "UDP listening ...",
-            "msg", "UDP server started again",
+            "msg", "Listening again after a failed listen",
             "msg", "EV_SEND_MESSAGE while the UDP server is stopped, dropped",
             "msg", "UDP server stopped from outside, it is not started again",
             "msg", "UDP server stops with sends refused while it was stopped",
@@ -187,7 +189,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(10);    // a crash-free hang must not hang the suite
+    set_auto_kill_time(20);    // a crash-free hang must not hang the suite
 
     /*------------------------------------------------*
      *          Start yuneta

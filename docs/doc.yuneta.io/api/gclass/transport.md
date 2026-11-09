@@ -477,10 +477,10 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
-| `exitOnError` | `integer` | Deprecated and ignored (a WARNING if a config sets it): a listen that fails never ends the yuno. Up to 7.30.17 it was the exit code of the yuno when the listen failed (default `-1`). |
+| `exitOnError` | `integer` | What a listen that fails does to the yuno (default `-1`). Not `0`: the yuno exits with this code (`-1`: its watcher launches it again), and with code `0` when it is the TLS context (not launched again). `0`: the server degrades and the yuno goes on. Set `0` where the listener is secondary for the yuno, as the agent does. See *A listen that fails*. 7.30.18 ignored it and degraded every yuno. |
 | `listen_retry_msec` | `integer` | How long a listen whose address is in use (`EADDRINUSE`) is tried again, at each tick, before it fails as any other listen (default `5000`; `0`: no fast retry). See *Address in use at the start*. |
-| `listening` | `bool` | Listening now (stat). False while stopped, while an address in use is tried again, while a failed listen is tried again or its url is bad, and while a TLS url has no TLS context. Running and `listening` false: the yuno goes on, and one ERROR said why. |
-| `tls_ready` | `bool` | A TLS url (`use_ssl`) with its TLS context loaded (stat). `use_ssl` true and `tls_ready` false: the certificates of `crypto` cannot be loaded, and the server does not listen. See *A TLS server without its TLS context*. |
+| `listening` | `bool` | Listening now (stat). False while stopped, while an address in use is tried again, and with `exitOnError` `0` while a failed listen is tried again or its url is bad, and while a TLS url has no TLS context. Running and `listening` false: the yuno goes on, and one ERROR said why. |
+| `tls_ready` | `bool` | A TLS url (`use_ssl`) with its TLS context loaded (stat). `use_ssl` true and `tls_ready` false (`exitOnError` `0`): the certificates of `crypto` cannot be loaded, and the server does not listen. See *A TLS server without its TLS context*. |
 | `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
 | `tconnxs` | `integer` | Connections accepted since the gobj was created (stat; a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
@@ -541,7 +541,7 @@ gobj_start(tcp_s);      // running, still ST_WAIT_STOPPED: listens when the stop
 ```
 
 Up to 7.25.20 that start created a second socket, whose bind failed (the
-yuno exited, `exitOnError`, up to 7.30.17), or overwrote the accept still being canceled (a
+yuno exited, `exitOnError`), or overwrote the accept still being canceled (a
 leak, *"dup_idx not match"*); a lone stop of a new-method server left its
 clisrvs accepting on the closed socket, and its next start answered *"GObj
 ALREADY RUNNING"* for each one; and a clisrv started again stayed in
@@ -593,9 +593,9 @@ in use: listening again"*), each try writes the WARNING of
 [`yev_create_accept_event()`](#yev_create_accept_event) (*"bind() FAILED"*,
 `errno` 98), and the listen after them is an INFO (*"Listening: its address
 in use was released"*, with `listen_retries`). A port still taken when the
-time is over fails as any other listen (see *A listen that fails*): it is
-tried again from 1 s up to each 60 s, and the yuno goes on. A stop takes the
-retries back.
+time is over fails as any other listen (see *A listen that fails*): the yuno
+exits (`exitOnError`), or with `exitOnError` `0` it is tried again from 1 s
+up to each 60 s and the yuno goes on. A stop takes the retries back.
 
 It is what a yuno killed and launched at once meets: the agent's restart of
 a node (`deactivate-snap`) kills every yuno and launches them as soon as
@@ -610,20 +610,45 @@ ERROR. `tests/c/c_tcp_s_addr_in_use`.
 (tcp_s_listen_fails)=
 ### A listen that fails
 
-A listen that fails does **not end the yuno**: the server stays running in
-`ST_STOPPED`, `listening` false, and the yuno's other listeners and services
-go on. Up to 7.30.17 the yuno exited (`exitOnError`, `-1` by default) and its
-watcher launched it again 2 s later: a port held by another process
-relaunched it over and over, and an agent whose 1991 or 1993 was held went
-down with all its other listeners.
+What a listen that fails does is the **yuno's choice**, with `exitOnError`.
+A yuno whose listener is its role (a server of GUIs, a gateway) ends when it
+cannot listen; a yuno for which the listener is one service on top of its
+role (the agent: its role is managing its realms and yunos, and a dead agent
+is reachable only over SSH) keeps going without it.
 
-| The failure | What the server does |
+- **`exitOnError` not `0` (the default, `-1`)**: one ERROR of the cause, a
+  WARNING *"Exiting"* (with `exitOnError`), and the yuno exits with that code.
+  With `-1` its watcher launches it again (2 s later, then longer, up to each
+  60 s), so a port held by another process is tried again by the relaunch.
+  As up to 7.30.17.
+- **`exitOnError` `0`**: the server stays running in `ST_STOPPED`,
+  `listening` false, and the yuno's other listeners and services go on:
+
+| The failure | What the server does (`exitOnError` `0`) |
 |---|---|
-| The socket cannot be made: an address held past `listen_retry_msec`, a host not on this machine yet, a name that does not resolve yet, a port it may not bind | ONE ERROR, *"Listen failed: not listening, trying again"* (`url`, `errno`, `strerror`). It tries again at each timeout of its timer, the wait doubling from 1 s up to 60 s. Each try writes the cause of [`yev_create_accept_event()`](#yev_create_accept_event) (for an address in use, the WARNING *"bind() FAILED"*); the server says nothing more. One INFO when it listens: *"Listening again after a failed listen"*. |
+| The socket cannot be made: an address held past `listen_retry_msec`, a host not on this machine yet, a name that does not resolve yet, a port it may not bind | ONE ERROR, *"yev_create_accept_event() FAILED"* (`url`, `errno`, `strerror`, `then`). It tries again at each timeout of its timer, the wait doubling from 1 s up to 60 s. Each try writes the cause of [`yev_create_accept_event()`](#yev_create_accept_event) (for an address in use, the WARNING *"bind() FAILED"*); the server says nothing more. One INFO when it listens: *"Listening again after a failed listen"*. |
 | A bad url: empty, with no schema, of port 0 | One ERROR at each start: *"URL NULL"*, *"Parsing url failed"*, *"Cannot Listen on port 0"*. No try by itself: a url does not fix itself by waiting. Writing a good `url` listens at once, with the same INFO. |
 
-A stop takes the tries back; a start tries again. The `then` field of the
-ERROR says which of the two it is. To see it and to fix it:
+```json
+{
+    "name": "agent_secure_port",
+    "gclass": "C_TCP_S",
+    "kw": {
+        "url": "wss://0.0.0.0:1993",
+        "exitOnError": 0
+    }
+}
+```
+
+7.30.18 degraded every yuno, ignored `exitOnError` (a WARNING when a config
+set it) and said the first failure as *"Listen failed: not listening, trying
+again"*; 7.30.19 gives the choice back, with the defaults and the messages of
+7.30.17. The agent sets `exitOnError` `0` on its 1991 and 1993 in its
+compiled config.
+
+With `exitOnError` `0` a stop takes the tries back; a start tries again. The
+`then` field of the ERROR says which of the two it is. To see it and to fix
+it:
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<full name of the C_TCP_S> attribute=listening'
@@ -637,15 +662,21 @@ gobj_write_str_attr(tcp_s, "url", "tcp://0.0.0.0:2008");    // down: tried at on
 ```
 
 A log watcher alerts on the ERROR, or on a server that runs with `listening`
-false: the process no longer exits for it. `exitOnError` is ignored, and a
-config that still sets it gets a WARNING (*"Deprecated attribute used in gobj
-creation"*). `tests/c/c_tcp_s_addr_in_use`.
+false: with `exitOnError` `0` the process does not exit for it.
+`tests/c/c_tcp_s_addr_in_use` (`exitOnError` `0`) and its
+`test_exit_on_error` (the default exits, with its code).
 
 (tcp_s_no_tls_context)=
 ### A TLS server without its TLS context
 
 A TLS url (`tcps`, `wss`, `https`, `mqtts`, ...) whose certificate, key or
-trusted certificate cannot be loaded does **not listen, and the yuno goes
+trusted certificate cannot be loaded never listens without a context. With
+`exitOnError` not `0` (the default) the yuno exits with code **0**, after the
+ERROR of the cause and *"TLS server without its TLS context: exiting"*: its
+watcher does not launch it again (as up to 7.30.17, when ytls itself
+exited). A yuno whose mission is to serve over TLS stops there.
+
+With `exitOnError` `0` it does **not listen, and the yuno goes
 on**. The server stays running in `ST_STOPPED`, with `use_ssl` true and
 `listening` and `tls_ready` false. Its port is closed: a peer is refused at
 connect, it does not reach a handshake. The yuno's other listeners and
@@ -690,9 +721,10 @@ not listening, trying again"*) while the files still fail, and `0` (*"TLS
 context loaded: listening"*) when they load. `view-cert` answers `-1`, *"TLS
 server without its TLS context: not listening"*.
 
-Up to 7.30.17 ytls exited the yuno with code 0 at the start, so its watcher
-did not relaunch it: an agent without its pair stayed dead, and on a node
-with no SSH nothing could bring it back. Up to 7.30.14 the mbedTLS backend
+Up to 7.30.17 ytls exited the yuno with code 0 at the start, whatever the
+yuno wanted: an agent without its pair stayed dead, and on a node with no SSH
+nothing could bring it back. ytls never exits now (`ytls_init()` answers
+`NULL`); the exit is C_TCP_S's, by `exitOnError`. Up to 7.30.14 the mbedTLS backend
 listened with no context, and the first peer crashed the yuno in
 `ytls_new_secure_filter()`. `tests/c/c_tcps` (`test14`, and
 `test14_mbedtls` when both backends are built).
@@ -1187,7 +1219,7 @@ and `tests/c/c_udp_s_rx` for the receive side.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). A secure url (`udps://`) is REFUSED at the start: TLS over datagrams is DTLS, which ytls does not implement. An ERROR, *"A secure url (udps://) is not supported by C_UDP_S: there is no DTLS"*, and the start fails; the yuno goes on (up to 7.30.17 it exited, `exitOnError`). Up to 7.25.4 it was accepted, the server listened with no TLS session, and the first datagram crashed the yuno. |
+| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). A secure url (`udps://`) is REFUSED at the start: TLS over datagrams is DTLS, which ytls does not implement. An ERROR, *"A secure url (udps://) is not supported by C_UDP_S: there is no DTLS"*, and the yuno exits with code 0 (`exitOnError`, the default), or with `exitOnError` false the start fails and the yuno goes on. Up to 7.25.4 it was accepted, the server listened with no TLS session, and the first datagram crashed the yuno. |
 | `use_ssl` | `bool` | Always `false` (see `url`). The commands `reload-certs` and `view-cert` answer -1, *"Listener is not TLS-enabled or not running"*. |
 | `shared` | `bool` | Enable port sharing. |
 | `set_broadcast` | `bool` | Enable broadcast. |
@@ -1195,26 +1227,30 @@ and `tests/c/c_udp_s_rx` for the receive side.
 | `rx_buffer_size` | `integer` | Receive buffer size: the gbuffer of each read (a new one when the host kept the previous one, see *Transmit*). |
 | `txMsgs` / `rxMsgs` / `txBytes` / `rxBytes` | `integer` | Counters (stats). |
 | `rxRefusedMsgs` | `integer` | Datagrams dropped by the ip lists (stats, see *Receive*). |
-| `listening` | `bool` | Listening now (stat). False while stopped, while a failed listen is tried again, and when its url is bad. See *A listen that fails*. |
-| `exitOnError` | `bool` | Deprecated and ignored (a WARNING if a config sets it). Up to 7.30.17 the yuno exited with code 0 when the listen failed (`TRUE` by default). |
+| `listening` | `bool` | Listening now (stat). False while stopped, and with `exitOnError` false while a failed listen is tried again, and when its url is bad. See *A listen that fails*. |
+| `exitOnError` | `bool` | What a listen that fails does to the yuno (default `true`): `true`, the yuno exits with code 0 (its watcher does not launch it again); `false`, the server degrades and the yuno goes on. 7.30.18 ignored it and degraded every yuno. `C_GSS_UDP_S` passes its own `exitOnError` to its `C_UDP_S`. |
 
 ### A listen that fails
 
-A listen that fails does **not end the yuno**: the server stays running in
-`ST_STOPPED`, `listening` false (its start answers `-1` for a bad url, `0`
-when a try is armed). Up to 7.30.17
-the yuno exited with code 0 (`exitOnError`, `TRUE` by default), and code 0
-told its watcher NOT to launch it again: a port held by another process at
-boot left the yuno down for good.
+What a listen that fails does is the yuno's choice, with `exitOnError`. With
+`true`, the default, the yuno exits with code 0 after the ERROR of the cause
+(its `then` says *"exiting with code 0 (exitOnError)"*), and code 0 tells its
+watcher NOT to launch it again: the UDP listener of logcenter is its role. As
+up to 7.30.17; 7.30.18 degraded every yuno and ignored `exitOnError`.
+
+With `exitOnError` false the server stays running in `ST_STOPPED`,
+`listening` false (its start answers `-1` for a bad url, `0` when a try is
+armed), and the yuno goes on:
 
 - **The socket or its read cannot be made** (an address in use, a host not on
-  this machine yet, a name that does not resolve yet): ONE ERROR, *"Listen
-  failed: not listening, trying again"* (`url`, `errno`, `strerror`), and a
+  this machine yet, a name that does not resolve yet): ONE ERROR,
+  *"yev_create_accept_event() FAILED"* (`url`, `errno`, `strerror`), and a
   try at each timeout of its timer, the wait doubling from 1 s up to 60 s.
   Each try writes the cause of `yev_create_accept_event()` (the WARNING
   *"bind() FAILED"* for an address in use); the server says nothing more.
   A read that cannot be started is the same, its ERROR *"Cannot start the
-  read of the UDP server: not listening, trying again"*, and its cause from
+  read of the UDP server"* (7.30.18 said *"Cannot start the read of the UDP
+  server: not listening, trying again"*), and its cause from
   `yev_start_event()` at each try. *"UDP listening ..."* is said when it
   listens, once, and after a failure one more INFO, *"Listening again after
   a failed listen"*.
@@ -1223,16 +1259,17 @@ boot left the yuno down for good.
   0"*, the `udps://` one above), and no try: `url` is read only, a new config
   and a start are needed.
 
-A stop takes the tries back. A log watcher alerts on the ERROR: the process
-no longer exits for it. A config written for the old default needs nothing:
+A stop takes the tries back. A log watcher alerts on the ERROR: with
+`exitOnError` false the process does not exit for it.
 
 ```C
-json_t *kw = json_pack("{s:s}", "url", "udp://0.0.0.0:5000");   // no exitOnError
+json_t *kw = json_pack("{s:s, s:b}", "url", "udp://0.0.0.0:5000", "exitOnError", 0);
 hgobj udp = gobj_create("udp", C_UDP_S, kw, gate);
 gobj_start(udp);    // the port held: 0, running, listening false, tried again
 ```
 
-`tests/c/c_udp_s_self_stop`.
+`tests/c/c_udp_s_self_stop` (`exitOnError` false), and
+`tests/c/c_tcp_s_addr_in_use`'s `test_exit_on_error` (the default exits).
 
 ### Commands
 

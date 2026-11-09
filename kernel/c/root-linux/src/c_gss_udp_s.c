@@ -28,8 +28,8 @@
  *          again, or cannot start, within RESTART_HOLD_MS of the last try.
  *          Up to 7.25.20 the EV_STOPPED was taken with no action.
  *          "UDP server started again" (INFO) is said when it listens: a
- *          start whose listen failed (a C_UDP_S that does not exit on it)
- *          is said and tried again by the C_UDP_S, which says "UDP
+ *          start whose listen failed (exitOnError FALSE: a C_UDP_S that
+ *          does not exit on it) is said and tried again by the C_UDP_S, which says "UDP
  *          listening ..." when it listens. Up to 7.30.18 the INFO came
  *          anyway.
  *
@@ -125,6 +125,7 @@ GOBJ_DECLARE_EVENT(EV_START_UDP_SERVER);
 PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",                  SDF_RD, 0, "url of udp server"),
 SDATA (DTP_INTEGER,     "timeout_base",         SDF_RD,  "5000", "timeout base"),
+SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "exitOnError of its C_UDP_S: TRUE, a listen that fails (at the start or at a restart) exits the yuno with code 0; FALSE, the C_UDP_S does not listen, says it once and tries again by itself, the yuno goes on"),
 SDATA (DTP_INTEGER,     "seconds_inactivity",   SDF_RD,  "300", "Seconds to consider a gossamer close"),
 SDATA (DTP_BOOLEAN,     "disable_end_of_frame", SDF_RD|SDF_STATS, 0, "Disable null as end of frame"),
 SDATA (DTP_INTEGER,     "max_channels",         SDF_RD,  "1024", "Maximum peers (source ip:port) held at once, 0 no limit. A datagram of a new peer beyond it is dropped"),
@@ -228,8 +229,9 @@ PRIVATE void mt_create(hgobj gobj)
     }
     priv->max_frame_size = MIN((size_t)max_frame_size, gbmem_get_maximum_block()/2);
 
-    json_t *kw_udps = json_pack("{s:s}",
-        "url", gobj_read_str_attr(gobj, "url")
+    json_t *kw_udps = json_pack("{s:s, s:b}",
+        "url", gobj_read_str_attr(gobj, "url"),
+        "exitOnError", gobj_read_bool_attr(gobj, "exitOnError")
     );
     priv->gobj_udp_s = gobj_create("", C_UDP_S, kw_udps, gobj);
 
