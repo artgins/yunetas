@@ -44,6 +44,15 @@
 #      relaunched one: one instance, and no "ALREADY living" beyond the two
 #      cards of 4 (run_test.sh). It is the order of events of a relaunch by
 #      the watcher that meets a launch by the agent.
+#   8. trace-on-yuno and trace-off-yuno of a yuno not connected (killed):
+#      refused, naming it, and `traced` not touched; run again it has its
+#      saved trace, and a trace-off then resets it. Up to 7.30.22
+#      trace-off-yuno answered 0 and set traced false, and the yuno came
+#      back traced.
+#   9. delete-yuno whole=1 removes the trace the yuno saved (an emailsender:
+#      logcenter's domain_dir is fixed in its binary): created again with
+#      the same id, it traces nothing. Up to 7.30.22 the saved trace came
+#      back in the new yuno.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -61,6 +70,7 @@ import websockets
 
 URL = "ws://127.0.0.1:1991"
 YUNO_BINARY = sys.argv[1]
+OTHER_BINARY = sys.argv[2] if len(sys.argv) > 2 else ""  # a yuno whose domain_dir the agent gives
 failures = []
 
 
@@ -169,6 +179,34 @@ def alive(pid):
             return f.read().split(") ")[1].split()[0] != "Z"
     except OSError:
         return False
+
+
+async def run_and_wait(ws, yid):
+    """run-yuno, then wait until the yuno answers a command (connected)"""
+    r = await ask(ws, "run-yuno", {"id": yid}, secs=30)
+    if r.get("result") != 0:
+        print("run-yuno %s: %s" % (yid, r.get("comment")))
+        return None
+    for i in range(300):    # up to 30 s
+        r = await ask(ws, "command-yuno id=%s service=__root__ command=get-global-trace" % yid, {})
+        if r.get("result") == 0:
+            r = await ask(ws, "list-yunos", {"id": yid})
+            rows = r.get("data") or []
+            return rows[0] if rows else None
+        await asyncio.sleep(0.1)
+    return None
+
+
+async def kill_and_wait(ws, yid, pid):
+    r = await ask(ws, "kill-yuno", {"id": yid}, secs=30)
+    check("kill-yuno %s: %s" % (yid, r.get("comment")), r.get("result") == 0)
+    for i in range(100):
+        r = await ask(ws, "list-yunos", {"id": yid})
+        rows = r.get("data") or []
+        if not alive(pid) and rows and not rows[0].get("yuno_running"):
+            return
+        await asyncio.sleep(0.1)
+    check("kill-yuno %s: it ended" % yid, False)
 
 
 async def refused_card(role, pid, **kw):
@@ -330,6 +368,82 @@ async def main():
                 break
             await asyncio.sleep(0.1)
         check("kill-yuno of the running logcenter: it ended", not alive(relaunched["yuno_pid"]))
+
+        #   8. trace-on-yuno and trace-off-yuno of a yuno not connected to
+        #      the agent: nothing reaches it, the answer says so, and
+        #      `traced` is not touched. The yuno keeps its saved trace and
+        #      has it again at its next start; a trace-off then resets it.
+        #      Up to 7.30.22 trace-off-yuno answered 0 and set traced false,
+        #      and the trace came back with the yuno.
+        running = await run_and_wait(ws, yid)
+        check("logcenter run again, connected", running is not None)
+        if running:
+            r = await ask(ws, "trace-on-yuno", {"id": yid, "level": "machine,ev_kw"})
+            check("trace-on-yuno level=machine,ev_kw: %s" % r.get("comment"), r.get("result") == 0)
+            check("traced is true", await traced() is True)
+            await kill_and_wait(ws, yid, running["yuno_pid"])
+            r = await ask(ws, "trace-off-yuno", {"id": yid})
+            comment = r.get("comment") or ""
+            check("trace-off-yuno of the stopped yuno: not reached: %s" % comment,
+                r.get("result") == -1 and "not connected" in comment and yid in comment)
+            check("traced is still true", await traced() is True)
+            r = await ask(ws, "trace-on-yuno", {"id": yid, "level": "commands"})
+            comment = r.get("comment") or ""
+            check("trace-on-yuno of the stopped yuno: not reached: %s" % comment,
+                r.get("result") == -1 and "not connected" in comment)
+            check("traced is still true, after the refused trace-on", await traced() is True)
+            running = await run_and_wait(ws, yid)
+            check("logcenter run again, connected", running is not None)
+            if running:
+                on = await global_traces()
+                check("the yuno has its saved trace again: %s" % on, on == ["ev_kw", "machine"])
+                r = await ask(ws, "trace-off-yuno", {"id": yid})
+                check("trace-off-yuno of the running yuno: %s" % r.get("comment"), r.get("result") == 0)
+                check("traced is false", await traced() is False)
+                off = await global_traces()
+                check("the yuno traces nothing: %s" % off, off == [])
+                await kill_and_wait(ws, yid, running["yuno_pid"])
+
+    #   9. delete-yuno whole=1 removes the trace the yuno saved: a yuno
+    #      created again with the same id starts with none. Up to 7.30.22
+    #      the saved trace survived the delete and came back in the new
+    #      yuno, with `traced` false. (Not logcenter: its domain_dir is
+    #      fixed in its binary, the agent does not know where it saves.)
+    if OTHER_BINARY:
+        with open(OTHER_BINARY, "rb") as f:
+            other64 = base64.b64encode(f.read()).decode()
+        oid = "sandbox_other"
+        orole = os.path.basename(OTHER_BINARY)
+        for cmd, kw in (
+            ("install-binary", {"id": orole, "content64": other64}),
+            ("create-config", {"id": orole + ".z", "content64": config64}),
+            ("create-yuno", {"id": oid, "realm_id": "w.prod.test", "yuno_role": orole, "yuno_name": "z"}),
+        ):
+            r = await ask(ws, cmd, kw, secs=30)
+            check(cmd + " " + orole + ": %s" % r.get("comment"), r.get("result") == 0)
+        saved = "/yuneta/realms/t/w.prod.test/%s^%s/data/C_YUNO-z-persistent-attrs.json" % (orole, oid)
+        running = await run_and_wait(ws, oid)
+        check(orole + " runs, connected", running is not None)
+        if running:
+            r = await ask(ws, "trace-on-yuno", {"id": oid, "level": "machine"})
+            check("trace-on-yuno of " + orole + ": %s" % r.get("comment"), r.get("result") == 0)
+            check("its trace is saved in " + saved, os.path.exists(saved))
+            await kill_and_wait(ws, oid, running["yuno_pid"])
+            r = await ask(ws, "delete-yuno", {"id": oid, "whole": True})
+            check("delete-yuno whole=1: %s" % r.get("comment"), r.get("result") == 0)
+            check("its saved trace is removed", not os.path.exists(saved))
+            r = await ask(ws, "create-yuno",
+                {"id": oid, "realm_id": "w.prod.test", "yuno_role": orole, "yuno_name": "z"})
+            check("create-yuno again, the same id: %s" % r.get("comment"), r.get("result") == 0)
+            running = await run_and_wait(ws, oid)
+            check(orole + " created again runs, connected", running is not None)
+            if running:
+                r = await ask(ws, "command-yuno id=%s service=__root__ command=get-global-trace" % oid, {})
+                check("the yuno created again traces nothing: %s" % r.get("data"), r.get("data") == [])
+                r = await ask(ws, "list-yunos", {"id": oid})
+                rows = r.get("data") or []
+                check("and traced is false", bool(rows) and rows[0].get("traced") is False)
+                await kill_and_wait(ws, oid, running["yuno_pid"])
 
     #   5. a card the agent accepts, of a yuno registered and not running,
     #      that says pid -1: the pid is not recorded, and the kill-yuno that

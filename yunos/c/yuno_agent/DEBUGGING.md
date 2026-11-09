@@ -221,6 +221,25 @@ of the yuno until `trace-off-yuno`. With no filter, the pair acts on EVERY yuno
 level and set the user levels of the yuno's root gobj (`C_YUNO`), which has
 none: only `traced` changed.
 
+The pair reaches only a yuno connected to the agent. A yuno stopped, starting
+or stopping gets nothing, keeps its saved levels and its `traced`, and the
+answer names it (`-1` when no yuno was reached). So reset a stopped yuno's
+trace after it runs again; it starts with its saved levels:
+
+```bash
+ycommand -c 'trace-off-yuno id=3'
+# -1: "…: trace-off-yuno: yuno 3 not connected to the agent (stopped,
+#      starting or stopping): its trace not changed"
+ycommand -c 'run-yuno id=3'
+ycommand -c 'trace-off-yuno id=3'    # 0, traced false
+```
+
+Up to 7.30.22 `trace-off-yuno` of a yuno not connected answered 0 and set
+`traced` false, and the yuno came back with its trace on. `delete-yuno
+whole=1` removes the saved levels (the yuno's `C_YUNO` persistent attrs
+file), except for a yuno whose binary fixes its `domain_dir` (`logcenter`,
+`webstats`).
+
 > **`set-global-no-trace` silences a global level** for every gobj. Each yuno's
 > `main.c` sets its defaults this way before it creates the yuno, almost always
 > as `gobj_set_global_no_trace("timer_periodic", TRUE)`. That is why a global

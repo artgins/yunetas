@@ -31,5 +31,6 @@ add_test(
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_test.sh
         ${YUNETAS_BASE}/yunos/c/yuno_agent/build/yuneta_agent
         ${YUNETAS_BASE}/outputs/yunos/logcenter
+        ${YUNETAS_BASE}/outputs/yunos/emailsender
 )
 set_tests_properties(${PROJECT_NAME} PROPERTIES SKIP_RETURN_CODE 77)

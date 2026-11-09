@@ -8,8 +8,8 @@ cannot run beside the agent of the machine. `run_test.sh` runs it in
 namespaces of its own (`unshare -rmn --pid --fork --mount-proc`): a tmpfs on
 `/yuneta`, a `/etc/passwd` where uid 0 is `yuneta`, a loopback nobody else
 sees, and `/proc` of its own processes only. It builds nothing: it takes the
-agent of its build dir and `outputs/yunos/logcenter`, both built by
-`yunetas build`. It is skipped (exit 77, with the reason) when one of them is
+agent of its build dir, `outputs/yunos/logcenter` and
+`outputs/yunos/emailsender`, all built by `yunetas build`. It is skipped (exit 77, with the reason) when one of them is
 missing, or the machine does not allow unprivileged namespaces, or `python3`
 has no `websockets`.
 
@@ -70,6 +70,22 @@ has no `websockets`.
    of it live. It is the order of events of a relaunch by the watcher that
    meets a launch by the agent; the agent log has no *"yuno ALREADY
    living"* for it (two in all, from the cards of 4).
+8. `trace-on-yuno` and `trace-off-yuno` of a yuno not connected: the
+   `logcenter` is run again and traced (`machine,ev_kw`), then killed.
+   `trace-off-yuno` answers -1, *"…: yuno 1 not connected to the agent
+   (stopped, starting or stopping): its trace not changed"*, and `traced`
+   stays true; a `trace-on-yuno` of it is refused the same way. Run again,
+   the yuno has its saved levels; `trace-off-yuno` then answers 0, `traced`
+   is false and the yuno traces nothing. Up to 7.30.22 `trace-off-yuno` of
+   the stopped yuno answered 0 and set `traced` false, and the yuno came
+   back with `ev_kw` and `machine`.
+9. `delete-yuno whole=1` removes the trace the yuno saved: an
+   `emailsender` (`logcenter` fixes its `domain_dir` in its binary, so the
+   agent does not know where it saves) traced with `machine`, its
+   `data/C_YUNO-z-persistent-attrs.json` there; killed, deleted whole: the
+   file is gone; created again with the same id and run: it traces nothing,
+   `traced` false. Up to 7.30.22 the file stayed and the new yuno traced
+   `machine`.
 
 The test does not have a process of another user (the sandbox maps one uid
 only), so it cannot show that `find_living_yuno_pids()` skips one: it shows

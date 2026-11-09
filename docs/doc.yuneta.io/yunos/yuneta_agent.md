@@ -416,6 +416,28 @@ ycommand -c 'delete-yuno id=7601 whole=1'                 # the yuno and every r
 ycommand -c 'delete-yuno id=7601 yuno_release=1.1.0-2 whole=1'   # refused: one or the other
 ```
 
+`delete-yuno whole=1` also removes the attributes the yuno saved of its own:
+the file of the persistent attrs of its `C_YUNO`,
+`<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json` (its trace
+levels, and what was written to its `__yuno__` with persistence). An INFO
+*"Saved attrs of a yuno deleted whole removed"* names the path. The rest of
+its data stays. Up to 7.30.22 the file survived the delete, and a yuno created
+again with the same id started with the old trace on and `traced` false:
+
+```bash
+ycommand -c 'trace-on-yuno id=7601 level=machine'
+ycommand -c 'kill-yuno id=7601'
+ycommand -c 'delete-yuno id=7601 whole=1'
+# removed: /yuneta/realms/<owner>/<realm>/<role>^7601/data/C_YUNO-<name>-persistent-attrs.json
+ycommand -c 'create-yuno id=7601 realm_id=<realm> yuno_role=<role> yuno_name=<name>'
+ycommand -c 'run-yuno id=7601'      # starts with no trace
+```
+
+The agent knows the `domain_dir` it gives a yuno, not one fixed in the yuno's
+binary: `logcenter` and `webstats` save in `realms/agent/<role>` whatever
+their id, so their file is not removed. Reset their trace with
+`trace-off-yuno` before the delete.
+
 The `data` of a `delete-binary` answer has one item per version taken, with
 its files and whether the agent removed them:
 
@@ -515,6 +537,25 @@ ycommand -c 'trace-off-yuno id=3'
 - The yuno saves its global levels (`__global_trace__`), and `traced` is a
   persistent column: both survive a restart of the yuno, until `trace-off-yuno`.
 - With no filter (`id`, `yuno_role`, `realm_id`, ...) they act on every yuno.
+- They reach only a yuno connected to the agent. A yuno that is stopped,
+  starting or stopping gets nothing: its saved levels and its `traced` stay as
+  they are, and the answer names it. When no yuno is reached the answer is
+  `-1`; when some are, it is `0`, with the rows of those reached. The agent
+  logs a WARNING *"yuno not connected to the agent, its trace not changed"*.
+
+```bash
+ycommand -c 'kill-yuno id=3'
+ycommand -c 'trace-off-yuno id=3'
+# -1: "…: trace-off-yuno: yuno 3 not connected to the agent (stopped,
+#      starting or stopping): its trace not changed"   (traced stays true)
+ycommand -c 'run-yuno id=3'          # it starts with its saved levels again
+ycommand -c 'trace-off-yuno id=3'    # 0: now they are reset, traced false
+```
+
+**BREAKING in 7.30.23:** up to 7.30.22 `trace-off-yuno` of a yuno not
+connected answered `0` and set `traced` false, but nothing reached the yuno:
+it kept its saved levels and had them again at its next start, with `traced`
+false. `trace-on-yuno` set `traced` true for a yuno it did not reach.
 
 **BREAKING in 7.30.22:** up to 7.30.21 `trace-on-yuno` took no level and set
 the user levels of the yuno's root gobj (`C_YUNO`), which has none: nothing

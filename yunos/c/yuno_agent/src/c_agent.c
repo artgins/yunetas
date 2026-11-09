@@ -96,6 +96,7 @@ PRIVATE char *binary_version_dir(
 );
 PRIVATE json_t *get_yuno_realm(hgobj gobj, json_t *yuno);
 PRIVATE char * build_yuno_private_domain(hgobj gobj, json_t *yuno, char *bf, int bfsize);
+PRIVATE int remove_saved_attrs_of_yuno(hgobj gobj, json_t *yuno);
 PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno);
 PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno);
 PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
@@ -165,6 +166,15 @@ PRIVATE json_t *unreached_yunos_response(
     const char *what,
     json_t *jn_unreached,
     int sent,
+    json_t *kw
+);
+PRIVATE void join_yuno_ids(json_t *jn_ids, char *bf, size_t bfsize);
+PRIVATE json_t *trace_yunos_response(
+    hgobj gobj,
+    const char *cmd,
+    json_t *jn_unreached,
+    int sent,
+    json_t *jn_data,
     json_t *kw
 );
 PRIVATE int command_to_yuno(
@@ -5862,6 +5872,9 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             result += -1;
         } else {
             deleted++;
+            if(!by_instance) {
+                remove_saved_attrs_of_yuno(gobj, node);  // a failure is logged, the yuno is deleted
+            }
         }
     }
     JSON_DECREF(iter)
@@ -7008,15 +7021,22 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
      */
     json_t *jn_data = json_array();
 
+    int sent = 0;
+    json_t *jn_unreached = json_array();
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
-         *  Trace on yuno
+         *  Trace on yuno. Not connected: nothing reaches it, `traced` is
+         *  left as it is.
          */
-        json_object_set_new(yuno, "traced", json_true());
         json_t *kw_clone = kw_duplicate(gobj, kw);  // a kw copy: its gbuffer goes with a reference
         (void)msg_iev_clean_metadata(kw_clone);
-        trace_on_yuno(gobj, yuno, kw_clone, jn_levels, src);
+        if(trace_on_yuno(gobj, yuno, kw_clone, jn_levels, src) < 0) {
+            json_array_append_new(jn_unreached, json_string(SDATA_GET_ID(yuno)));
+            continue;
+        }
+        sent++;
+        json_object_set_new(yuno, "traced", json_true());
 
         json_array_append_new(
             jn_data,
@@ -7035,14 +7055,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
     /*
      *  Inform
      */
-    return msg_iev_build_response(
-        gobj,
-        0,
-        0,
-        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
-        jn_data, // owned
-        kw  // owned
-    );
+    return trace_yunos_response(gobj, cmd, jn_unreached, sent, jn_data, kw);
 }
 
 /***************************************************************************
@@ -7082,15 +7095,23 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
      */
     json_t *jn_data = json_array();
 
+    int sent = 0;
+    json_t *jn_unreached = json_array();
     int idx; json_t *yuno;
     json_array_foreach(iter, idx, yuno) {
         /*
-         *  Trace off yuno
+         *  Trace off yuno. Not connected: nothing reaches it, and it keeps
+         *  its saved trace for its next start, so `traced` is left as it is.
+         *  Up to 7.30.22 it was set false.
          */
-        json_object_set_new(yuno, "traced", json_false());
         json_t *kw_clone = kw_duplicate(gobj, kw);  // a kw copy: its gbuffer goes with a reference
         (void)msg_iev_clean_metadata(kw_clone);
-        trace_off_yuno(gobj, yuno, kw_clone, src);
+        if(trace_off_yuno(gobj, yuno, kw_clone, src) < 0) {
+            json_array_append_new(jn_unreached, json_string(SDATA_GET_ID(yuno)));
+            continue;
+        }
+        sent++;
+        json_object_set_new(yuno, "traced", json_false());
 
         json_array_append_new(
             jn_data,
@@ -7108,14 +7129,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
     /*
      *  Inform
      */
-    return msg_iev_build_response(
-        gobj,
-        0,
-        0,
-        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
-        jn_data, // owned
-        kw  // owned
-    );
+    return trace_yunos_response(gobj, cmd, jn_unreached, sent, jn_data, kw);
 }
 
 /***************************************************************************
@@ -9582,6 +9596,74 @@ PRIVATE char * build_yuno_private_domain(
 }
 
 /***************************************************************************
+ *  Remove the attributes the yuno saved of its own (the persistent attrs
+ *  of its C_YUNO: its trace levels, and what was written to its __yuno__
+ *  with persistence), at the delete of the WHOLE yuno: a yuno created again
+ *  with the same id took them up, its trace on and `traced` false. Up to
+ *  7.30.22 they survived the delete. The rest of its data is left. A yuno
+ *  whose binary fixes its own domain_dir (logcenter, webstats) saves them
+ *  elsewhere, out of the agent's knowledge: not removed.
+ ***************************************************************************/
+PRIVATE int remove_saved_attrs_of_yuno(hgobj gobj, json_t *yuno)
+{
+    char private_domain[PATH_MAX];
+    if(!build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain))) {
+        return -1;  // Error already logged
+    }
+
+    /*
+     *  The name dbsimple gives it: <gclass>-<gobj name>-persistent-attrs.json,
+     *  the gobj name of a yuno being its yuno_name
+     */
+    const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
+    char filename[NAME_MAX];
+    int n = snprintf(filename, sizeof(filename), "%s-%s-persistent-attrs.json", C_YUNO, yuno_name);
+    if(n < 0 || n >= (int)sizeof(filename)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "yuno_name too long for the file of its saved attrs",
+            "yuno_id",      "%s", SDATA_GET_ID(yuno),
+            "yuno_name",    "%s", yuno_name,
+            NULL
+        );
+        return -1;
+    }
+
+    char path[PATH_MAX];
+    if(!build_path(path, sizeof(path), yuneta_root_dir(), private_domain, "data", filename, NULL)) {
+        return -1;  // Error already logged
+    }
+
+    if(unlink(path) < 0) {
+        if(errno == ENOENT) {
+            return 0;
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot remove the saved attrs of a yuno deleted whole",
+            "yuno_id",      "%s", SDATA_GET_ID(yuno),
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "Saved attrs of a yuno deleted whole removed (its trace levels among them)",
+        "yuno_id",      "%s", SDATA_GET_ID(yuno),
+        "path",         "%s", path,
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir)
@@ -11387,18 +11469,8 @@ PRIVATE json_t *unreached_yunos_response(
 {
     json_t *jn_response = NULL;
     if(json_array_size(jn_unreached) > 0) {
-        char ids[256] = "";
-        size_t len = 0;
-        size_t i; json_t *jn_id;
-        json_array_foreach(jn_unreached, i, jn_id) {
-            int n = snprintf(ids + len, sizeof(ids) - len, "%s%s",
-                i? "," : "", json_string_value(jn_id));
-            if(n < 0 || (size_t)n >= sizeof(ids) - len) {
-                len = sizeof(ids) - 1;  // the log below carries the whole list
-                break;
-            }
-            len += (size_t)n;
-        }
+        char ids[256];
+        join_yuno_ids(jn_unreached, ids, sizeof(ids));
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
@@ -11422,6 +11494,73 @@ PRIVATE json_t *unreached_yunos_response(
     }
     JSON_DECREF(jn_unreached)
     return jn_response;
+}
+
+/***************************************************************************
+ *  The ids of `jn_ids` (not owned), comma separated, cut to `bfsize`: the
+ *  log that goes with it carries the whole list.
+ ***************************************************************************/
+PRIVATE void join_yuno_ids(json_t *jn_ids, char *bf, size_t bfsize)
+{
+    size_t len = 0;
+    bf[0] = 0;
+    size_t i; json_t *jn_id;
+    json_array_foreach(jn_ids, i, jn_id) {
+        int n = snprintf(bf + len, bfsize - len, "%s%s",
+            i? "," : "", json_string_value(jn_id));
+        if(n < 0 || (size_t)n >= bfsize - len) {
+            break;  // cut: snprintf() left it terminated
+        }
+        len += (size_t)n;
+    }
+}
+
+/***************************************************************************
+ *  The answer of trace-on-yuno and trace-off-yuno: the rows of the yunos
+ *  reached, and the ids of those not connected to the agent (stopped,
+ *  starting or stopping), whose trace and `traced` were not changed. -1
+ *  when none was reached. `jn_unreached`, `jn_data` and `kw` owned.
+ ***************************************************************************/
+PRIVATE json_t *trace_yunos_response(
+    hgobj gobj,
+    const char *cmd,
+    json_t *jn_unreached,
+    int sent,
+    json_t *jn_data,
+    json_t *kw
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_comment = 0;
+    if(json_array_size(jn_unreached) > 0) {
+        char ids[256];
+        join_yuno_ids(jn_unreached, ids, sizeof(ids));
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "yuno not connected to the agent, its trace not changed",
+            "what",         "%s", cmd,
+            "yunos",        "%j", jn_unreached,
+            "sent",         "%d", sent,
+            NULL
+        );
+        jn_comment = json_sprintf(
+            "%s: %s: yuno %s not connected to the agent (stopped, starting or stopping): "
+            "its trace not changed",
+            gobj_yuno_role_plus_name(), cmd, ids
+        );
+    }
+    JSON_DECREF(jn_unreached)
+
+    return msg_iev_build_response(
+        gobj,
+        (sent == 0 && jn_comment)? -1 : 0,
+        jn_comment,
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), "yunos"),
+        jn_data, // owned
+        kw  // owned
+    );
 }
 
 /***************************************************************************

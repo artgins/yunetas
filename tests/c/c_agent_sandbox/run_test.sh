@@ -13,7 +13,7 @@
 #   two "yuno ALREADY living" (the second cards of the running yuno: none
 #   for its relaunch by the watcher).
 #
-#   Usage: run_test.sh <yuneta_agent binary> <logcenter binary>
+#   Usage: run_test.sh <yuneta_agent binary> <logcenter binary> <emailsender binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
 #
 #   Copyright (c) 2026, ArtGins.
@@ -26,12 +26,14 @@
 HERE=$(dirname "$(readlink -f "$0")")
 AGENT="$1"
 YUNO="$2"
+OTHER="$3"     # a yuno whose domain_dir the agent gives (logcenter's is fixed)
 skip() {
     echo "SKIPPED: $1"
     exit 77
 }
 [ -x "$AGENT" ] || skip "no agent binary at '$AGENT' (built by yunetas build)"
 [ -x "$YUNO" ] || skip "no logcenter binary at '$YUNO' (built by yunetas build)"
+[ -x "$OTHER" ] || skip "no emailsender binary at '$OTHER' (built by yunetas build)"
 python3 -c "import websockets" 2>/dev/null || skip "python3 without the websockets module"
 command -v ip >/dev/null || skip "no 'ip' command to bring up the loopback of the sandbox"
 unshare -rmn --pid --fork --mount-proc true 2>/dev/null || skip "unprivileged namespaces not allowed here"
@@ -44,6 +46,7 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$AGENT" "$WORK/yuneta_agent"
 cp "$YUNO" "$WORK/logcenter"
+cp "$OTHER" "$WORK/emailsender"
 cp "$HERE/client.py" "$HERE/agent.json" "$WORK/"
 printf 'yuneta:x:0:0:yuneta:/yuneta:/bin/bash\n' > "$WORK/passwd"
 printf 'yuneta:x:0:yuneta\n' > "$WORK/group"
@@ -60,7 +63,7 @@ unshare -rmn --pid --fork --mount-proc bash -c "
     ulimit -c 0     # a crash of a yuno in here (case 7) leaves no core in the host's /var/crash
     ./yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json > '$WORK/agent.log' 2>&1 &
     APID=\$!
-    python3 -I '$WORK/client.py' '$WORK/logcenter'
+    python3 -I '$WORK/client.py' '$WORK/logcenter' '$WORK/emailsender'
     echo \"client exit code \$?\" > '$WORK/client.rc'
     kill -INT \$APID 2>/dev/null
     for i in \$(seq 1 150); do
