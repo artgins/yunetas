@@ -185,6 +185,7 @@ typedef struct _PRIVATE_DATA {
     BOOL output_drop_said;
     gbuffer_t *gbuf_pending;    // what the client sent before its output opened
     json_int_t client_seq;      // clients connected, to tell whose drop was posted
+    json_int_t output_owner_seq;    // the client whose output was started last
 
     json_int_t txMsgs;
     json_int_t rxMsgs;
@@ -676,6 +677,7 @@ PRIVATE int connect_output(hgobj gobj)
     }
 
     set_reading(tcp, FALSE);
+    priv->output_owner_seq = priv->client_seq;
     if(gobj_start(tcp) < 0) {
         // Error already logged
         return -1;
@@ -690,6 +692,11 @@ PRIVATE void disconnect_output(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Closed for relaying now: its stop may wait for a write in flight,
+     *  and the next client's data must not reach this session meanwhile
+     */
+    priv->output_side_opened = FALSE;
     if(priv->gobj_output_tcp && gobj_is_running(priv->gobj_output_tcp)) {
         gobj_stop(priv->gobj_output_tcp);
     }
@@ -853,7 +860,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  the output C_TCP, and the end of the client stops it
              */
             gobj_post_event(gobj, EV_DROP,
-                json_pack("{s:I}", "client", priv->client_seq),
+                json_pack("{s:I}", "client", priv->output_owner_seq),
                 gobj
             );
         }
