@@ -153,6 +153,33 @@ full disk exited every yuno where `C_AUTHZ` is master, the agent included.
 `tests/c/authz_login` (`test_authz_store_full`, and `_exit` for the
 default).
 
+The same value decides what happens when the store is there and does not
+open at start up: its `__timeranger2__.json` corrupt, or empty in a replica
+(`master` false; only a master makes an empty one again).
+
+| Value | The store does not open at start up |
+|---|---|
+| `2` (the default) | The yuno exits with code 0, as always. |
+| `0` | The yuno goes on with local access only, as a `C_AUTHZ` without its store directory: ONE ERROR, *"The authz db cannot be opened, authz only to local access"*. `yuneta` logs in from `127.0.0.*` with no token; no JWT is validated (a good token is refused, *"Authentication failed: Invalid token"*); the user commands answer *"no users treedb in this yuno"*. |
+
+For example, an agent22 that replicates the agent's store, with that store's
+`__timeranger2__.json` left empty by a first write that did not end:
+
+```json
+"global": {
+    "Authz.master": false,
+    "Authz.authz_service": "agent",
+    "Authz.on_critical_error": 0
+}
+```
+
+stays up, and its operator logs in as `yuneta` from the node. Up to 7.30.19
+`C_AUTHZ` gave its `C_NODE` a fixed `exit_on_error` of `LOG_OPT_EXIT_ZERO`,
+so the yuno exited with code 0 (*"tranger NULL"*) whatever
+`on_critical_error` said. `tests/c/authz_login`
+(`test_authz_store_corrupt`, `test_authz_store_empty_replica`, and `_exit`
+for the default of each).
+
 (authz-trust-peer-ip)=
 ### A login by the peer's address, and a proxy (`trust_peer_ip`)
 

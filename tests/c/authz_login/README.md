@@ -80,6 +80,21 @@ the store cannot write, the disk full by a file size limit of 0
   yuno with code 0, its line says `"exiting": "0"` (an `atexit()` handler
   checks it was there).
 
+`test_authz_store_corrupt`, `test_authz_store_empty_replica`, and `_exit`
+of each (store `/tmp/<test>_store`): a store that is there and does not
+open at start up, its `__timeranger2__.json` corrupt in a master, or empty
+in a replica (`master` false; only a master makes an empty one again).
+
+- With `Authz.on_critical_error` `0` (the agent's): the yuno stays up with
+  ONE *"The authz db cannot be opened, authz only to local access"*;
+  `yuneta` with no token from `127.0.0.1` logs in; alice with a good token
+  of a key of the config is refused (no JWT is validated in local access).
+  Up to 7.30.19 the yuno exited with code 0 at start up (*"tranger NULL"*:
+  `C_AUTHZ` gave its `C_NODE` a fixed `exit_on_error`; red: *"the yuno
+  exited before the end of the test, at start up"*).
+- `_exit`, the default (`2`): the yuno exits with code 0 at start up, its
+  line says `"exiting": "0"`.
+
 ```bash
 ctest -R authz_login --output-on-failure --test-dir build
 ```

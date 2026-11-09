@@ -115,3 +115,43 @@ foreach(binary test_authz_store_full test_authz_store_full_exit)
     set_tests_properties("${current_directory_name}/${binary}" PROPERTIES
         TIMEOUT 60 RESOURCE_LOCK authz_store_full_store)
 endforeach()
+
+##############################################
+#   An authzs store that is there and does not open at start up: corrupt in
+#   a master, empty in a replica; on_critical_error 0 (the agent's: local
+#   access only) and the default (_exit: the yuno exits with 0)
+##############################################
+foreach(binary
+        test_authz_store_corrupt test_authz_store_corrupt_exit
+        test_authz_store_empty_replica test_authz_store_empty_replica_exit)
+    add_yuno_executable(${binary} test_authz_store_unopenable.c)
+
+    if(binary MATCHES "_empty_replica")
+        target_compile_definitions(${binary} PRIVATE EMPTY_REPLICA)
+    endif()
+    if(binary MATCHES "_exit$")
+        target_compile_definitions(${binary} PRIVATE EXIT_DEFAULT)
+    endif()
+
+    if(CONFIG_FULLY_STATIC)
+        set_target_properties(${binary} PROPERTIES
+            LINK_SEARCH_START_STATIC TRUE
+            LINK_SEARCH_END_STATIC TRUE
+        )
+    endif()
+
+    target_link_libraries(${binary}
+        ${YUNETAS_KERNEL_LIBS}
+        ${YUNETAS_EXTERNAL_LIBS}
+        ${YUNETAS_PCRE_LIBS}
+        ${JWT_LIBS}
+        ${OPENSSL_LIBS}
+        ${MBEDTLS_LIBS}
+        ${DEBUG_LIBS}
+    )
+
+    add_test("${current_directory_name}/${binary}" ${binary})
+    # one .c names the four stores (#ifdef): the checker sees all in each
+    set_tests_properties("${current_directory_name}/${binary}" PROPERTIES
+        TIMEOUT 60 RESOURCE_LOCK authz_store_unopenable_store)
+endforeach()

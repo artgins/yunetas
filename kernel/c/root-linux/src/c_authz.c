@@ -386,7 +386,11 @@ PRIVATE sdata_desc_t attrs_table[] = {
  *  Without it: when the store directory does not exist, the service logs
  *  "No authz db, authz only to local access" and opens no treedb; when it
  *  exists (another yuno is its master), it is opened as a READ-ONLY replica,
- *  and every write command answers READ-ONLY.
+ *  and every write command answers READ-ONLY. When it exists and does not
+ *  open (a corrupt __timeranger2__.json, an empty one in a replica), the
+ *  yuno exits with code 0 at the default `on_critical_error`; with
+ *  `on_critical_error` 0 it goes on with local access only, as without the
+ *  directory ("The authz db cannot be opened, authz only to local access").
  */
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty then it will be the yuno_role"),
@@ -395,7 +399,7 @@ SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD|SDF_DEPRECATED, "", "If tranger_p
 
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "The master is the only one that can write the authzs store, and the only one that creates its directory. Not set internally: configure it (Authz.master)"),
-SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "on_critical_error of the authzs store (its C_TRANGER): 2 (LOG_OPT_EXIT_ZERO) a write it refuses (a full disk) exits the yuno with code 0, and a second master of the store stays down. 0: the yuno goes on; its users and keys are in memory, so logins go on, and the login history is best-effort: ONE ERROR when the store refuses it, one INFO when it saves again. Set 0 where the store is secondary for the yuno (the agent). Set in the config only"),
+SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "on_critical_error of the authzs store (its C_TRANGER): 2 (LOG_OPT_EXIT_ZERO) a write it refuses (a full disk) exits the yuno with code 0, and a second master of the store stays down. 0: the yuno goes on; its users and keys are in memory, so logins go on, and the login history is best-effort: ONE ERROR when the store refuses it, one INFO when it saves again. A store that does not open at start: 2 exits with code 0, 0 goes on with local access only. Set 0 where the store is secondary for the yuno (the agent). Set in the config only"),
 
 SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
 /*
@@ -609,11 +613,6 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*
-     *  Create validators
-     */
-    create_jwt_validations(gobj);
-
-    /*
      *  Check schema, exit if fails
      */
     json_t *jn_treedb_schema = legalstring2json(treedb_schema_authzs, TRUE);
@@ -633,11 +632,12 @@ PRIVATE void mt_create(hgobj gobj)
     /*------------------------------------*
      *  Open treedb
      *------------------------------------*/
+    log_opt_t on_critical_error = (log_opt_t)gobj_read_integer_attr(gobj, "on_critical_error");
     json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path,
         "filename_mask", "%Y",
         "master", master,
-        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
+        "on_critical_error", (int)on_critical_error
     );
     priv->gobj_tranger = gobj_create_service(
         "tranger_authz",
@@ -647,32 +647,59 @@ PRIVATE void mt_create(hgobj gobj)
     );
     priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger, "tranger");
 
-    /*----------------------*
-     *  Create Treedb
-     *----------------------*/
-    const char *treedb_name = "treedb_authzs"; // HACK hardcoded service name
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:O, s:b, s:b}",
-        "tranger", (json_int_t)(uintptr_t)priv->tranger,
-        "treedb_name", treedb_name,
-        "treedb_schema", jn_treedb_schema,
-        "exit_on_error", LOG_OPT_EXIT_ZERO,
-        "initial_load", gobj_read_json_attr(gobj, "initial_load"),
-        "impose_c_schema", 1,   // the binary imposes its schema over a newer one on disk
-        "with_link_events", gobj_read_bool_attr(gobj, "with_link_events")
-    );
+    if(!priv->tranger) {
+        /*
+         *  The store is there and does not open (its __timeranger2__.json
+         *  corrupt, or empty in a replica): with an exit in on_critical_error
+         *  the yuno ends here, as always; without it, the local access only
+         *  of a yuno without the directory. Up to 7.30.19 its C_NODE ended
+         *  the yuno with code 0 whatever on_critical_error said.
+         */
+        gobj_log_error(gobj, on_critical_error,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TRANGER,
+            "msg",          "%s", "The authz db cannot be opened, authz only to local access",
+            "path",         "%s", path,
+            "master",       "%d", master?1:0,
+            NULL
+        );
+        JSON_DECREF(jn_treedb_schema)
+        gobj_destroy(priv->gobj_tranger);
+        priv->gobj_tranger = 0;
 
-    priv->gobj_treedb = gobj_create_service(
-        treedb_name,
-        C_NODE,
-        kw_resource,
-        gobj
-    );
+    } else {
+        /*
+         *  Create validators
+         */
+        create_jwt_validations(gobj);
 
-    /*
-     *  HACK pipe inheritance
-     */
-    gobj_set_bottom_gobj(priv->gobj_treedb, priv->gobj_tranger);
-    gobj_set_bottom_gobj(gobj, priv->gobj_treedb);
+        /*----------------------*
+         *  Create Treedb
+         *----------------------*/
+        const char *treedb_name = "treedb_authzs"; // HACK hardcoded service name
+        json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:O, s:b, s:b}",
+            "tranger", (json_int_t)(uintptr_t)priv->tranger,
+            "treedb_name", treedb_name,
+            "treedb_schema", jn_treedb_schema,
+            "exit_on_error", (int)on_critical_error,
+            "initial_load", gobj_read_json_attr(gobj, "initial_load"),
+            "impose_c_schema", 1,   // the binary imposes its schema over a newer one on disk
+            "with_link_events", gobj_read_bool_attr(gobj, "with_link_events")
+        );
+
+        priv->gobj_treedb = gobj_create_service(
+            treedb_name,
+            C_NODE,
+            kw_resource,
+            gobj
+        );
+
+        /*
+         *  HACK pipe inheritance
+         */
+        gobj_set_bottom_gobj(priv->gobj_treedb, priv->gobj_tranger);
+        gobj_set_bottom_gobj(gobj, priv->gobj_treedb);
+    }
 
     /*
      *  SERVICE subscription model
