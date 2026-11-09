@@ -235,10 +235,12 @@ ycommand -c 'trace-off-yuno id=3'    # 0, traced false
 ```
 
 Up to 7.30.22 `trace-off-yuno` of a yuno not connected answered 0 and set
-`traced` false, and the yuno came back with its trace on. `delete-yuno
-whole=1` removes the saved levels (the yuno's `C_YUNO` persistent attrs
-file), except for a yuno whose binary fixes its `domain_dir` (`logcenter`,
-`webstats`).
+`traced` false, and the yuno came back with its trace on. A delete that
+takes the whole yuno (`delete-yuno whole=1`, or `yuno_release=` of its only
+release since 7.30.24) removes the saved levels (the yuno's `C_YUNO`
+persistent attrs file), except for a yuno whose binary fixes its
+`domain_dir` (`logcenter`, `webstats`): reset theirs with `trace-off-yuno`
+while they run, before `kill-yuno`.
 
 > **`set-global-no-trace` silences a global level** for every gobj. Each yuno's
 > `main.c` sets its defaults this way before it creates the yuno, almost always
