@@ -2035,8 +2035,9 @@ PRIVATE json_t *refuse_without_authz(hgobj gobj, const char *permission, json_t 
     if(!priv->gobj_treedb) {
         /*
          *  No users treedb in this yuno ("authz only to local access":
-         *  logcenter, auth_bff, sgateway...): nobody can be asked, and
-         *  there is nothing to manage. Said as what it is, not as a -403
+         *  emailsender, or a store that did not open): nobody can be
+         *  asked, and there is nothing to manage. Said as what it is,
+         *  not as a -403
          */
         return msg_iev_build_response(
             gobj,

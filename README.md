@@ -162,7 +162,7 @@ reason.
   rows 1.5%, a forced treedb delete 3.9%; the master and the appends stay
   inside their noise, and 7.27.1 to 7.27.4 cost nothing measurable.
   [Report](performance/reports/7.27.5.html) (the file) ·
-  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.7/performance/reports/7.27.5.html) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.8/performance/reports/7.27.5.html) ·
   [raw figures](performance/reports/7.27.5.json)
 - **7.27.0** (against 7.26.9): a hardening release that holds its speed --
   30 of 31 figures inside their noise; one price said with its cause (a
@@ -179,7 +179,7 @@ reason.
   topic) and the appends of a store 2-4% longer (7.26.9, the hardened kw
   calls).
   [Report](performance/reports/7.26.9.html) (the file) ·
-  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.26.9/performance/reports/7.26.9.html) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.27.8/performance/reports/7.26.9.html) ·
   [raw figures](performance/reports/7.26.9.json)
 - **7.26.0** (against 7.25.22): reading a timeranger2 history 16-17% faster,
   opening a treedb 20% faster, a tm query of a topic 7.25.22 had not marked 31x

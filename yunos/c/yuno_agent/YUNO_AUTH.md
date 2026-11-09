@@ -1015,7 +1015,10 @@ local access"*). In that mode (7.30.21+):
 - no login token is validated (no `jwks` key is loaded), but the operator
   assertions are: `assertion_jwks` are config keys, loaded whether the store
   opens or not. So an agent22 whose replica does not open still runs the
-  commands its controlcenter forwards.
+  commands its controlcenter forwards, except the ones that ask a permission
+  (a console, a treedb operation) for an operator that is not `yuneta`. An
+  assertion whose `sub` is `yuneta` (an operator who entered the
+  controlcenter from the local IP of its host) has every permission.
 
 For example, the agent with its authz store corrupt:
 

@@ -175,8 +175,11 @@ For example, the agent, with its store's `__timeranger2__.json` corrupt:
 stays up: it opens its own treedb, listens on its ports, and `ycommand` from
 the node (`yuneta` from `127.0.0.1`) runs every command. An agent22 that
 replicates that store (`"Authz.master": false`, the same `authz_service`)
-stays up too, and runs the commands its controlcenter forwards: it verifies
-their operator assertions with `assertion_jwks`. Up to 7.30.19 `C_AUTHZ` gave
+stays up too, and runs the commands its controlcenter forwards (it verifies
+their operator assertions with `assertion_jwks`), except the ones that ask a
+permission (a console, a treedb operation) for an operator that is not
+`yuneta`: those are refused, as in [the local access only
+mode](#authz-local-access). Up to 7.30.19 `C_AUTHZ` gave
 its `C_NODE` a fixed `exit_on_error` of `LOG_OPT_EXIT_ZERO`, so the yuno
 exited with code 0 (*"tranger NULL"*) whatever `on_critical_error` said. In
 7.30.20 `C_AUTHZ` stayed up, but the agent exited at its own `open-treedb`
@@ -193,8 +196,8 @@ A `C_AUTHZ` without its users treedb runs in the *local access only* mode.
 It has no treedb in two cases:
 
 - its store directory does not exist: ONE WARNING, *"No authz db, authz only
-  to local access"*. A yuno that does not hold users (`logcenter`,
-  `auth_bff`, `sgateway`) is always in this mode;
+  to local access"*. For example `emailsender`: it creates a `C_AUTHZ`, is
+  not the master of a store, and no store of its role is on the node;
 - its store is there and does not open, with `on_critical_error` `0` (see
   above).
 
@@ -207,11 +210,15 @@ What the mode does:
 | An operator assertion (`verify_jwt` with an audience, from a controlcenter's request) | Verified with the keys of `assertion_jwks`, as with the store. They are config keys: loaded whether the store opens or not (7.30.21+). |
 | A permission (`gobj_user_has_authz()`) of `yuneta` | Every permission (7.30.21+). |
 | A permission of the yuno itself: an internal call, no `__username__` nor `__md_iev__` in its kw, from a gobj with no user of its own | Every permission (7.30.21+). The agent's own `open-treedb` at start up is asked as `yuneta` (the `__username__` of the agent's gobj), and opens. |
-| A permission of any other user (an operator of an assertion, a `service_principal`), or of a peer's event with no user | Refused, with ONE WARNING for each question: *"Authz only to local access: only yuneta has permissions"* (with `username`, `service` and `authz`). |
+| A permission of any other user (an operator of an assertion, a `service_principal`), or of a peer's event with no user | Refused, with ONE WARNING for each question: *"Authz only to local access: only yuneta has permissions"* (with `username`, `service` and `authz`). An assertion whose `sub` is `yuneta` (an operator who entered the controlcenter from the local IP of its host) is `yuneta`: every permission. |
+| The user commands (`users`, `create-user`, `add-jwk`, ...) | *"no users treedb in this yuno"*. |
 
 The user asked about is the `__username__` of the kw, else the one of the
 gobj that asks (`src`), as with the store.
-| The user commands (`users`, `create-user`, `add-jwk`, ...) | *"no users treedb in this yuno"*. |
+
+A yuno that creates no `C_AUTHZ` (`logcenter`, `auth_bff`, `sgateway`) is
+not in this mode: it has no authz at all. A permission question there is
+answered *"No gclass authz found"* (an ERROR) and refused, to `yuneta` too.
 
 For example, the question a `C_TREEDB` command asks, from inside the yuno and
 from a peer:

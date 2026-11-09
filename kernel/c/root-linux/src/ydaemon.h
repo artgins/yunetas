@@ -24,7 +24,12 @@ extern "C"{
  *********************************************************************/
 #ifdef __linux__
 PUBLIC int get_watcher_pid(void);
-PUBLIC int daemon_shutdown(const char *process_name); // 0, or -1 if a process could not be signalled
+/*
+ *  0, or -1 if a process could not be signalled, or nothing of the name is
+ *  mine and it may run as another user (theirs, or hidden by /proc
+ *  hidepid=1). Said on stdout and in syslog.
+ */
+PUBLIC int daemon_shutdown(const char *process_name);
 
 /*
  *  With --start: the file where the pid of the WATCHER (the process that

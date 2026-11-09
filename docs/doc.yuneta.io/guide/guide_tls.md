@@ -406,8 +406,8 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    | Log message | Meaning | Action |
    |---|---|---|
    | `TLS client WITHOUT server-certificate validation` | a client is not validating the server it dials | add a CA → Profile A |
-   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor). One per 10 s for each listener, and one per 10 s for all the clients of the yuno together: `suppressed` counts the ones of the last window not written, so a peer that fails its handshake in a loop does not write the log at its own rate (up to 7.30.18 each one wrote it), a scanner on one listener does not hide the reject of a legitimate client on another (up to 7.30.19 the window was the whole yuno's), and a client that connects again and again, with a context of its own for each connection, does not write a line per connection (in 7.30.20 it did) | if legitimate, move that gate to Profile B |
-   | `TLS handshakes rejected, not said in their window` | the rejects that no line said. Nothing closes a window by time: its count is said at the next reject after the window (in that line, or in this one when the next reject comes more than 10 s after the window), or when a listener ends; the clients' count also when a client context ends after the window. `suppressed` is the count, and the line names the gobj (`gobj_full_name`) | as above |
+   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor). One per 10 s for each listener, and one per 10 s for all the clients of the yuno together (for all the clients of one TLS backend: a yuno with clients on both backends has two clients' windows, one per backend): `suppressed` counts the ones of the last window not written, so a peer that fails its handshake in a loop does not write the log at its own rate (up to 7.30.18 each one wrote it), a scanner on one listener does not hide the reject of a legitimate client on another (up to 7.30.19 the window was the whole yuno's), and a client that connects again and again, with a context of its own for each connection, does not write a line per connection (in 7.30.20 it did) | if legitimate, move that gate to Profile B |
+   | `TLS handshakes rejected, not said in their window` | the rejects that no line said. Nothing closes a window by time: its count is said at the next reject after the window (in that line, or in this one when the next reject comes more than 10 s after the window), or when a listener ends; the clients' count also when a client context ends after the window, or in the shutdown of the yuno (up to 7.30.21 the count of the clients' last window was lost when the yuno ended). `suppressed` is the count, and the line names the gobj (`gobj_full_name`) and the `ssl_server_name` of the context that writes it. For the clients' count that is the client whose reject or end writes the line, which may be another client than the ones that failed (see the second example below) | as above |
    | `TLS handshake not ended in time, connection dropped` | a peer opened a TCP connection and did not end its handshake in `timeout_tls_handshake` (a scanner, a slowloris, a broken client); one per 10 s, `suppressed` counts the others | if a legitimate peer is slow, raise `timeout_tls_handshake` on that `C_TCP`; a high `suppressed` is a flood of mute connections |
    | `legacy floor below TLS1.2` | a gate is on a relaxed floor | confirm it is an intended IoT gate |
    | `renegotiation explicitly enabled` | a gate re-enabled renegotiation | confirm it is needed |
@@ -422,6 +422,19 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    WARNING: {"function": "do_handshake", "msg": "TLS handshake rejected", "error": "...certificate verify failed", "suppressed": 0, ...}
    WARNING: {"function": "do_handshake", "msg": "TLS handshake rejected", "error": "...certificate verify failed", "suppressed": 39, ...}
    ```
+
+   The clients' count is one for every client of the backend, so the line
+   that says it names the client that writes it. Client X (`ssl_server_name`
+   `idp.x`) fails 5 handshakes; client Y (`other.y`) fails one 11 s later.
+   X writes the first line; the line of Y carries the 4 that X did not write:
+
+   ```
+   WARNING: {"msg": "TLS handshake rejected", "ssl_server_name": "idp.x", "suppressed": 0, ...}
+   WARNING: {"msg": "TLS handshake rejected", "ssl_server_name": "other.y", "suppressed": 4, ...}
+   ```
+
+   To tell which client failed, read the `TLS handshake rejected` lines and
+   the `disconnect_cause` of each `C_TCP`, not the `suppressed` of a line.
 
 3. **Harden the high-level gates** one at a time: apply Profile A, restart,
    confirm the warning is gone and traffic still flows.

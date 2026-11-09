@@ -241,14 +241,15 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 by process name. Every process of that name started as it (the base name
 of `argv[0]` in `/proc/<pid>/cmdline`: a script of the same name has its
 interpreter there and is not one; a daemon whose binary was renamed still
-is, and so is another user's, which then fails with `EPERM`; a zombie of the
+is; another user's is taken only when the caller is root; a zombie of the
 name is dead and is not counted, nor is an `EPERM` on one a failure; the list has no fixed size, so look-alikes
 of the name, which anybody can start, cannot push the real ones out of it)
 gets SIGQUIT, the
 watchers first: a watcher notes it and does not relaunch its child, whatever its end;
 the child shuts down in order and exits 0, and its watcher exits with it.
 They are given 10 s to be gone; then the name is scanned again and what is
-left is killed with SIGKILL, said on stderr. Each `kill()` is checked.
+left is killed with SIGKILL, said on stdout and in syslog (`print_error()`).
+Each `kill()` is checked.
 
 ```C
 int daemon_shutdown(const char *process_name);
@@ -263,10 +264,19 @@ int daemon_shutdown(const char *process_name);
 **Returns**
 
 `0` when every process of the name is gone or killed; `-1` when one could
-not be signalled (another user's process: `EPERM`), when the `cmdline` of
-one could not be read for a reason other than its end (so it is not known
-whether it is the daemon), or when the list could not grow (no memory) --
-each one said on stderr, and not waited for.
+not be signalled (`EPERM`), when the `cmdline` of one could not be read for a
+reason other than its end (so it is not known whether it is the daemon), when
+the list could not grow (no memory), or when nothing of the name is the
+caller's and the name may run as another user: the processes of the name are
+all another user's (7.30.20+), or `/proc` is mounted `hidepid=1` and the name
+of other users' processes cannot be read (7.30.21+; in 7.30.20 it returned
+`0`, whether the daemon ran or not). Each one is said on stdout and in
+syslog, and not waited for. For example, `--stop` as a user, with `/proc`
+mounted `hidepid=1`, returns `-1` and prints:
+
+```
+--stop: yuneta_agent: not known if it runs: the name of 250 process(es) of other users cannot be read (pid 1: /proc mounted with hidepid?): run --stop as root
+```
 
 **Notes**
 
