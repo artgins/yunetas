@@ -231,7 +231,7 @@ if(CONFIG_HAVE_OPENSSL AND CONFIG_HAVE_MBEDTLS)
         TEST14_PORT_TLS2="7893"
         TEST14_PORT_PLAIN="7894"
         TEST14_APP_NAME="test_tcps_test14_mbedtls"
-        TEST14_CERT_ERROR="mbedtls_x509_crt_parse_file() FAILED"
+        "TEST14_CERT_ERROR=\"mbedtls_x509_crt_parse_file() FAILED\""    # quoted whole: it has a space
     )
     if(CONFIG_FULLY_STATIC)
         set_target_properties(test_tcps_test14_mbedtls PROPERTIES
