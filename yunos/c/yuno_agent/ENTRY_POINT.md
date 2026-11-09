@@ -423,10 +423,20 @@ kill(pid, SIGKILL);                         // guarantee they go
 A process of the name that another user runs is not taken, unless `--stop`
 runs as root (the owner of `/proc/<pid>` is compared with the effective
 uid): anybody can start a look-alike of the name. In 7.30.18 it was taken,
-its `kill()` failed with `EPERM`, and `--stop` exited 1. Every `kill()` is
-checked: one that fails is said on stderr, not waited for, and `--stop`
-exits 1. Up to 7.25.22 none
-was checked: an `EPERM` waited 10 s, printed *"killed (SIGKILL)"* and exited
+its `kill()` failed with `EPERM`, and `--stop` exited 1. When such processes
+are all there is of the name, `--stop` says so and exits 1:
+
+```
+$ yuneta_agent --stop       # as a user that does not run the agent
+--stop: yuneta_agent not stopped: 1 process(es) of the name run as another user (pid 1142, uid 1001), not mine to stop: run --stop as that user or as root
+```
+
+In 7.30.19 it said nothing and exited 0: the operator took the agent for
+stopped, and the `--start` after it launched a second agent beside the
+running one.
+
+Every `kill()` is checked: one that fails is said on stderr, not waited for,
+and `--stop` exits 1. Up to 7.25.22 none was checked: an `EPERM` waited 10 s, printed *"killed (SIGKILL)"* and exited
 0; and an agent that crashed during its stop was relaunched by its watcher,
 the watcher was SIGKILLed at 10 s, and the new agent was left an orphan.
 

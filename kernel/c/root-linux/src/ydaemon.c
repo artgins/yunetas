@@ -665,6 +665,9 @@ typedef struct {
     int n;
     int size;
     BOOL failed;    // a process not taken, that may be the daemon (said)
+    int others;     // look-alikes of another user, not taken
+    pid_t other_pid;    // the first of them
+    uid_t other_uid;
 } stop_pids_t;
 
 /*
@@ -811,7 +814,11 @@ PRIVATE void collect_proc(void *self, const char *name, pid_t pid)
             return;
         }
         if(st.st_uid != euid) {
-            return; // another user's
+            if(stop->others++ == 0) {
+                stop->other_pid = pid;
+                stop->other_uid = st.st_uid;
+            }
+            return; // another user's: said by daemon_shutdown() when it is all there is
         }
     }
     if(stop->n >= stop->size) {
@@ -875,6 +882,17 @@ PUBLIC int daemon_shutdown(const char *process_name)
     search_process(process_name, collect_proc, &stop);
     if(stop.failed) {
         ret = -1;   // Error already printed
+    }
+    if(stop.n == 0 && stop.others > 0) {
+        /*
+         *  Nothing of mine to stop, and the name runs as another user: in
+         *  7.30.19 --stop said nothing and exited 0, and the --start after it
+         *  launched a second daemon beside that user's one
+         */
+        print_error(0, "--stop: %s not stopped: %d process(es) of the name run as another user (pid %d, uid %d), not mine to stop: run --stop as that user or as root",
+            process_name, stop.others, (int)stop.other_pid, (int)stop.other_uid
+        );
+        ret = -1;
     }
 
     /*
