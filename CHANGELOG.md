@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v7.30.19 (2026-11-09)
+
+A correction and resilience release, deployed on every node. The rule of
+7.30.18 is narrowed to where it belongs: the agent never dies because a
+secondary service fails, and every other yuno chooses again
+(`exitOnError`, `on_critical_error`), with the exits of 7.30.17 as the
+default. sgateway relays without corrupting data and gives each client its
+own output connection; mbedTLS refuses a key of another certificate; an
+empty `__timeranger2__.json` is made again; a `max_run` stop is no longer
+lost at a deploy of the agent. The tests of each change ran, not the whole
+suite; no performance study (the next one is against 7.30.0).
+
 ### BREAKING: a listener or a queue that fails ends the yuno again, unless the yuno says otherwise; the agent degrades
 
 The agent never dies because a secondary service fails: for it a listener,
