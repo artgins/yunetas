@@ -3763,6 +3763,13 @@ The returned JSON object must be properly managed and eventually passed to [`tra
 
 A `path` or a `path`/`database` that does not fit in `PATH_MAX` is refused: `NULL`, and the `ERROR` of [`build_path()`](#build_path). Up to 7.29.3 the store was made in the directory that fitted, the one above the store asked for.
 
+A master that finds `__timeranger2__.json` EMPTY makes it again, as if it were not there: the write of a first open did not end (the disk was full, or the process died between the create and the write). It says it with a WARNING, *"__timeranger2__.json is empty (its first write did not end): made again"*, then the INFO *"Creating __timeranger2__.json"*. A replica (`"master": false`) still refuses the empty file (*"Cannot load json file, bad json"*): it cannot write. Up to 7.30.18 a master refused it too, at every try, and the store never opened again, even when the disk had space again. To see it on a node:
+
+```bash
+ls -l /yuneta/store/myapp/events/__timeranger2__.json
+# -rw-rw---- 1 yuneta yuneta 0 ...   <- empty: the next open of a master makes it again
+```
+
 ```C
 json_t *tranger = tranger2_startup(gobj, json_pack("{s:s, s:s, s:b}",
     "path", "/yuneta/store/myapp",

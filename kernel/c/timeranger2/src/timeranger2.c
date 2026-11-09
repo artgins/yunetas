@@ -1015,7 +1015,29 @@ PUBLIC json_t *tranger2_startup(
     );
 
     int fd = -1;
-    if(file_exists(directory, "__timeranger2__.json")) {
+    BOOL metadata_exists = file_exists(directory, "__timeranger2__.json");
+    if(metadata_exists && master) {
+        /*
+         *  Empty: the write of a first open did not end (a full disk, a
+         *  crash between its create and its write). A master makes it again,
+         *  as if it were not there. Up to 7.30.18 the store never opened
+         *  again: "bad json" at each try, with the disk back.
+         */
+        char metadata_path[PATH_MAX];
+        struct stat st;
+        if(build_path(metadata_path, sizeof(metadata_path), directory, "__timeranger2__.json", NULL) &&
+                stat(metadata_path, &st) == 0 && st.st_size == 0) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TRANGER,
+                "msg",          "%s", "__timeranger2__.json is empty (its first write did not end): made again",
+                "path",         "%s", directory,
+                NULL
+            );
+            metadata_exists = FALSE;
+        }
+    }
+    if(metadata_exists) {
         /*
          *  Pass on_critical_error here, NOT LOG_NONE — this is the single-master
          *  guard, and the level and the exit are the SAME knob. When a store is

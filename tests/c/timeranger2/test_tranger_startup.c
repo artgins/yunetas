@@ -5,6 +5,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <unistd.h>
 #include <signal.h>
 #include <limits.h>
 
@@ -20,6 +21,7 @@
  *              Constants
  ***************************************************************/
 #define DATABASE    "tr_tranger_startup"
+#define DATABASE_EMPTY  "tr_tranger_startup_empty"  // its __timeranger2__.json empty
 #define TOPIC_NAME  "topic_sample"
 
 /***************************************************************
@@ -395,6 +397,83 @@ PRIVATE int do_test(void)
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    /*-------------------------------------------------------*
+     *  A master finds __timeranger2__.json EMPTY: the write
+     *  of its first open did not end (a full disk, a crash).
+     *  It is made again, as if it were not there. Up to
+     *  7.30.18 the store never opened again ("bad json" at
+     *  each try), even with the disk back.
+     *-------------------------------------------------------*/
+    if(1) {
+        char path_database2[PATH_MAX];
+        build_path(path_database2, sizeof(path_database2), path_root, DATABASE_EMPTY, NULL);
+        rmrdir(path_database2);
+        mkrdir(path_database2, 02770);
+        build_path(file, sizeof(file), path_database2, "__timeranger2__.json", NULL);
+        int fd = newfile(file, 0660, TRUE);
+        if(fd < 0) {
+            printf("%sERROR --> %s%s\n", On_Red BWhite, "cannot make the empty __timeranger2__.json", Color_Off);
+            result += -1;
+        } else {
+            close(fd);
+        }
+
+        set_expected_results(
+            "tranger2_startup_empty_metadata", // test name
+            json_pack("[{s:s},{s:s}]", // error's list
+                "msg", "__timeranger2__.json is empty (its first write did not end): made again",
+                "msg", "Creating __timeranger2__.json"
+            ),
+            NULL,   // expected, NULL: we want to check only the logs
+            NULL,   // ignore_keys
+            1       // verbose
+        );
+        json_t *tr = tranger2_startup(
+            0,
+            json_pack("{s:s, s:s, s:b, s:i}",
+                "path", path_root,
+                "database", DATABASE_EMPTY,
+                "master", 1,
+                "on_critical_error", LOG_OPT_TRACE_STACK
+            ),
+            0
+        );
+        result += test_json(NULL);  // NULL: we want to check only the logs
+        if(!tr) {
+            printf("%sERROR --> %s%s\n", On_Red BWhite, "a master did not open a store with an empty __timeranger2__.json", Color_Off);
+            result += -1;
+        }
+
+        char expected[]= "\
+        { \
+          'filename_mask': '%Y-%m-%d', \
+          'rpermission': 432, \
+          'xpermission': 1528 \
+        } \
+        ";
+        set_expected_results(
+            "check_empty__timeranger2__.json_made_again",      // test name
+            NULL,
+            string2json(helper_quote2doublequote(expected), TRUE),
+            NULL,
+            TRUE
+        );
+        result += test_json_file(file);
+
+        if(tr) {
+            set_expected_results(
+                "tranger2_shutdown_empty_metadata", // test name
+                NULL,   // error's list, It must not be any log error
+                NULL,   // expected, NULL: we want to check only the logs
+                NULL,   // ignore_keys
+                1       // verbose
+            );
+            tranger2_shutdown(tr);
+            result += test_json(NULL);  // NULL: we want to check only the logs
+        }
+        rmrdir(path_database2);
+    }
 
     return result;
 }
