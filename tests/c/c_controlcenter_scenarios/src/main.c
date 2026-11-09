@@ -129,8 +129,8 @@ PRIVATE int write_assertion_key(void)
  *  installed the default one is C_AUTHZ's, which this test yuno does not
  *  run. This test is about what the commands do, not about who may ask:
  *  everybody may do everything, but "viewer", who may only read the
- *  scenario "scn", and "writer", who may read and write "scn", "mr", "wr"
- *  and "mrw" but run nothing -- the
+ *  scenario "scn", and "writer", who may read and write "scn", "mr", "wr",
+ *  "mrw" and "mrc" but run nothing -- the
  *  scope a role's `parameters` gives in C_AUTHZ
  *  (tests/c/authz_scoped_permissions), which is what the control center
  *  asks per scenario (case 14).
@@ -145,7 +145,7 @@ static BOOL test_authz_checker(hgobj gobj, const char *authz, json_t *kw, hgobj 
     } else if(strcmp(username, "writer")==0) {
         const char *id = kw_get_str(gobj, kw, "scenario_id", "", 0);
         BOOL on_mine = on_scn || strcmp(id, "mr")==0 || strcmp(id, "wr")==0 ||
-            strcmp(id, "mrw")==0;
+            strcmp(id, "mrw")==0 || strcmp(id, "mrc")==0;
         allow = (strcmp(authz, "read-scenarios")==0 || strcmp(authz, "write-scenarios")==0) &&
             on_mine;
     }
@@ -378,6 +378,7 @@ PRIVATE const char *expected_msgs[] = {
     "stopping a scenario: its max_run is reached",          // 41: its node back
     "the stop of a scenario's max_run cannot run, tried again in a minute",    // 41: none of the rest in it
     "stopping a scenario: its max_run is reached",          // 42: mrg, its yuno not found
+    "the stop of a scenario's max_run did nothing, tried again in a minute",    // 42
     "stopping a scenario: its max_run is reached",          // 43: mrc, its last try
     "the stop of a scenario's max_run did nothing in its last tries: not tried again",  // 43
     "stopping a scenario: its max_run is reached",          // 46: mrb, its stop gone

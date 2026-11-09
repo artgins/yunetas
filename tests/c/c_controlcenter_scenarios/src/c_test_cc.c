@@ -4139,12 +4139,17 @@ PRIVATE int test_mrw_nothing_runs(hgobj gobj)
 }
 
 /***************************************************************************
- *  42. The stop of a max_run whose step is answered "Yuno not found" (the
- *      yuno stopped by hand) is done, with an error: not tried again. The
- *      scenario "mrg" (max_run 1 s, one yuno on the agent). A (phase 10):
- *      started. B (phase 11, past the stop): answered "Yuno not found", the
- *      run is a failed stop, and no stop is scheduled, with no warning. In
- *      7.30.17 it was tried again every minute, for ever.
+ *  42. The stop of a max_run whose step is answered "Yuno not found" is
+ *      not done: the agent answers it also for a yuno that lives and is not
+ *      connected to it yet (an agent just restarted, when the stops that
+ *      waited for it are tried). It is tried again in a minute, as any
+ *      stop that did nothing. The scenario "mrg" (max_run 1 s, one yuno on
+ *      the agent). A (phase 10): started. B (phase 11, past the stop):
+ *      answered "Yuno not found", the run is a failed stop, the warning
+ *      "... tried again in a minute", and `scenarios` says a `stop_at` a
+ *      minute away, no `stop_waits_node`. The yuno back, a stop by the user
+ *      stops it: nothing is scheduled any more. In 7.30.18 such a stop was
+ *      done, and the max_run of a yuno not reconnected yet was lost.
  ***************************************************************************/
 PRIVATE int test_mrg_start(hgobj gobj)
 {
@@ -4153,6 +4158,8 @@ PRIVATE int test_mrg_start(hgobj gobj)
 
 PRIVATE int test_mrg_yuno_not_found(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
     int ret = 0;
 
     json_t *step = agent_request(gobj, "the control center sends the stop of mrg");
@@ -4168,21 +4175,54 @@ PRIVATE int test_mrg_yuno_not_found(hgobj gobj)
         ret += fail(gobj, "the stop of mrg is a failed run", kw_get_str(gobj, newest, "comment", "", 0));
     }
     JSON_DECREF(newest)
+
+    json_int_t now = (json_int_t)time_in_seconds();
+    json_t *mrg = scenario_named(gobj, "mrg");
+    json_int_t stop_at = kw_get_int(gobj, mrg, "stop_at", 0, KW_WILD_NUMBER);
+    if(json_object_get(mrg, "stop_waits_node")) {
+        ret += fail(gobj, "a stop answered 'Yuno not found' does not wait for a node", "");
+    }
+    if(stop_at < now + 59 || stop_at > now + 60) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%lld, now %lld", (long long)stop_at, (long long)now);
+        ret += fail(gobj, "a stop answered 'Yuno not found' is tried again in a minute", detail);
+    }
+    JSON_DECREF(mrg)
+
+    /*  The yuno back: stopped by the user, nothing is scheduled any more  */
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mrg"));
+    json_object_set_new(kw, "action", json_string("stop"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    step = agent_request(gobj, "the stop step of mrg, by the user, goes to the agent");
+    if(!step) {
+        return ret - 1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "paused");
+    JSON_DECREF(step)
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
     if(stop_scheduled(gobj, "mrg")) {
-        ret += fail(gobj, "a stop answered 'Yuno not found' is not tried again", "");
+        ret += fail(gobj, "mrg stopped by the user has no stop scheduled", "");
     }
     return ret;
 }
 
 /***************************************************************************
  *  43. The stop of a max_run is not tried again after MRC_TRIES tries in
- *      a row that did nothing, and that end is said once. The scenario "mrc" (max_run 1 s, one yuno on the
- *      agent). A (phase 11): started; the tries before the last are written
- *      into the treedb as the control center writes them (a minute apart,
- *      they would take minutes). B (phase 12, past the stop): the last try,
- *      answered -1 ("the yuno is restarting"): no stop is scheduled, and a
- *      warning says why (in the expected logs). In 7.30.17 a step that
- *      answered an error for ever was tried every minute, for ever.
+ *      a row that did nothing, and that end is said once and shown. The
+ *      scenario "mrc" (max_run 1 s, one yuno on the agent). A (phase 11):
+ *      started; the tries before the last are written into the treedb as
+ *      the control center writes them (a minute apart, they would take
+ *      minutes). B (phase 12, past the stop): the last try, answered -1
+ *      ("the yuno is restarting"): no stop is scheduled, and a warning says
+ *      why (in the expected logs). `scenarios` says `stop_given_up`, and no
+ *      `stop_at`; the scenario runs, so the writer (who may not run it)
+ *      cannot save it. A user who may run it saves it as it is: the stop is
+ *      tried again (a `stop_at`, no `stop_given_up`). A stop by the user
+ *      then stops it. In 7.30.17 a step that answered an error for ever
+ *      was tried every minute, for ever; in 7.30.18 the stop given up was
+ *      shown nowhere, and a save did not try it again.
  ***************************************************************************/
 #define MRC_TRIES   10      // MAX_RUN_STOP_TRIES of c_controlcenter.c: tries in a row
 
@@ -4195,6 +4235,8 @@ PRIVATE int test_mrc_start(hgobj gobj)
 
 PRIVATE int test_mrc_given_up(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj client = priv->client1;
     int ret = 0;
 
     json_t *step = agent_request(gobj, "the control center sends the last try of the stop of mrc");
@@ -4206,6 +4248,55 @@ PRIVATE int test_mrc_given_up(hgobj gobj)
     if(stop_scheduled(gobj, "mrc")) {
         ret += fail(gobj, "the stop of a max_run is not tried again after its last try", "");
     }
+    json_t *mrc = scenario_named(gobj, "mrc");
+    if(!json_is_true(json_object_get(mrc, "stop_given_up"))) {
+        ret += fail(gobj, "scenarios says the stop of mrc given up", "");
+    }
+    json_t *mrc_saved = json_pack("{s:s, s:s, s:I, s:O, s:O}",
+        "id", "mrc",
+        "node", AGENT_HOST,
+        "max_run", (json_int_t)1,
+        "yunos", json_object_get(mrc, "yunos"),
+        "actions", json_object_get(mrc, "actions")
+    );
+    JSON_DECREF(mrc)
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "__username__", json_string("writer"));
+    json_object_set_new(kw, "scenario", json_incref(mrc_saved));
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        -1, "saving it needs 'run-scenarios' too",
+        "a writer who may not run cannot save a scenario whose stop was given up");
+
+    /*  Saved by a user who may run it: its stop is tried again  */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", mrc_saved);
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, 0, "mrc saved as it is");
+    mrc = scenario_named(gobj, "mrc");
+    if(json_object_get(mrc, "stop_given_up") || !json_object_get(mrc, "stop_at")) {
+        ret += fail(gobj, "a save of mrc tries its stop again", "");
+    }
+    JSON_DECREF(mrc)
+
+    /*  Stopped by the user before that try: nothing is scheduled any more  */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string("mrc"));
+    json_object_set_new(kw, "action", json_string("stop"));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    JSON_DECREF(response)
+    step = agent_request(gobj, "the stop step of mrc, by the user, goes to the agent");
+    if(!step) {
+        return ret - 1;
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, step, 0, "paused");
+    JSON_DECREF(step)
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    mrc = scenario_named(gobj, "mrc");
+    if(json_object_get(mrc, "stop_at") || json_object_get(mrc, "stop_given_up")) {
+        ret += fail(gobj, "mrc stopped by the user has no stop scheduled nor given up", "");
+    }
+    JSON_DECREF(mrc)
     return ret;
 }
 

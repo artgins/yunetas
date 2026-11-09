@@ -958,16 +958,34 @@ save-scenario scenario={... "stop": [..., {"yuno": "gen-b", "command": "stop-loa
 scenarios scenario_id=load-test     # no stop_at: node-b's step is not in the scenario now
 ```
 
-Two answers end the tries:
+A step answered *"Yuno not found"* did not do its work. The agent gives
+that answer for a yuno that is not running, and also for a yuno that is
+alive but is not connected to the agent yet: after a restart of the agent,
+its yunos come back some seconds later, and the stops that waited for that
+agent are tried when it connects. So the stop is tried again in a minute,
+as a stop that the yuno refused. In 7.30.18 such a step was done, and the
+`max_run` of a yuno that was not connected again yet was lost at each
+deploy of the agent.
 
-- **A step answered *"Yuno not found"*** (the agent's answer when no yuno of
-  that id runs: stopped by hand, or gone) is done, with an error. The run is
-  a failed stop, and the step is not sent again.
+The tries end:
+
 - **10 tries in a row that did nothing** (each a run, a WARNING and an INFO,
   a minute apart or at each connection of a node): the stop is not tried
   again, with one WARNING, *"the stop of a scenario's max_run did nothing in
   its last tries: not tried again"* (`tries`, and the comment of the last
-  one). A try that did some steps starts the count again.
+  one). A try that did some steps starts the count again. `scenarios` then
+  answers `stop_given_up: true` (and no `stop_at`), and the scenario runs:
+  saving or deleting it needs `run-scenarios` too. A save of the scenario
+  tries the stop again, for 10 more tries; a stop by a user ends it. A
+  restart of the control center counts all the tries again from the runs,
+  so the stop is given up again. In 7.30.18 a stop given up was shown
+  nowhere, and a save did not try it again:
+
+  ```
+  scenarios scenario_id=load-test     # stop_given_up: true
+  save-scenario scenario={"id": "load-test", ...}   # the same scenario
+  scenarios scenario_id=load-test     # stop_at (past): the stop is tried again at once
+  ```
 - **A stop that cannot even start** (the scenario lost its `stop`, or none of
   the steps left is in it, changed outside `save-scenario`) writes no run.
   Each attempt says *"the stop of a scenario's max_run cannot run, tried

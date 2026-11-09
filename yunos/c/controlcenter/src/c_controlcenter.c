@@ -43,9 +43,13 @@
  *  connects) until each is done -- those of them that the scenario saved
  *  since still has, never a step the run did not have -- and while they
  *  are due the scenario runs (saving or deleting it needs `run-scenarios`).
- *  A step answered "Yuno not found" is done, with an error (no yuno of
- *  that id runs there); after MAX_RUN_STOP_TRIES tries in a row that did
- *  nothing, the stop is not tried again, with a warning. Every run that ends
+ *  A step answered "Yuno not found" is not done: the agent answers it also
+ *  for a yuno that lives and has not reached it yet (after a restart of the
+ *  agent). After MAX_RUN_STOP_TRIES tries in a row that did nothing, the
+ *  stop is not tried again, with a warning, and `scenarios` says
+ *  `stop_given_up` while the scenario runs; saving the scenario (which then
+ *  needs `run-scenarios`) tries it again, MAX_RUN_STOP_TRIES more times.
+ *  Every run that ends
  *  publishes EV_SCENARIO_RUN_ENDED (public, no data): a console that watches
  *  a scenario reads its state again, and sees it stopped by somebody else.
  *  A yuno of a scenario may carry a SWITCH, `switch: {on: [steps], off:
@@ -183,10 +187,6 @@
  *  every minute for ever  */
 #define MAX_RUN_STOP_TRIES  10
 
-/*  How the agent's command-yuno ends its answer when no yuno of the id
- *  runs: a stop's step that got it is done (step_done())  */
-#define YUNO_NOT_FOUND  ": Yuno not found"
-
 /*  The longest node uuid: what node_uuid() holds (its buffer of 64)  */
 #define NODE_ID_MAX     63
 
@@ -285,7 +285,7 @@ PRIVATE int start_run(
     char *err,
     size_t errsz
 );
-PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id);
+PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id, BOOL rearm);
 PRIVATE BOOL steps_have(hgobj gobj, json_t *steps, json_t *step);
 PRIVATE BOOL step_done(hgobj gobj, json_t *run, json_t *step);
 PRIVATE int run_steps_done(hgobj gobj, json_t *run);
@@ -618,6 +618,8 @@ typedef struct _PRIVATE_DATA {
     hgobj run_timer;                // deadline of the step of the run in flight
     hgobj stop_timer;               // the next stop a scenario's max_run is due
     json_t *auto_stops;             // scenario id -> {stop_at, scheduled_at: epoch seconds, started_by, [steps]} (max_run)
+    json_t *stops_given_up;         // scenario id -> true: its max_run stop given up after MAX_RUN_STOP_TRIES
+    json_t *stops_rearmed;          // scenario id -> epoch seconds: a stop given up, saved: only the tries after it count
     json_t *knocking;               // node uuid -> {spki_sha256, hostname, peername, first_seen, last_seen, seq}: not authenticated, in memory only
     json_int_t knock_seq;           // order of the last knock of each entry, for the eviction
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
@@ -661,6 +663,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->run_timer = gobj_create_pure_child("run_timer", C_TIMER, 0, gobj);
     priv->stop_timer = gobj_create_pure_child("stop_timer", C_TIMER, 0, gobj);
     priv->auto_stops = json_object();
+    priv->stops_given_up = json_object();
+    priv->stops_rearmed = json_object();
     priv->knocking = json_object();
     priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER0, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
@@ -765,6 +769,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->run_channels)
     KW_DECREF(priv->run_kw_answer)
     JSON_DECREF(priv->auto_stops)
+    JSON_DECREF(priv->stops_given_up)
+    JSON_DECREF(priv->stops_rearmed)
     JSON_DECREF(priv->knocking)
 }
 
@@ -1090,6 +1096,8 @@ PRIVATE int mt_play(hgobj gobj)
      *  The stops a max_run had scheduled before a restart, from the runs
      */
     json_object_clear(priv->auto_stops);
+    json_object_clear(priv->stops_given_up);
+    json_object_clear(priv->stops_rearmed);
     if(priv->gobj_treedb_controlcenter) {
         json_t *scenarios = gobj_list_nodes(
             priv->gobj_treedb_controlcenter, "scenarios", 0, json_pack("{s:b}", "only_id", 1), gobj
@@ -1097,7 +1105,7 @@ PRIVATE int mt_play(hgobj gobj)
         size_t idx; json_t *jn_sc;
         json_array_foreach(scenarios, idx, jn_sc) {
             schedule_from_runs(gobj, json_is_string(jn_sc)?
-                json_string_value(jn_sc) : kw_get_str(gobj, jn_sc, "id", "", 0));
+                json_string_value(jn_sc) : kw_get_str(gobj, jn_sc, "id", "", 0), FALSE);
         }
         JSON_DECREF(scenarios)
 
@@ -1168,6 +1176,8 @@ PRIVATE int mt_pause(hgobj gobj)
     }
     clear_timeout(priv->stop_timer);
     json_object_clear(priv->auto_stops);  // rebuilt from the runs at play
+    json_object_clear(priv->stops_given_up);
+    json_object_clear(priv->stops_rearmed);
 
     clear_timeout0(priv->rates_timer);
     priv->txMsgsec = 0;
@@ -2271,8 +2281,8 @@ PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    /*  A max_run changed while it runs moves its stop  */
-    schedule_from_runs(gobj, scenario_id);
+    /*  A max_run changed while it runs moves its stop; one given up is tried again  */
+    schedule_from_runs(gobj, scenario_id, TRUE);
     arm_stop_timer(gobj);
     add_stop_at(gobj, node);
 
@@ -2418,6 +2428,8 @@ PRIVATE json_t *cmd_delete_scenario(hgobj gobj, const char *cmd, json_t *kw, hgo
         );
     }
     json_object_del(priv->auto_stops, scenario_id);
+    json_object_del(priv->stops_given_up, scenario_id);
+    json_object_del(priv->stops_rearmed, scenario_id);
     arm_stop_timer(gobj);
 
     return msg_iev_build_response(
@@ -5524,7 +5536,7 @@ PRIVATE int run_end(hgobj gobj, int result, const char *comment)
      *  yunos it did not reach went on.
      */
     if(priv->gobj_treedb_controlcenter) {
-        BOOL gave_up = schedule_from_runs(gobj, scenario_id);
+        BOOL gave_up = schedule_from_runs(gobj, scenario_id, FALSE);
         json_t *pending = json_object_get(priv->auto_stops, scenario_id);
         if(!empty_string(reason) && done < (int)json_array_size(steps) && pending) {
             json_t *rest = json_object_get(pending, "steps");
@@ -5587,26 +5599,17 @@ PRIVATE BOOL steps_have(hgobj gobj, json_t *steps, json_t *step)
 
 /***************************************************************************
  *  Did a step of a run do its work? A step not sent has no result. A step
- *  of a stop answered "Yuno not found" did it, with an error: no yuno of
- *  that id runs on its node (stopped by hand, or gone), and asked again it
- *  answers the same for ever. Up to 7.30.17 the max_run stop asked it
- *  every minute.
+ *  answered "Yuno not found" did not: the agent answers it also for a yuno
+ *  that lives and has not reached it yet (an agent just restarted, when
+ *  the stops that waited for it are tried). In 7.30.18 a stop's step so
+ *  answered was done, and the max_run stop of such a yuno was lost.
  ***************************************************************************/
 PRIVATE BOOL step_done(hgobj gobj, json_t *run, json_t *step)
 {
     if(!kw_has_key(step, "result")) {
         return FALSE;
     }
-    if(kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) >= 0) {
-        return TRUE;
-    }
-    if(strcmp(kw_get_str(gobj, run, "action", "", 0), "stop")!=0) {
-        return FALSE;
-    }
-    const char *comment = kw_get_str(gobj, step, "comment", "", 0);
-    size_t len = strlen(comment);
-    size_t len_nf = strlen(YUNO_NOT_FOUND);
-    return len >= len_nf && strcmp(comment + len - len_nf, YUNO_NOT_FOUND)==0;
+    return kw_get_int(gobj, step, "result", -1, KW_WILD_NUMBER) >= 0;
 }
 
 /***************************************************************************
@@ -5633,9 +5636,12 @@ PRIVATE int run_steps_done(hgobj gobj, json_t *run)
  *  those of them that its stop has now (a step that a save took out or
  *  changed is not done for it). After MAX_RUN_STOP_TRIES stops of its own
  *  in a row that did nothing, it is not tried again: TRUE (said by
- *  run_end()).
+ *  run_end()), and marked in `stops_given_up` (`stop_given_up` of
+ *  `scenarios`). With `rearm` (a save), a stop given up is tried again:
+ *  only the tries after now count (`stops_rearmed`, kept while it is
+ *  scheduled; a restart counts them all again, and gives it up again).
  ***************************************************************************/
-PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
+PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id, BOOL rearm)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -5643,7 +5649,12 @@ PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
     BOOL waited = old && json_is_true(json_object_get(old, "waits_node"));
     json_int_t old_stop_at = old? kw_get_int(gobj, old, "stop_at", 0, KW_REQUIRED) : 0;
     json_int_t old_scheduled_at = old? kw_get_int(gobj, old, "scheduled_at", 0, KW_REQUIRED) : 0;
+    if(rearm && json_object_get(priv->stops_given_up, scenario_id)) {
+        json_object_set_new(priv->stops_rearmed, scenario_id, json_integer((json_int_t)time_in_seconds()));
+    }
+    json_int_t tries_since = json_integer_value(json_object_get(priv->stops_rearmed, scenario_id));
     json_object_del(priv->auto_stops, scenario_id);
+    json_object_del(priv->stops_given_up, scenario_id);
     json_t *scenario = gobj_get_node(
         priv->gobj_treedb_controlcenter,
         "scenarios",
@@ -5682,7 +5693,8 @@ PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
                 strcmp(kw_get_str(gobj, run, "username", "", 0), gobj_yuno_role_plus_name())==0) {
             if(run_steps_done(gobj, run) > 0) {
                 did_some = TRUE;
-            } else {
+            } else if(!tries_since ||
+                    kw_get_int(gobj, run, "started_at", 0, KW_WILD_NUMBER) > tries_since) {
                 tries++;
             }
         }
@@ -5715,6 +5727,7 @@ PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
         if(strcmp(action, "start")==0) {
             if(tries >= MAX_RUN_STOP_TRIES) {
                 gave_up = TRUE;
+                json_object_set_new(priv->stops_given_up, scenario_id, json_true());
                 break;
             }
             json_int_t scheduled_at = rest?
@@ -5735,6 +5748,9 @@ PRIVATE BOOL schedule_from_runs(hgobj gobj, const char *scenario_id)
     JSON_DECREF(rest)
     JSON_DECREF(runs)
     JSON_DECREF(stop_steps)
+    if(!json_object_get(priv->auto_stops, scenario_id)) {
+        json_object_del(priv->stops_rearmed, scenario_id);
+    }
 
     /*
      *  The same stop (same start, same max_run) keeps what its failures
@@ -5815,8 +5831,9 @@ PRIVATE void last_state_action(hgobj gobj, const char *scenario_id, char *bf, si
 
 /***************************************************************************
  *  Does the scenario run? A run of it in flight, its max_run stop pending
- *  (a stop of its own that did some steps only is a stop, and leaves yunos
- *  running), or its last run that changed its state is not a stop.
+ *  or given up (a stop of its own that did some steps only is a stop, and
+ *  leaves yunos running), or its last run that changed its state is not a
+ *  stop.
  ***************************************************************************/
 PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
 {
@@ -5825,7 +5842,8 @@ PRIVATE BOOL scenario_runs_now(hgobj gobj, const char *scenario_id)
     if(priv->run && strcmp(kw_get_str(gobj, priv->run, "scenario_id", "", 0), scenario_id)==0) {
         return TRUE;
     }
-    if(json_object_get(priv->auto_stops, scenario_id)) {
+    if(json_object_get(priv->auto_stops, scenario_id) ||
+            json_object_get(priv->stops_given_up, scenario_id)) {
         return TRUE;
     }
     char action[NAME_MAX];
@@ -5844,10 +5862,14 @@ PRIVATE BOOL scenario_is_running(hgobj gobj, const char *scenario_id)
     return strcmp(action, "start")==0 || strcmp(action, "resume")==0;
 }
 
-/*  `stop_at` of a scenario answered: when its max_run stops it  */
+/*  `stop_at` of a scenario answered: when its max_run stops it; or
+ *  `stop_given_up`: its max_run stop is not tried again  */
 PRIVATE void add_stop_at(hgobj gobj, json_t *scenario)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(json_object_get(priv->stops_given_up, kw_get_str(gobj, scenario, "id", "", 0))) {
+        json_object_set_new(scenario, "stop_given_up", json_true());
+    }
     json_t *stop = json_object_get(priv->auto_stops, kw_get_str(gobj, scenario, "id", "", 0));
     if(stop) {
         json_object_set(scenario, "stop_at", json_object_get(stop, "stop_at"));
@@ -5984,6 +6006,7 @@ PRIVATE int stop_due_scenario(hgobj gobj)
                 "comment",      "%s", err,
                 NULL
             );
+            json_object_set_new(priv->stops_given_up, scenario_id, json_true());
             JSON_DECREF(rest)
             arm_stop_timer(gobj);
             return 0;

@@ -409,18 +409,27 @@ still reported and fails the test.
     steps made the scenario look stopped, so the writer's save and delete
     went through; and a rest none of whose steps was in the scenario ran the
     whole new stop. It runs in phases 8-10, after case 38.
-42. A `max_run` stop whose step is answered *"Yuno not found"* (the yuno
-    stopped by hand): the run is a failed stop, and no stop is scheduled,
-    with no warning. In 7.30.17 it was tried again every minute, for ever.
-    The scenario "mrg", in phases 10-11.
+42. A `max_run` stop whose step is answered *"Yuno not found"* is not done:
+    the agent answers it also for a yuno that lives and has not reached it
+    yet (an agent just restarted). The run is a failed stop, the warning
+    *"... tried again in a minute"*, and `scenarios` says a `stop_at` a
+    minute away, no `stop_waits_node`. A stop by the user then stops it:
+    nothing is scheduled. In 7.30.18 such a stop was done, and the
+    `max_run` of a yuno not connected again yet was lost. The scenario
+    "mrg", in phases 10-11.
 43. The `max_run` stop is not tried again after 10 tries in a row that did
     nothing (`MAX_RUN_STOP_TRIES`), and that end is said once (*"the stop of
-    a scenario's max_run did nothing in its last tries: not tried again"*).
-    The scenario "mrc": the 9 tries before the last are written into the
+    a scenario's max_run did nothing in its last tries: not tried again"*)
+    and shown: `scenarios` says `stop_given_up` and no `stop_at`. The
+    scenario runs, so the "writer" (who may not run it) cannot save it; a
+    user who may run it saves it as it is, and the stop is tried again (a
+    `stop_at`, no `stop_given_up`); a stop by the user then stops it. The
+    scenario "mrc": the 9 tries before the last are written into the
     treedb by the test, as the control center writes them (a minute apart,
     they would take 9 minutes); the last, answered -1, ends it. In 7.30.17
-    a step that answered an error for ever was tried every minute, for ever.
-    In phases 11-12.
+    a step that answered an error for ever was tried every minute, for
+    ever; in 7.30.18 the stop given up was shown nowhere, and a save did not
+    try it again. In phases 11-12.
 44. A control center with no `operator_assertion_key` (after case 12's
     stop, which drops the key and closes the treedb, so the agent is named
     by its uuid): `command-agent` and `stats-agent` with a gbuffer reach the
