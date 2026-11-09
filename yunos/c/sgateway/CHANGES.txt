@@ -11,6 +11,17 @@ Unreleased (APP_VERSION follows YUNETA_VERSION)
 -  The rates are updated (EV_TIMEOUT_PERIODIC), a closed side is seen as
    closed, and bytes for a side not open are dropped and counted (dropMsgs).
 -  The yuno is played by the agent or by `yuno.autoplay`, not by itself.
+-  A COPY of what one side sends goes to the other one, and the side read
+   is paused until the other has written it (back-pressure). Up to 7.30.18
+   the read buffer itself was handed over: corrupted data and one ERROR per
+   message as soon as one side was slower.
+-  One output connection per client: started when a client connects,
+   stopped when it leaves; the client is dropped when its output closes.
+-  `crypto` for a TLS output; the output's attempts back off up to 30 s.
+-  No trace on by default; `Side open` / `Side closed` at the trace level
+   `connections`.
+-  A play while the output still waits for its write in flight no longer
+   leaves the output dead: it starts at its EV_STOPPED.
 
 1.0.0
 =====

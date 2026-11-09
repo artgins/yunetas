@@ -13,24 +13,45 @@
  *                         __output_side__ C_IOGATE
  *                              output C_CHANNEL -> C_PROT_RAW -> C_TCP --> output_url
  *
- *          What arrives from one side is sent, as it is, to the other one.
+ *          What arrives from one side is sent, as it is, to the other one:
+ *          a COPY. The read buffer of a C_TCP is read into again as soon as
+ *          its EV_RX_DATA is published, and a gbuffer handed to a transport
+ *          is its own until its EV_TX_READY (up to 7.30.18 the same buffer
+ *          was handed over: as soon as one side was slower, what was in its
+ *          queue was overwritten, and the next ones were refused with an
+ *          ERROR each).
+ *
+ *          Back-pressure: what one side sends is not read from the other
+ *          one faster than it goes. After a relay the side read is paused
+ *          (`rx_paused` of its C_TCP) and it is resumed at the EV_TX_READY
+ *          of the side written: a slow peer, or one that does not read,
+ *          slows the other peer down through TCP, and the queue of the
+ *          gateway holds one read at most.
  *
  *          The input side takes ONE connection at a time (one channel,
  *          `tcp-1`, found by the `child_tree_filter` of its C_TCP_S, legacy
  *          method: the clisrv C_TCP is created at each accept and destroyed
  *          when it ends). A second client is refused while the first one is
- *          connected: the output side is one connection, and what comes
- *          back from it could not be told apart between two clients.
+ *          connected.
  *
- *          The output side is a client C_TCP to `output_url`. It connects
- *          when the service plays and keeps connected: when its peer goes
- *          away it connects again each `timeout_between_connections` ms.
- *          It is not tied to the input side: it is open whether a client
- *          is connected or not.
+ *          ONE OUTPUT CONNECTION PER CLIENT. The output side is a client
+ *          C_TCP to `output_url`, started when a client connects and stopped
+ *          when it leaves: no client inherits the session of another one
+ *          with the backend (up to 7.30.18 the output connection was shared
+ *          by the clients that came one after the other). Until the output
+ *          is open the client is not read, and what it had sent is kept and
+ *          goes first. An output that cannot connect tries again after
+ *          `timeout_between_connections` ms, doubling up to 30 s, while its
+ *          client waits; an output that closes once open drops its client.
+ *          A TLS output (tcps://) takes its configuration from `crypto`.
  *
- *          Bytes that arrive while the other side is not open are dropped
+ *          Bytes that arrive for a side that has closed are dropped
  *          (counted in `dropMsgs`; one WARNING per side each time it
  *          closes, not one per message).
+ *
+ *          The open and the close of each side are said at the trace level
+ *          `connections` only: a peer that connects again and again does
+ *          not write the log.
  *
  *          The urls are taken at each play: write `input_url` and
  *          `output_url` (config kw, or write-str at run time, then pause
@@ -48,6 +69,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define OUTPUT_RECONNECT_MAX_MS     30000   // backoff cap of the output's connection attempts
 
 /***************************************************************************
  *              Structures
@@ -63,6 +85,10 @@ PRIVATE int open_input_side(hgobj gobj);
 PRIVATE int close_input_side(hgobj gobj);
 PRIVATE int open_output_side(hgobj gobj);
 PRIVATE int close_output_side(hgobj gobj);
+PRIVATE int connect_output(hgobj gobj);
+PRIVATE void disconnect_output(hgobj gobj);
+PRIVATE int relay(hgobj gobj, hgobj dst, gbuffer_t *gbuf, hgobj src_tcp);
+PRIVATE void set_reading(hgobj tcp, BOOL paused);
 PRIVATE const char *side_name(hgobj gobj, hgobj side);
 
 /***************************************************************************
@@ -99,11 +125,12 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_STRING,      "input_url",        SDF_WR|SDF_PERSIST, 0,          "Url where the input side listens (tcp://host:port, tcps:// with TLS). Taken at each play"),
-SDATA (DTP_STRING,      "output_url",       SDF_WR|SDF_PERSIST, 0,          "Url the output side connects to (tcp://host:port, tcps:// with TLS). Taken at each play"),
-SDATA (DTP_INTEGER,     "timeout_between_connections", SDF_RD, "100",       "Output side: ms to wait before connecting again when its connection fails or ends"),
+SDATA (DTP_STRING,      "output_url",       SDF_WR|SDF_PERSIST, 0,          "Url the output side connects to (tcp://host:port, tcps:// with TLS, see crypto). Taken at each play"),
+SDATA (DTP_DICT,        "crypto",           SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS of the output side (tcps://). Verifies the server's certificate against the system CA by default; a private CA: {\"ssl_trusted_certificate\": \"/path/ca.pem\"}. Replaces the default whole. Taken at each play"),
+SDATA (DTP_INTEGER,     "timeout_between_connections", SDF_RD, "100",       "Output side: ms to wait before connecting again when its connection fails, doubled at each failure up to 30 s"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages sent to the other side"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received from either side"),
-SDATA (DTP_INTEGER,     "dropMsgs",         SDF_RD|SDF_RSTATS,  0,          "Messages dropped: the other side was not open"),
+SDATA (DTP_INTEGER,     "dropMsgs",         SDF_RD|SDF_RSTATS,  0,          "Messages dropped: the other side had closed, or the client left before its output opened"),
 
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
@@ -120,10 +147,12 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_MESSAGES = 0x0001,
+    TRACE_MESSAGES      = 0x0001,
+    TRACE_CONNECTIONS   = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"messages",        "Trace messages"},
+{"connections",     "Trace the open and the close of each side"},
 {0, 0},
 };
 
@@ -144,13 +173,18 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_input_side;
     hgobj gobj_server_port;
+    hgobj gobj_input_channel;
+    hgobj gobj_input_tcp;       // the C_TCP of the client connected now
     hgobj gobj_output_side;
     hgobj gobj_output_prot;
     hgobj gobj_output_tcp;
     BOOL input_side_opened;
     BOOL output_side_opened;
+    BOOL output_wanted;         // a client is connected: its output connects
     BOOL input_drop_said;
     BOOL output_drop_said;
+    gbuffer_t *gbuf_pending;    // what the client sent before its output opened
+    json_int_t client_seq;      // clients connected, to tell whose drop was posted
 
     json_int_t txMsgs;
     json_int_t rxMsgs;
@@ -250,6 +284,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    GBUFFER_DECREF(priv->gbuf_pending)
 }
 
 /***************************************************************************
@@ -438,13 +475,13 @@ PRIVATE int create_input_side(hgobj gobj)
         return -1;
     }
 
-    hgobj gobj_channel = gobj_create(
+    priv->gobj_input_channel = gobj_create(
         "tcp-1",
         C_CHANNEL,
         0,
         priv->gobj_input_side
     );
-    if(!gobj_channel) {
+    if(!priv->gobj_input_channel) {
         // Error already logged
         return -1;
     }
@@ -453,13 +490,13 @@ PRIVATE int create_input_side(hgobj gobj)
         "tcp-1",
         C_PROT_RAW,
         0,
-        gobj_channel
+        priv->gobj_input_channel
     );
     if(!gobj_prot_raw) {
         // Error already logged
         return -1;
     }
-    gobj_set_bottom_gobj(gobj_channel, gobj_prot_raw);
+    gobj_set_bottom_gobj(priv->gobj_input_channel, gobj_prot_raw);
 
     return 0;
 }
@@ -515,7 +552,10 @@ PRIVATE int create_output_side(hgobj gobj)
 
 /***************************************************************************
  *  The client C_TCP of the output side: created with the url at the first
- *  play, its url written at the next ones (it is stopped then).
+ *  play, its url and crypto written at the next ones (it is stopped then).
+ *  A copy of crypto: the C_TCP writes its ssl_server_name in it.
+ *  The gateway hears its EV_TX_READY (the back-pressure of the client) and
+ *  its EV_STOPPED (a stop that waited for its write in flight).
  ***************************************************************************/
 PRIVATE int set_output_url(hgobj gobj, const char *output_url)
 {
@@ -525,13 +565,18 @@ PRIVATE int set_output_url(hgobj gobj, const char *output_url)
         if(strcmp(gobj_read_str_attr(priv->gobj_output_tcp, "url"), output_url)!=0) {
             gobj_write_str_attr(priv->gobj_output_tcp, "url", output_url);
         }
+        gobj_write_new_json_attr(priv->gobj_output_tcp, "crypto",
+            json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
+        );
         return 0;
     }
 
-    json_t *kw_tcp = json_pack("{s:s, s:I}",
+    json_t *kw_tcp = json_pack("{s:s, s:I, s:I, s:o}",
         "url", output_url,
         "timeout_between_connections",
-            (json_int_t)gobj_read_integer_attr(gobj, "timeout_between_connections")
+            (json_int_t)gobj_read_integer_attr(gobj, "timeout_between_connections"),
+        "timeout_between_connections_max", (json_int_t)OUTPUT_RECONNECT_MAX_MS,
+        "crypto", json_deep_copy(gobj_read_json_attr(gobj, "crypto"))
     );
     priv->gobj_output_tcp = gobj_create_pure_child(
         "output",
@@ -544,6 +589,9 @@ PRIVATE int set_output_url(hgobj gobj, const char *output_url)
         return -1;
     }
     gobj_set_bottom_gobj(priv->gobj_output_prot, priv->gobj_output_tcp);
+
+    gobj_subscribe_event(priv->gobj_output_tcp, EV_TX_READY, NULL, gobj);
+    gobj_subscribe_event(priv->gobj_output_tcp, EV_STOPPED, NULL, gobj);
 
     return 0;
 }
@@ -575,16 +623,14 @@ PRIVATE int close_input_side(hgobj gobj)
 }
 
 /***************************************************************************
- *  The C_TCP is manual start: started here, by its host, after the tree
+ *  The C_TCP is manual start: it is started when a client connects
+ *  (connect_output())
  ***************************************************************************/
 PRIVATE int open_output_side(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start_tree(priv->gobj_output_side);
-    if(!gobj_is_running(priv->gobj_output_tcp)) {
-        gobj_start(priv->gobj_output_tcp);
-    }
 
     return 0;
 }
@@ -601,6 +647,83 @@ PRIVATE int close_output_side(hgobj gobj)
     }
 
     return 0;
+}
+
+/***************************************************************************
+ *  The output of the client that connected. A stop still waiting for its
+ *  write in flight (ST_WAIT_STOPPED: the client before, or a pause and a
+ *  play) has not ended: the output starts at its EV_STOPPED. Up to 7.30.18
+ *  a play in that case started nothing, with an ERROR, and the output side
+ *  stayed dead.
+ ***************************************************************************/
+PRIVATE int connect_output(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj tcp = priv->gobj_output_tcp;
+
+    if(gobj_is_running(tcp)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The output is running with no client: not given to the new one",
+            "state",        "%s", gobj_current_state(tcp),
+            NULL
+        );
+        return -1;
+    }
+    if(!gobj_in_this_state(tcp, ST_STOPPED) && !gobj_in_this_state(tcp, ST_DISCONNECTED)) {
+        return 0;   // its stop has not ended: started at its EV_STOPPED
+    }
+
+    set_reading(tcp, FALSE);
+    if(gobj_start(tcp) < 0) {
+        // Error already logged
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The client left: its output goes too
+ ***************************************************************************/
+PRIVATE void disconnect_output(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_output_tcp && gobj_is_running(priv->gobj_output_tcp)) {
+        gobj_stop(priv->gobj_output_tcp);
+    }
+}
+
+/***************************************************************************
+ *  Send gbuf (owned) to the side dst. The side it came from (src_tcp) is
+ *  read no more until the EV_TX_READY of dst (back-pressure).
+ ***************************************************************************/
+PRIVATE int relay(hgobj gobj, hgobj dst, gbuffer_t *gbuf, hgobj src_tcp)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw_send = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
+    );
+    if(gobj_send_event(dst, EV_SEND_MESSAGE, kw_send, gobj) < 0) {
+        return -1;  // Error already logged
+    }
+    priv->txMsgs++;
+    priv->txMsgsec++;
+
+    if(src_tcp) {
+        set_reading(src_tcp, TRUE);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The flow control of a side: its C_TCP reads, or not
+ ***************************************************************************/
+PRIVATE void set_reading(hgobj tcp, BOOL paused)
+{
+    gobj_write_bool_attr(tcp, "rx_paused", paused);
 }
 
 /***************************************************************************
@@ -636,11 +759,43 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_input_side) {
+        hgobj tcp = gobj_last_bottom_gobj(priv->gobj_input_channel);
+        if(!tcp) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "Input side open without its C_TCP",
+                NULL
+            );
+            KW_DECREF(kw);
+            return -1;
+        }
         priv->input_side_opened = TRUE;
         priv->input_drop_said = FALSE;
+        priv->gobj_input_tcp = tcp;
+        priv->client_seq++;
+
+        /*
+         *  The client is not read until its output is open: what the read
+         *  in flight brings is kept (gbuf_pending)
+         */
+        set_reading(tcp, TRUE);
+        gobj_subscribe_event(tcp, EV_TX_READY, NULL, gobj);
+        priv->output_wanted = TRUE;
+        connect_output(gobj);   // on failure: logged
+
     } else if(src == priv->gobj_output_side) {
         priv->output_side_opened = TRUE;
         priv->output_drop_said = FALSE;
+
+        if(priv->gbuf_pending) {
+            gbuffer_t *gbuf = priv->gbuf_pending;
+            priv->gbuf_pending = 0;
+            relay(gobj, priv->gobj_output_side, gbuf, priv->gobj_input_tcp); // on failure: logged
+        } else if(priv->gobj_input_tcp) {
+            set_reading(priv->gobj_input_tcp, FALSE);
+        }
+
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -653,16 +808,18 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", "Side open",
-        "side",         "%s", side_name(gobj, src),
-        "url",          "%s", gobj_read_str_attr(
-            gobj, (src == priv->gobj_input_side)? "input_url" : "output_url"
-        ),
-        NULL
-    );
+    if(gobj_trace_level(gobj) & TRACE_CONNECTIONS) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Side open",
+            "side",         "%s", side_name(gobj, src),
+            "url",          "%s", gobj_read_str_attr(
+                gobj, (src == priv->gobj_input_side)? "input_url" : "output_url"
+            ),
+            NULL
+        );
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -677,8 +834,30 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(src == priv->gobj_input_side) {
         priv->input_side_opened = FALSE;
+        priv->output_wanted = FALSE;
+        if(priv->gobj_input_tcp) {
+            gobj_unsubscribe_event(priv->gobj_input_tcp, EV_TX_READY, NULL, gobj);
+            priv->gobj_input_tcp = 0;
+        }
+        if(priv->gbuf_pending) {
+            priv->dropMsgs++;   // the client left before its output opened
+            GBUFFER_DECREF(priv->gbuf_pending)
+        }
+        disconnect_output(gobj);
+
     } else if(src == priv->gobj_output_side) {
         priv->output_side_opened = FALSE;
+        if(priv->input_side_opened) {
+            /*
+             *  Its client goes too. Posted: this runs inside a publish of
+             *  the output C_TCP, and the end of the client stops it
+             */
+            gobj_post_event(gobj, EV_DROP,
+                json_pack("{s:I}", "client", priv->client_seq),
+                gobj
+            );
+        }
+
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -691,13 +870,15 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-        "msg",          "%s", "Side closed",
-        "side",         "%s", side_name(gobj, src),
-        NULL
-    );
+    if(gobj_trace_level(gobj) & TRACE_CONNECTIONS) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",          "%s", "Side closed",
+            "side",         "%s", side_name(gobj, src),
+            NULL
+        );
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -711,14 +892,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj dst;
+    hgobj src_tcp;
     BOOL dst_opened;
     BOOL *drop_said;
     if(src == priv->gobj_input_side) {
         dst = priv->gobj_output_side;
+        src_tcp = priv->gobj_input_tcp;
         dst_opened = priv->output_side_opened;
         drop_said = &priv->output_drop_said;
     } else if(src == priv->gobj_output_side) {
         dst = priv->gobj_input_side;
+        src_tcp = priv->gobj_output_tcp;
         dst_opened = priv->input_side_opened;
         drop_said = &priv->input_drop_said;
     } else {
@@ -756,6 +940,31 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    size_t len = gbuffer_leftbytes(gbuf);
+
+    if(!dst_opened && src == priv->gobj_input_side && priv->output_wanted) {
+        /*
+         *  Its output is connecting: kept, it goes first when it opens. The
+         *  client is not read meanwhile, so this is one read at most
+         */
+        if(!priv->gbuf_pending) {
+            priv->gbuf_pending = gbuffer_create(len, gbmem_get_maximum_block());
+        }
+        if(!priv->gbuf_pending ||
+                gbuffer_append(priv->gbuf_pending, gbuffer_cur_rd_pointer(gbuf), len) != len) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "Cannot keep what the client sent before its output opened",
+                "bytes",        "%d", (int)len,
+                NULL
+            );
+            priv->dropMsgs++;
+        }
+        KW_DECREF(kw);
+        return 0;
+    }
+
     if(!dst_opened) {
         priv->dropMsgs++;
         if(!*drop_said) {
@@ -766,7 +975,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "msg",          "%s", "Side not open, data dropped until it opens",
                 "from",         "%s", side_name(gobj, src),
                 "to",           "%s", side_name(gobj, dst),
-                "bytes",        "%d", (int)gbuffer_leftbytes(gbuf),
+                "bytes",        "%d", (int)len,
                 NULL
             );
         }
@@ -775,16 +984,84 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  A kw of its own: the kw received carries the routing (__temp__) of
-     *  the side it came from
+     *  A copy, in a kw of its own: the buffer received is the read buffer
+     *  of its C_TCP, read into again once this returns, and the kw carries
+     *  the routing (__temp__) of the side it came from
      */
-    gbuffer_incref(gbuf);
-    json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(uintptr_t)gbuf
-    );
-    if(gobj_send_event(dst, EV_SEND_MESSAGE, kw_send, gobj) == 0) {
-        priv->txMsgs++;
-        priv->txMsgsec++;
+    gbuffer_t *gbuf_copy = gbuffer_create(len, len);
+    if(!gbuf_copy) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "Cannot copy the message to relay",
+            "bytes",        "%d", (int)len,
+            NULL
+        );
+        KW_DECREF(kw);
+        return -1;
+    }
+    gbuffer_append(gbuf_copy, gbuffer_cur_rd_pointer(gbuf), len);
+    relay(gobj, dst, gbuf_copy, src_tcp);   // on failure: logged
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  The side written took everything: the other one is read again
+ ***************************************************************************/
+PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_output_tcp) {
+        if(priv->gobj_input_tcp) {
+            set_reading(priv->gobj_input_tcp, FALSE);
+        }
+    } else if(src == priv->gobj_input_tcp) {
+        set_reading(priv->gobj_output_tcp, FALSE);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "EV_TX_READY from an unknown source",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  The output dropped its client (posted by ac_on_close()): the client of
+ *  then, not one that came after
+ ***************************************************************************/
+PRIVATE int ac_drop_client(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t client = kw_get_int(gobj, kw, "client", 0, KW_REQUIRED);
+    if(client == priv->client_seq && priv->input_side_opened) {
+        gobj_send_event(priv->gobj_input_channel, EV_DROP, 0, gobj);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  A stop of the output that waited for its write in flight has ended: the
+ *  output of a client connected meanwhile starts now. The EV_STOPPED of
+ *  the sides themselves says nothing to the gateway.
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_output_tcp && priv->output_wanted) {
+        connect_output(gobj);   // on failure: logged
     }
 
     KW_DECREF(kw);
@@ -871,8 +1148,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         ac_on_message,      0},
         {EV_ON_OPEN,            ac_on_open,         0},
         {EV_ON_CLOSE,           ac_on_close,        0},
+        {EV_TX_READY,           ac_tx_ready,        0},
+        {EV_DROP,               ac_drop_client,     0},
         {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
-        {EV_STOPPED,            0,                  0},
+        {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
 
@@ -888,6 +1167,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         0},
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
+        {EV_TX_READY,           0},
+        {EV_DROP,               0},
         {EV_TIMEOUT_PERIODIC,   0},
         {EV_STOPPED,            0},
         {NULL, 0}

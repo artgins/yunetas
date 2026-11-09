@@ -5,6 +5,7 @@
  *          Pepon, yuno server de pruebas
  *
  *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -302,10 +303,27 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(gobj_read_bool_attr(gobj, "do_echo")) {
         /*
-         *  Do echo of the message received
+         *  Do echo of the message received: a copy. The buffer received is
+         *  the read buffer of its C_TCP, read into again once this returns,
+         *  while the echo may still wait in the tx queue (up to 7.30.18 the
+         *  echo was that same buffer)
          */
+        size_t len = gbuffer_leftbytes(gbuf);
+        gbuffer_t *gbuf_echo = gbuffer_create(len, len);
+        if(!gbuf_echo) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "Cannot copy the message to echo",
+                "bytes",        "%d", (int)len,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
+        gbuffer_append(gbuf_echo, gbuffer_cur_rd_pointer(gbuf), len);
         json_t *kw_send = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(uintptr_t)gbuffer_incref(gbuf)
+            "gbuffer", (json_int_t)(uintptr_t)gbuf_echo
         );
         gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 

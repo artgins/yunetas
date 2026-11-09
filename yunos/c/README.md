@@ -287,7 +287,7 @@ PostgreSQL database adapter. Wraps the `C_POSTGRES` module GClass with a yuno en
 
 ### sgateway
 
-Raw TCP relay: takes one connection on `input_url` and relays its bytes, both ways, to a connection to `output_url` (reconnected when it ends). See [`sgateway/README.md`](sgateway/README.md).
+Raw TCP relay: takes one connection on `input_url` and relays its bytes, both ways, to a connection to `output_url` of its own (one output connection per client, with back-pressure). See [`sgateway/README.md`](sgateway/README.md).
 
 ### watchfs
 
