@@ -25,13 +25,25 @@
 #      pid -1 and watcher_pid -1: neither is recorded (a WARNING), and a
 #      kill-yuno of it is refused (no pid). Up to 7.30.17 the agent recorded
 #      the card's pids and kill-yuno sent SIGQUIT to pid -1.
-#   6. trace-on-yuno and trace-off-yuno of the running logcenter, three
-#      times: each answers 0, and the yuno's own answer goes to the agent
+#   6. trace-on-yuno and trace-off-yuno of the running logcenter: without
+#      a level, or with one that is not global, trace-on-yuno is refused,
+#      lists the global levels and sets nothing; with levels it sets them in
+#      the yuno (its get-global-trace says them, a second call adds to them)
+#      and `traced` is true; trace-off-yuno resets them all and `traced` is
+#      false. Three times. Each answer of the yuno goes to the agent
 #      (run_test.sh: no "a command of the agent to a yuno failed", and no
-#      memory left). Up to 7.30.18 the command named no gobj (the yuno
-#      answered "gobj not found: ''"), trace-off-yuno's answer reached this
-#      peer as a second answer, and each call left the yunos found in the
-#      agent.
+#      memory left). Up to 7.30.21 trace-on-yuno set the user levels of the
+#      yuno's root gobj, which has none: nothing was traced. Up to 7.30.18
+#      the command named no gobj (the yuno answered "gobj not found: ''"),
+#      trace-off-yuno's answer reached this peer as a second answer, and
+#      each call left the yunos found in the agent.
+#
+#   7. a crash of the running logcenter (SIGSEGV): its watcher relaunches
+#      it, a run-yuno asked while the watcher waits launches nothing (the
+#      watcher is a process of the yuno), and the agent registers the
+#      relaunched one: one instance, and no "ALREADY living" beyond the two
+#      cards of 4 (run_test.sh). It is the order of events of a relaunch by
+#      the watcher that meets a launch by the agent.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -40,6 +52,7 @@ import asyncio
 import base64
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -133,6 +146,21 @@ async def session(role="ycommand", **kw):
     got = await answers(ws, 10, lambda g: g[-1].get("event") == "EV_IDENTITY_CARD_ACK")
     ack = got[-1]["kw"] if got else {}
     return ws, ack
+
+
+def processes_named(name):
+    pids = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open("/proc/%s/cmdline" % d, "rb") as f:
+                argv0 = f.read().split(b"\0")[0].decode(errors="replace")
+        except OSError:
+            continue
+        if os.path.basename(argv0) == name and alive(int(d)):
+            pids.append(int(d))
+    return pids
 
 
 def alive(pid):
@@ -233,13 +261,68 @@ async def main():
     check("logcenter relaunched by its watcher, its new pid recorded", relaunched is not None)
     if relaunched:
         #   6. trace-on-yuno and trace-off-yuno of the running logcenter
+        yid = relaunched["id"]
+
+        async def global_traces():
+            #   in the command line: a `service` in the kw would route it to that service of the agent
+            r = await ask(ws, "command-yuno id=%s service=__root__ command=get-global-trace" % yid, {})
+            data = r.get("data")
+            return sorted(data) if isinstance(data, list) else data
+
+        async def traced():
+            r = await ask(ws, "list-yunos", {"id": yid})
+            rows = r.get("data") or []
+            return rows[0].get("traced") if rows else None
+
+        before = await global_traces()
+        check("the global traces of the logcenter before: %s" % before, before == [])
+        r = await ask(ws, "trace-on-yuno", {"id": yid})
+        check("trace-on-yuno without level: refused, the global levels listed: %s" % r.get("comment"),
+            r.get("result") == -1 and '"machine"' in json.dumps(r.get("data")))
+        r = await ask(ws, "trace-on-yuno", {"id": yid, "level": "machine,no_such_level"})
+        check("trace-on-yuno of a level that is not global: refused: %s" % r.get("comment"),
+            r.get("result") == -1 and '"ev_kw"' in json.dumps(r.get("data")))
+        check("nothing was set by the refused ones", await global_traces() == [] and await traced() is False)
         for i in range(3):
-            r = await ask(ws, "trace-on-yuno", {"id": relaunched["id"]})
-            check("trace-on-yuno of the running logcenter: %s" % r.get("comment"), r.get("result") == 0)
-            await asyncio.sleep(0.3)
-            r = await ask(ws, "trace-off-yuno", {"id": relaunched["id"]})
-            check("trace-off-yuno of the running logcenter: %s" % r.get("comment"), r.get("result") == 0)
-            await asyncio.sleep(0.3)
+            r = await ask(ws, "trace-on-yuno", {"id": yid, "level": "machine,ev_kw"})
+            check("trace-on-yuno level=machine,ev_kw: %s" % r.get("comment"), r.get("result") == 0)
+            r = await ask(ws, "trace-on-yuno", {"id": yid, "level": "commands"})
+            check("trace-on-yuno level=commands, on a traced yuno: %s" % r.get("comment"), r.get("result") == 0)
+            on = await global_traces()
+            check("the yuno traces machine, ev_kw and commands: %s" % on,
+                on == ["commands", "ev_kw", "machine"])
+            check("traced is true", await traced() is True)
+            r = await ask(ws, "trace-off-yuno", {"id": yid})
+            check("trace-off-yuno: %s" % r.get("comment"), r.get("result") == 0)
+            off = await global_traces()
+            check("the yuno traces nothing: %s" % off, off == [])
+            check("traced is false", await traced() is False)
+
+        #   7. a crash: its watcher relaunches it, and a run-yuno that comes
+        #      while the watcher waits launches nothing; the agent registers
+        #      the relaunched one, with no "ALREADY living" (run_test.sh)
+        old_pid = relaunched["yuno_pid"]
+        os.kill(old_pid, signal.SIGSEGV)
+        await asyncio.sleep(1.0)    # the watcher waits 2 s before its first relaunch
+        r = await ask(ws, "run-yuno", {"id": yid}, secs=35)
+        comment = r.get("comment") or ""
+        check("run-yuno while the watcher relaunches: nothing launched: %s" % comment,
+            r.get("result") == -1 and "alive but not connected" in comment)
+        crashed = relaunched
+        relaunched = None
+        for i in range(150):    # up to 15 s
+            r = await ask(ws, "list-yunos", {"id": yid})
+            rows = r.get("data") or []
+            if rows and rows[0].get("yuno_running") and rows[0].get("yuno_pid") not in (0, old_pid):
+                relaunched = rows[0]
+                break
+            await asyncio.sleep(0.1)
+        check("relaunched by the same watcher, its new pid recorded",
+            relaunched is not None and relaunched.get("watcher_pid") == crashed.get("watcher_pid"))
+        if relaunched:
+            check("one instance: its watcher and its child",
+                sorted(processes_named("logcenter")) ==
+                    sorted([relaunched["watcher_pid"], relaunched["yuno_pid"]]))
         r = await ask(ws, "kill-yuno", {"id": relaunched["id"]}, secs=30)
         check("kill-yuno of the running logcenter", r.get("result") == 0)
         for i in range(100):

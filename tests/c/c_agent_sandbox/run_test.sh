@@ -9,7 +9,9 @@
 #   its log must have no "BAD gbuf_decref()" and no "system memory not free"
 #   (the gbmem audit of an orderly end, CONFIG_DEBUG_TRACK_MEMORY), and the
 #   WARNINGs of the pids of cards not killed (3) and not recorded (1), and
-#   no "a command of the agent to a yuno failed" (trace-on/off-yuno).
+#   no "a command of the agent to a yuno failed" (trace-on/off-yuno), and
+#   two "yuno ALREADY living" (the second cards of the running yuno: none
+#   for its relaunch by the watcher).
 #
 #   Usage: run_test.sh <yuneta_agent binary> <logcenter binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
@@ -55,6 +57,7 @@ unshare -rmn --pid --fork --mount-proc bash -c "
     cp '$WORK/yuneta_agent' /yuneta/agent/yuneta_agent
     cp '$WORK/agent.json' /yuneta/agent/yuneta_agent.json
     cd /yuneta/agent
+    ulimit -c 0     # a crash of a yuno in here (case 7) leaves no core in the host's /var/crash
     ./yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json > '$WORK/agent.log' 2>&1 &
     APID=\$!
     python3 -I '$WORK/client.py' '$WORK/logcenter'
@@ -108,6 +111,11 @@ fi
 n=$(grep -ac "a command of the agent to a yuno failed" "$WORK/agent.log")
 if [ "$n" != "0" ]; then
     echo "TEST FAILED: $n x \"a command of the agent to a yuno failed\": trace-on/off-yuno refused by the yuno"
+    failed=1
+fi
+n=$(grep -ac "yuno ALREADY living" "$WORK/agent.log")
+if [ "$n" != "2" ]; then
+    echo "TEST FAILED: $n x \"yuno ALREADY living\", expected 2 (the second cards of the running yuno)"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

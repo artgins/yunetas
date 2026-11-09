@@ -139,10 +139,19 @@ PRIVATE int pause_yuno(
     json_t *kw,
     hgobj src
 );
+PRIVATE json_t *global_trace_levels_asked(const char *level);
+PRIVATE int send_global_trace_to_yuno(
+    hgobj gobj,
+    hgobj channel_gobj,
+    const char *level,
+    BOOL set,
+    json_t *kw
+);
 PRIVATE int trace_on_yuno(
     hgobj gobj,
     json_t *yuno,
     json_t *kw,
+    json_t *jn_levels,
     hgobj src
 );
 PRIVATE int trace_off_yuno(
@@ -541,6 +550,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_trace_on_yuno[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "level",        0,              0,          "Global trace level(s) to set in the yuno, comma separated (machine, ev_kw, ...); without it, the list"),
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id of yuno"),
 SDATAPM (DTP_STRING,    "realm_id",     0,              0,          "Realm Id"),
 SDATAPM (DTP_STRING,    "yuno_role",    0,              0,          "Yuno Role"),
@@ -976,8 +986,8 @@ SDATACM2 (DTP_SCHEMA,   "play-yuno",        0,                  0,              
 SDATACM2 (DTP_SCHEMA,   "pause-yuno",       0,                  0,                  pm_pause_yuno,  cmd_pause_yuno, "Pause yuno"),
 SDATACM2 (DTP_SCHEMA,   "enable-yuno",      0,                  0,                  pm_enable_yuno, cmd_enable_yuno,"Enable yuno"),
 SDATACM2 (DTP_SCHEMA,   "disable-yuno",     0,                  0,                  pm_disable_yuno,cmd_disable_yuno,"Disable yuno"),
-SDATACM2 (DTP_SCHEMA,   "trace-on-yuno",    SDF_WILD_CMD,       0,                  pm_trace_on_yuno,cmd_trace_on_yuno,"Trace on yuno"),
-SDATACM2 (DTP_SCHEMA,   "trace-off-yuno",   SDF_WILD_CMD,       0,                  pm_trace_off_yuno,cmd_trace_off_yuno,"Trace off yuno"),
+SDATACM2 (DTP_SCHEMA,   "trace-on-yuno",    SDF_WILD_CMD,       0,                  pm_trace_on_yuno,cmd_trace_on_yuno,"Set global trace levels in the yuno"),
+SDATACM2 (DTP_SCHEMA,   "trace-off-yuno",   SDF_WILD_CMD,       0,                  pm_trace_off_yuno,cmd_trace_off_yuno,"Reset every global trace level of the yuno"),
 SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,       0,                  pm_command_yuno,cmd_command_yuno,"Command to yuno. WARNING: parameter's keys are not checked"),
 SDATACM2 (DTP_SCHEMA,   "stats-yuno",       SDF_WILD_CMD,       0,                  pm_stats_yuno,  cmd_stats_yuno, "Get statistics of yuno"),
 SDATACM2 (DTP_SCHEMA,   "watch-yuno-stats", 0,                  0,                  pm_watch_yuno_stats, cmd_watch_yuno_stats, "Send the stats of yunos to the requester every period (EV_YUNO_STATS), until stop=1 or its channel closes"),
@@ -6946,11 +6956,31 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
 
+    /*
+     *  `level` is not a column of the yuno: out of the filter
+     */
+    json_t *jn_level = kw_get_dict_value(gobj, kw, "level", 0, KW_EXTRACT);
+    json_t *jn_levels = global_trace_levels_asked(json_string_value(jn_level));
+    if(!jn_levels) {
+        json_t *jn_comment = json_sprintf(
+            "%s: what global trace level? '%s' (one or more, comma separated)",
+            gobj_yuno_role_plus_name(),
+            json_string_value(jn_level)? json_string_value(jn_level) : ""
+        );
+        JSON_DECREF(jn_level)
+        return msg_iev_build_response(gobj,
+            -1,
+            jn_comment,
+            0,
+            gobj_repr_global_trace_levels(),
+            kw  // owned
+        );
+    }
+    JSON_DECREF(jn_level)
+
     /*------------------------------------------------*
      *      Get the yunos
      *------------------------------------------------*/
-    json_object_set_new(kw, "traced", json_false());
-
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
@@ -6960,10 +6990,11 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
     );
     if(json_array_size(iter)==0) {
         JSON_DECREF(iter)
+        JSON_DECREF(jn_levels)
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
-                "%s: Yuno not found or already tracing",
+                "%s: Yuno not found",
                 gobj_yuno_role_plus_name()
             ),
             0,
@@ -6985,7 +7016,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
         json_object_set_new(yuno, "traced", json_true());
         json_t *kw_clone = kw_duplicate(gobj, kw);  // a kw copy: its gbuffer goes with a reference
         (void)msg_iev_clean_metadata(kw_clone);
-        trace_on_yuno(gobj, yuno, kw_clone, src);
+        trace_on_yuno(gobj, yuno, kw_clone, jn_levels, src);
 
         json_array_append_new(
             jn_data,
@@ -6999,6 +7030,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
         );
     }
     JSON_DECREF(iter)
+    JSON_DECREF(jn_levels)
 
     /*
      *  Inform
@@ -7024,8 +7056,6 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
     /*------------------------------------------------*
      *      Get the yunos
      *------------------------------------------------*/
-    json_object_set_new(kw, "traced", json_true());
-
     json_t *iter = gobj_list_nodes(
         priv->resource,
         resource,
@@ -7038,7 +7068,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf(
-                "%s: Yuno not found or already not tracing",
+                "%s: Yuno not found",
                 gobj_yuno_role_plus_name()
             ),
             0,
@@ -11223,29 +11253,55 @@ PRIVATE int pause_yuno(hgobj gobj, json_t *yuno, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The traces of the yuno's root gobj (`__root__`), every user level, set
- *  or reset. The answer comes back to the agent itself, which says it when
- *  it failed (ac_command_yuno_answer()). Up to 7.30.18 the command named
- *  no gobj (the yuno answered "gobj not found: ''"), and trace-off-yuno's
- *  answer went to the requester as a second answer, without its route.
+ *  The global trace levels asked in `level` ("machine" or "machine,ev_kw"):
+ *  a json list of their names, owned, or NULL when it is empty or names one
+ *  that is not a global level (the global levels are the same in every
+ *  yuno: gobj.c's table)
  ***************************************************************************/
-PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
+PRIVATE json_t *global_trace_levels_asked(const char *level)
 {
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
-    if(!channel_gobj) {
-        KW_DECREF(kw);
-        return -1;
+    if(empty_string(level)) {
+        return NULL;
     }
+    json_t *jn_known = gobj_repr_global_trace_levels();
+    json_t *jn_known_levels = json_object_get(json_array_get(jn_known, 0), "trace_levels");
+
+    json_t *jn_levels = json_array();
+    int list_size;
+    const char **names = split2(level, ", ", &list_size);
+    for(int i=0; i<list_size; i++) {
+        if(!json_object_get(jn_known_levels, names[i])) {
+            JSON_DECREF(jn_levels)
+            break;
+        }
+        json_array_append_new(jn_levels, json_string(names[i]));
+    }
+    split_free2(names);
+    JSON_DECREF(jn_known)
+
+    if(jn_levels && json_array_size(jn_levels) == 0) {
+        JSON_DECREF(jn_levels)
+    }
+    return jn_levels;
+}
+
+/***************************************************************************
+ *  Send `set-global-trace level=<level> set=<0|1>` to the yuno's root
+ *  (`__root__`, its C_YUNO). The answer comes back to the agent itself,
+ *  which says it when it failed (ac_command_yuno_answer()). `kw` owned.
+ ***************************************************************************/
+PRIVATE int send_global_trace_to_yuno(
+    hgobj gobj,
+    hgobj channel_gobj,
+    const char *level,
+    BOOL set,
+    json_t *kw
+)
+{
     json_object_set_new(kw, "service", json_string("__root__"));
 
-    char command[256];
-    snprintf(
-        command,
-        sizeof(command),
-        "set-gobj-trace gobj_name=__root__ "
-        "level=%d set=1",
-        TRACE_USER_LEVEL
-    );
+    char command[NAME_MAX];
+    snprintf(command, sizeof(command), "set-global-trace level=%s set=%d", level, set?1:0);
     json_t *webix = gobj_command( // debe retornar siempre 0.
         channel_gobj,
         command,
@@ -11257,7 +11313,34 @@ PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 }
 
 /***************************************************************************
- *  See trace_on_yuno()
+ *  Set in the yuno the global trace levels of `jn_levels`. Up to 7.30.21
+ *  it set every user level of the yuno's root gobj, and C_YUNO has none:
+ *  nothing was traced. `kw` owned.
+ ***************************************************************************/
+PRIVATE int trace_on_yuno(hgobj gobj, json_t *yuno, json_t *kw, json_t *jn_levels, hgobj src)
+{
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
+    if(!channel_gobj) {
+        KW_DECREF(kw);
+        return -1;
+    }
+
+    size_t idx; json_t *jn_level;
+    json_array_foreach(jn_levels, idx, jn_level) {
+        send_global_trace_to_yuno(
+            gobj,
+            channel_gobj,
+            json_string_value(jn_level),
+            TRUE,
+            kw_duplicate(gobj, kw)  // a kw copy: its gbuffer goes with a reference
+        );
+    }
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Reset every global trace level of the yuno, whoever set it
  ***************************************************************************/
 PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
 {
@@ -11266,23 +11349,21 @@ PRIVATE int trace_off_yuno(hgobj gobj, json_t *yuno, json_t *kw,  hgobj src)
         KW_DECREF(kw);
         return -1;
     }
-    json_object_set_new(kw, "service", json_string("__root__"));
 
-    char command[256];
-    snprintf(
-        command,
-        sizeof(command),
-        "set-gobj-trace gobj_name=__root__ "
-        "level=%d set=0",
-        TRACE_USER_LEVEL
-    );
-    json_t *webix = gobj_command( // debe retornar siempre 0.
-        channel_gobj,
-        command,
-        kw,
-        gobj
-    );
-    JSON_DECREF(webix);
+    json_t *jn_known = gobj_repr_global_trace_levels();
+    json_t *jn_known_levels = json_object_get(json_array_get(jn_known, 0), "trace_levels");
+    const char *level; json_t *jn_v;
+    json_object_foreach(jn_known_levels, level, jn_v) {
+        send_global_trace_to_yuno(
+            gobj,
+            channel_gobj,
+            level,
+            FALSE,
+            kw_duplicate(gobj, kw)  // a kw copy: its gbuffer goes with a reference
+        );
+    }
+    JSON_DECREF(jn_known)
+    KW_DECREF(kw);
     return 0;
 }
 

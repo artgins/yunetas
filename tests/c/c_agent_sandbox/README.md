@@ -46,13 +46,30 @@ has no `websockets`.
    7.30.17 the agent recorded the card's pids, and that `kill-yuno` sent
    SIGQUIT to every process of the user (the peer dumped a core).
 
-6. `trace-on-yuno` and `trace-off-yuno` of the relaunched `logcenter`, three
-   times each: each answers 0, and the yuno's answer goes to the agent, which
-   logs no *"a command of the agent to a yuno failed"*. Up to 7.30.18 the
-   command named no gobj (the yuno answered *"gobj not found: ''"*), the
-   answer of `trace-off-yuno` reached the peer as a second answer (its next
-   question read it), and every call left the yunos it found in the agent
-   (421 blocks at the end of this test).
+6. `trace-on-yuno` and `trace-off-yuno` of the relaunched `logcenter`:
+   - without `level`, or with `level=machine,no_such_level`: refused (-1),
+     the global levels listed in the `data`, nothing set, `traced` false;
+   - `level=machine,ev_kw`, then `level=commands` on the traced yuno: the
+     yuno's `get-global-trace` (asked with `command-yuno`) says the three,
+     and `traced` is true;
+   - `trace-off-yuno`: `get-global-trace` says none, `traced` is false.
+
+   Three times. Each answer of the yuno goes to the agent, which logs no
+   *"a command of the agent to a yuno failed"*. Up to 7.30.21 the pair set
+   the user levels of the yuno's root gobj, which has none: nothing was
+   traced. Up to 7.30.18 the command named no gobj (the yuno answered
+   *"gobj not found: ''"*), the answer of `trace-off-yuno` reached the peer
+   as a second answer (its next question read it), and every call left the
+   yunos it found in the agent (421 blocks at the end of this test).
+7. A crash of the running `logcenter` (SIGSEGV; the sandbox runs with
+   `ulimit -c 0`, so no core reaches the host's `/var/crash`): its watcher
+   relaunches it 2 s later, and a `run-yuno` asked 1 s after the crash
+   launches nothing (*"alive but not connected to the agent: not launched
+   again"*: the watcher is a process of the yuno). The relaunched one is
+   registered with its new pid and the same watcher, and only two processes
+   of it live. It is the order of events of a relaunch by the watcher that
+   meets a launch by the agent; the agent log has no *"yuno ALREADY
+   living"* for it (two in all, from the cards of 4).
 
 The test does not have a process of another user (the sandbox maps one uid
 only), so it cannot show that `find_living_yuno_pids()` skips one: it shows
@@ -62,8 +79,9 @@ pid is killed, `kill-yuno` ends the yuno).
 At the end the agent is stopped in order (SIGINT) and its log must have no
 *"BAD gbuf_decref()"*, no *"system memory not free"* (the gbmem audit of
 `CONFIG_DEBUG_TRACK_MEMORY`), three WARNINGs *"identity card refused: its pid
-is not a process of that yuno, not killed"*, and one *"identity card accepted:
-its pid is not a process of that yuno, not recorded"*.
+is not a process of that yuno, not killed"*, one *"identity card accepted:
+its pid is not a process of that yuno, not recorded"*, and two *"yuno
+ALREADY living, killing new yuno"* (the second cards of 4).
 
 ## Run
 

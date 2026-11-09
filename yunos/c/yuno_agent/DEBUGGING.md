@@ -83,6 +83,7 @@ A trace is the running commentary that the framework can emit. It is off by
 default. It is **noisy**, so enable it only when you need it, and disable it
 when you finish.
 
+(global-trace-levels)=
 ### 3.1 Global trace levels
 
 Defined in `s_global_trace_level[16]` at [`kernel/c/gobj-c/src/gobj.c`](https://github.com/artgins/yunetas/blob/7.30.21/kernel/c/gobj-c/src/gobj.c):
@@ -193,6 +194,32 @@ The short form in CLAUDE.md,
 `ycommand -c 'command-yuno id=<id> service=__yuno__ command=…'`, is exactly
 this. The shorter form `ycommand -c 'set-global-trace …'` sends `command-yuno`
 to the yuno that is registered as the default yuno.
+
+**The agent's own pair, `trace-on-yuno` / `trace-off-yuno`, sets GLOBAL
+levels** and marks the yuno `traced` in `list-yunos`:
+
+```bash
+# set machine and ev_kw in yuno 3 (one set-global-trace per level)
+ycommand -c 'trace-on-yuno id=3 level=machine,ev_kw'
+
+# add commands: a yuno already traced takes more levels
+ycommand -c 'trace-on-yuno id=3 level=commands'
+
+# without level, or with one that is not global: refused (-1), nothing set,
+# and the data lists the global levels
+ycommand -c 'trace-on-yuno id=3'
+
+# reset EVERY global level of the yuno, whoever set it; traced back to false
+ycommand -c 'trace-off-yuno id=3'
+```
+
+The levels are those of [§3.1](#global-trace-levels), the same in every yuno.
+The yuno saves them as any `set-global-trace` (see
+[Persistence](#persistence-of-traces)), so they and `traced` survive a restart
+of the yuno until `trace-off-yuno`. With no filter, the pair acts on EVERY yuno
+(`yuno_role=`, `realm_id=` narrow it). Up to 7.30.21 `trace-on-yuno` took no
+level and set the user levels of the yuno's root gobj (`C_YUNO`), which has
+none: only `traced` changed.
 
 > **`set-global-no-trace` silences a global level** for every gobj. Each yuno's
 > `main.c` sets its defaults this way before it creates the yuno, almost always

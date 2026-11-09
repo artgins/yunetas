@@ -485,6 +485,42 @@ and when it reached only some, the others are named in a warning of the
 agent's log (*"yuno running but not connected to the agent, nothing sent to
 it"*): the ones that got it answer on their own.
 
+## Tracing a yuno (`trace-on-yuno`, `trace-off-yuno`)
+
+`trace-on-yuno` sets GLOBAL trace levels in the yunos that match, and marks
+them `traced` in `list-yunos`; `trace-off-yuno` resets every global level of
+the yunos that match and marks them not traced. The levels are those of
+`set-global-trace`, the same in every yuno (see
+[Debugging](../../../yunos/c/yuno_agent/DEBUGGING.md)), and the agent sends
+one `set-global-trace level=<level> set=1` to the yuno per level asked.
+
+```bash
+# trace the FSM of yuno 3 and the kw of each of its events
+ycommand -c 'trace-on-yuno id=3 level=machine,ev_kw'
+
+# what the yuno traces now
+ycommand -c 'command-yuno id=3 service=__yuno__ command=get-global-trace'
+
+# done: every global level of yuno 3 off, `traced` false
+ycommand -c 'trace-off-yuno id=3'
+```
+
+- `trace-on-yuno` with no `level`, or with a name that is not a global level,
+  answers `-1` (*"what global trace level? …"*), sets nothing, and its `data`
+  lists the global levels.
+- A yuno already traced takes more levels: `trace-on-yuno id=3 level=commands`
+  adds `commands` to `machine` and `ev_kw`.
+- `trace-off-yuno` resets ALL the global levels of the yuno, also ones set by
+  hand with `set-global-trace`.
+- The yuno saves its global levels (`__global_trace__`), and `traced` is a
+  persistent column: both survive a restart of the yuno, until `trace-off-yuno`.
+- With no filter (`id`, `yuno_role`, `realm_id`, ...) they act on every yuno.
+
+**BREAKING in 7.30.22:** up to 7.30.21 `trace-on-yuno` took no level and set
+the user levels of the yuno's root gobj (`C_YUNO`), which has none: nothing
+was traced, only `traced` changed. It also skipped a yuno already traced
+(*"Yuno not found or already tracing"*), and `trace-off-yuno` one not traced.
+
 ## Stats pushed to a watcher (`watch-yuno-stats`)
 
 Since 7.25.13 a client can ask the agent to SEND it the stats of some yunos

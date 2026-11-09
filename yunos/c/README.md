@@ -140,8 +140,8 @@ Yuno lifecycle:
 | `pause-yuno` | Pause yuno |
 | `enable-yuno` | Enable yuno |
 | `disable-yuno` | Disable yuno |
-| `trace-on-yuno` | Enable tracing |
-| `trace-off-yuno` | Disable tracing |
+| `trace-on-yuno` | Set global trace levels in the yuno (`level=machine,ev_kw`) |
+| `trace-off-yuno` | Reset every global trace level of the yuno |
 | `command-yuno` | Send command to yuno |
 | `stats-yuno` | Get yuno statistics |
 | `authzs-yuno` | Get yuno permissions |
