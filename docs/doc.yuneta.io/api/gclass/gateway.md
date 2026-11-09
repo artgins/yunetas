@@ -177,7 +177,7 @@ read through it).
 
 ```bash
 ycommand -c 'stats-yuno id=<id> service=__output_side__'
-# {"output-qiogate-aire": {"msgs_in_queue": 12, "pending_acks": 3, "dropped_msgs": 0, ...}, ...}
+# {"output-qiogate-sensors": {"msgs_in_queue": 12, "pending_acks": 3, "dropped_msgs": 0, ...}, ...}
 ```
 
 ### A full disk
@@ -239,16 +239,16 @@ A log watcher alerts on the ERROR, or on `queue_ready` false:
 
 ```bash
 ycommand -c 'stats-yuno id=<id> service=__output_side__'
-# {"output-qiogate-aire": {"queue_ready": false, "dropped_msgs": 40, ...}, ...}
+# {"output-qiogate-sensors": {"queue_ready": false, "dropped_msgs": 40, ...}, ...}
 ```
 
 ```json
 {
-    "name": "output-qiogate-aire",
+    "name": "output-qiogate-sensors",
     "gclass": "C_QIOGATE",
     "kw": {
-        "tranger_path": "/yuneta/store/queues/gate_aire",
-        "tranger_database": "aire",
+        "tranger_path": "/yuneta/store/queues/gate_sensors",
+        "tranger_database": "sensors",
         "topic_name": "msgs",
         "exitOnError": 0
     }
