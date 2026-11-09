@@ -3,7 +3,7 @@
  *
  *          Driver of the test of the client records of C_PROT_MQTT, the
  *          deprecated MQTT protocol gclass, as a server. No broker and no
- *          socket: nineteen protocol gobjs are children of this driver, each
+ *          socket: twenty-two protocol gobjs are children of this driver, each
  *          with a C_FAKE_TRANSPORT as its bottom, and the driver writes the
  *          clients' packets into them by hand. The clients are kept in a
  *          persistent C_RESOURCE2, as an MQTT gate keeps them. The
@@ -96,6 +96,11 @@
  *                 UNSUBSCRIBE past the second is written at once, a SUBSCRIBE
  *                 inside it at the disconnection; the session comes back
  *                 with its 51 filters.
+ *             11. "big" (message_size_limit 16, MQTT 5): a QoS 1 and a QoS 2
+ *                 past it get PUBACK and PUBREC 0x95, one under it its
+ *                 PUBACK, the client is kept. "rm5" (Receive Maximum 5)
+ *                 that does not ack gets 5 of 1015 QoS 1, 1000 wait and 10
+ *                 are dropped (one WARNING); one more per PUBACK. "rm0" (Receive Maximum 0): no CONNACK, dropped.
  *
  *          Up to 7.30.21 every client id made a record that was never
  *          removed, on disk and in memory, a client could hold any number
@@ -112,7 +117,9 @@
  *          applied, every (UN)SUBSCRIBE rewrote the record, an UNSUBSCRIBE
  *          was capped by max_topic_filter_length, a DISCONNECT of MQTT 5
  *          with properties and no Session Expiry Interval logged an ERROR,
- *          and an assigned id logged "path NOT FOUND" at its first QoS 1.
+ *          and an assigned id logged "path NOT FOUND" at its first QoS 1;
+ *          a PUBLISH past message_size_limit was freed twice, and the
+ *          Receive Maximum of an MQTT 5 client was never kept.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -145,7 +152,10 @@
 #define SAVE_FILTERS        50
 #define SAVE_BURST          200
 #define SAVE_WINDOW_WAIT_MS 1200    // past the window of one second
-#define SAVE_NOOP_MARGIN    4096    // bytes; a record of saver is ~14 KB
+#define SAVE_NOOP_MARGIN    4096    // bytes; a record of saver is ~30 KB
+#define BIG_LIMIT           16      // message_size_limit of "big"
+#define RM_CLIENT           5       // Receive Maximum of "rm5"
+#define RM_PUBLICATIONS     (RM_CLIENT + MAX_QUEUED + 10)
 
 #define STORE_SERVICE       "mqtt"
 #define STORE_DATABASE      "legacy_sessions_clients"
@@ -170,6 +180,9 @@ enum {
     DISC5,      // DISCONNECT of MQTT 5 with properties
     ASG,        // allow_zero_length_clientid 1: an assigned id
     SAVER,      // the writes of its (UN)SUBSCRIBEs
+    BIG,        // message_size_limit 16
+    RM5,        // MQTT 5, Receive Maximum 5
+    RM0,        // MQTT 5, Receive Maximum 0
     N_PEERS
 };
 
@@ -190,6 +203,8 @@ typedef struct {
     int pubrecs;            // PUBREC received
     int pubcomps;           // PUBCOMP received
     int disconnect_reason;  // reason code of the last DISCONNECT received, -1 none
+    int pubacks;            // PUBACK received
+    int ack_reason;         // reason code of the last PUBACK or PUBREC, -1 none
 } peer_t;
 
 /***************************************************************************
@@ -271,7 +286,8 @@ PRIVATE void mt_create(hgobj gobj)
 
     static const char *names[N_PEERS] = {
         "dev", "pub", "att", "att2", "exp", "exp2", "r1", "r2", "r3", "r4", "r5",
-        "longf", "q2", "in4", "in5", "slow", "disc5", "asg", "saver"
+        "longf", "q2", "in4", "in5", "slow", "disc5", "asg", "saver",
+        "big", "rm5", "rm0"
     };
     for(int i=0; i<N_PEERS; i++) {
         peer_t *peer = &priv->peers[i];
@@ -280,6 +296,7 @@ PRIVATE void mt_create(hgobj gobj)
         peer->connack_flags = -1;
         peer->connack_reason = -1;
         peer->disconnect_reason = -1;
+        peer->ack_reason = -1;
 
         json_t *kw_prot = json_pack("{s:b}", "iamServer", 1);
         if(i == EXP) {
@@ -289,6 +306,8 @@ PRIVATE void mt_create(hgobj gobj)
             json_object_set_new(kw_prot, "max_persistent_sessions", json_integer(3));
         } else if(i == ASG) {
             json_object_set_new(kw_prot, "allow_zero_length_clientid", json_true());
+        } else if(i == BIG) {
+            json_object_set_new(kw_prot, "message_size_limit", json_integer(BIG_LIMIT));
         }
 
         char name[NAME_MAX];
@@ -607,6 +626,31 @@ PRIVATE void mqtt_connect(
 }
 
 /***************************************************************************
+ *  A new connection and its CONNECT of MQTT 5, clean start, keep alive
+ *  60 s, with the properties given (`props` starts with their length)
+ ***************************************************************************/
+PRIVATE void mqtt_connect5_props(
+    hgobj gobj,
+    peer_t *peer,
+    const char *client_id,
+    const uint8_t *props,
+    size_t props_len
+) {
+    peer->version = 5;
+    peer->connack_flags = -1;
+    peer->connack_reason = -1;
+
+    gobj_send_event(peer->prot, EV_CONNECTED, 0, peer->fake);
+
+    gbuffer_t *body = gbuffer_create(256, 256);
+    uint8_t head[] = {0x00, 0x04, 'M', 'Q', 'T', 'T', 5, 0x02, 0x00, 60};
+    gbuffer_append(body, head, sizeof(head));
+    gbuffer_append(body, (void *)props, props_len);
+    put_string(body, client_id);
+    peer_sends(gobj, peer, 0x10, body);
+}
+
+/***************************************************************************
  *  SUBSCRIBE of filters "<prefix><n>", n from `from` (-1: the prefix alone)
  ***************************************************************************/
 PRIVATE void mqtt_subscribe_qos(
@@ -854,8 +898,13 @@ PRIVATE void parse_rx(hgobj gobj, peer_t *peer)
                     }
                 }
                 break;
+            case 4:     // PUBACK
+                peer->pubacks++;
+                peer->ack_reason = (remaining >= 3)? v[2] : 0;
+                break;
             case 5:     // PUBREC
                 peer->pubrecs++;
+                peer->ack_reason = (remaining >= 3)? v[2] : 0;
                 break;
             case 7:     // PUBCOMP
                 peer->pubcomps++;
@@ -1826,6 +1875,74 @@ PRIVATE void phase_save_noop(hgobj gobj)
 
 
 /***************************************************************************
+ *  11. message_size_limit; the Receive Maximum of an MQTT 5 client
+ ***************************************************************************/
+PRIVATE void phase_client_limits(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *pub = &priv->peers[PUB];
+    peer_t *big = &priv->peers[BIG];
+    peer_t *rm5 = &priv->peers[RM5];
+    peer_t *rm0 = &priv->peers[RM0];
+
+    /*
+     *  A PUBLISH past message_size_limit is answered 0x95 (Packet too
+     *  large), not delivered, and the client stays
+     */
+    char payload[2*BIG_LIMIT + 1];
+    memset(payload, 'p', sizeof(payload) - 1);
+    payload[sizeof(payload) - 1] = 0;
+    mqtt_connect(gobj, big, 5, TRUE, "big", -1);
+    check_int(gobj, "TEST: CONNECT of big", big->connack_reason, 0);
+    mqtt_publish_qos(gobj, big, "big/t", payload, 1);
+    check_int(gobj, "TEST: PUBACK of a QoS 1 past message_size_limit", big->pubacks, 1);
+    check_int(gobj, "TEST: reason of the PUBACK past message_size_limit", big->ack_reason, 0x95);
+    mqtt_publish_qos2(gobj, big, "big/t", payload, 2, FALSE);
+    check_int(gobj, "TEST: PUBREC of a QoS 2 past message_size_limit", big->pubrecs, 1);
+    check_int(gobj, "TEST: reason of the PUBREC past message_size_limit", big->ack_reason, 0x95);
+    mqtt_publish_qos(gobj, big, "big/t", "small", 3);
+    check_int(gobj, "TEST: PUBACK of a QoS 1 under message_size_limit", big->pubacks, 2);
+    check_kept(gobj, BIG, "TEST: a PUBLISH past message_size_limit dropped the client");
+    mqtt_close(gobj, big);
+
+    /*
+     *  An MQTT 5 client with Receive Maximum 5 that does not ack: 5 in
+     *  flight, the rest queued; a PUBACK sends one more
+     */
+    uint8_t rm5_props[] = {0x03, 0x21, 0x00, RM_CLIENT};
+    mqtt_connect5_props(gobj, rm5, "rm5", rm5_props, sizeof(rm5_props));
+    check_int(gobj, "TEST: CONNECT of rm5", rm5->connack_reason, 0);
+    mqtt_subscribe_qos(gobj, rm5, 1, "rm/t", -1, 1, 1);
+    check_suback(gobj, rm5, "TEST: SUBACK QoS 1 of rm5", 0, 1, 1);
+    for(int i=0; i<RM_PUBLICATIONS; i++) {
+        mqtt_publish_qos(gobj, pub, "rm/t", "x", (uint16_t)(i + 1));
+    }
+    check_int(gobj, "TEST: messages in flight to a client with Receive Maximum 5",
+        rm5->publications, RM_CLIENT
+    );
+    mqtt_ack(gobj, rm5, 0x40, 1);
+    check_int(gobj, "TEST: messages to a client with Receive Maximum 5 after a PUBACK",
+        rm5->publications, RM_CLIENT + 1
+    );
+    for(int i=1; i<RM_PUBLICATIONS; i++) {
+        mqtt_ack(gobj, rm5, 0x40, (uint16_t)(i + 1));
+    }
+    check_int(gobj, "TEST: messages a client with Receive Maximum 5 got, its queue past max_queued_messages",
+        rm5->publications, RM_CLIENT + MAX_QUEUED
+    );
+    check_kept(gobj, RM5, "TEST: the client with Receive Maximum 5 was dropped");
+    mqtt_close(gobj, rm5);
+
+    /*
+     *  Receive Maximum 0 is a protocol error: no CONNACK, dropped
+     */
+    uint8_t rm0_props[] = {0x03, 0x21, 0x00, 0x00};
+    mqtt_connect5_props(gobj, rm0, "rm0", rm0_props, sizeof(rm0_props));
+    check_int(gobj, "TEST: a CONNACK to a CONNECT with Receive Maximum 0", rm0->connack_reason, -1);
+    check_dropped(gobj, RM0, "TEST: a CONNECT with Receive Maximum 0 was not dropped");
+}
+
+/***************************************************************************
  *  The phases
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1882,6 +1999,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 10:
             phase_save_noop(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 11:
+            phase_client_limits(gobj);
             set_timeout(priv->timer, 100);
             break;
 

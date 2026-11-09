@@ -129,7 +129,7 @@ memory. `0` is no limit.
 
 | Attribute | Default | Past the limit |
 |---|---|---|
-| `max_inflight_messages` | `20` | To the client: a message waits in the client's queue, and goes out, with the packet id it got, when a PUBACK, PUBCOMP or failed PUBREC frees a slot. From the client: it is also the Receive Maximum announced to MQTT 5 clients. A client with this many QoS 2 messages waiting for their PUBREL that sends one more PUBLISH breaks the protocol: MQTT 5 gets DISCONNECT `0x93` (Receive Maximum exceeded), and the connection closes, also for MQTT 3.1.1. One WARNING. |
+| `max_inflight_messages` | `20` | To the client: a message waits in the client's queue, and goes out, with the packet id it got, when a PUBACK, PUBCOMP or failed PUBREC frees a slot. An MQTT 5 client that sends a lower Receive Maximum in its CONNECT gets that many in flight. From the client: it is also the Receive Maximum announced to MQTT 5 clients. A client with this many QoS 2 messages waiting for their PUBREL that sends one more PUBLISH breaks the protocol: MQTT 5 gets DISCONNECT `0x93` (Receive Maximum exceeded), and the connection closes, also for MQTT 3.1.1. One WARNING. |
 | `max_queued_messages` | `1000` | A message to the client past `max_inflight_messages` + this is dropped. The client stays connected. One WARNING per connection. |
 
 ```json
@@ -158,6 +158,18 @@ closes.
 
 `max_inflight_bytes` and `max_queued_bytes` are not applied.
 
+`message_size_limit` (bytes, default `0`, no limit) refuses a bigger PUBLISH
+payload. The message is not delivered, the QoS flow is completed (PUBACK or
+PUBREC; MQTT 5 with reason `0x95`, Packet too large), and the client stays
+connected. One WARNING per message: *"Mqtt: Dropped too large PUBLISH"*.
+
+```json
+"kw": {
+    "iamServer": true,
+    "message_size_limit": 4096
+}
+```
+
 Up to 7.30.21 every client id left a record that was never removed, in memory
 and on disk; a client could hold any number of subscriptions; each PUBLISH
 walked every subscription of every record; and a re-subscription was taken
@@ -185,7 +197,9 @@ nothing: one connection whose record held 100 long filters could write about
 length also refused an UNSUBSCRIBE, so a filter kept from before could not be
 removed. A DISCONNECT of MQTT 5 with properties and no Session Expiry
 Interval logged an ERROR; and a client with an id the gate assigned logged
-*"path NOT FOUND"* at its first QoS 1 or 2 message.
+*"path NOT FOUND"* at its first QoS 1 or 2 message. With `message_size_limit`
+set, a PUBLISH past it was freed twice, which took the gate down; and the
+Receive Maximum of an MQTT 5 client was never kept.
 
 ## C_MQTT_BROKER
 

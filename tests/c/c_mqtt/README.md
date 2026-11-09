@@ -102,10 +102,11 @@ client has a clean start: the driver also deletes its record, as the protocol
 asks when the client disconnects.
 
 `test_mqtt_legacy_sessions` (`main_legacy_sessions.c` + `c_legacy_sessions.c`)
-drives nineteen `C_PROT_MQTT` gobjs the same way, each on its own
+drives twenty-two `C_PROT_MQTT` gobjs the same way, each on its own
 `C_FAKE_TRANSPORT`, with the clients in a persistent `C_RESOURCE2` (as an MQTT
 gate keeps them) and the protocol's default limits (but the two of the
-expiry, and one with `allow_zero_length_clientid`). 1. A device `dev` (clean
+expiry, one with `allow_zero_length_clientid` and one with
+`message_size_limit` 16). 1. A device `dev` (clean
 session 0) subscribes `dev/t` and `pub` publishes to it 1000 times: the
 reference time. 300 clients with clean session (3.1.1 clean session 1; MQTT 5
 clean start with no session expiry; MQTT 5 no clean start, expiry 0) connect,
@@ -166,7 +167,13 @@ message (no PUBCOMP, the client dropped as malformed) and the disconnection
 freed it again; with the crash fixed, the 21st QoS 2 got its PUBREC, the
 subscriber got all 1100 at once, the 401 packets wrote 11.6 MB, the UNSUBACK
 of the long filter was 0x8F, and the DISCONNECT and the assigned id logged
-ERRORs.
+ERRORs. 11. A QoS 1 and a QoS 2 PUBLISH past `message_size_limit` (MQTT 5)
+get PUBACK and PUBREC `0x95`, one under it its PUBACK, the client is kept. An
+MQTT 5 client with Receive Maximum 5 that does not ack gets 5 of 1015 QoS 1
+messages, one more per PUBACK, 1005 in all (10 dropped, one WARNING). A
+Receive Maximum of 0 gets no CONNACK and is dropped. Up to 7.30.23 (red): the
+oversized PUBLISH was freed twice (*"Deleting item with DIFFERENT
+dl_list_t"*, abort), and the client with Receive Maximum 5 got 20 in flight.
 
 `test_mqtt_legacy_prot` runs with `max_topic_filter_length` 0 (no limit): its
 300-byte topic is there to check a length with a non-zero high byte.

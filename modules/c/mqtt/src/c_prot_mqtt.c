@@ -681,7 +681,7 @@ SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR|SDF_PERSIST,         0,      
 
 SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR|SDF_PERSIST,       "1000",   "The maximum number of QoS 1 or 2 messages to hold in the queue (per connected client) above those messages that are currently in flight (max_inflight_messages). The next ones are dropped, said with one WARNING per connection. Defaults to 1000. Set to 0 for no maximum (not recommended)."),
 
-SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
+SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'Packet too large' (0x95) reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
 SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR|SDF_PERSIST,         "65535",  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
 
@@ -1246,46 +1246,6 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void print_queue(const char *name, dl_list_t *dl_list)
-{
-    printf("====================> Queue: %s\n", name);
-    int idx = 0;
-    struct mosquitto_client_msg *tail = dl_first(dl_list);
-    while(tail) {
-        printf("  client %d\n", idx++);
-        printf("    mid %d\n", tail->mid);
-        printf("    qos %d\n", tail->qos);
-        printf("    retain %d\n", tail->retain);
-        printf("    timestamp %ld\n", (long)tail->timestamp);
-        printf("    direction %d\n", tail->direction);
-        printf("    state %d\n", tail->state);
-        printf("    dup %d\n", tail->dup);
-        //print_json(tail->properties);
-
-        printf("  store\n");
-        printf("    topic %s\n", tail->store->topic);
-        printf("    mid %d\n", tail->store->mid);
-        printf("    qos %d\n", tail->store->qos);
-        printf("    retain %d\n", tail->store->retain);
-        printf("    message_expiry_time %ld\n", (long)tail->store->message_expiry_time);
-        printf("    source_id %s\n", tail->store->source_id);
-        printf("    source_username %s\n", tail->store->source_username);
-        printf("    source_mid %d\n", tail->store->source_mid);
-
-        //log_debug_dump(0, tail->store->payload, tail->store->payloadlen, "store");
-        //print_json(tail->store->properties);
-        printf("\n");
-
-        /*
-         *  Next
-         */
-        tail = dl_next(tail);
-    }
-}
 
 /***************************************************************************
  *
@@ -3775,13 +3735,12 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
 
             case MQTT_PROP_RECEIVE_MAXIMUM:
                 {
+                    /*  0 never comes here: mqtt_property_check_all() refuses
+                     *  it. Up to 7.30.23 the test was inverted and the
+                     *  client's value was never kept.  */
                     json_int_t value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
-                    if(value != 0) {
-                        //return -1;
-                    } else {
-                        gobj_write_integer_attr(gobj, "msgs_out_inflight_maximum", value);
-                        gobj_write_integer_attr(gobj, "msgs_out_inflight_quota", value);
-                    }
+                    gobj_write_integer_attr(gobj, "msgs_out_inflight_maximum", value);
+                    gobj_write_integer_attr(gobj, "msgs_out_inflight_quota", value);
                 }
                 break;
 
@@ -4710,17 +4669,33 @@ PRIVATE int db__message_update_outgoing(
 }
 
 /***************************************************************************
+ *  The messages that may be in flight, 0 no limit: max_inflight_messages,
+ *  and to the client also its Receive Maximum (MQTT 5) when lower
+ ***************************************************************************/
+PRIVATE uint32_t inflight_maximum(hgobj gobj, enum mosquitto_msg_direction dir)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint32_t maximum = priv->max_inflight_messages;
+    if(dir == mosq_md_out && priv->msgs_out_inflight_maximum > 0 &&
+            (maximum == 0 || priv->msgs_out_inflight_maximum < maximum)) {
+        maximum = priv->msgs_out_inflight_maximum;  // the client's Receive Maximum
+    }
+    return maximum;
+}
+
+/***************************************************************************
  *  Is there room for one more QoS 1 or 2 message in flight?
- *  max_inflight_messages, 0 no limit. OUT: the messages sent to the client
- *  and not acknowledged yet (the queued ones wait). IN: the QoS 2 messages
- *  of the client waiting for their PUBREL.
- *  Up to 7.30.23 it was always TRUE.
+ *  OUT: the messages sent to the client and not acknowledged yet (the
+ *  queued ones wait). IN: the QoS 2 messages of the client waiting for
+ *  their PUBREL. Up to 7.30.23 it was always TRUE.
  ***************************************************************************/
 PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mosquitto_msg_direction dir, int qos)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(qos == 0 || priv->max_inflight_messages == 0) {
+    uint32_t maximum = inflight_maximum(gobj, dir);
+    if(qos == 0 || maximum == 0) {
         return TRUE;
     }
 
@@ -4731,7 +4706,7 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mosquitto_msg_direction dir, 
     while(msg) {
         if(msg->state != mosq_ms_queued) {
             inflight++;
-            if(inflight >= priv->max_inflight_messages) {
+            if(inflight >= maximum) {
                 return FALSE;
             }
         }
@@ -4948,7 +4923,6 @@ PRIVATE int XXX_db__message_insert(
     int rc = 0;
 
     //printf("================> OUT Client %s\n", priv->client_id);
-    //print_queue("dl_msgs_out", &priv->dl_msgs_out);
 
     uint32_t expiry_interval = 0;
 
@@ -4984,7 +4958,7 @@ PRIVATE int XXX_db__message_insert(
      */
     if(!db__ready_for_flight(gobj, mosq_md_out, qos)) {
         if(priv->max_queued_messages > 0 &&
-                dl_size(&priv->dl_msgs_out) >= priv->max_inflight_messages + priv->max_queued_messages) {
+                dl_size(&priv->dl_msgs_out) >= inflight_maximum(gobj, mosq_md_out) + priv->max_queued_messages) {
             if(!priv->out_dropping) {
                 priv->out_dropping = TRUE;
                 hgobj bottom = gobj_bottom_gobj(gobj);
@@ -5125,7 +5099,6 @@ PRIVATE int XXX_save_message_to_pubrec(
     int rc = 0;
 
     //printf("================> IN Client %s\n", priv->client_id);
-    //print_queue("dl_msgs_in", &priv->dl_msgs_in);
 
     struct mosquitto_client_msg *msg;
     enum mosquitto_msg_state state = mosq_ms_invalid;
@@ -7284,8 +7257,6 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             reason_code
         );
     }
-    printf("================> PUBREC OUT Client %s\n", priv->client_id);
-    print_queue("dl_msgs_out", &priv->dl_msgs_out);
 
     if(priv->iamServer) {
         if(reason_code < 0x80) {
@@ -7834,10 +7805,11 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",           "%s", MSGSET_MQTT,
                 "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
                 "client_id",        "%s", priv->client_id,
-                "topic",            "%d", msg->topic,
+                "topic",            "%s", msg->topic,
                 NULL
             );
-            db_free_msg_store(msg);
+            /*  process_bad_message answers it and frees msg: up to 7.30.23
+             *  msg was freed here too (a double free)  */
             reason_code = MQTT_RC_PACKET_TOO_LARGE;
             goto process_bad_message;
         }
@@ -7862,7 +7834,7 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
             "msgset",           "%s", MSGSET_MQTT,
             "msg",              "%s", "Mqtt: Denied PUBLISH",
             "client_id",        "%s", priv->client_id,
-            "topic",            "%d", msg->topic,
+            "topic",            "%s", msg->topic,
             NULL
         );
         reason_code = MQTT_RC_NOT_AUTHORIZED;
@@ -7904,7 +7876,7 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "Mqtt: Reused message ID",
             "client_id",        "%s", priv->client_id,
-            "topic",            "%d", msg->topic,
+            "topic",            "%s", msg->topic,
             "mid",              "%d", msg->source_mid,
             NULL
         );
