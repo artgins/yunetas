@@ -98,6 +98,13 @@ typedef struct ytls_s {
     size_t rx_buffer_size;
     hgobj gobj;
     char ssl_server_name[256]; // Server name for SNI (client-side TLS only)
+    /*
+     *  Of the context, not of one session: a peer that opens many
+     *  connections and fails each handshake is one cause, and a listener's
+     *  count is not another's
+     */
+    uint64_t handshake_log_t_next;      // msectimer: no "TLS handshake rejected" before it
+    json_int_t handshake_log_suppressed;  // not written since the last one
 } ytls_t;
 
 /*
@@ -152,6 +159,7 @@ PRIVATE hytls init(
     BOOL server
 );
 PRIVATE void cleanup(hytls ytls);
+PRIVATE void say_suppressed_handshakes(ytls_t *ytls, BOOL at_end);
 PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
 PRIVATE json_t *get_cert_info(hytls ytls);
 PRIVATE json_t *get_peer_cert_info(hsskt sskt);
@@ -197,12 +205,6 @@ PRIVATE api_tls_t api_tls = {
 /***************************************************************
  *              Data
  ***************************************************************/
-/*
- *  Not of one session: a peer that opens many connections and fails each
- *  handshake is one cause
- */
-PRIVATE uint64_t handshake_log_t_next = 0;          // msectimer: no warning before it
-PRIVATE json_int_t handshake_log_suppressed = 0;    // not written since the last one
 
 /***************************************************************************
  *  Refcount helpers for mbedtls_state_t
@@ -944,6 +946,30 @@ PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
 }
 
 /***************************************************************************
+ *  The failed handshakes of a closed window that no "TLS handshake
+ *  rejected" said: said in a warning of their own, when the window has
+ *  closed or the context ends
+ ***************************************************************************/
+PRIVATE void say_suppressed_handshakes(ytls_t *ytls, BOOL at_end)
+{
+    if(ytls->handshake_log_suppressed == 0) {
+        return;
+    }
+    if(!at_end && !test_msectimer(ytls->handshake_log_t_next)) {
+        return;
+    }
+    gobj_log_warning(ytls->gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_MBEDTLS,
+        "msg",              "%s", "TLS handshakes rejected, not said in their window",
+        "ssl_server_name",  "%s", ytls->ssl_server_name,
+        "suppressed",       "%ld", (long)ytls->handshake_log_suppressed,
+        NULL
+    );
+    ytls->handshake_log_suppressed = 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void cleanup(hytls ytls_)
@@ -952,6 +978,8 @@ PRIVATE void cleanup(hytls ytls_)
     if(!ytls) {
         return;
     }
+
+    say_suppressed_handshakes(ytls, TRUE);
 
     // Release our ref on the current state. If any sskt still holds a ref,
     // the state lives until the last one is freed.
@@ -1344,13 +1372,24 @@ PRIVATE int do_handshake(hsskt sskt_)
             // peername/sockname come from the transport via set_peer_name()
             // (empty if unset, e.g. in unit tests) -> this default-on line is
             // self-contained without ytls reaching into user_data.
-            // One per PEER_LOG_INTERVAL_MS for the process, with the count
+            // One per PEER_LOG_INTERVAL_MS for the context, with the count
             // of the ones not written: up to 7.30.18 each failed handshake
-            // wrote one, and a peer wrote the log at its own rate.
-            if(handshake_log_t_next && !test_msectimer(handshake_log_t_next)) {
-                handshake_log_suppressed++;
+            // wrote one, and a peer wrote the log at its own rate. The count
+            // of a window just closed goes in this line; that of an older one
+            // in its own (up to 7.30.19 it went in this one however old it
+            // was, and the window was the process's).
+            ytls_t *ytls = sskt->ytls;
+            if(ytls->handshake_log_t_next && !test_msectimer(ytls->handshake_log_t_next)) {
+                ytls->handshake_log_suppressed++;
             } else {
-                handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
+                json_int_t suppressed = 0;
+                if(test_msectimer(ytls->handshake_log_t_next + PEER_LOG_INTERVAL_MS)) {
+                    say_suppressed_handshakes(ytls, FALSE);
+                } else {
+                    suppressed = ytls->handshake_log_suppressed;
+                    ytls->handshake_log_suppressed = 0;
+                }
+                ytls->handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
                 gobj_log_warning(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_MBEDTLS,
@@ -1360,10 +1399,9 @@ PRIVATE int do_handshake(hsskt sskt_)
                     "sockname",         "%s", sskt->sockname,
                     "ssl_server_name",  "%s", sskt->ytls->ssl_server_name,
                     "negotiated_version", "%s", mbedtls_ssl_get_version(&sskt->ssl),
-                    "suppressed",       "%ld", (long)handshake_log_suppressed,
+                    "suppressed",       "%ld", (long)suppressed,
                     NULL
                 );
-                handshake_log_suppressed = 0;
             }
             alive_t marker;
             alive_push(sskt, &marker);

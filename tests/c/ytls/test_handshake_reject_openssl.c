@@ -11,6 +11,12 @@
  *              2. on_handshake_done_cb is invoked exactly once with error=-1
  *          Two more peers fail theirs in a row: the callback is called for
  *          each, and "TLS handshake rejected" is written ONCE for the three.
+ *          A second context (another listener) fails one: its own line, its
+ *          window is not the first's. At the end of the first context, the
+ *          two it did not write are said: "TLS handshakes rejected, not said
+ *          in their window", "suppressed" 2. Up to 7.30.19 the window was the
+ *          process's: the second context's reject went into the first's
+ *          count, and the count of the last window was never said.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -56,6 +62,8 @@ int main(int argc, char *argv[])
 PRIVATE int     handshake_cb_calls = 0;
 PRIVATE int     handshake_cb_last_error = 0;
 PRIVATE int     rejected_logs = 0;     // "TLS handshake rejected" written
+PRIVATE int     not_said_logs = 0;     // "TLS handshakes rejected, not said in their window"
+PRIVATE int     not_said_two = 0;      // the same, with "suppressed" 2
 
 /***************************************************************
  *              Prototypes
@@ -67,6 +75,7 @@ PRIVATE int   on_handshake_done(void *user_data, int error);
 PRIVATE int   on_clear_data(void *user_data, gbuffer_t *gbuf);
 PRIVATE int   on_encrypted_data(void *user_data, gbuffer_t *gbuf);
 PRIVATE int   count_rejected_write(void *v, int priority, const char *bf, size_t len);
+PRIVATE void  fail_one_handshake(hytls ytls);
 
 /***************************************************************************
  *              Test
@@ -171,23 +180,7 @@ int main(int argc, char *argv[])
      *  the next one). Up to 7.30.18 each one wrote it.
      *------------------------------------------------*/
     for(int i=0; i<2; i++) {
-        hsskt sskt2 = ytls_new_secure_filter(
-            ytls,
-            on_handshake_done,
-            on_clear_data,
-            on_encrypted_data,
-            NULL
-        );
-        if(!sskt2) {
-            fprintf(stderr, "%s: ytls_new_secure_filter FAILED\n", APP);
-            result++;
-            break;
-        }
-        (void)ytls_do_handshake(ytls, sskt2);
-        gbuf = gbuffer_create(sizeof(HTTP_GARBAGE), sizeof(HTTP_GARBAGE));
-        gbuffer_append(gbuf, (void *)HTTP_GARBAGE, sizeof(HTTP_GARBAGE) - 1);
-        (void)ytls_decrypt_data(ytls, sskt2, gbuf);
-        ytls_free_secure_filter(ytls, sskt2);
+        fail_one_handshake(ytls);
     }
     if(handshake_cb_calls != 3) {
         fprintf(stderr,
@@ -204,7 +197,50 @@ int main(int argc, char *argv[])
         result++;
     }
 
+    /*------------------------------------------------*
+     *  A second context (another listener) fails one:
+     *  its own line. Its end says nothing (it wrote
+     *  all of its own); the end of the first says the
+     *  two it did not write.
+     *------------------------------------------------*/
+    cfg = json_pack("{s:s, s:s, s:s}",
+        "library",             "openssl",
+        "ssl_certificate",     CERT_PATH,
+        "ssl_certificate_key", KEY_PATH
+    );
+    hytls ytls_b = ytls_init(0, cfg, TRUE /* server */);
+    JSON_DECREF(cfg);
+    if(!ytls_b) {
+        fprintf(stderr, "%s: ytls_init of the second context FAILED\n", APP);
+        result++;
+    } else {
+        fail_one_handshake(ytls_b);
+        if(rejected_logs != 2) {
+            fprintf(stderr,
+                "%s: \"TLS handshake rejected\" written %d times, expected 2: one per context\n",
+                APP, rejected_logs
+            );
+            result++;
+        }
+        ytls_cleanup(ytls_b);
+        if(not_said_logs != 0) {
+            fprintf(stderr,
+                "%s: the end of the second context said %d lines of rejects not said, expected 0\n",
+                APP, not_said_logs
+            );
+            result++;
+        }
+    }
+
     ytls_cleanup(ytls);
+
+    if(not_said_logs != 1 || not_said_two != 1) {
+        fprintf(stderr,
+            "%s: at the end of the first context, %d lines of rejects not said (%d with \"suppressed\": 2), expected 1 (1)\n",
+            APP, not_said_logs, not_said_two
+        );
+        result++;
+    }
 
     if(result == 0) {
         printf("%s: PASS\n", APP);
@@ -292,7 +328,38 @@ PRIVATE int count_rejected_write(void *v, int priority, const char *bf, size_t l
     if(bf && memmem(bf, len, needle, strlen(needle))) {
         rejected_logs++;
     }
+    const char *not_said = "TLS handshakes rejected, not said in their window";
+    if(bf && memmem(bf, len, not_said, strlen(not_said))) {
+        not_said_logs++;
+        const char *two = "\"suppressed\": 2";
+        if(memmem(bf, len, two, strlen(two))) {
+            not_said_two++;
+        }
+    }
     return 0;
+}
+
+/***************************************************************************
+ *  A peer that sends an HTTP request to the TLS port of `ytls`
+ ***************************************************************************/
+PRIVATE void fail_one_handshake(hytls ytls)
+{
+    hsskt sskt = ytls_new_secure_filter(
+        ytls,
+        on_handshake_done,
+        on_clear_data,
+        on_encrypted_data,
+        NULL
+    );
+    if(!sskt) {
+        fprintf(stderr, "%s: ytls_new_secure_filter FAILED\n", APP);
+        return;
+    }
+    (void)ytls_do_handshake(ytls, sskt);
+    gbuffer_t *gbuf = gbuffer_create(sizeof(HTTP_GARBAGE), sizeof(HTTP_GARBAGE));
+    gbuffer_append(gbuf, (void *)HTTP_GARBAGE, sizeof(HTTP_GARBAGE) - 1);
+    (void)ytls_decrypt_data(ytls, sskt, gbuf);
+    ytls_free_secure_filter(ytls, sskt);
 }
 
 #endif /* CONFIG_HAVE_OPENSSL */
