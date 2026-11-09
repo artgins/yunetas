@@ -329,8 +329,8 @@ application's gate (one application).
 ### Protocols
 
 - **`C_PROT_MQTT` is not migrated to `peername` attribution**: deprecated,
-  still in one client production node, goes away with it. `C_PROT_MQTT2` is the
-  target for protocol work.
+  goes away with the migration in section 5. `C_PROT_MQTT2` is the target for
+  protocol work.
 
 ### Events
 
@@ -343,6 +343,16 @@ application's gate (one application).
 ---
 
 ## 5. Future features and improvements
+
+- **Move every yuno that still uses `C_PROT_MQTT` to `C_PROT_MQTT2`, then remove
+  `C_PROT_MQTT`.** Five gates of three applications built on the SDK still create it,
+  one of them on a client production node; each application lists its own in its TODO.
+  Why now: `C_PROT_MQTT` writes a client record to disk
+  (`resources/mqtt/<role^name>/clients/<client_id>.json`) for EVERY client id, even one
+  that asks for a clean session, whose state the MQTT standard ends with the connection.
+  A client id is the peer's choice, so an anonymous client that takes a new id at each
+  connection leaves one file per id with no bound. Its test goes with it:
+  `tests/c/c_mqtt` (`c_legacy_prot`, `main_legacy_prot`).
 
 - **A read pause in `C_TCP`.** `C_PROT_HTTP_SR` cannot stop reading a peer, so it holds
   what the peer pipelines, up to `max_rx_held`, and drops a peer that passes it even if it
