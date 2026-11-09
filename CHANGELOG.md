@@ -2,6 +2,92 @@
 
 ## Unreleased
 
+## v7.30.24 (2026-11-09)
+
+A correction release, again in `C_PROT_MQTT`, the deprecated MQTT protocol
+every MQTT gate still runs. A QoS 2 PUBLISH sent twice no longer frees a
+message still in use (four packets from an anonymous client took a gate
+down; HIGH), nor does a PUBLISH past `message_size_limit`. The broker now
+applies `max_inflight_messages` and `max_queued_messages`, and the Receive
+Maximum of an MQTT 5 client; a SUBSCRIBE or UNSUBSCRIBE writes the client
+record only when it changes, at most once a second; an UNSUBSCRIBE is no
+longer refused by the filter-length limit. The agent's `delete-yuno` by the
+only release of a yuno removes its saved attrs. The whole suite ran on the
+dev machine; no performance study (the next one is against 7.30.0).
+
+### MQTT
+
+- **C_PROT_MQTT** (deprecated; still the protocol of several gates):
+    - **A QoS 2 PUBLISH sent twice no longer frees its message.** When a
+      client sent a QoS 2 PUBLISH again (a duplicate, as a client does when it
+      retries), the broker freed the copy that was still waiting for its
+      PUBREL. The PUBREL read freed memory and the disconnection freed it
+      again. Four packets from any client that reached the port, anonymous by
+      default, took the gate down, and a flood of QoS 2 did the same when the
+      packet ids wrapped. In 7.30.23, present since 7.0.0.
+    - **BREAKING (clients, log watchers): `max_inflight_messages` and
+      `max_queued_messages` are applied.**
+        - To a client: past `max_inflight_messages` (20), a QoS 1 or 2
+          message waits in the client's queue and goes out, oldest first,
+          when a PUBACK or PUBCOMP frees a slot. Past `max_queued_messages`
+          (1000) it is dropped, with one WARNING per connection: *"Mqtt:
+          messages to the client past max_queued_messages, dropped"*. A
+          subscriber now gets at most 20 messages before it acknowledges.
+        - From a client: a PUBLISH that arrives while 20 of its QoS 2
+          messages wait for their PUBREL breaks the Receive Maximum that the
+          broker announces. MQTT 5 gets DISCONNECT `0x93`, and the connection
+          closes, also for MQTT 3.1.1. One WARNING: *"Mqtt: PUBLISH with
+          max_inflight_messages QoS 2 unreleased, disconnecting"*.
+        - In 7.30.23 the limit was announced and not applied (since 7.0.0):
+          20,000 unacknowledged messages cost the gate about 30-36 MB per
+          connection.
+    - **A SUBSCRIBE or UNSUBSCRIBE writes the client record only when it
+      changes it, and at most once a second per connection.** A change inside
+      that second is written by the client's next packet, or when it
+      disconnects. In 7.30.23 each one rewrote the whole record, also a
+      re-subscription, a refused filter or an UNSUBSCRIBE of nothing: one
+      anonymous connection wrote about 200 MB a second to the disk (since
+      7.0.0).
+    - **BREAKING (clients, log watchers): an UNSUBSCRIBE is no longer refused
+      by `max_topic_filter_length`.** A filter kept by 7.30.22, or kept before
+      the limit went down, can be removed (in 7.30.23: UNSUBACK `0x8F` and a
+      WARNING, and the client still got the messages).
+    - A DISCONNECT of MQTT 5 with properties and no Session Expiry Interval
+      no longer logs an ERROR with a stack. A Session Expiry Interval of
+      0xFFFFFFFF in a DISCONNECT is no longer ignored (since 7.0.0).
+    - A client with an id that the gate assigned (`allow_zero_length_clientid`)
+      no longer logs *"path NOT FOUND last_mid"* at its first QoS 1 or 2
+      message (since 7.0.0).
+    - **A PUBLISH past `message_size_limit` no longer takes the gate down.**
+      Its message was freed, and then freed again by the code that answers it
+      (a double free and an abort, from any client that reaches the port).
+      The QoS flow is now completed, as the attribute says (MQTT 5: PUBACK or
+      PUBREC `0x95`, Packet too large), and the client stays connected. In
+      7.30.23, present since 7.0.0, live only with `message_size_limit` > 0
+      (default 0).
+    - **BREAKING (clients): the Receive Maximum of an MQTT 5 client is
+      honoured.** A client that announces a Receive Maximum lower than
+      `max_inflight_messages` gets at most that many QoS 1 and 2 messages in
+      flight; the rest wait in its queue. The value was never kept: the test
+      was inverted (since 7.0.0). A Receive Maximum of 0 is still refused as a
+      protocol error (no CONNACK, *"Mqtt check property failed 3"*).
+    - A PUBREC no longer prints a debug line and the whole list of outgoing
+      messages to stdout (since 7.0.0). The topic in three WARNINGs of a
+      PUBLISH is printed as text, not as a number.
+
+### Agent
+
+- **BREAKING (operators): `delete-yuno yuno_release=<the yuno's only
+  release>` removes the attributes the yuno saved of its own too**
+  (`<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json`, its trace
+  levels among them), as `whole=1` does since 7.30.23, with the same INFO
+  *"Saved attrs of a yuno deleted whole removed"*. That delete takes the
+  whole yuno, but in 7.30.23 only `whole=1` removed the file, so a yuno
+  created again with the same id started with the old trace on and `traced`
+  false (the defect came in 7.30.23 with the removal itself; before, no
+  delete removed the file). A release deleted from behind the primary leaves
+  the file. `tests/c/c_agent_sandbox` case 10.
+
 ## v7.30.23 (2026-11-09)
 
 A correction release with two HIGH fixes in `C_PROT_MQTT`, the deprecated MQTT
@@ -74,7 +160,9 @@ the attributes the yuno saved. The whole suite ran on the dev machine (438 of
   before the file survived the delete, and a yuno created again with the same
   id started with the old trace on and `traced` false. Not for a yuno whose
   binary fixes its `domain_dir` (`logcenter`, `webstats`): the agent does not
-  know where it saves; `trace-off-yuno` it before the delete.
+  know where it saves; reset its trace with `trace-off-yuno` while it runs,
+  before `kill-yuno` (`delete-yuno` refuses a running yuno, and
+  `trace-off-yuno` of a stopped one changes nothing).
   `tests/c/c_agent_sandbox` case 9.
 
 ### Docs

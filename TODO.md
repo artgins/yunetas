@@ -347,12 +347,19 @@ application's gate (one application).
 - **Move every yuno that still uses `C_PROT_MQTT` to `C_PROT_MQTT2`, then remove
   `C_PROT_MQTT`.** Five gates of three applications built on the SDK still create it,
   one of them on a client production node; each application lists its own in its TODO.
-  `C_PROT_MQTT` is bounded since 7.30.22-7.30.23: a clean-session record lives in memory
+  `C_PROT_MQTT` is bounded since 7.30.22-7.30.24: a clean-session record lives in memory
   only, and `max_subscriptions_per_client` (100), `max_persistent_sessions` (1000),
-  `persistent_session_expiry` (1 day) and `max_topic_filter_length` (256 B) bound what an
-  anonymous client can hold; a PUBLISH writes nothing to disk. **`C_PROT_MQTT2` has none
+  `persistent_session_expiry` (1 day), `max_topic_filter_length` (256 B),
+  `max_inflight_messages` (20) and `max_queued_messages` (1000) bound what an anonymous
+  client can hold; a PUBLISH writes nothing to disk, and a SUBSCRIBE writes at most once a
+  second. **`C_PROT_MQTT2` has none
   of these limits**: port them first, or a migration as it is reopens a gate to one
-  anonymous client. Its tests go with it: `tests/c/c_mqtt` (`legacy_prot`,
+  anonymous client. **And port them better than they are**: `max_persistent_sessions`
+  counts every client id, and the expiry runs from the last disconnect, so a peer that
+  reconnects each of its ids within `persistent_session_expiry` keeps the cap full for
+  ever (a new clean-session-0 id is refused; clean-session-1 clients still get in). Room
+  reserved for the ids a gate declares, or a cap per origin, closes it; the choice is
+  taken with the port. Its tests go with it: `tests/c/c_mqtt` (`legacy_prot`,
   `legacy_sessions`; `c_legacy_prot.c`, `main_legacy_prot.c`, `c_legacy_sessions.c`,
   `main_legacy_sessions.c`).
 
