@@ -31,6 +31,13 @@
  *          window per context, and its count said at its end). After the
  *          window, the next reject says the count of the rest.
  *
+ *          The yuno ends: 40 more client rejects in one window, in two
+ *          contexts still open, and the shutdown is marked. The first of
+ *          them to end says the count of the window, ONCE: the second says
+ *          nothing. Up to 7.30.21 a client context said it only when its
+ *          window had passed, so the rejects of the last window of the
+ *          process were never said.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -329,6 +336,48 @@ int main(int argc, char *argv[])
         fprintf(stderr,
             "%s: of 41 rejects of client contexts, %ld written or counted, expected 41\n",
             APP, said
+        );
+        result++;
+    }
+
+    /*------------------------------------------------*
+     *  The yuno ends with a window of the clients
+     *  open: the first client context that ends in
+     *  the shutdown says its count, once.
+     *------------------------------------------------*/
+    rejected_before = rejected_logs;
+    not_said_before = not_said_logs;
+    suppressed_sum = 0;
+    hytls ytls_end[2] = {0};
+    for(int i=0; i<2; i++) {
+        cfg = json_pack("{s:s, s:s, s:s}",
+            "library",                  "mbedtls",
+            "ssl_trusted_certificate",  CERT_PATH,
+            "ssl_server_name",          "localhost"
+        );
+        ytls_end[i] = ytls_init(0, cfg, FALSE /* client */);
+        JSON_DECREF(cfg);
+        if(!ytls_end[i]) {
+            fprintf(stderr, "%s: ytls_init of the client context %d of the end FAILED\n", APP, i);
+            result++;
+            continue;
+        }
+        for(int j=0; j<20; j++) {
+            fail_one_client_handshake(ytls_end[i]);
+        }
+    }
+    gobj_set_shutdown();
+    for(int i=0; i<2; i++) {
+        if(ytls_end[i]) {
+            ytls_cleanup(ytls_end[i]);
+        }
+    }
+    said = (long)(rejected_logs - rejected_before) + suppressed_sum;
+    int end_lines = not_said_logs - not_said_before;
+    if(said != 40 || end_lines != 1) {
+        fprintf(stderr,
+            "%s: at the end of the yuno, %ld of 40 client rejects written or counted, in %d lines of rejects not said, expected 40 in 1\n",
+            APP, said, end_lines
         );
         result++;
     }

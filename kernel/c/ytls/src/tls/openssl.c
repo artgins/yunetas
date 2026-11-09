@@ -1011,7 +1011,8 @@ PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
 /***************************************************************************
  *  The failed handshakes of a closed window that no "TLS handshake
  *  rejected" said: said in a warning of their own, when the window has
- *  passed, or when a server context ends
+ *  passed, when a server context ends, or when a client context ends in
+ *  the shutdown of the yuno (the first one says the clients' count)
  ***************************************************************************/
 PRIVATE void say_suppressed_handshakes(ytls_t *ytls, BOOL at_end)
 {
@@ -1040,8 +1041,9 @@ PRIVATE void cleanup(hytls ytls_)
     ytls_t *ytls = ytls_;
 
     if(ytls) {
-        // a client's window is the process's: said when it has passed
-        say_suppressed_handshakes(ytls, ytls->server);
+        // a client's window is the process's: said when it has passed,
+        // or by the first client context that ends in the shutdown
+        say_suppressed_handshakes(ytls, ytls->server || gobj_is_shutdowning());
     }
     if(ytls && ytls->ctx) {
         SSL_CTX_free(ytls->ctx);
