@@ -22,6 +22,11 @@ Unreleased (APP_VERSION follows YUNETA_VERSION)
    `connections`.
 -  A play while the output still waits for its write in flight no longer
    leaves the output dead: it starts at its EV_STOPPED.
+-  A pause, or the stop of the yuno, with a client that does not read no
+   longer starts the output again (7.30.19: a session with the backend
+   while paused, and "Destroying a RUNNING gobj" at the stop).
+-  `input_crypto` for a TLS input (tcps://): the `crypto` of its C_TCP_S.
+   Up to 7.30.19 a TLS input could not be configured, and the yuno exited.
 
 1.0.0
 =====

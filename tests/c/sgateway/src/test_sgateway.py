@@ -20,11 +20,20 @@
 #     5. a side that never reads: the sgateway stops reading the other
 #        side (its memory does not grow, its log does not either), and
 #        when that peer goes away the client is dropped;
-#     6. an orderly stop (SIGINT) ends it with exit code 0.
+#     6. a client that leaves while its output cannot connect: it is not
+#        read meanwhile, so its leaving is seen when the output opens --
+#        what it sent is delivered first, then its output is closed;
+#     7. an orderly stop (SIGINT) with a client that does not read ends it
+#        with exit code 0, and opens no output connection while it stops
+#        (in 7.30.19 the stop of the output started it again for the
+#        client that was still being closed: a session of seconds with the
+#        backend, and "Destroying a RUNNING gobj" at the end).
 #
-#   The second run, with the default traces and a TLS output (tcps://,
-#   its `crypto` attribute): 20 clients, each one with its own output
-#   connection, relay bytes both ways, and the log does not grow with them.
+#   The second run, with the default traces, a TLS input (tcps://, its
+#   `input_crypto` attribute) and a TLS output (tcps://, its `crypto`
+#   attribute): 20 clients, each one with its own output connection, relay
+#   bytes both ways, and the log does not grow with them. Up to 7.30.19 a
+#   TLS input could not be configured.
 #
 #   Each log must have no ERROR, no "Event NOT DEFINED", no WARNING, and
 #   nothing left at the gbmem audit of the orderly end ("system memory not
@@ -146,16 +155,43 @@ def expect_closed(sock, what):
     print(f'  ok: {what}')
 
 
-def connect_input(proc):
+def connect_input(proc, tls_context=None):
     t = time.monotonic() + TIMEOUT
     while time.monotonic() < t:
         if proc.poll() is not None:
             raise Failed(f'sgateway ended (exit {proc.returncode}) before its input port listened')
         try:
-            return socket.create_connection(('127.0.0.1', INPUT_PORT), timeout=TIMEOUT)
+            sock = socket.create_connection(('127.0.0.1', INPUT_PORT), timeout=TIMEOUT)
         except OSError:
             time.sleep(0.05)
+            continue
+        if tls_context:
+            try:
+                sock = tls_context.wrap_socket(sock, server_hostname='localhost')
+            except (ssl.SSLError, OSError) as e:
+                sock.close()
+                raise Failed(f'TLS handshake with the input port: {e}')
+        return sock
     raise Failed(f'the input port {INPUT_PORT} did not listen in {TIMEOUT} s')
+
+
+def make_listener():
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(('127.0.0.1', OUTPUT_PORT))
+    listener.listen(4)
+    return listener
+
+
+def expect_no_connection(listener, what, seconds=0.5):
+    listener.settimeout(seconds)
+    try:
+        conn, _ = listener.accept()
+    except socket.timeout:
+        print(f'  ok: {what}')
+        return
+    conn.close()
+    raise Failed(f'{what}: the sgateway opened an output connection')
 
 
 def accept_output(listener, what, tls_context=None):
@@ -181,7 +217,7 @@ def rss_kb(pid):
     return 0
 
 
-def start_sgateway(binary, work, name, output_url, extra):
+def start_sgateway(binary, work, name, input_url, output_url, extra):
     log_path = os.path.join(work, f'{name}.log')
     config_path = os.path.join(work, f'{name}.json')
     config = {
@@ -193,7 +229,7 @@ def start_sgateway(binary, work, name, output_url, extra):
             'autoplay': True,
         },
         'global': {
-            'sgateway.input_url': f'tcp://127.0.0.1:{INPUT_PORT}',
+            'sgateway.input_url': input_url,
             'sgateway.output_url': output_url,
         },
     }
@@ -239,13 +275,11 @@ def check_log(log_path, failure, exit_code, problems):
 #   The first run: plain output, connections traced
 #
 def run_main(binary, work):
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind(('127.0.0.1', OUTPUT_PORT))
-    listener.listen(4)
+    listener = make_listener()
 
     proc, log_file, log_path = start_sgateway(
         binary, work, 'sgateway',
+        f'tcp://127.0.0.1:{INPUT_PORT}',
         f'tcp://127.0.0.1:{OUTPUT_PORT}',
         {'yuno': {'trace_levels': {'C_SGATEWAY': ['connections']}}}
     )
@@ -321,9 +355,45 @@ def run_main(binary, work):
             raise Failed(f'the sgateway grew {rss_after - rss_before} KB against a peer that does not read')
         out_c.close()
         expect_closed(client_c, 'the output that never read went away: its client is dropped')
+        wait_side(log_path, 'Side closed', 'input', 3, proc)
 
-        print('6. orderly stop')
+        print('6. a client that leaves while its output cannot connect')
+        listener.close()
+        client_d = connect_input(proc)
+        socks.append(client_d)
+        client_d.sendall(b'input-4 left early')
+        client_d.close()
+        time.sleep(0.5)
+        listener = make_listener()
+        out_d = accept_output(listener, 'output connection of the client that left')
+        socks.append(out_d)
+        expect(out_d, b'input-4 left early', 'what it sent is delivered when its output opens')
+        expect_closed(out_d, 'then its output is closed')
+        wait_side(log_path, 'Side closed', 'input', 4, proc)
+
+        print('7. orderly stop with a client that does not read')
+        client_e = connect_input(proc)
+        socks.append(client_e)
+        out_e = accept_output(listener, 'output connection of the client that does not read')
+        socks.append(out_e)
+        out_e.setblocking(False)
+        blocked_since = None
+        t_end = time.monotonic() + TIMEOUT
+        while time.monotonic() < t_end:
+            try:
+                out_e.send(chunk)
+                blocked_since = None
+            except BlockingIOError:
+                if blocked_since is None:
+                    blocked_since = time.monotonic()
+                elif time.monotonic() - blocked_since > 0.5:
+                    break
+                time.sleep(0.01)
+        out_e.setblocking(True)
+        if blocked_since is None:
+            raise Failed('the client that does not read never held the output peer back')
         exit_code = stop_sgateway(proc)
+        expect_no_connection(listener, 'no output connection opened while it stopped')
 
     except Failed as e:
         failure = str(e)
@@ -347,39 +417,48 @@ def run_main(binary, work):
 def run_quiet_tls(binary, work):
     tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     tls_context.load_cert_chain(CERT, KEY)
+    # The test certificate is self-signed, with no CA flag and no SAN: trusted
+    # as it is, its CN not matched (python matches the SAN only)
+    tls_client_context = ssl.create_default_context(cafile=CERT)
+    tls_client_context.check_hostname = False
+    tls_client_context.verify_flags &= ~ssl.VERIFY_X509_STRICT
 
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind(('127.0.0.1', OUTPUT_PORT))
-    listener.listen(4)
+    listener = make_listener()
 
     proc, log_file, log_path = start_sgateway(
         binary, work, 'sgateway_tls',
+        f'tcps://127.0.0.1:{INPUT_PORT}',
         f'tcps://127.0.0.1:{OUTPUT_PORT}',
-        {'global': {'sgateway.crypto': {
-            'ssl_trusted_certificate': CERT,
-            'ssl_server_name': 'localhost',
-        }}}
+        {'global': {
+            'sgateway.crypto': {
+                'ssl_trusted_certificate': CERT,
+                'ssl_server_name': 'localhost',
+            },
+            'sgateway.input_crypto': {
+                'ssl_certificate': CERT,
+                'ssl_certificate_key': KEY,
+            },
+        }}
     )
     failure = None
     exit_code = None
     socks = []
     try:
-        print(f'7. a TLS output, default traces: {QUIET_CLIENTS} clients')
-        client = connect_input(proc)
+        print(f'8. a TLS input and a TLS output, default traces: {QUIET_CLIENTS} clients')
+        client = connect_input(proc, tls_client_context)
         socks.append(client)
         out = accept_output(listener, 'TLS output connection of the first client', tls_context)
         socks.append(out)
         client.sendall(b'first')
-        expect(out, b'first', 'input -> TLS output')
+        expect(out, b'first', 'TLS input -> TLS output')
         out.sendall(b'first back')
-        expect(client, b'first back', 'TLS output -> input')
+        expect(client, b'first back', 'TLS output -> TLS input')
         client.close()
         expect_closed(out, 'the client went away: its TLS output connection is closed')
         lines_before = len(log_text(log_path).splitlines())
 
         for i in range(QUIET_CLIENTS):
-            client = connect_input(proc)
+            client = connect_input(proc, tls_client_context)
             socks.append(client)
             out = accept_output(listener, f'TLS output connection of client {i}', tls_context)
             socks.append(out)
@@ -397,7 +476,7 @@ def run_quiet_tls(binary, work):
             raise Failed(f'the log grew {grown} lines with {QUIET_CLIENTS} clients (default traces)')
         print(f'  ok: the log grew {grown} lines with {QUIET_CLIENTS} clients')
 
-        print('8. orderly stop')
+        print('9. orderly stop')
         exit_code = stop_sgateway(proc)
 
     except Failed as e:

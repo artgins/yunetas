@@ -40,14 +40,25 @@
  *          with the backend (up to 7.30.18 the output connection was shared
  *          by the clients that came one after the other). Until the output
  *          is open the client is not read, and what it had sent is kept and
- *          goes first. An output that cannot connect tries again after
+ *          goes first. Not read, a client that leaves meanwhile is not seen
+ *          either: what it sent is delivered when its output opens, and its
+ *          leaving is seen then (a pause or a stop before drops it, counted
+ *          in `dropMsgs`). An output that cannot connect tries again after
  *          `timeout_between_connections` ms, doubling up to 30 s, while its
  *          client waits; an output that closes once open drops its client.
- *          A TLS output (tcps://) takes its configuration from `crypto`.
+ *          A TLS output (tcps://) takes its configuration from `crypto`, a
+ *          TLS input (tcps://) from `input_crypto`.
  *
  *          Bytes that arrive for a side that has closed are dropped
  *          (counted in `dropMsgs`; one WARNING per side each time it
  *          closes, not one per message).
+ *
+ *          A pause (and the stop of the yuno, which pauses it first) ends
+ *          the client and its output, and starts no output again: in
+ *          7.30.19 the end of the output's stop started it again for the
+ *          client still being closed (one that did not read held its close
+ *          with a write in flight): a session with the backend while the
+ *          gateway was paused, and "Destroying a RUNNING gobj" at the stop.
  *
  *          The open and the close of each side are said at the trace level
  *          `connections` only: a peer that connects again and again does
@@ -127,10 +138,11 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "input_url",        SDF_WR|SDF_PERSIST, 0,          "Url where the input side listens (tcp://host:port, tcps:// with TLS). Taken at each play"),
 SDATA (DTP_STRING,      "output_url",       SDF_WR|SDF_PERSIST, 0,          "Url the output side connects to (tcp://host:port, tcps:// with TLS, see crypto). Taken at each play"),
 SDATA (DTP_DICT,        "crypto",           SDF_RD,             "{\"ssl_use_system_ca\": true, \"ssl_verify_mode\": \"required\"}", "TLS of the output side (tcps://). Verifies the server's certificate against the system CA by default; a private CA: {\"ssl_trusted_certificate\": \"/path/ca.pem\"}. Replaces the default whole. Taken at each play"),
+SDATA (DTP_DICT,        "input_crypto",     SDF_RD,             "{}",       "TLS of the input side (tcps://), the `crypto` of its C_TCP_S: {\"ssl_certificate\": \"/path/cert.pem\", \"ssl_certificate_key\": \"/path/key.pem\"}. Without a certificate a tcps:// input does not listen and the yuno exits. Taken at each play"),
 SDATA (DTP_INTEGER,     "timeout_between_connections", SDF_RD, "100",       "Output side: ms to wait before connecting again when its connection fails, doubled at each failure up to 30 s"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages sent to the other side"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received from either side"),
-SDATA (DTP_INTEGER,     "dropMsgs",         SDF_RD|SDF_RSTATS,  0,          "Messages dropped: the other side had closed, or the client left before its output opened"),
+SDATA (DTP_INTEGER,     "dropMsgs",         SDF_RD|SDF_RSTATS,  0,          "Messages dropped: the other side had closed, or a pause or a stop came before the output of the client opened"),
 
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
@@ -353,6 +365,9 @@ PRIVATE int mt_play(hgobj gobj)
     }
 
     gobj_write_str_attr(priv->gobj_server_port, "url", input_url);
+    gobj_write_new_json_attr(priv->gobj_server_port, "crypto",
+        json_deep_copy(gobj_read_json_attr(gobj, "input_crypto"))
+    );
     if(set_output_url(gobj, output_url) < 0) {
         // Error already logged
         return -1;
@@ -373,6 +388,7 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    priv->output_wanted = FALSE;    // the end of the output's stop must not start it again
     close_input_side(gobj);
     close_output_side(gobj);
 

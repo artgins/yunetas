@@ -18,14 +18,20 @@ client --> input_url  (__input_side__:  C_TCP_S, channel tcp-1)
   client is dropped. No client inherits the backend session of another one.
   A failed attempt to connect is retried after `timeout_between_connections`
   ms (default 100), doubling up to 30 s, while the client waits. What the
-  client sends before its output is open is kept and goes first.
+  client sends before its output is open is kept and goes first. The client
+  is not read meanwhile, so a client that leaves then is not seen either:
+  what it sent is delivered when its output opens, then its output is
+  closed. Meanwhile a second client is refused.
 - **Back-pressure.** A copy of what one side sends goes to the other side,
   and the first side is not read again until the second has written it
   (`rx_paused` of `C_TCP`, resumed at `EV_TX_READY`). A slow peer, or one
   that does not read, slows the other one down through TCP.
 - Bytes for a side that has closed are dropped. They are counted in
   `dropMsgs`, with one WARNING each time a side closes.
-- A TLS output (`tcps://`) takes its configuration from `crypto`.
+- A TLS output (`tcps://`) takes its configuration from `crypto`, a TLS
+  input (`tcps://`) from `input_crypto` (its certificate and key).
+- A pause, or the stop of the yuno, ends the client and its output, and
+  starts no output again.
 - `Side open` / `Side closed` (INFO) are said at the trace level
   `connections` of `C_SGATEWAY` only; no trace is on by default.
 
@@ -36,6 +42,7 @@ client --> input_url  (__input_side__:  C_TCP_S, channel tcp-1)
 | `input_url` | (required) | Where the input side listens, for example `tcp://0.0.0.0:2011` |
 | `output_url` | (required) | Where the output side connects, one connection per client, for example `tcp://192.0.2.10:2012` |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS of the output side (`tcps://`); replaces the default whole, for example `{"ssl_trusted_certificate": "/path/ca.pem"}` |
+| `input_crypto` | `{}` | TLS of the input side (`tcps://`), the `crypto` of its `C_TCP_S`, for example `{"ssl_certificate": "/path/cert.pem", "ssl_certificate_key": "/path/key.pem"}`. A `tcps://` input without a certificate does not listen, and the yuno exits |
 | `timeout_between_connections` | `100` | ms before the output connects again after a failed attempt, doubled at each failure up to 30 s |
 | `timeout` | `1000` | Period of the rate stats, in ms |
 
@@ -73,14 +80,16 @@ ycommand -c 'play-yuno id=<id>'
 ## Stats
 
 `rxMsgs` (received from either side), `txMsgs` (sent to the other side),
-`dropMsgs` (dropped: the other side had closed, or the client left before its
-output opened), and the rates `rxMsgsec` /
+`dropMsgs` (dropped: the other side had closed, or a pause or a stop came
+before the output of the client opened), and the rates `rxMsgsec` /
 `txMsgsec` with their maximums `maxrxMsgsec` / `maxtxMsgsec`.
 
 ## Test
 
 `tests/c/sgateway/` runs this binary between a listener and a client: bytes
 both ways, one output connection per client, the client dropped when its
-output goes, 8 MB each way against a slow peer, a peer that never reads, and
-20 clients through a TLS output with a log that does not grow; a clean log at
-each orderly stop.
+output goes, 8 MB each way against a slow peer, a peer that never reads, a
+client that leaves while its output cannot connect, a stop with a client that
+does not read (no output connection opens while it stops), and 20 clients
+through a TLS input and a TLS output with a log that does not grow; a clean
+log at each orderly stop.

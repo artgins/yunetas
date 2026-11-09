@@ -45,10 +45,19 @@ output cannot connect -> it tries again after timeout_between_connections ms,
 ```
 
 What the client sends before its output is open is kept, and goes first when
-it opens; if the client leaves before, it is dropped and counted in
-`dropMsgs`. Bytes for a side that has closed (the other one is being closed)
-are dropped and counted in `dropMsgs`, with one WARNING each time a side
-closes (not one per message).
+it opens. The client is not read meanwhile, so a client that leaves then is
+not seen either: what it sent is delivered when its output opens, and then
+the output is closed. A second client is refused while it waits. A pause or a
+stop before the output opens drops what was kept, counted in `dropMsgs`.
+Bytes for a side that has closed (the other one is being closed) are dropped
+and counted in `dropMsgs`, with one WARNING each time a side closes (not one
+per message).
+
+A pause (`pause-yuno`), or the stop of the yuno, ends the client and its
+output, and starts no output again. In 7.30.19, with a client that did not
+read, the end of the output's stop started it again for the client that was
+still being closed: a session with the backend while the gateway was paused,
+and *"Destroying a RUNNING gobj"* (an ERROR with a stack) at the stop.
 
 When one side ends, the other one is closed at once, and a `C_TCP` closes by
 resetting the connection (see *The close resets the connection* in
@@ -89,9 +98,29 @@ backend's certificate against the system CA. For a private CA:
 
 `crypto` replaces the default whole: repeat the verifying keys you want.
 Up to 7.30.18 the gateway had no `crypto`, and a TLS output was refused at
-each attempt (*"TLS client refused"*, an ERROR per second). A TLS input
-needs its certificate in the config, as a global key of the server
-(`C_TCP_S.crypto`); it is not covered by the test.
+each attempt (*"TLS client refused"*, an ERROR per second).
+
+The input takes its TLS configuration from `input_crypto`, which the gateway
+writes as the `crypto` of its [`C_TCP_S`](#gclass-c-tcp-s) at each play. It
+has no default: a `tcps://` input needs its certificate and key.
+
+```json
+{
+    "global": {
+        "sgateway.input_url": "tcps://0.0.0.0:2011",
+        "sgateway.input_crypto": {
+            "ssl_certificate": "/yuneta/store/certs/gateway.crt",
+            "ssl_certificate_key": "/yuneta/store/certs/gateway.key"
+        }
+    }
+}
+```
+
+Without them the input does not listen and the yuno exits with code 0
+(*"TLS server without its TLS context: exiting"*): serving its input is the
+gateway's role. Up to 7.30.19 a TLS input could not be configured at all. A
+global key `C_TCP_S.crypto` does not reach the server: it is not a service,
+and the global config reaches only services.
 
 ## Configuration
 
@@ -104,6 +133,7 @@ running without playing.
 | `input_url` | *(required)* | URL the gateway **listens** on (for example `tcp://0.0.0.0:2011`) |
 | `output_url` | *(required)* | URL the gateway **connects** to, one connection per client (for example `tcp://192.0.2.10:2012`) |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS of the output side (`tcps://`), see *TLS* |
+| `input_crypto` | `{}` | TLS of the input side (`tcps://`): its certificate and key, see *TLS* |
 | `timeout_between_connections` | `100` | ms before the output connects again after a failed attempt; doubled at each failure, up to 30 s |
 | `timeout` | `1000` | Period of the rate stats (ms) |
 
@@ -140,7 +170,7 @@ ycommand -c 'play-yuno id=<id>'
 
 `SDF_RSTATS` (reset with `stats=__reset__`): `rxMsgs` (received from either
 side), `txMsgs` (sent to the other side), `dropMsgs` (dropped: the other side
-had closed, or the client left before its output opened), and the per-second gauges `rxMsgsec` / `txMsgsec` with their
+had closed, or a pause or a stop came before the output of the client opened), and the per-second gauges `rxMsgsec` / `txMsgsec` with their
 high-water marks `maxrxMsgsec` / `maxtxMsgsec` (recomputed on each `timeout`
 tick).
 
@@ -188,6 +218,9 @@ target) and a client (of its input port): bytes both ways; one output
 connection per client (it closes when its client leaves, and a second
 client gets nothing of the first); the client dropped when its output goes;
 8 MB each way against a slow peer, whole and in order; a peer that never
-reads (the gateway does not grow); then 20 clients through a TLS output with
-the default traces, and a log that does not grow with them. Every log is
-clean at the orderly stop. See the [test suite](../test_suite.md).
+reads (the gateway does not grow); a client that leaves while its output
+cannot connect (what it sent is delivered when the output opens); a stop with
+a client that does not read (no output connection opens while it stops);
+then 20 clients through a TLS input and a TLS output with the default traces,
+and a log that does not grow with them. Every log is clean at the orderly
+stop. See the [test suite](../test_suite.md).
