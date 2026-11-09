@@ -4,11 +4,11 @@ Turn a process into a well-behaved Unix daemon: detach, redirect stdio, write a 
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/gobj-c/src/helpers.c)
 
 (launch_daemon)=
-### [`launch_daemon()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/gobj-c/src/helpers.c#L10961)
+### [`launch_daemon()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/gobj-c/src/helpers.c#L10961)
 
 `launch_daemon()` runs a program as a detached daemon (a double fork, the
 daemon in a session of its own) and returns the PID of the daemon once its
@@ -77,7 +77,7 @@ kill(pid, SIGKILL);     // the daemon itself
 ---
 
 (clean_child_before_exec)=
-### [`clean_child_before_exec()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/gobj-c/src/helpers.c#L10886)
+### [`clean_child_before_exec()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/gobj-c/src/helpers.c#L10886)
 
 `clean_child_before_exec()` prepares a forked child for its `exec`: the
 program starts with no signal blocked, every signal at its default, and no
@@ -125,7 +125,7 @@ if(pid == 0) {
 ---
 
 (close_fd_range)=
-### [`close_fd_range()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/gobj-c/src/helpers.c#L10845)
+### [`close_fd_range()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/gobj-c/src/helpers.c#L10845)
 
 `close_fd_range()` closes every fd of `[first, last]` that is open: with
 `close_range()`, or on a kernel without it (before 5.9) each one that
@@ -165,13 +165,13 @@ close_fd_range(STDERR_FILENO + 1, ~0U);     // keep stdin, stdout and stderr
 ## Linux daemon supervisor
 
 Declared in
-[`ydaemon.h`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.h).
+[`ydaemon.h`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.h).
 These entry points run a yuno under a parent "watcher" process that
 relaunches the child on crash. They are only compiled on Linux
 (`#ifdef __linux__`).
 
 (daemon_run)=
-### [`daemon_run()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L574)
+### [`daemon_run()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L574)
 
 `daemon_run()` starts the watcher / child supervision loop. The parent
 process keeps running as a watcher that relaunches the child if it
@@ -235,7 +235,7 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 ---
 
 (daemon_shutdown)=
-### [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L888)
+### [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L888)
 
 `daemon_shutdown()` requests an orderly shutdown of a running daemon
 by process name. Every process of that name started as it (the base name
@@ -300,7 +300,7 @@ if(arguments.stop) {
 ---
 
 (get_watcher_pid)=
-### [`get_watcher_pid()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1180)
+### [`get_watcher_pid()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1180)
 
 `get_watcher_pid()` returns the PID of the watcher (parent) process
 that is supervising the current child, or `0` if the caller is not
@@ -317,7 +317,7 @@ The watcher process PID, or `0` if the current process has no watcher.
 ---
 
 (daemon_set_pid_file)=
-### [`daemon_set_pid_file()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1172)
+### [`daemon_set_pid_file()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1172)
 
 `daemon_set_pid_file()` names the file where, under `--start`, the pid of
 the WATCHER is written -- by the process that was started, before it exits,
@@ -353,7 +353,7 @@ daemon goes on. The unit that uses it is described in
 ---
 
 (get_relaunch_times)=
-### [`get_relaunch_times()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1147)
+### [`get_relaunch_times()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1147)
 
 `get_relaunch_times()` returns the number of times the watcher has
 relaunched its child process since the daemon was started. Useful for
@@ -370,7 +370,7 @@ The relaunch counter (0 on the first run, incremented on each restart).
 ---
 
 (get_yuno_signal_set)=
-### [`get_yuno_signal_set()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1132)
+### [`get_yuno_signal_set()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1132)
 
 `get_yuno_signal_set()` fills `set` with the signals a yuno reads from its
 `signalfd` (`C_YUNO`): SIGPIPE, SIGTERM, SIGALRM, SIGQUIT, SIGINT, SIGUSR1
@@ -400,7 +400,7 @@ int sfd = signalfd(-1, &yuno_signals, SFD_NONBLOCK|SFD_CLOEXEC);
 ---
 
 (search_process)=
-### [`search_process()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1119)
+### [`search_process()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1119)
 
 `search_process()` walks `/proc` looking for running processes whose
 name matches `process_name` and invokes a callback for each match.
@@ -433,7 +433,7 @@ the watcher process to signal.
 ---
 
 (daemon_set_debug_mode)=
-### [`daemon_set_debug_mode()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1155)
+### [`daemon_set_debug_mode()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1155)
 
 `daemon_set_debug_mode()` enables or disables daemon debug mode for
 the current process. When debug mode is on the supervisor emits extra
@@ -457,7 +457,7 @@ Returns `0` on success.
 ---
 
 (daemon_get_debug_mode)=
-### [`daemon_get_debug_mode()`](https://github.com/artgins/yunetas/blob/7.30.22/kernel/c/root-linux/src/ydaemon.c#L1164)
+### [`daemon_get_debug_mode()`](https://github.com/artgins/yunetas/blob/7.30.23/kernel/c/root-linux/src/ydaemon.c#L1164)
 
 `daemon_get_debug_mode()` returns whether the daemon is currently
 running in debug mode.

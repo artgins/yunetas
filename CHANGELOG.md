@@ -2,6 +2,91 @@
 
 ## Unreleased
 
+## v7.30.23 (2026-11-09)
+
+A correction release with two HIGH fixes in `C_PROT_MQTT`, the deprecated MQTT
+protocol several gates still run. A PUBLISH no longer rewrites the record file
+of every subscriber (and packet ids are no longer all 1); a topic filter is
+capped (`max_topic_filter_length`, 256 B) and persistent sessions expire when
+the room is needed (`persistent_session_expiry`, 1 day); a refused CONNECT
+leaves no record. The agent's `trace-on-yuno` / `trace-off-yuno` no longer
+pretend to trace a yuno they did not reach, and `delete-yuno whole=1` removes
+the attributes the yuno saved. The whole suite ran on the dev machine (438 of
+438); no performance study (the next one is against 7.30.0).
+
+### MQTT
+
+- **C_PROT_MQTT** (deprecated; still the protocol of several gates):
+    - **A PUBLISH writes nothing to disk.** Each QoS 1 or 2 PUBLISH rewrote
+      the whole file of every subscriber with a session, connected or not
+      (100 messages to 995 sessions: 18 s and 1.9 GB written), and every
+      packet id was 1. The packet id is now generated only for a connected
+      subscriber and kept in its record. In 7.30.22, present since 7.0.0.
+    - **BREAKING (operators, log watchers): `persistent_session_expiry`**
+      (seconds, default 86400, 0 never). When the sessions reach
+      `max_persistent_sessions`, the CONNECT that needs the room removes
+      every session whose client has been disconnected longer than that,
+      record and file. Under the limit nothing is removed and nothing more
+      is paid; with `max_persistent_sessions` 0 no session is removed. It
+      applies to MQTT 3.1.1 clean session 0 and is the maximum of the MQTT 5
+      Session Expiry Interval, which is now honoured when shorter. Up to
+      7.30.22 a session never expired: 1000 new ids with clean session 0
+      refused every new device with a session for ever. A record now keeps
+      `disconnected_t` and `session_expiry`. A record without them (written
+      by 7.30.22 or before) counts from the first time it is needed.
+    - **BREAKING (clients, operators, log watchers): `max_topic_filter_length`**
+      (bytes, default 256, 0 no limit). A longer filter is refused in the
+      SUBACK (MQTT 5 `0x8F`, 3.1.1 `0x80`) and in the UNSUBACK (MQTT 5
+      `0x8F`). The client stays connected. One WARNING per connection: *"Mqtt:
+      topic filter longer than max_topic_filter_length, refused"*. Up to
+      7.30.22 a filter could be 65535 bytes (present since 7.0.0).
+    - A refused CONNECT leaves no record. In 7.30.22, a new clean session 0
+      refused (for example keep alive 0) left its record and file, and a
+      record made a session of left a record with no file, counted for
+      `max_persistent_sessions`, whose removal logged *"Cannot delete record
+      file"*.
+    - SUBSCRIBE and UNSUBSCRIBE use the record of their connection. In
+      7.30.22, a refused CONNECT that took a connection over could remove the
+      record, and the SUBSCRIBE of the old connection logged an ERROR
+      *"client not found"*.
+    - A record reloaded after an unclean stop says it is connected with no
+      connection. Each message to it, and its client's CONNECT, no longer
+      log an ERROR *"path NOT FOUND"* (present since 7.0.0).
+
+### Agent
+
+- **BREAKING (scripts of `trace-on-yuno` / `trace-off-yuno`): a yuno not
+  connected to the agent is not traced, and the answer says so.** In 7.30.22
+  `trace-off-yuno` of a stopped (or starting, stopping) yuno answered 0 and set
+  `traced` false, but nothing reached the yuno: it kept its saved global trace
+  and had it again at its next start, with `traced` false; `trace-on-yuno` set
+  `traced` true for a yuno it did not reach (since earlier releases; harmful
+  since 7.30.22, where the levels became real and saved). Now such a yuno gets
+  nothing and keeps its `traced`; the answer names it (*"…: trace-off-yuno:
+  yuno <ids> not connected to the agent (stopped, starting or stopping): its
+  trace not changed"*), `-1` when no yuno was reached, `0` with the rows of the
+  reached ones otherwise, and the agent logs a WARNING *"yuno not connected to
+  the agent, its trace not changed"*. `tests/c/c_agent_sandbox` case 8.
+- **BREAKING (operators): `delete-yuno whole=1` removes the attributes the yuno
+  saved of its own**, `<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json`
+  (its trace levels, and what was written to its `__yuno__` with persistence),
+  with an INFO *"Saved attrs of a yuno deleted whole removed"*. In 7.30.22 and
+  before the file survived the delete, and a yuno created again with the same
+  id started with the old trace on and `traced` false. Not for a yuno whose
+  binary fixes its `domain_dir` (`logcenter`, `webstats`): the agent does not
+  know where it saves; `trace-off-yuno` it before the delete.
+  `tests/c/c_agent_sandbox` case 9.
+
+### Docs
+
+- `guide_tls.md`: the count of the clients' last *"TLS handshake rejected"*
+  window is said in the shutdown only by a client context still open then; a
+  window whose client contexts all ended before (a client that stops after
+  failing) keeps it unsaid.
+- **TODO:** the migration of the gates to `C_PROT_MQTT2` says that
+  `C_PROT_MQTT2` has none of the limits of `C_PROT_MQTT`, and lists the tests
+  that go with `C_PROT_MQTT`.
+
 ## v7.30.22 (2026-11-09)
 
 A correction release with one HIGH fix, deployed on every node. An anonymous
