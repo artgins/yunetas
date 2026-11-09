@@ -60,4 +60,4 @@ time2date -m -- -5000     # the same second
 ## See also
 
 - [`time2range`](time2range.md) — period start/end boundaries.
-- [`utils/c/time2date/README.md`](https://github.com/artgins/yunetas/blob/7.30.19/utils/c/time2date/README.md).
+- [`utils/c/time2date/README.md`](https://github.com/artgins/yunetas/blob/7.30.20/utils/c/time2date/README.md).

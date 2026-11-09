@@ -32,10 +32,10 @@ server-side contract is [`YUNO_AUTH.md` §2](../../../yunos/c/yuno_agent/YUNO_AU
 |-------|-----------|------|------|
 | **Frontend (JS)** | `C_AGENT_LOGIN`, `C_TREEDB_LOGIN` | [`yunos/js/gui_agent/src/c_agent_login.js`](https://github.com/artgins/yunos-js/blob/main/gui_agent/src/c_agent_login.js), [`yunos/js/gui_treedb/src/c_login.js`](https://github.com/artgins/yunos-js/blob/main/gui_treedb/src/c_login.js) | Post the login form to the BFF, restore the session on load, arm the token refresh, log out |
 | **Config (JS)** | `deploy_info()` | `yunos/js/<spa>/src/conf/deploy.js` | Derives the BFF URL from the serving host name (`https://<host>:<bff port>`). No per-host table |
-| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) in the `auth_bff` yuno | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.30.19/kernel/c/root-linux/src/c_auth_bff.c) | HTTPS server on the port of its configuration. Exchanges credentials or codes for tokens, sets the cookies |
-| **WebSocket Bridge** | [`C_WEBSOCKET`](#gclass-c-websocket) | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.30.19/kernel/c/root-linux/src/c_websocket.c) | Captures `Cookie` header from HTTP Upgrade request |
-| **Gatekeeper** | [`C_IEVENT_SRV`](#gclass-c-ievent-srv) | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.30.19/kernel/c/root-linux/src/c_ievent_srv.c) | Extracts `access_token` from the cookie (or the identity card's `jwt`), injects it into the IDENTITY_CARD |
-| **Auth Manager** | [`C_AUTHZ`](#gclass-c-authz) | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.30.19/kernel/c/root-linux/src/c_authz.c) | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
+| **BFF Server (C)** | [`C_AUTH_BFF`](#gclass-c-auth-bff) in the `auth_bff` yuno | [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgins/yunetas/blob/7.30.20/kernel/c/root-linux/src/c_auth_bff.c) | HTTPS server on the port of its configuration. Exchanges credentials or codes for tokens, sets the cookies |
+| **WebSocket Bridge** | [`C_WEBSOCKET`](#gclass-c-websocket) | [`kernel/c/root-linux/src/c_websocket.c`](https://github.com/artgins/yunetas/blob/7.30.20/kernel/c/root-linux/src/c_websocket.c) | Captures `Cookie` header from HTTP Upgrade request |
+| **Gatekeeper** | [`C_IEVENT_SRV`](#gclass-c-ievent-srv) | [`kernel/c/root-linux/src/c_ievent_srv.c`](https://github.com/artgins/yunetas/blob/7.30.20/kernel/c/root-linux/src/c_ievent_srv.c) | Extracts `access_token` from the cookie (or the identity card's `jwt`), injects it into the IDENTITY_CARD |
+| **Auth Manager** | [`C_AUTHZ`](#gclass-c-authz) | [`kernel/c/root-linux/src/c_authz.c`](https://github.com/artgins/yunetas/blob/7.30.20/kernel/c/root-linux/src/c_authz.c) | Validates JWT signature (JWKS), checks expiry/issuer/claims, manages roles |
 | **JWT Library** | `libjwt` | `kernel/c/libjwt/src/` | Cryptographic JWT verification (RS256, ES256, EdDSA and more.) |
 
 The BFF port is not fixed: it is the `url` of the `auth_bff`'s configuration
@@ -828,7 +828,7 @@ in production:
   the catalog: one without it is a bug of the BFF, logged with a stack and
   answered `internal_error`. All secrets (cookies, passwords,
   authorization headers, client_secret) are redacted by
-  [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.30.19/kernel/c/root-linux/src/c_auth_bff.c#L1874) with case-insensitive key matching.
+  [`redact_for_trace()`](https://github.com/artgins/yunetas/blob/7.30.20/kernel/c/root-linux/src/c_auth_bff.c#L1874) with case-insensitive key matching.
 - **Stats.** `mt_stats` exposes:
   `requests_total`, `q_count`, `q_max_seen`, `q_full_drops`,
   `idp_calls`, `idp_ok`, `idp_errors`, `idp_timeouts`,

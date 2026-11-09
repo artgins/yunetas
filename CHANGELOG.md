@@ -2,6 +2,89 @@
 
 ## Unreleased
 
+## v7.30.20 (2026-11-09)
+
+A correction release, deployed on every node. The agent no longer dies when
+its authz store does not open at start up; ytls says its rejected handshakes
+per listener; an empty store file left read-only by a power cut is made
+again; sgateway takes a TLS input and no longer reopens its output at a
+pause; `--stop` says when the daemon belongs to another user. The tests of
+each change ran, not the whole suite; no performance study (the next one is
+against 7.30.0).
+
+### Agent and auth
+
+- **BREAKING (log watchers): `C_AUTHZ` follows `on_critical_error` also when
+  its store does not open at start up** (a corrupt `__timeranger2__.json`,
+  or an empty one in a replica). With 0 (the agent, agent22, agent44) the
+  yuno goes on with local access only, with ONE ERROR *"The authz db cannot
+  be opened, authz only to local access"*: `yuneta` logs in from 127.0.0.*,
+  no JWT is validated. With the default (2) the yuno exits with code 0 as
+  before. In 7.30.19 (since 7.30.18): `C_AUTHZ` gave its `C_NODE` a fixed
+  exit, so the agent died with *"tranger NULL"*.
+- **BREAKING (operators, scripts): `ydaemon --stop`** (`<yuno> --stop`,
+  `yuneta_agent --stop`) **exits 1 when the only processes of the name
+  belong to another user**, and says why (*"--stop: <name> not stopped: N
+  process(es) of the name run as another user (pid P, uid U) ..."*). In
+  7.30.19 it said nothing and exited 0, so the next `--start` launched a
+  second daemon. The other user's process is still not taken, unless
+  `--stop` runs as root.
+
+### TLS, UDP and stores
+
+- **BREAKING (log watchers): ytls writes *"TLS handshake rejected"* once per
+  10 s for each TLS context** (each listener, each client), not for the
+  process, and the count that no line said is said when its window closes:
+  in the next line, or in a new warning *"TLS handshakes rejected, not said
+  in their window"* (`suppressed`), at the next reject or when the context
+  ends. In 7.30.19 a scanner on one listener hid the reject of a legitimate
+  client on another, and the last count was never said.
+- **timeranger2: a master makes an empty `__timeranger2__.json` again also
+  when it is in mode 0440** (a power cut after the `chmod` of its first
+  write). In 7.30.19 the write failed with EACCES for any user but root, and
+  the yuno exited.
+- **BREAKING (log watchers): `C_GSS_UDP_S` with `exitOnError` false** says
+  the sends refused while its `C_UDP_S` was not listening with the first
+  send taken once it listens again (INFO *"UDP server listening again, sends
+  refused while it was not"*, `tx_dropped`), and counts again from zero. In
+  7.30.19 (since 7.30.18) the count went into the next one.
+- **Correction of 7.30.19:** a TLS **client** whose `crypto.library` is
+  unknown does not end the yuno since 7.30.18 (`ytls_init()` answers NULL
+  and the `C_TCP` does not connect, with an ERROR); 7.30.19 did not give that
+  exit back and did not say it. It stays so: a client link is not a yuno's
+  role, and for the agent it is a secondary service.
+- **Correction of 7.30.19:** up to 7.30.17 a `C_QIOGATE` whose queue could
+  not be opened went on and crashed (SIGSEGV in `trq_first_msg()`) as soon as
+  its output connected, not "aborted at its first message".
+
+### sgateway
+
+- **A pause or a stop with a client that does not read no longer opens the
+  output again**: the output's `EV_STOPPED` started it again for the client
+  that was still being closed, a session with the backend while the gateway
+  was paused, and *"Destroying a RUNNING gobj"* (an ERROR with a stack) at the
+  stop. In 7.30.19.
+- **`input_crypto`, the TLS configuration of a `tcps://` input**, written as
+  the `crypto` of the input `C_TCP_S` at each play
+  (`"sgateway.input_crypto": {"ssl_certificate": "...", "ssl_certificate_key":
+  "..."}`). Up to 7.30.19 a TLS input could not be configured (the server is
+  not a service, so a global `C_TCP_S.crypto` never reached it) and the yuno
+  exited with code 0, while the doc said that global key was enough.
+- **Doc:** a client that leaves while its output is connecting is not read,
+  so its leaving is not seen either: what it sent is delivered when the
+  output opens, and then the output is closed. The doc and `dropMsgs` said it
+  was dropped and counted; that happens only when a pause or a stop comes
+  first.
+
+### Web console and docs
+
+- **gui_agent 1.3.9 (yunos-js): the monitor says when the control center
+  gave up a scenario's `max_run` stop** (`stop_given_up`, 7.30.19): a red
+  tag *"max_run stop given up"* in its status line while the scenario runs or
+  is paused; it showed as running with no stop time.
+- The `C_QIOGATE` examples of `api/gclass/gateway.md` use a generic gate
+  name.
+
 ## v7.30.19 (2026-11-09)
 
 A correction and resilience release, deployed on every node. The rule of
