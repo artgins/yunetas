@@ -435,7 +435,21 @@ In 7.30.19 it said nothing and exited 0: the operator took the agent for
 stopped, and the `--start` after it launched a second agent beside the
 running one.
 
-Every `kill()` is checked: one that fails is said on stderr, not waited for,
+With `/proc` mounted `hidepid=1`, the name of another user's process cannot
+be read (`EPERM`). When nothing of the name is the user's own and such
+processes exist, `--stop` cannot tell whether the daemon runs: it says so and
+exits 1 (in 7.30.20 it said nothing and exited 0):
+
+```
+$ yuneta_agent --stop       # as a user, /proc mounted hidepid=1
+--stop: yuneta_agent: not known if it runs: the name of 250 process(es) of other users cannot be read (pid 1: /proc mounted with hidepid?): run --stop as root
+```
+
+With `hidepid=2` another user's process is not listed at all, so that
+cannot be known: `--stop` says nothing and exits 0. Run `--stop` as root, or
+as the user that runs the daemon.
+
+Every `kill()` is checked: one that fails is said on stdout (and syslog), not waited for,
 and `--stop` exits 1. Up to 7.25.22 none was checked: an `EPERM` waited 10 s, printed *"killed (SIGKILL)"* and exited
 0; and an agent that crashed during its stop was relaunched by its watcher,
 the watcher was SIGKILLed at 10 s, and the new agent was left an orphan.
@@ -476,7 +490,7 @@ child share the process name. Each one answers differently:
 The SIGKILL is therefore not what breaks a relaunch loop: it is the
 guarantee for the case where 10 s were not enough — a child stuck in its
 shutdown, and the watcher still sitting in `waitpid()`. SIGKILL is uncatchable
-and takes both; `--stop` says so on stderr (*"still alive after the wait:
+and takes both; `--stop` says so on stdout and syslog (*"still alive after the wait:
 killed (SIGKILL)"*, or *"started while the stop ran"* for a process of the
 name that was not in the first scan).
 

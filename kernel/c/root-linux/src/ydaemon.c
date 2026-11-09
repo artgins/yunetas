@@ -668,7 +668,17 @@ typedef struct {
     int others;     // look-alikes of another user, not taken
     pid_t other_pid;    // the first of them
     uid_t other_uid;
+    int unreadable;     // processes whose name cannot be read (/proc with hidepid=1)
+    pid_t unreadable_pid;   // the first of them
 } stop_pids_t;
+
+PRIVATE int linux_search_process(
+    const char *process_name,
+    void (*cb)(void *self, const char *name, pid_t pid),
+    void *self,
+    int *unreadable,
+    pid_t *unreadable_pid
+);
 
 /*
  *  The program a process was started as: the base name of its argv[0]
@@ -879,7 +889,7 @@ PUBLIC int daemon_shutdown(const char *process_name)
 {
     int ret = 0;
     stop_pids_t stop = {0};
-    search_process(process_name, collect_proc, &stop);
+    linux_search_process(process_name, collect_proc, &stop, &stop.unreadable, &stop.unreadable_pid);
     if(stop.failed) {
         ret = -1;   // Error already printed
     }
@@ -891,6 +901,16 @@ PUBLIC int daemon_shutdown(const char *process_name)
          */
         print_error(0, "--stop: %s not stopped: %d process(es) of the name run as another user (pid %d, uid %d), not mine to stop: run --stop as that user or as root",
             process_name, stop.others, (int)stop.other_pid, (int)stop.other_uid
+        );
+        ret = -1;
+    } else if(stop.n == 0 && stop.unreadable > 0) {
+        /*
+         *  Nothing of mine to stop, and the name of other users' processes
+         *  cannot be read (/proc mounted with hidepid=1): in 7.30.20 --stop
+         *  said nothing and exited 0, whether the daemon ran or not
+         */
+        print_error(0, "--stop: %s: not known if it runs: the name of %d process(es) of other users cannot be read (pid %d: /proc mounted with hidepid?): run --stop as root",
+            process_name, stop.unreadable, (int)stop.unreadable_pid
         );
         ret = -1;
     }
@@ -993,7 +1013,10 @@ PUBLIC int daemon_shutdown(const char *process_name)
 PRIVATE int linux_search_process(
     const char *process_name,
     void (*cb)(void *self, const char *name, pid_t pid),
-    void *self)
+    void *self,
+    int *unreadable,        // out, may be NULL: comm files that cannot be read
+    pid_t *unreadable_pid   // out: the pid of the first of them
+)
 {
     int found = 0;
     pid_t pid;
@@ -1063,6 +1086,29 @@ PRIVATE int linux_search_process(
     gbmem_free(readbuf);
     globfree(&pglob);
 
+    if(unreadable) {
+        /*
+         *  With /proc mounted hidepid=1 the comm of another user's process
+         *  cannot even be stat'ed (EPERM), so the glob above leaves it out:
+         *  any of them may be of the name. With hidepid=2 the process is
+         *  not listed at all: that cannot be known.
+         */
+        if(glob("/proc/[0-9]*", GLOB_ONLYDIR, NULL, &pglob) == 0) {
+            for(i = 0; i < pglob.gl_pathc; ++i) {
+                char comm_path[PATH_MAX];
+                if(!build_path(comm_path, sizeof(comm_path), pglob.gl_pathv[i], "comm", NULL)) {
+                    continue;   // Error already logged
+                }
+                if(access(comm_path, R_OK) < 0 && (errno == EACCES || errno == EPERM)) {
+                    if((*unreadable)++ == 0) {
+                        *unreadable_pid = (pid_t)atoi(pglob.gl_pathv[i] + strlen("/proc/"));
+                    }
+                }
+            }
+            globfree(&pglob);
+        }
+    }
+
     return found;
 }
 
@@ -1075,7 +1121,7 @@ PUBLIC int search_process(
     void (*cb)(void *self, const char *name, pid_t pid),
     void *self)
 {
-    return linux_search_process(process_name, cb, self);
+    return linux_search_process(process_name, cb, self, NULL, NULL);
 }
 
 /***************************************************************************
