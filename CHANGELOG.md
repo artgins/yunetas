@@ -2,6 +2,113 @@
 
 ## Unreleased
 
+## v7.30.22 (2026-11-09)
+
+A correction release with one HIGH fix, deployed on every node. An anonymous
+MQTT client could slow down or take down a gate that runs `C_PROT_MQTT`: a
+client without a session now leaves no record, and new limits bound the
+subscriptions of a client and the sessions kept. `trace-on-yuno` traces at
+last (global levels); ytls says the clients' rejected handshakes when the yuno
+ends; the docs of local access, ytls and `--stop` say what the code does. The
+whole suite ran on the dev machine (438 of 438); no performance study (the
+next one is against 7.30.0).
+
+### MQTT
+
+- **BREAKING (operators, log watchers): `C_PROT_MQTT`: an anonymous client can
+  no longer slow a gate down, or take it down by memory.** In 7.30.21, since the
+  gclass came into 7.0.0: every client id left a record that was never removed,
+  in memory and as a file on disk; a client could hold any number of
+  subscriptions; and each PUBLISH walked every subscription of every record. A
+  few connections with new ids, or one with many SUBSCRIBEs, made every later
+  message of the gate slower, and four such connections used up its memory.
+    - A client without a session to keep (MQTT 3.1.1 clean session 1, MQTT 5
+      session expiry 0, an id the gate assigned) has its record in memory only,
+      removed when it disconnects. A clean session over an existing session
+      ends it: the record and its file are removed at the disconnect.
+    - New attribute `max_subscriptions_per_client` (default `100`, `0` = no
+      limit). Each new filter of a SUBSCRIBE past it is refused in the SUBACK
+      (MQTT 5 `0x97` Quota exceeded, 3.1.1 `0x80` Failure), and the client stays
+      connected. New WARNING, once per connection: *"Mqtt: SUBSCRIBE past
+      max_subscriptions_per_client, filters refused"*.
+    - New attribute `max_persistent_sessions` (default `1000`, `0` = no limit).
+      A CONNECT that adds a session past it is refused (CONNACK MQTT 5 `0x97`,
+      3.1.1 `3` Server unavailable) and the connection closes. New WARNING, once
+      per minute per process, with the number refused since the last one:
+      *"Mqtt: CONNECT past max_persistent_sessions, new sessions refused"*. A
+      refused CONNECT is no longer dumped as a malformed packet.
+    - **Operators:** the records an older gate left on disk count as sessions.
+      A gate whose `clients` store directory holds 1000 files refuses every NEW
+      id with clean session 0 until the junk is removed or the limit raised.
+      Count them before the upgrade (`ls <store>/resources/mqtt/<role^name>/clients | wc -l`).
+    - A PUBLISH looks its topic up once per record: 1000 messages with 1000
+      sessions of 100 subscriptions take about 150 ms, the old walk 9 s.
+    - A subscription to a filter the client already holds replaces it, as MQTT
+      says (SUBACK granted). Up to 7.30.21 it was taken for a malformed packet
+      and the client was disconnected. The WARNING *"subscription already
+      exists"* is gone.
+    - When a new connection takes over a client id, the dropped connection no
+      longer marks the record disconnected (the new one then got no QoS 0
+      messages).
+    - Test: `tests/c/c_mqtt` `test_mqtt_legacy_sessions` (new).
+- `C_RESOURCE2`: `gobj_delete_resource()` releases the record it is given, as
+  its contract says (owned); with the option `volatil` it removes no file,
+  because a resource created `volatil` was never written. Up to 7.30.21 a
+  delete that succeeded leaked the record (no caller in the SDK).
+
+### Agent
+
+- **BREAKING (operators): `trace-on-yuno` / `trace-off-yuno` set GLOBAL trace
+  levels.** In 7.30.21, as old as the command: `trace-on-yuno` asked for every
+  USER level of the yuno's root gobj (`set-gobj-trace gobj_name=__root__`), and
+  `C_YUNO` declares none, so nothing was ever traced; only the `traced` column
+  of `list-yunos` changed.
+    - `trace-on-yuno id=3 level=machine,ev_kw` sends one `set-global-trace
+      level=<l> set=1` per level to the yuno. Without `level`, or with a name
+      that is not a global level, it answers -1, sets nothing, and its `data`
+      lists the global levels.
+    - `trace-off-yuno` resets EVERY global level of the yuno, also ones set by
+      hand.
+    - `traced` is true after `trace-on-yuno` and false after `trace-off-yuno`.
+      The yuno keeps its global levels, so both survive a restart of the yuno.
+    - Neither command filters by `traced` any more, and like every bulk command
+      of the agent, without a filter it applies to EVERY yuno.
+    - Test: `c_agent_sandbox` case 6.
+- `c_agent_sandbox` case 7: a crash relaunched by its watcher meets a
+  `run-yuno`; nothing else is launched and no *"yuno ALREADY living"* comes from
+  the relaunch (coverage: the race a sandbox run once suggested does not hold).
+  The sandbox runs with `ulimit -c 0`.
+
+### TLS
+
+- **BREAKING (log watchers): ytls says the count of the clients' *"TLS
+  handshake rejected"* window when the yuno ends.** In 7.30.21, which made the
+  client contexts share one window per process: a client context said the
+  count at its end only after its window, so a yuno that stopped inside it
+  never said what it had counted (40 failed handshakes: one line, 39 never
+  said). Now the first client context that ends in the shutdown says them ONCE
+  (*"TLS handshakes rejected, not said in their window"*), as `C_TCP` does with
+  its own count. Both backends; `tests/c/ytls/test_handshake_reject_*`.
+
+### Docs
+
+- `guide_tls.md`: the line with the clients' count names the client that
+  writes it, maybe not the one that failed; there is one clients' window per
+  TLS backend.
+- `auth.md`: a yuno with no `C_AUTHZ` (`logcenter`, `auth_bff`, `sgateway`) is
+  not in the local access only mode, it refuses every permission with *"No
+  gclass authz found"*; the example of that mode is `emailsender`. agent22 in
+  that mode refuses the forwarded commands that ask a permission for an
+  operator that is not `yuneta`, and an assertion whose `sub` is `yuneta` (an
+  operator who entered the controlcenter from the local address of its host)
+  has every permission -- which the 7.30.21 entry below did not say.
+- `daemon_launcher.md`: `daemon_shutdown()` returns -1 with `hidepid=1`, and it
+  says it on stdout and syslog.
+- The README and `performance/reports/README.md` link the 7.27.5 and 7.26.9
+  reports redone after their release (at tag 7.27.8).
+- `modules/mqtt.md`: the client records of `C_PROT_MQTT` and their two limits;
+  `api/gclass/data.md`: `C_RESOURCE2` resources in memory only.
+
 ## v7.30.21 (2026-11-09)
 
 A correction release, deployed on every node. The agent with a corrupt authz

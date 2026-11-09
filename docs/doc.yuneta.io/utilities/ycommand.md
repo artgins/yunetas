@@ -205,4 +205,4 @@ client does, and tells its host nothing until one opens.
 - [`ybatch`](ybatch.md), [`ystats`](ystats.md), [`ycli`](ycli.md) — the rest of
   the control-plane family.
 - Repository README (for code navigators):
-  [`utils/c/ycommand/README.md`](https://github.com/artgins/yunetas/blob/7.30.21/utils/c/ycommand/README.md).
+  [`utils/c/ycommand/README.md`](https://github.com/artgins/yunetas/blob/7.30.22/utils/c/ycommand/README.md).
