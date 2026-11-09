@@ -21,6 +21,15 @@
  *          in their window", "suppressed" 2. Up to 7.30.19 the window was the
  *          process's: the second context's reject went into the first's
  *          count, and the count of the last window was never said.
+ *          Nothing closes a window by time: what it did not write is said
+ *          at the next reject after it, or when its context ends.
+ *
+ *          Client contexts: C_TCP makes one at each start of a client, so
+ *          a client that connects again and again makes a context per
+ *          connection. Their window is the process's: 20 client contexts
+ *          that fail 2 handshakes each write one line (7.30.20: 40, a
+ *          window per context, and its count said at its end). After the
+ *          window, the next reject says the count of the rest.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -68,6 +77,7 @@ PRIVATE int     handshake_cb_last_error = 0;
 PRIVATE int     rejected_logs = 0;     // "TLS handshake rejected" written
 PRIVATE int     not_said_logs = 0;     // "TLS handshakes rejected, not said in their window"
 PRIVATE int     not_said_two = 0;      // the same, with "suppressed" 2
+PRIVATE long    suppressed_sum = 0;    // the "suppressed" of every line, summed
 
 /***************************************************************
  *              Prototypes
@@ -80,6 +90,7 @@ PRIVATE int   on_clear_data(void *user_data, gbuffer_t *gbuf);
 PRIVATE int   on_encrypted_data(void *user_data, gbuffer_t *gbuf);
 PRIVATE int   count_rejected_write(void *v, int priority, const char *bf, size_t len);
 PRIVATE void  fail_one_handshake(hytls ytls);
+PRIVATE void  fail_one_client_handshake(hytls ytls);
 
 /***************************************************************************
  *              Test
@@ -191,8 +202,10 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *  Two more peers fail their handshake at once:
      *  ONE "TLS handshake rejected" for the three (one
-     *  per 10 s for the process, the rest counted in
-     *  the next one). Up to 7.30.18 each one wrote it.
+     *  per 10 s for the context; the rest are counted
+     *  and said at the next reject after the window,
+     *  or when the context ends). Up to 7.30.18 each
+     *  one wrote it.
      *------------------------------------------------*/
     for(int i=0; i<2; i++) {
         fail_one_handshake(ytls);
@@ -253,6 +266,69 @@ int main(int argc, char *argv[])
         fprintf(stderr,
             "%s: at the end of the first context, %d lines of rejects not said (%d with \"suppressed\": 2), expected 1 (1)\n",
             APP, not_said_logs, not_said_two
+        );
+        result++;
+    }
+
+    /*------------------------------------------------*
+     *  20 client contexts, 2 failed handshakes each:
+     *  one window for all of them, so 1 line (up to 2,
+     *  should a window end in the middle), not 40.
+     *------------------------------------------------*/
+    int rejected_before = rejected_logs;
+    int not_said_before = not_said_logs;
+    suppressed_sum = 0;
+    for(int i=0; i<20; i++) {
+        cfg = json_pack("{s:s, s:s, s:s}",
+            "library",                  "mbedtls",
+            "ssl_trusted_certificate",  CERT_PATH,
+            "ssl_server_name",          "localhost"
+        );
+        hytls ytls_c = ytls_init(0, cfg, FALSE /* client */);
+        JSON_DECREF(cfg);
+        if(!ytls_c) {
+            fprintf(stderr, "%s: ytls_init of client context %d FAILED\n", APP, i);
+            result++;
+            break;
+        }
+        fail_one_client_handshake(ytls_c);
+        fail_one_client_handshake(ytls_c);
+        ytls_cleanup(ytls_c);
+    }
+    int client_lines = (rejected_logs - rejected_before) + (not_said_logs - not_said_before);
+    if(client_lines < 1 || client_lines > 2) {
+        fprintf(stderr,
+            "%s: %d lines for the 40 rejects of 20 client contexts, expected 1 (2 at most)\n",
+            APP, client_lines
+        );
+        result++;
+    }
+
+    /*------------------------------------------------*
+     *  After the window, one more: its line says the
+     *  rest. Every reject is written or counted.
+     *------------------------------------------------*/
+    printf("%s: waiting 11 s for the window of the client contexts to pass\n", APP);
+    sleep(11);
+    cfg = json_pack("{s:s, s:s, s:s}",
+        "library",                  "mbedtls",
+        "ssl_trusted_certificate",  CERT_PATH,
+        "ssl_server_name",          "localhost"
+    );
+    hytls ytls_last = ytls_init(0, cfg, FALSE /* client */);
+    JSON_DECREF(cfg);
+    if(!ytls_last) {
+        fprintf(stderr, "%s: ytls_init of the last client context FAILED\n", APP);
+        result++;
+    } else {
+        fail_one_client_handshake(ytls_last);
+        ytls_cleanup(ytls_last);
+    }
+    long said = (long)(rejected_logs - rejected_before) + suppressed_sum;
+    if(said != 41) {
+        fprintf(stderr,
+            "%s: of 41 rejects of client contexts, %ld written or counted, expected 41\n",
+            APP, said
         );
         result++;
     }
@@ -351,6 +427,11 @@ PRIVATE int count_rejected_write(void *v, int priority, const char *bf, size_t l
             not_said_two++;
         }
     }
+    const char *suppressed = "\"suppressed\": ";
+    const char *at = bf? memmem(bf, len, suppressed, strlen(suppressed)) : NULL;
+    if(at) {
+        suppressed_sum += atol(at + strlen(suppressed));
+    }
     return 0;
 }
 
@@ -373,6 +454,30 @@ PRIVATE void fail_one_handshake(hytls ytls)
     (void)ytls_do_handshake(ytls, sskt);
     gbuffer_t *gbuf = gbuffer_create(sizeof(HTTP_GARBAGE), sizeof(HTTP_GARBAGE));
     gbuffer_append(gbuf, (void *)HTTP_GARBAGE, sizeof(HTTP_GARBAGE) - 1);
+    (void)ytls_decrypt_data(ytls, sskt, gbuf);
+    ytls_free_secure_filter(ytls, sskt);
+}
+
+/***************************************************************************
+ *  A client whose server answers its ClientHello with an HTTP answer
+ ***************************************************************************/
+PRIVATE void fail_one_client_handshake(hytls ytls)
+{
+    hsskt sskt = ytls_new_secure_filter(
+        ytls,
+        on_handshake_done,
+        on_clear_data,
+        on_encrypted_data,
+        NULL
+    );
+    if(!sskt) {
+        fprintf(stderr, "%s: ytls_new_secure_filter of a client FAILED\n", APP);
+        return;
+    }
+    (void)ytls_do_handshake(ytls, sskt);
+    const char *answer = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+    gbuffer_t *gbuf = gbuffer_create(strlen(answer), strlen(answer));
+    gbuffer_append(gbuf, (void *)answer, strlen(answer));
     (void)ytls_decrypt_data(ytls, sskt, gbuf);
     ytls_free_secure_filter(ytls, sskt);
 }

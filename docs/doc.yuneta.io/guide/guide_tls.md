@@ -48,6 +48,21 @@ Both backends implement the same function:
 - **Secure Communication:** Encrypting and decrypting data sent over a TLS connection.
 - **Password Hashing:** Both backends use PBKDF2-HMAC (RFC 2898) and produce bit-for-bit identical output, so user/password databases are fully portable between backends.
 
+A client of one backend talks to a server of the other. One case needs care:
+a TLS 1.3 server sends session tickets after the handshake (OpenSSL, nginx
+and Python send two by default), and an mbedTLS client reports the last one
+from its next write as `MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET`. ytls
+writes again: it is not an error. In 7.30.20 (since 7.28.0) it was taken for
+one, and an mbedTLS client that wrote after the tickets arrived lost the
+connection:
+
+```
+ERROR: {"function": "encrypt_data", "msgset": "MbedTLS", "msg": "mbedtls_ssl_write() FAILED", "error_code": -31488, ...}
+```
+
+Test: `tests/c/ytls/test_session_tickets` (an mbedTLS client against an
+OpenSSL server, when both backends are compiled in).
+
 This module makes sure that Yuneta applications can securely transmit data over the network using industry-standard encryption protocols.
 
 ## Hot-reloading certificates
@@ -391,12 +406,22 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    | Log message | Meaning | Action |
    |---|---|---|
    | `TLS client WITHOUT server-certificate validation` | a client is not validating the server it dials | add a CA → Profile A |
-   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor). One per 10 s for each TLS context (each listener, each client): `suppressed` counts the ones of the last window not written, so a peer that fails its handshake in a loop does not write the log at its own rate (up to 7.30.18 each one wrote it), and a scanner on one listener does not hide the reject of a legitimate client on another (up to 7.30.19 the window was the whole yuno's) | if legitimate, move that gate to Profile B |
-   | `TLS handshakes rejected, not said in their window` | the rejects of a window that closed with no line after it, said at the next reject (when it comes more than 10 s later) or when the listener ends: `suppressed` is their count, and the line names the listener (`gobj_full_name`) | as above |
+   | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor). One per 10 s for each listener, and one per 10 s for all the clients of the yuno together: `suppressed` counts the ones of the last window not written, so a peer that fails its handshake in a loop does not write the log at its own rate (up to 7.30.18 each one wrote it), a scanner on one listener does not hide the reject of a legitimate client on another (up to 7.30.19 the window was the whole yuno's), and a client that connects again and again, with a context of its own for each connection, does not write a line per connection (in 7.30.20 it did) | if legitimate, move that gate to Profile B |
+   | `TLS handshakes rejected, not said in their window` | the rejects that no line said. Nothing closes a window by time: its count is said at the next reject after the window (in that line, or in this one when the next reject comes more than 10 s after the window), or when a listener ends; the clients' count also when a client context ends after the window. `suppressed` is the count, and the line names the gobj (`gobj_full_name`) | as above |
    | `TLS handshake not ended in time, connection dropped` | a peer opened a TCP connection and did not end its handshake in `timeout_tls_handshake` (a scanner, a slowloris, a broken client); one per 10 s, `suppressed` counts the others | if a legitimate peer is slow, raise `timeout_tls_handshake` on that `C_TCP`; a high `suppressed` is a flood of mute connections |
    | `legacy floor below TLS1.2` | a gate is on a relaxed floor | confirm it is an intended IoT gate |
    | `renegotiation explicitly enabled` | a gate re-enabled renegotiation | confirm it is needed |
    | `peer certificate did NOT verify` | an `optional` gate accepted an invalid cert | fix the chain, or raise to `required` |
+
+   For example, a client `C_TCP` that fails 40 handshakes in 10 s against a
+   server whose certificate it does not accept (a new TLS context at each
+   start), and one more 11 s later, writes two lines in all; the second
+   says the 39 not written:
+
+   ```
+   WARNING: {"function": "do_handshake", "msg": "TLS handshake rejected", "error": "...certificate verify failed", "suppressed": 0, ...}
+   WARNING: {"function": "do_handshake", "msg": "TLS handshake rejected", "error": "...certificate verify failed", "suppressed": 39, ...}
+   ```
 
 3. **Harden the high-level gates** one at a time: apply Profile A, restart,
    confirm the warning is gone and traffic still flows.

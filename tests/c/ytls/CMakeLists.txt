@@ -50,6 +50,7 @@ set(SRCS
     test_free_inside_callback
     test_peer_cert
     test_server_init_not_fatal
+    test_session_tickets
 )
 
 ##############################################

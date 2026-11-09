@@ -86,6 +86,11 @@ typedef struct mbedtls_state_s {
     BOOL request_only;  // ssl_verify_mode "request": the client's cert taken as it comes, for the owner to pin
 } mbedtls_state_t;
 
+typedef struct handshake_log_s {
+    uint64_t t_next;        // msectimer: no "TLS handshake rejected" before it
+    json_int_t suppressed;  // not written since the last one
+} handshake_log_t;
+
 typedef struct ytls_s {
     api_tls_t *api_tls;     // Must be the first item
     BOOL server;
@@ -101,10 +106,11 @@ typedef struct ytls_s {
     /*
      *  Of the context, not of one session: a peer that opens many
      *  connections and fails each handshake is one cause, and a listener's
-     *  count is not another's
+     *  count is not another's. A client's is the process's (see
+     *  clients_handshake_log)
      */
-    uint64_t handshake_log_t_next;      // msectimer: no "TLS handshake rejected" before it
-    json_int_t handshake_log_suppressed;  // not written since the last one
+    handshake_log_t own_handshake_log;  // a server's
+    handshake_log_t *handshake_log;     // its own, or clients_handshake_log
 } ytls_t;
 
 /*
@@ -205,6 +211,14 @@ PRIVATE api_tls_t api_tls = {
 /***************************************************************
  *              Data
  ***************************************************************/
+/*
+ *  The window of "TLS handshake rejected" of the CLIENT contexts: one for
+ *  the process. C_TCP makes a context at each start of a client, so a
+ *  client that connects again and again (an IdP client, per request) had a
+ *  window per connection in 7.30.20, and a bad certificate wrote a line per
+ *  connection. A server context (a listener) keeps its own.
+ */
+PRIVATE handshake_log_t clients_handshake_log = {0};
 
 /***************************************************************************
  *  Refcount helpers for mbedtls_state_t
@@ -594,6 +608,7 @@ PRIVATE hytls init(
 
     ytls->api_tls = &api_tls;
     ytls->server = server;
+    ytls->handshake_log = server? &ytls->own_handshake_log : &clients_handshake_log;
     ytls->gobj = gobj;
     ytls->rx_buffer_size = kw_get_int(gobj, jn_config, "rx_buffer_size", 32*1024, 0);
     ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
@@ -948,14 +963,14 @@ PRIVATE json_t *get_peer_cert_info(hsskt sskt_)
 /***************************************************************************
  *  The failed handshakes of a closed window that no "TLS handshake
  *  rejected" said: said in a warning of their own, when the window has
- *  closed or the context ends
+ *  passed, or when a server context ends
  ***************************************************************************/
 PRIVATE void say_suppressed_handshakes(ytls_t *ytls, BOOL at_end)
 {
-    if(ytls->handshake_log_suppressed == 0) {
+    if(ytls->handshake_log->suppressed == 0) {
         return;
     }
-    if(!at_end && !test_msectimer(ytls->handshake_log_t_next)) {
+    if(!at_end && !test_msectimer(ytls->handshake_log->t_next)) {
         return;
     }
     gobj_log_warning(ytls->gobj, 0,
@@ -963,10 +978,10 @@ PRIVATE void say_suppressed_handshakes(ytls_t *ytls, BOOL at_end)
         "msgset",           "%s", MSGSET_MBEDTLS,
         "msg",              "%s", "TLS handshakes rejected, not said in their window",
         "ssl_server_name",  "%s", ytls->ssl_server_name,
-        "suppressed",       "%ld", (long)ytls->handshake_log_suppressed,
+        "suppressed",       "%ld", (long)ytls->handshake_log->suppressed,
         NULL
     );
-    ytls->handshake_log_suppressed = 0;
+    ytls->handshake_log->suppressed = 0;
 }
 
 /***************************************************************************
@@ -979,7 +994,8 @@ PRIVATE void cleanup(hytls ytls_)
         return;
     }
 
-    say_suppressed_handshakes(ytls, TRUE);
+    // a client's window is the process's: said when it has passed
+    say_suppressed_handshakes(ytls, ytls->server);
 
     // Release our ref on the current state. If any sskt still holds a ref,
     // the state lives until the last one is freed.
@@ -1372,24 +1388,25 @@ PRIVATE int do_handshake(hsskt sskt_)
             // peername/sockname come from the transport via set_peer_name()
             // (empty if unset, e.g. in unit tests) -> this default-on line is
             // self-contained without ytls reaching into user_data.
-            // One per PEER_LOG_INTERVAL_MS for the context, with the count
-            // of the ones not written: up to 7.30.18 each failed handshake
-            // wrote one, and a peer wrote the log at its own rate. The count
+            // One per PEER_LOG_INTERVAL_MS for the context (the clients':
+            // one for the process), with the count of the ones not written:
+            // up to 7.30.18 each failed handshake wrote one, and a peer
+            // wrote the log at its own rate. The count
             // of a window just closed goes in this line; that of an older one
             // in its own (up to 7.30.19 it went in this one however old it
             // was, and the window was the process's).
             ytls_t *ytls = sskt->ytls;
-            if(ytls->handshake_log_t_next && !test_msectimer(ytls->handshake_log_t_next)) {
-                ytls->handshake_log_suppressed++;
+            if(ytls->handshake_log->t_next && !test_msectimer(ytls->handshake_log->t_next)) {
+                ytls->handshake_log->suppressed++;
             } else {
                 json_int_t suppressed = 0;
-                if(test_msectimer(ytls->handshake_log_t_next + PEER_LOG_INTERVAL_MS)) {
+                if(test_msectimer(ytls->handshake_log->t_next + PEER_LOG_INTERVAL_MS)) {
                     say_suppressed_handshakes(ytls, FALSE);
                 } else {
-                    suppressed = ytls->handshake_log_suppressed;
-                    ytls->handshake_log_suppressed = 0;
+                    suppressed = ytls->handshake_log->suppressed;
+                    ytls->handshake_log->suppressed = 0;
                 }
-                ytls->handshake_log_t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
+                ytls->handshake_log->t_next = start_msectimer(PEER_LOG_INTERVAL_MS);
                 gobj_log_warning(gobj, 0,
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_MBEDTLS,
@@ -1586,6 +1603,20 @@ PRIVATE int encrypt_data(
                     return -2222;
                 }
                 continue;
+#ifdef MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET
+            } else if(written == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {
+                /*
+                 *  TLS 1.3 client: the read leaves the last NewSessionTicket
+                 *  of the server pending (WANT_READ), and the write processes
+                 *  it first and says so. Not an error: write again. In 7.30.20
+                 *  (since 7.28.0) it was taken for one, and a client that
+                 *  wrote after the server's tickets arrived never wrote.
+                 */
+                if(sskt->ytls->trace_tls) {
+                    gobj_trace_msg(gobj, "------- encrypt_data: TLS1.3 NewSessionTicket received, writing again, userp %p", sskt->user_data);
+                }
+                continue;
+#endif
             } else {
                 char error_buf[256];
                 mbedtls_strerror(written, error_buf, sizeof(error_buf));
