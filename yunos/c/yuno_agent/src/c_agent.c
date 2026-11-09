@@ -5872,9 +5872,21 @@ PRIVATE json_t *cmd_delete_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             result += -1;
         } else {
             deleted++;
-            if(!by_instance) {
+            /*
+             *  The yuno is gone, not only by whole=1: the delete of its
+             *  only release takes it too.
+             */
+            json_t *left = by_instance? gobj_get_node(
+                priv->resource,
+                resource,
+                json_pack("{s:s}", "id", SDATA_GET_ID(node)),
+                json_pack("{s:b}", "only_id", 1),
+                src
+            ) : 0;
+            if(!left) {
                 remove_saved_attrs_of_yuno(gobj, node);  // a failure is logged, the yuno is deleted
             }
+            JSON_DECREF(left)
         }
     }
     JSON_DECREF(iter)
@@ -9598,9 +9610,10 @@ PRIVATE char * build_yuno_private_domain(
 /***************************************************************************
  *  Remove the attributes the yuno saved of its own (the persistent attrs
  *  of its C_YUNO: its trace levels, and what was written to its __yuno__
- *  with persistence), at the delete of the WHOLE yuno: a yuno created again
- *  with the same id took them up, its trace on and `traced` false. Up to
- *  7.30.22 they survived the delete. The rest of its data is left. A yuno
+ *  with persistence), at the delete of the WHOLE yuno (whole=1, or its
+ *  only release): a yuno created again with the same id took them up, its
+ *  trace on and `traced` false. Up to 7.30.22 they survived the delete, up
+ *  to 7.30.23 a delete by the only release. The rest of its data is left. A yuno
  *  whose binary fixes its own domain_dir (logcenter, webstats) saves them
  *  elsewhere, out of the agent's knowledge: not removed.
  ***************************************************************************/

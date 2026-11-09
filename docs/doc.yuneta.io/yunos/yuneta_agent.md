@@ -416,9 +416,11 @@ ycommand -c 'delete-yuno id=7601 whole=1'                 # the yuno and every r
 ycommand -c 'delete-yuno id=7601 yuno_release=1.1.0-2 whole=1'   # refused: one or the other
 ```
 
-`delete-yuno whole=1` also removes the attributes the yuno saved of its own:
-the file of the persistent attrs of its `C_YUNO`,
-`<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json` (its trace
+A delete that takes the whole yuno also removes the attributes the yuno saved
+of its own. That is `delete-yuno whole=1`, and `delete-yuno yuno_release=`
+with the yuno's only release (since 7.30.24; up to 7.30.23 only `whole=1`
+removed them). The attributes are the file of the persistent attrs of its
+`C_YUNO`, `<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json` (its trace
 levels, and what was written to its `__yuno__` with persistence). An INFO
 *"Saved attrs of a yuno deleted whole removed"* names the path. The rest of
 its data stays. Up to 7.30.22 the file survived the delete, and a yuno created
@@ -433,10 +435,26 @@ ycommand -c 'create-yuno id=7601 realm_id=<realm> yuno_role=<role> yuno_name=<na
 ycommand -c 'run-yuno id=7601'      # starts with no trace
 ```
 
+The same with the yuno's only release (`list-yunos id=7601` shows one row):
+
+```bash
+ycommand -c 'kill-yuno id=7601'
+ycommand -c 'delete-yuno id=7601 yuno_release=1.2.0-2'   # its only release: the yuno is gone
+# removed: /yuneta/realms/<owner>/<realm>/<role>^7601/data/C_YUNO-<name>-persistent-attrs.json
+```
+
 The agent knows the `domain_dir` it gives a yuno, not one fixed in the yuno's
 binary: `logcenter` and `webstats` save in `realms/agent/<role>` whatever
 their id, so their file is not removed. Reset their trace with
-`trace-off-yuno` before the delete.
+`trace-off-yuno` while the yuno runs, before `kill-yuno`. `delete-yuno`
+refuses a running yuno, and `trace-off-yuno` of a stopped yuno changes
+nothing (it answers -1, *"not connected to the agent"*):
+
+```bash
+ycommand -c 'trace-off-yuno id=7602'     # 0: the yuno runs, its saved trace is reset
+ycommand -c 'kill-yuno id=7602'
+ycommand -c 'delete-yuno id=7602 whole=1'
+```
 
 The `data` of a `delete-binary` answer has one item per version taken, with
 its files and whether the agent removed them:

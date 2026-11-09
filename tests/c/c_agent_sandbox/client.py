@@ -53,6 +53,9 @@
 #      logcenter's domain_dir is fixed in its binary): created again with
 #      the same id, it traces nothing. Up to 7.30.22 the saved trace came
 #      back in the new yuno.
+#  10. delete-yuno yuno_release=<its only release> takes the whole yuno:
+#      it removes the saved trace too. Up to 7.30.23 only whole=1 did, and
+#      the trace came back in the yuno created again.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -443,6 +446,38 @@ async def main():
                 r = await ask(ws, "list-yunos", {"id": oid})
                 rows = r.get("data") or []
                 check("and traced is false", bool(rows) and rows[0].get("traced") is False)
+                await kill_and_wait(ws, oid, running["yuno_pid"])
+
+        #   10. delete-yuno yuno_release=<its only release> takes the whole
+        #       yuno, so it removes the trace the yuno saved too. Up to
+        #       7.30.23 only whole=1 removed it, and the saved trace came
+        #       back in a yuno created again with the same id.
+        running = await run_and_wait(ws, oid)
+        check(orole + " runs again, connected", running is not None)
+        if running:
+            r = await ask(ws, "trace-on-yuno", {"id": oid, "level": "machine"})
+            check("trace-on-yuno of " + orole + " again: %s" % r.get("comment"), r.get("result") == 0)
+            check("its trace is saved again in " + saved, os.path.exists(saved))
+            await kill_and_wait(ws, oid, running["yuno_pid"])
+            release = running.get("yuno_release") or ""
+            r = await ask(ws, "list-yunos", {"id": oid})
+            check("it has one release only: %s" % release,
+                len(r.get("data") or []) == 1 and release != "")
+            r = await ask(ws, "delete-yuno", {"id": oid, "yuno_release": release})
+            check("delete-yuno yuno_release=%s, its only one: %s" % (release, r.get("comment")),
+                r.get("result") == 0)
+            r = await ask(ws, "list-yunos", {"id": oid})
+            check("the yuno is gone", not (r.get("data") or []))
+            check("its saved trace is removed, deleted by its only release", not os.path.exists(saved))
+            r = await ask(ws, "create-yuno",
+                {"id": oid, "realm_id": "w.prod.test", "yuno_role": orole, "yuno_name": "z"})
+            check("create-yuno again after the delete by release: %s" % r.get("comment"), r.get("result") == 0)
+            running = await run_and_wait(ws, oid)
+            check(orole + " created again runs, connected", running is not None)
+            if running:
+                r = await ask(ws, "command-yuno id=%s service=__root__ command=get-global-trace" % oid, {})
+                check("the yuno created again after the delete by release traces nothing: %s" % r.get("data"),
+                    r.get("data") == [])
                 await kill_and_wait(ws, oid, running["yuno_pid"])
 
     #   5. a card the agent accepts, of a yuno registered and not running,

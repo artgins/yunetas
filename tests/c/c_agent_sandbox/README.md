@@ -86,6 +86,12 @@ has no `websockets`.
    file is gone; created again with the same id and run: it traces nothing,
    `traced` false. Up to 7.30.22 the file stayed and the new yuno traced
    `machine`.
+10. `delete-yuno yuno_release=<its only release>` takes the whole yuno, so
+    it removes the saved trace too: the same `emailsender`, run and traced
+    with `machine` again, killed, deleted by its only release (the answer
+    is 0 and `list-yunos` shows no row): the file is gone; created again
+    with the same id and run, it traces nothing. Up to 7.30.23 only
+    `whole=1` removed the file, and the new yuno traced `machine`.
 
 The test does not have a process of another user (the sandbox maps one uid
 only), so it cannot show that `find_living_yuno_pids()` skips one: it shows
