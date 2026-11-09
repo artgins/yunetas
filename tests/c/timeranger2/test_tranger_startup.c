@@ -404,20 +404,26 @@ PRIVATE int do_test(void)
      *  It is made again, as if it were not there. Up to
      *  7.30.18 the store never opened again ("bad json" at
      *  each try), even with the disk back.
+     *  Twice: its mode 0660, and 0440 (a power cut after the
+     *  chmod of its save reached the disk, before its data
+     *  did). Up to 7.30.19 the 0440 one was not made again:
+     *  "Cannot create json file" (EACCES), NULL.
      *-------------------------------------------------------*/
-    if(1) {
+    int empty_modes[] = {0660, 0440};
+    for(size_t m=0; m<ARRAY_SIZE(empty_modes); m++) {
         char path_database2[PATH_MAX];
         build_path(path_database2, sizeof(path_database2), path_root, DATABASE_EMPTY, NULL);
         rmrdir(path_database2);
         mkrdir(path_database2, 02770);
         build_path(file, sizeof(file), path_database2, "__timeranger2__.json", NULL);
-        int fd = newfile(file, 0660, TRUE);
+        int fd = newfile(file, empty_modes[m], TRUE);
         if(fd < 0) {
             printf("%sERROR --> %s%s\n", On_Red BWhite, "cannot make the empty __timeranger2__.json", Color_Off);
             result += -1;
         } else {
             close(fd);
         }
+        printf("  the empty __timeranger2__.json in mode 0%o\n", empty_modes[m]);
 
         set_expected_results(
             "tranger2_startup_empty_metadata", // test name

@@ -1034,6 +1034,22 @@ PUBLIC json_t *tranger2_startup(
                 "path",         "%s", directory,
                 NULL
             );
+            /*
+             *  Its mode may be 0440 already: the chmod of its save reached
+             *  the disk and its data did not. Up to 7.30.19 the write of
+             *  the new one failed there (EACCES) and the yuno exited.
+             */
+            if(chmod(metadata_path, (mode_t)kw_get_int(gobj, tranger, "rpermission", 0660, KW_REQUIRED)) < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot make the empty __timeranger2__.json writable",
+                    "path",         "%s", metadata_path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
+                );
+            }
             metadata_exists = FALSE;
         }
     }

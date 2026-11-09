@@ -3768,7 +3768,10 @@ A master that finds `__timeranger2__.json` EMPTY makes it again, as if it were n
 ```bash
 ls -l /yuneta/store/myapp/events/__timeranger2__.json
 # -rw-rw---- 1 yuneta yuneta 0 ...   <- empty: the next open of a master makes it again
+# -r--r----- 1 yuneta yuneta 0 ...   <- empty in mode 0440: made again too
 ```
+
+The file is saved and then set to mode `0440`; on a filesystem with delayed allocation (ext4) a power cut can keep the mode and lose the data, so an empty file can be `0440`. The master makes it writable again (mode `rpermission`) before it writes it. Up to 7.30.19 that write failed with *"Cannot create json file"* (`EACCES`) for any user but root, and the yuno exited.
 
 ```C
 json_t *tranger = tranger2_startup(gobj, json_pack("{s:s, s:s, s:b}",
