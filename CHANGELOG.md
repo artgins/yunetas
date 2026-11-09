@@ -2,6 +2,197 @@
 
 ## Unreleased
 
+### BREAKING: a listener or a queue that fails ends the yuno again, unless the yuno says otherwise; the agent degrades
+
+The agent never dies because a secondary service fails: for it a listener,
+a TLS context or its login history are services on top of its role
+(managing its realms and yunos), and a dead agent is reachable only over
+SSH. For every other yuno it is case by case: a yuno whose failing service
+IS its role must die (a store of raw tracks on a full disk, a server of
+GUIs without its certificate, a gate without its queue). 7.30.18 made every
+`C_TCP_S`, `C_UDP_S` and `C_QIOGATE` degrade in every yuno and ignored
+`exitOnError`; that was right for the agent only. The low layers keep the
+ability to degrade (ytls never exits), and the yuno chooses with an
+attribute of its config. Defect in 7.30.18 only.
+
+- `C_TCP_S` `exitOnError` (default `-1`) is live again: a listen that fails
+  exits with that code (ERROR, then WARNING *"Exiting"*); a TLS url without
+  its certificate exits with code 0 (*"TLS server without its TLS context:
+  exiting"*), as when ytls exited up to 7.30.17. With `0` it degrades as in
+  7.30.18.
+- `C_UDP_S` `exitOnError` (default true, exit 0, `udps://` too) is live
+  again. New `exitOnError` of `C_GSS_UDP_S`, passed to its `C_UDP_S`.
+- `C_QIOGATE`: new `exitOnError` (default `-1`): a queue that cannot be
+  opened ends the yuno at the open (*"Queue cannot be opened: exiting"*),
+  and the watcher's relaunch (2 s up to 60 s) opens it when the cause is
+  gone. Up to 7.30.17 the gate went on and aborted at its first message.
+- The first ERROR of a failed listen is again *"yev_create_accept_event()
+  FAILED"* and *"Cannot start the read of the UDP server"*, with a `then`
+  field that says what follows. 7.30.18 changed them (*"Listen failed: not
+  listening, trying again"*, *"... : not listening, trying again"*, function
+  `listen_failed`) without a BREAKING mark.
+- `C_AUTHZ`: new `on_critical_error` (default 2, the exit as before) for its
+  store. With 0 a login on a full disk no longer exits the yuno: logins go
+  on, the login history is best-effort, said once (ERROR *"Login history
+  cannot be saved: ..."*) and once when it saves again (INFO *"Login history
+  saved again"*); between the two a record is tried after a wait that
+  doubles from 1 s to 60 s. Since C_AUTHZ has its store, a login with a
+  token on a full disk exited every yuno where it is master, the agent
+  included.
+- The agent keeps the 7.30.18 behaviour: its 1991 and 1993 set
+  `exitOnError` 0, and the agent, agent22 and agent44 set
+  `Authz.on_critical_error` 0, in their compiled config.
+- Left as they are, by the same rule: the default of `C_TRANGER`
+  (`on_critical_error` 2: a store yuno ends on a full disk), `C_TREEDB`,
+  `C_NODE`, webstats, and emailsender's exit when the SMTP server refuses
+  it (sending mail is its role).
+
+### sgateway
+
+- **BREAKING (operators, log watchers): one output connection per client, a
+  copy relayed with back-pressure, `crypto` for a TLS output, no trace by
+  default.**
+    - It handed the read buffer of one `C_TCP` to the other transport, and
+      that buffer is read into again as soon as it is published: as soon as
+      one side was slower, the data arrived corrupted after the first
+      megabytes and every next message was refused with an ERROR (*"tcp tx
+      data already queued or in flight"*); against a side that never reads,
+      the log grew by megabytes per second. Now a copy is relayed, and the
+      side read is paused until the side written has taken it (the new
+      `rx_paused` of `C_TCP`): a slow peer slows the other one through TCP.
+    - The output connection was shared by the clients that came one after
+      the other: a client got what the backend still had for the previous
+      one, and its session. Now it is started when a client connects,
+      stopped when it leaves, answers only to the client it was started for,
+      and its close drops that client.
+    - A `tcps://` output was refused at each attempt (*"TLS client
+      refused"*, one ERROR a second): the new `crypto` attribute (verifying
+      against the system CA by default) goes to it, and its attempts back
+      off up to 30 s.
+    - No trace is on by default any more (the `C_TCP` `connections` and
+      `C_TCP_S` `listen/accepted/not-accepted` traces were, with an INFO
+      *"Side open"* / *"Side closed"* per connection): those are at the new
+      trace level `connections` of `C_SGATEWAY`.
+    - A play while the output still waited for its write in flight left it
+      dead; it starts at its `EV_STOPPED` now.
+    - In 7.30.18 (the release where sgateway ran again; the shared output
+      and the default traces come from its original design).
+      `tests/c/sgateway`.
+- `C_PEPON` (module test) echoes a copy: it echoed the read buffer of its
+  `C_TCP` itself. Since the v7 port.
+
+### TCP and TLS
+
+- **`C_TCP`: `rx_paused`, the host's flow control** (new attribute,
+  writable, default `false`). `true`: no more reads of data are started
+  (the read in flight still ends and publishes its data; the reads of a TLS
+  handshake go on); `false`: the held read starts again. For a relay that
+  must not read one side faster than the other writes.
+- **BREAKING (log watchers): `C_TCP` says the TLS handshake deadlines that
+  no warning said when their window closes.** The warning *"TLS handshake
+  not ended in time"* is one per 10 s for the yuno; in 7.30.18 the
+  deadlines after the last one were said by nobody when no other came, and
+  when one came, even hours later, its `suppressed` carried them. Now the
+  next warning carries the count only when it comes within 10 s of the end
+  of the window; otherwise the count goes in a new warning, *"TLS handshakes
+  not ended in time, connections dropped, not said in their window"*
+  (`suppressed`), written at the next deadline or at the stop of any
+  `C_TCP`, the end of the yuno included. In 7.30.18. `tests/c/c_tcp`
+  `test11`.
+- **BREAKING (operators): ytls with mbedTLS checks a server's key against
+  its certificate, and a server without `ssl_certificate` gets no TLS
+  context**, as with OpenSSL. At the start `C_TCP_S` does not listen (ERROR
+  *"Key does not match cert"* or *"mbedtls_x509_crt_parse_file() FAILED"*,
+  then what its `exitOnError` says); at `reload-certs`, or when a new
+  certificate is copied before its key, the reload answers -1 and the server
+  keeps listening with the previous pair. Both cases gave a context: the
+  server listened with `tls_ready` true and every handshake failed, and the
+  reload said *"TLS certificates reloaded"* and dropped the good context.
+  Since the mbedTLS backend was written (the reload since 7.3.0). The pair is
+  compared by its public keys: `mbedtls_pk_check_pair()` of mbedTLS 4.2
+  refuses every RSA key read from PKCS#8, a good pair included.
+- **BREAKING (log watchers): ytls writes *"TLS handshake rejected"* once per
+  10 s for the process**, on both backends, with `suppressed` (the ones not
+  written since the last one); each failed handshake wrote one, so a peer
+  wrote the log at its own rate. The callback and `last_error` still come
+  for every handshake. Since 7.5.3.
+- **BREAKING (log watchers): `C_GSS_UDP_S` says *"UDP server started
+  again"* only when its server listens**; a restart whose listen failed said
+  it anyway. In 7.30.18.
+- **Correction of 7.30.18** (*"`C_TCP`: the rest of a write of a dropped
+  CLIENT ..."*): the rest reaches the socket of its connection, not another
+  file or socket, but it does not always reach the peer: every socket of
+  `C_TCP` has `SO_LINGER {1, 0}`, so its close resets the connection, and
+  what a slow peer has not read yet is discarded (8 MB and a drop against a
+  slow reader: some 6 MB and a RST), while `txBytes` counts it all. A design
+  decision, kept; documented in `C_TCP` (*"The close resets the
+  connection"*).
+
+### Stores and auth
+
+- **timeranger2: a master makes an empty `__timeranger2__.json` again**,
+  with a WARNING (*"__timeranger2__.json is empty (its first write did not
+  end): made again"*). A full disk (or a crash) at the first open left the
+  file at 0 bytes, and every later open failed with *"bad json"*, also when
+  the disk had space again: a `C_QIOGATE` queue on that store never
+  recovered. A replica still refuses the empty file. Since the first
+  timeranger2.
+- **`remove-jwk kid=*`** answers -1 (*"... it was never loaded, nothing to
+  remove"*) instead of 0 "deleted" with three ERRORs; **`remove-jwk` of a
+  kid with two keys** (a rotation) removes both, and its data is their list.
+  Up to 7.30.18 the second key went on validating tokens until a restart.
+
+### Agent
+
+- **A process of another user is not taken for a yuno.**
+  `find_living_yuno_pids()` decided by the command line only (argv[0] and
+  the bin dir): any local user could start a look-alike, and `run-yuno`
+  answered *"alive but not connected: not launched again"* for ever. A
+  process whose `/proc/<pid>` is not owned by the agent's user is skipped
+  now. Since 7.25.21.
+- **BREAKING (callers that parse the answer): `kill-yuno` says a process it
+  could not signal.** A yuno alive but not connected whose `kill()` failed
+  (EPERM) was answered "signalled". Its pid is not listed now, and the
+  answer says *"; N process(es) alive but not connected could not be
+  signalled (see the log)"*, or result -1 when nothing else was signalled.
+  Since 7.25.21.
+- **`trace-on-yuno` / `trace-off-yuno` work again, and do not leak.** They
+  sent `set-gobj-trace` with no gobj, and every yuno answered *"gobj not
+  found: ''"* (broken since v6). They name the yuno's root
+  (`gobj_name=__root__`, every user level) now. The answer of
+  `trace-off-yuno` went to the requester as a second answer without its
+  route (ERRORs *"ievent_gate_stack NOT FOUND"*, and a client's next
+  question read it); both answer to the agent now, which logs a WARNING
+  *"a command of the agent to a yuno failed"* when a yuno refuses
+  (**BREAKING** for a log watcher). Each call left ~70 blocks in the agent.
+- **`--stop` (ydaemon) does not take another user's look-alike**: its
+  `kill()` failed with EPERM and `--stop` exited 1. It is skipped now,
+  unless the stop runs as root. Since 7.26.0.
+
+### Control center
+
+- **A `max_run` stop answered *"Yuno not found"* is tried again.** The
+  agent gives that answer also for a yuno that lives and is not connected
+  to it yet: after a restart of the agent its yunos come back seconds
+  later, and the stops that waited for that agent are tried when it
+  connects. In 7.30.18 (new in that release) such a step was done, and the
+  `max_run` stop of a scenario was lost at each deploy of the agent. It is
+  tried again in a minute; the 10 tries in a row still end it.
+  **BREAKING** for a log watcher: such a stop says *"the stop of a
+  scenario's max_run did nothing, tried again in a minute"* again.
+- **BREAKING (consoles): a `max_run` stop given up is shown, and a save
+  tries it again.** After its 10 tries `scenarios` answers
+  `stop_given_up: true` (no `stop_at`), the scenario counts as running
+  (saving or deleting it needs `run-scenarios`: a stop that did some steps
+  only made it look stopped), and `save-scenario` tries the stop again,
+  counting only the tries after the save. In 7.30.18 a stop given up was
+  shown nowhere.
+
+### Tests
+
+- `test_tcps_test14_mbedtls` compiles again with both TLS backends (its
+  define has a space and was not quoted). In 7.30.18.
+
 ## v7.30.18 (2026-11-08)
 
 A security and resilience release, deployed on every node. A yuno no longer

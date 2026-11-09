@@ -55,7 +55,7 @@ backends are built) is the deadline of the TLS handshake,
 | a wss client | connects to the first server, whose channels are free again | open its session, and keep it past the deadline |
 | a wss client (`timeout_between_connections` 300) | connects to a plain TCP server that accepts and says nothing | drop the connection between 0.9 s and 5 s, and connect again: the end |
 
-The three deadlines come within 10 s, so they write ONE warning (*"TLS handshake not ended in time, connection dropped"*, `"suppressed": 0`): since the fixes after 7.30.17 the warning is one per 10 s for the whole yuno (`c_tcp`'s `test11` counts the next window).
+The three deadlines come within 10 s, so they write ONE warning (*"TLS handshake not ended in time, connection dropped"*, `"suppressed": 0`): since the fixes after 7.30.17 the warning is one per 10 s for the whole yuno (`c_tcp`'s `test11` counts the next window). The two deadlines that warning did not write are said when the yuno ends, in a warning of their own (*"TLS handshakes not ended in time, connections dropped, not said in their window"*, `"suppressed": 2`).
 
 Up to 7.30.16 `C_TCP` armed nothing while its handshake ran, and
 `EV_CONNECTED` (which starts `C_WEBSOCKET`'s `timeout_handshake`) comes only

@@ -1069,21 +1069,26 @@ happens exclusively via events carrying JSON payloads (`json_t *kw`).
   find why the pointer is NULL. A semantic guard
   (`if(!gobj_is_playing(gobj))`) is fine; a pointer-existence test papering
   over the cause is not.
-- **A yuno never dies because a secondary service fails.** The process is
-  the primary role (the agent's: managing its realms and yunos); a listener,
-  a client link, a TLS context, a secondary store are services of it. When
-  one fails, THAT service degrades -- says it ONCE on the transition (an
-  ERROR, then an INFO when it recovers), exposes the state (a stat/attr such
-  as `listening`, `tls_ready`), and tries again on its own timer with a
-  backoff (or at an explicit command) -- and the process goes on. A yuno
-  that exits can only be brought back over SSH, and a sealed node has none.
-  So no `LOG_OPT_EXIT_ZERO` / `exit()` / `abort()` for a failure of a
-  secondary service: not "exit 0 so the watcher does not relaunch", not
-  "exit -1 so it does". Exits are for the yuno's own primary contract (no
-  event loop, a broken internal invariant, its own store corrupt, an
-  operator's stop). Canonical: `ytls_init()` answers NULL, and `C_TCP_S`
-  does not listen without a TLS context and opens the port when the
-  certificate appears (`tests/c/c_tcps/test14`).
+- **The AGENT never dies because a secondary service fails; every other
+  yuno decides.** For the agent a listener, a TLS context, a login-history
+  store, a link to the control center are services on top of its role
+  (managing its realms and yunos), and a dead agent is reachable only over
+  SSH -- a sealed node has none. For any other yuno it is case by case: a
+  yuno whose failing service IS its role must die (a store of raw tracks on
+  a full disk, a server of GUIs without its certificate, a gate without its
+  queue). So the LOW layers must be ABLE to degrade -- never exit/abort by
+  themselves (`ytls_init()` answers NULL), say it ONCE on the transition (an
+  ERROR, then an INFO when it recovers), expose the state (`listening`,
+  `tls_ready`, `queue_ready`), try again on a timer with backoff -- and
+  whether a failure ends the process is the YUNO's choice, an attribute of
+  its config: `exitOnError` of `C_TCP_S` (-1), `C_UDP_S`/`C_GSS_UDP_S`
+  (true, exit 0) and `C_QIOGATE` (-1), `on_critical_error` of `C_AUTHZ` (2)
+  and `C_TRANGER` (2). The defaults exit; the agent's compiled config sets
+  them to degrade. Never blanket-convert every exit to "degrade" across all
+  yunos (7.30.18 did, 7.30.19 undid it): analyse the yuno's primary role.
+  Canonical: `C_TCP_S` with `exitOnError` 0 does not listen without a TLS
+  context and opens when the certificate appears (`tests/c/c_tcps/test14`);
+  the defaults are `tests/c/c_tcp_s_addr_in_use/test_exit_on_error`.
 - **Explicit lifecycle — Yuneta is not a JVM.** Prefer, in order: (1) static
   child gobjs whose create/start/stop/destroy pair with the parent's
   lifecycle; (2) self-destroy at a clear end-of-work point
