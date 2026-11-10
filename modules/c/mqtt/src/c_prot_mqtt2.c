@@ -245,7 +245,7 @@ SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR,       "1000",   "The maxim
 
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
+SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads. A client refuses a larger packet of its broker too, before its bytes are kept, and announces the limit in its MQTT 5 CONNECT."),
 
 SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
 
@@ -3697,6 +3697,18 @@ PRIVATE int send__connect(
             );
         }
 
+        /*
+         *  MAXIMUM_PACKET_SIZE: the client refuses a larger packet of the
+         *  broker, so it tells it, unless the caller already did
+         */
+        if(priv->max_packet_size > 0 &&
+                !property_get_property(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE)) {
+            mqtt_property_add_int32(
+                gobj, properties, MQTT_PROP_MAXIMUM_PACKET_SIZE,
+                (uint32_t)priv->max_packet_size
+            );
+        }
+
         mqtt_property_add_int32(
             gobj,
             properties,
@@ -4886,6 +4898,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
+        JSON_DECREF(connect_properties)     // up to 7.30.26 it leaked
         return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
@@ -5675,12 +5688,19 @@ PRIVATE int handle__connack(
                 priv->timer_ping = start_sectimer(priv->keepalive);
             }
 
+            /*----------------*
+             *  Open queues
+             *----------------*/
             /*
-             *  Without queues QoS 0 only, said before EV_ON_OPEN: its
-             *  subscriber may publish at once. Up to 7.30.26 it was said
-             *  after, and a QoS 1 or 2 publish went to the NULL queue
+             *  Before EV_ON_OPEN: its subscriber may publish at once. Up to
+             *  7.30.26 the queues were opened (or, without them, max_qos
+             *  went to 0) after it, and a QoS 1 or 2 publish there went to
+             *  the NULL queue
              */
-            if(!priv->tranger_queues) {
+            if(priv->tranger_queues) {
+                open_queues(gobj);
+                message__release_to_inflight(gobj, mosq_md_out, TRUE);
+            } else {
                 gobj_write_integer_attr(gobj, "max_qos", 0);
             }
 
@@ -5690,14 +5710,6 @@ PRIVATE int handle__connack(
                 EV_ON_OPEN,
                 jn_data
             );
-
-            /*----------------*
-             *  Open queues
-             *----------------*/
-            if(priv->tranger_queues) {
-                open_queues(gobj);
-                message__release_to_inflight(gobj, mosq_md_out, TRUE);
-            }
 
             return MOSQ_ERR_SUCCESS;
 
@@ -8628,7 +8640,7 @@ PRIVATE int framehead_consume(
      *  before allocating the payload buffer (early DoS protection).
      *  v3.1.x clients have not been notified of the limit, but we still enforce it.
      */
-    if(priv->iamServer && priv->max_packet_size > 0) {
+    if(priv->max_packet_size > 0) {    // the client's too: up to 7.30.26 only the server's
         if((int)frame->frame_length > priv->max_packet_size) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -9763,6 +9775,14 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, gobj_event_t event, json_t
         );
         KW_DECREF(kw)
         return -1;
+    }
+    if(!priv->tranger_queues && qos > (int)priv->max_qos) {
+        /*
+         *  Without queues QoS 0 only: asked for more, a broker sends it, and
+         *  a QoS 2 PUBLISH disconnects the client. Up to 7.30.26 the QoS of
+         *  the user was asked
+         */
+        qos = (int)priv->max_qos;
     }
 
     if(json_size(properties)>0) {

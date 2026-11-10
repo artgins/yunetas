@@ -16,6 +16,36 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
 `C_PROT_MQTT` was removed after 7.30.26 (see [moving a gate from
 `C_PROT_MQTT`](#mqtt-moving-from-prot-mqtt)).
 
+**As a client** (`iamServer` false):
+
+- **Without queues** (`tranger_queues` NULL) the client takes QoS 0 only:
+  `max_qos` goes to 0 at the CONNACK, BEFORE `EV_ON_OPEN`, so a QoS 1 or 2
+  publish of its user is refused (`-1`, ERROR *"Mqtt publish: qos not
+  supported"*), in `EV_ON_OPEN` too; a SUBSCRIBE asks QoS 0 whatever the user
+  asks; and a QoS 2 PUBLISH of the broker disconnects it (DISCONNECT `0x93`,
+  a WARNING). Up to 7.30.26 a QoS 1 publish in `EV_ON_OPEN` went to the NULL
+  queue and crashed the yuno, a SUBSCRIBE asked the user's QoS, and the QoS 2
+  PUBLISH released its payload twice.
+- **With queues** they are opened BEFORE `EV_ON_OPEN` is published, so its
+  user may publish in any QoS there (up to 7.30.26 they opened after it: the
+  NULL queue, a crash).
+- **`max_packet_size`** bounds what the broker may send: a larger packet is
+  refused at its header (WARNING *"Incoming packet exceeds max_packet_size"*,
+  DISCONNECT `0x82`), and an MQTT 5 CONNECT announces it (Maximum Packet
+  Size). Up to 7.30.26 it was the server's only, and a client kept what its
+  broker announced, up to 256 MB.
+
+```json
+{
+    "gclass": "C_PROT_MQTT2",
+    "kw": {
+        "iamServer": false,
+        "mqtt_client_id": "dev-17",
+        "max_packet_size": 66560
+    }
+}
+```
+
 **Trace levels (`C_PROT_MQTT2`):** `traffic` (packets, no payload),
 `traffic-payload`, `show-decode` (decoded packet structure), `messages2`.
 
@@ -203,8 +233,11 @@ gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
   invalid"* names it. A subscription FILTER is not a topic to publish to: up
   to 7.30.26 a message to `cmnd/dev-17/#` was sent as it was [MQTT-3.3.2-2];
 - the connection is closing (its DISCONNECT sent, waiting `timeout_close`): a
-  WARNING *"Mqtt: the connection is closing, message not sent"*. Up to
-  7.30.26 it was an ERROR *"Event NOT DEFINED in state"*, with a stack.
+  WARNING *"Mqtt: the connection is closing, message not sent"*, once per
+  connection. Up to 7.30.26 it was an ERROR *"Event NOT DEFINED in state"*,
+  with a stack. The message is not queued either: a broker's QoS 1 or 2
+  message for a persistent session that arrives in that window is lost, as it
+  was before (then with the ERROR).
 
 **What the protocol does not do, and the gate must:** the same client id on a
 second connection is not taken over. A broker drops the first connection; a

@@ -32,6 +32,9 @@
  *            - a text of kw with a NUL inside refused, but for a DTP_JSON;
  *            - a parameter given in another case on the line reaches the
  *              handler under its declared name;
+ *            - a REQUIRED parameter can be given as key=value on the line,
+ *              as any other (up to 7.30.26 "required parameter not found",
+ *              unless positional or in kw);
  *            - a DTP_JSON: anything; text that is not json is a string,
  *              unless it starts as json and breaks;
  *            - a null, or an empty text for a number, is no value: the
@@ -372,6 +375,31 @@ int main(int argc, char *argv[])
     }
     expect_refused(yuno, "required string given a list", "required",
         json_pack("{s:b, s:[]}", "rb", 1, "rs"), "parameter 'rs' must be a string, not an array", FALSE);
+
+    /*
+     *  Required parameters, given on the line as key=value: what a command
+     *  sent straight to a service (`ycommand -S <service> -c '<line>'`)
+     *  carries. Up to 7.30.26 "required parameter 'rb' not found".
+     */
+    expect_value(yuno, "required as key=value", "required rb=1 rs=x",
+        json_object(), "rs", json_string("x"));
+    expect_value(yuno, "required as key=value: its type", "required rb=yes rs=x",
+        json_object(), "rb", json_true());
+    expect_value(yuno, "required as key=value, by a peer", "required rs=x rb=on",
+        json_pack("{s:s}", "__username__", "someone"), "rs", json_string("x"));
+    expect_value(yuno, "required: positional, then key=value", "required 1 rs=x",
+        json_object(), "rs", json_string("x"));
+    expect_value(yuno, "required: one as key=value, one in kw", "required rs=x",
+        json_pack("{s:b}", "rb", 1), "rb", json_true());
+    {
+        char comment[512];
+        int result = run(yuno, "required rs=x", json_object(), comment, sizeof(comment));
+        check("required as key=value, one missing", "answers -1, is required",
+            result == -1 && strstr(comment, "parameter 'rb' is required") != NULL);
+        if(!strstr(comment, "parameter 'rb' is required")) {
+            printf("     comment: %s\n", comment);
+        }
+    }
 
     /*
      *  The EXACT type: a number to a boolean, a boolean to a number, a real

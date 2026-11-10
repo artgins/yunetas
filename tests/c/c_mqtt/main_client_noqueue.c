@@ -1,8 +1,8 @@
 /****************************************************************************
  *          MAIN_CLIENT_NOQUEUE.C
  *
- *          C_PROT_MQTT2 as a CLIENT with no queues, driven by hand on a
- *          fake transport. See c_client_noqueue.c.
+ *          C_PROT_MQTT2 as a CLIENT, without queues and with them, driven
+ *          by hand on a fake transport. See c_client_noqueue.c.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -17,7 +17,7 @@
  *                      Names
  ***************************************************************************/
 #define APP_NAME        "test_mqtt_" "client_noqueue"
-#define APP_DOC         "C_PROT_MQTT2 as a client with no queues, on a fake transport"
+#define APP_DOC         "C_PROT_MQTT2 as a client, without queues and with them"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -122,9 +122,10 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}]",
             "msg", "Mqtt publish: qos not supported",                               // 1.
-            "msg", "Mqtt: QoS 2 PUBLISH without queues, disconnecting"              // 4.
+            "msg", "Mqtt: QoS 2 PUBLISH without queues, disconnecting",             // 5.
+            "msg", "Incoming packet exceeds max_packet_size"                        // 7.
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

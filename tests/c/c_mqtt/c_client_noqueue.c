@@ -1,24 +1,39 @@
 /****************************************************************************
  *          C_CLIENT_NOQUEUE.C
  *
- *          Driver of the test of C_PROT_MQTT2 as a CLIENT with no queues
- *          (tranger_queues NULL: QoS 0 only, as its attribute says). The
- *          protocol gobj is a child of this driver, its bottom is a
- *          C_FAKE_TRANSPORT, and this driver plays the broker, writing its
- *          MQTT 5 packets by hand.
+ *          Driver of the test of C_PROT_MQTT2 as a CLIENT, first with no
+ *          queues (tranger_queues NULL: QoS 0 only, as its attribute says),
+ *          then with them. The protocol gobj is a child of this driver, its
+ *          bottom is a C_FAKE_TRANSPORT, and this driver plays the broker,
+ *          writing its MQTT 5 packets by hand. max_packet_size is 1000.
  *
- *              1. The client CONNECTs, the "broker" accepts, and the user
- *                 publishes a QoS 1 message as soon as it hears EV_ON_OPEN:
- *                 refused (-1, ERROR "qos not supported"). Up to 7.30.26
- *                 max_qos went to 0 only AFTER EV_ON_OPEN, and the message
- *                 was appended to the NULL queue: the yuno crashed.
+ *          Without queues:
+ *              1. The client CONNECTs, announcing Maximum Packet Size 1000
+ *                 (up to 7.30.26 a client did not use max_packet_size), the
+ *                 "broker" accepts, and the user publishes a QoS 1 message
+ *                 as soon as it hears EV_ON_OPEN: refused (-1, ERROR "qos
+ *                 not supported"). Up to 7.30.26 max_qos went to 0 only
+ *                 AFTER EV_ON_OPEN, and the message was appended to the NULL
+ *                 queue: the yuno crashed.
  *              2. A QoS 0 message of the user goes out.
  *              3. The "broker" sends a QoS 1 PUBLISH: delivered, PUBACK.
- *              4. The "broker" sends a QoS 2 PUBLISH: a client without
- *                 queues cannot keep it until its PUBREL, so it is
+ *              4. The user subscribes in QoS 2: the SUBSCRIBE asks QoS 0,
+ *                 so a broker sends nothing it cannot keep. Up to 7.30.26
+ *                 it asked QoS 2.
+ *              5. The "broker" sends a QoS 2 PUBLISH all the same: a client
+ *                 without queues cannot keep it until its PUBREL, so it is
  *                 disconnected (DISCONNECT 0x93) with a WARNING, and the
  *                 message is not delivered. Up to 7.30.26 its payload was
  *                 released twice (heap corruption), and nothing was said.
+ *          With queues (a C_TRANGER of the driver):
+ *              6. The user publishes a QoS 1 message as soon as it hears
+ *                 EV_ON_OPEN: it goes out. Up to 7.30.26 the queues opened
+ *                 after EV_ON_OPEN, and the message went to the NULL queue
+ *                 (SIGSEGV).
+ *              7. The "broker" announces a PUBLISH of 300000 bytes: refused
+ *                 at its header (WARNING, DISCONNECT 0x82), before a byte
+ *                 of it is kept. Up to 7.30.26 a client kept whatever its
+ *                 broker announced, up to 256 MB.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -28,6 +43,7 @@
 #include <c_prot_mqtt2.h>
 #include "c_fake_transport.h"
 #include "c_client_noqueue.h"
+#include "test_work_dir.h"
 
 /***************************************************************************
  *              Constants
@@ -60,6 +76,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;
+    hgobj gobj_tranger;
     hgobj prot;
     hgobj fake;
     int phase;
@@ -88,13 +105,26 @@ PRIVATE void mt_create(hgobj gobj)
     priv->rx = gbuffer_create(4*1024, 64*1024);
     priv->got = json_array();
 
+    char queues_dir[PATH_MAX];
+    build_path(queues_dir, sizeof(queues_dir), test_work_dir(), "qmsgs", NULL);
+    priv->gobj_tranger = gobj_create_service(
+        "tranger_queues",
+        C_TRANGER,
+        json_pack("{s:s, s:b}",
+            "path", queues_dir,
+            "master", 1
+        ),
+        gobj
+    );
+
     priv->prot = gobj_create(
         "mqtt_client",
         C_PROT_MQTT2,
-        json_pack("{s:b, s:s, s:i}",
+        json_pack("{s:b, s:s, s:i, s:i}",
             "iamServer", 0,
             "mqtt_client_id", CLIENT_ID,
-            "timeout_close", 2000
+            "timeout_close", 2000,
+            "max_packet_size", 1000
         ),
         gobj
     );
@@ -127,6 +157,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
+    gobj_start(priv->gobj_tranger);
     gobj_start(priv->prot);     // it starts its bottom
 
     return 0;
@@ -143,6 +174,9 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->timer);
     if(gobj_is_running(priv->prot)) {
         gobj_stop(priv->prot);  // it stops its bottom
+    }
+    if(gobj_is_running(priv->gobj_tranger)) {
+        gobj_stop(priv->gobj_tranger);
     }
 
     return 0;
@@ -277,8 +311,38 @@ PRIVATE void parse_rx(hgobj gobj)
         char line[256];
 
         switch(type) {
-            case 1:     // CONNECT
-                snprintf(line, sizeof(line), "CONNECT");
+            case 1:     // CONNECT, MQTT 5: its Maximum Packet Size (0x27), if any
+                {
+                    int l = snprintf(line, sizeof(line), "CONNECT");
+                    uint32_t i = 2 + 4 + 1 + 1 + 2;     // name, level, flags, keep alive
+                    uint32_t plen = (i < remaining)? v[i] : 0;   // < 128 here
+                    uint32_t end = i + 1 + plen;
+                    i++;
+                    while(i < end && i < remaining) {
+                        uint8_t id = v[i++];
+                        if(id == 0x27 && i + 4 <= end) {
+                            snprintf(line + l, sizeof(line) - l, " maxpkt=%u",
+                                (unsigned)((v[i] << 24) | (v[i+1] << 16) | (v[i+2] << 8) | v[i+3]));
+                            break;
+                        } else if(id == 0x11 || id == 0x27) {
+                            i += 4;
+                        } else if(id == 0x21 || id == 0x22) {
+                            i += 2;
+                        } else {
+                            break;      // not a property this test reads
+                        }
+                    }
+                }
+                break;
+            case 8:     // SUBSCRIBE, MQTT 5, one filter
+                {
+                    uint32_t i = 2;
+                    i += 1 + v[i];      // properties
+                    int tlen = (v[i] << 8) | v[i+1];
+                    snprintf(line, sizeof(line), "SUBSCRIBE %.*s q%d",
+                        tlen, (const char *)v + i + 2, v[i + 2 + tlen] & 0x03
+                    );
+                }
                 break;
             case 3:     // PUBLISH
                 {
@@ -293,6 +357,9 @@ PRIVATE void parse_rx(hgobj gobj)
                 break;
             case 4:     // PUBACK
                 snprintf(line, sizeof(line), "PUBACK %d", mid);
+                break;
+            case 6:     // PUBREL
+                snprintf(line, sizeof(line), "PUBREL %d", mid);
                 break;
             case 5:     // PUBREC
                 snprintf(line, sizeof(line), "PUBREC %d", mid);
@@ -369,7 +436,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 };
                 broker_sends(gobj, connack, sizeof(connack));
                 expect(gobj, "1. CONNECT, and a QoS 1 message at EV_ON_OPEN", (const char *[]){
-                    "CONNECT",
+                    "CONNECT maxpkt=1000",
                     "OPEN",
                     "USER PUBLISH q1 -1",
                     NULL
@@ -389,10 +456,62 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     NULL
                 });
 
+                gobj_send_event(
+                    priv->prot,
+                    EV_MQTT_SUBSCRIBE,
+                    json_pack("{s:[s], s:i}", "subs", "t/s", "qos", 2),
+                    gobj
+                );
+                expect(gobj, "4. a SUBSCRIBE in QoS 2", (const char *[]){
+                    "SUBSCRIBE t/s q0",
+                    NULL
+                });
+
                 broker_publish(gobj, 2, 9, "t/b", "two");
                 gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
-                expect(gobj, "4. a QoS 2 PUBLISH of the broker", (const char *[]){
+                expect(gobj, "5. a QoS 2 PUBLISH of the broker", (const char *[]){
                     "DISCONNECT 147",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 2:
+            {
+                gobj_write_pointer_attr(
+                    priv->prot,
+                    "tranger_queues",
+                    gobj_read_pointer_attr(priv->gobj_tranger, "tranger")
+                );
+                gobj_write_integer_attr(priv->prot, "max_qos", 2);  // the queues allow it again
+
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                parse_rx(gobj);
+                static const uint8_t connack[] = {
+                    0x20, 0x03,     // CONNACK
+                    0x00,           // no session present
+                    0x00,           // Success
+                    0x00            // properties length
+                };
+                broker_sends(gobj, connack, sizeof(connack));
+                expect(gobj, "6. with queues, a QoS 1 message at EV_ON_OPEN", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    "PUBLISH t/c q1 early",
+                    "USER PUBLISH q1 0",
+                    NULL
+                });
+
+                static const uint8_t big_header[] = {
+                    0x30,               // PUBLISH QoS 0
+                    0xE0, 0xA7, 0x12    // remaining length 300000
+                };
+                broker_sends(gobj, big_header, sizeof(big_header));
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "7. a PUBLISH past max_packet_size", (const char *[]){
+                    "DISCONNECT 130",
                     "CLOSE",
                     NULL
                 });

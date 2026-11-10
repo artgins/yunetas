@@ -1284,8 +1284,15 @@ PRIVATE json_t *build_cmd_kw(
      *  Check the required parameters of pure command.
      */
     /*
-     *  Firstly, get required parameters
+     *  Firstly, get required parameters: the leading words of the line, or
+     *  key=value as any other parameter -- from the first word that is
+     *  the key of a parameter of the command on, they are all key=value,
+     *  as command_mask_secret_line() reads them. Up to 7.30.26 a required
+     *  parameter given as key=value was "not found": `command-device
+     *  device_id=x` failed sent straight to the service, and worked through
+     *  the agent, which gives the parameters in kw.
      */
+    BOOL key_value_from_here = FALSE;
     const sdata_desc_t *ip = input_parameters;
     while(ip->name) {
         if(ip->flag & SDF_NOTACCESS) {
@@ -1296,7 +1303,49 @@ PRIVATE json_t *build_cmd_kw(
             break;
         }
 
-        char *param = get_parameter(pxxx, &pxxx);
+        char *param = NULL;
+        if(!key_value_from_here) {
+            char *start = pxxx;
+            while(start && (*start == ' ' || *start == '\t')) {
+                start++;
+            }
+            BOOL quoted = (start && (*start == '\'' || *start == '"'))? TRUE : FALSE;
+            param = get_parameter(pxxx, &pxxx);
+            char *eq = (param && !quoted)? strchr(param, '=') : NULL;
+            if(eq) {
+                *eq = 0;
+                BOOL is_key = find_ip_parameter(input_parameters, param)? TRUE : FALSE;
+                *eq = '=';
+                if(is_key) {
+                    if(pxxx) {
+                        *(pxxx-1) = ' ';    // put back the blank get_parameter() cut
+                    }
+                    pxxx = start;           // the key=value loop below reads it
+                    param = NULL;
+                    key_value_from_here = TRUE;
+                }
+            }
+        }
+        if(!param && key_value_from_here) {
+            /*
+             *  From kw if it is there; else the line's key=value, checked
+             *  after them
+             */
+            const char *refused = NULL;
+            json_t *jn_param = kw2parameter(  // a key, as written below
+                ip->type, json_object_get(kw, ip->name), TRUE, &refused
+            );
+            if(refused) {
+                *result = -1;
+                JSON_DECREF(kw_cmd);
+                return refuse_parameter(gobj, peer, command, ip->name, ip->type, refused);
+            }
+            if(jn_param) {
+                json_object_set_new(kw_cmd, ip->name, jn_param);
+            }
+            ip++;
+            continue;
+        }
         if(!param) {
             /*
              *  Required: si no está en pxxx buscalo en kw
@@ -1554,6 +1603,30 @@ PRIVATE json_t *build_cmd_kw(
         return jn_error;
     }
     JSON_DECREF(jn_refused);
+
+    /*
+     *  The required parameters the line gave as key=value: one missing
+     */
+    if(key_value_from_here) {
+        for(const sdata_desc_t *ipr = input_parameters; ipr->name; ipr++) {
+            if(ipr->flag & SDF_NOTACCESS) {
+                continue;
+            }
+            if(!(ipr->flag & SDF_REQUIRED)) {
+                break;
+            }
+            if(!json_object_get(kw_cmd, ipr->name)) {
+                *result = -1;
+                JSON_DECREF(kw_cmd);
+                return json_sprintf(
+                    "%s: command '%s', parameter '%s' is required",
+                    gobj_short_name(gobj),
+                    command,
+                    ipr->name
+                );
+            }
+        }
+    }
 
     /*
      *  The keys of kw that are not parameters reach the handler too;

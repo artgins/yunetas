@@ -53,6 +53,10 @@
  *                  0x85 and is not dumped as a malformed packet (main scans
  *                  the log); up to 7.30.26 it was, and with max_qos 1 it
  *                  also logged the ERROR "Mqtt proplist NULL".
+ *          Fourth connection:
+ *              13. A CONNECT of MQTT 5 with properties and a will of QoS 2,
+ *                  past max_qos: CONNACK 0x9B. Up to 7.30.26 its properties
+ *                  leaked (the memory check at the end).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -739,6 +743,38 @@ PRIVATE void run_connection_b(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The fourth connection: a CONNECT with properties and a will of QoS 2
+ ***************************************************************************/
+PRIVATE void run_connection_d(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint8_t bf[128];
+    size_t n;
+    static const uint8_t head5[] = {
+        0x00, 0x04, 'M', 'Q', 'T', 'T', 0x05,   // protocol name, level 5
+        0x16,                                   // flags: will QoS 2, will, clean start
+        0x00, 0x3C,                             // keep alive 60 s
+        0x05, 0x11, 0x00, 0x00, 0x00, 0x0A      // properties: session expiry 10 s
+    };
+
+    gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+
+    size_t remaining = sizeof(head5) + (2 + 2) + 1 + (2 + 3) + (2 + 1);
+    n = put_fixed_header(bf, 0x10, remaining);
+    memcpy(bf + n, head5, sizeof(head5));
+    n += sizeof(head5);
+    n += put_string(bf + n, "w5");
+    bf[n++] = 0x00;     // will properties length
+    n += put_string(bf + n, "w/t");
+    n += put_string(bf + n, "x");
+    peer_sends(gobj, bf, n);
+    expect(gobj, "13. a will of QoS 2 past max_qos", (const char *[]){
+        "CONNACK 155",
+        NULL
+    });
+}
+
+/***************************************************************************
  *  The third connection
  ***************************************************************************/
 PRIVATE void run_connection_c(hgobj gobj)
@@ -782,6 +818,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 3:
             run_connection_c(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 4:
+            run_connection_d(gobj);
             set_timeout(priv->timer, 100);
             break;
 

@@ -146,14 +146,22 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
 12. A CONNECT with client id `.`: CONNACK `0x85`, and `main` finds no dump
     *"MQTT malformed packet: CMD_CONNECT"* in the log (there was one, and an
     ERROR *"Mqtt proplist NULL"*).
+13. An MQTT 5 CONNECT with properties and a will of QoS 2, past `max_qos`:
+    CONNACK `0x9B`, and no leak (its properties were not freed).
 
 `test_mqtt_client_noqueue` (`main_client_noqueue.c` + `c_client_noqueue.c`)
-drives `C_PROT_MQTT2` as a CLIENT without queues on a `C_FAKE_TRANSPORT`; the
-driver plays the broker (MQTT 5). Its user publishes in QoS 1 inside
-`EV_ON_OPEN`: `-1` and an ERROR *"qos not supported"* (it went to the NULL
-queue: SIGSEGV). A QoS 0 message goes out; a QoS 1 PUBLISH of the broker is
-delivered and acked; a QoS 2 one disconnects the client (DISCONNECT `0x93`,
-a WARNING) and is not delivered (its payload was released twice).
+drives `C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with
+`max_packet_size` 1000; the driver plays the broker (MQTT 5). Without
+queues: its CONNECT announces Maximum Packet Size 1000 (not sent); its user
+publishes in QoS 1 inside `EV_ON_OPEN`: `-1` and an ERROR *"qos not
+supported"* (it went to the NULL queue: SIGSEGV). A QoS 0 message goes out; a
+QoS 1 PUBLISH of the broker is delivered and acked; a SUBSCRIBE asked in QoS 2
+goes out in QoS 0 (QoS 2); a QoS 2 PUBLISH disconnects the client (DISCONNECT
+`0x93`, a WARNING) and is not delivered (its payload was released twice).
+Then with queues (a `C_TRANGER` of the driver): the user's QoS 1 publish
+inside `EV_ON_OPEN` goes out (the queues opened after it: SIGSEGV), and a
+PUBLISH announced at 300000 bytes is refused at its header, DISCONNECT `0x82`
+(a client kept what it was announced).
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
 after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.

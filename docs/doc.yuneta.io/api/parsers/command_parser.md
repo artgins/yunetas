@@ -141,6 +141,34 @@ line has the last word: a value of `kw` that is refused does not count when the
 same parameter comes as `key=value` -- and it does not reach the handler under
 its name either.
 
+**A required parameter is given without its key or as `key=value`.** The
+leading `SDF_REQUIRED` parameters can be written as words, in their order; from
+the first word that is `<a parameter of the command>=value` on, they are all
+`key=value`, required ones included, in any order. A required parameter the
+line does not give is taken from `kw`; else the answer is *"parameter 'x' is
+required"*. A positional value with a `=` in it whose text before the `=` is
+not a parameter of the command is still refused as before (*"required
+parameter 'x' not found"*). Up to 7.30.26 a required parameter given as
+`key=value` was refused: a command sent straight to the service of a yuno
+(`ycommand -S <service> -c '<line>'`, where `C_IEVENT_SRV` hands the whole line
+to `gobj_command()`) failed, while the same command through the agent
+(`command-yuno`, which gives the parameters in `kw`) worked.
+
+```C
+PRIVATE sdata_desc_t pm_command_device[] = {
+SDATAPM (DTP_STRING,    "device_id",    SDF_REQUIRED,   0,      "Device"),
+SDATAPM (DTP_STRING,    "cmd",          SDF_REQUIRED,   0,      "Command to send"),
+SDATA_END()
+};
+```
+
+```bash
+ycommand -S <service> -c 'command-device dev17 POWER'                   # positional
+ycommand -S <service> -c 'command-device device_id=dev17 cmd=POWER'     # key=value (after 7.30.26)
+ycommand -S <service> -c 'command-device dev17 cmd=POWER'               # both
+ycommand -S <service> -c 'command-device cmd=POWER'                     # "parameter 'device_id' is required"
+```
+
 **A parameter reaches the handler under its DECLARED name.** The line finds a
 parameter in any case (`N=5` is the parameter `n`), and the value is stored as
 `n`. Up to 7.26.9 it was stored as typed, `"N": 5`: the handler read `n` and

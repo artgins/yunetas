@@ -28,6 +28,13 @@ handler gets the line's value under the parameter's DECLARED name (`N=5` is
 `n`; up to 7.26.9 it arrived as `"N"`, and the handler took its default). A
 text of kw with a NUL inside is refused, but for a `DTP_JSON`.
 
+A `SDF_REQUIRED` parameter can be given as `key=value` on the line, as any
+other: `required rb=1 rs=x`, `required rs=x rb=on` (by a peer too),
+`required 1 rs=x`, `required rs=x` with `rb` in kw; `required rs=x` alone
+answers *"parameter 'rb' is required"*. It is what a command sent straight to
+a service carries (`ycommand -S`). Up to 7.30.26 each was refused with
+*"required parameter 'rb' not found"*.
+
 The cases, one each: a string given a number (by C, an ERROR; by a peer, a
 WARNING); a dict given a list (in kw and on the line) and given its json as
 text; a list given an object; an integer given an object, its text, other
