@@ -354,9 +354,9 @@ application's gate (one application).
   a few anonymous subscribers take the memory of a gate is gone. What is per connection
   went to `C_PROT_MQTT2` (`max_subscriptions_per_client`, `max_topic_filter_length`,
   `max_inflight_messages` for QoS 2). `C_MQTT_BROKER` keeps sessions only for the
-  clients declared in its treedb (`enable_new_clients` `0`), authenticated. Left: deploy
-  the migrated gates (one application is on its staging node), then remove `C_PROT_MQTT`
-  and its tests (`tests/c/c_mqtt` `legacy_prot`, `legacy_sessions`; `c_legacy_prot.c`,
+  clients declared in its treedb (`enable_new_clients` `0`), authenticated. The migrated
+  gates run on every node since 7.30.26 (2026-11-10). Left: remove `C_PROT_MQTT` and its
+  tests (`tests/c/c_mqtt` `legacy_prot`, `legacy_sessions`; `c_legacy_prot.c`,
   `main_legacy_prot.c`, `c_legacy_sessions.c`, `main_legacy_sessions.c`).
 
 - **A read pause in `C_TCP`.** `C_PROT_HTTP_SR` cannot stop reading a peer, so it holds
