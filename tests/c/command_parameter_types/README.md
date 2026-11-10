@@ -41,8 +41,15 @@ trace and the mask of the line, when the command has a secret parameter,
 required or optional, or is a `SDF_WILD_CMD` command: `login user=bob <pin>`
 (a required `SDF_SECRET` pin), `opt user=bob <password>` and `opt bob
 <password>` (an optional one), `wild x=login bob <password>` (all were
-echoed). A command without secrets still echoes it: `typed s=a stray-word`
-answers *"extra parameters: 'stray-word'"*. Blanks at
+echoed), and `named user=bob <password>` (a secret known by its NAME only,
+no `SDF_SECRET`). A command without secrets still echoes it: `typed s=a
+stray-word` answers *"extra parameters: 'stray-word'"*. An unknown option of a
+command with a secret parameter is not named either (answer, traces, mask of
+the line): a word left over that ends in `=` reads as a key, so `opt user=bob
+<base64>==`, `opt user=bob <word>=` and `opt user=bob <word>='x` answered
+*"has no option '<it>'"* (or *"parameter '<it>': value with no closing
+quote"*); they answer `'<...>'` now. `typed s=a zzz=1` still answers *"has no
+option 'zzz'"*. Blanks at
 the end of the line (`typed s=a  `, `required 1 x \t`) are no parameter (two
 or more were *"extra parameters: ' '"*).
 

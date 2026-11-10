@@ -886,7 +886,9 @@ PRIVATE BOOL secret_is_set(json_t *value)
  *  SDF_WILD_CMD command a value with a '=' is a command line going on (the
  *  `command` of command-yuno): it is shown key='...', masked by names
  *  (mask_secrets_inline()).
- *  What cannot be parsed as key=value is not shown: " <...>".
+ *  What cannot be parsed as key=value is not shown: " <...>". Nor a key
+ *  that is no parameter of a command (not SDF_WILD_CMD) that has a secret
+ *  parameter: " <...>" (has_secret_parameter()).
  ***************************************************************************/
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
@@ -898,6 +900,7 @@ PRIVATE void append_masked_parameters(
         return;
     }
     BOOL wild = (cnf_cmd && (cnf_cmd->flag & SDF_WILD_CMD))? TRUE : FALSE;
+    BOOL hide_unknown = (!wild && has_secret_parameter(cnf_cmd))? TRUE : FALSE;
     char *str = gbmem_strdup(line);
     if(!str) {
         // Error already logged
@@ -923,6 +926,12 @@ PRIVATE void append_masked_parameters(
             gbuffer_append_string(gbuf, " <...>");
         } else if(is_secret_parameter(cnf_cmd, key)) {
             gbuffer_printf(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
+        } else if(hide_unknown && !find_ip_parameter(cnf_cmd->schema, key)) {
+            /*
+             *  Not an option of a command that has a secret: a word left
+             *  over that ends in '=' (a password in base64) reads as a key
+             */
+            gbuffer_append_string(gbuf, " <...>");
         } else if(strlen(value) > MAX_SHOWN_VALUE) {
             gbuffer_printf(gbuf, " %s=<%zu bytes>", key, strlen(value));
         } else if(wild && strchr(value, '=')) {
@@ -1504,12 +1513,15 @@ PRIVATE json_t *build_cmd_kw(
             *result = -1;
             JSON_DECREF(kw_cmd);
             JSON_DECREF(jn_refused);
-            char *key_masked = strpbrk(key, " \t")? NULL : mask_secrets_inline(key);
+            BOOL hidden = (strpbrk(key, " \t") ||
+                (!find_ip_parameter(input_parameters, key) &&
+                    (wild_command || has_secret_parameter(cnf_cmd))))? TRUE : FALSE;
+            char *key_masked = hidden? NULL : mask_secrets_inline(key);
             json_t *jn_error = json_sprintf(
                 "%s: command '%s', parameter '%s': value with no closing quote",
                 gobj_short_name(gobj),
                 command,
-                strpbrk(key, " \t")? "<...>" : (key_masked? key_masked : key)
+                hidden? "<...>" : (key_masked? key_masked : key)
             );
             GBMEM_FREE(key_masked)
             return jn_error;
@@ -1555,16 +1567,24 @@ PRIVATE json_t *build_cmd_kw(
             if(wild_command) {
                 jn_param = json_string(value);
             } else {
-                // The key is the caller's: it can be a secret (a JWT written as a key)
+                /*
+                 *  The key is the caller's: it can be a secret (a JWT
+                 *  written as a key). And when the command has a secret
+                 *  parameter it is not named at all: a word left over
+                 *  that ends in '=' (a password in base64) is read as a
+                 *  key -- `opt user=bob aHVudGVyMg==` answered "has no
+                 *  option 'aHVudGVyMg'" up to 7.30.26
+                 */
                 *result = -1;
                 JSON_DECREF(kw_cmd);
                 JSON_DECREF(jn_refused);
-                char *key_masked = mask_secrets_inline(key);
+                BOOL hidden = has_secret_parameter(cnf_cmd);
+                char *key_masked = hidden? NULL : mask_secrets_inline(key);
                 json_t *jn_error = json_sprintf(
                     "%s: '%s' command has no option '%s'",
                     gobj_short_name(gobj),
                     command,
-                    key_masked? key_masked : key
+                    hidden? "<...>" : (key_masked? key_masked : key)
                 );
                 GBMEM_FREE(key_masked)
                 return jn_error;

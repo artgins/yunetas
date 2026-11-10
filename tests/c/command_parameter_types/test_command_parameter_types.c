@@ -44,12 +44,17 @@
  *              required parameter too), and the refused value does not
  *              reach the handler under the name;
  *            - extra text is not echoed when the command has a secret
- *              parameter, required or optional, or is a SDF_WILD_CMD
- *              command (it can be a secret given without its key), in
- *              the answer nor in the ev_kw trace: up to 7.30.26 `login
- *              user=bob <pin>`, `opt user=bob <password>` and `wild
- *              x=login bob <password>` answered it; a command without
- *              secrets still echoes it;
+ *              parameter (by SDF_SECRET or by its name only), required
+ *              or optional, or is a SDF_WILD_CMD command (it can be a
+ *              secret given without its key), in the answer nor in the
+ *              ev_kw trace: up to 7.30.26 `login user=bob <pin>`, `opt
+ *              user=bob <password>` and `wild x=login bob <password>`
+ *              answered it; a command without secrets still echoes it;
+ *            - an unknown option is not named (answer, traces, mask of the
+ *              line) when the command has a secret parameter: a word left
+ *              over that ends in '=' (base64) is read as a key, and
+ *              `opt user=bob <base64>` answered "has no option '<it>'"
+ *              up to 7.30.26; a command without secrets still names it;
  *            - blanks at the end of the line are no parameter (two or more
  *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
@@ -131,6 +136,13 @@ SDATAPM (DTP_STRING,    "password",     SDF_SECRET,                 0,          
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_named[] = {
+/*-PM----type-----------name------------flag------------------------default-----description---------- */
+SDATAPM (DTP_STRING,    "user",         SDF_REQUIRED,               0,          "The user"),
+SDATAPM (DTP_STRING,    "password",     0,                          0,          "A secret by its name only, no SDF_SECRET"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t pm_wild[] = {
 /*-PM----type-----------name------------flag------------------------default-----description---------- */
 SDATAPM (DTP_STRING,    "x",            0,                          0,          "Not a secret"),
@@ -146,6 +158,7 @@ SDATACM2(DTP_SCHEMA,    "required",     0,            a_required, pm_required,cm
 SDATACM2(DTP_SCHEMA,    "unlock",       0,            0,      pm_unlock,  cmd_probe,  "Unlock with a pin"),
 SDATACM2(DTP_SCHEMA,    "login",        0,            0,      pm_login,   cmd_probe,  "Log in with a user and a pin"),
 SDATACM2(DTP_SCHEMA,    "opt",          0,            0,      pm_opt,     cmd_probe,  "A user and an optional password"),
+SDATACM2(DTP_SCHEMA,    "named",        0,            0,      pm_named,   cmd_probe,  "A user and a password known by its name"),
 SDATACM2(DTP_SCHEMA,    "wild",         SDF_WILD_CMD, 0,      pm_wild,    cmd_probe,  "Free keys"),
 SDATA_END()
 };
@@ -486,6 +499,9 @@ int main(int argc, char *argv[])
             {"opt user=bob hunter2-opt",        "hunter2-opt"},
             {"opt bob hunter2-pos",             "hunter2-pos"},
             {"wild x=login bob hunter2-wild",   "hunter2-wild"},
+            // a secret known by its NAME only (no SDF_SECRET) hides the word too
+            {"named user=bob hunter2-named",    "hunter2-named"},
+            {"named bob hunter2-npos",          "hunter2-npos"},
         };
         gobj_set_global_trace("ev_kw", TRUE);
         for(size_t i=0; i<sizeof(hidden)/sizeof(hidden[0]); i++) {
@@ -517,6 +533,71 @@ int main(int argc, char *argv[])
         check("typed s=a stray-word", "a command without secrets echoes the word",
             result == -1 && strstr(comment, "extra parameters: 'stray-word'") != NULL);
         if(!strstr(comment, "stray-word")) {
+            printf("     comment: %s\n", comment);
+        }
+    }
+
+    /*
+     *  A word left over that ends in '=' (a password in base64 ends so) is
+     *  read as a key: an unknown option. When the command has ANY secret
+     *  parameter (by SDF_SECRET or by its name) the unknown option is not
+     *  named, in the answer, the traces nor the mask of the line. Up to
+     *  7.30.26 `opt user=bob aHVudGVyMg==` answered "has no option
+     *  'aHVudGVyMg'". A command without secrets still names it.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+        } unknown[] = {
+            {"opt user=bob b64sec-aHVudGVyMg==",    "b64sec-aHVudGVyMg"},
+            {"opt user=bob eqsec-hunter2=",         "eqsec-hunter2"},
+            {"named user=bob b64nam-aHVudGVyMg==",  "b64nam-aHVudGVyMg"},
+            {"opt user=bob quosec-hunter2='x",      "quosec-hunter2"},
+        };
+        gobj_set_global_trace("ev_kw", TRUE);
+        gobj_set_global_trace("commands", TRUE);
+        for(size_t i=0; i<sizeof(unknown)/sizeof(unknown[0]); i++) {
+            char comment[512];
+            g_watch = unknown[i].secret;
+            g_watch_hits = 0;
+            int result = run(yuno, unknown[i].command, 0, comment, sizeof(comment));
+            g_watch = 0;
+            check(unknown[i].command, "answers -1", result == -1);
+            check(unknown[i].command, "the option not named",
+                strstr(comment, unknown[i].secret) == NULL && strstr(comment, "'<...>'") != NULL);
+            if(strstr(comment, unknown[i].secret) || !strstr(comment, "'<...>'")) {
+                printf("     comment: %s\n", comment);
+            }
+            check(unknown[i].command, "the option in no log nor trace", g_watch_hits == 0);
+            char *masked = command_mask_secret_line(yuno, unknown[i].command);
+            check(unknown[i].command, "the mask of the line hides it",
+                masked && strstr(masked, unknown[i].secret) == NULL);
+            check(unknown[i].command, "the mask of the line keeps user=bob",
+                masked && strstr(masked, "user=bob") != NULL);
+            if(masked && (strstr(masked, unknown[i].secret) || !strstr(masked, "user=bob"))) {
+                printf("     masked: %s\n", masked);
+            }
+            GBMEM_FREE(masked)
+        }
+        gobj_set_global_trace("commands", FALSE);
+        gobj_set_global_trace("ev_kw", FALSE);
+
+        char comment[512];
+        int result = run(yuno, "typed s=a zzz=1", 0, comment, sizeof(comment));
+        check("typed s=a zzz=1", "a command without secrets names the option",
+            result == -1 && strstr(comment, "has no option 'zzz'") != NULL);
+        if(!strstr(comment, "has no option 'zzz'")) {
+            printf("     comment: %s\n", comment);
+        }
+        char *masked = command_mask_secret_line(yuno, "typed s=a zzz=1");
+        check("typed s=a zzz=1", "its mask shows the option",
+            masked && strstr(masked, "zzz=1") != NULL);
+        GBMEM_FREE(masked)
+        result = run(yuno, "typed s=a zzq='x", 0, comment, sizeof(comment));
+        check("typed s=a zzq='x", "a command without secrets names it",
+            result == -1 && strstr(comment, "parameter 'zzq': value with no closing quote") != NULL);
+        if(!strstr(comment, "'zzq'")) {
             printf("     comment: %s\n", comment);
         }
     }

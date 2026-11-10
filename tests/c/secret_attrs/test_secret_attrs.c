@@ -1223,6 +1223,23 @@ PRIVATE void check_log_dumps(hgobj gobj)
             "set-password-pos ******** note=x"
         );
         GBMEM_FREE(line)
+
+        /*
+         *  A key that is no option of a command with a secret is not shown:
+         *  a password in base64 left over reads as a key (`<it>=`). Up to
+         *  7.30.26 the line showed `aHVudGVyMg==`. A command without
+         *  secrets still shows it.
+         */
+        line = command_mask_secret_line(holder, "set-password password=x note=y aHVudGVyMg==");
+        check_str("an unknown key of a command with a secret is <...>", line,
+            "set-password password=******** note=y <...>"
+        );
+        GBMEM_FREE(line)
+        line = command_mask_secret_line(holder, "set-note-pos x zzz=1");
+        check_str("an unknown key of a command without secrets is shown", line,
+            "set-note-pos x zzz=1"
+        );
+        GBMEM_FREE(line)
         gbuffer_clear(gbuf_cmd);
         gbuffer_printf(gbuf_cmd, "set-note-pos %s", big);
         line = command_mask_secret_line(holder, gbuffer_cur_rd_pointer(gbuf_cmd));
@@ -2897,6 +2914,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_password_pos[] = {
 SDATAPM (DTP_STRING,    "password",     SDF_REQUIRED|SDF_SECRET, 0,     "The new password"),
+SDATAPM (DTP_STRING,    "note",         0,                      0,      "Not a secret: a key the trace shows"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_note_pos[] = {

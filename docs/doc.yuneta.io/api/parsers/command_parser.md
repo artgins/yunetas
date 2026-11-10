@@ -652,9 +652,13 @@ char *line = command_mask_secret_line(gobj, "set-email-user username=bob passwor
 gobj_trace_msg(gobj, "cmd: %s", line);  // "set-email-user username=bob password=********"
 GBMEM_FREE(line)
 
-line = command_mask_secret_line(gobj,   // "password" is SDF_REQUIRED|SDF_SECRET
+line = command_mask_secret_line(gobj,   // "password" is SDF_REQUIRED|SDF_SECRET, "note" a parameter
     "set-password-pos 'q=hunter2' note=visible"
 );                                      // "set-password-pos ******** note=visible"
+
+line = command_mask_secret_line(gobj,   // a key that is no parameter of a command with a secret
+    "set-password-pos 'q=hunter2' aHVudGVyMg=="
+);                                      // "set-password-pos ******** <...>"
 
 line = command_mask_secret_line(agent,  // a value of 46 MB of base64
     "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."
@@ -696,6 +700,26 @@ and a wild command were echoed), in the answer and in the trace. Else the
 extra text is echoed, its secrets masked, as `list-yunos foo` shows. Up to
 7.25.21 the positional one showed `'horse battery'`, and up to 7.26.9 the
 write-attr one did.
+
+**An unknown option of a command with a secret parameter is not named.** A
+word left over that ends in `=` is read as a `key=value`: a password in base64
+(`aHVudGVyMg==`) is the key `aHVudGVyMg` with the value `=`, and `hunter2=` is
+the key `hunter2`. When the command has a secret parameter (`SDF_SECRET`, or a
+secret's name), required or optional, a key that is no parameter of the command
+is shown as `<...>`: in the answer *"has no option"*, in the answer *"value
+with no closing quote"* (that one for a `SDF_WILD_CMD` command too), in the
+`commands` trace and in [`command_mask_secret_line()`](#command_mask_secret_line).
+A command without secrets still names it. The free keys of a `SDF_WILD_CMD`
+command are not options it refuses, and its trace still shows them.
+
+| Command and line | Answer | `command_mask_secret_line()` |
+|---|---|---|
+| `set-user-pwd` (`password` optional, `SDF_SECRET`): `set-user-pwd username=bob aHVudGVyMg==` | *"'set-user-pwd' command has no option '<...>'"* | `set-user-pwd username=bob <...>` |
+| `set-user-pwd`: `set-user-pwd username=bob hunter2='x` | *"command 'set-user-pwd', parameter '<...>': value with no closing quote"* | `set-user-pwd username=bob <...>` |
+| `list-yunos` (no secret): `list-yunos zzz=1` | *"'list-yunos' command has no option 'zzz'"* | `list-yunos zzz=1` |
+
+Up to 7.30.26 the first two answered `'aHVudGVyMg'` and `'hunter2'`, and the
+mask of the line showed `aHVudGVyMg==`.
 
 What the masking takes includes, since 7.27.0, a `name: value` of a secret's
 name and the credential after `Basic`, so these lines are refused without
