@@ -65,7 +65,7 @@ PRIVATE json_t *build_cmd_kw(
 );
 PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key);
 PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key);
-PRIVATE BOOL has_required_secret_parameter(const sdata_desc_t *cnf_cmd);
+PRIVATE BOOL has_secret_parameter(const sdata_desc_t *cnf_cmd);
 PRIVATE json_t *mask_secret_params(json_t *jn, const sdata_desc_t *cnf_cmd);
 PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, const char **refused);
 PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused);
@@ -368,15 +368,15 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
 }
 
 /***************************************************************************
- *  Has the command a REQUIRED secret parameter (SDF_SECRET, or a secret's
- *  name)? Only a required one can be given without its key: a word left
- *  over on the line can be it
+ *  Has the command a secret parameter (SDF_SECRET, or a secret's name),
+ *  required or optional? A word left over on the line can be it, given
+ *  without its key
  ***************************************************************************/
-PRIVATE BOOL has_required_secret_parameter(const sdata_desc_t *cnf_cmd)
+PRIVATE BOOL has_secret_parameter(const sdata_desc_t *cnf_cmd)
 {
     const sdata_desc_t *ip = cnf_cmd? cnf_cmd->schema : NULL;
     while(ip && ip->name) {
-        if((ip->flag & SDF_REQUIRED) && is_secret_parameter(cnf_cmd, ip->name)) {
+        if(is_secret_parameter(cnf_cmd, ip->name)) {
             return TRUE;
         }
         ip++;
@@ -1593,17 +1593,20 @@ PRIVATE json_t *build_cmd_kw(
          *  key=value or positional), and the `value` of a write-attr is no
          *  secret parameter: `write-attr attribute=password value=correct
          *  horse battery` answered 'horse battery'. Nor when the command
-         *  has a REQUIRED secret parameter: the extra text can be that
-         *  secret given without its key after a key=value (`login user=bob
-         *  <pin>`), which the mask of the line hides as <...>; up to
-         *  7.30.26 it was echoed.
+         *  has a secret parameter, required or optional, or is a
+         *  SDF_WILD_CMD command (its free keys go to a table not known
+         *  here): the extra text can be a secret given without its key
+         *  (`login user=bob <pin>`, a user and an optional `<password>`,
+         *  `command-yuno x=login bob <password>`); up to 7.30.26 it was
+         *  echoed.
          *  Else the extra text is echoed, its secrets masked.
          */
         *result = -1;
         JSON_DECREF(kw_cmd);
         JSON_DECREF(jn_refused);
         char *line_masked = secret_given? NULL : mask_secrets_inline(line);
-        BOOL line_has_secret = (secret_given || line_masked || has_required_secret_parameter(cnf_cmd))? TRUE : FALSE;
+        BOOL line_has_secret = (secret_given || line_masked || wild_command ||
+            has_secret_parameter(cnf_cmd))? TRUE : FALSE;
         GBMEM_FREE(line_masked)
         char *masked = line_has_secret? NULL : mask_secrets_inline(pxxx);
         json_t *jn_error = json_sprintf(

@@ -1235,11 +1235,18 @@ PRIVATE void check_log_dumps(hgobj gobj)
     }
 
     /*
-     *  An extra word that is not a secret is shown
+     *  An extra word is shown when the command has no secret parameter;
+     *  with one, even optional, it is not: it can be the secret given
+     *  without its key (up to 7.30.26 set-password echoed it)
      */
-    resp = gobj_command(holder, "set-password note=x stray-word", 0, holder);
-    check_true("an extra plain word is shown in the refusal",
+    resp = gobj_command(holder, "set-note-pos x stray-word", 0, holder);
+    check_true("an extra plain word of a command without secrets is shown",
         strstr(kw_get_str(0, resp, "comment", "", 0), "stray-word")? TRUE : FALSE
+    );
+    JSON_DECREF(resp)
+    resp = gobj_command(holder, "set-password note=x stray-word", 0, holder);
+    check_true("an extra word of a command with an optional secret is not shown",
+        strstr(kw_get_str(0, resp, "comment", "", 0), "stray-word")? FALSE : TRUE
     );
     JSON_DECREF(resp)
 

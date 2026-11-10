@@ -43,10 +43,13 @@
  *            - the line has the last word over a refused kw value (of a
  *              required parameter too), and the refused value does not
  *              reach the handler under the name;
- *            - extra text after key=value parameters is not echoed when
- *              the command has a required secret parameter (it can be the secret,
- *              given positionally): up to 7.30.26 `login user=bob <pin>`
- *              answered the pin;
+ *            - extra text is not echoed when the command has a secret
+ *              parameter, required or optional, or is a SDF_WILD_CMD
+ *              command (it can be a secret given without its key), in
+ *              the answer nor in the ev_kw trace: up to 7.30.26 `login
+ *              user=bob <pin>`, `opt user=bob <password>` and `wild
+ *              x=login bob <password>` answered it; a command without
+ *              secrets still echoes it;
  *            - blanks at the end of the line are no parameter (two or more
  *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
@@ -69,6 +72,8 @@ PRIVATE int global_result = 0;
 PRIVATE json_t *g_seen = 0;     /* a copy of the kw the handler got */
 PRIVATE int g_errors = 0;       /* logs of the case, by priority */
 PRIVATE int g_warnings = 0;
+PRIVATE const char *g_watch = 0; /* a text no log nor trace may carry */
+PRIVATE int g_watch_hits = 0;
 
 GOBJ_DEFINE_GCLASS(C_PARAMTYPESTEST);
 
@@ -119,6 +124,19 @@ SDATAPM (DTP_STRING,    "pin",          SDF_REQUIRED|SDF_SECRET,    0,          
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_opt[] = {
+/*-PM----type-----------name------------flag------------------------default-----description---------- */
+SDATAPM (DTP_STRING,    "user",         SDF_REQUIRED,               0,          "The user"),
+SDATAPM (DTP_STRING,    "password",     SDF_SECRET,                 0,          "An optional password"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_wild[] = {
+/*-PM----type-----------name------------flag------------------------default-----description---------- */
+SDATAPM (DTP_STRING,    "x",            0,                          0,          "Not a secret"),
+SDATA_END()
+};
+
 PRIVATE const char *a_required[] = {"must", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
@@ -127,6 +145,8 @@ SDATACM2(DTP_SCHEMA,    "typed",        0,            0,      pm_typed,   cmd_pr
 SDATACM2(DTP_SCHEMA,    "required",     0,            a_required, pm_required,cmd_probe,  "Required parameters"),
 SDATACM2(DTP_SCHEMA,    "unlock",       0,            0,      pm_unlock,  cmd_probe,  "Unlock with a pin"),
 SDATACM2(DTP_SCHEMA,    "login",        0,            0,      pm_login,   cmd_probe,  "Log in with a user and a pin"),
+SDATACM2(DTP_SCHEMA,    "opt",          0,            0,      pm_opt,     cmd_probe,  "A user and an optional password"),
+SDATACM2(DTP_SCHEMA,    "wild",         SDF_WILD_CMD, 0,      pm_wild,    cmd_probe,  "Free keys"),
 SDATA_END()
 };
 
@@ -169,6 +189,9 @@ PRIVATE int register_paramtypestest(void)
  ***************************************************************/
 PRIVATE int capture_logs(void *h, int priority, const char *bf, size_t len)
 {
+    if(g_watch && memmem(bf, len, g_watch, strlen(g_watch))) {
+        g_watch_hits++;
+    }
     if(priority <= LOG_ERR) {
         g_errors++;
     } else if(priority == LOG_WARNING) {
@@ -445,6 +468,57 @@ int main(int argc, char *argv[])
         check("secret positional after key=value", "the mask hides it too",
             masked && strstr(masked, "hunter2-pin") == NULL);
         GBMEM_FREE(masked)
+    }
+
+    /*
+     *  A word left over is not echoed when the command has ANY secret
+     *  parameter (an optional one too: it can be given without its key)
+     *  or is a SDF_WILD_CMD command (its free keys are forwarded to a
+     *  table not known here), in the answer nor in the ev_kw trace. Up to
+     *  7.30.26 these answered "with extra parameters: '<the word>'".
+     *  A command without secrets still echoes it.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+        } hidden[] = {
+            {"opt user=bob hunter2-opt",        "hunter2-opt"},
+            {"opt bob hunter2-pos",             "hunter2-pos"},
+            {"wild x=login bob hunter2-wild",   "hunter2-wild"},
+        };
+        gobj_set_global_trace("ev_kw", TRUE);
+        for(size_t i=0; i<sizeof(hidden)/sizeof(hidden[0]); i++) {
+            char comment[512];
+            g_watch = hidden[i].secret;
+            g_watch_hits = 0;
+            int result = run(yuno, hidden[i].command, 0, comment, sizeof(comment));
+            g_watch = 0;
+            check(hidden[i].command, "answers -1, extra parameters",
+                result == -1 && strstr(comment, "extra parameters") != NULL);
+            check(hidden[i].command, "the word not echoed",
+                strstr(comment, hidden[i].secret) == NULL);
+            check(hidden[i].command, "the word in no log nor trace", g_watch_hits == 0);
+            char *masked = command_mask_secret_line(yuno, hidden[i].command);
+            check(hidden[i].command, "the mask of the line hides it",
+                masked && strstr(masked, hidden[i].secret) == NULL);
+            if(masked && strstr(masked, hidden[i].secret)) {
+                printf("     masked: %s\n", masked);
+            }
+            GBMEM_FREE(masked)
+            if(strstr(comment, hidden[i].secret)) {
+                printf("     comment: %s\n", comment);
+            }
+        }
+        gobj_set_global_trace("ev_kw", FALSE);
+
+        char comment[512];
+        int result = run(yuno, "typed s=a stray-word", 0, comment, sizeof(comment));
+        check("typed s=a stray-word", "a command without secrets echoes the word",
+            result == -1 && strstr(comment, "extra parameters: 'stray-word'") != NULL);
+        if(!strstr(comment, "stray-word")) {
+            printf("     comment: %s\n", comment);
+        }
     }
 
     /*

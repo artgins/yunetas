@@ -677,16 +677,25 @@ given without its key: it takes `correct`) are refused with *"command
 'set-password' with extra parameters: '<...>'"*, and so is `write-attr
 gobj_name=x attribute=password value=correct horse battery`, whose `value` is
 no secret parameter of its own. Nor is it repeated when the COMMAND has a
-REQUIRED secret parameter (the only kind that can be given without its key):
-the extra text can be that secret, given without its key
-after a `key=value` (from the first `key=value` on, the line is read as
-`key=value` only, so the word is left over). `login user=bob hunter2` is
-refused with *"command 'login' with extra parameters: '<...>'"*, as its mask
-shows it (`login user=bob <...>`); up to 7.30.26 it answered `'hunter2'`, in
-the answer and in the `ev_kw` trace. Else the extra text is echoed, its
-secrets masked: `list-yunos foo` is refused with *"... extra parameters:
-'foo'"*. Up to 7.25.21 the positional one showed `'horse battery'`, and up to
-7.26.9 the write-attr one did.
+secret parameter, required or optional, or is a `SDF_WILD_CMD` command (its
+free keys go to a table the parser does not know): the extra text can be a
+secret given without its key (after a `key=value` the line is read as
+`key=value` only, so the word is left over). The answer still says that
+there are extra parameters, as `'<...>'`:
+
+| Command and line | Answer |
+|---|---|
+| `login` (`pin` required, `SDF_SECRET`): `login user=bob hunter2` | *"command 'login' with extra parameters: '<...>'"* |
+| `set-user-pwd` (`password` optional, `SDF_SECRET`): `set-user-pwd username=bob hunter2` | *"command 'set-user-pwd' with extra parameters: '<...>'"* |
+| `command-yuno` (`SDF_WILD_CMD`): `command-yuno id=x login bob hunter2` | *"command 'command-yuno' with extra parameters: '<...>'"* |
+| `list-yunos` (no secret): `list-yunos foo` | *"command 'list-yunos' with extra parameters: 'foo'"* |
+
+The same text is what the `ev_kw` trace shows. Up to 7.30.26 the first
+answered `'hunter2'` and the second and third still did (an optional secret
+and a wild command were echoed), in the answer and in the trace. Else the
+extra text is echoed, its secrets masked, as `list-yunos foo` shows. Up to
+7.25.21 the positional one showed `'horse battery'`, and up to 7.26.9 the
+write-attr one did.
 
 What the masking takes includes, since 7.27.0, a `name: value` of a secret's
 name and the credential after `Basic`, so these lines are refused without
