@@ -351,8 +351,8 @@ application's gate (one application).
   only, and `max_subscriptions_per_client` (100), `max_persistent_sessions` (1000),
   `persistent_session_expiry` (1 day), `max_topic_filter_length` (256 B),
   `max_inflight_messages` (20) and `max_queued_messages` (1000) bound what an anonymous
-  client can hold; a PUBLISH writes nothing to disk, and a SUBSCRIBE writes at most once a
-  second. **`C_PROT_MQTT2` has none
+  client can hold; a PUBLISH writes nothing to disk, and a client record is written only when
+  what it saves changed, at most once a second. **`C_PROT_MQTT2` has none
   of these limits**: port them first, or a migration as it is reopens a gate to one
   anonymous client. **And port them better than they are**: `max_persistent_sessions`
   counts every client id, and the expiry runs from the last disconnect, so a peer that

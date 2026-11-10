@@ -2,6 +2,69 @@
 
 ## Unreleased
 
+## v7.30.25 (2026-11-10)
+
+A correction release of `C_PROT_MQTT`, the deprecated MQTT protocol every MQTT
+gate still runs, on top of the queue 7.30.24 gave it. After the packet ids of
+a slow subscriber wrapped, an acknowledgement could end a queued message
+instead of the one in flight, and the subscriber received nothing more, with
+nothing logged. A client that connected and disconnected in a loop made the
+gate rewrite its whole session record each time; the record is now written
+only when what it saves changed, and a change that waits is written by a
+timer instead of by the client's next packet. The release workflow builds the
+tag it uploads to. The whole suite ran on the dev machine; no performance
+study (the next one is against 7.30.0).
+
+### MQTT
+
+- **C_PROT_MQTT** (deprecated; still the protocol of several gates):
+    - **An acknowledgement never takes a queued message, and a dropped
+      message takes no packet id.** PUBACK, PUBREC and PUBCOMP look for their
+      message among the ones in flight only. In 7.30.24 (the first version
+      with a queue) they looked by packet id alone, and a message dropped past
+      `max_queued_messages` spent an id too. When the ids of a slow subscriber
+      wrapped (about 64 000 publications to a subscriber that acks 64 times
+      slower), an ack could end a queued message with the same id, which was
+      never sent, and the message in flight stayed for ever: the subscriber
+      got nothing more, and nothing was logged. A client now sees consecutive
+      packet ids across the drops.
+    - **The record of a client is written only when what it saves changed,
+      and a change that waits is written by a timer.** Each CONNECT and each
+      disconnection of a session rewrote its whole record (since before
+      7.2.0): one anonymous client that connected and disconnected in a loop,
+      with a session of 100 filters, made the gate write about 85 MB a second.
+      The record is now compared with what was written last (every key but the
+      ones that start with `_`), and the CONNECT of a session that exists is
+      written like a SUBSCRIBE: at most once a second. 200 CONNECT/DISCONNECT
+      cycles write one record (29 KB) instead of 11.6 MB. A new session is
+      still written at its CONNACK. In 7.30.24 a change inside the second of
+      the (UN)SUBSCRIBE writes waited for the next packet of the client, which
+      for a client that says nothing more is its keep alive, and a SIGKILL in
+      that gap lost subscriptions that 7.30.23 had written. A timer (a
+      `C_TIMER` child, `client_save`, armed only while a change waits) now
+      writes it within two seconds.
+    - **BREAKING** (operators who read the session files): the file of a
+      session that connects again says that it is connected up to two seconds
+      later, and an unclean stop in those two seconds leaves the date of the
+      previous disconnection, from which the expiry counts. The record in
+      memory, as `list-clients` shows it, has one more private key,
+      `_saved_fingerprint` (never written).
+    - With session stores of `persistent` false (`mqtt_clients`,
+      `mqtt_topics`, `mqtt_users`) the sessions live in memory only, across
+      the connections of their clients, and nothing is written. Now tested,
+      and documented with an example. The MQTT page recommends
+      `message_size_limit` for a gate whose devices send small payloads: with
+      `0` one PUBLISH can reach the largest memory block, copied for each
+      subscriber.
+
+### Packaging
+
+- **A manual run of the release workflow builds the tag it uploads to.**
+  `workflow_dispatch` checked out the branch it was launched from, not
+  `release_tag`: from `main` with newer commits it would have attached a
+  package of another source to the tag's release. Both jobs now check out
+  the tag.
+
 ## v7.30.24 (2026-11-09)
 
 A correction release, again in `C_PROT_MQTT`, the deprecated MQTT protocol
