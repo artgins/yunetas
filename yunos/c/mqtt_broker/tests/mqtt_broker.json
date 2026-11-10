@@ -1,7 +1,7 @@
 {
-    "__json_config_variables__": {
-    },
+    "__json_config_variables__": {},
     "environment": {
+        "work_dir": "/tmp/mqtt_broker_test",
         "console_log_handlers": {
             "to_stdout": {
                 "handler_type": "stdout",
@@ -19,18 +19,19 @@
     "yuno": {
         "required_services": [],
         "public_services": [],
-        "service_descriptor": {
-        },
-        "trace_levels": {
-        }
+        "service_descriptor": {},
+        "trace_levels": {},
+        "autoplay": true
     },
     "global": {
         "Authz.max_sessions_per_user": 100,
         "__input_side__.__json_config_variables__": {
-            "__input_url__": "mqtt://0.0.0.0:1883",
+            "__input_url__": "mqtt://0.0.0.0:1810",
             "__input_host__": "0.0.0.0",
-            "__input_port__": "1883"
-        }
+            "__input_port__": "1810"
+        },
+        "Authz.allow_anonymous_in_localhost": true,
+        "Mqtt_broker.enable_new_clients": true
     },
     "services": [
         {
@@ -48,7 +49,9 @@
             "autostart": true,
             "autoplay": false,
             "kw": {
-                "deny_subscribes": ["test/nosubscribe"]
+                "deny_subscribes": [
+                    "test/nosubscribe"
+                ]
             }
         },
         {
@@ -56,8 +59,7 @@
             "gclass": "C_IOGATE",
             "autostart": true,
             "autoplay": false,
-            "kw": {
-            },
+            "kw": {},
             "children": [
                 {
                     "name": "server_port",
@@ -70,9 +72,11 @@
                 }
             ],
             "[^^children^^]": {
-                "__range__": [1, 20],
-                "__vars__": {
-                },
+                "__range__": [
+                    1,
+                    200
+                ],
+                "__vars__": {},
                 "__content__": {
                     "name": "(^^__input_port__^^)-(^^__range__^^)",
                     "gclass": "C_CHANNEL",
@@ -81,6 +85,7 @@
                             "name": "(^^__input_port__^^)-(^^__range__^^)",
                             "gclass": "C_PROT_MQTT2",
                             "kw": {
+                                "iamServer": true
                             },
                             "children": [
                                 {
@@ -91,6 +96,13 @@
                     ]
                 }
             }
+        },
+        {
+            "name": "__top_side__",
+            "gclass": "C_IOGATE",
+            "autostart": false,
+            "autoplay": false,
+            "kw": {}
         }
     ]
 }

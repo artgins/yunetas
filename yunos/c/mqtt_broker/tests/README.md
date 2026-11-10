@@ -9,12 +9,14 @@ Tests for the yuneta MQTT broker covering MQTT v3.1.1 and v5.0 protocol complian
 - **Python 3** (for low-level protocol tests)
 - **mqtt_broker** running on the target host/port
 
-> **⚠️ Warning:** If you don't use 'yuneta' as linux user, you must set the attribute `allow_anonymous_in_localhost` of C_AUTHZ to true.
-
 ## Quick Start
 
 ```bash
-# Start the broker first, then:
+# Start the broker with the test configuration (foreground; store in /tmp/mqtt_broker_test)
+rm -rf /tmp/mqtt_broker_test
+mqtt_broker --config-file=mqtt_broker.json &
+
+# Then:
 ./run_hivemq_tests.sh                    # run all tests with defaults
 ./test_hivemq_mqtt_cli.sh --test 3,5     # run tests 3 through 5
 ./test_hivemq_mqtt_cli.sh --list         # list all available tests
@@ -122,7 +124,20 @@ Low-level tests that craft raw MQTT packets to test protocol edge cases:
 
 ## Broker Configuration (mqtt_broker.json)
 
-Test configuration includes:
-- Authorization service (`C_AUTHZ`)
-- MQTT broker service (`C_MQTT_BROKER`) with `deny_subscribes: ["test/nosubscribe"]`
-- TCP server on configurable port with `C_PROT_MQTT2` protocol handler
+A standalone broker (no agent) that the suites can use as it is:
+
+- Listens on `mqtt://0.0.0.0:1810` (the scripts' default port), with 200 channels:
+  test 21 opens 100 connections and test 23 holds 21 at once.
+- `"yuno": {"autoplay": true}`: a standalone yuno has no agent to play it, and the broker
+  opens its database and its input side only when it plays.
+- `C_PROT_MQTT2` with `"iamServer": true`: without it the protocol is a client and sends a
+  CONNECT to every peer.
+- `Authz.allow_anonymous_in_localhost`: a client with no credentials, from the same host,
+  is accepted whatever the Linux user that runs the broker (without it only `yuneta` is).
+- `Mqtt_broker.enable_new_clients`: an unknown client id is created at its first CONNECT
+  (without it every CONNECT of a new id is closed, with the INFO *"Client not exist and no
+  auto-create"*). Set it in `global`: a different `kw` in the `services` list makes the
+  config merge create the service twice.
+- `C_MQTT_BROKER` with `deny_subscribes: ["test/nosubscribe"]` (test 13).
+- An empty `__top_side__`: the broker looks for that service at play.
+- `work_dir` `/tmp/mqtt_broker_test`: the store of the run. Remove it to start clean.
