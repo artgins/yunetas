@@ -42,7 +42,9 @@
  *                 the options of its last occurrence (retain handling,
  *                 retain as published, no local).
  *              7. A message to a topic with a wildcard is refused (-1 and
- *                 an ERROR); up to 7.30.26 it was published.
+ *                 an ERROR); up to 7.30.26 it was published. So is one of
+ *                 202 levels: the server's own limit, 200 separators (a
+ *                 client has none).
  *              8. Acks of packet ids never used: said ONCE per connection.
  *              9. The take-over: EV_DROP with session_take_over gives
  *                 DISCONNECT 0x8E. While it waits timeout_close, a message
@@ -725,10 +727,21 @@ PRIVATE void run_connection_a(hgobj gobj)
 
     send_message(gobj, "cmnd/x/#");
     send_message(gobj, "cmnd/x");
-    expect(gobj, "7. a message to a topic with a wildcard", (const char *[]){
+    char deep[256*2];
+    size_t nd = 0;
+    for(int level=0; level<202; level++) {
+        if(level > 0) {
+            deep[nd++] = '/';
+        }
+        deep[nd++] = 'l';
+    }
+    deep[nd] = 0;
+    send_message(gobj, deep);
+    expect(gobj, "7. a message to a topic with a wildcard, or past 200 separators", (const char *[]){
         "SEND -1",
         "PUBLISH cmnd/x q0 on",
         "SEND 0",
+        "SEND -1",
         NULL
     });
 

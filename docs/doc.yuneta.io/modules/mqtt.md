@@ -44,7 +44,8 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
       wildcard (`a/#`, `a/+/b`) or is empty: malformed, DISCONNECT `0x81`
       (MQTT 5). The number of levels is not checked: MQTT puts no limit on
       it, so a topic of 250 levels (`l/l/.../l`) from a broker is delivered
-      (the 200 separators of the server are its own limit, below);
+      (the 200 separators of the server are its own limit, below), and the
+      user can publish one (see `EV_SEND_MESSAGE` below);
     - a DISCONNECT of the broker is its last packet: nothing after it in the
       same read is processed (a PUBLISH behind it is not delivered), and its
       properties are freed (up to 7.30.26 they leaked).
@@ -291,11 +292,13 @@ gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
 `gobj_send_event()` returns `-1` and the message is not sent when:
 
 - the topic is not one a PUBLISH can carry: it has a wildcard (`+`, `#`) or
-  it is empty [MQTT-3.3.2-2], or it is past the limit of this side: more than
-  200 `/` separators (`TOPIC_HIERARCHY_LIMIT`, as Mosquitto's; MQTT puts
-  none). An ERROR *"Mqtt publish: topic invalid"* names it. A subscription
-  FILTER is not a topic to publish to: up to 7.30.26 a message to
-  `cmnd/dev-17/#` was sent as it was;
+  it is empty [MQTT-3.3.2-2]; or, on the SERVER side only, it is past the
+  server's own limit: more than 200 `/` separators (`TOPIC_HIERARCHY_LIMIT`,
+  as Mosquitto's). An ERROR *"Mqtt publish: topic invalid"* names it. A
+  subscription FILTER is not a topic to publish to: up to 7.30.26 a message
+  to `cmnd/dev-17/#` was sent as it was. A CLIENT applies no limit of levels,
+  by `EV_SEND_MESSAGE` nor by `EV_MQTT_PUBLISH`: MQTT puts none, and its
+  broker decides (a topic `l/l/.../l` of 250 levels goes out);
 - the connection is closing (its DISCONNECT sent, waiting `timeout_close`): a
   WARNING *"Mqtt: the connection is closing, message not sent"*, once per
   connection. Up to 7.30.26 it was an ERROR *"Event NOT DEFINED in state"*,

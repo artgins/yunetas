@@ -61,6 +61,11 @@
  *                 no limit on the levels of a topic; the client refused more
  *                 than 200 separators (DISCONNECT 0x81), the limit of the
  *                 server, so a broker's valid topic ended the connection.
+ *                 15b. Its user publishes to that topic (EV_MQTT_PUBLISH and
+ *                 EV_SEND_MESSAGE): it goes out; to a wildcard: -1 and an
+ *                 ERROR. The client refused more than 200 separators
+ *                 there too, so it could not publish a deep topic to a
+ *                 broker that takes it.
  *             16. A PUBLISH whose topic has the wildcard `+`: as 11.
  *          MQTT 3.1.1:
  *             17. A CONNACK with a code past 5 (reserved in 3.1.1): a
@@ -336,6 +341,33 @@ PRIVATE void user_publishes(hgobj gobj, int qos, const char *payload)
 }
 
 /***************************************************************************
+ *  A QoS 0 message of the user to `topic`, by `event` (EV_MQTT_PUBLISH or
+ *  EV_SEND_MESSAGE), and what the protocol answered. A deep topic is
+ *  said as "l/l/.."
+ ***************************************************************************/
+PRIVATE void user_publishes_to(hgobj gobj, gobj_event_t event, const char *topic, const char *payload)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = gbuffer_create(16, 16);
+    gbuffer_append_string(gbuf, payload);
+    int ret = gobj_send_event(
+        priv->prot,
+        event,
+        json_pack("{s:s, s:i, s:b, s:I}",
+            "topic", topic,
+            "qos", 0,
+            "retain", 0,
+            "gbuffer", (json_int_t)(uintptr_t)gbuf  // the kw owns it
+        ),
+        gobj
+    );
+    json_array_append_new(priv->got, json_sprintf("USER PUBLISH %s %d",
+        strlen(topic) > 16? "l/l/.." : topic, ret
+    ));
+}
+
+/***************************************************************************
  *  What the client wrote, as lines in `got`
  ***************************************************************************/
 PRIVATE void parse_rx(hgobj gobj)
@@ -404,9 +436,21 @@ PRIVATE void parse_rx(hgobj gobj)
                     int tlen = (v[0] << 8) | v[1];
                     uint32_t i = 2 + tlen + (qos? 2 : 0);
                     i += 1 + v[i];
-                    snprintf(line, sizeof(line), "PUBLISH %.*s q%d %.*s",
-                        tlen, (const char *)v + 2, qos, (int)(remaining - i), (const char *)v + i
-                    );
+                    if(tlen > 64) {
+                        int levels = 1;
+                        for(int k=0; k<tlen; k++) {
+                            if(v[2 + k] == '/') {
+                                levels++;
+                            }
+                        }
+                        snprintf(line, sizeof(line), "PUBLISH (%d levels) q%d %.*s",
+                            levels, qos, (int)(remaining - i), (const char *)v + i
+                        );
+                    } else {
+                        snprintf(line, sizeof(line), "PUBLISH %.*s q%d %.*s",
+                            tlen, (const char *)v + 2, qos, (int)(remaining - i), (const char *)v + i
+                        );
+                    }
                 }
                 break;
             case 4:     // PUBACK
@@ -752,9 +796,23 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 char line[sizeof(topic) + 32];
                 snprintf(line, sizeof(line), "MSG %s q0 deep", topic);
                 broker_publish(gobj, 0, 0, topic, "deep");
-                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
                 expect(gobj, "15. a PUBLISH whose topic has 250 levels", (const char *[]){
                     line,
+                    NULL
+                });
+
+                user_publishes_to(gobj, EV_MQTT_PUBLISH, topic, "up1");
+                user_publishes_to(gobj, EV_SEND_MESSAGE, topic, "up2");
+                user_publishes_to(gobj, EV_MQTT_PUBLISH, "a/#", "wild1");
+                user_publishes_to(gobj, EV_SEND_MESSAGE, "a/+", "wild2");
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "15b. the user publishes to a topic of 250 levels, and to wildcards", (const char *[]){
+                    "PUBLISH (250 levels) q0 up1",
+                    "USER PUBLISH l/l/.. 0",
+                    "PUBLISH (250 levels) q0 up2",
+                    "USER PUBLISH l/l/.. 0",
+                    "USER PUBLISH a/# -1",
+                    "USER PUBLISH a/+ -1",
                     "CLOSE",
                     NULL
                 });

@@ -140,7 +140,9 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
    handling 2, retain as published, no local): `o/1` goes up once, with the
    options of the last occurrence (`subscription_options` 44,
    `retain_handling` 32).
-7. `EV_SEND_MESSAGE` to `cmnd/x/#`: `-1` and an ERROR (it was published).
+7. `EV_SEND_MESSAGE` to `cmnd/x/#`: `-1` and an ERROR (it was published). To a
+   topic of 202 levels: `-1` and an ERROR, the server's own limit of 200
+   separators (a client has none).
 8. Five acks of unknown packet ids: one WARNING (five).
 9. `EV_DROP` with `session_take_over`: DISCONNECT `0x8E`. Then, while the
    connection is closing, `EV_SEND_MESSAGE` is `-1` (twice, one WARNING) and another
@@ -184,7 +186,9 @@ MQTT 5 that refuses (`0x87`): the user hears `EV_ON_CLOSE` with the reason
 and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`). A PUBLISH whose
 topic has 250 levels is delivered: MQTT puts no limit on levels (the client
 refused more than 200 separators, the limit of the server, with DISCONNECT
-`0x81`). Last, with MQTT 3.1.1, a CONNACK with the reserved code `6`: the user
+`0x81`), and its user can publish to it, by `EV_MQTT_PUBLISH` and by
+`EV_SEND_MESSAGE` (both refused it, `-1`); a wildcard there is still `-1` and
+an ERROR. Last, with MQTT 3.1.1, a CONNACK with the reserved code `6`: the user
 hears `EV_ON_CLOSE` with `reason_code` 6 and nothing is sent (a protocol
 error: a WARNING and no `EV_ON_CLOSE`). The alarm is 30 s (the run is about
 13 s).

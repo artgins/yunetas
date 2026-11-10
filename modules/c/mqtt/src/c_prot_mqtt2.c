@@ -9605,12 +9605,17 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw_mqtt_msg,
      *   Get info of message
      *------------------------*/
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
-    if(mqtt_pub_topic_check2(topic, strlen(topic))<0) {
+    size_t tlen = strlen(topic);
+    BOOL topic_invalid = priv->iamServer?
+        (mqtt_pub_topic_check2(topic, tlen) < 0) :
+        (tlen == 0 || tlen > 65535 || strpbrk(topic, "+#"));
+    if(topic_invalid) {
         /*
          *  A wildcard [MQTT-3.3.2-2] or an empty topic: not a topic a
-         *  PUBLISH can carry; more than 200 separators: past the limit of
-         *  this server (TOPIC_HIERARCHY_LIMIT, as Mosquitto's; MQTT puts
-         *  none). Up to 7.30.26 it was sent
+         *  PUBLISH can carry. A server also refuses more than 200
+         *  separators, its own limit (TOPIC_HIERARCHY_LIMIT, as
+         *  Mosquitto's); a client does not: MQTT puts no limit on levels,
+         *  and its broker decides. Up to 7.30.26 a wildcard was sent
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -9800,7 +9805,11 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
             KW_DECREF(kw)
             return -1;
         }
-        if(mqtt_pub_topic_check2(topic, strlen(topic))<0) {
+        if(tlen > 65535 || strpbrk(topic, "+#")) {
+            /*
+             *  A wildcard [MQTT-3.3.2-2], or too long for an MQTT string.
+             *  Not the levels: a client leaves that limit to its broker
+             */
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
