@@ -49,19 +49,22 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
       same read is processed (a PUBLISH behind it is not delivered), and its
       properties are freed (up to 7.30.26 they leaked).
 - **A refused CONNECT.** A CONNACK of MQTT 5 with a reason code `>= 0x80`
-  (or of 3.1.1 with `1`..`5`) is a refusal: one WARNING *"Mqtt connection
-  refused"* with the reason, then the user hears `EV_ON_CLOSE` with
-  `reason_code` in its kw, and the client sends nothing (the broker closes).
-  Up to 7.30.26 an MQTT 5 refusal was taken for a protocol error: a
-  DISCONNECT `0x82` to the broker, a dump of the CONNACK, and no
-  `EV_ON_CLOSE`.
+  (or of 3.1.1 with any code but `0`: `1`..`5`, and a reserved one past
+  `5`) is a refusal: one WARNING *"Mqtt connection refused"* with the
+  reason, then the user hears `EV_ON_CLOSE` with `reason_code` in its kw,
+  and the client sends nothing (the broker closes). Up to 7.30.26 an MQTT 5
+  refusal was taken for a protocol error: a DISCONNECT `0x82` to the broker,
+  a dump of the CONNACK, and no `EV_ON_CLOSE`; and a 3.1.1 code past `5`
+  ended the connection with the WARNING and no `EV_ON_CLOSE`.
 
 ```C
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int reason_code = (int)kw_get_int(gobj, kw, "reason_code", 0, 0);
-    if(reason_code >= 0x80) {
-        // the broker refused the CONNECT: 0x86 bad user or password, 0x87 not authorized, ...
+    if(reason_code != 0) {
+        // the broker refused the CONNECT. MQTT 5: 0x86 bad user or password,
+        // 0x87 not authorized, ...; MQTT 3.1.1: 4 bad user or password,
+        // 5 not authorized, a reserved code past 5
     }
     KW_DECREF(kw)
     return 0;

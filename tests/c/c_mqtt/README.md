@@ -184,7 +184,10 @@ MQTT 5 that refuses (`0x87`): the user hears `EV_ON_CLOSE` with the reason
 and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`). A PUBLISH whose
 topic has 250 levels is delivered: MQTT puts no limit on levels (the client
 refused more than 200 separators, the limit of the server, with DISCONNECT
-`0x81`).
+`0x81`). Last, with MQTT 3.1.1, a CONNACK with the reserved code `6`: the user
+hears `EV_ON_CLOSE` with `reason_code` 6 and nothing is sent (a protocol
+error: a WARNING and no `EV_ON_CLOSE`). The alarm is 30 s (the run is about
+13 s).
 
 `test_mqtt_broker_no_db` (`main_broker_no_db.c` + `c_broker_no_db.c`) runs a
 `C_MQTT_BROKER` with `mqtt_persistent_db` false and `on_critical_error` 0:

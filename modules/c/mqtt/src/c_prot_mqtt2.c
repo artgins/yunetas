@@ -5761,11 +5761,13 @@ PRIVATE int handle__connack(
             return MQTT_ERR_CONN_REFUSED;
 
         default:
-            if(priv->protocol_version == mqtt_p_mqtt5 && reason_code >= 0x80) {
+            if(priv->protocol_version != mqtt_p_mqtt5 || reason_code >= 0x80) {
                 /*
-                 *  The refusals of MQTT 5. Up to 7.30.26 they were taken
-                 *  for a protocol error: a DISCONNECT 0x82 to a broker
-                 *  that had refused, and no EV_ON_CLOSE to the user
+                 *  The refusals of MQTT 5, and a code past 5 of MQTT 3.1.1
+                 *  (reserved: it accepts nothing). Up to 7.30.26 they were
+                 *  taken for a protocol error: the user never heard
+                 *  EV_ON_CLOSE (and, in MQTT 5, a DISCONNECT 0x82 went to
+                 *  a broker that had refused)
                  */
                 goto refused;
             }

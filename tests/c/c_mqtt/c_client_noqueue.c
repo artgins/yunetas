@@ -62,6 +62,12 @@
  *                 than 200 separators (DISCONNECT 0x81), the limit of the
  *                 server, so a broker's valid topic ended the connection.
  *             16. A PUBLISH whose topic has the wildcard `+`: as 11.
+ *          MQTT 3.1.1:
+ *             17. A CONNACK with a code past 5 (reserved in 3.1.1): a
+ *                 refusal, as 1 to 5 and as the MQTT 5 ones: the user hears
+ *                 EV_ON_CLOSE with the code, one WARNING, nothing sent. Up
+ *                 to 7.30.26 it was a protocol error: the user heard
+ *                 nothing.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -770,6 +776,26 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 expect(gobj, "16. a PUBLISH whose topic has the wildcard +", (const char *[]){
                     "DISCONNECT 129",
                     "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 12:
+            {
+                gobj_write_str_attr(priv->prot, "mqtt_protocol", "mqttv311");
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                static const uint8_t connack311[] = {
+                    0x20, 0x02,     // CONNACK, MQTT 3.1.1
+                    0x00,           // no session present
+                    0x06            // a code past 5: reserved
+                };
+                broker_sends(gobj, connack311, sizeof(connack311));
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "17. a CONNACK of MQTT 3.1.1 with a code past 5", (const char *[]){
+                    "CONNECT",
+                    "CLOSE 6",
                     NULL
                 });
                 set_timeout(priv->timer, 100);
