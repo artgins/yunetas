@@ -6004,7 +6004,9 @@ PRIVATE int subscription_refused(
  ***************************************************************************/
 PRIVATE gbuffer_t *build_suback_payload(
     hgobj gobj,
-    json_t *jn_codes,       // not owned, [{"code": <refused or -1>, "sub": <filter>, "upper": <index of its code>}]
+    const int32_t *occurrences, // the index of its filter in `gbuf_upper`, or -<refusal code>
+    size_t n_occurrences,
+    json_t *jn_upper,       // not owned, {<filter gone up>: <index of its code>}
     gbuffer_t *gbuf_upper,  // not owned, can be NULL
     size_t n_upper
 ) {
@@ -6023,33 +6025,31 @@ PRIVATE gbuffer_t *build_suback_payload(
         );
     }
 
-    size_t n_codes = json_array_size(jn_codes);
-    gbuffer_t *gbuf_payload = gbuffer_create(n_codes, n_codes);
+    gbuffer_t *gbuf_payload = gbuffer_create(n_occurrences, n_occurrences);
     if(!gbuf_payload) {
         // Error already logged
         return NULL;
     }
 
     const uint8_t *upper_codes = got? (const uint8_t *)gbuffer_cur_rd_pointer(gbuf_upper) : NULL;
-    int idx; json_t *jn_code;
-    json_array_foreach(jn_codes, idx, jn_code) {
-        int code = (int)json_integer_value(json_object_get(jn_code, "code"));
-        if(code < 0) {
-            size_t upper_idx = (size_t)json_integer_value(json_object_get(jn_code, "upper"));
-            if(upper_idx < got) {
-                code = upper_codes[upper_idx];
-            } else {
-                code = 0x80;
-            }
-            if(code < 0x80) {
-                json_object_set_new(
-                    priv->jn_subscriptions,
-                    json_string_value(json_object_get(jn_code, "sub")),
-                    json_true()
-                );
-            }
+    for(size_t i=0; i<n_occurrences; i++) {
+        int code;
+        if(occurrences[i] < 0) {
+            code = -occurrences[i];
+        } else if((size_t)occurrences[i] < got) {
+            code = upper_codes[occurrences[i]];
+        } else {
+            code = 0x80;
         }
         gbuffer_append_char(gbuf_payload, (uint8_t)code);
+    }
+
+    const char *sub; size_t sub_len; json_t *jn_idx;
+    json_object_keylen_foreach(jn_upper, sub, sub_len, jn_idx) {
+        size_t upper_idx = (size_t)json_integer_value(jn_idx);
+        if(upper_idx < got && upper_codes[upper_idx] < 0x80) {
+            json_object_setn_new(priv->jn_subscriptions, sub, sub_len, json_true());
+        }
     }
 
     return gbuf_payload;
@@ -6121,8 +6121,28 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
+    /*
+     *  Per occurrence of a filter, in a C array and not in json: a filter
+     *  repeated or refused costs a lookup, not a pack. An occurrence takes
+     *  at least 4 bytes of the packet (length, one byte, options).
+     *      occurrences[i]: the index in jn_list of its filter, or -<refusal code>
+     *      upper_options[k]: qos | options of the k-th filter of jn_list,
+     *          as its last occurrence says; bit 7 (never set by a valid
+     *          SUBSCRIBE) marks a filter repeated, its options rewritten once
+     */
+    size_t max_occurrences = gbuffer_leftbytes(gbuf)/4 + 1;
+    int32_t *occurrences = gbmem_malloc(max_occurrences * sizeof(int32_t));
+    uint8_t *upper_options = gbmem_malloc(max_occurrences);
+    size_t n_occurrences = 0;
+    if(!occurrences || !upper_options) {
+        // Error already logged
+        GBMEM_FREE(occurrences)
+        GBMEM_FREE(upper_options)
+        JSON_DECREF(properties)
+        return -1;
+    }
+
     json_t *jn_list = json_array();
-    json_t *jn_codes = json_array();
     json_t *jn_new = json_object();
     json_t *jn_upper = json_object();   // filter of this packet gone up -> its index in jn_list
 
@@ -6136,9 +6156,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             // Error already logged
             JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
+            GBMEM_FREE(upper_options)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6153,9 +6174,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
+            GBMEM_FREE(upper_options)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6170,9 +6192,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
+            GBMEM_FREE(upper_options)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6180,9 +6203,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
             // Error already logged
             JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
+            GBMEM_FREE(upper_options)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6209,9 +6233,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     NULL
                 );
                 JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
-            JSON_DECREF(jn_new)
-            JSON_DECREF(jn_upper)
+                JSON_DECREF(jn_new)
+                JSON_DECREF(jn_upper)
+                GBMEM_FREE(occurrences)
+                GBMEM_FREE(upper_options)
                 JSON_DECREF(properties)
                 return MQTT_ERR_PROTOCOL;
             }
@@ -6228,9 +6253,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     NULL
                 );
                 JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
-            JSON_DECREF(jn_new)
-            JSON_DECREF(jn_upper)
+                JSON_DECREF(jn_new)
+                JSON_DECREF(jn_upper)
+                GBMEM_FREE(occurrences)
+                GBMEM_FREE(upper_options)
                 JSON_DECREF(properties)
                 return MQTT_ERR_MALFORMED_PACKET;
             }
@@ -6246,9 +6272,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
+            GBMEM_FREE(upper_options)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6265,20 +6292,15 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
          *  Up to 7.30.26 each one went up (~4 us each): a peer sending
          *  SUBSCRIBEs of repeated filters held the gate at 100 % CPU
          */
-        int refused;
-        int upper_idx;
         json_t *jn_first = json_object_getn(jn_upper, sub, slen);
         if(jn_first) {
-            refused = -1;
-            upper_idx = (int)json_integer_value(jn_first);
-            json_t *jn_sub = json_array_get(jn_list, (size_t)upper_idx);
-            json_object_set_new(jn_sub, "qos", json_integer(qos));
-            json_object_set_new(jn_sub, "subscription_options", json_integer(subscription_options));
-            json_object_set_new(jn_sub, "retain_handling", json_integer(retain_handling));
+            json_int_t upper_idx = json_integer_value(jn_first);
+            upper_options[upper_idx] = (uint8_t)(qos | subscription_options | 0x80);
+            occurrences[n_occurrences++] = (int32_t)upper_idx;
         } else {
-            refused = subscription_refused(gobj, sub, slen, jn_new);
-            upper_idx = (int)json_array_size(jn_list);
+            int refused = subscription_refused(gobj, sub, slen, jn_new);
             if(refused < 0) {
+                size_t upper_idx = json_array_size(jn_list);
                 json_t *jn_sub = json_pack("{s:s#, s:i, s:i, s:i, s:i}",
                     "sub", sub, (int)slen,
                     "subscription_identifier", (int)subscription_identifier,
@@ -6287,14 +6309,13 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "retain_handling", retain_handling
                 );
                 json_array_append_new(jn_list, jn_sub);
-                json_object_setn_new(jn_upper, sub, slen, json_integer(upper_idx));
+                json_object_setn_new(jn_upper, sub, slen, json_integer((json_int_t)upper_idx));
+                upper_options[upper_idx] = (uint8_t)(qos | subscription_options);
+                occurrences[n_occurrences++] = (int32_t)upper_idx;
+            } else {
+                occurrences[n_occurrences++] = -refused;
             }
         }
-        json_array_append_new(jn_codes, json_pack("{s:i, s:s#, s:i}",
-            "code", refused,
-            "sub", sub, (int)slen,
-            "upper", upper_idx
-        ));
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("    👈 SUBSCRIBE subs, as %s, client '%s', topic '%.*s' (QoS %d, mid %d)",
@@ -6308,10 +6329,23 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     JSON_DECREF(jn_new)
-    JSON_DECREF(jn_upper)
+
+    /*
+     *  A repeated filter takes the options of its last occurrence
+     */
+    int k; json_t *jn_sub;
+    json_array_foreach(jn_list, k, jn_sub) {
+        if(upper_options[k] & 0x80) {
+            uint8_t options = upper_options[k] & 0x7F;
+            json_object_set_new(jn_sub, "qos", json_integer(options & 0x03));
+            json_object_set_new(jn_sub, "subscription_options", json_integer(options & 0xFC));
+            json_object_set_new(jn_sub, "retain_handling", json_integer(options & 0x30));
+        }
+    }
+    GBMEM_FREE(upper_options)
 
     if(priv->protocol_version != mqtt_p_mqtt31) {
-        if(!json_size(jn_codes)) {
+        if(n_occurrences == 0) {
             /* No subscriptions specified, protocol error. */
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -6323,7 +6357,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
-            JSON_DECREF(jn_codes)
+            JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6371,16 +6406,20 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         );
         if(rc < 0) {
             gbuffer_decref(gbuf_upper);
-            JSON_DECREF(jn_codes)
+            JSON_DECREF(jn_upper)
+            GBMEM_FREE(occurrences)
             return -1;
         }
     } else {
         JSON_DECREF(jn_list)
     }
 
-    gbuffer_t *gbuf_payload = build_suback_payload(gobj, jn_codes, gbuf_upper, n_upper);
+    gbuffer_t *gbuf_payload = build_suback_payload(
+        gobj, occurrences, n_occurrences, jn_upper, gbuf_upper, n_upper
+    );
     GBUFFER_DECREF(gbuf_upper)
-    JSON_DECREF(jn_codes)
+    JSON_DECREF(jn_upper)
+    GBMEM_FREE(occurrences)
     if(!gbuf_payload) {
         // Error already logged
         return -1;

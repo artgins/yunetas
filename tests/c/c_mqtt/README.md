@@ -136,6 +136,10 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
    6b. A SUBSCRIBE of `b/1 deny/2 b/1 deny/2 b/2` and an UNSUBSCRIBE of
    `q r q r q`: each distinct filter goes up once, and every occurrence takes
    its code, the refusal `0x87` too (each occurrence went up).
+   6c. A SUBSCRIBE of `o/1` (QoS 1) and `o/1` again (options `0x2C`: retain
+   handling 2, retain as published, no local): `o/1` goes up once, with the
+   options of the last occurrence (`subscription_options` 44,
+   `retain_handling` 32).
 7. `EV_SEND_MESSAGE` to `cmnd/x/#`: `-1` and an ERROR (it was published).
 8. Five acks of unknown packet ids: one WARNING (five).
 9. `EV_DROP` with `session_take_over`: DISCONNECT `0x8E`. Then, while the

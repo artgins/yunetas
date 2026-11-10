@@ -219,7 +219,13 @@ SUBSCRIBE  a/1 a/1 deny/x a/2  ->  subs: [a/1, deny/x, a/2]  ->  SUBACK 0x00 0x0
 
 Up to 7.30.26 every occurrence went up, at about 4 µs each: one anonymous
 peer sending SUBSCRIBEs of 16 000 copies of `a` at 1 MB/s held a gate at
-100 % CPU.
+100 % CPU. Now a repetition, and a filter the protocol refuses, cost one
+lookup in a dictionary and nothing more: the reason code of each occurrence
+is kept in a C array, not in a json, and the options of a repeated filter are
+written once. On the development machine (with `CONFIG_DEBUG_TRACK_MEMORY`) a
+SUBSCRIBE of 64 KB costs about 0.5 ms of CPU, either as 16 000 copies of `a`
+or as 7900 distinct filters of which 7800 are past
+`max_subscriptions_per_client` (7.30.26: 3.3 ms for the distinct ones).
 
 A minimal upper level, the action of a decoder:
 

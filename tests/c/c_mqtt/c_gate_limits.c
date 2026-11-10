@@ -38,6 +38,9 @@
  *                 filter (a refusal too). Up to 7.30.26 each occurrence
  *                 went up: a peer at 1 MB/s of repeated filters held the
  *                 gate at 100 % CPU.
+ *              6c. A filter repeated with other options goes up once, with
+ *                 the options of its last occurrence (retain handling,
+ *                 retain as published, no local).
  *              7. A message to a topic with a wildcard is refused (-1 and
  *                 an ERROR); up to 7.30.26 it was published.
  *              8. Acks of packet ids never used: said ONCE per connection.
@@ -400,6 +403,31 @@ PRIVATE void peer_subscribe(
 }
 
 /***************************************************************************
+ *  SUBSCRIBE, MQTT 5, of `filters` with the subscription options of each
+ ***************************************************************************/
+PRIVATE void peer_subscribe_options(
+    hgobj gobj,
+    uint16_t mid,
+    const char **filters,
+    const uint8_t *options
+) {
+    uint8_t bf[256];
+    size_t remaining = 2 + 1;
+    for(int i=0; filters[i]; i++) {
+        remaining += 2 + strlen(filters[i]) + 1;
+    }
+    size_t n = put_fixed_header(bf, 0x82, remaining);
+    bf[n++] = (uint8_t)(mid >> 8);
+    bf[n++] = (uint8_t)(mid & 0xFF);
+    bf[n++] = 0x00;     // properties length
+    for(int i=0; filters[i]; i++) {
+        n += put_string(bf + n, filters[i]);
+        bf[n++] = options[i];
+    }
+    peer_sends(gobj, bf, n);
+}
+
+/***************************************************************************
  *  The reason codes of a SUBACK / UNSUBACK as a line: each one, or the
  *  count and the code when there are many
  ***************************************************************************/
@@ -682,6 +710,16 @@ PRIVATE void run_connection_a(hgobj gobj)
         "UNSUB q",
         "UNSUB r",
         "UNSUBACK 7 0 0 0 0 0",
+        NULL
+    });
+
+    peer_subscribe_options(gobj, 8,
+        (const char *[]){"o/1", "o/1", NULL},
+        (const uint8_t []){0x01, 0x2C}      // QoS 1; then QoS 0, retain handling 2, RAP, NL
+    );
+    expect(gobj, "6c. a repeated filter goes up with the options of its last occurrence", (const char *[]){
+        "SUB o/1 q0 options=44 rh=32",
+        "SUBACK 8 0 0",
         NULL
     });
 
@@ -1012,7 +1050,13 @@ PRIVATE int ac_on_iev_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             const char *filter = kw_get_str(gobj, jn_sub, "sub", "", KW_REQUIRED);
             int qos = (int)kw_get_int(gobj, jn_sub, "qos", 0, 0);
             if(n_subs <= 8) {
-                if(sub) {
+                if(sub && strncmp(filter, "o/", 2)==0) {
+                    json_array_append_new(priv->got, json_sprintf("SUB %s q%d options=%d rh=%d",
+                        filter, qos,
+                        (int)kw_get_int(gobj, jn_sub, "subscription_options", -1, KW_REQUIRED),
+                        (int)kw_get_int(gobj, jn_sub, "retain_handling", -1, KW_REQUIRED)
+                    ));
+                } else if(sub) {
                     json_array_append_new(priv->got, json_sprintf("SUB %s q%d", filter, qos));
                 } else {
                     json_array_append_new(priv->got, json_sprintf("UNSUB %s", filter));
