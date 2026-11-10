@@ -102,7 +102,7 @@ client has a clean start: the driver also deletes its record, as the protocol
 asks when the client disconnects.
 
 `test_mqtt_legacy_sessions` (`main_legacy_sessions.c` + `c_legacy_sessions.c`)
-drives twenty-two `C_PROT_MQTT` gobjs the same way, each on its own
+drives twenty-six `C_PROT_MQTT` gobjs the same way, each on its own
 `C_FAKE_TRANSPORT`, with the clients in a persistent `C_RESOURCE2` (as an MQTT
 gate keeps them) and the protocol's default limits (but the two of the
 expiry, one with `allow_zero_length_clientid` and one with
@@ -174,6 +174,23 @@ messages, one more per PUBACK, 1005 in all (10 dropped, one WARNING). A
 Receive Maximum of 0 gets no CONNACK and is dropped. Up to 7.30.23 (red): the
 oversized PUBLISH was freed twice (*"Deleting item with DIFFERENT
 dl_list_t"*, abort), and the client with Receive Maximum 5 got 20 in flight.
+12. A subscriber that does not ack gets 20 of 1030 QoS 1 messages (1000 wait,
+10 dropped): the next message kept takes packet id 1021. A message queued with
+the packet id of one in flight (the record's `last_mid` is set back, as after
+the ids wrap): the PUBACK of that id frees the one in flight, and the queued
+one goes out in its turn, 1022 in all. MQTT 5, QoS 2: a PUBREC `0x80` sends
+the queued message, and one queued with the id of one in flight goes out after
+the PUBREC and PUBCOMP of that id. `slow` connects again and fills its queue
+again: one more WARNING. 13. `saver` connects and disconnects 200 times: about
+29 KB written (one record). It connects again and subscribes three filters
+inside the second, and says nothing more. 14. 2.5 s later the three filters
+are on disk, and so is that it is connected. 15. Two more protocol gobjs keep
+their clients in a `C_RESOURCE2` with `persistent` false: a client with clean
+session 0 and 51 filters reconnects 200 times, keeps its session in memory,
+gets its QoS 1 messages; 0 bytes are written, no directory is made, no error.
+Up to 7.30.24 (red): packet id 1031 (the dropped messages took ids), 1021 of
+1022 (the PUBACK took the queued copy), 11.6 MB written by the 200 cycles, and
+the second and third filters not on disk.
 
 `test_mqtt_legacy_prot` runs with `max_topic_filter_length` 0 (no limit): its
 300-byte topic is there to check a length with a non-zero high byte.

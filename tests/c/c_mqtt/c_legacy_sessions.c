@@ -3,10 +3,11 @@
  *
  *          Driver of the test of the client records of C_PROT_MQTT, the
  *          deprecated MQTT protocol gclass, as a server. No broker and no
- *          socket: twenty-two protocol gobjs are children of this driver, each
+ *          socket: twenty-six protocol gobjs are children of this driver, each
  *          with a C_FAKE_TRANSPORT as its bottom, and the driver writes the
  *          clients' packets into them by hand. The clients are kept in a
- *          persistent C_RESOURCE2, as an MQTT gate keeps them. The
+ *          persistent C_RESOURCE2, as an MQTT gate keeps them (but "mem" and
+ *          "memp", in a C_RESOURCE2 with persistent FALSE). The
  *          protocol's limits are its defaults (100 subscriptions per
  *          client, 1000 persistent sessions, filters of 256 bytes, a
  *          session kept one day after its disconnection, 20 messages in
@@ -101,6 +102,25 @@
  *                 PUBACK, the client is kept. "rm5" (Receive Maximum 5)
  *                 that does not ack gets 5 of 1015 QoS 1, 1000 wait and 10
  *                 are dropped (one WARNING); one more per PUBACK. "rm0" (Receive Maximum 0): no CONNACK, dropped.
+ *             12. "wrap" gets 20 of 1030 QoS 1, 1000 wait, 10 are dropped:
+ *                 the next message kept takes the packet id 1021. A message
+ *                 queued with the id of one in flight, as after the ids
+ *                 wrap: the PUBACK of that id frees the one in flight, the
+ *                 queued one goes out in its turn, 1022 in all. "rec5"
+ *                 (MQTT 5, QoS 2): a PUBREC 0x80 sends the queued message,
+ *                 and a QoS 2 queued with the id of one in flight goes out
+ *                 after the PUBREC and PUBCOMP of that id. "slow" connects
+ *                 again and its queue fills again: one more WARNING.
+ *             13. "saver" connects and disconnects 200 times: its record is
+ *                 written about once, not 400 times, and keeps its 51
+ *                 filters, disconnected. It connects and subscribes three
+ *                 filters inside the second, and says nothing more.
+ *             14. 2.5 s later the timer wrote the three filters, and that
+ *                 it is connected.
+ *             15. "mem" (clean session 0, 51 filters) in the store with
+ *                 persistent FALSE: 200 reconnections keep its session in
+ *                 memory, it gets QoS 1 messages, 0 bytes are written, no
+ *                 directory is made, no error.
  *
  *          Up to 7.30.21 every client id made a record that was never
  *          removed, on disk and in memory, a client could hold any number
@@ -120,6 +140,10 @@
  *          and an assigned id logged "path NOT FOUND" at its first QoS 1;
  *          a PUBLISH past message_size_limit was freed twice, and the
  *          Receive Maximum of an MQTT 5 client was never kept.
+ *          Up to 7.30.24 an ack took a queued message with its packet id,
+ *          leaving the one in flight for ever, and a dropped message took a
+ *          packet id; each CONNECT and disconnection of a session rewrote
+ *          its record; a change inside the second waited for the next frame.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -156,9 +180,14 @@
 #define BIG_LIMIT           16      // message_size_limit of "big"
 #define RM_CLIENT           5       // Receive Maximum of "rm5"
 #define RM_PUBLICATIONS     (RM_CLIENT + MAX_QUEUED + 10)
+#define WRAP_PUBLICATIONS   (MAX_INFLIGHT + MAX_QUEUED + 10)
+#define LOOP_CYCLES         200
+#define LOOP_WRITE_MARGIN   (256*1024)  // bytes; 7.30.24 wrote two records of saver a cycle, ~12 MB
+#define SAVE_TIMER_WAIT_MS  2500    // the timer of a pending change: one second, on the ticks of the yuno
 
 #define STORE_SERVICE       "mqtt"
 #define STORE_DATABASE      "legacy_sessions_clients"
+#define MEM_DATABASE        "legacy_sessions_memory"    // persistent FALSE: no directory
 
 enum {
     DEV = 0,
@@ -183,6 +212,10 @@ enum {
     BIG,        // message_size_limit 16
     RM5,        // MQTT 5, Receive Maximum 5
     RM0,        // MQTT 5, Receive Maximum 0
+    WRAP,       // a queued message with the packet id of one in flight
+    REC5,       // MQTT 5, a failed PUBREC
+    MEM,        // its clients in a store with persistent FALSE
+    MEMP,       // publisher in that store
     N_PEERS
 };
 
@@ -236,6 +269,7 @@ typedef struct _PRIVATE_DATA {
     hgobj clients;
     hgobj topics;
     hgobj users;
+    hgobj mem_clients;      // persistent FALSE, as a gate whose sessions do not survive a restart
     int phase;
     peer_t peers[N_PEERS];
     uint64_t reference_ms;  // the publications before the sessions
@@ -283,11 +317,21 @@ PRIVATE void mt_create(hgobj gobj)
         json_pack("{s:b}", "persistent", 0),
         gobj
     );
+    priv->mem_clients = gobj_create_service(
+        "legacy_sessions_memory",
+        C_RESOURCE2,
+        json_pack("{s:s, s:s, s:b}",
+            "service", STORE_SERVICE,
+            "database", MEM_DATABASE,
+            "persistent", 0
+        ),
+        gobj
+    );
 
     static const char *names[N_PEERS] = {
         "dev", "pub", "att", "att2", "exp", "exp2", "r1", "r2", "r3", "r4", "r5",
         "longf", "q2", "in4", "in5", "slow", "disc5", "asg", "saver",
-        "big", "rm5", "rm0"
+        "big", "rm5", "rm0", "wrap", "rec5", "mem", "memp"
     };
     for(int i=0; i<N_PEERS; i++) {
         peer_t *peer = &priv->peers[i];
@@ -318,7 +362,9 @@ PRIVATE void mt_create(hgobj gobj)
             kw_prot,
             gobj
         );
-        gobj_write_pointer_attr(peer->prot, "gobj_mqtt_clients", priv->clients);
+        gobj_write_pointer_attr(peer->prot, "gobj_mqtt_clients",
+            (i == MEM || i == MEMP)? priv->mem_clients : priv->clients
+        );
         gobj_write_pointer_attr(peer->prot, "gobj_mqtt_topics", priv->topics);
         gobj_write_pointer_attr(peer->prot, "gobj_mqtt_users", priv->users);
 
@@ -357,6 +403,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_start(priv->clients);
     gobj_start(priv->topics);
     gobj_start(priv->users);
+    gobj_start(priv->mem_clients);
     for(int i=0; i<N_PEERS; i++) {
         gobj_start(priv->peers[i].fake);
         gobj_start(priv->peers[i].prot);
@@ -391,6 +438,9 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     if(gobj_is_running(priv->users)) {
         gobj_stop(priv->users);
+    }
+    if(gobj_is_running(priv->mem_clients)) {
+        gobj_stop(priv->mem_clients);
     }
 
     return 0;
@@ -1864,16 +1914,6 @@ PRIVATE void phase_save_noop(hgobj gobj)
     mqtt_close(gobj, saver);
 }
 
-
-
-
-                    /***************************
-                     *      Actions
-                     ***************************/
-
-
-
-
 /***************************************************************************
  *  11. message_size_limit; the Receive Maximum of an MQTT 5 client
  ***************************************************************************/
@@ -1943,6 +1983,286 @@ PRIVATE void phase_client_limits(hgobj gobj)
 }
 
 /***************************************************************************
+ *  12. The queue of a client: an ack never takes a queued message, even one
+ *  with the packet id of a message in flight; a dropped message spends no
+ *  packet id; a failed PUBREC sends the next queued message;
+ *  max_queued_messages is said again in a new connection
+ ***************************************************************************/
+PRIVATE void phase_out_queue(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *pub = &priv->peers[PUB];
+    peer_t *wrap = &priv->peers[WRAP];
+    peer_t *rec5 = &priv->peers[REC5];
+    peer_t *slow = &priv->peers[SLOW];
+
+    /*
+     *  20 in flight (ids 1..20), 1000 queued (21..1020), 10 dropped
+     */
+    mqtt_connect(gobj, wrap, 4, TRUE, "wrap", -1);
+    check_int(gobj, "TEST: CONNECT of wrap", wrap->connack_reason, 0);
+    mqtt_subscribe_qos(gobj, wrap, 1, "wr/t", -1, 1, 1);
+    check_suback(gobj, wrap, "TEST: SUBACK QoS 1 of wrap", 0, 1, 1);
+    for(int i=0; i<WRAP_PUBLICATIONS; i++) {
+        mqtt_publish_qos(gobj, pub, "wr/t", "x", (uint16_t)(i + 1));
+    }
+    check_int(gobj, "TEST: messages in flight to wrap", wrap->publications, MAX_INFLIGHT);
+
+    /*
+     *  A slot frees, one more message is queued: its packet id follows the
+     *  last message kept, not the dropped ones
+     */
+    mqtt_ack(gobj, wrap, 0x40, 1);
+    mqtt_publish_qos(gobj, pub, "wr/t", "x", 1);
+    json_t *record = gobj_get_resource(priv->clients, "wrap", 0, 0);
+    check_int(gobj, "TEST: the packet id of the message after the dropped ones",
+        kw_get_int(gobj, record, "last_mid", 0, KW_REQUIRED), MAX_INFLIGHT + MAX_QUEUED + 1
+    );
+
+    /*
+     *  As after the packet ids wrap: a message queued with the id of one in
+     *  flight (2). The PUBACK of 2 frees the one in flight; the queued one
+     *  goes out in its turn and gets its own PUBACK.
+     */
+    mqtt_ack(gobj, wrap, 0x40, MAX_INFLIGHT + 1);
+    json_object_set_new(record, "last_mid", json_integer(1));
+    mqtt_publish_qos(gobj, pub, "wr/t", "x", 1);
+    mqtt_ack(gobj, wrap, 0x40, 2);
+    for(int i=3; i<=MAX_INFLIGHT + MAX_QUEUED + 1; i++) {
+        mqtt_ack(gobj, wrap, 0x40, (uint16_t)i);
+    }
+    mqtt_ack(gobj, wrap, 0x40, 2);
+    check_int(gobj, "TEST: messages wrap got, one queued with the packet id of one in flight",
+        wrap->publications, MAX_INFLIGHT + MAX_QUEUED + 2
+    );
+    check_kept(gobj, WRAP, "TEST: wrap was dropped");
+    mqtt_close(gobj, wrap);
+
+    /*
+     *  MQTT 5, QoS 2: 20 in flight and one queued; a PUBREC with a reason
+     *  code of failure ends the first one and sends the queued one
+     */
+    mqtt_connect(gobj, rec5, 5, TRUE, "rec5", -1);
+    check_int(gobj, "TEST: CONNECT of rec5", rec5->connack_reason, 0);
+    mqtt_subscribe_qos(gobj, rec5, 1, "rc/t", -1, 1, 2);
+    check_suback(gobj, rec5, "TEST: SUBACK QoS 2 of rec5", 0, 1, 2);
+    for(int i=0; i<MAX_INFLIGHT + 1; i++) {
+        mqtt_publish_qos2(gobj, pub, "rc/t", "x", (uint16_t)(i + 1), FALSE);
+        mqtt_ack(gobj, pub, 0x62, (uint16_t)(i + 1));   // PUBREL: to the subscribers
+    }
+    check_int(gobj, "TEST: QoS 2 messages in flight to rec5", rec5->publications, MAX_INFLIGHT);
+    gbuffer_t *body = gbuffer_create(3, 3);
+    uint8_t pubrec[] = {0x00, 0x01, 0x80};  // packet id 1, 0x80 Unspecified error
+    gbuffer_append(body, pubrec, sizeof(pubrec));
+    peer_sends(gobj, rec5, 0x50, body);
+    check_int(gobj, "TEST: a failed PUBREC did not send the queued message",
+        rec5->publications, MAX_INFLIGHT + 1
+    );
+
+    /*
+     *  QoS 2 as after the packet ids wrap: one queued with the id of one in
+     *  flight (2). The PUBREC and PUBCOMP of 2 end the one in flight, and
+     *  the queued one goes out.
+     */
+    json_t *rec = gobj_get_resource(priv->clients, "rec5", 0, 0);
+    json_object_set_new(rec, "last_mid", json_integer(1));
+    mqtt_publish_qos2(gobj, pub, "rc/t", "x", MAX_INFLIGHT + 2, FALSE);
+    mqtt_ack(gobj, pub, 0x62, MAX_INFLIGHT + 2);
+    mqtt_ack(gobj, rec5, 0x50, 2);  // PUBREC
+    mqtt_ack(gobj, rec5, 0x70, 2);  // PUBCOMP
+    check_int(gobj, "TEST: QoS 2 messages rec5 got, one queued with the packet id of one in flight",
+        rec5->publications, MAX_INFLIGHT + 2
+    );
+    check_kept(gobj, REC5, "TEST: rec5 was dropped");
+    mqtt_close(gobj, rec5);
+
+    /*
+     *  A new connection of slow (phase 8 said its queue was full): past
+     *  max_queued_messages again, one more WARNING
+     */
+    mqtt_connect(gobj, slow, 4, TRUE, "slow", -1);
+    check_int(gobj, "TEST: CONNECT of slow again", slow->connack_reason, 0);
+    mqtt_subscribe_qos(gobj, slow, 1, "s/t", -1, 1, 1);
+    slow->publications = 0;
+    for(int i=0; i<SLOW_PUBLICATIONS; i++) {
+        mqtt_publish_qos(gobj, pub, "s/t", "x", (uint16_t)(i + 1));
+    }
+    check_int(gobj, "TEST: messages in flight to slow again", slow->publications, MAX_INFLIGHT);
+    check_kept(gobj, SLOW, "TEST: slow was dropped");
+    mqtt_close(gobj, slow);
+}
+
+/***************************************************************************
+ *  13. CONNECT and DISCONNECT of a session, again and again: what is saved
+ *  does not change, it is not written again. Then three SUBSCRIBE inside the
+ *  window of one second, and the client says nothing more.
+ ***************************************************************************/
+PRIVATE void phase_save_loop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *saver = &priv->peers[SAVER];
+
+    json_int_t w0 = bytes_written(gobj);
+    for(int i=0; i<LOOP_CYCLES; i++) {
+        mqtt_connect(gobj, saver, 4, FALSE, "saver", -1);
+        mqtt_close(gobj, saver);
+    }
+    json_int_t written = bytes_written(gobj) - w0;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TEST: CONNECT and DISCONNECT of a session",
+        "cycles",       "%d", LOOP_CYCLES,
+        "written",      "%lld", (long long)written,
+        NULL
+    );
+    if(written > LOOP_WRITE_MARGIN) {
+        json_t *got = json_integer(written);
+        json_t *expected = json_integer(LOOP_WRITE_MARGIN);
+        test_error(gobj, "TEST: CONNECT and DISCONNECT rewrote the record, bytes", got, expected);
+        JSON_DECREF(got)
+        JSON_DECREF(expected)
+    }
+    check_int(gobj, "TEST: the last CONNECT of the cycles", saver->connack_reason, 0);
+    check_int(gobj, "TEST: the subscriptions of saver after the cycles",
+        subscriptions_of(gobj, "saver"), SAVE_FILTERS + 1
+    );
+    json_t *record = record_on_disk(gobj, "saver");
+    check_int(gobj, "TEST: the subscriptions of saver on disk after the cycles",
+        (json_int_t)json_object_size(json_object_get(record, "subscriptions")), SAVE_FILTERS + 1
+    );
+    check_int(gobj, "TEST: saver on disk after the cycles, connected",
+        json_is_true(json_object_get(record, "isConnected"))? 1 : 0, 0
+    );
+    check_int(gobj, "TEST: saver on disk after the cycles, its disconnected_t",
+        json_integer_value(json_object_get(record, "disconnected_t")) > 0? 1 : 0, 1
+    );
+    JSON_DECREF(record)
+
+    const char *fa[] = {"sv/a"};
+    const char *fb[] = {"sv/b"};
+    const char *fc[] = {"sv/c"};
+    mqtt_connect(gobj, saver, 4, FALSE, "saver", -1);
+    check_int(gobj, "TEST: CONNECT of saver after the cycles", saver->connack_reason, 0);
+    mqtt_filters(gobj, saver, 0x82, 1, fa, 1);
+    mqtt_filters(gobj, saver, 0x82, 2, fb, 1);
+    mqtt_filters(gobj, saver, 0x82, 3, fc, 1);
+    check_int(gobj, "TEST: a SUBSCRIBE inside the window written at once",
+        subscribed_on_disk(gobj, "saver", "sv/c")? 1 : 0, 0
+    );
+}
+
+/***************************************************************************
+ *  14. The client said nothing more: the timer of the window wrote its
+ *  three SUBSCRIBE, and that it is connected
+ ***************************************************************************/
+PRIVATE void phase_save_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *saver = &priv->peers[SAVER];
+
+    check_int(gobj, "TEST: sv/a not written, the client silent",
+        subscribed_on_disk(gobj, "saver", "sv/a")? 1 : 0, 1
+    );
+    check_int(gobj, "TEST: sv/b not written, the client silent",
+        subscribed_on_disk(gobj, "saver", "sv/b")? 1 : 0, 1
+    );
+    check_int(gobj, "TEST: sv/c not written, the client silent",
+        subscribed_on_disk(gobj, "saver", "sv/c")? 1 : 0, 1
+    );
+    json_t *record = record_on_disk(gobj, "saver");
+    check_int(gobj, "TEST: saver on disk, connected",
+        json_is_true(json_object_get(record, "isConnected"))? 1 : 0, 1
+    );
+    check_int(gobj, "TEST: saver on disk, connected, with a disconnected_t",
+        json_object_get(record, "disconnected_t")? 1 : 0, 0
+    );
+    JSON_DECREF(record)
+    mqtt_close(gobj, saver);
+}
+
+/***************************************************************************
+ *  15. The clients in a store with persistent FALSE: the session lives in
+ *  memory, across its connections; nothing is written, no error
+ ***************************************************************************/
+PRIVATE void phase_memory_sessions(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    peer_t *mem = &priv->peers[MEM];
+    peer_t *memp = &priv->peers[MEMP];
+
+    json_int_t w0 = bytes_written(gobj);
+
+    mqtt_connect(gobj, mem, 4, FALSE, "mem1", -1);
+    check_int(gobj, "TEST: CONNECT of mem1", mem->connack_reason, 0);
+    mqtt_subscribe(gobj, mem, 1, saver_prefix(), 0, SAVE_FILTERS);
+    check_suback(gobj, mem, "TEST: SUBACK of mem1", SAVE_FILTERS, 0, 0);
+    mqtt_subscribe_qos(gobj, mem, 2, "mt/t", -1, 1, 1);
+    check_suback(gobj, mem, "TEST: SUBACK QoS 1 of mem1", 0, 1, 1);
+    mqtt_connect(gobj, memp, 4, TRUE, "memp", -1);
+    check_int(gobj, "TEST: CONNECT of memp", memp->connack_reason, 0);
+    mqtt_publish_qos(gobj, memp, "mt/t", "on", 1);
+    check_int(gobj, "TEST: the QoS 1 message of mem1", mem->publications, 1);
+
+    for(int i=0; i<LOOP_CYCLES; i++) {
+        mqtt_close(gobj, mem);
+        mqtt_connect(gobj, mem, 4, FALSE, "mem1", -1);
+    }
+    check_int(gobj, "TEST: CONNECT of mem1 after the cycles", mem->connack_reason, 0);
+    json_t *client = gobj_get_resource(priv->mem_clients, "mem1", 0, 0);
+    check_int(gobj, "TEST: the subscriptions of mem1 in memory",
+        (json_int_t)json_object_size(json_object_get(client, "subscriptions")), SAVE_FILTERS + 1
+    );
+    mqtt_publish_qos(gobj, memp, "mt/t", "on", 2);
+    check_int(gobj, "TEST: the QoS 1 message of mem1 after the cycles", mem->publications, 2);
+    mqtt_close(gobj, mem);
+    mqtt_close(gobj, memp);
+
+    json_t *list = gobj_list_resource(priv->mem_clients, "", 0, 0);
+    check_int(gobj, "TEST: records of the store with persistent FALSE (mem1)",
+        (json_int_t)json_array_size(list), 1
+    );
+    JSON_DECREF(list)
+
+    json_int_t written = bytes_written(gobj) - w0;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TEST: sessions in a store with persistent FALSE",
+        "written",      "%lld", (long long)written,
+        NULL
+    );
+    if(written > SAVE_NOOP_MARGIN) {
+        json_t *got = json_integer(written);
+        json_t *expected = json_integer(SAVE_NOOP_MARGIN);
+        test_error(gobj, "TEST: sessions in a store with persistent FALSE wrote, bytes", got, expected);
+        JSON_DECREF(got)
+        JSON_DECREF(expected)
+    }
+
+    char path_service[PATH_MAX];
+    char dir[PATH_MAX];
+    if(!build_path(path_service, sizeof(path_service),
+            STORE_SERVICE, gobj_yuno_role_plus_name(), MEM_DATABASE, NULL) ||
+            !yuneta_store_dir(dir, sizeof(dir), "resources", path_service, FALSE)) {
+        return;  // Error already logged
+    }
+    check_int(gobj, "TEST: a directory of the store with persistent FALSE",
+        access(dir, F_OK) == 0? 1 : 0, 0
+    );
+}
+
+
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/***************************************************************************
  *  The phases
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -2004,6 +2324,26 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 11:
             phase_client_limits(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 12:
+            phase_out_queue(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 13:
+            phase_save_loop(gobj);
+            set_timeout(priv->timer, SAVE_TIMER_WAIT_MS);
+            break;
+
+        case 14:
+            phase_save_timer(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 15:
+            phase_memory_sessions(gobj);
             set_timeout(priv->timer, 100);
             break;
 

@@ -123,7 +123,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}]",
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused",  // many
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused",  // many5
             "msg", "Mqtt: CONNECT past max_persistent_sessions, new sessions refused",    // once
@@ -136,7 +136,9 @@ static int register_yuno_and_more(void)
             "msg", "Mqtt: Dropped too large PUBLISH",                                     // big QoS 1
             "msg", "Mqtt: Dropped too large PUBLISH",                                     // big QoS 2
             "msg", "Mqtt: messages to the client past max_queued_messages, dropped",      // rm5
-            "msg", "Mqtt check property failed 3"                                         // rm0
+            "msg", "Mqtt check property failed 3",                                        // rm0
+            "msg", "Mqtt: messages to the client past max_queued_messages, dropped",      // wrap
+            "msg", "Mqtt: messages to the client past max_queued_messages, dropped"       // slow again
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

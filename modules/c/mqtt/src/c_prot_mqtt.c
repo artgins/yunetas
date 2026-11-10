@@ -596,6 +596,8 @@ PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
 PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len);
 PRIVATE int frame_completed(hgobj gobj);
 PRIVATE int set_client_disconnected(hgobj gobj);
+PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id);
+PRIVATE void save_client_changes(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -770,6 +772,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_mqtt_clients;
     hgobj gobj_mqtt_users;
     hgobj timer;
+    hgobj timer_save;       // armed only while a change of the client's record waits
     BOOL iamServer;         // What side? server or client
     int pingT;
 
@@ -815,8 +818,8 @@ typedef struct _PRIVATE_DATA {
     BOOL subscriptions_capped;  // max_subscriptions_per_client said in this connection
     BOOL filters_capped;        // max_topic_filter_length said in this connection
     BOOL out_dropping;          // max_queued_messages said in this connection
-    BOOL client_changed;        // its record changed by a (UN)SUBSCRIBE, not written yet
-    uint64_t client_save_window;// msectimer: no (UN)SUBSCRIBE write before it
+    BOOL client_changed;        // its record changed, not written yet
+    uint64_t client_save_window;// msectimer: no write of a change before it
     const char *protocol_name;
     uint32_t protocol_version;
     BOOL is_bridge;
@@ -871,6 +874,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer_save = gobj_create_pure_child("client_save", C_TIMER, 0, gobj);
 
     dl_init(&priv->dl_msgs_out, gobj);
     dl_init(&priv->dl_msgs_in, gobj);
@@ -1070,6 +1074,9 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->timer) {
         clear_timeout(priv->timer);
+    }
+    if(priv->timer_save) {
+        clear_timeout(priv->timer_save);
     }
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);
@@ -4632,7 +4639,7 @@ PRIVATE int db__message_update_outgoing(
 
     struct mosquitto_client_msg *msg = dl_first(&priv->dl_msgs_out);
     while(msg) {
-        if(msg->mid == mid) {
+        if(msg->mid == mid && msg->state != mosq_ms_queued) {  // a queued one was not sent
             if(msg->qos != qos) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -4833,7 +4840,7 @@ PRIVATE int db__message_delete_outgoing(
 
     tail = dl_first(&priv->dl_msgs_out);
     while(tail) {
-        if(tail->mid == mid) {
+        if(tail->mid == mid && tail->state != mosq_ms_queued) {    // a queued one was not sent
             if(tail->qos != qos) {
                 return MOSQ_ERR_PROTOCOL;
             } else if(qos == 2 && tail->state != expect_state) {
@@ -4912,7 +4919,6 @@ PRIVATE int db__message_write_queued_out(hgobj gobj)
  ***************************************************************************/
 PRIVATE int XXX_db__message_insert(
     hgobj gobj,
-    uint16_t mid,
     uint8_t qos,
     BOOL retain,
     struct mosquitto_msg_store *stored,
@@ -4976,6 +4982,15 @@ PRIVATE int XXX_db__message_insert(
             return MOSQ_ERR_SUCCESS;
         }
         state = mosq_ms_queued;
+    }
+
+    /*
+     *  The packet id, only for a message that is kept: up to 7.30.24 a
+     *  dropped one spent it too, and the ids of a slow client wrapped
+     */
+    uint16_t mid = 0;
+    if(qos > 0) {
+        mid = mosquitto__mid_generate(gobj, priv->client_id);
     }
 
     msg = GBMEM_MALLOC(sizeof(struct mosquitto_client_msg));
@@ -5205,13 +5220,6 @@ PRIVATE int XXX_subs__send(
         return 0;
     }
 
-    uint16_t mid;
-    if(msg_qos) {
-        mid = mosquitto__mid_generate(gobj, client_id);
-    } else {
-        mid = 0;
-    }
-
     BOOL client_retain;
     if(kw_get_bool(gobj, subscription, "retain_as_published", 0, KW_REQUIRED)) {
         client_retain = retain;
@@ -5223,7 +5231,7 @@ PRIVATE int XXX_subs__send(
         mosquitto_property_add_varint(gobj, properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER, identifier);
     }
 
-    XXX_db__message_insert(gobj_client, mid, msg_qos, client_retain, stored, properties);
+    XXX_db__message_insert(gobj_client, msg_qos, client_retain, stored, properties);
 
     JSON_DECREF(properties)
     return 0;
@@ -5756,8 +5764,54 @@ PRIVATE int handle__auth_c(hgobj gobj, gbuffer_t *gbuf)
 
 
 /***************************************************************************
+ *  Bytes of a dump into the fingerprint: FNV-1a, 64 bits
+ ***************************************************************************/
+PRIVATE int fingerprint_bytes(const char *buffer, size_t size, void *data)
+{
+    uint64_t *h = data;
+    for(size_t i=0; i<size; i++) {
+        *h ^= (uint8_t)buffer[i];
+        *h *= 0x100000001b3ULL;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The fingerprint of what a save writes of a record: its keys but the
+ *  private ones ("_gobj", ...), keys sorted. 0 if it cannot be made.
+ ***************************************************************************/
+PRIVATE uint64_t record_fingerprint(hgobj gobj, json_t *client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *saved = json_object();
+    const char *key; json_t *value;
+    json_object_foreach(client, key, value) {
+        if(key[0] != '_') {
+            json_object_set(saved, key, value);     // a reference, nothing is copied
+        }
+    }
+    uint64_t h = 0xcbf29ce484222325ULL;
+    int ret = json_dump_callback(saved, fingerprint_bytes, &h, JSON_COMPACT|JSON_SORT_KEYS);
+    JSON_DECREF(saved)
+    if(ret < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON,
+            "msg",          "%s", "Cannot dump the record of the client",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            NULL
+        );
+        return 0;
+    }
+    return h;
+}
+
+/***************************************************************************
  *  Only the record of a session to keep is written: one without a
- *  session lives in memory and goes with its connection
+ *  session lives in memory and goes with its connection. A record whose
+ *  saved keys are what was written last is not written again (up to
+ *  7.30.24 each CONNECT and each disconnection rewrote it whole).
  ***************************************************************************/
 PRIVATE int save_client(hgobj gobj)
 {
@@ -5766,16 +5820,26 @@ PRIVATE int save_client(hgobj gobj)
     priv->client_changed = FALSE;
     if(!priv->assigned_id && priv->session_expiry_interval > 0 &&
             !empty_string(priv->client_id)) {
-        gobj_save_resource(priv->gobj_mqtt_clients, priv->client_id, priv->client, 0);
+        uint64_t fingerprint = record_fingerprint(gobj, priv->client);
+        if(fingerprint &&
+                fingerprint == (uint64_t)kw_get_int(gobj, priv->client, "_saved_fingerprint", 0, 0)) {
+            return 0;
+        }
+        if(gobj_save_resource(priv->gobj_mqtt_clients, priv->client_id, priv->client, 0) == 0) {
+            json_object_set_new(priv->client, "_saved_fingerprint", json_integer((json_int_t)fingerprint));
+        }
     }
     return 0;
 }
 
 /***************************************************************************
- *  The record changed by a SUBSCRIBE or UNSUBSCRIBE is written at most
- *  once a second: a change inside the window is written by the first frame
- *  after it, or by the disconnection. A (UN)SUBSCRIBE that changes nothing
- *  writes nothing. Up to 7.30.23 each one rewrote the whole record.
+ *  A changed record (a SUBSCRIBE or UNSUBSCRIBE, the CONNECT of a session
+ *  that exists) is written at most once a second: a change inside the
+ *  window is written by the timer, a second after the last one, or by the
+ *  first frame past the window, or by the disconnection. A (UN)SUBSCRIBE
+ *  that changes nothing writes nothing. Up to 7.30.23 each one rewrote the
+ *  whole record; in 7.30.24 a change inside the window waited for the next
+ *  frame, until the keep alive of a silent client.
  ***************************************************************************/
 PRIVATE void save_client_changes(hgobj gobj)
 {
@@ -5785,6 +5849,7 @@ PRIVATE void save_client_changes(hgobj gobj)
         return;
     }
     if(priv->client_save_window && !test_msectimer(priv->client_save_window)) {
+        set_timeout(priv->timer_save, 1000);
         return;
     }
     save_client(gobj);
@@ -6201,6 +6266,7 @@ PRIVATE int connect_on_authorised(
 
     int ret = send_connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
     if(ret == 0) {
+        BOOL new_session = keep_session && kw_get_bool(gobj, client, "_volatil", 0, 0);
         if(keep_session) {
             json_object_del(client, "_volatil");    // written from now on
         }
@@ -6217,7 +6283,18 @@ PRIVATE int connect_on_authorised(
         gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
         priv->must_broadcast_on_close = TRUE;
         priv->client = client;
-        save_client(gobj);
+        if(new_session) {
+            save_client(gobj);  // its file from its CONNACK
+        } else if(keep_session) {
+            /*
+             *  A session that exists: that it is connected is written as a
+             *  change, at most once a second. A CONNECT and DISCONNECT loop
+             *  rewrote the whole record twice each time up to 7.30.24.
+             */
+            priv->client_changed = TRUE;
+            priv->client_save_window = start_msectimer(1000);
+            save_client_changes(gobj);
+        }
 
         json_t *kw = json_pack("{s:s}",
             "client_id", priv->client_id
@@ -8686,6 +8763,9 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(priv->timer) {
         clear_timeout(priv->timer);
     }
+    if(priv->timer_save) {
+        clear_timeout(priv->timer_save);
+    }
 
     JSON_DECREF(priv->jn_alias_list)
 
@@ -8717,6 +8797,14 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->timer_save) {
+        save_client_changes(gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting mqtt disconnected",
@@ -8843,6 +8931,12 @@ PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, gobj_event_t event, json_t 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(src == priv->timer_save) {
+        save_client_changes(gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
     if(priv->pingT > 0) {
         set_timeout(priv->timer, priv->pingT);
         //ping(gobj);
@@ -8900,6 +8994,14 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->timer_save) {
+        save_client_changes(gobj);
+        KW_DECREF(kw)
+        return 0;
+    }
+
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",

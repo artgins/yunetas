@@ -112,15 +112,69 @@ cost grows with the records, not with their subscriptions. It writes nothing
 to disk: a QoS 1 or 2 message goes only to a connected subscriber, with the
 next packet id of that client.
 
-A SUBSCRIBE or UNSUBSCRIBE writes the record only when it changes it, and at
-most once a second for each connection. A change inside that second is
-written by the next packet of the client after it (a PINGREQ is enough), or
-when the client disconnects. A re-subscription with the same options, a
-refused filter and an UNSUBSCRIBE of a filter that the client does not hold
-write nothing. So a client that sends 400 SUBSCRIBE and UNSUBSCRIBE in one
-second writes its record once, and once more at its next packet; if the gate
-stops without an orderly shutdown in that second, the change is lost and the
-client subscribes again when it connects.
+A record is written only when what is saved of it changed: every key but
+the ones that start with `_` is compared with what was written last. A
+re-subscription with the same options, a refused filter, an UNSUBSCRIBE of a
+filter that the client does not hold, and a CONNECT or a disconnection that
+changes nothing that is saved write nothing.
+
+A change is written at most once a second for each connection: a SUBSCRIBE,
+an UNSUBSCRIBE, and the CONNECT of a session that exists (that its client is
+connected). The first change of a new session is written at once. A change
+inside the second waits, and is written by the first of these:
+
+- a timer, one second after the last change (it runs on the ticks of the
+  yuno, `timeout_periodic`, so the change is on disk within two seconds);
+- the next packet of the client after the second;
+- the disconnection.
+
+For example, a device whose session exists connects again and subscribes two
+filters, then says nothing more:
+
+```text
+t=0.0  CONNECT, clean session 0       waits (connected)
+t=0.1  SUBSCRIBE cmnd/dev-17/#         waits
+t=0.2  SUBSCRIBE stat/dev-17/#         waits
+t=1.2 to t=2.2                         the timer writes the record once: connected, both filters
+```
+
+So a client that sends 400 SUBSCRIBE and UNSUBSCRIBE in one second writes its
+record once, and once more about a second later. A client that connects and
+disconnects 200 times in one second writes its record once: each
+disconnection dates the record (`disconnected_t`, in seconds), and that is
+the only key that changes. If the gate stops without an orderly shutdown
+before a change is written, the change is lost, and the client subscribes
+again when it connects.
+
+#### Sessions in memory only
+
+A gate whose sessions do not have to survive a restart creates its three
+stores (`gobj_mqtt_clients`, `gobj_mqtt_topics`, `gobj_mqtt_users`) with
+`persistent` false. Then nothing is written to disk and no directory is
+made. A client with a session (clean session 0) keeps its subscriptions
+across its connections while the gate runs, and the limits above apply in
+the same way. When the gate stops, every session is lost, and so is a user
+made with `create-user`.
+
+```c
+priv->gobj_mqtt_clients = gobj_create_service(
+    "mqtt_clients",
+    C_RESOURCE2,
+    json_pack("{s:s, s:s, s:b}",
+        "service", "mqtt",
+        "database", "clients",
+        "persistent", 0
+    ),
+    gobj
+);
+```
+
+Do the same for `mqtt_topics` and `mqtt_users`, then give the three stores
+to the protocol gobj (`gobj_mqtt_clients`, `gobj_mqtt_topics`,
+`gobj_mqtt_users`). A store with `persistent` true reads its records from
+disk when it starts (`gobj_start()`): a gate that keeps its sessions on disk
+must start its stores, or the sessions written before a restart are never
+read.
 
 #### Messages in flight and queued
 
@@ -129,8 +183,8 @@ memory. `0` is no limit.
 
 | Attribute | Default | Past the limit |
 |---|---|---|
-| `max_inflight_messages` | `20` | To the client: a message waits in the client's queue, and goes out, with the packet id it got, when a PUBACK, PUBCOMP or failed PUBREC frees a slot. An MQTT 5 client that sends a lower Receive Maximum in its CONNECT gets that many in flight. From the client: it is also the Receive Maximum announced to MQTT 5 clients. A client with this many QoS 2 messages waiting for their PUBREL that sends one more PUBLISH breaks the protocol: MQTT 5 gets DISCONNECT `0x93` (Receive Maximum exceeded), and the connection closes, also for MQTT 3.1.1. One WARNING. |
-| `max_queued_messages` | `1000` | A message to the client past `max_inflight_messages` + this is dropped. The client stays connected. One WARNING per connection. |
+| `max_inflight_messages` | `20` | To the client: a message waits in the client's queue, and goes out, with the packet id it got, when a PUBACK, PUBCOMP or failed PUBREC frees a slot. An acknowledgement ends only a message in flight, never a queued one with the same packet id. An MQTT 5 client that sends a lower Receive Maximum in its CONNECT gets that many in flight. From the client: it is also the Receive Maximum announced to MQTT 5 clients. A client with this many QoS 2 messages waiting for their PUBREL that sends one more PUBLISH breaks the protocol: MQTT 5 gets DISCONNECT `0x93` (Receive Maximum exceeded), and the connection closes, also for MQTT 3.1.1. One WARNING. |
+| `max_queued_messages` | `1000` | A message to the client past `max_inflight_messages` + this is dropped, and takes no packet id. The client stays connected. One WARNING per connection. |
 
 ```json
 {
@@ -170,6 +224,13 @@ connected. One WARNING per message: *"Mqtt: Dropped too large PUBLISH"*.
 }
 ```
 
+Set `message_size_limit` in every gate whose devices send small payloads. With
+`0`, a PUBLISH is limited only by the largest memory block of the yuno
+(`MEM_MAX_BLOCK` of its `main.c`, 200 MB in the `yuno_citizen` template), and
+each subscriber that gets the message keeps its own copy of the payload
+while it is in flight or queued: one PUBLISH of 200 MB to 10 subscribers can
+hold 2 GB. A device that sends a few hundred bytes is well served by 4096.
+
 Up to 7.30.21 every client id left a record that was never removed, in memory
 and on disk; a client could hold any number of subscriptions; each PUBLISH
 walked every subscription of every record; and a re-subscription was taken
@@ -200,6 +261,18 @@ Interval logged an ERROR; and a client with an id the gate assigned logged
 *"path NOT FOUND"* at its first QoS 1 or 2 message. With `message_size_limit`
 set, a PUBLISH past it was freed twice, which took the gate down; and the
 Receive Maximum of an MQTT 5 client was never kept.
+
+Up to 7.30.24 a PUBACK, PUBREC or PUBCOMP found its message by the packet id
+alone, also among the queued messages, and a dropped message took a packet id
+too. When the packet ids of a slow subscriber wrapped, an acknowledgement could
+end a queued message that was never sent and leave the one in flight for
+ever: the subscriber got nothing more, and nothing was logged (from 7.30.24,
+the first version with a queue). Each CONNECT and each disconnection of a
+session rewrote its whole record (from before 7.2.0): a client that connected
+and disconnected in a loop with 100 filters made the gate write about 80 MB a
+second. A change inside the second of the (UN)SUBSCRIBE writes waited for the
+next packet of the client, which for a client that says nothing more is its
+keep alive.
 
 ## C_MQTT_BROKER
 
