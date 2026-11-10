@@ -139,7 +139,19 @@ with no default it is ABSENT from the handler's kw -- the `""` used to reach it
 required"*. On the command line an empty number is `0`, as it always was. The
 line has the last word: a value of `kw` that is refused does not count when the
 same parameter comes as `key=value` -- and it does not reach the handler under
-its name either.
+its name either. That holds for a required parameter too (up to 7.30.26 the
+`kw` value of a required one was refused before the line was read):
+
+```C
+gobj_command(gobj, "command-device device_id=L1 cmd=Lc",
+    json_pack("{s:i}", "device_id", 5),   // refused alone (not a string)
+    src);                                 // runs: device_id is "L1"
+```
+
+Blanks at the end of the line are no parameter: `typed s=a  ` runs with `s`
+`a`. Up to 7.30.26 two or more blanks (or a blank and a tab) at the end were
+answered *"extra parameters: ' '"* (`ycommand` trims its line, so only a
+caller that does not trim saw it).
 
 **A required parameter is given without its key or as `key=value`.** The
 leading `SDF_REQUIRED` parameters can be written as words, in their order; from
@@ -664,10 +676,17 @@ extra text: `set-password password=correct horse battery` and
 given without its key: it takes `correct`) are refused with *"command
 'set-password' with extra parameters: '<...>'"*, and so is `write-attr
 gobj_name=x attribute=password value=correct horse battery`, whose `value` is
-no secret parameter of its own. Else the extra text is echoed, its secrets
-masked: `list-yunos foo` is refused with *"... extra parameters: 'foo'"*. Up to
-7.25.21 the positional one showed `'horse battery'`, and up to 7.26.9 the
-write-attr one did.
+no secret parameter of its own. Nor is it repeated when the COMMAND has a
+REQUIRED secret parameter (the only kind that can be given without its key):
+the extra text can be that secret, given without its key
+after a `key=value` (from the first `key=value` on, the line is read as
+`key=value` only, so the word is left over). `login user=bob hunter2` is
+refused with *"command 'login' with extra parameters: '<...>'"*, as its mask
+shows it (`login user=bob <...>`); up to 7.30.26 it answered `'hunter2'`, in
+the answer and in the `ev_kw` trace. Else the extra text is echoed, its
+secrets masked: `list-yunos foo` is refused with *"... extra parameters:
+'foo'"*. Up to 7.25.21 the positional one showed `'horse battery'`, and up to
+7.26.9 the write-attr one did.
 
 What the masking takes includes, since 7.27.0, a `name: value` of a secret's
 name and the credential after `Basic`, so these lines are refused without

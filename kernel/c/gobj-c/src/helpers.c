@@ -3942,10 +3942,23 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr)
      */
     while(1) {
         c = *s;
-        if(c==0)
+        if(c==0) {
+            /*
+             *  Only blanks left: nothing left. Up to 7.30.26 save_ptr kept
+             *  them, and the command parser answered "extra parameters: ' '"
+             *  to a line ending in two blanks
+             */
+            if(key) {
+                *key = 0;
+            }
+            if(save_ptr) {
+                *save_ptr = 0;
+            }
             return 0;
-        if(!(c==' ' || c=='\t'))
+        }
+        if(!(c==' ' || c=='\t')) {
             break;
+        }
         s++;
     }
 

@@ -40,8 +40,15 @@
  *            - a null, or an empty text for a number, is no value: the
  *              default, or absent -- the kw's "" reached the handler
  *              before --, or "is required";
- *            - the line has the last word over a refused kw value, and the
- *              refused value does not reach the handler under the name;
+ *            - the line has the last word over a refused kw value (of a
+ *              required parameter too), and the refused value does not
+ *              reach the handler under the name;
+ *            - extra text after key=value parameters is not echoed when
+ *              the command has a required secret parameter (it can be the secret,
+ *              given positionally): up to 7.30.26 `login user=bob <pin>`
+ *              answered the pin;
+ *            - blanks at the end of the line are no parameter (two or more
+ *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
  *              does (write-attr reads its value as the attribute's type).
  *
@@ -105,6 +112,13 @@ SDATAPM (DTP_STRING,    "pin",          SDF_REQUIRED|SDF_SECRET,    0,          
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_login[] = {
+/*-PM----type-----------name------------flag------------------------default-----description---------- */
+SDATAPM (DTP_STRING,    "user",         SDF_REQUIRED,               0,          "The user"),
+SDATAPM (DTP_STRING,    "pin",          SDF_REQUIRED|SDF_SECRET,    0,          "The pin"),
+SDATA_END()
+};
+
 PRIVATE const char *a_required[] = {"must", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
@@ -112,6 +126,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM2(DTP_SCHEMA,    "typed",        0,            0,      pm_typed,   cmd_probe,  "A parameter of each type"),
 SDATACM2(DTP_SCHEMA,    "required",     0,            a_required, pm_required,cmd_probe,  "Required parameters"),
 SDATACM2(DTP_SCHEMA,    "unlock",       0,            0,      pm_unlock,  cmd_probe,  "Unlock with a pin"),
+SDATACM2(DTP_SCHEMA,    "login",        0,            0,      pm_login,   cmd_probe,  "Log in with a user and a pin"),
 SDATA_END()
 };
 
@@ -400,6 +415,46 @@ int main(int argc, char *argv[])
             printf("     comment: %s\n", comment);
         }
     }
+
+    /*
+     *  In key=value mode the line has the last word over a refused kw
+     *  value of a REQUIRED parameter too, as of an optional one. Up to
+     *  7.30.26 the kw's value was refused before the line was read.
+     */
+    expect_value(yuno, "required: the line wins over a refused kw", "required rb=1 rs=x",
+        json_pack("{s:s}", "rb", "notabool"), "rb", json_true());
+    expect_refused(yuno, "required: a refused kw the line does not give", "required rs=x",
+        json_pack("{s:s}", "rb", "notabool"), "parameter 'rb' must be a boolean", FALSE);
+
+    /*
+     *  A secret given positionally after a key=value is extra text: the
+     *  answer does not echo it (the mask of the line shows <...>). Up to
+     *  7.30.26 it answered "with extra parameters: 'hunter2'".
+     */
+    {
+        char comment[512];
+        int result = run(yuno, "login user=bob hunter2-pin", 0, comment, sizeof(comment));
+        check("secret positional after key=value", "answers -1, extra parameters",
+            result == -1 && strstr(comment, "extra parameters") != NULL);
+        check("secret positional after key=value", "the secret not echoed",
+            strstr(comment, "hunter2-pin") == NULL);
+        if(strstr(comment, "hunter2-pin")) {
+            printf("     comment: %s\n", comment);
+        }
+        char *masked = command_mask_secret_line(yuno, "login user=bob hunter2-pin");
+        check("secret positional after key=value", "the mask hides it too",
+            masked && strstr(masked, "hunter2-pin") == NULL);
+        GBMEM_FREE(masked)
+    }
+
+    /*
+     *  Blanks at the end of the line are no parameter. Up to 7.30.26 two
+     *  or more answered "extra parameters: ' '"
+     */
+    expect_value(yuno, "two blanks at the end", "typed s=a  ",
+        0, "s", json_string("a"));
+    expect_value(yuno, "a blank and a tab at the end", "required 1 x \t",
+        0, "rs", json_string("x"));
 
     /*
      *  The EXACT type: a number to a boolean, a boolean to a number, a real

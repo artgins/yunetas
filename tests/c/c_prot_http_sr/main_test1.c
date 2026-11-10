@@ -360,9 +360,10 @@ int main(int argc, char *argv[])
     set_memory_check_list(memory_check_list);
 
     /*
-     *  A request that never arrives must fail the test, not hang it
+     *  A request that never arrives must fail the test, not hang it. The
+     *  test runs 46-48 s: 50 killed it under ASan or a loaded machine
      */
-    set_auto_kill_time(50);
+    set_auto_kill_time(120);
 
     /*------------------------------------------------*
      *          Start yuneta

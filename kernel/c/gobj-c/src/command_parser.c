@@ -65,6 +65,7 @@ PRIVATE json_t *build_cmd_kw(
 );
 PRIVATE const sdata_desc_t *find_ip_parameter(const sdata_desc_t *input_parameters, const char *key);
 PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key);
+PRIVATE BOOL has_required_secret_parameter(const sdata_desc_t *cnf_cmd);
 PRIVATE json_t *mask_secret_params(json_t *jn, const sdata_desc_t *cnf_cmd);
 PRIVATE json_t *text2parameter(data_type_t type, const char *s, BOOL from_kw, const char **refused);
 PRIVATE json_t *kw2parameter(data_type_t type, json_t *value, BOOL as_given, const char **refused);
@@ -364,6 +365,23 @@ PRIVATE BOOL is_secret_parameter(const sdata_desc_t *cnf_cmd, const char *key)
         return TRUE;
     }
     return is_secret_name(key, strlen(key));
+}
+
+/***************************************************************************
+ *  Has the command a REQUIRED secret parameter (SDF_SECRET, or a secret's
+ *  name)? Only a required one can be given without its key: a word left
+ *  over on the line can be it
+ ***************************************************************************/
+PRIVATE BOOL has_required_secret_parameter(const sdata_desc_t *cnf_cmd)
+{
+    const sdata_desc_t *ip = cnf_cmd? cnf_cmd->schema : NULL;
+    while(ip && ip->name) {
+        if((ip->flag & SDF_REQUIRED) && is_secret_parameter(cnf_cmd, ip->name)) {
+            return TRUE;
+        }
+        ip++;
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -1293,6 +1311,7 @@ PRIVATE json_t *build_cmd_kw(
      *  the agent, which gives the parameters in kw.
      */
     BOOL key_value_from_here = FALSE;
+    json_t *jn_refused = json_object();     // parameter -> what kw gave instead
     const sdata_desc_t *ip = input_parameters;
     while(ip->name) {
         if(ip->flag & SDF_NOTACCESS) {
@@ -1329,16 +1348,19 @@ PRIVATE json_t *build_cmd_kw(
         if(!param && key_value_from_here) {
             /*
              *  From kw if it is there; else the line's key=value, checked
-             *  after them
+             *  after them. A value of kw that is refused is refused at the
+             *  end, unless the line gives it: the line has the last word,
+             *  as for an optional one (up to 7.30.26 the kw's was refused
+             *  here, before the line was read)
              */
             const char *refused = NULL;
             json_t *jn_param = kw2parameter(  // a key, as written below
                 ip->type, json_object_get(kw, ip->name), TRUE, &refused
             );
             if(refused) {
-                *result = -1;
-                JSON_DECREF(kw_cmd);
-                return refuse_parameter(gobj, peer, command, ip->name, ip->type, refused);
+                json_object_set_new(jn_refused, ip->name, json_string(refused));
+                ip++;
+                continue;
             }
             if(jn_param) {
                 json_object_set_new(kw_cmd, ip->name, jn_param);
@@ -1357,6 +1379,7 @@ PRIVATE json_t *build_cmd_kw(
             if(refused) {
                 *result = -1;
                 JSON_DECREF(kw_cmd);
+                JSON_DECREF(jn_refused);
                 return refuse_parameter(gobj, peer, command, ip->name, ip->type, refused);
             }
             if(jn_param) {
@@ -1366,6 +1389,7 @@ PRIVATE json_t *build_cmd_kw(
             } else {
                 *result = -1;
                 JSON_DECREF(kw_cmd);
+                JSON_DECREF(jn_refused);
                 return json_sprintf(
                     "%s: command '%s', parameter '%s' is required",
                     gobj_short_name(gobj),
@@ -1378,6 +1402,7 @@ PRIVATE json_t *build_cmd_kw(
             // es ya un key=value, falta el required
             *result = -1;
             JSON_DECREF(kw_cmd);
+            JSON_DECREF(jn_refused);
             return json_sprintf(
                 "%s: required parameter '%s' not found",
                 gobj_short_name(gobj),
@@ -1389,6 +1414,7 @@ PRIVATE json_t *build_cmd_kw(
         if(!jn_param) {
             *result = -1;
             JSON_DECREF(kw_cmd);
+            JSON_DECREF(jn_refused);
             return refuse_parameter(gobj, peer, command, ip->name, ip->type,
                 refused? refused : "a text that does not read as one"
             );
@@ -1406,7 +1432,6 @@ PRIVATE json_t *build_cmd_kw(
      *  refused is refused at the end, unless the line gives the parameter:
      *  the line has the last word (key=value below).
      */
-    json_t *jn_refused = json_object();     // parameter -> what kw gave instead
     while(ip->name) {
         if(ip->flag & SDF_NOTACCESS) {
             ip++;
@@ -1567,14 +1592,18 @@ PRIVATE json_t *build_cmd_kw(
          *  rest of it as extra text (password=correct horse battery, as a
          *  key=value or positional), and the `value` of a write-attr is no
          *  secret parameter: `write-attr attribute=password value=correct
-         *  horse battery` answered 'horse battery'.
+         *  horse battery` answered 'horse battery'. Nor when the command
+         *  has a REQUIRED secret parameter: the extra text can be that
+         *  secret given without its key after a key=value (`login user=bob
+         *  <pin>`), which the mask of the line hides as <...>; up to
+         *  7.30.26 it was echoed.
          *  Else the extra text is echoed, its secrets masked.
          */
         *result = -1;
         JSON_DECREF(kw_cmd);
         JSON_DECREF(jn_refused);
         char *line_masked = secret_given? NULL : mask_secrets_inline(line);
-        BOOL line_has_secret = (secret_given || line_masked)? TRUE : FALSE;
+        BOOL line_has_secret = (secret_given || line_masked || has_required_secret_parameter(cnf_cmd))? TRUE : FALSE;
         GBMEM_FREE(line_masked)
         char *masked = line_has_secret? NULL : mask_secrets_inline(pxxx);
         json_t *jn_error = json_sprintf(

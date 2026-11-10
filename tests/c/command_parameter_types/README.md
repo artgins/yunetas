@@ -33,7 +33,13 @@ other: `required rb=1 rs=x`, `required rs=x rb=on` (by a peer too),
 `required 1 rs=x`, `required rs=x` with `rb` in kw; `required rs=x` alone
 answers *"parameter 'rb' is required"*. It is what a command sent straight to
 a service carries (`ycommand -S`). Up to 7.30.26 each was refused with
-*"required parameter 'rb' not found"*.
+*"required parameter 'rb' not found"*. A refused kw value of a required
+parameter loses to the line too (`required rb=1 rs=x` with a kw `rb`
+`"notabool"` runs; it was refused before the line was read). `login user=bob
+<pin>` (a required `SDF_SECRET` pin given without its key after a key=value)
+is refused as extra text without echoing the pin (it was echoed). Blanks at
+the end of the line (`typed s=a  `, `required 1 x \t`) are no parameter (two
+or more were *"extra parameters: ' '"*).
 
 The cases, one each: a string given a number (by C, an ERROR; by a peer, a
 WARNING); a dict given a list (in kw and on the line) and given its json as
