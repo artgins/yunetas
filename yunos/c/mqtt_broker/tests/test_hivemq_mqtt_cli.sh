@@ -219,7 +219,10 @@ ${MQTT} test \
     --port "${BROKER_PORT}" \
     --mqttVersion 3 \
     --timeOut "${TIMEOUT}" \
-    2>&1 | tee /tmp/mqtt_test_v3.log
+    2>/tmp/mqtt_test_v3.err | tee /tmp/mqtt_test_v3.log || true
+# The verdict is on stdout; the JVM writes its warnings on stderr, and merged
+# they can land in the middle of the "MQTT N: OK" line. Show stderr apart.
+grep -v '^WARNING' /tmp/mqtt_test_v3.err >&2 || true
 
 if grep -q "^MQTT 3: OK" /tmp/mqtt_test_v3.log; then
     log_ok "MQTT v3.1.1 spec compliance tests passed"
@@ -242,7 +245,10 @@ ${MQTT} test \
     --port "${BROKER_PORT}" \
     --all \
     --timeOut "${TIMEOUT}" \
-    2>&1 | tee /tmp/mqtt_test_v5.log
+    2>/tmp/mqtt_test_v5.err | tee /tmp/mqtt_test_v5.log || true
+# The verdict is on stdout; the JVM writes its warnings on stderr, and merged
+# they can land in the middle of the "MQTT N: OK" line. Show stderr apart.
+grep -v '^WARNING' /tmp/mqtt_test_v5.err >&2 || true
 
 if grep -q "^MQTT 5: OK" /tmp/mqtt_test_v5.log && grep -q "^MQTT 3: OK" /tmp/mqtt_test_v5.log; then
     log_ok "MQTT v5.0 spec compliance tests passed (v3+v5)"

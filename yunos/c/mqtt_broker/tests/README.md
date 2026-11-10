@@ -112,7 +112,7 @@ Pass thresholds: QoS 0 >=80% (fire-and-forget may drop), QoS 1/2 >=95%.
 Low-level tests that craft raw MQTT packets to test protocol edge cases:
 
 - **MQTT v3.1.1 CONNECT**: clean session, will flag/QoS/retain, username/password, keepalive edges, empty client ID, reserved flag abuse, wrong protocol name/level, malformed remaining length
-- **MQTT v5.0 CONNECT**: clean start, will with properties, session expiry, receive maximum, max packet size, invalid flags, oversized fields
+- **MQTT v5.0 CONNECT**: clean start, will with properties, session expiry, receive maximum, max packet size, invalid flags, oversized fields, and a password with no username (valid in MQTT 5.0, 3.1.2.9; refused in 3.1.1)
 - **MQTT v3.1.1 DISCONNECT**: Basic `E0 00` packet
 - **MQTT v5.0 DISCONNECT**: Reason codes (`0x00`, `0x04`, `0x80`) with properties
 
@@ -121,6 +121,13 @@ Low-level tests that craft raw MQTT packets to test protocol edge cases:
 - **Invalid CONNECT**: broker closes socket or sends non-success CONNACK
 - **Valid CONNECT**: broker sends success CONNACK (code 0)
 - **DISCONNECT**: broker closes connection without error
+
+Against `mqtt_broker.json` (below): HiveMQ 25 of 25, Python 22 of 22, and the broker logs
+no ERROR.
+
+The spec compliance tests (1 and 2) read the CLI's verdict (`MQTT 3: OK`) from its stdout:
+the JVM writes its own warnings on stderr (Java 22+ prints several), and merged with
+`2>&1` they can land in the middle of that line.
 
 ## Broker Configuration (mqtt_broker.json)
 

@@ -509,16 +509,17 @@ def t_v5_reserved_bit_invalid():
         "expect": {"success": False}
     }
 
-def t_v5_pw_without_user_invalid():
+def t_v5_pw_without_user_allowed():
+    # MQTT 5.0 3.1.2.9 allows a Password with no User Name (MQTT 3.1.1 did not)
     return {
-        "name": "v5: password set without username (invalid)",
+        "name": "v5: password set without username (allowed in v5)",
         "version": "5.0",
         "connect": {
-            "client_id": "cid5-bad",
+            "client_id": "cid5-pw-only",
             "clean": True,
             "password": b"p-only",
         },
-        "expect": {"success": False}
+        "expect": {"success": True}
     }
 
 def t_v5_bad_protocol_name():
@@ -588,7 +589,7 @@ TESTS: List[Dict[str, Any]] = [
     t_v5_receive_max_and_mps(),
     t_v5_will_with_props(),
     t_v5_reserved_bit_invalid(),
-    t_v5_pw_without_user_invalid(),
+    t_v5_pw_without_user_allowed(),
     t_v5_bad_protocol_name(),
     t_v5_keepalive_65535(),
     # disconnects (executed only after a preceding successful CONNECT)
