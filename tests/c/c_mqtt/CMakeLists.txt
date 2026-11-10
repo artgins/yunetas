@@ -63,6 +63,7 @@ SET(SRCS
     will_acl
     gate_limits
     client_noqueue
+    broker_no_db
 )
 
 ##############################################

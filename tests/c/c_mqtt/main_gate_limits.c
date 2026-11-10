@@ -138,13 +138,14 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
-            "msg", "Mqtt: Dropped too large PUBLISH",                               // 2.
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "Mqtt: Dropped too large PUBLISH",                               // 2. once
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused", // 4.
             "msg", "The upper level did not answer one reason code per filter",     // 6.
             "msg", "Mqtt publish: topic invalid",                                   // 7.
             "msg", "Message not found",                                             // 8. once
             "msg", "Mqtt: the connection is closing, message not sent",             // 9.
+            "msg", "Mqtt: Dropped too large PUBLISH",                               // 10a.
             "msg", "Mqtt: client_id cannot be '.' or '..'",                         // 12.
             "msg", "Mqtt: Unsupporred Will QoS in CONNECT"                          // 13.
         ),

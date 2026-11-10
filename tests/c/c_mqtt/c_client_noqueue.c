@@ -34,6 +34,25 @@
  *                 at its header (WARNING, DISCONNECT 0x82), before a byte
  *                 of it is kept. Up to 7.30.26 a client kept whatever its
  *                 broker announced, up to 256 MB.
+ *          A hostile "broker", each step a connection of its own:
+ *              8. With queues, a second CONNACK in session: a protocol
+ *                 error (WARNING, DISCONNECT 0x82). Up to 7.30.26 the
+ *                 client opened its queues again (the first handles
+ *                 leaked) and told its user EV_ON_OPEN again.
+ *              9. A DISCONNECT with properties and a PUBLISH behind it in
+ *                 the same read: the properties are freed, and nothing
+ *                 after the DISCONNECT is read. Up to 7.30.26 the
+ *                 properties leaked and the PUBLISH was delivered.
+ *             10. A PUBLISH of QoS 3: malformed (WARNING, DISCONNECT
+ *                 0x81). Up to 7.30.26 it was dropped without a word.
+ *             11. A PUBLISH whose topic has wildcards: malformed (WARNING,
+ *                 DISCONNECT 0x81). Up to 7.30.26 it was delivered.
+ *             12. A CONNACK of MQTT 5 that refuses (0x87): the user hears
+ *                 EV_ON_CLOSE, one WARNING, no DISCONNECT. Up to 7.30.26
+ *                 it was taken for a protocol error: DISCONNECT 0x82, a
+ *                 dump, and no EV_ON_CLOSE.
+ *             13. Without queues, a second CONNACK in session: as 8. Up to
+ *                 7.30.26 the user heard EV_ON_OPEN again.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -231,6 +250,20 @@ PRIVATE void broker_sends(hgobj gobj, const uint8_t *bf, size_t len)
         json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
         priv->fake
     );
+}
+
+/***************************************************************************
+ *  CONNACK of the broker, MQTT 5, no session present, no properties
+ ***************************************************************************/
+PRIVATE void broker_connack(hgobj gobj, uint8_t reason)
+{
+    const uint8_t connack[] = {
+        0x20, 0x03,     // CONNACK
+        0x00,           // no session present
+        reason,
+        0x00            // properties length
+    };
+    broker_sends(gobj, connack, sizeof(connack));
 }
 
 /***************************************************************************
@@ -519,6 +552,138 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             break;
 
+        case 3:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "8a. with queues, in session: the message of 6 again", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "PUBLISH t/c q1 early",
+                    "OPEN",
+                    NULL
+                });
+                static const uint8_t puback[] = {
+                    0x40, 0x02,     // PUBACK
+                    0x00, 0x01      // mid 1, the message of 6
+                };
+                broker_sends(gobj, puback, sizeof(puback));
+                broker_connack(gobj, 0x00);
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "8. with queues, a second CONNACK", (const char *[]){
+                    "DISCONNECT 130",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 4:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "9a. in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                static const uint8_t disconnect_and_publish[] = {
+                    0xE0, 0x08,             // DISCONNECT
+                    0x8B,                   // Server shutting down
+                    0x06,                   // properties length
+                    0x1F, 0x00, 0x03,       // Reason String
+                    'b', 'y', 'e',
+                    0x30, 0x0A,             // PUBLISH QoS 0, behind it
+                    0x00, 0x03, 't', '/', 'x',
+                    0x00,                   // properties length
+                    'a', 'f', 't', 'r'
+                };
+                broker_sends(gobj, disconnect_and_publish, sizeof(disconnect_and_publish));
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "9. a DISCONNECT with properties, a PUBLISH behind it", (const char *[]){
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 5:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "10a. in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                broker_publish(gobj, 3, 11, "t/b", "three");
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "10. a PUBLISH of QoS 3", (const char *[]){
+                    "DISCONNECT 129",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 6:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "11a. in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                broker_publish(gobj, 0, 0, "a/#/+", "wild");
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "11. a PUBLISH whose topic has wildcards", (const char *[]){
+                    "DISCONNECT 129",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 7:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x87);     // Not authorized
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "12. a CONNACK of MQTT 5 that refuses", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "CLOSE 135",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 8:
+            {
+                gobj_write_pointer_attr(priv->prot, "tranger_queues", 0);
+
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "13a. without queues, in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                broker_connack(gobj, 0x00);
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "13. without queues, a second CONNACK", (const char *[]){
+                    "DISCONNECT 130",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
         default:
             expect(gobj, "the end", (const char *[]){
                 NULL
@@ -562,7 +727,9 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_array_append_new(priv->got, json_string("OPEN"));
-    user_publishes(gobj, 1, "early");
+    if(priv->phase <= 2) {
+        user_publishes(gobj, 1, "early");
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -575,7 +742,12 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_array_append_new(priv->got, json_string("CLOSE"));
+    json_int_t reason_code = kw_get_int(gobj, kw, "reason_code", 0, 0);
+    if(reason_code) {
+        json_array_append_new(priv->got, json_sprintf("CLOSE %d", (int)reason_code));    // a refused CONNACK
+    } else {
+        json_array_append_new(priv->got, json_string("CLOSE"));
+    }
 
     KW_DECREF(kw)
     return 0;

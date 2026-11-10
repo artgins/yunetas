@@ -4,7 +4,7 @@
  *
  *          Mqtt broker
  *
- *          Copyright (c) 2025,2026, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <limits.h>
@@ -128,7 +128,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN, "enable_new_clients",0,         "0",        "Set true if you want auto-create new clients if they don't exist"),
 SDATA (DTP_BOOLEAN, "enable_acl",        SDF_WR|SDF_PERSIST, "0", "Enforce per-group publish/subscribe ACLs (client_groups.publish_acl/subscribe_acl), the will included. Default off = no ACL enforcement (allow-all). A group with no patterns also allows all. NOT a boundary between users: the ACL is keyed by the client_id the client chooses, and no client is bound to the user that authenticated it"),
 
-SDATA (DTP_BOOLEAN, "mqtt_persistent_db",0,         "1",        "Set true if you want persistent database for Clients, Topics, Inflight and Queued Messages in mqtt broker side"),
+SDATA (DTP_BOOLEAN, "mqtt_persistent_db",0,         "1",        "Must be true: the broker keeps its clients, sessions, retained and queued messages in its treedb and queues, and has no mode without them. False is refused at start-up (a critical log, exit as on_critical_error says) and the broker does not play"),
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service name, if it's empty then it'll be used the yuno_role"),
 SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service, if it's empty then it'll be used the yuno_name"),
 
@@ -136,7 +136,7 @@ SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-
 
 SDATA (DTP_JSON,    "deny_subscribes",  0,          0,          "JSON list of topic strings to deny subscription"),
 
-SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "LOG_OPT_EXIT_ZERO exit on error (Zero to avoid restart)"),
+SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "Log options of a critical error of the broker (mqtt_persistent_db false): 2 = LOG_OPT_EXIT_ZERO, exit 0 so the agent does not restart it; 0 = stay up, not playing"),
 SDATA (DTP_STRING,  "__username__",     SDF_RD,     "",         "Username of the yuno: the authz of the commands this service sends to its C_TREEDB is asked with it (set before the open)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
@@ -273,6 +273,23 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  The clients, sessions and retained messages live only in the
+     *  treedb: without it every CONNECT was refused and the timer logged
+     *  two ERRORs per tick (up to 7.30.26). The broker IS its database, so
+     *  false is refused here and nothing else starts (mt_play refuses too)
+     */
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        gobj_log_critical(gobj, (log_opt_t)gobj_read_integer_attr(gobj, "on_critical_error"),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "mqtt_persistent_db false is not supported: the broker keeps its clients, sessions and retained messages in its treedb",
+            "attribute",    "%s", "mqtt_persistent_db",
+            NULL
+        );
+        return -1;
+    }
+
     /*-----------------------------*
      *      Get Authzs service
      *-----------------------------*/
@@ -307,9 +324,10 @@ PRIVATE int mt_stop(hgobj gobj)
      *  to clear sessions/clients: yuno crash
      *-----------------------------------------*/
     BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
-    if(mqtt_persistent_db) {
-        close_database(gobj);
+    if(!mqtt_persistent_db) {
+        return 0;   // refused at the start: nothing was opened
     }
+    close_database(gobj);
 
     gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
 
@@ -322,6 +340,10 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return -1;  // Error already logged: refused at the start, no half-mode
+    }
 
     /*-------------------------*
      *      Get services

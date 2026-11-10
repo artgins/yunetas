@@ -36,9 +36,10 @@ will/keepalive).
 - Flow control: in-flight and queued-message limits, `message_size_limit`,
   `max_packet_size`.
 
+(mqtt-broker-persistence)=
 ## Persistence
 
-When `mqtt_persistent_db` is true (default), the broker keeps state in a TreeDB
+The broker keeps its state in a TreeDB
 (`treedb_mqtt_broker`, schema [`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/mqtt/src/treedb_schema_mqtt_broker.c)) plus TimeRanger2
 queues:
 
@@ -47,7 +48,34 @@ queues:
 - **inflight / queued messages** — TimeRanger2 queues (per client).
 
 Persistent sessions survive broker restarts. `clean_session` clients are
-transient. Set `mqtt_persistent_db=0` for an in-memory-only broker.
+transient.
+
+**There is no in-memory broker.** `mqtt_persistent_db` must be true (the
+default). The clients, sessions and retained messages live only in the
+treedb, so a broker without it cannot accept a client. With `false` the
+broker refuses to start: it logs ONE critical error that names the attribute,
+it does not play, and it exits as its `on_critical_error` says (`2`, the
+default: exit 0, so the agent does not restart it in a loop). Up to 7.30.26
+`false` was accepted: every CONNECT was refused, and the periodic timer
+logged two ERRORs per tick.
+
+```json
+{
+    "name": "mqtt_broker",
+    "gclass": "C_MQTT_BROKER",
+    "kw": {
+        "mqtt_persistent_db": false
+    }
+}
+```
+
+gives, at the start of the yuno:
+
+```text
+CRITICAL: {"gclass": "C_MQTT_BROKER", "msgset": "Parameter",
+  "msg": "mqtt_persistent_db false is not supported: the broker keeps its clients, sessions and retained messages in its treedb",
+  "attribute": "mqtt_persistent_db"}
+```
 
 The queues' tranger is opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`: a
 CRITICAL of timeranger2 ends the broker. The periodic backup of a queue
@@ -60,8 +88,7 @@ A queue that could not open its topic again after a failed backup takes it
 again as soon as it can be opened (see [`trq_check_backup()`](#trq_check_backup)).
 
 (mqtt-broker-treedb-user)=
-**The broker opens its treedb as C code.** At its start (`mt_start`, with
-`mqtt_persistent_db` on) the broker creates its own `C_TREEDB` service,
+**The broker opens its treedb as C code.** At its start (`mt_start`) the broker creates its own `C_TREEDB` service,
 `treedbs`, in `open_database()`, and sends it `open-treedb`
 (`treedb_mqtt_broker`, `filename_mask` `%Y`, `exit_on_error` `0`,
 `impose_c_schema` `1`); it opens its msg2db `msg2db_alarms` on the same
@@ -113,13 +140,13 @@ json_t *jn_resp = gobj_command(priv->gobj_treedbs,
 
 | Attribute | Default | Purpose |
 |-----------|---------|---------|
-| `mqtt_persistent_db` | `true` | Persist clients/sessions/subscriptions/queues/retained |
+| `mqtt_persistent_db` | `true` | Must be `true`: the clients, sessions, subscriptions, queues and retained messages live in the treedb. `false` is refused at the start (see [Persistence](#mqtt-broker-persistence)) |
 | `enable_new_clients` | `false` | Auto-create unknown clients on connect |
 | `enable_acl` | `false` | Enforce per-group publish/subscribe ACLs (see [Authorization](#mqtt-acl)) |
 | `deny_subscribes` | — | JSON list of topics for which SUBSCRIBE is refused |
 | `mqtt_service` | *(yuno_role)* | Service name (multi-service) |
 | `mqtt_tenant` | *(yuno_name)* | Tenant id (multi-tenant) |
-| `on_critical_error` | `2` | `LOG_OPT_EXIT_ZERO` (exit, no auto-restart) on error |
+| `on_critical_error` | `2` | Log options of the broker's critical error (`mqtt_persistent_db` false): `2` = `LOG_OPT_EXIT_ZERO`, exit 0, no auto-restart; `0` = the yuno stays up and the broker does not play |
 | `__username__` | *(the yuno's)* | `SDF_RD`, not configured: the broker writes the yuno's `__username__` here before it opens its treedb, and `C_TREEDB` asks the permission of the broker's `open-treedb` / `close-treedb` with it (see [above](#mqtt-broker-treedb-user)) |
 
 Session limits are from [`C_AUTHZ`](#gclass-c-authz) (for example `Authz.max_sessions_per_user`,

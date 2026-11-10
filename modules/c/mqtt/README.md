@@ -51,7 +51,7 @@ Selected broker attributes:
 | Attribute              | Default | Purpose                                                                       |
 |------------------------|---------|-------------------------------------------------------------------------------|
 | `enable_new_clients`   | `0`     | If true, auto-create unknown clients on first connect.                        |
-| `mqtt_persistent_db`   | `1`     | Persist clients / topics / inflight / queued messages via treedb+timeranger2. |
+| `mqtt_persistent_db`   | `1`     | Must be `1`: clients / sessions / retained / queued messages live in treedb+timeranger2. `0` is refused at start-up (one CRITICAL, exit as `on_critical_error` says). |
 | `mqtt_service`         | (yuno_role) | Service name; defaults to the yuno role.                                  |
 | `mqtt_tenant`          | (yuno_name) | Multi-tenant key; defaults to the yuno name.                              |
 

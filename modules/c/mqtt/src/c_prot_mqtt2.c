@@ -402,8 +402,9 @@ typedef struct _PRIVATE_DATA {
     BOOL subscriptions_capped;      // server: max_subscriptions_per_client said on this connection
     BOOL filters_capped;            // server: max_topic_filter_length said on this connection
     BOOL unknown_ack_said;          // an ack of an unknown packet id said on this connection
-    BOOL disconnect_received;       // server: the client's DISCONNECT read, nothing after it is
+    BOOL disconnect_received;       // the peer's DISCONNECT read, nothing after it is
     BOOL send_closing_said;         // a message refused while closing said on this connection
+    BOOL too_large_said;            // server: a PUBLISH past message_size_limit said on this connection
     json_t *jn_qos2_in_mids;        // server without queues: QoS 2 packet ids waiting for PUBREL
 } PRIVATE_DATA;
 
@@ -5519,6 +5520,23 @@ PRIVATE int handle__connack(
     int ret = 0;
     json_t *properties = NULL;
 
+    if(priv->in_session) {
+        /*
+         *  A broker sends one CONNACK per connection: a second one is a
+         *  protocol error. Up to 7.30.26 each opened the queues again (the
+         *  handles of the first leaked) and told the user EV_ON_OPEN again
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt: CONNACK with the session already open, disconnecting",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "peername",     "%s", peer_of(gobj),
+            NULL
+        );
+        return MOSQ_ERR_PROTOCOL;
+    }
+
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5718,6 +5736,7 @@ PRIVATE int handle__connack(
         case 3:
         case 4:
         case 5:
+        refused:
             {
                 /*
                  * Connection refused — return error
@@ -5742,6 +5761,14 @@ PRIVATE int handle__connack(
             return MOSQ_ERR_CONN_REFUSED;
 
         default:
+            if(priv->protocol_version == mosq_p_mqtt5 && reason_code >= 0x80) {
+                /*
+                 *  The refusals of MQTT 5. Up to 7.30.26 they were taken
+                 *  for a protocol error: a DISCONNECT 0x82 to a broker
+                 *  that had refused, and no EV_ON_CLOSE to the user
+                 */
+                goto refused;
+            }
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
@@ -5870,11 +5897,16 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     }
 
     uint8_t reason_code = 0;
-    mqtt_read_byte(gobj, gbuf, &reason_code);
+    if(gbuf && gbuffer_leftbytes(gbuf) > 0) {
+        mqtt_read_byte(gobj, gbuf, &reason_code);
+    }
 
     json_t *properties = NULL;
-    if(gbuf && gbuffer_leftbytes(gbuf) > 2) {
+    if(gbuf && gbuffer_leftbytes(gbuf) > 0) {
         properties = property_read_all(gobj, gbuf, CMD_DISCONNECT, &ret);
+        if(!properties) {
+            return ret; // Error already logged
+        }
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -5888,7 +5920,14 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
             gobj_trace_json(gobj, properties, "properties");
         }
     }
+    JSON_DECREF(properties)     // up to 7.30.26 they leaked
 
+    /*
+     *  The DISCONNECT is the last packet of the broker: nothing after it
+     *  is read, as the server does with the client's. Up to 7.30.26 a
+     *  PUBLISH behind it, in the same read, was delivered
+     */
+    priv->disconnect_received = TRUE;
     send_drop(gobj, reason_code);
     return 0;
 }
@@ -5959,12 +5998,13 @@ PRIVATE int subscription_refused(
 /***************************************************************************
  *  Server: the SUBACK payload, one reason code per filter in the order of
  *  the SUBSCRIBE: the protocol's refusal, or the code the upper level
- *  wrote in `gbuf_upper` for the filters it was given. A filter granted is
- *  held by this connection.
+ *  wrote in `gbuf_upper` for the filters it was given (a filter repeated
+ *  in the packet was given once: its occurrences share that code). A
+ *  filter granted is held by this connection.
  ***************************************************************************/
 PRIVATE gbuffer_t *build_suback_payload(
     hgobj gobj,
-    json_t *jn_codes,       // not owned, [{"code": <refused or -1>, "sub": <filter>}]
+    json_t *jn_codes,       // not owned, [{"code": <refused or -1>, "sub": <filter>, "upper": <index of its code>}]
     gbuffer_t *gbuf_upper,  // not owned, can be NULL
     size_t n_upper
 ) {
@@ -5990,12 +6030,14 @@ PRIVATE gbuffer_t *build_suback_payload(
         return NULL;
     }
 
+    const uint8_t *upper_codes = got? (const uint8_t *)gbuffer_cur_rd_pointer(gbuf_upper) : NULL;
     int idx; json_t *jn_code;
     json_array_foreach(jn_codes, idx, jn_code) {
         int code = (int)json_integer_value(json_object_get(jn_code, "code"));
         if(code < 0) {
-            if(gbuf_upper && gbuffer_leftbytes(gbuf_upper) > 0) {
-                code = (uint8_t)gbuffer_getchar(gbuf_upper);
+            size_t upper_idx = (size_t)json_integer_value(json_object_get(jn_code, "upper"));
+            if(upper_idx < got) {
+                code = upper_codes[upper_idx];
             } else {
                 code = 0x80;
             }
@@ -6082,6 +6124,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *jn_list = json_array();
     json_t *jn_codes = json_array();
     json_t *jn_new = json_object();
+    json_t *jn_upper = json_object();   // filter of this packet gone up -> its index in jn_list
 
     while(gbuffer_leftbytes(gbuf)>0) {
         uint16_t slen;
@@ -6095,6 +6138,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6111,6 +6155,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6127,6 +6172,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6136,6 +6182,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6164,6 +6211,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
             }
@@ -6182,6 +6230,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
                 JSON_DECREF(properties)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
@@ -6199,6 +6248,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(jn_new)
+            JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6209,22 +6259,42 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             qos = 0;    // granted: what the server sends, and without queues it sends QoS 0
         }
 
-        int refused = subscription_refused(gobj, sub, slen, jn_new);
-        json_array_append_new(jn_codes, json_pack("{s:i, s:s#}",
-            "code", refused,
-            "sub", sub, (int)slen
-        ));
-
-        if(refused < 0) {
-            json_t *jn_sub = json_pack("{s:s#, s:i, s:i, s:i, s:i}",
-                "sub", sub, (int)slen,
-                "subscription_identifier", (int)subscription_identifier,
-                "qos", (int)qos,
-                "subscription_options", (int)subscription_options,
-                "retain_handling", retain_handling
-            );
-            json_array_append_new(jn_list, jn_sub);
+        /*
+         *  A filter repeated in this packet goes up once: the repetition
+         *  replaces the options of the first one and takes its reason code.
+         *  Up to 7.30.26 each one went up (~4 us each): a peer sending
+         *  SUBSCRIBEs of repeated filters held the gate at 100 % CPU
+         */
+        int refused;
+        int upper_idx;
+        json_t *jn_first = json_object_getn(jn_upper, sub, slen);
+        if(jn_first) {
+            refused = -1;
+            upper_idx = (int)json_integer_value(jn_first);
+            json_t *jn_sub = json_array_get(jn_list, (size_t)upper_idx);
+            json_object_set_new(jn_sub, "qos", json_integer(qos));
+            json_object_set_new(jn_sub, "subscription_options", json_integer(subscription_options));
+            json_object_set_new(jn_sub, "retain_handling", json_integer(retain_handling));
+        } else {
+            refused = subscription_refused(gobj, sub, slen, jn_new);
+            upper_idx = (int)json_array_size(jn_list);
+            if(refused < 0) {
+                json_t *jn_sub = json_pack("{s:s#, s:i, s:i, s:i, s:i}",
+                    "sub", sub, (int)slen,
+                    "subscription_identifier", (int)subscription_identifier,
+                    "qos", (int)qos,
+                    "subscription_options", (int)subscription_options,
+                    "retain_handling", retain_handling
+                );
+                json_array_append_new(jn_list, jn_sub);
+                json_object_setn_new(jn_upper, sub, slen, json_integer(upper_idx));
+            }
         }
+        json_array_append_new(jn_codes, json_pack("{s:i, s:s#, s:i}",
+            "code", refused,
+            "sub", sub, (int)slen,
+            "upper", upper_idx
+        ));
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("    👈 SUBSCRIBE subs, as %s, client '%s', topic '%.*s' (QoS %d, mid %d)",
@@ -6238,6 +6308,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     JSON_DECREF(jn_new)
+    JSON_DECREF(jn_upper)
 
     if(priv->protocol_version != mosq_p_mqtt31) {
         if(!json_size(jn_codes)) {
@@ -6451,6 +6522,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     json_t *jn_list = json_array();
+    json_t *jn_upper = json_object();       // filter of this packet gone up -> its index in jn_list
+    json_t *jn_occurrences = json_array();  // per filter of the packet, the index of its code
 
     while(gbuffer_leftbytes(gbuf)>0) {
         uint16_t slen;
@@ -6458,6 +6531,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             // Error already logged
             JSON_DECREF(jn_list)
+            JSON_DECREF(jn_upper)
+            JSON_DECREF(jn_occurrences)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6473,6 +6548,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
+            JSON_DECREF(jn_upper)
+            JSON_DECREF(jn_occurrences)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6487,6 +6564,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
+            JSON_DECREF(jn_upper)
+            JSON_DECREF(jn_occurrences)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -6504,11 +6583,24 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             json_object_deln(priv->jn_subscriptions, sub, slen);
         }
 
-        json_t *jn_sub = json_pack("{s:s#}",
-            "sub", sub, (int)slen
-        );
-        json_array_append_new(jn_list, jn_sub);
+        /*
+         *  A filter repeated in this packet goes up once, and its
+         *  occurrences take its reason code (as in a SUBSCRIBE)
+         */
+        json_t *jn_first = json_object_getn(jn_upper, sub, slen);
+        if(jn_first) {
+            json_array_append(jn_occurrences, jn_first);
+        } else {
+            json_t *jn_idx = json_integer((json_int_t)json_array_size(jn_list));
+            json_object_setn(jn_upper, sub, slen, jn_idx);
+            json_array_append_new(jn_occurrences, jn_idx);
+            json_t *jn_sub = json_pack("{s:s#}",
+                "sub", sub, (int)slen
+            );
+            json_array_append_new(jn_list, jn_sub);
+        }
     }
+    JSON_DECREF(jn_upper)
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 UNSUBSCRIBE, as %s, client '%s', (mid %d)",
@@ -6524,15 +6616,15 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
      *  One reason code per filter, written by the upper level: sized for
      *  them, as many as the packet carries (up to 7.30.26 it held 12 KB)
      */
-    size_t n_filters = json_array_size(jn_list);
-    gbuffer_t *gbuf_payload = gbuffer_create(n_filters, n_filters);
-    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
+    size_t n_upper = json_array_size(jn_list);
+    gbuffer_t *gbuf_upper = gbuffer_create(n_upper, n_upper);
+    gbuffer_incref(gbuf_upper); // Avoid be destroyed, get it the response
 
     json_t *kw_unsubscribe = json_pack("{s:s, s:i, s:o, s:I, s:i}",
         "client_id", priv->client_id,
         "protocol_version", (int)priv->protocol_version,
         "subs", jn_list, // owned
-        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_upper,
         "mid", (int)mid
     );
 
@@ -6548,25 +6640,40 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         kw_iev // owned but gbuf_payload survives
     );
     if(rc < 0) {
-        gbuffer_decref(gbuf_payload);
+        gbuffer_decref(gbuf_upper);
+        JSON_DECREF(jn_occurrences)
         return -1;
     }
 
-    size_t got = gbuffer_leftbytes(gbuf_payload);
-    if(got != n_filters) {
+    size_t got = gbuffer_leftbytes(gbuf_upper);
+    if(got != n_upper) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "The upper level did not answer one reason code per filter",
             "client_id",    "%s", SAFE_PRINT(priv->client_id),
-            "filters",      "%d", (int)n_filters,
+            "filters",      "%d", (int)n_upper,
             "codes",        "%d", (int)got,
             NULL
         );
-        while(gbuffer_leftbytes(gbuf_payload) < n_filters) {
-            gbuffer_append_char(gbuf_payload, MQTT_RC_UNSPECIFIED);
-        }
     }
+
+    size_t n_filters = json_array_size(jn_occurrences);
+    gbuffer_t *gbuf_payload = gbuffer_create(n_filters, n_filters);
+    if(!gbuf_payload) {
+        // Error already logged
+        GBUFFER_DECREF(gbuf_upper)
+        JSON_DECREF(jn_occurrences)
+        return -1;
+    }
+    const uint8_t *upper_codes = (const uint8_t *)gbuffer_cur_rd_pointer(gbuf_upper);
+    size_t idx; json_t *jn_idx;
+    json_array_foreach(jn_occurrences, idx, jn_idx) {
+        size_t upper_idx = (size_t)json_integer_value(jn_idx);
+        gbuffer_append_char(gbuf_payload, upper_idx < got? upper_codes[upper_idx] : MQTT_RC_UNSPECIFIED);
+    }
+    GBUFFER_DECREF(gbuf_upper)
+    JSON_DECREF(jn_occurrences)
 
     return send__unsuback(
         gobj,
@@ -7080,16 +7187,22 @@ PRIVATE int handle__publish_s(
 
     if(payloadlen) {
         if(priv->message_size_limit && payloadlen > priv->message_size_limit) {
-            gobj_log_warning(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MQTT,
-                "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
-                "client_id",        "%s", priv->client_id,
-                "topic",            "%s", SAFE_PRINT(topic),
-                "mid",          "%d", (int)mid,
-                "peername",     "%s", peer_of(gobj),
-                NULL
-            );
+            if(!priv->too_large_said) {
+                // Once per connection: up to 7.30.26 once per PUBLISH, a peer could flood the log
+                priv->too_large_said = TRUE;
+                gobj_log_warning(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MQTT,
+                    "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
+                    "client_id",        "%s", priv->client_id,
+                    "topic",            "%s", SAFE_PRINT(topic),
+                    "mid",          "%d", (int)mid,
+                    "message_size_limit", "%d", (int)priv->message_size_limit,
+                    "size",         "%d", (int)payloadlen,
+                    "peername",     "%s", peer_of(gobj),
+                    NULL
+                );
+            }
             reason_code = MQTT_RC_PACKET_TOO_LARGE;
             goto process_bad_message;
         }
@@ -7403,6 +7516,19 @@ PRIVATE int handle__publish_c(
     uint8_t qos = (header & 0x06)>>1;   // shift of two bites -> possible values of 0,1,2,3
     BOOL retain = (header & 0x01);      // possible values of 0,1
 
+    if(qos == 3) {
+        // Up to 7.30.26 it was dropped without a word
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt: Invalid QoS in PUBLISH, disconnecting",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "peername",     "%s", peer_of(gobj),
+            NULL
+        );
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
     /*--------------*
      *  Get topic
      *--------------*/
@@ -7572,6 +7698,25 @@ PRIVATE int handle__publish_c(
             /* Remove hop-by-hop property: must not be forwarded */
             json_object_del(properties, "topic-alias");
         }
+    }
+
+    if(mqtt_pub_topic_check2(topic, slen)<0) {
+        /*
+         *  A wildcard, or more than 200 levels [MQTT-3.3.2-2], as the
+         *  server checks it. Up to 7.30.26 the client delivered it
+         */
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt: invalid topic in PUBLISH, disconnecting",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "topic",        "%.64s", SAFE_PRINT(topic),
+            "peername",     "%s", peer_of(gobj),
+            NULL
+        );
+        GBMEM_FREE(topic)
+        JSON_DECREF(properties)
+        return MOSQ_ERR_MALFORMED_PACKET;
     }
 
     /*-----------------------------------*
@@ -8860,7 +9005,8 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             send__disconnect(gobj, MQTT_RC_TOPIC_ALIAS_INVALID, NULL);
         } else if(ret == MOSQ_ERR_UNKNOWN || ret == MOSQ_ERR_NOMEM) {
             send__disconnect(gobj, MQTT_RC_UNSPECIFIED, NULL);
-        } else if(ret<0) {
+        } else if(ret<0 && ret != MOSQ_ERR_CONN_REFUSED) {
+            // A broker that refused the CONNECT closes; the client sends it nothing
             send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
         }
     }
@@ -9006,6 +9152,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->unknown_ack_said = FALSE;
     priv->disconnect_received = FALSE;
     priv->send_closing_said = FALSE;
+    priv->too_large_said = FALSE;
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
 

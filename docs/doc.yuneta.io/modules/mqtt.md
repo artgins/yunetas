@@ -34,6 +34,36 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
   DISCONNECT `0x82`), and an MQTT 5 CONNECT announces it (Maximum Packet
   Size). Up to 7.30.26 it was the server's only, and a client kept what its
   broker announced, up to 256 MB.
+- **What a broker may send it**, checked as the server checks a client (each
+  one a WARNING and the end of the connection; up to 7.30.26 each one was let
+  through):
+    - a second CONNACK in the session: a protocol error, DISCONNECT `0x82`
+      (MQTT 5; in 3.1.1 a DISCONNECT has no reason code), then the close. The queues are not opened again and
+      the user does not hear `EV_ON_OPEN` again;
+    - a PUBLISH of QoS 3, or whose topic has a wildcard (`a/#/+`), empty or
+      of more than 200 levels: malformed, DISCONNECT `0x81` (MQTT 5);
+    - a DISCONNECT of the broker is its last packet: nothing after it in the
+      same read is processed (a PUBLISH behind it is not delivered), and its
+      properties are freed (up to 7.30.26 they leaked).
+- **A refused CONNECT.** A CONNACK of MQTT 5 with a reason code `>= 0x80`
+  (or of 3.1.1 with `1`..`5`) is a refusal: one WARNING *"Mqtt connection
+  refused"* with the reason, then the user hears `EV_ON_CLOSE` with
+  `reason_code` in its kw, and the client sends nothing (the broker closes).
+  Up to 7.30.26 an MQTT 5 refusal was taken for a protocol error: a
+  DISCONNECT `0x82` to the broker, a dump of the CONNACK, and no
+  `EV_ON_CLOSE`.
+
+```C
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    int reason_code = (int)kw_get_int(gobj, kw, "reason_code", 0, 0);
+    if(reason_code >= 0x80) {
+        // the broker refused the CONNECT: 0x86 bad user or password, 0x87 not authorized, ...
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
 
 ```json
 {
@@ -129,6 +159,10 @@ subscriptions of a session that a broker restores are not counted.
 - An ack of a packet id the server never used (PUBACK, PUBREC, PUBCOMP,
   PUBREL) is the client's: PUBREL gets PUBCOMP, PUBREC gets PUBREL, and a
   WARNING says it, once per connection (up to 7.30.26, once per ack).
+- A PUBLISH past `message_size_limit` is dropped (MQTT 5: PUBACK or PUBREC
+  `0x95`), and the WARNING *"Mqtt: Dropped too large PUBLISH"* says it once
+  per connection, with the limit and the size. Up to 7.30.26 it was one per
+  PUBLISH: 16 000 WARNINGs and 11 MB of log for 1 GB sent.
 
 **A DISCONNECT of the client is its last packet** (MQTT 5 3.14.4): nothing
 the client sends after it is processed, and the server waits for the client
@@ -144,8 +178,8 @@ reads the return of the publication:
 |---|---|---|
 | `EV_ON_OPEN` | the client: `id`, `protocol_version`, `clean_start`, `peername`, the will (its payload as `gbuffer`) | returns `0`: CONNACK accepted, session present 0. Returns `-2`: CONNACK not authorized, and the connection closes. |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_MESSAGE` | `topic`, `qos`, `retain`, `gbuffer` (the payload, peer bytes) | takes the message. Returns `1` when it took it (MQTT 5: PUBACK Success); `0` is "no matching subscribers" (`0x10`). |
-| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer` | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`. |
-| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends ONE reason code per filter of `subs`, in order: `0x00` Success, `0x11` No subscription existed, or `>= 0x80` to refuse it. Every filter of the packet is in `subs`: the protocol refuses none. MQTT 3.1.1 has no codes in its UNSUBACK, but the upper level writes them all the same. |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer` | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`, and a filter repeated in the packet is in it once. |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends ONE reason code per filter of `subs`, in order: `0x00` Success, `0x11` No subscription existed, or `>= 0x80` to refuse it. Every distinct filter of the packet is in `subs`, once: the protocol refuses none. MQTT 3.1.1 has no codes in its UNSUBACK, but the upper level writes them all the same. |
 | `EV_ON_CLOSE` | `client_id`, `peername` | the connection ended. |
 
 **The reason codes.** The `gbuffer` has room for exactly one code per filter
@@ -159,19 +193,27 @@ Up to 7.30.26 the buffer held 12 KB: a SUBSCRIBE or an UNSUBSCRIBE of more
 than 12 287 filters logged two ERRORs with a stack per code past it, and the
 UNSUBACK went out with fewer codes than filters.
 
-**How many filters reach the upper level.** As many as one packet carries.
-A filter repeated in the same SUBSCRIBE, or one the connection already holds,
-is passed up again and not counted again: MQTT says it replaces the
-subscription, and wants one code for each filter of the packet. The bound is
-the packet: with `max_packet_size` 66560, a SUBSCRIBE carries at most about
-16 600 filters (4 bytes each at least) and an UNSUBSCRIBE about 22 000 (3
-bytes each). An example, the codes of a SUBSCRIBE of `a/1`, `a/1` and `a/2`
-by an MQTT 5 client, with an upper level that grants all three in QoS 0:
+**How many filters reach the upper level.** Each DISTINCT filter of the
+packet, once. A filter the connection already holds is passed up again and
+not counted again: MQTT says it replaces the subscription. A filter repeated
+in the same SUBSCRIBE (or UNSUBSCRIBE) goes up once: the repetition replaces
+the options of the first one (its QoS, its retain handling), and every
+occurrence takes the reason code the upper level wrote for that filter, so
+the SUBACK (UNSUBACK) still has one code per filter of the packet. The bound
+is the packet: with `max_packet_size` 66560, a SUBSCRIBE carries at most
+about 16 600 filters (4 bytes each at least) and an UNSUBSCRIBE about 22 000
+(3 bytes each). An example, the codes of a SUBSCRIBE of `a/1`, `a/1`,
+`deny/x` and `a/2` by an MQTT 5 client, with an upper level that grants in
+QoS 0 and refuses `deny/x` with `0x87`:
 
 ```text
-SUBSCRIBE  a/1 a/1 a/2      ->  subs: [a/1, a/1, a/2]  ->  SUBACK 0x00 0x00 0x00
-                                                         (held: a/1, a/2: counted 2)
+SUBSCRIBE  a/1 a/1 deny/x a/2  ->  subs: [a/1, deny/x, a/2]  ->  SUBACK 0x00 0x00 0x87 0x00
+                                                                (held: a/1, a/2: counted 2)
 ```
+
+Up to 7.30.26 every occurrence went up, at about 4 µs each: one anonymous
+peer sending SUBSCRIBEs of 16 000 copies of `a` at 1 MB/s held a gate at
+100 % CPU.
 
 A minimal upper level, the action of a decoder:
 
@@ -291,7 +333,8 @@ authenticated every CONNECT against the broker's treedb, it took no QoS 1 or
 2 PUBLISH (`max_qos` went to 0 at the CONNACK, and the client was
 disconnected), and a PUBACK, PUBREC, PUBCOMP or PUBREL of any peer walked the
 NULL queue: the yuno crashed. That case was reachable in a broker with
-`mqtt_persistent_db` false. Without a `C_MQTT_BROKER` each PUBLISH also
+`mqtt_persistent_db` false (a configuration the broker refuses at its start
+after 7.30.26: it has no mode without its treedb). Without a `C_MQTT_BROKER` each PUBLISH also
 logged a WARNING *"ACL skipped"*; an anonymous client has no user and no
 group, so it is not said any more for one.
 
@@ -311,8 +354,13 @@ session handling, and persistent storage using TreeDB on timeranger2.
 here before it opens its treedb, and its `treedbs` service asks the
 permission of the broker's own `open-treedb` and `close-treedb` with it,
 read from their `src`. That service is a `C_TREEDB` the broker creates
-itself, in `open_database()` at its start, only when `mqtt_persistent_db` is
-on, and destroys in `close_database()` at its stop. The user is not put in the kw of those commands: a kw
+itself, in `open_database()` at its start, and destroys in
+`close_database()` at its stop. **`mqtt_persistent_db` must be true** (the
+default): the broker has no mode without its treedb, and `false` is refused
+at the start with one critical log, *"mqtt_persistent_db false is not
+supported: ..."*, then the exit that `on_critical_error` says (`2`, exit 0).
+Up to 7.30.26 `false` was accepted, and the broker refused every CONNECT and
+logged two ERRORs per tick. The user is not put in the kw of those commands: a kw
 with `__username__` is a peer's command for `C_TREEDB` (see
 [the broker's treedb](#mqtt-broker-treedb-user)).
 

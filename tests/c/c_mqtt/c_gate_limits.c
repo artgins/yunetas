@@ -16,12 +16,16 @@
  *                 added with the int16 adder, which refuses that property:
  *                 an ERROR per CONNECT and the property not sent.
  *              2. A QoS 1 PUBLISH with user properties and a payload past
- *                 message_size_limit: PUBACK 0x95. Up to 7.30.26 its
- *                 properties leaked (the memory check at the end).
+ *                 message_size_limit, twice: PUBACK 0x95 each, and ONE
+ *                 WARNING for the connection (10a: a new connection says
+ *                 it again). Up to 7.30.26 its properties leaked (the
+ *                 memory check at the end), and each one was a WARNING.
  *              3. A SUBSCRIBE of 13000 filters (the same one): one reason
- *                 code each. Up to 7.30.26 the upper level wrote its codes
- *                 in a buffer of 12 KB: two ERRORs per code past it, and a
- *                 SUBACK with 0x80 for filters the upper level granted.
+ *                 code each, and the upper level asked once. Up to 7.30.26
+ *                 the upper level wrote its codes in a buffer of 12 KB: two
+ *                 ERRORs per code past it, and a SUBACK with 0x80 for
+ *                 filters the upper level granted; and it was asked 13000
+ *                 times.
  *              4. A filter the upper level refuses (>= 0x80) is not held:
  *                 two more fit under max_subscriptions_per_client.
  *              5. An UNSUBSCRIBE of 20000 filters: one code each in the
@@ -29,6 +33,11 @@
  *              6. An upper level that misses a code of an UNSUBSCRIBE: an
  *                 ERROR, and 0x80 for it. Up to 7.30.26 the UNSUBACK went
  *                 short of codes (malformed) and nothing was said.
+ *              6b. Filters repeated in one SUBSCRIBE and one UNSUBSCRIBE go
+ *                 up once each; every occurrence gets the code of its
+ *                 filter (a refusal too). Up to 7.30.26 each occurrence
+ *                 went up: a peer at 1 MB/s of repeated filters held the
+ *                 gate at 100 % CPU.
  *              7. A message to a topic with a wildcard is refused (-1 and
  *                 an ERROR); up to 7.30.26 it was published.
  *              8. Acks of packet ids never used: said ONCE per connection.
@@ -617,14 +626,17 @@ PRIVATE void run_connection_a(hgobj gobj)
     static const uint8_t too_large[] = "0123456789abcdefXYZ";
     size_t n = build_publish(bf, 1, 5, "t/1", too_large, sizeof(too_large) - 1, 3);
     peer_sends(gobj, bf, n);
-    expect(gobj, "2. PUBLISH with properties past message_size_limit", (const char *[]){
+    n = build_publish(bf, 1, 6, "t/1", too_large, sizeof(too_large) - 1, 3);
+    peer_sends(gobj, bf, n);
+    expect(gobj, "2. PUBLISH with properties past message_size_limit, twice", (const char *[]){
         "PUBACK 5 149",
+        "PUBACK 6 149",
         NULL
     });
 
     peer_subscribe(gobj, FALSE, 1, (const char *[]){"a", NULL}, N_SUBSCRIBE);
     expect(gobj, "3. SUBSCRIBE of 13000 filters", (const char *[]){
-        "SUB x13000 a q0",
+        "SUB a q0",
         "SUBACK 1 x13000 0",
         NULL
     });
@@ -642,7 +654,7 @@ PRIVATE void run_connection_a(hgobj gobj)
 
     peer_subscribe(gobj, TRUE, 4, (const char *[]){"z", NULL}, N_UNSUBSCRIBE);
     expect(gobj, "5. UNSUBSCRIBE of 20000 filters", (const char *[]){
-        "UNSUB x20000 z",
+        "UNSUB z",
         "UNSUBACK 4 x20000 0",
         NULL
     });
@@ -652,6 +664,19 @@ PRIVATE void run_connection_a(hgobj gobj)
         "UNSUB a",
         "UNSUB nocode",
         "UNSUBACK 5 0 128",
+        NULL
+    });
+
+    peer_subscribe(gobj, FALSE, 6, (const char *[]){"b/1", "deny/2", "b/1", "deny/2", "b/2", NULL}, 0);
+    peer_subscribe(gobj, TRUE, 7, (const char *[]){"q", "r", "q", "r", "q", NULL}, 0);
+    expect(gobj, "6b. filters repeated in one packet go up once, each with its code", (const char *[]){
+        "SUB b/1 q0",
+        "SUB deny/2 q0",
+        "SUB b/2 q0",
+        "SUBACK 6 0 135 0 135 0",
+        "UNSUB q",
+        "UNSUB r",
+        "UNSUBACK 7 0 0 0 0 0",
         NULL
     });
 
@@ -703,8 +728,18 @@ PRIVATE void run_connection_b(hgobj gobj)
         NULL
     });
 
-    gobj_write_integer_attr(priv->prot, "message_size_limit", 0);
     peer_connect(gobj, CLIENT_B);
+    static const uint8_t too_large[] = "0123456789abcdefXYZ";
+    uint8_t small[64];
+    size_t n_small = build_publish(small, 1, 7, "t/1", too_large, sizeof(too_large) - 1, 0);
+    peer_sends(gobj, small, n_small);
+    expect(gobj, "10a. a new connection says the too large PUBLISH again", (const char *[]){
+        "OPEN " CLIENT_B,
+        "CONNACK 0 maxqos=1",
+        "PUBACK 7 149",
+        NULL
+    });
+    gobj_write_integer_attr(priv->prot, "message_size_limit", 0);
 
     uint8_t *payload = gbmem_malloc(BIG_PAYLOAD);
     memset(payload, 'x', BIG_PAYLOAD);
@@ -717,8 +752,6 @@ PRIVATE void run_connection_b(hgobj gobj)
     gbmem_free(payload);
     gbmem_free(bf);
     expect(gobj, "10. a PUBLISH of 20000 bytes cut in its fixed header", (const char *[]){
-        "OPEN " CLIENT_B,
-        "CONNACK 0 maxqos=1",
         "MSG t/big q0 len=20000",
         "MSG t/big q0 len=20000",
         "MSG t/big q0 len=20000",

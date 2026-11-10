@@ -120,17 +120,22 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
 
 1. MQTT 5 CONNACK carries Maximum QoS 1 (it was not sent, and an ERROR
    *"Mqtt property int16 unknown"* was logged).
-2. A QoS 1 PUBLISH with three user properties past `message_size_limit`:
-   PUBACK `0x95`, and no leak (its properties were not freed: the memory check
-   at the end).
-3. A SUBSCRIBE of 13000 copies of `a`: all go up, 13000 codes in the SUBACK
-   (a 12 KB buffer: 8426 pairs of ERRORs and a SUBACK of mixed codes).
+2. Two QoS 1 PUBLISHes with three user properties past
+   `message_size_limit`: PUBACK `0x95` each, ONE WARNING for the connection
+   (one per PUBLISH), and no leak (its properties were not freed: the memory
+   check at the end). The second connection (10a) says it again.
+3. A SUBSCRIBE of 13000 copies of `a`: the upper level is asked once, 13000
+   codes in the SUBACK (all went up; a 12 KB buffer: 8426 pairs of ERRORs and
+   a SUBACK of mixed codes).
 4. A filter the upper level refuses (`0x87`) is not held: two filters more fit
    under 3, the third gets `0x97`.
 5. An UNSUBSCRIBE of 20000 filters: 20000 codes in the UNSUBACK (12287).
 6. The upper level writes no code for one filter: ERROR *"The upper level did
    not answer one reason code per filter"*, and `0x80` for it (the UNSUBACK
    was short of a code, and nothing was said).
+   6b. A SUBSCRIBE of `b/1 deny/2 b/1 deny/2 b/2` and an UNSUBSCRIBE of
+   `q r q r q`: each distinct filter goes up once, and every occurrence takes
+   its code, the refusal `0x87` too (each occurrence went up).
 7. `EV_SEND_MESSAGE` to `cmnd/x/#`: `-1` and an ERROR (it was published).
 8. Five acks of unknown packet ids: one WARNING (five).
 9. `EV_DROP` with `session_take_over`: DISCONNECT `0x8E`. Then, while the
@@ -161,7 +166,22 @@ goes out in QoS 0 (QoS 2); a QoS 2 PUBLISH disconnects the client (DISCONNECT
 Then with queues (a `C_TRANGER` of the driver): the user's QoS 1 publish
 inside `EV_ON_OPEN` goes out (the queues opened after it: SIGSEGV), and a
 PUBLISH announced at 300000 bytes is refused at its header, DISCONNECT `0x82`
-(a client kept what it was announced).
+(a client kept what it was announced). Then a hostile broker, one connection
+per step, each a WARNING: a second CONNACK in session, DISCONNECT `0x82`, with
+queues and without (the queues were opened again and their first handles
+leaked; the user heard `EV_ON_OPEN` again); a DISCONNECT with properties and
+a PUBLISH behind it in the same read: the PUBLISH is not delivered and the
+properties are freed (delivered, leaked); a PUBLISH of QoS 3 and one to
+`a/#/+`: DISCONNECT `0x81` (dropped in silence; delivered); a CONNACK of
+MQTT 5 that refuses (`0x87`): the user hears `EV_ON_CLOSE` with the reason
+and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`).
+
+`test_mqtt_broker_no_db` (`main_broker_no_db.c` + `c_broker_no_db.c`) runs a
+`C_MQTT_BROKER` with `mqtt_persistent_db` false and `on_critical_error` 0:
+one CRITICAL *"mqtt_persistent_db false is not supported: ..."* at its start,
+the broker does not play, and nothing more is logged in the next two seconds
+(up to 7.30.26 it played without a treedb, refused every CONNECT and logged
+two ERRORs per tick). No port, no store.
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
 after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.

@@ -176,11 +176,11 @@ Broker-level logic: client registration, subscription tree management, message r
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `enable_new_clients` | boolean | false | Auto-create clients not in DB |
-| `mqtt_persistent_db` | boolean | true | Persistent database for sessions |
+| `mqtt_persistent_db` | boolean | true | Must be true: the sessions, clients and retained messages live in the treedb. False is refused at start-up (one CRITICAL, exit as `on_critical_error` says) |
 | `mqtt_service` | string | — | Service name (default: yuno_role) |
 | `mqtt_tenant` | string | — | Multi-tenant identifier (default: yuno_name) |
 | `deny_subscribes` | json | — | JSON list of denied topic filters |
-| `on_critical_error` | integer | 2 | Error behavior (2 = exit zero) |
+| `on_critical_error` | integer | 2 | Log options of the broker's critical error (2 = exit zero; 0 = stay up, not playing) |
 | `timeout` | integer | 1000 | Periodic timer interval (ms) |
 
 **Commands:**
