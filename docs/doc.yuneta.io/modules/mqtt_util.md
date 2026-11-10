@@ -1,8 +1,8 @@
 (module-mqtt-util)=
 # MQTT utilities
 
-The helpers of the [MQTT module](#module-mqtt) that `C_PROT_MQTT`,
-`C_PROT_MQTT2` and `C_MQTT_BROKER` share: names for the protocol's codes,
+The helpers of the [MQTT module](#module-mqtt) that `C_PROT_MQTT2` and
+`C_MQTT_BROKER` share: names for the protocol's codes,
 validation of topics and UTF-8 strings as the MQTT specification asks for
 them, and the record of a message. A client gclass of its own (one built on
 top of `C_PROT_MQTT2`) gets them by including `c_prot_mqtt2.h`, which includes

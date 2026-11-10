@@ -884,8 +884,9 @@ if(gobj_current_state(gobj) != ST_DISCONNECTED) {
 form (also handles the gobj-stopped case). Either is fine.
 
 Sites with this guard today: [`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/root-linux/src/c_websocket.c), [`c_prot_tcp4h.c`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/root-linux/src/c_prot_tcp4h.c),
-[`c_prot_mqtt.c`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/mqtt/src/c_prot_mqtt.c), [`c_prot_mqtt2.c`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/mqtt/src/c_prot_mqtt2.c). Fixed in commits
-`635b06a41` and `855527770` (2026-05-24).
+[`c_prot_mqtt2.c`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/mqtt/src/c_prot_mqtt2.c). Fixed in commits
+`635b06a41` and `855527770` (2026-05-24); `c_prot_mqtt.c` had it too until
+it was removed after 7.30.26.
 
 **Intentionally unguarded:** [`c_prot_modbus_m.c`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/modbus/src/c_prot_modbus_m.c) (`ac_rx_data`). The guard was applied in `855527770` and then reverted in
 `54a2624f8` (2026-05-25): the modbus master flow is polled-master, the

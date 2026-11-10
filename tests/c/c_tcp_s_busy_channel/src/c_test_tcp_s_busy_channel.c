@@ -5,7 +5,8 @@
  *
  *          child_tree_filter asks an attribute that can say nothing of the
  *          transport. {"connected": false} reads the first `connected` of
- *          the chain, and C_PROT_MQTT has its own, true only at its session;
+ *          the chain, and a protocol can have its own (C_PROT_MQTT, removed
+ *          after 7.30.26, had one true only at its session);
  *          here {"opened": false} of C_CHANNEL does the same with no MQTT:
  *          true only when the TLS handshake ended.
  *
@@ -16,7 +17,7 @@
  *          of the first leaked, its ytls overwritten with the NULL of
  *          plain_port, and the end of the connection a SIGSEGV in
  *          ytls_free_secure_filter() (a real core: a scanner of the internet
- *          on a gate with C_PROT_MQTT).
+ *          on a gate with C_PROT_MQTT, the protocol it had then).
  *
  *          The channel is taken: plain_port refuses the second peer and
  *          counts it. When the first peer leaves, the channel is free and

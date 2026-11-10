@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### MQTT
+
+- **BREAKING (a yuno that still creates `C_PROT_MQTT`): `C_PROT_MQTT` is removed**
+  (`c_prot_mqtt.c`, `c_prot_mqtt.h`, `register_c_prot_mqtt()`), with its tests
+  (`c_mqtt/legacy_prot`, `c_mqtt/legacy_sessions`). It was deprecated, and since 7.30.26
+  every gate runs `C_PROT_MQTT2` as its input with no broker. A yuno that registers it no
+  longer links, and one whose config creates it answers *"gclass NOT FOUND"* at its start:
+  the MQTT page says how to move a gate (*"`C_PROT_MQTT2` as the input of a gate"*, and the
+  table *"Moving a gate from `C_PROT_MQTT`"*).
+
 ## v7.30.26 (2026-11-10)
 
 The MQTT gates leave the deprecated `C_PROT_MQTT`: `C_PROT_MQTT2` becomes the

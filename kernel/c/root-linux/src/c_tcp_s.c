@@ -1250,8 +1250,9 @@ PRIVATE void note_refused_connection(
 /***************************************************************************
  *  The first channel of the filter whose C_TCP is not running. The filter
  *  cannot tell: {"connected": false} reads the first `connected` of the
- *  chain, and C_PROT_MQTT has its own, true only at its session, while its
- *  C_TCP already holds a socket and maybe a secure filter. An accept on it
+ *  chain, and a protocol can have its own (C_PROT_MQTT, removed after
+ *  7.30.26, had one true only at its session) while its C_TCP already
+ *  holds a socket and maybe a secure filter. An accept on it
  *  rewrote its fd and its ytls: with a second server with no TLS, a peer
  *  with a socket on each port ended the yuno in ytls_free_secure_filter()
  *  (up to 7.30.1). The walk stops at the first one: it is on the accept

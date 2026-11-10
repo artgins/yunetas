@@ -1211,9 +1211,10 @@ subsystem, e.g. `tools/agent/`); repo-dev helpers stay in `scripts/`. Test:
   by `kernel/c/root-linux/src/ghttp_parser.c` (used by `c_prot_http_cl` /
   `c_prot_http_sr`). The wrapper has caused repeated bugs — when investigating
   an HTTP parsing issue, suspect `ghttp_parser` first, not llhttp upstream.
-- **MQTT:** `C_PROT_MQTT2` (`c_prot_mqtt2.c`) is the complete implementation
-  and the only target for protocol-level work; `C_PROT_MQTT` is **deprecated**,
-  kept only until the remaining gates migrate. Neither implements
+- **MQTT:** `C_PROT_MQTT2` (`c_prot_mqtt2.c`) is the MQTT protocol: the
+  broker's, a gate's with no broker (`allow_anonymous`, no queues, the decoder
+  as its upper level; see the MQTT doc page), and a client's. The deprecated
+  `C_PROT_MQTT` was removed after 7.30.26. The protocol does not implement
   publish/subscribe ACL (open design item, see `TODO.md`) — don't assume
   topic-level permissions exist.
 

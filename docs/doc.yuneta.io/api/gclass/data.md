@@ -1261,9 +1261,8 @@ only when it is ONE file name: no `/`, no leading `.`, no `..` anywhere in it
 long)"*), and [`gobj_create_resource()`](#gobj_create_resource) answers NULL.
 Up to 7.30.16 such a resource was made in memory, every save of it logged an
 ERROR (three per connect of an MQTT client with such an id), and `.hidden`
-was taken and wrote `.hidden.json`. `C_PROT_MQTT` answers a client id its store
-refuses with the CONNACK *"Client identifier not valid"* (MQTT 5, `0x85`;
-3.1.1: identifier rejected):
+was taken and wrote `.hidden.json`. A store of MQTT clients named by their
+client id, for example:
 
 ```C
 json_t *client = gobj_create_resource(gobj_mqtt_clients, "dev-0042", kw_client, 0);  // dev-0042.json
@@ -1297,7 +1296,7 @@ for a gbuffer (SIGSEGV).
 A resource created with the option `volatil` is never written, also in a
 persistent store: it lives in memory until it is deleted. Delete it with the
 same option, so that the store does not look for a file it never wrote (a
-`volatil` delete removes no file). `C_PROT_MQTT` keeps that way the record of a
+`volatil` delete removes no file). A protocol keeps that way the record of a
 client without a session, and deletes it when the client disconnects.
 
 ```C

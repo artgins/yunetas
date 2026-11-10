@@ -4,7 +4,8 @@ An accept of `C_TCP_S` with `child_tree_filter` never takes a channel whose
 `C_TCP` is running.
 
 The filter says nothing of the transport. `{"connected": false}` reads the first
-`connected` of the chain, and `C_PROT_MQTT` has its own, true only at its session.
+`connected` of the chain, and a protocol can have its own (`C_PROT_MQTT`, removed
+after 7.30.26, had one true only at its session).
 This test gets the same with no MQTT: its filter is `{"opened": false}`, and
 `C_CHANNEL` is opened only when the TLS handshake ends.
 

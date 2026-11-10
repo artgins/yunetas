@@ -905,7 +905,7 @@ Anything a C client can. Concretely:
 See `DEBUGGING.md` §8 — the SPA's developer panel uses exactly this
 mechanism to display the wire-level ievent traffic in real time. The
 teardown order gotcha (`set_remote_log_functions(null)` BEFORE
-[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/mqtt/src/c_prot_mqtt.c#L1579)) is documented there.
+`do_disconnect`) is documented there.
 
 ---
 

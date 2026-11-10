@@ -326,12 +326,6 @@ application's gate (one application).
   and reverted, `02bf70ea5` / `cac246730`.) The application work is in
   the TODO of the application.
 
-### Protocols
-
-- **`C_PROT_MQTT` is not migrated to `peername` attribution**: deprecated,
-  goes away with the migration in section 5. `C_PROT_MQTT2` is the target for
-  protocol work.
-
 ### Events
 
 - **A published kw's gbuffer is shared by every subscriber, read cursor
@@ -344,30 +338,15 @@ application's gate (one application).
 
 ## 5. Future features and improvements
 
-- **Move every yuno that still uses `C_PROT_MQTT` to `C_PROT_MQTT2`, then remove
-  `C_PROT_MQTT`.** Five gates of three applications built on the SDK created it, one of
-  them on a client production node. Done in their code (2026-11-10): the gate is
-  `C_PROT_MQTT2` with its decoder as the upper level, no broker and no queues
-  (`allow_anonymous`, see the MQTT page). The gate keeps no session and forwards nothing,
-  so the session limits of `C_PROT_MQTT` (`max_persistent_sessions`,
-  `persistent_session_expiry`) have nothing to bound there, and the forwarding that let
-  a few anonymous subscribers take the memory of a gate is gone. What is per connection
-  went to `C_PROT_MQTT2` (`max_subscriptions_per_client`, `max_topic_filter_length`,
-  `max_inflight_messages` for QoS 2). `C_MQTT_BROKER` keeps sessions only for the
-  clients declared in its treedb (`enable_new_clients` `0`), authenticated. The migrated
-  gates run on every node since 7.30.26 (2026-11-10). Left: remove `C_PROT_MQTT` and its
-  tests (`tests/c/c_mqtt` `legacy_prot`, `legacy_sessions`; `c_legacy_prot.c`,
-  `main_legacy_prot.c`, `c_legacy_sessions.c`, `main_legacy_sessions.c`).
-
 - **A read pause in `C_TCP`.** `C_PROT_HTTP_SR` cannot stop reading a peer, so it holds
   what the peer pipelines, up to `max_rx_held`, and drops a peer that passes it even if it
   reads. A pause would let TCP slow the peer and remove that limit.
 - **`EV_DROP` in `C_TCP` closes without flushing what is queued to send.** A protocol
-  that answers and then drops the peer loses the answer when the send has not finished:
-  `C_PROT_MQTT` sends DISCONNECT 0x93 (and the PUBRECs before it) and drops, and when the
-  21 PUBLISH of the receive-window cut arrive in one read none of it reaches the peer.
-  It affects every `send_disconnect`. A "close after the queue is sent" in the transport
-  fixes it for every protocol; no deployed device publishes in QoS 2 today.
+  that answers and then drops the peer loses the answer when the send has not finished
+  (`C_PROT_MQTT`, removed after 7.30.26, lost its DISCONNECT 0x93 and the PUBRECs before
+  it that way; `C_PROT_MQTT2` waits `timeout_close` after a DISCONNECT of MQTT 5, and
+  drops a 3.1.1 client at once). A "close after the queue is sent" in the transport
+  fixes it for every protocol.
 - **`C_PROT_HTTP_SR` reads `cur_tx_queue` of the transport by name** at each request and
   answer, about 0.35 µs of a round trip. A way to read it with no walk over the attributes
   would recover part of the price of 7.30.0.

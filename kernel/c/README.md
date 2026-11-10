@@ -1848,7 +1848,7 @@ BOOL is_ip_denied(const char *peername);
 | `C_WEBSOCKET` | WebSocket (client + server) |
 | `C_PROT_HTTP_CL` | HTTP client |
 | `C_PROT_HTTP_SR` | HTTP server |
-| `C_PROT_MQTT` | MQTT v3.1.1 client/broker protocol |
+| `C_PROT_MQTT2` | MQTT 3.1.1 and 5.0 protocol, client and server (module `mqtt`) |
 | `C_PROT_TCP4H` | TCP 4-byte-header framing |
 | `C_PROT_RAW` | Raw passthrough |
 

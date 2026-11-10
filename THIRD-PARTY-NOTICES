@@ -166,7 +166,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ------------------------------------------------------------------------------
 Eclipse Mosquitto
 ------------------------------------------------------------------------------
-modules/c/mqtt/src/c_prot_mqtt.c, c_prot_mqtt2.c, mqtt_util.c,
+modules/c/mqtt/src/c_prot_mqtt2.c, mqtt_util.c,
 mqtt_util.h: code taken from or modelled on Mosquitto
 (https://github.com/eclipse-mosquitto/mosquitto), offered under
 EPL-2.0 OR EDL-1.0; used here under the EDL-1.0 (BSD-3-Clause)

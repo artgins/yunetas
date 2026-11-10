@@ -58,8 +58,6 @@ SET(SRCS
     client_queues
     out_flight
     wrong_ack
-    legacy_prot
-    legacy_sessions
     gate_prot
     client_pubrec
     will_acl

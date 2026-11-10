@@ -1415,7 +1415,7 @@ scoped to one gclass.
 ### 10.7 SPA dev-panel teardown order
 
 `set_remote_log_functions(null)` MUST come before
-[`do_disconnect`](https://github.com/artgins/yunetas/blob/7.30.26/modules/c/mqtt/src/c_prot_mqtt.c#L1579) / `destroy_shell`, in every teardown path. See §8.
+`do_disconnect` / `destroy_shell`, in every teardown path. See §8.
 
 ### 10.8 Deep tracing has no `ycommand` switch
 

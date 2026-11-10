@@ -177,7 +177,6 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
     MODULES / "console/src/c_editline.h":   ["modules/console.md",
                                              "modules/console_api.md"],
     MODULES / "console/src/help_ncurses.h": ["modules/console_api.md"],
-    MODULES / "mqtt/src/c_prot_mqtt.h":     ["modules/mqtt.md"],
     MODULES / "mqtt/src/c_prot_mqtt2.h":    ["modules/mqtt.md"],
     MODULES / "mqtt/src/c_mqtt_broker.h":   ["modules/mqtt.md"],
     MODULES / "mqtt/src/mqtt_util.h":       ["modules/mqtt_util.md"],
