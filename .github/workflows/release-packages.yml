@@ -82,6 +82,10 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v7
         with:
+          # A manual run builds the tag it uploads to, not the branch it was
+          # launched from: from main with newer commits it would attach a
+          # package of another source to the tag's release.
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
           submodules: recursive
           fetch-depth: 1
 
@@ -207,6 +211,10 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v7
         with:
+          # A manual run builds the tag it uploads to, not the branch it was
+          # launched from: from main with newer commits it would attach a
+          # package of another source to the tag's release.
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
           submodules: recursive
           fetch-depth: 1
 

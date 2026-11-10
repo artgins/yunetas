@@ -366,6 +366,12 @@ application's gate (one application).
 - **A read pause in `C_TCP`.** `C_PROT_HTTP_SR` cannot stop reading a peer, so it holds
   what the peer pipelines, up to `max_rx_held`, and drops a peer that passes it even if it
   reads. A pause would let TCP slow the peer and remove that limit.
+- **`EV_DROP` in `C_TCP` closes without flushing what is queued to send.** A protocol
+  that answers and then drops the peer loses the answer when the send has not finished:
+  `C_PROT_MQTT` sends DISCONNECT 0x93 (and the PUBRECs before it) and drops, and when the
+  21 PUBLISH of the receive-window cut arrive in one read none of it reaches the peer.
+  It affects every `send_disconnect`. A "close after the queue is sent" in the transport
+  fixes it for every protocol; no deployed device publishes in QoS 2 today.
 - **`C_PROT_HTTP_SR` reads `cur_tx_queue` of the transport by name** at each request and
   answer, about 0.35 µs of a round trip. A way to read it with no walk over the attributes
   would recover part of the price of 7.30.0.
