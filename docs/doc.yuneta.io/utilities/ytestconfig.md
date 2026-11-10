@@ -19,4 +19,4 @@ ytestconfig <FILE>
 ## See also
 
 - [`json_diff`](json_diff.md) — compare two JSON files.
-- [`utils/c/ytestconfig/README.md`](https://github.com/artgins/yunetas/blob/7.30.25/utils/c/ytestconfig/README.md).
+- [`utils/c/ytestconfig/README.md`](https://github.com/artgins/yunetas/blob/7.30.26/utils/c/ytestconfig/README.md).

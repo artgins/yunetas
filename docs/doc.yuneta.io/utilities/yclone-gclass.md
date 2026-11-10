@@ -62,4 +62,4 @@ to the timer it carries, and stays.
 ## See also
 
 - [`yclone-project`](yclone-project.md) — clone a whole project.
-- [`utils/c/yclone-gclass/README.md`](https://github.com/artgins/yunetas/blob/7.30.25/utils/c/yclone-gclass/README.md).
+- [`utils/c/yclone-gclass/README.md`](https://github.com/artgins/yunetas/blob/7.30.26/utils/c/yclone-gclass/README.md).

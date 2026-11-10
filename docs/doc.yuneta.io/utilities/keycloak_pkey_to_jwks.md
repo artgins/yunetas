@@ -39,4 +39,4 @@ keycloak_pkey_to_jwks --iss https://auth.example.com/realms/example MIIBIjANBgkq
 
 - [Auth, permissions, TLS](../../../yunos/c/yuno_agent/YUNO_AUTH.md) — how Yuneta
   uses JWKS for JWT verification.
-- [`utils/c/pkey_to_jwks/README.md`](https://github.com/artgins/yunetas/blob/7.30.25/utils/c/pkey_to_jwks/README.md).
+- [`utils/c/pkey_to_jwks/README.md`](https://github.com/artgins/yunetas/blob/7.30.26/utils/c/pkey_to_jwks/README.md).

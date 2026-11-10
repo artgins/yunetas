@@ -4,11 +4,11 @@ Default parser for the control-plane `command` verb. Dispatches a textual comman
 
 Source code:
 
-- [`command_parser.h`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.h)
-- [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c)
+- [`command_parser.h`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.h)
+- [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c)
 
 (command_parser)=
-## [`command_parser()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L92)
+## [`command_parser()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L92)
 
 `command_parser()` processes a command string, expands its parameters, checks authorization, and executes the corresponding function or event.
 
@@ -252,7 +252,7 @@ converted at all.
 ---
 
 (gobj_build_cmds_doc)=
-## [`gobj_build_cmds_doc()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L1783)
+## [`gobj_build_cmds_doc()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L1783)
 
 `gobj_build_cmds_doc()` generates a JSON-formatted documentation of available commands for a given `hgobj`.
 
@@ -300,7 +300,7 @@ Commands that mention 'snap'
 ---
 
 (build_command_response)=
-## [`build_command_response()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L1856)
+## [`build_command_response()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L1856)
 
 `build_command_response()` builds a standardized JSON response object for command and stats operations. The response contains four fields: `result`, `comment`, `schema`, and `data`.
 
@@ -335,7 +335,7 @@ All three owned parameters (`jn_comment`, `jn_schema`, `jn_data`) are consumed b
 ---
 
 (command_get_cmd_desc)=
-## [`command_get_cmd_desc()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L282)
+## [`command_get_cmd_desc()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L282)
 
 `command_get_cmd_desc()` searches a command table for the descriptor matching a given command name. It extracts the first word from the `command` string and looks it up in `command_table`, checking both the primary name and any aliases defined in each descriptor.
 
@@ -364,7 +364,7 @@ Aliases have precedence when the descriptor has no `json_fn` command function se
 ---
 
 (command_parameter_from_text)=
-## [`command_parameter_from_text()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L712)
+## [`command_parameter_from_text()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L712)
 
 A value of `type` written as TEXT, read exactly as [`command_parser()`](#command_parser)
 reads a parameter written on the command line: a number with nothing before or
@@ -482,7 +482,7 @@ real attribute, or a boolean to an integer one, was refused.
 ---
 
 (command_mask_secret_kw)=
-## [`command_mask_secret_kw()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L970)
+## [`command_mask_secret_kw()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L970)
 
 The kw of a command as a trace shows it. A value is `"********"` when its key
 is a parameter the command table of `gobj` declares with `SDF_SECRET` (by
@@ -566,7 +566,7 @@ kw_shown = command_mask_secret_kw(gobj, "command-yuno",
 ---
 
 (command_mask_secret_line)=
-## [`command_mask_secret_line()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L991)
+## [`command_mask_secret_line()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L991)
 
 The command line as a trace shows it: the value of every secret parameter is
 `********` -- `SDF_SECRET` in the command table of `gobj`, or with a secret's
@@ -684,7 +684,7 @@ without it, with no log.
 ---
 
 (search_command_desc)=
-## [`search_command_desc()`](https://github.com/artgins/yunetas/blob/7.30.25/kernel/c/gobj-c/src/command_parser.c#L1590)
+## [`search_command_desc()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/command_parser.c#L1590)
 
 `search_command_desc()` searches for a command descriptor starting in the given GObj and optionally descending into related GObjs depending on the `level` parameter. It first checks the GObj's own command table, then searches deeper if the command is not found locally.
 

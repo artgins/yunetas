@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v7.30.26 (2026-11-10)
+
+The MQTT gates leave the deprecated `C_PROT_MQTT`: `C_PROT_MQTT2` becomes the
+input of a gate with no broker. The gate's decoder is its upper level, the
+protocol has no queues, and anonymous devices are accepted
+(`allow_anonymous`). A gate keeps no session and forwards nothing between
+clients, so the forwarding that let a few anonymous subscribers take the
+memory of a gate is gone with it. `C_PROT_MQTT2` takes the per-connection
+limits of `C_PROT_MQTT` (BREAKING for a broker client with more than 100
+filters or filters past 256 bytes), and a protocol without queues no longer
+crashes on an ack of the peer. The whole suite ran on the dev machine (439 of
+439); no performance study (the next one is against 7.30.0).
+
 ### MQTT
 
 - **`C_PROT_MQTT2` is the input of a gate, with no broker.** A gate takes what
