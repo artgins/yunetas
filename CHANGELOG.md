@@ -31,7 +31,17 @@
       UNSUBSCRIBE goes up once (the repetition replaces its options) and every occurrence
       takes its code, so the SUBACK / UNSUBACK keeps one code per filter. Each occurrence
       went up, at ~4 µs: one anonymous peer sending SUBSCRIBEs of 16 000 copies of a filter
-      at 1 MB/s held a gate at 100 % CPU (the MQTT page says it, with an example).
+      at 1 MB/s held a gate at 100 % CPU (the MQTT page says it, with an example). A repetition, and a filter the protocol
+      refuses, cost one dictionary lookup: the code of each occurrence is kept in a C
+      array, not in a json, and the options of a repeated filter are written once. A
+      SUBSCRIBE of 64 KB costs about 0.5 ms of CPU, of 16 000 copies of a filter or of 7900
+      distinct filters past `max_subscriptions_per_client` (7.30.26: 3.3 ms for the
+      distinct ones; measured with `CONFIG_DEBUG_TRACK_MEMORY`). An UNSUBSCRIBE keeps its
+      occurrences the same way: one of 60 KB costs about 0.45 ms as 20 000 copies of a
+      filter, and about 4 ms as 8500 distinct filters, **slower than 7.30.26 (2.3 ms)**:
+      the price of the dictionary that sends a repeated filter up once, about 0.2 µs per
+      distinct filter (a gate reaches 100 % CPU at about 15 MB/s of distinct UNSUBSCRIBEs,
+      26 MB/s in 7.30.26).
       BREAKING for an upper level that counted the repetitions: they arrive once in `subs`.
     - **BREAKING (a log watcher): a connection that is closing** (its DISCONNECT sent,
       waiting `timeout_close`) takes `EV_DROP` (the transport is dropped at once) and
@@ -47,14 +57,18 @@
       dict"*), and the server went on reading after it. Nothing the client sends after
       its DISCONNECT is read now.
     - **BREAKING (a caller of `EV_SEND_MESSAGE`): a topic a PUBLISH cannot carry is
-      refused**: a wildcard (`+`, `#`), empty, or more than 200 levels. `-1`, and an
-      ERROR *"Mqtt publish: topic invalid"* that names it. A message to a subscription
-      filter (`cmnd/dev/#`) was sent as it was [MQTT-3.3.2-2].
+      refused**: a wildcard (`+`, `#`) or empty [MQTT-3.3.2-2]; on the server side also
+      more than 200 `/` separators (201 levels pass; `TOPIC_HIERARCHY_LIMIT`, the
+      server's own limit, as Mosquitto's: MQTT puts none). A client applies no limit of
+      levels, by `EV_SEND_MESSAGE` nor by `EV_MQTT_PUBLISH`: its broker decides. `-1`, and an ERROR *"Mqtt
+      publish: topic invalid"* that names it. A message to a subscription filter
+      (`cmnd/dev/#`) was sent as it was.
     - The fixed-header parser read the second byte of the remaining length twice when a
       read ended right after it. A packet of 16 KB or more cut there ended the
       connection as malformed (client and server alike).
     - **BREAKING (a log watcher):** the WARNING of a PUBLISH whose topic has a
-      wildcard, is empty or has more than 200 levels says *"Mqtt: invalid topic in
+      wildcard, is empty or has more than 200 `/` separators (the limit of the server:
+      201 levels pass) says *"Mqtt: invalid topic in
       PUBLISH, disconnecting"*. Up to 7.30.26 it said *"Mqtt will: invalid topic"*, as
       if it were a will. The connection still ends with DISCONNECT `0x81`.
     - **BREAKING (a log watcher):** an ack of an unknown packet id (PUBACK, PUBREC,
@@ -85,15 +99,19 @@
       the session is a protocol error, DISCONNECT `0x82` (it opened the queues again,
       leaking the first handles, and published `EV_ON_OPEN` again); a PUBLISH of QoS
       3 (dropped in silence), of QoS 0 with DUP set (delivered; the server already
-      refused it), or whose topic has a wildcard, is empty or has more than 200 levels
-      (delivered) is malformed, DISCONNECT `0x81`; the broker's DISCONNECT
+      refused it), or whose topic has a wildcard or is empty (delivered) is malformed,
+      DISCONNECT `0x81` (a topic of any number of levels is taken: MQTT puts no limit on
+      them, and the 200 separators are the server's own), and its user can publish a
+      topic of any depth (it was refused past 200 separators, with `-1`, by
+      `EV_MQTT_PUBLISH` and `EV_SEND_MESSAGE`, 7.30.26 and before); the broker's DISCONNECT
       is its last packet, nothing after it in the same read is processed (a PUBLISH
       behind it was delivered) and its properties are freed (they leaked).
-    - **BREAKING (a user of the client): a CONNACK of MQTT 5 that refuses (`>= 0x80`)
-      ends in `EV_ON_CLOSE`**, with `reason_code` in its kw and one WARNING *"Mqtt
+    - **BREAKING (a user of the client): a CONNACK of MQTT 5 that refuses (`>= 0x80`),
+      or of MQTT 3.1.1 with a reserved code past 5, ends in `EV_ON_CLOSE`**, with `reason_code` in its kw and one WARNING *"Mqtt
       connection refused"*, and the client sends nothing. It was taken for a protocol
       error: a DISCONNECT `0x82` to the broker, a dump of the CONNACK, and the user
-      never heard `EV_ON_CLOSE`.
+      never heard `EV_ON_CLOSE`. A 3.1.1 code past 5 ended the connection with a
+      WARNING and no `EV_ON_CLOSE` either.
 - `C_MQTT_BROKER`: a filter of `deny_subscribes` is refused to an MQTT 3.1 client too
   (`0x80`). It was granted with the QoS it asked for.
 - **BREAKING (an operator): `C_MQTT_BROKER` refuses `mqtt_persistent_db` false at its
@@ -103,7 +121,10 @@
   `mqtt_persistent_db` false": no such broker worked). Now one CRITICAL *"mqtt_persistent_db
   false is not supported: ..."* names the attribute and the yuno exits as the broker's
   `on_critical_error` says (`2`, the default: exit 0, not restarted; `0`: it stays up and
-  the broker does not play). An in-memory broker is not planned.
+  the broker does not play, and its commands that need the treedb, the input side or
+  the subscriptions -- `list-sessions`, `list-retains`, `remove-retains`, `clean-queues`,
+  ... -- answer `-1` *"broker not playing"*; in 7.30.26 they logged about 25 ERRORs and
+  answered as an empty broker, *"Delete 0 retained messages"*). An in-memory broker is not planned.
 - **BREAKING (C code using the mqtt module): the names inherited from Mosquitto are
   `mqtt_` names.** `MOSQ_ERR_*` is `MQTT_ERR_*`, `mosq_err_t` is `mqtt_err_t`,
   `mosq_p_*` / `mosq_m_*` / `mosq_md_*` / `mosq_mo_*` / `mosq_ms_*` are `mqtt_p_*` /
@@ -124,11 +145,13 @@
   `<a parameter of the command>=value` on, every parameter is `key=value`, required ones
   included; one the line does not give is taken from kw, else *"parameter 'x' is
   required"*. In that mode the line has the last word over a refused kw value of a
-  required parameter too, as of an optional one. And a word left over after a
-  `key=value` is not echoed in the *"extra parameters"* answer (or its `ev_kw` trace)
-  when the command has a required secret parameter: it can be that secret given without
-  its key (`login user=bob <pin>` answered the pin, while the mask of the line shows
-  `<...>`).
+  required parameter too, as of an optional one.
+- **BREAKING (an operator reading an error): a word left over is not echoed in the
+  *"extra parameters"* answer** (nor in its `ev_kw` trace) when the command has a secret
+  parameter, required or optional, or is a `SDF_WILD_CMD` command: it can be a secret
+  given without its key. `login user=bob <pin>`, `set-user-pwd username=bob <password>`
+  and `command-yuno id=x login bob <password>` answered it (7.30.26 echoed all three); the
+  answer says `'<...>'` now. A command without secrets still echoes the word.
 - A command line ending in two or more blanks (or a blank and a tab) was refused with
   *"extra parameters: ' '"* (7.30.26 and before; `ycommand` trims its line, so only a
   caller that does not trim saw it). `get_key_value_parameter()` now answers "nothing
