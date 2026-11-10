@@ -881,6 +881,33 @@ nearest first:
   ```
 
   Up to 7.30.26 these records held `hunter2` in clear.
+
+  The command name of a nested line is a word too. In its own quotes a whole
+  line is one word, and the parser runs the command of its first word (with
+  no parameters, or with what follows the closing quote). So a first word
+  with a blank, a quote or a backslash in it (its own enclosing quotes
+  apart) is written `<...>`. A command name alone in its quotes stays. These
+  commands:
+
+  ```text
+  command-agent service=authz command="'set-user-pwd username=bob hunter2'"
+  command-yuno id=auth service=authz command="'unlock'hunter2"
+  command-yuno id=auth command="'list-yunos'"
+  ```
+
+  are recorded as
+
+  ```text
+  command-agent service=authz command="<...>"
+  command-yuno id=auth service=authz command="<...>"
+  command-yuno id=auth command="'list-yunos'"
+  ```
+
+  The same holds for the command word of any record: a word with a blank, a
+  quote or a backslash in it is `<...>`, never a command name. So a quoted
+  line in `command` of the kw (`"'list-x username=bob hunter2'"`) makes the
+  record full, not read-only, and the record of the command that the agent
+  sends on is `<...>`. Up to 7.30.26 these records held `hunter2` in clear.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

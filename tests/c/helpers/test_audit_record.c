@@ -803,6 +803,82 @@ PRIVATE void test_nested_positional_secret(void)
     kw = json_pack("{s:s}", "__command__", "kill-yuno 3");
     check_command_is("kill-yuno 3", kw, "kill-yuno 3", "(d2) a kw.__command__ that is no wrapper's line: not nested");
     JSON_DECREF(kw)
+
+    /*
+     *  The FIRST word of a nested line in its own quotes: the shell's way
+     *  it is one word, blanks and all, and it was kept as the command name
+     *  -- with the secret inside it. The parser runs the command named by
+     *  its first word with no parameters, so the secret is never used, but
+     *  up to 7.30.26 it was written. A first word with a blank, a quote or
+     *  a backslash in it (its own enclosing quotes apart) is <...>.
+     */
+    static const char *first_quoted[] = {
+        "command-agent service=authz command=\"'set-user-pwd username=bob hunter2'\"",
+        "command-yuno id=X service=authz command=\"'set-user-pwd username=bob hunter2'\"",
+        "command-yuno id=X service=authz command='\"set-user-pwd username=bob hunter2\"'",
+        "command-yuno id=X service=authz command=\"'set-user-pwd username=bob hunter2' n=1\"",
+        "command-yuno id=X service=authz command='set-user-pwd\\ username=bob\\ hunter2'",
+        "command-yuno id=X service=authz command=\"'list-x username=bob hunter2'\"",
+        // no blank: the parser runs `unlock` with hunter2 as its first parameter
+        "command-yuno id=X service=authz command=\"'unlock'hunter2\"",
+        0
+    };
+    for(int i=0; first_quoted[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(d3) a nested line whose first word is quoted (%d)", i);
+        check_nested(first_quoted[i], NULL, "hunter2", "service=authz", name);
+    }
+    check_command_is("command-agent service=authz command=\"'set-user-pwd username=bob hunter2'\"", NULL,
+        "command-agent service=authz command=\"<...>\"",
+        "(d3) command-agent ... command=\"'set-user-pwd ... <s>'\": the first word is <...>");
+
+    /*
+     *  In kw.command: the full record and the read-only one (a first word
+     *  that begins as a read-only command named the record read-only, and
+     *  the record wrote the word whole after "command=")
+     */
+    kw = json_pack("{s:s, s:s}", "service", "authz", "command", "'set-user-pwd username=bob hunter2'");
+    check_nested("command-agent", kw, "hunter2", "service", "(d3) in kw.command, quoted: the full record");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s, s:s}", "service", "authz", "command", "'list-x username=bob hunter2'");
+    check_nested("command-agent", kw, "hunter2", "service", "(d3) in kw.command, quoted, read-only first word");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s, s:s, s:s}", "id", "X", "service", "authz", "command", "'view-x hunter2'");
+    check_nested("command-yuno", kw, "hunter2", "command-yuno", "(d3) in kw.command of command-yuno, read-only first word");
+    JSON_DECREF(kw)
+
+    /*
+     *  The record of the command the agent forwards: its text is the
+     *  nested line, first word and all
+     */
+    kw = json_pack("{s:s, s:s, s:s}",
+        "service", "authz",
+        "command", "'set-user-pwd username=bob hunter2'",
+        "__command__", "command-agent service=authz command=\"'set-user-pwd username=bob hunter2'\""
+    );
+    check_nested("'set-user-pwd username=bob hunter2'", kw, "hunter2", "service",
+        "(d3) the forwarded record of a quoted first word: text, kw.command, kw.__command__");
+    check_command_is("'set-user-pwd username=bob hunter2'", kw, "<...>",
+        "(d3) the forwarded record of a quoted first word: its text is <...>");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s, s:s, s:b, s:b}",
+        "id", "X",
+        "__command__", "command-yuno id=X command=\"'view-x username=bob hunter2'\"",
+        "yuno_disabled", 0, "yuno_running", 1
+    );
+    check_nested("'view-x username=bob hunter2'", kw, "hunter2", "<...>",
+        "(d3) a forwarded record whose quoted first word begins as a read-only command");
+    JSON_DECREF(kw)
+
+    /*
+     *  What stays: a command name in its own quotes, alone
+     */
+    check_command_is("command-yuno id=X command=\"'list-yunos'\"", NULL,
+        "command-yuno id=X command=\"'list-yunos'\"",
+        "(d3) a nested command name in its own quotes is kept");
+    check_command_is("command-agent command=\"'kill-yuno' 3\"", NULL,
+        "command-agent command=\"'kill-yuno' <...>\"",
+        "(d3) a nested command name in its own quotes is kept, its bare word is not");
 }
 
 /***************************************************************************

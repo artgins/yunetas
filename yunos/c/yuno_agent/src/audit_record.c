@@ -103,8 +103,13 @@
  *            in clear). A key=value stays; a word ending in '=' or "=="
  *            (a password in base64) is no key. The cost: a positional id
  *            of a nested line is `<...>` too (`kill-yuno <...>`). A
- *            command sent to the agent itself keeps its words. See
- *            mask_nested_line().
+ *            command sent to the agent itself keeps its words. The
+ *            command name of a nested line, and the command word of any
+ *            record, is `<...>` when it holds a blank, a quote or a
+ *            backslash (its own enclosing quotes apart): in its quotes a
+ *            whole line is one word (command="'set-user-pwd username=bob
+ *            <password>'"), written whole up to 7.30.26. See
+ *            mask_nested_line() and command_word().
  *
  *          - The scan of a string is ONE pass, in linear time: a value
  *            inside a quoted value is followed with a small stack of
@@ -224,6 +229,13 @@
  *  never the text itself, it may hold what was to be redacted
  */
 #define NOT_WRITTEN_NO_MEMORY   "<not written: no memory to redact it>"
+
+/*
+ *  Written in place of a word that may be a secret given without its key
+ *  (see mask_nested_line()), and of a command word that is no name (see
+ *  command_word())
+ */
+#define BARE_WORD       "<...>"
 
 /*
  *  Read-only commands, by name
@@ -433,11 +445,28 @@ PRIVATE const sdata_desc_t *find_command(const sdata_desc_t *command_table, cons
 }
 
 /***************************************************************************
+ *  TRUE if [s, e) holds a blank, a quote or a backslash: no command name
+ ***************************************************************************/
+PRIVATE BOOL is_no_name(const char *s, const char *e)
+{
+    for(const char *p = s; p < e; p++) {
+        if(*p == ' ' || *p == '\t' || *p == '\'' || *p == '"' || *p == '\\') {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  The command word of a text, taken as the command parser takes it
  *  (get_parameter(), then command_get_cmd_desc()): the first word after
  *  ' ' and '\t', without its quotes if they close, looked up in the
  *  command table (any case, aliases). The name of the command if the
- *  table knows it, else the word in lower case.
+ *  table knows it, else the word in lower case. A word with a blank, a
+ *  quote or a backslash in it is BARE_WORD: in its own quotes a whole
+ *  line is one word ('set-user-pwd username=bob <password>'), and it is
+ *  written after "command=" in the record of a wrapper (up to 7.30.26 the
+ *  password was written there).
  ***************************************************************************/
 PRIVATE void command_word(
     const char *text,
@@ -465,6 +494,10 @@ PRIVATE void command_word(
         }
     }
 
+    if(is_no_name(s, e)) {
+        snprintf(bf, bfsize, "%s", BARE_WORD);
+        return;
+    }
     size_t len = (size_t)(e - s);
     if(len >= bfsize) {
         len = bfsize - 1;   // not a command name: the parser does not know it either
@@ -472,7 +505,7 @@ PRIVATE void command_word(
     memcpy(bf, s, len);
     bf[len] = 0;
 
-    if(command_table && len > 0 && !strpbrk(bf, " \t")) {
+    if(command_table && len > 0) {
         const sdata_desc_t *cmd_desc = find_command(command_table, bf);
         if(cmd_desc && cmd_desc->name) {
             size_t name_len = strlen(cmd_desc->name);
@@ -2565,8 +2598,11 @@ PRIVATE char *record_command_text(const char *command, const char *verb, redact_
  *  nested line too: quoted, its words are judged the same way, at most
  *  MAX_ESCAPE_LEVELS deep (deeper, the whole value is BARE_WORD); what
  *  goes on in its word after the closing quote is BARE_WORD.
+ *  The command name is a word too: one with a blank, a quote or a
+ *  backslash in it (its own enclosing quotes apart) is BARE_WORD -- the
+ *  shell's quotes make a whole line one word ("'set-user-pwd username=bob
+ *  <password>'"), and the parser runs the command of its first word.
  ***************************************************************************/
-#define BARE_WORD       "<...>"
 
 /*
  *  TRUE if the first word of [p, end), without its quotes, is the name of
@@ -2672,7 +2708,18 @@ PRIVATE void mask_line_words(
         const char *e = word_end(p, end, &last_quote);
         const char *eq = first? NULL : keyed_word_equal(p, e);
         if(first) {
-            out_append(sc, p, (size_t)(e - p));     // the command name
+            const char *n = p;
+            const char *n_end = e;
+            if(n_end - n >= 2 && is_quote(*n) && n_end[-1] == *n) {
+                n++;
+                n_end--;
+            }
+            if(is_no_name(n, n_end)) {
+                out_append(sc, BARE_WORD, strlen(BARE_WORD));
+                *changed = TRUE;
+            } else {
+                out_append(sc, p, (size_t)(e - p));     // the command name
+            }
         } else if(!eq) {
             out_append(sc, BARE_WORD, strlen(BARE_WORD));
             *changed = TRUE;
