@@ -840,6 +840,47 @@ nearest first:
   {"command":"check-user-pwd","date":"…","user":"yuneta",
    "kw":{"username":"bob","password":"<redacted>"}}
   ```
+- **A word with no key in a nested command line is not written.** The agent
+  writes the record before the parser of the yuno (or of the service) that
+  runs the command, and it does not know the command table of that yuno. A
+  word with no key can be a secret given without its key. So in the command
+  line that `command-yuno` or `command-agent` carries (its `command=`, quoted
+  or not, and `command` of the kw), every word after the command name that is
+  not a `key=value` is written `<...>`. The keys and the values given with
+  them stay, and a secret given with its key is redacted as always. A word
+  that ends in `=` or in `==` (a password in base64) is not taken as a key.
+  These commands:
+
+  ```text
+  command-yuno id=auth service=authz command=set-user-pwd username=bob hunter2
+  command-yuno id=auth service=authz command='set-user-pwd username=bob aHVudGVyMg=='
+  command-agent command='kill-yuno 3'
+  ```
+
+  are recorded as
+
+  ```text
+  command-yuno id=auth service=authz command=set-user-pwd username=bob <...>
+  command-yuno id=auth service=authz command='set-user-pwd username=bob <...>'
+  command-agent command='kill-yuno <...>'
+  ```
+
+  The cost: a positional value that is not a secret (`kill-yuno 3`) is
+  `<...>` too. A command sent to the agent itself keeps its words: its parser
+  is the agent's, and it refuses a word that it does not take.
+
+  The command that the agent then sends on (to the yuno, or to a service of
+  its own) also gets a record. Its kw holds the line of the wrapper in
+  `__command__`, so it is a nested line too: its words and its
+  `__command__` are written the same way:
+
+  ```json
+  {"command":"set-user-pwd username=bob <...>","date":"…","user":"yuneta",
+   "kw":{"id":"auth","service":"authz",
+         "__command__":"command-yuno id=auth service=authz command='set-user-pwd username=bob <...>'",…}}
+  ```
+
+  Up to 7.30.26 these records held `hunter2` in clear.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

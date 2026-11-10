@@ -34,11 +34,13 @@
  *            it is `<N bytes>` only: a hash of one keystroke can be read
  *            back with a table of 256 entries.
  *
- *          - A secret is never written: its value is replaced by
- *            `<redacted>`. A secret is a parameter whose name holds (any
- *            case) one of the parts of is_secret_name() (helpers.h, the one
- *            list of the SDK), or one of its joined parts once '_', '-',
- *            '.' and blanks are taken out, or "priv" and "key", whatever
+ *          - A secret given with its key is never written: its value is
+ *            replaced by `<redacted>` (one given WITHOUT its key: see the
+ *            nested command lines below). A secret is a parameter whose
+ *            name holds (any case) one of the parts of is_secret_name()
+ *            (helpers.h, the one list of the SDK), or one of its joined
+ *            parts once '_', '-', '.' and blanks are taken out, or "priv"
+ *            and "key", whatever
  *            else the name holds (is_secret_name_any(): api_key_max and
  *            token_endpoint too, which the traces show; up to 7.25.21 the
  *            record wrote them in clear):
@@ -88,6 +90,21 @@
  *            of that level: \"secret key\" is a secret) and its value
  *            taken with the quotes of that level. What the audit sees as text is judged as text,
  *            whatever the parser does with it later.
+ *
+ *          - A word with no key in a NESTED command line is not written:
+ *            `<...>`. The line carried by command-yuno / command-agent
+ *            (their `command`, in the text, quoted or not, or in the kw),
+ *            and the command the agent then forwards (its kw holds the
+ *            wrapper's line in __command__), run under a parser whose
+ *            table the agent does not know, and a bare word can be a
+ *            secret given without its key: `command-yuno ...
+ *            command=set-user-pwd username=bob hunter2` is written
+ *            `... username=bob <...>` (up to 7.30.26 hunter2 was written
+ *            in clear). A key=value stays; a word ending in '=' or "=="
+ *            (a password in base64) is no key. The cost: a positional id
+ *            of a nested line is `<...>` too (`kill-yuno <...>`). A
+ *            command sent to the agent itself keeps its words. See
+ *            mask_nested_line().
  *
  *          - The scan of a string is ONE pass, in linear time: a value
  *            inside a quoted value is followed with a small stack of
@@ -158,6 +175,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <stddef.h>
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
@@ -2531,6 +2549,216 @@ PRIVATE char *record_command_text(const char *command, const char *verb, redact_
 }
 
 /***************************************************************************
+ *  A command line nested in another one: the `command` carried by
+ *  command-yuno / command-agent, and the command they forward. The audit
+ *  runs before the parser that will run it, in another yuno or another
+ *  service, and does not know its table: a word with no key may be a
+ *  secret given without its key (`set-user-pwd username=bob <password>`).
+ *  So every BARE word after the command name of a nested line is written
+ *  BARE_WORD; a key=value stays (a named secret is redacted afterwards
+ *  as anywhere). A word is keyed when it has a '=' with a key before it
+ *  (no quote nor backslash in the key) and a value after it that does not
+ *  begin with another '=': a password in base64 ends in '=' or "==", and
+ *  the parser reads it as an unknown key.
+ *  The words are the shell's (word_end()). In the line of a wrapper the
+ *  value of a key `command` (any case: stricter than the handler) is a
+ *  nested line too: quoted, its words are judged the same way, at most
+ *  MAX_ESCAPE_LEVELS deep (deeper, the whole value is BARE_WORD); what
+ *  goes on in its word after the closing quote is BARE_WORD.
+ ***************************************************************************/
+#define BARE_WORD       "<...>"
+
+/*
+ *  TRUE if the first word of [p, end), without its quotes, is the name of
+ *  a wrapper (any case)
+ */
+PRIVATE BOOL line_is_wrapper(const char *p, const char *end)
+{
+    while(p < end && is_blank(*p)) {
+        p++;
+    }
+    const char *last_quote;
+    const char *e = word_end(p, end, &last_quote);
+    if(e - p >= 2 && is_quote(*p) && e[-1] == *p) {
+        p++;
+        e--;
+    }
+    size_t len = (size_t)(e - p);
+    return ((len == strlen(COMMAND_YUNO) && strncasecmp(p, COMMAND_YUNO, len) == 0) ||
+        (len == strlen(COMMAND_AGENT) && strncasecmp(p, COMMAND_AGENT, len) == 0))? TRUE: FALSE;
+}
+
+/*
+ *  The '=' of a keyed word [w, e), NULL if the word is bare
+ */
+PRIVATE const char *keyed_word_equal(const char *w, const char *e)
+{
+    for(const char *p = w; p < e; p++) {
+        if(*p == '=') {
+            if(p == w || p + 1 >= e || p[1] == '=') {
+                return NULL;
+            }
+            return p;
+        }
+        if(is_quote(*p) || *p == '\\') {
+            return NULL;
+        }
+    }
+    return NULL;
+}
+
+PRIVATE void mask_line_words(
+    redact_scan_t *sc,
+    const char *p,
+    const char *end,
+    BOOL wrapper,
+    int level,
+    BOOL *changed
+);
+
+PRIVATE void mask_command_value(
+    redact_scan_t *sc,
+    const char *v,
+    const char *e,
+    int level,
+    BOOL *changed
+)
+{
+    const char *q = is_quote(*v)? closing_quote(v, e) : NULL;
+    if(!q) {
+        if(memchr(v, '\'', (size_t)(e - v)) || memchr(v, '"', (size_t)(e - v)) ||
+                memchr(v, '\\', (size_t)(e - v))) {
+            out_append(sc, BARE_WORD, strlen(BARE_WORD));
+            *changed = TRUE;
+        } else {
+            out_append(sc, v, (size_t)(e - v));   // a command name alone
+        }
+        return;
+    }
+    out_append(sc, v, 1);
+    if(level >= MAX_ESCAPE_LEVELS) {
+        out_append(sc, BARE_WORD, strlen(BARE_WORD));
+        *changed = TRUE;
+    } else {
+        mask_line_words(sc, v + 1, q, line_is_wrapper(v + 1, q), level + 1, changed);
+    }
+    out_append(sc, q, 1);
+    if(q + 1 < e) {
+        out_append(sc, BARE_WORD, strlen(BARE_WORD));
+        *changed = TRUE;
+    }
+}
+
+PRIVATE void mask_line_words(
+    redact_scan_t *sc,
+    const char *p,
+    const char *end,
+    BOOL wrapper,
+    int level,
+    BOOL *changed
+)
+{
+    BOOL first = TRUE;
+    while(p < end) {
+        if(is_blank(*p)) {
+            const char *b = p;
+            while(p < end && is_blank(*p)) {
+                p++;
+            }
+            out_append(sc, b, (size_t)(p - b));
+            continue;
+        }
+        const char *last_quote;
+        const char *e = word_end(p, end, &last_quote);
+        const char *eq = first? NULL : keyed_word_equal(p, e);
+        if(first) {
+            out_append(sc, p, (size_t)(e - p));     // the command name
+        } else if(!eq) {
+            out_append(sc, BARE_WORD, strlen(BARE_WORD));
+            *changed = TRUE;
+        } else if(wrapper && eq - p == (ptrdiff_t)strlen("command") &&
+                strncasecmp(p, "command", strlen("command")) == 0) {
+            out_append(sc, p, (size_t)(eq + 1 - p));
+            mask_command_value(sc, eq + 1, e, level, changed);
+        } else {
+            out_append(sc, p, (size_t)(e - p));
+        }
+        first = FALSE;
+        p = e;
+    }
+}
+
+/*
+ *  The nested line `text` with its bare words as BARE_WORD (see above);
+ *  `wrapper`: it is the line of a wrapper. NULL if there is nothing to
+ *  mask (use the text), or if the copy could not be allocated: then
+ *  ctx->no_memory is set, and the text must not be written. Free with
+ *  gbmem_free().
+ */
+PRIVATE char *mask_nested_line(const char *text, size_t len, BOOL wrapper, redact_ctx_t *ctx)
+{
+    redact_scan_t sc = {
+        .text = text,
+        .text_len = len,
+        .from = text,
+        .ctx = ctx
+    };
+    BOOL changed = FALSE;
+    mask_line_words(&sc, text, text + len, wrapper, 0, &changed);
+    if(sc.no_memory) {
+        gbmem_free(sc.out);
+        ctx->no_memory = TRUE;  // Error already logged
+        return NULL;
+    }
+    if(!changed) {
+        gbmem_free(sc.out);
+        return NULL;
+    }
+    return sc.out;
+}
+
+/*
+ *  A kw member that is a nested line: masked, then redacted
+ */
+PRIVATE json_t *redacted_nested_member(const char *key, json_t *value, redact_ctx_t *ctx)
+{
+    if(!json_is_string(value) || json_string_length(value) > ctx->budget) {
+        return redacted_member(key, value, ctx);    // beyond the budget: its size and sha256
+    }
+    const char *line = json_string_value(value);
+    size_t len = json_string_length(value);
+    char *masked = mask_nested_line(line, len, line_is_wrapper(line, line + len), ctx);
+    if(ctx->no_memory) {
+        ctx->no_memory = FALSE;
+        return json_string(NOT_WRITTEN_NO_MEMORY);   // Error already logged
+    }
+    if(!masked) {
+        return redacted_member(key, value, ctx);
+    }
+    json_t *jn_masked = json_string(masked);
+    gbmem_free(masked);
+    json_t *jn = redacted_member(key, jn_masked, ctx);
+    JSON_DECREF(jn_masked)
+    return jn;
+}
+
+/*
+ *  TRUE if the command was forwarded by a wrapper: the ievent layer puts
+ *  the line of the command received in kw.__command__, and the agent
+ *  hands that kw on with the command it forwards (to the yuno, or to a
+ *  service of its own)
+ */
+PRIVATE BOOL forwarded_by_wrapper(json_t *kw)
+{
+    json_t *jn_line = json_is_object(kw)? json_object_get(kw, "__command__"): NULL;
+    if(!json_is_string(jn_line)) {
+        return FALSE;
+    }
+    const char *line = json_string_value(jn_line);
+    return line_is_wrapper(line, line + json_string_length(jn_line));
+}
+
+/***************************************************************************
  *  Build the audit record of a command whose word is `verb`
  ***************************************************************************/
 PRIVATE json_t *record_build(
@@ -2585,8 +2813,22 @@ PRIVATE json_t *record_build(
         }
     }
 
-    char *command_redacted = record_command_text(command, verb, &ctx);
-    const char *command_text = command_redacted? command_redacted: command;
+    /*
+     *  A nested line (the wrapper's own, or the one it forwards): its
+     *  bare words are not written
+     */
+    BOOL forwarded = (!wrapper && forwarded_by_wrapper(kw))? TRUE: FALSE;
+    char *command_masked = NULL;
+    if((wrapper || forwarded) && command_len <= ctx.budget) {
+        command_masked = mask_nested_line(command, command_len, wrapper, &ctx);
+    }
+    char *command_redacted = NULL;
+    const char *command_text = command;
+    if(!ctx.no_memory) {
+        const char *text = command_masked? command_masked: command;
+        command_redacted = record_command_text(text, verb, &ctx);
+        command_text = command_redacted? command_redacted: text;
+    }
     if(ctx.no_memory) {
         command_text = NOT_WRITTEN_NO_MEMORY;   // Error already logged
         ctx.no_memory = FALSE;
@@ -2620,7 +2862,17 @@ PRIVATE json_t *record_build(
                         strcmp(json_string_value(value), command) == 0) {
                     continue;   // The command text again
                 }
-                json_object_set_new(jn_kw, key, redacted_member(key, value, &ctx));
+                json_t *jn_value;
+                if((wrapper || forwarded) && strcasecmp(key, "command") == 0) {
+                    jn_value = redacted_nested_member(key, value, &ctx);
+                } else if(strcmp(key, "__command__") == 0 && json_is_string(value) &&
+                        line_is_wrapper(json_string_value(value),
+                            json_string_value(value) + json_string_length(value))) {
+                    jn_value = redacted_nested_member(key, value, &ctx);
+                } else {
+                    jn_value = redacted_member(key, value, &ctx);
+                }
+                json_object_set_new(jn_kw, key, jn_value);
             }
         }
 
@@ -2641,6 +2893,7 @@ PRIVATE json_t *record_build(
     }
 
     GBMEM_FREE(command_redacted);
+    GBMEM_FREE(command_masked);
     if(!jn_record) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

@@ -48,7 +48,15 @@ read-only command is recorded with command, date and user only; the kw of the
 caller is not modified. A secret (`password`, `pwd`, `secret`, `token`, `jwt`,
 `private_key`, … in the text, in the kw at any depth, in the command carried by
 `command-yuno`, in a json given as text, the `value` of a `write-attr` of a
-secret attribute) is `<redacted>`. A `stats=__reset__` makes a stats command a
+secret attribute) is `<redacted>`. In a command line nested in another one
+(the `command` of `command-yuno` / `command-agent`, quoted or not, in the text
+or in the kw, and the command the agent forwards, whose kw holds the wrapper's
+line in `__command__`), every word with no key after the command name is
+`<...>`: `command-yuno ... command=set-user-pwd username=bob hunter2` and
+eighteen other shapes (quotes, `'\''`, `\"`, base64 that ends in `=`,
+`set-kc-config kc_realm=r <secret>`, a wrapper in a wrapper) keep
+`username=bob` and lose `hunter2` (7.30.26 wrote it); `kill-yuno 3` nested
+is `kill-yuno <...>`, and a command that is not nested keeps its words. A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A

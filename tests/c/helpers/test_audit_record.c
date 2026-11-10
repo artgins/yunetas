@@ -8,6 +8,9 @@
  *          - a read-only command is recorded with command, date and user only,
  *          - the kw of the caller is not modified,
  *          - a secret (password, token, client secret, ...) is never written,
+ *          - a bare word of a command line nested in another one (the
+ *            command of command-yuno / command-agent, and the command they
+ *            forward) is written <...>: it can be a secret without its key,
  *          - a stats command with a reset is a write,
  *          - the command carried by command-yuno is the one its handler
  *            reads (the key exactly `command`; COMMAND=... is not it),
@@ -654,6 +657,151 @@ PRIVATE void test_secrets(void)
         !record_holds(jn_record, "<redacted>"),
         "(d) what is not a secret stays");
     JSON_DECREF(jn_record)
+    JSON_DECREF(kw)
+}
+
+/***************************************************************************
+ *  (d2) a secret given WITHOUT its key in a command line nested in
+ *  another one (command-yuno, command-agent): the audit runs before the
+ *  parser of the yuno that will run it and does not know its table, so
+ *  every bare word after the command name of the nested line is written
+ *  `<...>` (a positional id too: `kill-yuno <...>`). The keys and the
+ *  named values stay, the named secrets redacted as always. The command
+ *  that the agent then forwards (to the yuno, or to its own service) is
+ *  audited too, with the wrapper's line in kw.__command__: it is nested
+ *  as well. Up to 7.30.26 `command-yuno ... command=set-user-pwd
+ *  username=bob hunter2` was written with hunter2 in clear.
+ ***************************************************************************/
+PRIVATE void check_nested(const char *command, json_t *kw, const char *secret,
+    const char *must_hold, const char *name)
+{
+    json_t *jn_record = audit_record_build(command, kw, DATE, command_table);
+    char *s = record_text(jn_record);
+    BOOL ok = jn_record && !strstr(s, secret) && strstr(s, must_hold);
+    check(ok, name);
+    if(!ok) {
+        printf("     %s\n", s);
+    }
+    GBMEM_FREE(s);
+    JSON_DECREF(jn_record)
+}
+
+PRIVATE void check_command_is(const char *command, json_t *kw, const char *expected, const char *name)
+{
+    json_t *jn_record = audit_record_build(command, kw, DATE, command_table);
+    const char *written = kw_get_str(0, jn_record, "command", "", 0);
+    BOOL ok = strcmp(written, expected) == 0;
+    check(ok, name);
+    if(!ok) {
+        printf("     %s\n", written);
+    }
+    JSON_DECREF(jn_record)
+}
+
+PRIVATE void test_nested_positional_secret(void)
+{
+    static const char *lines[] = {
+        // command-yuno: the nested command unquoted, quoted, double quoted
+        "command-yuno id=X service=authz command=set-user-pwd username=bob hunter2",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob hunter2'",
+        "command-yuno id=X service=authz command=\"set-user-pwd username=bob hunter2\"",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob hunter2 n=1' m=2",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob '\\''hunter2'\\'''",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob \"hunter2 two\"'",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob x\\ hunter2'",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob' hunter2",
+        "COMMAND-YUNO id=X service=authz Command='set-user-pwd username=bob hunter2'",
+        "command-yuno id=X service=authz command = 'set-user-pwd username=bob hunter2'",
+        "command-yuno id=X service=authz command=\"set-user-pwd username=bob \\\"hunter2 two\\\"\"",
+        // the IdP's admin client secret
+        "command-yuno id=X service=idp command=set-kc-config username=bob kc_realm=r hunter2",
+        "command-yuno id=X service=idp command='set-kc-config username=bob kc_realm=r hunter2'",
+        // a password in base64 ends in '=': not a key
+        "command-yuno id=X service=authz command='set-user-pwd username=bob aHVudGVyMg=='",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob hunter2='",
+        "command-yuno id=X service=authz command='set-user-pwd username=bob =hunter2'",
+        // command-agent, and a wrapper nested in a wrapper
+        "command-agent service=authz command='set-user-pwd username=bob hunter2'",
+        "command-agent service=authz command=set-user-pwd username=bob hunter2",
+        "command-agent command=\"command-yuno id=X command='set-user-pwd username=bob hunter2'\"",
+        0
+    };
+    for(int i=0; lines[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(d2) a positional secret in a nested line (%d)", i);
+        const char *hidden = strstr(lines[i], "aHVudGVyMg")? "aHVudGVyMg" : "hunter2";
+        // `command = '...'`: a key the parser takes as empty, then a quoted word: all <...>
+        const char *must_hold = strstr(lines[i], "command = ")? "service=authz" : "username=bob";
+        check_nested(lines[i], NULL, hidden, must_hold, name);
+    }
+
+    /*
+     *  The nested line in kw.command (the GUI's way)
+     */
+    json_t *kw = json_pack("{s:s, s:s, s:s}",
+        "id", "X", "service", "authz", "command", "set-user-pwd username=bob hunter2"
+    );
+    check_nested("command-yuno", kw, "hunter2", "username=bob", "(d2) in kw.command of command-yuno");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s, s:s}", "service", "authz", "Command", "set-user-pwd username=bob hunter2");
+    check_nested("command-agent id=X command=list-yunos", kw, "hunter2", "username=bob",
+        "(d2) in kw.Command (another case) of command-agent");
+    JSON_DECREF(kw)
+
+    /*
+     *  The command the agent forwards: to the yuno (cmd_command_yuno takes
+     *  `command` out of the kw), and to a service of its own (command-agent
+     *  leaves it in): the wrapper's line rides in kw.__command__
+     */
+    kw = json_pack("{s:s, s:s, s:s, s:b, s:b}",
+        "id", "X", "service", "authz",
+        "__command__", "command-yuno id=X service=authz command='set-user-pwd username=bob hunter2'",
+        "yuno_disabled", 0, "yuno_running", 1
+    );
+    check_nested("set-user-pwd username=bob hunter2", kw, "hunter2", "username=bob",
+        "(d2) the command forwarded to the yuno: its text and kw.__command__");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s, s:s, s:s}",
+        "service", "authz",
+        "command", "set-user-pwd username=bob hunter2",
+        "__command__", "command-agent service=authz command='set-user-pwd username=bob hunter2'"
+    );
+    check_nested("set-user-pwd username=bob hunter2", kw, "hunter2", "username=bob",
+        "(d2) the command forwarded to a service of the agent: text, kw.command, kw.__command__");
+    JSON_DECREF(kw)
+    kw = json_pack("{s:s}",
+        "__command__", "command-yuno id=X command=view-gobj-tree gobj=__root__ 3"
+    );
+    check_command_is("view-gobj-tree gobj=__root__ 3", kw, "view-gobj-tree gobj=__root__ <...>",
+        "(d2) a read-only command forwarded to the yuno: its bare word too");
+    JSON_DECREF(kw)
+
+    /*
+     *  What stays: the keys, the named values, the command names; a named
+     *  secret is redacted as always; the cost accepted: a positional id
+     */
+    check_command_is("command-yuno id=X service=authz command='set-user-pwd username=bob hunter2'", NULL,
+        "command-yuno id=X service=authz command='set-user-pwd username=bob <...>'",
+        "(d2) command-yuno ... command='set-user-pwd username=bob <...>'");
+    check_command_is("command-yuno id=X service=authz command=set-user-pwd username=bob hunter2", NULL,
+        "command-yuno id=X service=authz command=set-user-pwd username=bob <...>",
+        "(d2) command-yuno ... command=set-user-pwd username=bob <...>");
+    check_nested("command-yuno id=X service=authz command='set-user-pwd username=bob password=hunter2'",
+        NULL, "hunter2", "username=bob password=<redacted>",
+        "(d2) a named secret of a nested line: redacted, its key stays");
+    check_command_is("command-agent command='kill-yuno 3'", NULL, "command-agent command='kill-yuno <...>'",
+        "(d2) the cost accepted: a positional id of a nested line is <...>");
+    check_command_is("command-yuno id=X command=view-gobj-tree gobj=__root__ options='[\"gclass\", \"name\"]'",
+        NULL, "command-yuno id=X command=view-gobj-tree gobj=__root__ options='[\"gclass\", \"name\"]'",
+        "(d2) a nested line of keys only is written as it came");
+
+    /*
+     *  Not nested: a command of its own keeps its words (the parser that
+     *  runs it is the agent's, and refuses a word it does not take)
+     */
+    check_command_is("kill-yuno 3", NULL, "kill-yuno 3", "(d2) a command that is not nested keeps its words");
+    kw = json_pack("{s:s}", "__command__", "kill-yuno 3");
+    check_command_is("kill-yuno 3", kw, "kill-yuno 3", "(d2) a kw.__command__ that is no wrapper's line: not nested");
     JSON_DECREF(kw)
 }
 
@@ -2490,6 +2638,7 @@ int main(int argc, char *argv[])
     test_read_only();
     test_marks_at_the_end_of_the_text();
     test_secrets();
+    test_nested_positional_secret();
     test_stats_reset();
     test_content64_blank_before_equal();
     test_short_content64_values();
