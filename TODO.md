@@ -295,6 +295,14 @@ application's gate (one application).
   line (`command-yuno` / `command-agent`) has every word with no key written `<...>`;
   doing the same for every command would hide every positional value of the audit, and
   passing the table would change the callback. Left so, by decision.
+- **The free keys of a `SDF_WILD_CMD` command, and a secret given without its key in the
+  command line it carries, are shown in the traces** (`commands`, `ev_kw`, and
+  `command_mask_secret_line()`): `command-yuno id=x aHVudGVyMg==` shows the word, and
+  `command-yuno id=x service=authz command='set-user-pwd username=bob <password>'` shows the
+  password -- a value with a `=` in a wildcard command is a command line going on, masked by
+  names only (`append_masked_parameters()`), and no table here says which of its words is a
+  secret. The traces are optional, armed by an operator; the agent's audit file writes
+  every word with no key of such a nested line as `<...>`. Left so, by decision.
 
 ### Resolver
 
