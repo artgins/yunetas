@@ -11,6 +11,79 @@
   longer links, and one whose config creates it answers *"gclass NOT FOUND"* at its start:
   the MQTT page says how to move a gate (*"`C_PROT_MQTT2` as the input of a gate"*, and the
   table *"Moving a gate from `C_PROT_MQTT`"*).
+- **`C_PROT_MQTT2` as the input of a gate: what a peer could do to it.** Every item was
+  in 7.30.26.
+    - A PUBLISH of MQTT 5 past `message_size_limit` (or denied by the ACL) leaked its
+      properties: an anonymous client could take the memory of a gate (2 GB in 4 s). The
+      WARNING *"Dropped too large PUBLISH"* printed the topic as a number. A CONNECT of
+      MQTT 5 with a will QoS past `max_qos` leaked its properties too.
+    - **The reason codes of a (UN)SUBSCRIBE** go into a buffer sized for the filters of
+      the packet. It held 12 KB: a SUBSCRIBE or UNSUBSCRIBE of more than 12 287 filters
+      logged two ERRORs with a stack per code past it, the SUBACK gave `0x80` to filters
+      the upper level had granted, and the UNSUBACK went out with fewer codes than
+      filters (malformed). The UNSUBACK is now checked like the SUBACK: a missing code is
+      an ERROR *"The upper level did not answer one reason code per filter"*, and `0x80`
+      takes its place. `C_MQTT_BROKER` had the same buffer and gets the same fix.
+      `max_packet_size` bounds the filters of one packet; a repeated filter, or one the
+      connection holds, still goes to the upper level and is not counted again (the MQTT
+      page says it).
+    - **BREAKING (a log watcher): a connection that is closing** (its DISCONNECT sent,
+      waiting `timeout_close`) takes `EV_DROP` (the transport is dropped at once) and
+      refuses `EV_SEND_MESSAGE` with `-1` and one WARNING per connection, *"Mqtt: the
+      connection is closing, message not sent"*. Both were *"Event NOT DEFINED in
+      state"* ERRORs with a stack. A gate taking a client id over sent one to every
+      connection of that id still closing: 11 026 ERRORs for 150 CONNECTs. The MQTT page
+      shows the take-over: `EV_DROP` with `{"session_take_over": true}` gives an MQTT 5
+      client DISCONNECT `0x8E`, and the gate's decoder leaves its session state at once,
+      so it is neither dropped again nor picked by a command.
+    - An MQTT 5 DISCONNECT with a reason code and no Session Expiry Interval (`e0 02 00
+      00`, what most clients send) logged an ERROR with a stack (*"kw must be list or
+      dict"*), and the server went on reading after it. Nothing the client sends after
+      its DISCONNECT is read now.
+    - **BREAKING (a caller of `EV_SEND_MESSAGE`): a topic a PUBLISH cannot carry is
+      refused**: a wildcard (`+`, `#`), empty, or more than 200 levels. `-1`, and an
+      ERROR *"Mqtt publish: topic invalid"* that names it. A message to a subscription
+      filter (`cmnd/dev/#`) was sent as it was [MQTT-3.3.2-2].
+    - The fixed-header parser read the second byte of the remaining length twice when a
+      read ended right after it. A packet of 16 KB or more cut there ended the
+      connection as malformed (client and server alike).
+    - **BREAKING (a log watcher):** an ack of an unknown packet id (PUBACK, PUBREC,
+      PUBREL, PUBCOMP) is said once per connection, no longer once per ack.
+    - The MQTT 5 CONNACK announces Maximum QoS when `max_qos` is below 2. It was added
+      with the int16 adder, which refuses it: an ERROR *"Mqtt property int16 unknown"*
+      per CONNECT, and the limit not announced. A refusing CONNACK no longer logs
+      *"Mqtt proplist NULL"*.
+    - A CONNECT refused by policy (its CONNACK says why) is no longer dumped as
+      *"MQTT malformed packet: CMD_CONNECT"*; nor is a refusing CONNACK the client
+      receives.
+- **`C_PROT_MQTT2` as a client.** Every item was in 7.30.26.
+    - Without queues (QoS 0 only): a QoS 1 or 2 publish of its user inside `EV_ON_OPEN`
+      crashed the yuno (the NULL queue: `max_qos` became 0 only after `EV_ON_OPEN`); now
+      it is refused (`-1`, ERROR *"qos not supported"*). A QoS 2 PUBLISH of the broker
+      released its payload twice; it still disconnects (`0x93`), now with a WARNING. Its
+      SUBSCRIBE asks QoS 0 (`max_qos`): it asked the user's QoS, and a broker sent it a
+      QoS 2 it must refuse.
+    - With queues, they open before `EV_ON_OPEN` is published: a QoS 1 or 2 publish of
+      the user there went to the NULL queue (a crash).
+    - **`max_packet_size` bounds the packets of the broker** (refused at the header,
+      DISCONNECT `0x82`) and is announced in an MQTT 5 CONNECT (Maximum Packet Size). It
+      was the server's only, and a client kept whatever its broker announced, up to
+      256 MB. BREAKING for a client configured with `max_packet_size` whose broker sends
+      larger packets: they now end the connection. The default stays 0 (no limit).
+- `C_MQTT_BROKER`: a filter of `deny_subscribes` is refused to an MQTT 3.1 client too
+  (`0x80`). It was granted with the QoS it asked for.
+
+### Commands
+
+- **A required parameter can be given as `key=value` on the command line.** Up to
+  7.30.26 `command_parser()` took a leading `SDF_REQUIRED` parameter only as a bare word
+  (or from kw), and refused `key=value` with *"required parameter 'x' not found"*: a
+  command sent straight to the service of a yuno (`ycommand -S <service> -c
+  'command-device device_id=x ...'`) failed, while the same command through the agent
+  (`command-yuno`, whose parameters arrive in kw) worked. From the first word that is
+  `<a parameter of the command>=value` on, every parameter is `key=value`, required ones
+  included; one the line does not give is taken from kw, else *"parameter 'x' is
+  required"*.
 
 ## v7.30.26 (2026-11-10)
 
