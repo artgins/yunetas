@@ -178,10 +178,13 @@ queues and without (the queues were opened again and their first handles
 leaked; the user heard `EV_ON_OPEN` again); a DISCONNECT with properties and
 a PUBLISH behind it in the same read: the PUBLISH is not delivered and the
 properties are freed (delivered, leaked); a PUBLISH of QoS 3 and one to
-`a/#/+`: DISCONNECT `0x81` (dropped in silence; delivered); a PUBLISH of QoS
-0 with DUP: DISCONNECT `0x81` (delivered); a CONNACK of
+`a/#` and to `a/+/b`: DISCONNECT `0x81` (dropped in silence; delivered); a
+PUBLISH of QoS 0 with DUP: DISCONNECT `0x81` (delivered); a CONNACK of
 MQTT 5 that refuses (`0x87`): the user hears `EV_ON_CLOSE` with the reason
-and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`).
+and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`). A PUBLISH whose
+topic has 250 levels is delivered: MQTT puts no limit on levels (the client
+refused more than 200 separators, the limit of the server, with DISCONNECT
+`0x81`).
 
 `test_mqtt_broker_no_db` (`main_broker_no_db.c` + `c_broker_no_db.c`) runs a
 `C_MQTT_BROKER` with `mqtt_persistent_db` false and `on_critical_error` 0:

@@ -45,8 +45,9 @@
  *                 properties leaked and the PUBLISH was delivered.
  *             10. A PUBLISH of QoS 3: malformed (WARNING, DISCONNECT
  *                 0x81). Up to 7.30.26 it was dropped without a word.
- *             11. A PUBLISH whose topic has wildcards: malformed (WARNING,
- *                 DISCONNECT 0x81). Up to 7.30.26 it was delivered.
+ *             11. A PUBLISH whose topic has a wildcard (`#` here, `+` in
+ *                 16): malformed (WARNING, DISCONNECT 0x81). Up to 7.30.26
+ *                 it was delivered.
  *             12. A CONNACK of MQTT 5 that refuses (0x87): the user hears
  *                 EV_ON_CLOSE, one WARNING, no DISCONNECT. Up to 7.30.26
  *                 it was taken for a protocol error: DISCONNECT 0x82, a
@@ -56,6 +57,11 @@
  *             14. A PUBLISH of QoS 0 with DUP set: malformed (WARNING,
  *                 DISCONNECT 0x81), as the server refuses it. Up to 7.30.26
  *                 the client delivered it.
+ *             15. A PUBLISH whose topic has 250 levels: delivered. MQTT puts
+ *                 no limit on the levels of a topic; the client refused more
+ *                 than 200 separators (DISCONNECT 0x81), the limit of the
+ *                 server, so a broker's valid topic ended the connection.
+ *             16. A PUBLISH whose topic has the wildcard `+`: as 11.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -274,13 +280,19 @@ PRIVATE void broker_connack(hgobj gobj, uint8_t reason)
  ***************************************************************************/
 PRIVATE void broker_publish(hgobj gobj, int qos, uint16_t mid, const char *topic, const char *payload)
 {
-    uint8_t bf[256];
+    uint8_t bf[1024];
     size_t n = 0;
     size_t tlen = strlen(topic);
     size_t plen = strlen(payload);
+    size_t remaining = 2 + tlen + (qos? 2 : 0) + 1 + plen;     // < 16384 here
 
     bf[n++] = (uint8_t)(0x30 | (qos << 1));
-    bf[n++] = (uint8_t)(2 + tlen + (qos? 2 : 0) + 1 + plen);   // < 128 here
+    if(remaining < 128) {
+        bf[n++] = (uint8_t)remaining;
+    } else {
+        bf[n++] = (uint8_t)((remaining % 128) | 0x80);
+        bf[n++] = (uint8_t)(remaining / 128);
+    }
     bf[n++] = (uint8_t)(tlen >> 8);
     bf[n++] = (uint8_t)(tlen & 0xFF);
     memcpy(bf + n, topic, tlen);
@@ -640,9 +652,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "OPEN",
                     NULL
                 });
-                broker_publish(gobj, 0, 0, "a/#/+", "wild");
+                broker_publish(gobj, 0, 0, "a/#", "wild");
                 gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
-                expect(gobj, "11. a PUBLISH whose topic has wildcards", (const char *[]){
+                expect(gobj, "11. a PUBLISH whose topic has the wildcard #", (const char *[]){
                     "DISCONNECT 129",
                     "CLOSE",
                     NULL
@@ -705,6 +717,57 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 broker_sends(gobj, dup_qos0, sizeof(dup_qos0));
                 gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
                 expect(gobj, "14. a PUBLISH of QoS 0 with DUP", (const char *[]){
+                    "DISCONNECT 129",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 10:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "15a. in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                char topic[256*2];
+                size_t n = 0;
+                for(int level=0; level<250; level++) {
+                    if(level > 0) {
+                        topic[n++] = '/';
+                    }
+                    topic[n++] = 'l';
+                }
+                topic[n] = 0;
+                char line[sizeof(topic) + 32];
+                snprintf(line, sizeof(line), "MSG %s q0 deep", topic);
+                broker_publish(gobj, 0, 0, topic, "deep");
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "15. a PUBLISH whose topic has 250 levels", (const char *[]){
+                    line,
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 11:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "16a. in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                broker_publish(gobj, 0, 0, "a/+/b", "wild");
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "16. a PUBLISH whose topic has the wildcard +", (const char *[]){
                     "DISCONNECT 129",
                     "CLOSE",
                     NULL

@@ -41,8 +41,10 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
       (MQTT 5; in 3.1.1 a DISCONNECT has no reason code), then the close. The queues are not opened again and
       the user does not hear `EV_ON_OPEN` again;
     - a PUBLISH of QoS 3, of QoS 0 with DUP set, or whose topic has a
-      wildcard (`a/#/+`), is empty or has more than 200 levels: malformed,
-      DISCONNECT `0x81` (MQTT 5);
+      wildcard (`a/#`, `a/+/b`) or is empty: malformed, DISCONNECT `0x81`
+      (MQTT 5). The number of levels is not checked: MQTT puts no limit on
+      it, so a topic of 250 levels (`l/l/.../l`) from a broker is delivered
+      (the 200 separators of the server are its own limit, below);
     - a DISCONNECT of the broker is its last packet: nothing after it in the
       same read is processed (a PUBLISH behind it is not delivered), and its
       properties are freed (up to 7.30.26 they leaked).
@@ -166,9 +168,12 @@ subscriptions of a session that a broker restores are not counted.
   PUBLISH: 16 000 WARNINGs and 11 MB of log for 1 GB sent.
 
 **A PUBLISH whose topic has a wildcard** (`a/+`), is empty or has more than
-200 levels is malformed: the WARNING *"Mqtt: invalid topic in PUBLISH,
-disconnecting"* names the topic, then DISCONNECT `0x81` (MQTT 5). Up to
-7.30.26 that WARNING said *"Mqtt will: invalid topic"*, as if it were a will.
+200 `/` separators (`TOPIC_HIERARCHY_LIMIT`: 201 levels pass, 202 do not) is
+malformed: the WARNING *"Mqtt: invalid topic in PUBLISH, disconnecting"*
+names the topic, then DISCONNECT `0x81` (MQTT 5). The wildcard is the rule of
+MQTT [MQTT-3.3.2-2]; the separators are the limit of this server, as of
+Mosquitto (MQTT puts none, and the client does not apply it). Up to 7.30.26
+that WARNING said *"Mqtt will: invalid topic"*, as if it were a will.
 
 **A DISCONNECT of the client is its last packet** (MQTT 5 3.14.4): nothing
 the client sends after it is processed, and the server waits for the client
@@ -282,10 +287,12 @@ gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
 
 `gobj_send_event()` returns `-1` and the message is not sent when:
 
-- the topic is not one a PUBLISH can carry: it has a wildcard (`+`, `#`), it
-  is empty, or it has more than 200 levels. An ERROR *"Mqtt publish: topic
-  invalid"* names it. A subscription FILTER is not a topic to publish to: up
-  to 7.30.26 a message to `cmnd/dev-17/#` was sent as it was [MQTT-3.3.2-2];
+- the topic is not one a PUBLISH can carry: it has a wildcard (`+`, `#`) or
+  it is empty [MQTT-3.3.2-2], or it is past the limit of this side: more than
+  200 `/` separators (`TOPIC_HIERARCHY_LIMIT`, as Mosquitto's; MQTT puts
+  none). An ERROR *"Mqtt publish: topic invalid"* names it. A subscription
+  FILTER is not a topic to publish to: up to 7.30.26 a message to
+  `cmnd/dev-17/#` was sent as it was;
 - the connection is closing (its DISCONNECT sent, waiting `timeout_close`): a
   WARNING *"Mqtt: the connection is closing, message not sent"*, once per
   connection. Up to 7.30.26 it was an ERROR *"Event NOT DEFINED in state"*,

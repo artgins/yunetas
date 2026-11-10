@@ -7751,10 +7751,12 @@ PRIVATE int handle__publish_c(
         }
     }
 
-    if(mqtt_pub_topic_check2(topic, slen)<0) {
+    if(slen == 0 || memchr(topic, '+', slen) || memchr(topic, '#', slen)) {
         /*
-         *  A wildcard, or more than 200 levels [MQTT-3.3.2-2], as the
-         *  server checks it. Up to 7.30.26 the client delivered it
+         *  A wildcard [MQTT-3.3.2-2], or no topic. Not the number of
+         *  levels: MQTT puts no limit on them (the server's 200 separators
+         *  are its own limit), so a broker's topic of any depth is taken.
+         *  Up to 7.30.26 the client delivered a wildcard
          */
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -9603,8 +9605,10 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw_mqtt_msg,
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     if(mqtt_pub_topic_check2(topic, strlen(topic))<0) {
         /*
-         *  A wildcard, an empty topic, too many levels: not a topic a
-         *  PUBLISH can carry [MQTT-3.3.2-2]. Up to 7.30.26 it was sent
+         *  A wildcard [MQTT-3.3.2-2] or an empty topic: not a topic a
+         *  PUBLISH can carry; more than 200 separators: past the limit of
+         *  this server (TOPIC_HIERARCHY_LIMIT, as Mosquitto's; MQTT puts
+         *  none). Up to 7.30.26 it was sent
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
