@@ -907,8 +907,9 @@ PUBLIC void gobj_end(void)
  *  what spills is extra text, which the parser takes as the rest of the
  *  secret and never shows; before another required parameter, a piece of
  *  the secret becomes that parameter's value (shown in the command traces
- *  and in its errors), and the rest is echoed in the "extra parameters"
- *  answer. So a required secret -- SDF_SECRET or a secret's name, as the
+ *  and in its errors); the rest is extra text, refused and not echoed (a
+ *  command with a secret parameter never echoes its extra text). So a
+ *  required secret -- SDF_SECRET or a secret's name, as the
  *  parser tells them -- must be the last required parameter. Up to 7.25.21
  *  such a table was accepted.
  ***************************************************************************/

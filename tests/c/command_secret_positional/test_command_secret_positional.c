@@ -8,8 +8,9 @@
  *          the parser takes as the rest of the secret and never shows. When
  *          another required parameter follows it, a piece of the secret
  *          becomes that parameter's value (shown in the command traces and
- *          in its errors) and the rest is echoed in the "extra parameters"
- *          answer. So gclass_create() refuses a command table where a
+ *          in its errors); the rest is extra text, refused and not echoed
+ *          (a command with a secret parameter never echoes its extra
+ *          text). So gclass_create() refuses a command table where a
  *          required secret -- SDF_SECRET or a secret's name, as the parser
  *          tells them -- is followed by another required parameter, with an
  *          ERROR. Up to 7.25.21 such a table was accepted.
