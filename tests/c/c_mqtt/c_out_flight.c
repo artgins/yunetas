@@ -26,7 +26,7 @@
  *                 QoS 2: a protocol error of the peer. The broker must say
  *                 it as a WARNING (MSGSET_MQTT), answer a DISCONNECT 0x82
  *                 (Protocol Error) and keep the message pending, as
- *                 mosquitto does (MOSQ_ERR_PROTOCOL). Up to 7.25.4 it
+ *                 mosquitto does (MQTT_ERR_PROTOCOL). Up to 7.25.4 it
  *                 logged an ERROR "QoS mismatch" and removed the message
  *                 as delivered.
  *

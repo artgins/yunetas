@@ -66,46 +66,46 @@ typedef struct {
 #define TR2Q_STATE_MASK     0xF000
 
 /********************************************************************
- *  Mosquitto Compatible Enums
+ *  MQTT message enums (the values of Mosquitto)
  ********************************************************************/
 
 typedef enum mqtt_msg_qos {
-    mosq_m_qos0     = 0x0000,
-    mosq_m_qos1     = 0x0010,
-    mosq_m_qos2     = 0x0020
+    mqtt_m_qos0     = 0x0000,
+    mqtt_m_qos1     = 0x0010,
+    mqtt_m_qos2     = 0x0020
 } mqtt_msg_qos_t;
 
 typedef enum mqtt_msg_retain {
-    mosq_m_retain   = 0x0040
+    mqtt_m_retain   = 0x0040
 } mqtt_msg_retain_t;
 
 typedef enum mqtt_msg_dup {
-    mosq_m_dup      = 0x0080
+    mqtt_m_dup      = 0x0080
 } mqtt_msg_dup_t;
 
 typedef enum mqtt_msg_direction {
-    mosq_md_in      = 0x0100,
-    mosq_md_out     = 0x0200
+    mqtt_md_in      = 0x0100,
+    mqtt_md_out     = 0x0200
 } mqtt_msg_direction_t;
 
 typedef enum mqtt_msg_origin {
-    mosq_mo_client  = 0x0400,
-    mosq_mo_broker  = 0x0800
+    mqtt_mo_client  = 0x0400,
+    mqtt_mo_broker  = 0x0800
 } mqtt_msg_origin_t;
 
 typedef enum mqtt_msg_state {
-    mosq_ms_invalid             = 0x0000,
-    mosq_ms_publish_qos0        = 0x1000,
-    mosq_ms_publish_qos1        = 0x2000,
-    mosq_ms_wait_for_puback     = 0x3000,
-    mosq_ms_publish_qos2        = 0x4000,
-    mosq_ms_wait_for_pubrec     = 0x5000,
-    mosq_ms_resend_pubrel       = 0x6000,
-    mosq_ms_wait_for_pubrel     = 0x7000,
-    mosq_ms_resend_pubcomp      = 0x8000,
-    mosq_ms_wait_for_pubcomp    = 0x9000,
-    mosq_ms_send_pubrec         = 0xA000,
-    mosq_ms_queued              = 0xB000
+    mqtt_ms_invalid             = 0x0000,
+    mqtt_ms_publish_qos0        = 0x1000,
+    mqtt_ms_publish_qos1        = 0x2000,
+    mqtt_ms_wait_for_puback     = 0x3000,
+    mqtt_ms_publish_qos2        = 0x4000,
+    mqtt_ms_wait_for_pubrec     = 0x5000,
+    mqtt_ms_resend_pubrel       = 0x6000,
+    mqtt_ms_wait_for_pubrel     = 0x7000,
+    mqtt_ms_resend_pubcomp      = 0x8000,
+    mqtt_ms_wait_for_pubcomp    = 0x9000,
+    mqtt_ms_send_pubrec         = 0xA000,
+    mqtt_ms_queued              = 0xB000
 } mqtt_msg_state_t;
 
 /***************************************************************
@@ -368,10 +368,10 @@ static inline mqtt_msg_qos_t msg_flag_get_qos(q2_msg_t *qmsg)
 static inline int msg_flag_get_qos_level(q2_msg_t *qmsg)
 {
     uint16_t qos = qmsg->md_record.user_flag & TR2Q_QOS_MASK;
-    if (qos == mosq_m_qos2) {
+    if (qos == mqtt_m_qos2) {
         return 2;
     }
-    if (qos == mosq_m_qos1) {
+    if (qos == mqtt_m_qos1) {
         return 1;
     }
     return 0;
@@ -382,13 +382,13 @@ static inline void msg_flag_set_qos_level(q2_msg_t *qmsg, uint8_t level)
     qmsg->md_record.user_flag &= ~TR2Q_QOS_MASK;
     switch (level) {
         case 1:
-            qmsg->md_record.user_flag |= mosq_m_qos1;
+            qmsg->md_record.user_flag |= mqtt_m_qos1;
             break;
         case 2:
-            qmsg->md_record.user_flag |= mosq_m_qos2;
+            qmsg->md_record.user_flag |= mqtt_m_qos2;
             break;
         default:
-            qmsg->md_record.user_flag |= mosq_m_qos0;
+            qmsg->md_record.user_flag |= mqtt_m_qos0;
             break;
     }
 }

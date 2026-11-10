@@ -410,7 +410,7 @@ PUBLIC int mqtt_validate_utf8(const char *str, int len)
         /* Checking codelen == 2 isn't necessary here, because it is already
          * covered above in the C0 and C1 checks.
          * if(codelen == 2 && codepoint < 0x0080) {
-         *     return MOSQ_ERR_MALFORMED_UTF8;
+         *     return MQTT_ERR_MALFORMED_UTF8;
          * } else
         */
         if(codelen == 3 && codepoint < 0x0800) {
@@ -511,7 +511,7 @@ PUBLIC json_t *new_mqtt_message(
  *  `_POSIX_TIMERS` comes from <unistd.h>, not included, and its `time_clock`
  *  was defined nowhere.
  ***************************************************************************/
-PUBLIC time_t mosquitto_time(void)
+PUBLIC time_t mqtt_time(void)
 {
     return time(NULL);
 }

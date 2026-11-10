@@ -818,7 +818,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          */
         json_int_t mask_set = pending? TR2Q_MSG_PENDING : 0;
         if(qos) {
-            mask_set |= (qos==1)? mosq_m_qos1 : mosq_m_qos2;
+            mask_set |= (qos==1)? mqtt_m_qos1 : mqtt_m_qos2;
         }
         if(mask_set) {
             json_object_set_new(match_cond, "user_flag_mask_set", json_integer(mask_set));
@@ -953,8 +953,8 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 BOOL clean_start = kw_get_bool(gobj, session, "clean_start", TRUE, 0);
 
                 BOOL non_persistent =
-                    (protocol_version == mosq_p_mqtt5 && session_expiry_interval == 0) ||
-                    (protocol_version != mosq_p_mqtt5 && clean_start == TRUE);
+                    (protocol_version == mqtt_p_mqtt5 && session_expiry_interval == 0) ||
+                    (protocol_version != mqtt_p_mqtt5 && clean_start == TRUE);
 
                 if(non_persistent) {
                     delete_queue = TRUE;
@@ -2422,7 +2422,7 @@ PRIVATE int retain__queue(
              *  message__release_to_inflight() in c_prot_mqtt2.c.
              */
             if(expiry_interval > 0) {
-                time_t elapsed = mosquitto_time() - (time_t)tm;
+                time_t elapsed = mqtt_time() - (time_t)tm;
                 if(elapsed >= (time_t)expiry_interval) {
                     GBMEM_FREE(local_retain)
                     GBMEM_FREE(retain_levels)
@@ -2513,7 +2513,7 @@ PRIVATE int retain__queue(
                         queue_name,
                         sizeof(queue_name),
                         client_id,
-                        mosq_md_out
+                        mqtt_md_out
                     );
 
                     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
@@ -2535,11 +2535,11 @@ PRIVATE int retain__queue(
                         0   // backup_queue_size
                     );
 
-                    uint16_t user_flag = mosq_mo_client | mosq_md_out | mosq_m_retain;
+                    uint16_t user_flag = mqtt_mo_client | mqtt_md_out | mqtt_m_retain;
                     if(msg_qos == 1) {
-                        user_flag |= mosq_m_qos1;
+                        user_flag |= mqtt_m_qos1;
                     } else if(msg_qos == 2) {
-                        user_flag |= mosq_m_qos2;
+                        user_flag |= mqtt_m_qos2;
                     }
 
                     tr2q_append(
@@ -2667,7 +2667,7 @@ PRIVATE void retain__expire(hgobj gobj)
         return;
     }
 
-    time_t now = mosquitto_time();
+    time_t now = mqtt_time();
 
     json_t *retains = gobj_list_nodes(
         priv->gobj_treedb_mqtt_broker,
@@ -2722,7 +2722,7 @@ PRIVATE void session_expiry__check(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    time_t now = mosquitto_time();
+    time_t now = mqtt_time();
 
     /*
      *  Get all sessions
@@ -2813,9 +2813,9 @@ PRIVATE void session_expiry__check(hgobj gobj)
          */
         if(priv->tranger_queues) {
             char queue_name[NAME_MAX];
-            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_in);
             tranger2_delete_topic(priv->tranger_queues, queue_name);
-            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_out);
             tranger2_delete_topic(priv->tranger_queues, queue_name);
         }
     }
@@ -2909,7 +2909,7 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         FALSE,                          // dup
         json_incref(will_properties),   // owned
         0,                              // expiry_interval
-        mosquitto_time()
+        mqtt_time()
     );
 
     if(!kw_mqtt_msg) {
@@ -3038,7 +3038,7 @@ PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will
          *  The will_delay__check() function will send it later
          *  Store the disconnect time in session for later check
          */
-        json_object_set_new(session, "will_delay_time", json_integer((json_int_t)mosquitto_time()));
+        json_object_set_new(session, "will_delay_time", json_integer((json_int_t)mqtt_time()));
         return 0;
     }
 
@@ -3064,7 +3064,7 @@ PRIVATE void will_delay__check(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    time_t now = mosquitto_time();
+    time_t now = mqtt_time();
 
     /*
      *  Get all sessions that are disconnected (no channel)
@@ -3275,8 +3275,8 @@ PRIVATE int subs__send(
     //     stored->retain,
     //     MOSQ_ACL_READ
     // );
-    // if(rc2 == MOSQ_ERR_ACL_DENIED) {
-    //     return MOSQ_ERR_SUCCESS;
+    // if(rc2 == MQTT_ERR_ACL_DENIED) {
+    //     return MQTT_ERR_SUCCESS;
     // }
 
     /*---------------------------------*
@@ -3365,7 +3365,7 @@ PRIVATE int subs__send(
             queue_name,
             sizeof(queue_name),
             client_id,
-            mosq_md_out
+            mqtt_md_out
         );
 
         if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
@@ -3387,14 +3387,14 @@ PRIVATE int subs__send(
             0   // backup_queue_size
         );
 
-        uint16_t user_flag = mosq_mo_client | mosq_md_out;
+        uint16_t user_flag = mqtt_mo_client | mqtt_md_out;
         if(msg_qos == 1) {
-            user_flag |= mosq_m_qos1;
+            user_flag |= mqtt_m_qos1;
         } else if(msg_qos == 2) {
-            user_flag |= mosq_m_qos2;
+            user_flag |= mqtt_m_qos2;
         }
         if(client_retain) {
-            user_flag |= mosq_m_retain;
+            user_flag |= mqtt_m_retain;
         }
 
         tr2q_append(
@@ -3993,8 +3993,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             KW_REQUIRED
         );
 
-        if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0) ||
-            (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE) ||
+        if((prev_protocol_version == mqtt_p_mqtt5 && prev_session_expiry_interval == 0) ||
+            (prev_protocol_version != mqtt_p_mqtt5 && prev_clean_start == TRUE) ||
             (clean_start == TRUE)
         ) {
             /*
@@ -4019,12 +4019,12 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 json_int_t disconnect_time = kw_get_int(
                     gobj, session, "will_delay_time", 0, 0
                 );
-                time_t now = mosquitto_time();
+                time_t now = mqtt_time();
                 BOOL session_expired = (disconnect_time > 0 &&
                     (now - disconnect_time) >= prev_session_expiry_interval);
 
                 if(!session_expired) {
-                    if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
+                    if(protocol_version == mqtt_p_mqtt311 || protocol_version == mqtt_p_mqtt5) {
                         result = 1; // ack=1 Resume existing session
                         delete_prev_session = FALSE;
                     }
@@ -4081,9 +4081,9 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *-------------------------------------------*/
             if(priv->tranger_queues && !prev_gobj_channel) {
                 char queue_name[NAME_MAX];
-                build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+                build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_in);
                 tranger2_delete_topic(priv->tranger_queues, queue_name);
-                build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+                build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_out);
                 tranger2_delete_topic(priv->tranger_queues, queue_name);
             }
         }
@@ -4269,7 +4269,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Read the current value from the channel (protocol layer) which
      *  reflects any DISCONNECT property updates, and sync to session.
      */
-    if(protocol_version == mosq_p_mqtt5) {
+    if(protocol_version == mqtt_p_mqtt5) {
         uint32_t channel_session_expiry = (uint32_t)gobj_read_integer_attr(
             gobj_channel, "session_expiry_interval"
         );
@@ -4287,7 +4287,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  - MQTT 3.1.x: session is temporary if clean_start (clean_session) is set
      */
     BOOL session_is_temporary;
-    if(protocol_version == mosq_p_mqtt5) {
+    if(protocol_version == mqtt_p_mqtt5) {
         session_is_temporary = (session_expiry_interval == 0);
     } else {
         session_is_temporary = clean_start;
@@ -4349,9 +4349,9 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         BOOL wire_clean_start = gobj_read_bool_attr(gobj_channel, "clean_start");
         if(priv->tranger_queues && !wire_clean_start) {
             char queue_name[NAME_MAX];
-            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_in);
             tranger2_delete_topic(priv->tranger_queues, queue_name);
-            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_out);
             tranger2_delete_topic(priv->tranger_queues, queue_name);
         }
 
@@ -4379,7 +4379,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*
              *  Store disconnect time for session expiry checking on reconnect
              */
-            json_object_set_new(session, "will_delay_time", json_integer((json_int_t)mosquitto_time()));
+            json_object_set_new(session, "will_delay_time", json_integer((json_int_t)mqtt_time()));
             json_decref(gobj_update_node(
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
@@ -4425,7 +4425,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     }
 
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
-    mosquitto_protocol_t protocol_version = kw_get_int(
+    mqtt_protocol_t protocol_version = kw_get_int(
         gobj, kw, "protocol_version", 0, KW_REQUIRED
     );
     json_t *jn_list = kw_get_list(gobj, kw, "subs", NULL, KW_REQUIRED);
@@ -4479,7 +4479,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
          */
         if(allowed && !mqtt_acl_check(gobj, client_id, sub, "read")) {
             allowed = FALSE;
-            reason = (protocol_version == mosq_p_mqtt5)
+            reason = (protocol_version == mqtt_p_mqtt5)
                 ? MQTT_RC_NOT_AUTHORIZED
                 : 0x80;
             gobj_log_warning(gobj, 0,
@@ -4510,7 +4510,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
                 trace_machine2("💙 session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶🔀💾
             }
 
-            if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
+            if(protocol_version == mqtt_p_mqtt311 || protocol_version == mqtt_p_mqtt31) {
                 retain__queue(gobj, client_id, sub, qos, 0);
             } else {
                 if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS) ||

@@ -50,29 +50,29 @@ PRIVATE void drop_row_binary_key(hgobj gobj, tr2_queue_t *trq, json_t *jn_record
 const char *msg_flag_state_to_str(mqtt_msg_state_t state)
 {
     switch (state) {
-        case mosq_ms_invalid:
+        case mqtt_ms_invalid:
             return "invalid";
-        case mosq_ms_publish_qos0:
+        case mqtt_ms_publish_qos0:
             return "publish_qos0";
-        case mosq_ms_publish_qos1:
+        case mqtt_ms_publish_qos1:
             return "publish_qos1";
-        case mosq_ms_wait_for_puback:
+        case mqtt_ms_wait_for_puback:
             return "wait_for_puback";
-        case mosq_ms_publish_qos2:
+        case mqtt_ms_publish_qos2:
             return "publish_qos2";
-        case mosq_ms_wait_for_pubrec:
+        case mqtt_ms_wait_for_pubrec:
             return "wait_for_pubrec";
-        case mosq_ms_resend_pubrel:
+        case mqtt_ms_resend_pubrel:
             return "resend_pubrel";
-        case mosq_ms_wait_for_pubrel:
+        case mqtt_ms_wait_for_pubrel:
             return "wait_for_pubrel";
-        case mosq_ms_resend_pubcomp:
+        case mqtt_ms_resend_pubcomp:
             return "resend_pubcomp";
-        case mosq_ms_wait_for_pubcomp:
+        case mqtt_ms_wait_for_pubcomp:
             return "wait_for_pubcomp";
-        case mosq_ms_send_pubrec:
+        case mqtt_ms_send_pubrec:
             return "send_pubrec";
-        case mosq_ms_queued:
+        case mqtt_ms_queued:
             return "queued";
         default:
             return "unknown";
@@ -85,9 +85,9 @@ const char *msg_flag_state_to_str(mqtt_msg_state_t state)
 const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir)
 {
     switch (dir) {
-        case mosq_md_in:
+        case mqtt_md_in:
             return "IN";
-        case mosq_md_out:
+        case mqtt_md_out:
             return "OUT";
         default:
             return "";
@@ -100,9 +100,9 @@ const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir)
 const char *msg_flag_origin_to_str(mqtt_msg_origin_t orig)
 {
     switch (orig) {
-        case mosq_mo_client:
+        case mqtt_mo_client:
             return "Client";
-        case mosq_mo_broker:
+        case mqtt_mo_broker:
             return "Broker";
         default:
             return "None";

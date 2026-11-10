@@ -43,8 +43,8 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MOSQ_MSB(A) (uint8_t)((A & 0xFF00) >> 8)
-#define MOSQ_LSB(A) (uint8_t)(A & 0x00FF)
+#define MQTT_MSB(A) (uint8_t)((A & 0xFF00) >> 8)
+#define MQTT_LSB(A) (uint8_t)(A & 0x00FF)
 
 #define UNUSED(A) (void)(A)
 
@@ -55,24 +55,24 @@
 #define MQTT_MAX_PAYLOAD 268435455U
 
 /* Error values */
-typedef enum mosq_err_s {
-    MOSQ_ERR_SUCCESS = 0,
-    MOSQ_ERR_NOMEM = -1,
-    MOSQ_ERR_PROTOCOL = -2,
-    MOSQ_ERR_CONN_REFUSED = -3,
-    MOSQ_ERR_NOT_FOUND = -4,
-    MOSQ_ERR_UNKNOWN = -5,
-    MOSQ_ERR_MALFORMED_PACKET = -6,
-    MOSQ_ERR_DUPLICATE_PROPERTY = -7,
-    MOSQ_ERR_QOS_NOT_SUPPORTED = -8,
-    MOSQ_ERR_OVERSIZE_PACKET = -9,
-    MOSQ_ERR_RETAIN_NOT_SUPPORTED = -10,
-    MOSQ_ERR_TOPIC_ALIAS_INVALID = -11,
-    MOSQ_ERR_ADMINISTRATIVE_ACTION = -12,
-} mosq_err_t;
+typedef enum mqtt_err_s {
+    MQTT_ERR_SUCCESS = 0,
+    MQTT_ERR_NOMEM = -1,
+    MQTT_ERR_PROTOCOL = -2,
+    MQTT_ERR_CONN_REFUSED = -3,
+    MQTT_ERR_NOT_FOUND = -4,
+    MQTT_ERR_UNKNOWN = -5,
+    MQTT_ERR_MALFORMED_PACKET = -6,
+    MQTT_ERR_DUPLICATE_PROPERTY = -7,
+    MQTT_ERR_QOS_NOT_SUPPORTED = -8,
+    MQTT_ERR_OVERSIZE_PACKET = -9,
+    MQTT_ERR_RETAIN_NOT_SUPPORTED = -10,
+    MQTT_ERR_TOPIC_ALIAS_INVALID = -11,
+    MQTT_ERR_ADMINISTRATIVE_ACTION = -12,
+} mqtt_err_t;
 
 /* MQTT specification restricts client ids to a maximum of 23 characters */
-#define MOSQ_MQTT_ID_MAX_LENGTH 23
+#define MQTT_ID_MAX_LENGTH 23
 
 /***************************************************************************
  *              Structures
@@ -373,7 +373,7 @@ typedef struct _PRIVATE_DATA {
     BOOL in_session;
     BOOL send_disconnect;
     const char *protocol_name;
-    mosquitto_protocol_t protocol_version;
+    mqtt_protocol_t protocol_version;
     BOOL is_bridge;
     BOOL assigned_id;
     const char *client_id;
@@ -732,7 +732,7 @@ PRIVATE int open_queues(hgobj gobj)
         queue_name,
         sizeof(queue_name),
         priv->client_id,
-        mosq_md_in
+        mqtt_md_in
     );
 
     priv->trq_in_msgs = tr2q_open(
@@ -756,7 +756,7 @@ PRIVATE int open_queues(hgobj gobj)
         queue_name,
         sizeof(queue_name),
         priv->client_id,
-        mosq_md_out
+        mqtt_md_out
     );
 
     /*
@@ -810,7 +810,7 @@ PRIVATE void close_queues(hgobj gobj)
                 queue_name,
                 sizeof(queue_name),
                 priv->client_id,
-                mosq_md_in
+                mqtt_md_in
             );
 
             tranger2_delete_topic(
@@ -837,7 +837,7 @@ PRIVATE void close_queues(hgobj gobj)
                 queue_name,
                 sizeof(queue_name),
                 priv->client_id,
-                mosq_md_out
+                mqtt_md_out
             );
             tranger2_delete_topic(
                 priv->tranger_queues,
@@ -876,11 +876,11 @@ PRIVATE int message__out_update(
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
         msg_flag_set_state(qmsg, state);
         tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
-        return MOSQ_ERR_SUCCESS;
+        return MQTT_ERR_SUCCESS;
     }
 
     /*
@@ -890,7 +890,7 @@ PRIVATE int message__out_update(
      *  does on the server side. Up to 7.25.20 it was also an ERROR here,
      *  with a stack trace.
      */
-    return MOSQ_ERR_NOT_FOUND;
+    return MQTT_ERR_NOT_FOUND;
 }
 
 /***************************************************************************
@@ -909,7 +909,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
         int qos = msg_flag_get_qos_level(qmsg);
         mqtt_msg_state_t state = msg_flag_get_state(qmsg);
 
-        if(qos > 0 && state == mosq_ms_invalid) {
+        if(qos > 0 && state == mqtt_ms_invalid) {
             /*
              *  Assign mid and update state
              */
@@ -949,7 +949,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
              */
             if(expiry_interval > 0) {
                 time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
-                time_t now = mosquitto_time();
+                time_t now = mqtt_time();
                 time_t elapsed = now - msg_time;
                 if(elapsed >= (time_t)expiry_interval) {
                     // Message has expired, discard it
@@ -977,15 +977,15 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
                 // Message sent, save state
                 mqtt_msg_state_t new_state;
                 if(qos == 1) {
-                    new_state = mosq_ms_wait_for_puback;
+                    new_state = mqtt_ms_wait_for_puback;
                 } else {
-                    new_state = mosq_ms_wait_for_pubrec;
+                    new_state = mqtt_ms_wait_for_pubrec;
                 }
                 msg_flag_set_state(qmsg, new_state);
                 tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
             }
 
-        } else if(redeliver && (state == mosq_ms_wait_for_puback || state == mosq_ms_wait_for_pubrec)) {
+        } else if(redeliver && (state == mqtt_ms_wait_for_puback || state == mqtt_ms_wait_for_pubrec)) {
             /*
              *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect
              *  Assign new mid (original was not persisted) and resend with DUP=1
@@ -1019,7 +1019,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
              */
             if(expiry_interval > 0) {
                 time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
-                time_t now = mosquitto_time();
+                time_t now = mqtt_time();
                 time_t elapsed = now - msg_time;
                 if(elapsed >= (time_t)expiry_interval) {
                     // Message has expired, discard it
@@ -1043,7 +1043,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
             );
             tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
 
-        } else if(redeliver && state == mosq_ms_wait_for_pubcomp) {
+        } else if(redeliver && state == mqtt_ms_wait_for_pubcomp) {
             /*
              *  [MQTT-4.4.0-1] Redeliver PUBREL on reconnect
              */
@@ -1072,7 +1072,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(dir == mosq_md_out && priv->trq_out_msgs) {
+    if(dir == mqtt_md_out && priv->trq_out_msgs) {
         int expired;
         do {
             db__message_write_queued_out(gobj);
@@ -1095,7 +1095,7 @@ PRIVATE int message__queue(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(dir == mosq_md_out) {
+    if(dir == mqtt_md_out) {
         tr2q_append(
             priv->trq_out_msgs,
             0,              // __t__ if 0 then the time will be set by TimeRanger with now time
@@ -1133,7 +1133,7 @@ PRIVATE int message__remove(
     }
 
     q2_msg_t *msg;
-    if(dir == mosq_md_out) {
+    if(dir == mqtt_md_out) {
         msg = find_msg_by_mid(priv->trq_out_msgs, mid);
 
     } else {
@@ -1143,7 +1143,7 @@ PRIVATE int message__remove(
     if(msg) {
         /*
          *  The qos LEVEL of the message, as the caller's: up to 7.25.4 its
-         *  flag bits were compared (mosq_m_qos2 is 32), and every QoS 2
+         *  flag bits were compared (mqtt_m_qos2 is 32), and every QoS 2
          *  PUBREL of a client logged "QoS mismatch"
          */
         int msg_qos = msg_flag_get_qos_level(msg);
@@ -1164,16 +1164,16 @@ PRIVATE int message__remove(
                 "expected_qos", "%d", qos,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
         json_t *kw = tr2q_msg_json(msg);
         if(pmsg) {
             *pmsg = kw_incref(kw);
         }
         tr2q_unload_msg(msg, 0);
-        return MOSQ_ERR_SUCCESS;
+        return MQTT_ERR_SUCCESS;
     } else {
-        return MOSQ_ERR_NOT_FOUND;
+        return MQTT_ERR_NOT_FOUND;
     }
 }
 
@@ -1189,7 +1189,7 @@ PRIVATE int message__delete(
     json_t *kw_mqtt_msg;
 
     int rc = message__remove(gobj, mid, dir, qos, &kw_mqtt_msg);
-    if(rc == MOSQ_ERR_SUCCESS) {
+    if(rc == MQTT_ERR_SUCCESS) {
         KW_DECREF(kw_mqtt_msg)
     }
     return rc;
@@ -1222,7 +1222,7 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq;
-    if(dir == mosq_md_out) {
+    if(dir == mqtt_md_out) {
         trq = priv->trq_out_msgs;
     } else {
         trq = priv->trq_in_msgs;
@@ -1274,7 +1274,7 @@ PRIVATE void db__message_write_queued_out(hgobj gobj)
 
     q2_msg_t *qmsg, *next;
     Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, qmsg, next) {
-        if(!db__ready_for_flight(gobj, mosq_md_out, msg_flag_get_qos_level(qmsg))) {
+        if(!db__ready_for_flight(gobj, mqtt_md_out, msg_flag_get_qos_level(qmsg))) {
             break;
         }
         if(tr2q_move_from_queued_to_inflight(qmsg) < 0) {
@@ -1315,15 +1315,15 @@ PRIVATE int db__message_update_outgoing(
                 "expected_qos", "%d", qos,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
         msg_flag_set_state(qmsg, state);
         tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
-        return MOSQ_ERR_SUCCESS;
+        return MQTT_ERR_SUCCESS;
     }
 
     // Silence please
-    return MOSQ_ERR_NOT_FOUND;
+    return MQTT_ERR_NOT_FOUND;
 }
 
 /***************************************************************************
@@ -1361,7 +1361,7 @@ PRIVATE int db__message_delete_outgoing(
                 "expected_qos", "%d", qos,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
         if(qos == 2) {
             mqtt_msg_state_t msg_state = msg_flag_get_state(qmsg);
@@ -1377,7 +1377,7 @@ PRIVATE int db__message_delete_outgoing(
                     "expected",     "%s", msg_flag_state_to_str(expect_state),
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             }
         }
 
@@ -1405,9 +1405,9 @@ PRIVATE int db__message_delete_outgoing(
      *  Move queued messages to inflight while ready for flight, and send
      *  them
      */
-    message__release_to_inflight(gobj, mosq_md_out, FALSE);
+    message__release_to_inflight(gobj, mqtt_md_out, FALSE);
 
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -1424,7 +1424,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         snprintf(key, sizeof(key), "%u", (unsigned)mid);
         if(json_object_get(priv->jn_qos2_in_mids, key)) {
             json_object_del(priv->jn_qos2_in_mids, key);    // delivered at its PUBLISH
-            return MOSQ_ERR_SUCCESS;
+            return MQTT_ERR_SUCCESS;
         }
     }
 
@@ -1432,7 +1432,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
     if(qmsg) {
         /*
          *  Only QoS 2 messages enter trq_in_msgs (message__queue() with
-         *  mosq_md_in, from the QoS 2 case of both handle__publish_*()):
+         *  mqtt_md_in, from the QoS 2 case of both handle__publish_*()):
          *  another QoS here is our own store broken, not the peer.
          */
         int msg_qos = msg_flag_get_qos_level(qmsg);
@@ -1446,7 +1446,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
                 "msg_qos",      "%d", msg_qos,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
 
         json_t *kw_mqtt_msg = tr2q_msg_json(qmsg);
@@ -1513,10 +1513,10 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
     db__message_write_queued_in(gobj);
 
     if(deleted) {
-        return MOSQ_ERR_SUCCESS;
+        return MQTT_ERR_SUCCESS;
     } else {
         // Silence please
-        return MOSQ_ERR_NOT_FOUND;
+        return MQTT_ERR_NOT_FOUND;
     }
 }
 
@@ -1537,7 +1537,7 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
     q2_msg_t *qmsg = find_msg_by_mid(priv->trq_in_msgs, mid);
     if(!qmsg) {
         // Silence please
-        return MOSQ_ERR_NOT_FOUND;
+        return MQTT_ERR_NOT_FOUND;
     }
 
     gobj_log_warning(gobj, 0,
@@ -1554,7 +1554,7 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
         priv->trq_in_msgs,
         qmsg
     );
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -1586,18 +1586,18 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
             if(tr2q_move_from_queued_to_inflight(qmsg)<0) {
                 break;  // Error already logged
             }
-            msg_flag_set_state(qmsg, mosq_ms_wait_for_pubrel);
+            msg_flag_set_state(qmsg, mqtt_ms_wait_for_pubrel);
             send__pubrec(gobj, qmsg->mid, 0, NULL);
             tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         }
     }
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int mosquitto_string_to_property_info(const char *propname, int *identifier, int *type)
+PRIVATE int mqtt_string_to_property_info(const char *propname, int *identifier, int *type)
 {
     hgobj gobj = 0;
 
@@ -1710,16 +1710,16 @@ PRIVATE int mosquitto_string_to_property_info(const char *propname, int *identif
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *protocol_version_name(mosquitto_protocol_t mosquitto_protocol)
+PRIVATE const char *protocol_version_name(mqtt_protocol_t protocol)
 {
-    switch(mosquitto_protocol) {
-        case mosq_p_mqtt31:
+    switch(protocol) {
+        case mqtt_p_mqtt31:
             return "mqtt31";
-        case mosq_p_mqtt311:
+        case mqtt_p_mqtt311:
             return "mqtt311";
-        case mosq_p_mqtt5:
+        case mqtt_p_mqtt5:
             return "mqtt5";
-        case mosq_p_invalid:
+        case mqtt_p_invalid:
         default:
             return "invalid protocol version";
     }
@@ -1746,7 +1746,7 @@ PRIVATE gbuffer_t *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
     } while(remaining_length > 0 && remaining_count < 5);
 
     if(remaining_count == 5) {
-        // return MOSQ_ERR_PAYLOAD_SIZE;
+        // return MQTT_ERR_PAYLOAD_SIZE;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -1809,7 +1809,7 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     unsigned long v = 0;
     int identifier = 0;
     int type = 0;
-    if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
+    if(mqtt_string_to_property_info(property_name, &identifier, &type) < 0) {
         // Not a standard property name; check if value has stored identifier/type (e.g. user properties)
         if(json_is_object(value)) {
             identifier = (int)kw_get_int(gobj, value, "identifier", 0, 0);
@@ -2073,7 +2073,7 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value)
+// PRIVATE int mqtt_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value)
 // {
 //     if(!proplist || value > 268435455) {
 //         gobj_log_error(gobj, 0,
@@ -2099,7 +2099,7 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 //     const char *property_name = mqtt_property_identifier_to_string(identifier);
 //     json_object_set_new(proplist, property_name, json_integer(value));
 //
-//     return MOSQ_ERR_SUCCESS;
+//     return MQTT_ERR_SUCCESS;
 // }
 
 /***************************************************************************
@@ -2178,8 +2178,8 @@ PRIVATE int mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
 PRIVATE int mqtt_write_uint16(gbuffer_t *gbuf, uint16_t word)
 {
     size_t ret = 0;
-    ret += gbuffer_append_char(gbuf, MOSQ_MSB(word));
-    ret += gbuffer_append_char(gbuf, MOSQ_LSB(word));
+    ret += gbuffer_append_char(gbuf, MQTT_MSB(word));
+    ret += gbuffer_append_char(gbuf, MQTT_LSB(word));
     return (ret==2)?0:-1;
 }
 
@@ -2254,7 +2254,7 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
     json_t *value;
     int identifier = 0;
     int type = 0;
-    if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
+    if(mqtt_string_to_property_info(property_name, &identifier, &type) < 0) {
         // Not a standard property name; check if value has stored identifier/type (e.g. user properties)
         if(json_is_object(value_)) {
             identifier = (int)kw_get_int(gobj, value_, "identifier", 0, 0);
@@ -2422,7 +2422,7 @@ PRIVATE int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     msb = gbuffer_getchar(gbuf);
@@ -2449,7 +2449,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     for(int i=0; i<4; i++) {
@@ -2476,7 +2476,7 @@ PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     memmove(bf, gbuffer_get(gbuf, bflen), bflen);
@@ -2498,7 +2498,7 @@ PRIVATE int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     *byte = gbuffer_getchar(gbuf);
@@ -2525,7 +2525,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(slen == 0) {
@@ -2543,7 +2543,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
             NULL
         );
         //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     *data = gbuffer_get(gbuf, slen);
@@ -2603,7 +2603,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     for(i=0; i<4; i++) {
@@ -2637,13 +2637,13 @@ PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_
         NULL
     );
     //log_debug_full_gbuf(0, gbuf, "Mqtt malformed packet, not enough data");
-    return MOSQ_ERR_MALFORMED_PACKET;
+    return MQTT_ERR_MALFORMED_PACKET;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identifier)
+PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
 {
     switch(identifier) {
         case MQTT_PROP_PAYLOAD_FORMAT_INDICATOR:
@@ -2661,7 +2661,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2676,7 +2676,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2691,7 +2691,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2707,7 +2707,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2729,7 +2729,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2744,7 +2744,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2760,7 +2760,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2775,7 +2775,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2791,7 +2791,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2808,7 +2808,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2823,7 +2823,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2840,7 +2840,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
     }
     return 0;
 }
@@ -2895,7 +2895,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
     uint32_t property_identifier;
     if(mqtt_read_varint(gobj, gbuf, &property_identifier, NULL)<0) {
         // Error already logged
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     const char *property_name = mqtt_property_identifier_to_string(property_identifier);
 
@@ -2907,11 +2907,11 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             "msg",          "%s", "Mqtt duplicate property",
             "property_type","%d", (int)property_identifier,
             "property_name","%s", property_name,
-            "mqtt_error",   "%d", MOSQ_ERR_DUPLICATE_PROPERTY,
+            "mqtt_error",   "%d", MQTT_ERR_DUPLICATE_PROPERTY,
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_DUPLICATE_PROPERTY;
+        return MQTT_ERR_DUPLICATE_PROPERTY;
     }
 
     json_t *property = json_object();
@@ -2922,7 +2922,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
         json_string(property_name)
     );
     int identifier_, type_;
-    mosquitto_string_to_property_info(property_name, &identifier_, &type_);
+    mqtt_string_to_property_info(property_name, &identifier_, &type_);
     json_object_set_new(
         property,
         "type",
@@ -2943,7 +2943,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_byte(gobj, gbuf, &byte)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             *len -= 1; /* byte */
             json_object_set_new(property, "value", json_integer(byte));
@@ -2956,7 +2956,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_uint16(gobj, gbuf, &uint16)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             *len -= 2; /* uint16 */
             json_object_set_new(property, "value", json_integer(uint16));
@@ -2969,7 +2969,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_uint32(gobj, gbuf, &uint32)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             *len -= 4; /* uint32 */
             json_object_set_new(property, "value", json_integer(uint32));
@@ -2979,7 +2979,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_varint(gobj, gbuf, &varint, &byte_count)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             *len -= byte_count;
             json_object_set_new(property, "value", json_integer(varint));
@@ -2995,12 +2995,12 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_string(gobj, gbuf, &str1, &slen1)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             if(property_len_consume(gobj, len, 2 + (uint32_t)slen1, property_name)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             json_object_set_new(property, "value", json_stringn(str1, slen1));
             break;
@@ -3010,12 +3010,12 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_binary(gobj, gbuf, (uint8_t **)&str1, &slen1)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             if(property_len_consume(gobj, len, 2 + (uint32_t)slen1, property_name)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
 
             // Save binary data in base64
@@ -3028,23 +3028,23 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             if(mqtt_read_string(gobj, gbuf, &str1, &slen1)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             if(property_len_consume(gobj, len, 2 + (uint32_t)slen1, property_name)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
 
             if(mqtt_read_string(gobj, gbuf, &str2, &slen2)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
             if(property_len_consume(gobj, len, 2 + (uint32_t)slen2, property_name)<0) {
                 // Error already logged
                 JSON_DECREF(property);
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
 
             json_object_set_new(property, "name", json_stringn(str1, slen1));
@@ -3074,7 +3074,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 NULL
             );
             JSON_DECREF(property);
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
     }
 
     json_object_set_new(all_properties, property_name, property);
@@ -3116,7 +3116,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
         } else if(identifier == MQTT_PROP_MAXIMUM_PACKET_SIZE) {
             int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
@@ -3129,7 +3129,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
         } else if(identifier == MQTT_PROP_RECEIVE_MAXIMUM
                 || identifier == MQTT_PROP_TOPIC_ALIAS) {
@@ -3144,12 +3144,12 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
         }
 
         /* Check for properties on incorrect commands */
-        if((ret=mosquitto_property_check_command(gobj, command, identifier))<0) {
+        if((ret=mqtt_property_check_command(gobj, command, identifier))<0) {
             // Error already logged
             return ret;
         }
@@ -3575,7 +3575,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, 0);
     if(!gbuf) {
         // Error already logged
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -3640,19 +3640,19 @@ PRIVATE int send__connect(
         }
     }
 
-    int protocol = mosq_p_mqtt5; // "mqttv5" default
+    int protocol = mqtt_p_mqtt5; // "mqttv5" default
     if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
-        protocol = mosq_p_mqtt5;
+        protocol = mqtt_p_mqtt5;
     } else if(strcasecmp(mqtt_protocol, "mqttv311")==0 || strcasecmp(mqtt_protocol, "v311")==0) {
-        protocol = mosq_p_mqtt311;
+        protocol = mqtt_p_mqtt311;
     } else if(strcasecmp(mqtt_protocol, "mqttv31")==0 || strcasecmp(mqtt_protocol, "v31")==0) {
-        protocol = mosq_p_mqtt31;
+        protocol = mqtt_p_mqtt31;
     }
 
     gobj_write_integer_attr(gobj, "protocol_version", protocol);
 
     /* Only MQTT v3.1 requires a client id to be sent */
-    if(protocol == mosq_p_mqtt31 && empty_string(mqtt_client_id)) {
+    if(protocol == mqtt_p_mqtt31 && empty_string(mqtt_client_id)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -3662,13 +3662,13 @@ PRIVATE int send__connect(
         );
         JSON_DECREF(properties);
         JSON_DECREF(will_properties);
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
     const char *username = gobj_read_str_attr(gobj, "user_id");
     const char *password = gobj_read_str_attr(gobj, "user_passw");
 
-    if(protocol == mosq_p_mqtt5) {
+    if(protocol == mqtt_p_mqtt5) {
         /*
          *  RECEIVE_MAXIMUM: tell the broker how many QoS 1/2 messages it can
          *  send to this client simultaneously.
@@ -3724,10 +3724,10 @@ PRIVATE int send__connect(
         proplen += property__get_length_all(local_props);
         uint32_t varbytes = packet__varint_bytes(proplen);
         headerlen += proplen + varbytes;
-    } else if(protocol == mosq_p_mqtt311) {
+    } else if(protocol == mqtt_p_mqtt311) {
         version = PROTOCOL_VERSION_v311;
         headerlen = 10;
-    } else if(protocol == mosq_p_mqtt31) {
+    } else if(protocol == mqtt_p_mqtt31) {
         version = PROTOCOL_VERSION_v31;
         headerlen = 12;
     } else {
@@ -3751,7 +3751,7 @@ PRIVATE int send__connect(
 
     if(will) {
         payloadlen += (uint32_t)(2+strlen(mqtt_will_topic) + 2+(uint32_t)strlen(mqtt_will_payload));
-        if(protocol == mosq_p_mqtt5) {
+        if(protocol == mqtt_p_mqtt5) {
             uint32_t will_proplen = property__get_length_all(will_properties);
             payloadlen += will_proplen + packet__varint_bytes(will_proplen);
         }
@@ -3760,7 +3760,7 @@ PRIVATE int send__connect(
     /* After this check we can be sure that the username and password are
      * always valid for the current protocol, so there is no need to check
      * username before checking password. */
-    if(protocol == mosq_p_mqtt31 || protocol == mosq_p_mqtt311) {
+    if(protocol == mqtt_p_mqtt31 || protocol == mqtt_p_mqtt311) {
         if(!empty_string(password) && empty_string(username)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -3788,7 +3788,7 @@ PRIVATE int send__connect(
         JSON_DECREF(properties);
         JSON_DECREF(local_props);
         JSON_DECREF(will_properties);
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
     /* Variable header */
@@ -3814,7 +3814,7 @@ PRIVATE int send__connect(
     mqtt_write_byte(gbuf, byte);
     mqtt_write_uint16(gbuf, keepalive);
 
-    if(protocol == mosq_p_mqtt5) {
+    if(protocol == mqtt_p_mqtt5) {
         /* Write properties */
         mqtt_write_varint(gbuf, proplen);
         property__write_all(gobj, gbuf, properties, FALSE);
@@ -3830,7 +3830,7 @@ PRIVATE int send__connect(
         mqtt_write_uint16(gbuf, 0);
     }
     if(will) {
-        if(protocol == mosq_p_mqtt5) {
+        if(protocol == mqtt_p_mqtt5) {
             /* Write will properties */
             property__write_all(gobj, gbuf, will_properties, TRUE);
         }
@@ -3907,7 +3907,7 @@ PRIVATE int send__connack(
         }
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         if(reason_code < 128 && priv->retain_available == FALSE) {
             mqtt_property_add_byte(gobj, connack_props, MQTT_PROP_RETAIN_AVAILABLE, 0);
         }
@@ -3943,11 +3943,11 @@ PRIVATE int send__connack(
     if(!gbuf) {
         // Error already logged
         JSON_DECREF(connack_props);
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
     gbuffer_append_char(gbuf, ack);
     gbuffer_append_char(gbuf, reason_code);
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         property__write_all(gobj, gbuf, connack_props, TRUE);
     }
     JSON_DECREF(connack_props);
@@ -3985,7 +3985,7 @@ PRIVATE int send__disconnect(
 
     uint32_t remaining_length;
 
-    if(priv->protocol_version == mosq_p_mqtt5 && (reason_code != 0 || properties)) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && (reason_code != 0 || properties)) {
         remaining_length = 1;
         if(properties) {
             remaining_length += property__get_remaining_length(properties);
@@ -3997,10 +3997,10 @@ PRIVATE int send__disconnect(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_DISCONNECT, remaining_length);
     if(!gbuf) {
         // Error already logged
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && (reason_code != 0 || properties)) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && (reason_code != 0 || properties)) {
         gbuffer_append_char(gbuf, reason_code);
         if(properties) {
             property__write_all(gobj, gbuf, properties, TRUE);
@@ -4027,7 +4027,7 @@ PRIVATE int handle__pingreq_s(hgobj gobj)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 }
 
@@ -4046,7 +4046,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
     if(priv->iamServer) {
@@ -4059,7 +4059,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
     } else {
         /*
@@ -4069,7 +4069,7 @@ PRIVATE int handle__pingresp_c(hgobj gobj)
         priv->timer_check_ping = 0;
     }
 
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -4101,7 +4101,7 @@ PRIVATE int send_command_with_mid(
     if(dup) {
         command |= 8;
     }
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         if(reason_code != 0 || properties) {
             remaining_length += 1; // reason code byte
             remaining_length += property__get_remaining_length(properties); // property length varint + properties
@@ -4110,12 +4110,12 @@ PRIVATE int send_command_with_mid(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, remaining_length);
     if(!gbuf) {
         // Error already logged
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
     mqtt_write_uint16(gbuf, mid);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         if(reason_code != 0 || properties) {
             mqtt_write_byte(gbuf, reason_code);
             if(property__write_all(gobj, gbuf, properties, TRUE)<0) {
@@ -4161,7 +4161,7 @@ PRIVATE int send__pubrec(hgobj gobj, uint16_t mid, uint8_t reason_code, json_t *
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(reason_code >= 0x80 && priv->protocol_version == mosq_p_mqtt5) {
+    if(reason_code >= 0x80 && priv->protocol_version == mqtt_p_mqtt5) {
         //util__increment_receive_quota(mosq);
     }
     /* We don't use Reason String or User Property yet. */
@@ -4236,7 +4236,7 @@ PRIVATE int send__publish(
     }
     json_t *topic_alias_prop = NULL;
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         proplen = 0;
         /*
          *  Remove message-expiry-interval from properties to avoid duplication;
@@ -4317,7 +4317,7 @@ PRIVATE int send__publish(
                 "packetlen",    "%d", packetlen,
                 NULL
             );
-            return MOSQ_ERR_OVERSIZE_PACKET;
+            return MQTT_ERR_OVERSIZE_PACKET;
         } else {
             packetlen += proplen + varbytes;
         }
@@ -4330,7 +4330,7 @@ PRIVATE int send__publish(
             "packetlen",    "%d", packetlen,
             NULL
         );
-        return MOSQ_ERR_OVERSIZE_PACKET;
+        return MQTT_ERR_OVERSIZE_PACKET;
     }
 
     uint8_t command = (uint8_t)(CMD_PUBLISH | (uint8_t)((dup&0x1)<<3) | (uint8_t)(qos<<1) | retain);
@@ -4338,7 +4338,7 @@ PRIVATE int send__publish(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, packetlen);
     if(!gbuf) {
         // Error already logged
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
     /* Variable header (topic string) */
@@ -4351,7 +4351,7 @@ PRIVATE int send__publish(
         mqtt_write_uint16(gbuf, mid);
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         mqtt_write_varint(gbuf, proplen);
         property__write_all(gobj, gbuf, properties, FALSE);
         if(expiry_interval > 0) {
@@ -4402,7 +4402,7 @@ PRIVATE int send__subscribe(
         packetlen += 2U+(uint16_t)tlen + 1U;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         packetlen += property__get_remaining_length(properties);
     }
 
@@ -4410,12 +4410,12 @@ PRIVATE int send__subscribe(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, packetlen);
     if(!gbuf) {
         // Error already logged
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
     mqtt_write_uint16(gbuf, mid);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         property__write_all(gobj, gbuf, properties, TRUE);
     }
 
@@ -4470,7 +4470,7 @@ PRIVATE int send__unsubscribe(
         packetlen += 2U+(uint16_t)tlen;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         packetlen += property__get_remaining_length(properties);
     }
 
@@ -4478,12 +4478,12 @@ PRIVATE int send__unsubscribe(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, packetlen);
     if(!gbuf) {
         // Error already logged
-        return MOSQ_ERR_NOMEM;
+        return MQTT_ERR_NOMEM;
     }
 
     mqtt_write_uint16(gbuf, mid);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         /* We don't use User Property yet. */
         property__write_all(gobj, gbuf, properties, TRUE);
     }
@@ -4550,7 +4550,7 @@ PRIVATE int will__read(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
     gobj_write_strn_attr(gobj, "will_topic", will_topic, tlen);
 
@@ -4576,7 +4576,7 @@ PRIVATE int will__read(
         priv->gbuf_will_payload = gbuffer_create(payloadlen, payloadlen);
         if(!priv->gbuf_will_payload) {
             // Error already logged
-            return MOSQ_ERR_NOMEM;
+            return MQTT_ERR_NOMEM;
         }
         uint8_t *p = gbuffer_cur_rd_pointer(priv->gbuf_will_payload);
         if((ret=mqtt_read_bytes(gobj, gbuf, p, (uint32_t)payloadlen))<0) {
@@ -4622,7 +4622,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *      Protocol name and version
      *-------------------------------------------*/
     char protocol_name[7];
-    mosquitto_protocol_t protocol_version;
+    mqtt_protocol_t protocol_version;
     BOOL is_bridge = FALSE;
     uint8_t version_byte;
 
@@ -4674,21 +4674,21 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
-            return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+            return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
         }
-        protocol_version = mosq_p_mqtt31;
+        protocol_version = mqtt_p_mqtt31;
         if((version_byte & 0x80) == 0x80) {
             is_bridge = TRUE;
         }
     } else if(strcmp(protocol_name, PROTOCOL_NAME)==0) {
         if((version_byte & 0x7F) == PROTOCOL_VERSION_v311) {
-            protocol_version = mosq_p_mqtt311;
+            protocol_version = mqtt_p_mqtt311;
 
             if((version_byte & 0x80) == 0x80) {
                 is_bridge = TRUE;
             }
         } else if((version_byte & 0x7F) == PROTOCOL_VERSION_v5) {
-            protocol_version = mosq_p_mqtt5;
+            protocol_version = mqtt_p_mqtt5;
         } else {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4699,7 +4699,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
-            return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+            return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
         }
         if(priv->frame_head.flags != 0x00) {
             /* Reserved flags not set to 0, must disconnect. */
@@ -4740,7 +4740,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             NULL
         );
         send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*-------------------------------------------*
@@ -4800,7 +4800,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         return -1;
     }
 
-    if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
+    if(protocol_version == mqtt_p_mqtt311 || protocol_version == mqtt_p_mqtt5) {
         if((connect_flags & 0x01) != 0x00) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4850,10 +4850,10 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        if(version_byte == mosq_p_mqtt5) {
+        if(version_byte == mqtt_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
         }
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     gobj_write_bool_attr(gobj, "clean_start", clean_start);
@@ -4888,7 +4888,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     if(will && will_qos > priv->max_qos){
-        if(protocol_version == mosq_p_mqtt5){
+        if(protocol_version == mqtt_p_mqtt5){
             send__connack(gobj, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
         }
         gobj_log_warning(gobj, 0,
@@ -4900,7 +4900,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             NULL
         );
         JSON_DECREF(connect_properties)     // up to 7.30.26 it leaked
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     // TODO Auth method not supported by now
@@ -4962,7 +4962,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     if(client_id_len == 0) {
-        if(protocol_version == mosq_p_mqtt31) {
+        if(protocol_version == mqtt_p_mqtt31) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
@@ -4972,11 +4972,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             );
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
             JSON_DECREF(connect_properties);
-            return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+            return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
 
         } else { /* mqtt311/mqtt5 */
             client_id = NULL;
-            if((protocol_version == mosq_p_mqtt311 && clean_start == 0) ||
+            if((protocol_version == mqtt_p_mqtt311 && clean_start == 0) ||
                     priv->allow_zero_length_clientid == FALSE) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -4985,13 +4985,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     "peername",     "%s", peer_of(gobj),
                     NULL
                 );
-                if(protocol_version == mosq_p_mqtt311) {
+                if(protocol_version == mqtt_p_mqtt311) {
                     send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
                 } else {
                     send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
                 }
                 JSON_DECREF(connect_properties);
-                return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+                return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
             } else {
                 const char *auto_prefix = "auto-";
                 snprintf(uuid, sizeof(uuid), "%s", auto_prefix);
@@ -5039,13 +5039,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        if(protocol_version == mosq_p_mqtt5) {
+        if(protocol_version == mqtt_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
         } else {
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     if(memchr(client_id, '/', client_id_len)) {
@@ -5057,13 +5057,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        if(protocol_version == mosq_p_mqtt5) {
+        if(protocol_version == mqtt_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
         } else {
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     if(memchr(client_id, '`', client_id_len)) {
@@ -5075,13 +5075,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        if(protocol_version == mosq_p_mqtt5) {
+        if(protocol_version == mqtt_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
         } else {
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     if((client_id_len == 1 && client_id[0] == '.') ||
@@ -5094,13 +5094,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        if(protocol_version == mosq_p_mqtt5) {
+        if(protocol_version == mqtt_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
         } else {
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*-------------------------------------------*
@@ -5120,7 +5120,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             return -1;
         }
     } else {
-        if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
+        if(protocol_version == mqtt_p_mqtt311 || protocol_version == mqtt_p_mqtt5) {
             if(will_qos != 0 || will_retain != 0) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -5144,7 +5144,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     uint16_t password_len = 0;
     if(username_flag) {
         if(mqtt_read_string(gobj, gbuf, &username, &username_len)<0) {
-            if(protocol_version == mosq_p_mqtt31) {
+            if(protocol_version == mqtt_p_mqtt31) {
                 /* Username flag given, but no username. Ignore. */
                 username_flag = 0;
             } else {
@@ -5161,7 +5161,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             }
         }
     } else {
-        if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
+        if(protocol_version == mqtt_p_mqtt311 || protocol_version == mqtt_p_mqtt31) {
             if(password_flag) {
                 /* username_flag == 0 && password_flag == 1 is forbidden */
                 gobj_log_warning(gobj, 0,
@@ -5179,7 +5179,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
     if(password_flag) {
         if(mqtt_read_binary(gobj, gbuf, (uint8_t **)&password, &password_len)<0) {
-            if(protocol_version == mosq_p_mqtt31) {
+            if(protocol_version == mqtt_p_mqtt31) {
                 /* Password flag given, but no password. Ignore. */
             } else {
                 gobj_log_warning(gobj, 0,
@@ -5227,7 +5227,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         );
         send__connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
         JSON_DECREF(connect_properties);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*---------------------------------------------*
@@ -5263,14 +5263,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     authorization = COMMAND_RESULT(gobj, auth);
 
     if(authorization < 0) {
-        if(priv->protocol_version == mosq_p_mqtt5) {
+        if(priv->protocol_version == mqtt_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
         } else {
             send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
         }
         JSON_DECREF(auth)
         JSON_DECREF(connect_properties);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*--------------------------------------------------*
@@ -5324,7 +5324,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *---------------------------------------------*/
     json_t *connack_props = json_object();
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         if(priv->max_topic_alias > 0) {
             if(mqtt_property_add_int16 (
                 gobj, connack_props, MQTT_PROP_TOPIC_ALIAS_MAXIMUM, priv->max_topic_alias)<0)
@@ -5358,13 +5358,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         if(priv->auth_method) {
             // TODO Auth No tenemos auth method
             // if(mosquitto_property_add_string(&connack_props, MQTT_PROP_AUTHENTICATION_METHOD, context->auth_method)) {
-            //     rc = MOSQ_ERR_NOMEM;
+            //     rc = MQTT_ERR_NOMEM;
             //     goto error;
             // }
             //
             // if(auth_data_out && auth_data_out_len > 0) {
             //     if(mosquitto_property_add_binary(&connack_props, MQTT_PROP_AUTHENTICATION_DATA, auth_data_out, auth_data_out_len)) {
-            //         rc = MOSQ_ERR_NOMEM;
+            //         rc = MQTT_ERR_NOMEM;
             //         goto error;
             //     }
             // }
@@ -5439,7 +5439,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     );
     if(ret < 0) {
         if(ret == -2) {
-            if(priv->protocol_version == mosq_p_mqtt5) {
+            if(priv->protocol_version == mqtt_p_mqtt5) {
                 send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
             } else {
                 send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
@@ -5447,7 +5447,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
 
         JSON_DECREF(connack_props);
-        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
+        return MQTT_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     uint8_t connect_ack = 0;
@@ -5485,7 +5485,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  Send queued messages to the reconnecting client
      */
     if(priv->tranger_queues) {
-        message__release_to_inflight(gobj, mosq_md_out, TRUE);
+        message__release_to_inflight(gobj, mqtt_md_out, TRUE);
     }
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
@@ -5534,7 +5534,7 @@ PRIVATE int handle__connack(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
@@ -5545,7 +5545,7 @@ PRIVATE int handle__connack(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
     if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
         gobj_log_warning(gobj, 0,
@@ -5555,7 +5555,7 @@ PRIVATE int handle__connack(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
     json_t *jn_data = json_object();
@@ -5563,9 +5563,9 @@ PRIVATE int handle__connack(
     json_object_set_new(jn_data, "connect_flags", json_integer(connect_flags));
     json_object_set_new(jn_data, "protocol_version", json_integer(priv->protocol_version));
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_CONNACK, &ret);
-        if(ret == MOSQ_ERR_PROTOCOL && reason_code == CONNACK_REFUSED_PROTOCOL_VERSION) {
+        if(ret == MQTT_ERR_PROTOCOL && reason_code == CONNACK_REFUSED_PROTOCOL_VERSION) {
             /* This could occur because we are connecting to a v3.x broker and
              * it has replied with "unacceptable protocol version", but with a
              * v3 CONNACK. */
@@ -5619,7 +5619,7 @@ PRIVATE int handle__connack(
 
                 JSON_DECREF(properties);
                 JSON_DECREF(jn_data)
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             } else {
                 gobj_write_str_attr(gobj, "mqtt_client_id", clientid);
                 clientid = NULL;
@@ -5676,7 +5676,7 @@ PRIVATE int handle__connack(
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
-            priv->protocol_version == mosq_p_mqtt5?
+            priv->protocol_version == mqtt_p_mqtt5?
                 mqtt_reason_string(reason_code) :
                 mqtt_connack_string(reason_code)
         );
@@ -5717,7 +5717,7 @@ PRIVATE int handle__connack(
              */
             if(priv->tranger_queues) {
                 open_queues(gobj);
-                message__release_to_inflight(gobj, mosq_md_out, TRUE);
+                message__release_to_inflight(gobj, mqtt_md_out, TRUE);
             } else {
                 gobj_write_integer_attr(gobj, "max_qos", 0);
             }
@@ -5729,7 +5729,7 @@ PRIVATE int handle__connack(
                 jn_data
             );
 
-            return MOSQ_ERR_SUCCESS;
+            return MQTT_ERR_SUCCESS;
 
         case 1:
         case 2:
@@ -5742,7 +5742,7 @@ PRIVATE int handle__connack(
                  * Connection refused — return error
                  * and let the transport layer handle reconnect
                  */
-                const char *reason = priv->protocol_version != mosq_p_mqtt5?
+                const char *reason = priv->protocol_version != mqtt_p_mqtt5?
                     mqtt_connack_string(reason_code):mqtt_reason_string(reason_code);
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -5758,10 +5758,10 @@ PRIVATE int handle__connack(
                     jn_data
                 );
             }
-            return MOSQ_ERR_CONN_REFUSED;
+            return MQTT_ERR_CONN_REFUSED;
 
         default:
-            if(priv->protocol_version == mosq_p_mqtt5 && reason_code >= 0x80) {
+            if(priv->protocol_version == mqtt_p_mqtt5 && reason_code >= 0x80) {
                 /*
                  *  The refusals of MQTT 5. Up to 7.30.26 they were taken
                  *  for a protocol error: a DISCONNECT 0x82 to a broker
@@ -5779,7 +5779,7 @@ PRIVATE int handle__connack(
                 NULL
             );
             JSON_DECREF(jn_data)
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
     }
 }
 
@@ -5792,7 +5792,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = 0;
     uint8_t reason_code = 0;
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
         /* FIXME - must handle reason code */
         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
             gobj_log_warning(gobj, 0,
@@ -5802,7 +5802,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
 
         if(gbuffer_leftbytes(gbuf) > 0) {
@@ -5819,7 +5819,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         if(session_expiry_interval != -1) {
             if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
                 JSON_DECREF(properties)
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             }
             priv->session_expiry_interval = session_expiry_interval;
             gobj_write_integer_attr(gobj, "session_expiry_interval", session_expiry_interval);
@@ -5828,7 +5828,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gbuf && gbuffer_leftbytes(gbuf)>0) {
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -5843,10 +5843,10 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt311 || priv->protocol_version == mqtt_p_mqtt5) {
         if(priv->frame_head.flags != 0x00) {
-            send_drop(gobj, MOSQ_ERR_PROTOCOL);
-            return MOSQ_ERR_PROTOCOL;
+            send_drop(gobj, MQTT_ERR_PROTOCOL);
+            return MQTT_ERR_PROTOCOL;
         }
     }
     if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
@@ -5885,7 +5885,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    if(priv->protocol_version != mosq_p_mqtt5) {
+    if(priv->protocol_version != mqtt_p_mqtt5) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -5893,7 +5893,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
     uint8_t reason_code = 0;
@@ -5945,7 +5945,7 @@ PRIVATE int subscription_refused(
     json_t *jn_new
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL mqtt5 = (priv->protocol_version == mosq_p_mqtt5);
+    BOOL mqtt5 = (priv->protocol_version == mqtt_p_mqtt5);
 
     if(priv->max_topic_filter_length > 0 && slen > priv->max_topic_filter_length) {
         if(!priv->filters_capped) {
@@ -6074,12 +6074,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(mqtt_read_uint16(gobj, gbuf, &mid)) {
         // Error already logged
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     if(mid == 0) {
         gobj_log_warning(gobj, 0,
@@ -6090,14 +6090,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         int rc;
         properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
         if(rc<0) {
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
 
         subscription_identifier = property_read_varint(properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER);
@@ -6114,7 +6114,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     NULL
                 );
                 JSON_DECREF(properties)
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
         } else {
             subscription_identifier = 0; // reset to 0 if not used
@@ -6140,7 +6140,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         if(!slen) {
             gobj_log_warning(gobj, 0,
@@ -6157,7 +6157,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         if(mqtt_sub_topic_check2(sub, slen)<0) {
             gobj_log_warning(gobj, 0,
@@ -6174,7 +6174,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
 
         if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
@@ -6184,10 +6184,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
-        if(priv->protocol_version == mosq_p_mqtt31 ||
-            priv->protocol_version == mosq_p_mqtt311
+        if(priv->protocol_version == mqtt_p_mqtt31 ||
+            priv->protocol_version == mqtt_p_mqtt311
         ) {
             qos = subscription_options;
             subscription_options = 0;
@@ -6213,7 +6213,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
                 JSON_DECREF(properties)
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             }
 
             retain_handling = (subscription_options & 0x30);
@@ -6232,7 +6232,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
                 JSON_DECREF(properties)
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
         }
         if(qos > 2) {
@@ -6250,7 +6250,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_new)
             JSON_DECREF(jn_upper)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         if(qos > priv->max_qos) {
             qos = priv->max_qos;
@@ -6310,7 +6310,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     JSON_DECREF(jn_new)
     JSON_DECREF(jn_upper)
 
-    if(priv->protocol_version != mosq_p_mqtt31) {
+    if(priv->protocol_version != mqtt_p_mqtt31) {
         if(!json_size(jn_codes)) {
             /* No subscriptions specified, protocol error. */
             gobj_log_warning(gobj, 0,
@@ -6325,7 +6325,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_codes)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
     }
 
@@ -6400,7 +6400,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
      *  so there is nothing extra to do here.
      */
 
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -6417,7 +6417,7 @@ PRIVATE int send__suback(
     uint32_t payloadlen = gbuf_payload?gbuffer_leftbytes(gbuf_payload):0;
     uint32_t remaining_length = 2 + payloadlen;
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         /* We don't use Reason String or User Property yet. */
         remaining_length += property__get_remaining_length(properties);
     }
@@ -6440,7 +6440,7 @@ PRIVATE int send__suback(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_SUBACK, remaining_length);
     mqtt_write_uint16(gbuf, mid);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         property__write_all(gobj, gbuf, properties, TRUE);
     }
 
@@ -6476,12 +6476,12 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(mqtt_read_uint16(gobj, gbuf, &mid)) {
         // Error already logged
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     if(mid == 0) {
         gobj_log_warning(gobj, 0,
@@ -6492,10 +6492,10 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         int rc;
         properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
         if(rc<0) {
@@ -6504,7 +6504,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt311 || priv->protocol_version == mqtt_p_mqtt5) {
         if(gbuffer_leftbytes(gbuf)==0) {
             /* No topic specified, protocol error. */
             gobj_log_warning(gobj, 0,
@@ -6517,7 +6517,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
     }
 
@@ -6534,7 +6534,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_upper)
             JSON_DECREF(jn_occurrences)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
 
         if(!slen) {
@@ -6551,7 +6551,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_upper)
             JSON_DECREF(jn_occurrences)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         if(mqtt_sub_topic_check2(sub, slen)<0) {
             gobj_log_warning(gobj, 0,
@@ -6567,7 +6567,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_upper)
             JSON_DECREF(jn_occurrences)
             JSON_DECREF(properties)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -6705,7 +6705,7 @@ PRIVATE int send__unsuback(
     uint32_t remaining_length = 2;
     uint32_t reason_code_count = gbuffer_leftbytes(gbuf_payload);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         remaining_length += property__get_remaining_length(properties);
         remaining_length += (uint32_t)reason_code_count;
     }
@@ -6713,7 +6713,7 @@ PRIVATE int send__unsuback(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_UNSUBACK, remaining_length);
     mqtt_write_uint16(gbuf, mid);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         property__write_all(gobj, gbuf, properties, TRUE);
         mqtt_write_bytes(
             gbuf,
@@ -6753,10 +6753,10 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_SUBACK, &rc);
         if(rc<0) {
             // Error already logged
@@ -6833,10 +6833,10 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_UNSUBACK, &rc);
         if(rc<0) {
             // Error already logged
@@ -6983,7 +6983,7 @@ PRIVATE int handle__publish_s(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     if(qos == 3) {
         gobj_log_warning(gobj, 0,
@@ -6994,7 +6994,7 @@ PRIVATE int handle__publish_s(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(qos > priv->max_qos) {
@@ -7006,7 +7006,7 @@ PRIVATE int handle__publish_s(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_QOS_NOT_SUPPORTED;
+        return MQTT_ERR_QOS_NOT_SUPPORTED;
     }
 
     if(retain && priv->retain_available == FALSE) {
@@ -7019,17 +7019,17 @@ PRIVATE int handle__publish_s(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_RETAIN_NOT_SUPPORTED;
+        return MQTT_ERR_RETAIN_NOT_SUPPORTED;
     }
 
     char *topic_;
     if(mqtt_read_string(gobj, gbuf, &topic_, &slen)<0) {
         // Error already logged
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     char *topic = (slen > 0) ? gbmem_strndup(topic_, slen) : NULL;
 
-    if(!slen && priv->protocol_version != mosq_p_mqtt5) {
+    if(!slen && priv->protocol_version != mqtt_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7041,14 +7041,14 @@ PRIVATE int handle__publish_s(
         );
 
         GBMEM_FREE(topic)
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(qos > 0) {
         if(mqtt_read_uint16(gobj, gbuf, &mid)<0) {
             // Error already logged
             GBMEM_FREE(topic)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         if(mid == 0) {
             gobj_log_warning(gobj, 0,
@@ -7062,12 +7062,12 @@ PRIVATE int handle__publish_s(
                 NULL
             );
             GBMEM_FREE(topic)
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
     }
 
     /* Handle properties */
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
@@ -7124,7 +7124,7 @@ PRIVATE int handle__publish_s(
         );
         GBMEM_FREE(topic)
         JSON_DECREF(properties)
-        return MOSQ_ERR_TOPIC_ALIAS_INVALID;
+        return MQTT_ERR_TOPIC_ALIAS_INVALID;
     } else if(topic_alias > 0) {
         char alias_key[16];
         snprintf(alias_key, sizeof(alias_key), "%d", topic_alias);
@@ -7151,7 +7151,7 @@ PRIVATE int handle__publish_s(
                     NULL
                 );
                 JSON_DECREF(properties)
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             }
             topic = gbmem_strdup(json_string_value(jn_alias_topic));
             slen = strlen(topic);
@@ -7177,7 +7177,7 @@ PRIVATE int handle__publish_s(
         );
         GBMEM_FREE(topic)
         JSON_DECREF(properties)
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     /*-----------------------------------*
@@ -7212,14 +7212,14 @@ PRIVATE int handle__publish_s(
             // Error already logged
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
-            return MOSQ_ERR_NOMEM;
+            return MQTT_ERR_NOMEM;
         }
 
         if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(payload), (int)payloadlen)<0) {
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
             GBUFFER_DECREF(payload)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         gbuffer_set_wr(payload, payloadlen);
     }
@@ -7296,22 +7296,22 @@ PRIVATE int handle__publish_s(
         dup,
         properties, // owned
         message_expiry_interval,
-        mosquitto_time()
+        mqtt_time()
     );
     payload = NULL;     // owned by kw_mqtt_msg
     properties = NULL;  // owned by kw_mqtt_msg
 
-    uint16_t user_flag = mosq_mo_client | mosq_md_in;
+    uint16_t user_flag = mqtt_mo_client | mqtt_md_in;
     if(qos == 1) {
-        user_flag |= mosq_m_qos1;
+        user_flag |= mqtt_m_qos1;
     } else if(qos == 2) {
-        user_flag |= mosq_m_qos2;
+        user_flag |= mqtt_m_qos2;
     }
     if(retain) {
-        user_flag |= mosq_m_retain;
+        user_flag |= mqtt_m_retain;
     }
     if(dup) {
-        user_flag |= mosq_m_dup;
+        user_flag |= mqtt_m_dup;
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -7340,7 +7340,7 @@ PRIVATE int handle__publish_s(
 
     {
         // rc = plugin__handle_message(context, msg);
-        // if(rc == MOSQ_ERR_ACL_DENIED) {
+        // if(rc == MQTT_ERR_ACL_DENIED) {
         //     log__printf(NULL, MOSQ_LOG_DEBUG,
         //             "Denied PUBLISH from %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
         //             context->id, dup, msg->qos, msg->retain, msg->source_mid, msg->topic,
@@ -7348,7 +7348,7 @@ PRIVATE int handle__publish_s(
         //
         //     reason_code = MQTT_RC_NOT_AUTHORIZED;
         //     goto process_bad_message;
-        // } else if(rc != MOSQ_ERR_SUCCESS) {
+        // } else if(rc != MQTT_ERR_SUCCESS) {
         //     db__msg_store_free(msg);
         //     return rc;
         // }
@@ -7376,10 +7376,10 @@ PRIVATE int handle__publish_s(
              *  NOT_FOUND is the usual case, and trq_in_msgs holds only QoS 2
              *  messages, so the QoS mismatch cannot happen.
              */
-            message__remove(gobj, mid, mosq_md_in, 2, NULL);
+            message__remove(gobj, mid, mqtt_md_in, 2, NULL);
         }
 
-        if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
+        if(!db__ready_for_flight(gobj, mqtt_md_in, qos)) {
             /* Client exceeded the server's receive-maximum, disconnect */
             GBUFFER_DECREF(payload)
             GBMEM_FREE(topic)
@@ -7430,7 +7430,7 @@ PRIVATE int handle__publish_s(
                 /*
                  *  Response acknowledge
                  */
-                if(rc > 0 || priv->protocol_version != mosq_p_mqtt5) {
+                if(rc > 0 || priv->protocol_version != mqtt_p_mqtt5) {
                     send__puback(gobj, mid, 0, NULL);
                 } else if(rc == 0) {
                     send__puback(gobj, mid, MQTT_RC_NO_MATCHING_SUBSCRIBERS, NULL);
@@ -7444,11 +7444,11 @@ PRIVATE int handle__publish_s(
                  *  Append the message to the input queue
                  *  wait completion of the message
                  */
-                user_flag |= mosq_ms_wait_for_pubrel;
+                user_flag |= mqtt_ms_wait_for_pubrel;
                 message__queue(
                     gobj,
                     kw_incref(kw_mqtt_msg), // owned
-                    mosq_md_in,
+                    mqtt_md_in,
                     user_flag
                 );
 
@@ -7469,10 +7469,10 @@ PRIVATE int handle__publish_s(
     return rc;
 
 process_bad_message:
-    rc = MOSQ_ERR_UNKNOWN;
+    rc = MQTT_ERR_UNKNOWN;
     switch(qos) {
         case 0:
-            rc = MOSQ_ERR_SUCCESS;
+            rc = MQTT_ERR_SUCCESS;
             break;
         case 1:
             rc = send__puback(gobj, mid, reason_code, NULL);
@@ -7526,7 +7526,7 @@ PRIVATE int handle__publish_c(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     /*--------------*
@@ -7535,10 +7535,10 @@ PRIVATE int handle__publish_c(
     char *topic_;
     if(mqtt_read_string(gobj, gbuf, &topic_, &slen)<0) {
         // Error already logged
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     char *topic = (slen > 0) ? gbmem_strndup(topic_, slen) : NULL;
-    if(!slen && priv->protocol_version != mosq_p_mqtt5) {
+    if(!slen && priv->protocol_version != mqtt_p_mqtt5) {
         /* Empty topic is only valid in MQTT v5 (when a topic alias is used) */
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7548,7 +7548,7 @@ PRIVATE int handle__publish_c(
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     /*--------------*
@@ -7571,7 +7571,7 @@ PRIVATE int handle__publish_c(
                 NULL
             );
             GBMEM_FREE(topic)
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
     }
 
@@ -7579,7 +7579,7 @@ PRIVATE int handle__publish_c(
      *  Get properties
      *-------------------*/
     int topic_alias = -1;  /* -1 = no TOPIC_ALIAS property received */
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
@@ -7629,7 +7629,7 @@ PRIVATE int handle__publish_c(
                     );
                     GBMEM_FREE(topic)
                     JSON_DECREF(properties)
-                    return MOSQ_ERR_PROTOCOL;
+                    return MQTT_ERR_PROTOCOL;
             }
         }
     }
@@ -7639,7 +7639,7 @@ PRIVATE int handle__publish_c(
      *  Same logic as handle__publish_s: validate range, store or look up
      *  in jn_alias_list, then strip the hop-by-hop property.
      *-------------------------------------------------------------------*/
-    if(priv->protocol_version == mosq_p_mqtt5) {
+    if(priv->protocol_version == mqtt_p_mqtt5) {
         if(topic_alias == -1) {
             /* No alias property — topic string must be present */
             if(!topic) {
@@ -7652,7 +7652,7 @@ PRIVATE int handle__publish_c(
                     NULL
                 );
                 JSON_DECREF(properties)
-                return MOSQ_ERR_MALFORMED_PACKET;
+                return MQTT_ERR_MALFORMED_PACKET;
             }
         } else if(topic_alias == 0 || topic_alias > priv->max_topic_alias) {
             gobj_log_warning(gobj, 0,
@@ -7668,7 +7668,7 @@ PRIVATE int handle__publish_c(
             );
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
-            return MOSQ_ERR_TOPIC_ALIAS_INVALID;
+            return MQTT_ERR_TOPIC_ALIAS_INVALID;
         } else {
             char alias_key[16];
             snprintf(alias_key, sizeof(alias_key), "%d", topic_alias);
@@ -7690,7 +7690,7 @@ PRIVATE int handle__publish_c(
                         NULL
                     );
                     JSON_DECREF(properties)
-                    return MOSQ_ERR_PROTOCOL;
+                    return MQTT_ERR_PROTOCOL;
                 }
                 topic = gbmem_strdup(json_string_value(jn_alias_topic));
                 slen = strlen(topic);
@@ -7716,7 +7716,7 @@ PRIVATE int handle__publish_c(
         );
         GBMEM_FREE(topic)
         JSON_DECREF(properties)
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     /*-----------------------------------*
@@ -7730,7 +7730,7 @@ PRIVATE int handle__publish_c(
             // Error already logged
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
-            return MOSQ_ERR_NOMEM;
+            return MQTT_ERR_NOMEM;
         }
 
         void *pwr = gbuffer_cur_wr_pointer(payload);
@@ -7738,7 +7738,7 @@ PRIVATE int handle__publish_c(
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
             GBUFFER_DECREF(payload)
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
         gbuffer_set_wr(payload, payloadlen);
     }
@@ -7760,21 +7760,21 @@ PRIVATE int handle__publish_c(
         dup,
         properties, // owned
         expiry_interval,
-        mosquitto_time()
+        mqtt_time()
     );
     payload = NULL;     // owned by kw_mqtt_msg: up to 7.30.26 the QoS 2 refusal below released it twice
 
-    uint16_t user_flag = mosq_mo_broker | mosq_md_in;
+    uint16_t user_flag = mqtt_mo_broker | mqtt_md_in;
     if(qos == 1) {
-        user_flag |= mosq_m_qos1;
+        user_flag |= mqtt_m_qos1;
     } else if(qos == 2) {
-        user_flag |= mosq_m_qos2;
+        user_flag |= mqtt_m_qos2;
     }
     if(retain) {
-        user_flag |= mosq_m_retain;
+        user_flag |= mqtt_m_retain;
     }
     if(dup) {
-        user_flag |= mosq_m_dup;
+        user_flag |= mqtt_m_dup;
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -7804,7 +7804,7 @@ PRIVATE int handle__publish_c(
             db__message_remove_incoming_dup(gobj, mid); // Search and remove without warning
         }
 
-        if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
+        if(!db__ready_for_flight(gobj, mqtt_md_in, qos)) {
             /*
              *  Past the receive maximum, or a client without queues, which
              *  cannot keep a QoS 2 message until its PUBREL
@@ -7892,11 +7892,11 @@ PRIVATE int handle__publish_c(
                  *  Append the message to the input queue
                  *  wait completion of the message
                  */
-                user_flag |= mosq_ms_wait_for_pubrel;
+                user_flag |= mqtt_ms_wait_for_pubrel;
                 message__queue(
                     gobj,
                     kw_incref(kw_mqtt_msg), // owned
-                    mosq_md_in,
+                    mqtt_md_in,
                     user_flag
                 );
 
@@ -7929,7 +7929,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
     json_t *properties = NULL;
     int qos;
 
-    if(priv->protocol_version != mosq_p_mqtt31) {
+    if(priv->protocol_version != mqtt_p_mqtt31) {
         if((priv->frame_head.flags) != 0x00) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -7939,7 +7939,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_MALFORMED_PACKET;
+            return MQTT_ERR_MALFORMED_PACKET;
         }
     }
 
@@ -7964,10 +7964,10 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc<0) {
             // Error already logged
@@ -8003,7 +8003,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                     NULL
                 );
                 JSON_DECREF(properties)
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             }
         } else {
             if(reason_code != MQTT_RC_SUCCESS
@@ -8019,7 +8019,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                     NULL
                 );
                 JSON_DECREF(properties)
-                return MOSQ_ERR_PROTOCOL;
+                return MQTT_ERR_PROTOCOL;
             }
         }
     }
@@ -8033,7 +8033,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
             NULL
         );
         JSON_DECREF(properties)
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(priv->iamServer) {
@@ -8063,7 +8063,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
          */
         JSON_DECREF(properties)
 
-        return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
+        return db__message_delete_outgoing(gobj, mid, mqtt_ms_wait_for_pubcomp, qos);
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -8086,9 +8086,9 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
             }
         }
 
-        rc = message__delete(gobj, mid, mosq_md_out, qos);
+        rc = message__delete(gobj, mid, mqtt_md_out, qos);
 
-        if(rc == MOSQ_ERR_SUCCESS) {
+        if(rc == MQTT_ERR_SUCCESS) {
             /*
              *  Callback to user
              *  Only inform the client the message has been sent once, qos 1/2
@@ -8109,15 +8109,15 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
                 kw_iev
             );
 
-        } else if(rc != MOSQ_ERR_NOT_FOUND) {
+        } else if(rc != MQTT_ERR_NOT_FOUND) {
             JSON_DECREF(properties)
             return rc;
         }
 
-        message__release_to_inflight(gobj, mosq_md_out, FALSE);
+        message__release_to_inflight(gobj, mqtt_md_out, FALSE);
 
         JSON_DECREF(properties)
-        return MOSQ_ERR_SUCCESS;
+        return MQTT_ERR_SUCCESS;
     }
 }
 
@@ -8142,7 +8142,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
@@ -8159,10 +8159,10 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc<0) {
             // Error already logged
@@ -8187,7 +8187,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
 
         if(gbuffer_leftbytes(gbuf) > 3) {
@@ -8214,7 +8214,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
 
@@ -8233,9 +8233,9 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(reason_code < 0x80) {
-            rc = db__message_update_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
+            rc = db__message_update_outgoing(gobj, mid, mqtt_ms_wait_for_pubcomp, 2);
         } else {
-            return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubrec, 2);
+            return db__message_delete_outgoing(gobj, mid, mqtt_ms_wait_for_pubrec, 2);
         }
 
     } else {
@@ -8249,10 +8249,10 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
-        if(reason_code < 0x80 || priv->protocol_version != mosq_p_mqtt5) {
-            rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
+        if(reason_code < 0x80 || priv->protocol_version != mqtt_p_mqtt5) {
+            rc = message__out_update(gobj, mid, mqtt_ms_wait_for_pubcomp, 2);
         } else {
-            if(!message__delete(gobj, mid, mosq_md_out, 2)) {
+            if(!message__delete(gobj, mid, mqtt_md_out, 2)) {
                 /*
                  *  Message not found: likely a retransmitted PUBREC for a
                  *  message already acknowledged in a previous session.
@@ -8279,13 +8279,13 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 );
             }
 
-            message__release_to_inflight(gobj, mosq_md_out, FALSE);
+            message__release_to_inflight(gobj, mqtt_md_out, FALSE);
 
-            return MOSQ_ERR_SUCCESS;
+            return MQTT_ERR_SUCCESS;
         }
     }
 
-    if(rc == MOSQ_ERR_NOT_FOUND) {
+    if(rc == MQTT_ERR_NOT_FOUND) {
         if(!priv->unknown_ack_said) {   // once per connection
             priv->unknown_ack_said = TRUE;
             gobj_log_warning(gobj, 0,
@@ -8298,13 +8298,13 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
         }
-    } else if(rc != MOSQ_ERR_SUCCESS) {
+    } else if(rc != MQTT_ERR_SUCCESS) {
         return rc;
     }
 
     send__pubrel(gobj, mid, NULL);
 
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -8319,7 +8319,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     int rc;
     json_t *properties = NULL;
 
-    if(priv->protocol_version != mosq_p_mqtt31 && priv->frame_head.flags != 0x02) {
+    if(priv->protocol_version != mqtt_p_mqtt31 && priv->frame_head.flags != 0x02) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -8328,7 +8328,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
     if(rc) {
@@ -8344,10 +8344,10 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc) {
             // Error already logged
@@ -8364,7 +8364,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MQTT_ERR_PROTOCOL;
         }
 
         if(gbuffer_leftbytes(gbuf) > 3) {
@@ -8386,7 +8386,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             NULL
         );
         JSON_DECREF(properties)
-        return MOSQ_ERR_MALFORMED_PACKET;
+        return MQTT_ERR_MALFORMED_PACKET;
     }
 
     if(priv->iamServer) {
@@ -8403,10 +8403,10 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
 
         // HACK Dispatch the message to the broker (subscribers), sub__messages_queue
         rc = db__message_release_incoming(gobj, mid);
-        if(rc == MOSQ_ERR_NOT_FOUND) {
+        if(rc == MQTT_ERR_NOT_FOUND) {
             /* Message not found. Still send a PUBCOMP anyway because this could be
             * due to a repeated PUBREL after a client has reconnected. */
-        } else if(rc != MOSQ_ERR_SUCCESS) {
+        } else if(rc != MQTT_ERR_SUCCESS) {
             // Error already loged
             return rc;
         }
@@ -8434,8 +8434,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         send__pubcomp(gobj, mid, NULL);
 
         json_t *kw_mqtt_msg;
-        rc = message__remove(gobj, mid, mosq_md_in, 2, &kw_mqtt_msg);
-        if(rc == MOSQ_ERR_PROTOCOL) {
+        rc = message__remove(gobj, mid, mqtt_md_in, 2, &kw_mqtt_msg);
+        if(rc == MQTT_ERR_PROTOCOL) {
             // Warning already logged: the PUBREL of a message that is not QoS 2
             JSON_DECREF(properties)
             return rc;
@@ -8463,7 +8463,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     }
 
     JSON_DECREF(properties)
-    return MOSQ_ERR_SUCCESS;
+    return MQTT_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -8515,7 +8515,7 @@ PRIVATE void ws_close(hgobj gobj, int reason)
              *  and the drop waited for timeout_close
              */
             if(priv->send_disconnect &&
-                    (!priv->iamServer || priv->protocol_version == mosq_p_mqtt5)) {
+                    (!priv->iamServer || priv->protocol_version == mqtt_p_mqtt5)) {
                 send__disconnect(gobj, reason, NULL);
                 disconnect_sent = TRUE;
             }
@@ -8882,7 +8882,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
          */
         case CMD_CONNECT:       // Only Server
             if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
+                ret = MQTT_ERR_PROTOCOL;
                 break;
             }
             ret = handle__connect(gobj, gbuf, src);
@@ -8891,7 +8891,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         case CMD_CONNACK:       // NOT common to server(bridge)/client
             if(priv->iamServer) {
                 // Bridge not implemented
-                ret = MOSQ_ERR_PROTOCOL;
+                ret = MQTT_ERR_PROTOCOL;
                 break;
             } else {
                 ret = handle__connack(gobj, gbuf);
@@ -8937,7 +8937,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
 
         case CMD_SUBSCRIBE:     // Only Server
             if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
+                ret = MQTT_ERR_PROTOCOL;
                 break;
             }
             ret = handle__subscribe(gobj, gbuf);
@@ -8945,7 +8945,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         case CMD_SUBACK:        // common to server(bridge)/client
             if(priv->iamServer) {
                 // Bridge not implemented
-                ret = MOSQ_ERR_PROTOCOL;
+                ret = MQTT_ERR_PROTOCOL;
                 break;
             }
             ret = handle__suback(gobj, gbuf);
@@ -8953,7 +8953,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
 
         case CMD_UNSUBSCRIBE:   // Only Server
             if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
+                ret = MQTT_ERR_PROTOCOL;
                 break;
             }
             ret  = handle__unsubscribe(gobj, gbuf);
@@ -8962,7 +8962,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         case CMD_UNSUBACK:      // common to server(bridge)/client
             if(priv->iamServer) {
                 // Bridge not implemented
-                ret = MOSQ_ERR_PROTOCOL;
+                ret = MQTT_ERR_PROTOCOL;
                 break;
             }
             ret = handle__unsuback(gobj, gbuf);
@@ -8978,11 +8978,11 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            ret = MOSQ_ERR_PROTOCOL;
+            ret = MQTT_ERR_PROTOCOL;
             break;
     }
 
-    if(ret < 0 && ret != MOSQ_ERR_CONN_REFUSED && gbuf) {
+    if(ret < 0 && ret != MQTT_ERR_CONN_REFUSED && gbuf) {
         /*
          *  A CONNECT refused by policy (its CONNACK says why) is not
          *  malformed: up to 7.30.26 it was dumped as such
@@ -8992,20 +8992,20 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
 
     GBUFFER_DECREF(gbuf);
 
-    if(frame->command != CMD_CONNECT && priv->protocol_version == mosq_p_mqtt5) {
-        if(ret == MOSQ_ERR_PROTOCOL || ret == MOSQ_ERR_DUPLICATE_PROPERTY) {
+    if(frame->command != CMD_CONNECT && priv->protocol_version == mqtt_p_mqtt5) {
+        if(ret == MQTT_ERR_PROTOCOL || ret == MQTT_ERR_DUPLICATE_PROPERTY) {
             send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
-        } else if(ret == MOSQ_ERR_MALFORMED_PACKET) {
+        } else if(ret == MQTT_ERR_MALFORMED_PACKET) {
             send__disconnect(gobj, MQTT_RC_MALFORMED_PACKET, NULL);
-        } else if(ret == MOSQ_ERR_QOS_NOT_SUPPORTED) {
+        } else if(ret == MQTT_ERR_QOS_NOT_SUPPORTED) {
             send__disconnect(gobj, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
-        } else if(ret == MOSQ_ERR_RETAIN_NOT_SUPPORTED) {
+        } else if(ret == MQTT_ERR_RETAIN_NOT_SUPPORTED) {
             send__disconnect(gobj, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
-        } else if(ret == MOSQ_ERR_TOPIC_ALIAS_INVALID) {
+        } else if(ret == MQTT_ERR_TOPIC_ALIAS_INVALID) {
             send__disconnect(gobj, MQTT_RC_TOPIC_ALIAS_INVALID, NULL);
-        } else if(ret == MOSQ_ERR_UNKNOWN || ret == MOSQ_ERR_NOMEM) {
+        } else if(ret == MQTT_ERR_UNKNOWN || ret == MQTT_ERR_NOMEM) {
             send__disconnect(gobj, MQTT_RC_UNSPECIFIED, NULL);
-        } else if(ret<0 && ret != MOSQ_ERR_CONN_REFUSED) {
+        } else if(ret<0 && ret != MQTT_ERR_CONN_REFUSED) {
             // A broker that refused the CONNECT closes; the client sends it nothing
             send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
         }
@@ -9599,14 +9599,14 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw_mqtt_msg,
             expiry_interval
         );
     } else {
-        uint16_t user_flag = mosq_mo_broker | mosq_md_out;
+        uint16_t user_flag = mqtt_mo_broker | mqtt_md_out;
         if(qos == 1) {
-            user_flag |= mosq_m_qos1;
+            user_flag |= mqtt_m_qos1;
         } else if(qos == 2) {
-            user_flag |= mosq_m_qos2;
+            user_flag |= mqtt_m_qos2;
         }
         if(retain) {
-            user_flag |= mosq_m_retain;
+            user_flag |= mqtt_m_retain;
         }
 
         kw_delete_metadata_keys(kw_mqtt_msg);  // don't save __temp__
@@ -9614,7 +9614,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw_mqtt_msg,
         message__queue(
             gobj,
             kw_incref(kw_mqtt_msg), // owned
-            mosq_md_out,
+            mqtt_md_out,
             user_flag
         );
     }
@@ -9660,7 +9660,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
         return -1;
     }
 
-    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)>0) {
+    if(priv->protocol_version != mqtt_p_mqtt5 && json_size(properties)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -9704,7 +9704,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
     }
 
     if(empty_string(topic)) {
-        if(priv->protocol_version == mosq_p_mqtt5) {
+        if(priv->protocol_version == mqtt_p_mqtt5) {
             json_t *prop_properties = kw_get_dict(gobj, kw, "properties", 0, 0);
             BOOL have_topic_alias = FALSE;
             if(prop_properties) {
@@ -9797,7 +9797,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
         FALSE,      // dup,
         json_incref(properties), // owned: borrowed from kw
         expiry_interval,
-        mosquitto_time()
+        mqtt_time()
     );
 
     if(qos == 0) {
@@ -9835,20 +9835,20 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *
         }
     } else {
 
-        uint16_t user_flag = mosq_mo_client | mosq_md_out;
+        uint16_t user_flag = mqtt_mo_client | mqtt_md_out;
         if(qos == 1) {
-            user_flag |= mosq_m_qos1;
+            user_flag |= mqtt_m_qos1;
         } else if(qos == 2) {
-            user_flag |= mosq_m_qos2;
+            user_flag |= mqtt_m_qos2;
         }
         if(retain) {
-            user_flag |= mosq_m_retain;
+            user_flag |= mqtt_m_retain;
         }
 
         message__queue(
             gobj,
             kw_incref(kw_mqtt_msg),
-            mosq_md_out,
+            mqtt_md_out,
             user_flag
         );
     }
@@ -9891,7 +9891,7 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, gobj_event_t event, json_t
         return -1;
     }
 
-    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)>0) {
+    if(priv->protocol_version != mqtt_p_mqtt5 && json_size(properties)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -9984,7 +9984,7 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, gobj_event_t event, json_t
             return -1;
         }
     }
-    if(priv->protocol_version != mosq_p_mqtt5) {
+    if(priv->protocol_version != mqtt_p_mqtt5) {
         options = 0;
     }
 
@@ -10031,7 +10031,7 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, gobj_event_t event, json
         return -1;
     }
 
-    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)>0) {
+    if(priv->protocol_version != mqtt_p_mqtt5 && json_size(properties)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -10178,7 +10178,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
                 NULL
             );
             priv->timer_check_ping = 0;
-            ws_close(gobj, MOSQ_ERR_PROTOCOL);
+            ws_close(gobj, MQTT_ERR_PROTOCOL);
             KW_DECREF(kw)
             return 0;
         }
@@ -10229,7 +10229,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     int reason_code = 0;
     if(session_take_over) {
-        reason_code = (priv->protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+        reason_code = (priv->protocol_version == mqtt_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
     } else {
         close_queues(gobj);
     }

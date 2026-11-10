@@ -65,12 +65,12 @@ typedef enum { // string names in command_name[]
 /* Mosquitto only: for distinguishing CONNECT and WILL properties */
 #define CMD_WILL 0x100
 
-typedef enum mosquitto_protocol {
-    mosq_p_invalid = 0,
-    mosq_p_mqtt31 = PROTOCOL_VERSION_v31,
-    mosq_p_mqtt311 = PROTOCOL_VERSION_v311,
-    mosq_p_mqtt5 = PROTOCOL_VERSION_v5,
-} mosquitto_protocol_t ;
+typedef enum mqtt_protocol {
+    mqtt_p_invalid = 0,
+    mqtt_p_mqtt31 = PROTOCOL_VERSION_v31,
+    mqtt_p_mqtt311 = PROTOCOL_VERSION_v311,
+    mqtt_p_mqtt5 = PROTOCOL_VERSION_v5,
+} mqtt_protocol_t ;
 
 /*
  * Enum: mqtt311_connack_codes
@@ -344,7 +344,7 @@ PUBLIC json_t *new_mqtt_message(
     json_int_t t
 );
 
-PUBLIC time_t mosquitto_time(void);
+PUBLIC time_t mqtt_time(void);
 
 #ifdef __cplusplus
 }

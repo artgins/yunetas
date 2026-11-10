@@ -67,12 +67,12 @@ typedef struct {            // a message of the queue
 | Bits | Mask | Values |
 |---|---|---|
 | 0 | `TR2Q_MSG_PENDING` | set while the message is not done with |
-| 4-5 | `TR2Q_QOS_MASK` | `mosq_m_qos0`, `mosq_m_qos1`, `mosq_m_qos2` |
-| 6 | `TR2Q_RETAIN_MASK` | `mosq_m_retain` |
-| 7 | `TR2Q_DUP_MASK` | `mosq_m_dup` |
-| 8-9 | `TR2Q_DIR_MASK` | `mosq_md_in`, `mosq_md_out` |
-| 10-11 | `TR2Q_ORIG_MASK` | `mosq_mo_client`, `mosq_mo_broker` |
-| 12-15 | `TR2Q_STATE_MASK` | `mosq_ms_publish_qos0` ... `mosq_ms_queued`, the step of the QoS handshake |
+| 4-5 | `TR2Q_QOS_MASK` | `mqtt_m_qos0`, `mqtt_m_qos1`, `mqtt_m_qos2` |
+| 6 | `TR2Q_RETAIN_MASK` | `mqtt_m_retain` |
+| 7 | `TR2Q_DUP_MASK` | `mqtt_m_dup` |
+| 8-9 | `TR2Q_DIR_MASK` | `mqtt_md_in`, `mqtt_md_out` |
+| 10-11 | `TR2Q_ORIG_MASK` | `mqtt_mo_client`, `mqtt_mo_broker` |
+| 12-15 | `TR2Q_STATE_MASK` | `mqtt_ms_publish_qos0` ... `mqtt_ms_queued`, the step of the QoS handshake |
 
 They are read and written in memory with `static inline` helpers, and written
 to disk with [`tr2q_save_hard_mark()`](#tr2q_save_hard_mark):
@@ -84,8 +84,8 @@ to disk with [`tr2q_save_hard_mark()`](#tr2q_save_hard_mark):
 | `msg_flag_set_qos_level()` / `msg_flag_get_qos_level()` | the QoS as `0`, `1`, `2` |
 | `msg_flag_set_retain()` / `msg_flag_get_retain()` | the retain bit |
 | `msg_flag_set_dup()` / `msg_flag_get_dup()` | the dup bit |
-| `msg_flag_set_direction()` / `msg_flag_get_direction()` | `mosq_md_in` / `mosq_md_out` |
-| `msg_flag_set_origin()` / `msg_flag_get_origin()` | `mosq_mo_client` / `mosq_mo_broker` |
+| `msg_flag_set_direction()` / `msg_flag_get_direction()` | `mqtt_md_in` / `mqtt_md_out` |
+| `msg_flag_set_origin()` / `msg_flag_get_origin()` | `mqtt_mo_client` / `mqtt_mo_broker` |
 | `msg_flag_set_state()` / `msg_flag_get_state()` | the `mqtt_msg_state_t` |
 
 And the lists are walked with `tr2q_first_inflight_msg()`,
@@ -137,7 +137,7 @@ cannot be allocated or its topic cannot be created.
 
 ```C
 char queue_name[NAME_MAX];
-build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+build_queue_name(queue_name, sizeof(queue_name), client_id, mqtt_md_in);
 
 tr2_queue_t *trq_in_msgs = tr2q_open(
     tranger_queues,
@@ -355,14 +355,14 @@ and its gbuffer are released then -- or when the message cannot be allocated.
 **Example** — a QoS 1 message for a subscriber, as `C_MQTT_BROKER` queues it:
 
 ```C
-uint16_t user_flag = mosq_mo_client | mosq_md_out;
+uint16_t user_flag = mqtt_mo_client | mqtt_md_out;
 if(qos == 1) {
-    user_flag |= mosq_m_qos1;
+    user_flag |= mqtt_m_qos1;
 } else if(qos == 2) {
-    user_flag |= mosq_m_qos2;
+    user_flag |= mqtt_m_qos2;
 }
 if(retain) {
-    user_flag |= mosq_m_retain;
+    user_flag |= mqtt_m_retain;
 }
 q2_msg_t *qmsg = tr2q_append(trq_out_msgs, tm, kw_mqtt_msg, user_flag);
 if(!qmsg) {
@@ -510,7 +510,7 @@ q2_msg_t *qmsg = tr2q_get_by_mid(trq_out_msgs, mid);
 if(!qmsg) {
     return -1;  // not a message of this queue: C_PROT_MQTT2 ignores it quietly
 }
-msg_flag_set_state(qmsg, mosq_ms_wait_for_pubcomp);
+msg_flag_set_state(qmsg, mqtt_ms_wait_for_pubcomp);
 tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
 ```
 
@@ -583,7 +583,7 @@ written (logged). `-1` (logged) also when the queue has no topic.
 
 ```C
 msg_flag_set_dup(qmsg, 1);
-msg_flag_set_state(qmsg, mosq_ms_wait_for_puback);
+msg_flag_set_state(qmsg, mqtt_ms_wait_for_puback);
 tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
 ```
 
@@ -692,7 +692,7 @@ int build_queue_name(
 | `bf` | `char *` | The buffer to write in. |
 | `bfsize` | `size_t` | Its size; `NAME_MAX` is what the module uses. |
 | `client_id` | `const char *` | The client id of the session. |
-| `mqtt_msg_direction` | `mqtt_msg_direction_t` | `mosq_md_in` or `mosq_md_out`; `0` writes the bare client id. |
+| `mqtt_msg_direction` | `mqtt_msg_direction_t` | `mqtt_md_in` or `mqtt_md_out`; `0` writes the bare client id. |
 
 **Returns**
 
@@ -703,7 +703,7 @@ more when it did not fit (truncated, and not logged).
 
 ```C
 char queue_name[NAME_MAX];
-build_queue_name(queue_name, sizeof(queue_name), "sensor-17", mosq_md_out);
+build_queue_name(queue_name, sizeof(queue_name), "sensor-17", mqtt_md_out);
 // "sensor-17-OUT"
 ```
 
@@ -723,7 +723,7 @@ const char *msg_flag_state_to_str(mqtt_msg_state_t state);
 
 | Key | Type | Description |
 |---|---|---|
-| `state` | `mqtt_msg_state_t` | A `mosq_ms_*` value. |
+| `state` | `mqtt_msg_state_t` | A `mqtt_ms_*` value. |
 
 **Returns**
 
@@ -758,7 +758,7 @@ const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir);
 
 | Key | Type | Description |
 |---|---|---|
-| `dir` | `mqtt_msg_direction_t` | `mosq_md_in` or `mosq_md_out`. |
+| `dir` | `mqtt_msg_direction_t` | `mqtt_md_in` or `mqtt_md_out`. |
 
 **Returns** — `"IN"`, `"OUT"`, or `""` for anything else.
 
@@ -783,7 +783,7 @@ const char *msg_flag_origin_to_str(mqtt_msg_origin_t orig);
 
 | Key | Type | Description |
 |---|---|---|
-| `orig` | `mqtt_msg_origin_t` | `mosq_mo_client` or `mosq_mo_broker`. |
+| `orig` | `mqtt_msg_origin_t` | `mqtt_mo_client` or `mqtt_mo_broker`. |
 
 **Returns** — `"Client"`, `"Broker"`, or `"None"` for anything else.
 

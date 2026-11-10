@@ -304,7 +304,7 @@ json_t *new_mqtt_message(
 | `dup` | `BOOL` | The DUP flag of the PUBLISH, written as `dup`. It informs whoever reads the record; what goes on the wire when a message is sent again is the dup bit of its queue entry ([`msg_flag_get_dup()`](#module-mqtt-tr2q)), and the broker builds each subscriber's copy with `FALSE`, since the DUP of an incoming PUBLISH is not propagated [MQTT-3.3.1-3]. Up to 7.26.4 it was not written, and `dup` was always `false`. |
 | `properties` | `json_t *` | The MQTT 5 properties as a dict (owned), or `NULL`. |
 | `expiry_interval` | `uint32_t` | The message expiry interval, in seconds. |
-| `t` | `json_int_t` | The time of the message, written as `tm`; the protocol passes [`mosquitto_time()`](#mosquitto_time). |
+| `t` | `json_int_t` | The time of the message, written as `tm`; the protocol passes [`mqtt_time()`](#mqtt_time). |
 
 **Returns**
 
@@ -350,7 +350,7 @@ json_t *kw_mqtt_msg = new_mqtt_message(
     FALSE,      // dup
     NULL,       // properties
     0,          // expiry_interval
-    mosquitto_time()
+    mqtt_time()
 );
 if(!kw_mqtt_msg) {
     return -1;  // Error already logged
@@ -359,14 +359,14 @@ if(!kw_mqtt_msg) {
 
 ---
 
-(mosquitto_time)=
-## `mosquitto_time()`
+(mqtt_time)=
+## `mqtt_time()`
 
-`mosquitto_time()` returns the time, in seconds, that the module stamps on
+`mqtt_time()` returns the time, in seconds, that the module stamps on
 messages (`tm`) and compares with their expiry interval.
 
 ```C
-time_t mosquitto_time(void);
+time_t mqtt_time(void);
 ```
 
 **Parameters** — none.
@@ -393,7 +393,7 @@ dropped, as `C_PROT_MQTT2` does before sending it [MQTT-3.3.2-18]:
 uint32_t expiry_interval = (uint32_t)kw_get_int(gobj, kw_msg, "expiry_interval", 0, 0);
 if(expiry_interval > 0) {
     time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
-    time_t elapsed = mosquitto_time() - msg_time;
+    time_t elapsed = mqtt_time() - msg_time;
     if(elapsed >= (time_t)expiry_interval) {
         tr2q_unload_msg(qmsg, 0);   // expired: out of the queue
     } else {

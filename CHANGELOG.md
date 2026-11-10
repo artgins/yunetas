@@ -73,6 +73,15 @@
 - `C_MQTT_BROKER`: a filter of `deny_subscribes` is refused to an MQTT 3.1 client too
   (`0x80`). It was granted with the QoS it asked for.
 
+- **BREAKING (C code using the mqtt module): the names inherited from Mosquitto are
+  `mqtt_` names.** `MOSQ_ERR_*` is `MQTT_ERR_*`, `mosq_err_t` is `mqtt_err_t`,
+  `mosq_p_*` / `mosq_m_*` / `mosq_md_*` / `mosq_mo_*` / `mosq_ms_*` are `mqtt_p_*` /
+  `mqtt_m_*` / `mqtt_md_*` / `mqtt_mo_*` / `mqtt_ms_*` (`tr2q_mqtt.h`, `mqtt_util.h`),
+  `mosquitto_protocol_t` is `mqtt_protocol_t` and `mosquitto_time()` is `mqtt_time()`.
+  Only the names: every value is the same, so nothing stored in a queue changes. A caller
+  renames, e.g. `if(qos == mosq_m_qos1)` -> `if(qos == mqtt_m_qos1)`. The credit to the
+  Mosquitto project in the file headers stays.
+
 ### Commands
 
 - **A required parameter can be given as `key=value` on the command line.** Up to
