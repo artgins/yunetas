@@ -6,7 +6,9 @@
  *          gobj, what the protocol writes (EV_TX_DATA) goes to the `sink`
  *          gobj as EV_RX_DATA, and a drop (EV_DROP) comes back to the
  *          protocol as EV_DISCONNECTED on the next cycle of the loop, as a
- *          C_TCP does when its socket closes.
+ *          C_TCP does when its socket closes. Each write is taken at once,
+ *          and its EV_TX_READY comes on the next cycle, as a C_TCP's at the
+ *          end of its writes (a server of MQTT 3.1.1 waits for it to drop).
  *
  *          The driver writes the peer's bytes into the protocol itself:
  *
@@ -137,7 +139,9 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return -1;
     }
-    return gobj_send_event(priv->sink, EV_RX_DATA, kw, gobj);
+    int ret = gobj_send_event(priv->sink, EV_RX_DATA, kw, gobj);
+    gobj_post_event(gobj_parent(gobj), EV_TX_READY, json_object(), gobj);
+    return ret;
 }
 
 /***************************************************************************

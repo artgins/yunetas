@@ -122,7 +122,7 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Mqtt publish: qos not supported",                               // 1.
             "msg", "Mqtt: QoS 2 PUBLISH without queues, disconnecting",             // 5.
             "msg", "Incoming packet exceeds max_packet_size",                       // 7.
@@ -135,7 +135,9 @@ static int register_yuno_and_more(void)
             "msg", "Mqtt publish: topic invalid",                                   // 15b. a/#
             "msg", "Mqtt publish: topic invalid",                                   // 15b. a/+
             "msg", "Mqtt: invalid topic in PUBLISH, disconnecting",                 // 16.
-            "msg", "Mqtt connection refused"                                        // 17.
+            "msg", "Mqtt connection refused",                                       // 17.
+            "msg", "Mqtt connection refused",                                       // 18.
+            "msg", "Mqtt connection refused"                                        // 19.
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

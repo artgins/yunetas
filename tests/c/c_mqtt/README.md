@@ -190,8 +190,27 @@ refused more than 200 separators, the limit of the server, with DISCONNECT
 `EV_SEND_MESSAGE` (both refused it, `-1`); a wildcard there is still `-1` and
 an ERROR. Last, with MQTT 3.1.1, a CONNACK with the reserved code `6`: the user
 hears `EV_ON_CLOSE` with `reason_code` 6 and nothing is sent (a protocol
-error: a WARNING and no `EV_ON_CLOSE`). The alarm is 30 s (the run is about
-13 s).
+error: a WARNING and no `EV_ON_CLOSE`). Then, with MQTT 5 again, a CONNACK
+with the code `0x06` and one with `0x7F`: MQTT 5 defines no code below `0x80`
+but Success, so each is a protocol error (a WARNING, DISCONNECT `0x82`), and
+the user hears `EV_ON_CLOSE` with the code (up to 7.30.26 it heard nothing).
+The alarm is 30 s (the run is about 15 s).
+
+`test_mqtt_gate_cut` (`main_gate_cut.c` + `c_gate_cut.c`) is the cut of a
+gate's MQTT 3.1.1 connection over a REAL socket (port 18115): the driver is
+the upper level of a server `C_PROT_MQTT2` behind a `C_TCP_S`, and cuts a
+connection as a gate's decoder does, posting `EV_DROP` to the protocol, on a
+PUBLISH whose payload is `cut` and on a SUBSCRIBE of `cut/#`; after the cut
+it takes nothing. A RAW client (a `C_TCP` of the driver) writes each case in
+ONE write after its CONNACK. Three QoS 1 PUBLISH and the marker: the client
+gets `PUBACK 1` to `PUBACK 4`, then the close, and the gate took the three
+readings. `SUBSCRIBE a/b` and `SUBSCRIBE cut/#`: `SUBACK 0x00`, `SUBACK 0x80`,
+then the close. No WARNING: the drop does not wait for `timeout_close`. Up to
+7.30.26 a server of 3.1.1 (which sends no DISCONNECT) dropped its `C_TCP` at
+once, and the `C_TCP` discarded what waited behind its write in flight: the
+client got `[PUBACK 1, close]` and `[SUBACK 0x00, close]`. A fake transport
+cannot show it: it writes at once (its `EV_TX_READY` comes on the next cycle,
+as a `C_TCP`'s at the end of its writes).
 
 `test_mqtt_broker_no_db` (`main_broker_no_db.c` + `c_broker_no_db.c`) runs a
 `C_MQTT_BROKER` with `mqtt_persistent_db` false and `on_critical_error` 0:
@@ -220,7 +239,7 @@ DISCONNECT 0x82.
 
 The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
-`client_noqueue`) work in a dir of
+`client_noqueue`, `gate_cut`) work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.
 So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed

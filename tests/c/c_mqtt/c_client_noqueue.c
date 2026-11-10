@@ -73,6 +73,12 @@
  *                 EV_ON_CLOSE with the code, one WARNING, nothing sent. Up
  *                 to 7.30.26 it was a protocol error: the user heard
  *                 nothing.
+ *          MQTT 5:
+ *             18. A CONNACK with the code 0x06, and 19. with 0x7F: MQTT 5
+ *                 defines no CONNACK code below 0x80 but Success, so it is
+ *                 a protocol error (one WARNING, DISCONNECT 0x82), and the
+ *                 user hears EV_ON_CLOSE with the code, as for a refusal.
+ *                 Up to 7.30.26 the user heard nothing.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -856,6 +862,31 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "CLOSE 6",
                     NULL
                 });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 13:
+        case 14:
+            {
+                uint8_t code = (priv->phase == 13)? 0x06 : 0x7F;
+                gobj_write_str_attr(priv->prot, "mqtt_protocol", "mqttv5");
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, code);
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                char close_line[32];
+                snprintf(close_line, sizeof(close_line), "CLOSE %d", (int)code);
+                expect(gobj,
+                    (priv->phase == 13)?
+                        "18. a CONNACK of MQTT 5 with the code 0x06" :
+                        "19. a CONNACK of MQTT 5 with the code 0x7F",
+                    (const char *[]){
+                        "CONNECT maxpkt=1000",
+                        close_line,
+                        "DISCONNECT 130",
+                        NULL
+                    }
+                );
                 set_timeout(priv->timer, 100);
             }
             break;

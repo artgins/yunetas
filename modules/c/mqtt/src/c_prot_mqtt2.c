@@ -405,6 +405,8 @@ typedef struct _PRIVATE_DATA {
     BOOL disconnect_received;       // the peer's DISCONNECT read, nothing after it is
     BOOL send_closing_said;         // a message refused while closing said on this connection
     BOOL too_large_said;            // server: a PUBLISH past message_size_limit said on this connection
+    BOOL tx_pending;                // a packet sent and its transport's EV_TX_READY not come yet
+    BOOL drop_after_tx;             // server: the drop waits for the EV_TX_READY (ws_close())
     json_t *jn_qos2_in_mids;        // server without queues: QoS 2 packet ids waiting for PUBREL
 } PRIVATE_DATA;
 
@@ -3553,6 +3555,9 @@ PRIVATE int packet__check_oversize(hgobj gobj, uint32_t remaining_length)
  ***************************************************************************/
 PRIVATE int send_packet(hgobj gobj, gbuffer_t *gbuf)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->tx_pending = TRUE;    // before the send: its EV_TX_READY may come inside it
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s ==> %s",
             gobj_short_name(gobj),
@@ -5771,6 +5776,11 @@ PRIVATE int handle__connack(
                  */
                 goto refused;
             }
+            /*
+             *  MQTT 5 defines no CONNACK code below 0x80 but Success: a
+             *  protocol error (DISCONNECT 0x82). The user is told as for a
+             *  refusal, with the code: up to 7.30.26 it heard nothing
+             */
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
@@ -5780,7 +5790,11 @@ PRIVATE int handle__connack(
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            JSON_DECREF(jn_data)
+            gobj_publish_event( // To client user
+                gobj,
+                EV_ON_CLOSE,
+                jn_data
+            );
             return MQTT_ERR_PROTOCOL;
     }
 }
@@ -8588,9 +8602,21 @@ PRIVATE void ws_close(hgobj gobj, int reason)
         }
 
         if(!disconnect_sent) {
-            // No DISCONNECT packet to flush, drop immediately
-            // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
-            send_drop(gobj, reason);
+            if(priv->iamServer && priv->in_session && priv->tx_pending) {
+                /*
+                 *  No DISCONNECT (MQTT 3.1.1): the drop waits for what was
+                 *  answered before it to be written (its EV_TX_READY,
+                 *  ac_tx_ready()); a peer that does not read is dropped at
+                 *  timeout_close. Up to 7.30.26 it was dropped at once,
+                 *  and the C_TCP discarded the answers queued behind its
+                 *  write in flight
+                 */
+                priv->drop_after_tx = TRUE;
+            } else {
+                // No DISCONNECT packet to flush, drop immediately
+                // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
+                send_drop(gobj, reason);
+            }
         }
         // else: timeout_close timer will handle the drop after DISCONNECT is flushed
     }
@@ -9102,6 +9128,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->send_disconnect = FALSE;
+    priv->tx_pending = FALSE;
+    priv->drop_after_tx = FALSE;
     GBUFFER_DECREF(priv->gbuf_will_payload);
     JSON_DECREF(priv->jn_will_properties)
     priv->jn_alias_list = json_object();
@@ -9219,6 +9247,8 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->disconnect_received = FALSE;
     priv->send_closing_said = FALSE;
     priv->too_large_said = FALSE;
+    priv->tx_pending = FALSE;
+    priv->drop_after_tx = FALSE;
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
 
@@ -10319,7 +10349,8 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  A drop of a connection that is closing: its DISCONNECT sent, waiting
- *  timeout_close for the transport to go. It is dropped now. Out of a session there is nothing to drop: the
+ *  timeout_close for the transport to go, or, in MQTT 3.1.1, waiting for
+ *  its answers to be written (ac_tx_ready()). It is dropped now. Out of a session there is nothing to drop: the
  *  transport was dropped when the session ended, or never connected.
  *  Up to 7.30.26 it was "Event NOT DEFINED": a gate that takes a client
  *  id over sent it to every connection of that id still closing.
@@ -10329,6 +10360,7 @@ PRIVATE int ac_drop_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->in_session) {
+        priv->drop_after_tx = FALSE;
         send_drop(gobj, 0);
     }
 
@@ -10360,6 +10392,24 @@ PRIVATE int ac_send_message_closing(hgobj gobj, gobj_event_t event, json_t *kw, 
 
     KW_DECREF(kw)
     return -1;
+}
+
+/***************************************************************************
+ *  What was sent is written. A drop that waits for it (ws_close()) goes
+ *  now, posted: this runs inside the transport's publication
+ ***************************************************************************/
+PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->tx_pending = FALSE;
+    if(priv->drop_after_tx) {
+        priv->drop_after_tx = FALSE;
+        gobj_post_event(gobj, EV_DROP, 0, gobj);    // to ac_drop_closing()
+    }
+
+    KW_DECREF(kw)
+    return 0;
 }
 
 /***************************************************************************
@@ -10434,7 +10484,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
         {EV_DROP,               ac_drop_closing,                    0},
         {EV_STOPPED,            ac_stopped,                         0},
-        {EV_TX_READY,           0,                                  0},
+        {EV_TX_READY,           ac_tx_ready,                        0},
         {0,0,0}
     };
     ev_action_t st_wait_handshake[] = {
@@ -10442,7 +10492,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},
         {EV_DROP,               ac_drop,                            0},
-        {EV_TX_READY,           0,                                  0},
+        {EV_TX_READY,           ac_tx_ready,                        0},
         {0,0,0}
     };
     ev_action_t st_wait_frame_header[] = {
@@ -10456,7 +10506,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
         {EV_TIMEOUT_PERIODIC,   ac_timeout_periodic,                0},
         {EV_DROP,               ac_drop,                            0},
-        {EV_TX_READY,           0,                                  0},
+        {EV_TX_READY,           ac_tx_ready,                        0},
         {0,0,0}
     };
     ev_action_t st_wait_payload[] = {
@@ -10470,7 +10520,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
         {EV_TIMEOUT_PERIODIC,   ac_timeout_periodic,                0},
         {EV_DROP,               ac_drop,                            0},
-        {EV_TX_READY,           0,                                  0},
+        {EV_TX_READY,           ac_tx_ready,                        0},
         {0,0,0}
     };
 

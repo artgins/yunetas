@@ -64,6 +64,7 @@ SET(SRCS
     gate_limits
     client_noqueue
     broker_no_db
+    gate_cut
 )
 
 ##############################################
