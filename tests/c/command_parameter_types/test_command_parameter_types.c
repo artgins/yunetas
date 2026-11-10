@@ -55,6 +55,13 @@
  *              over that ends in '=' (base64) is read as a key, and
  *              `opt user=bob <base64>` answered "has no option '<it>'"
  *              up to 7.30.26; a command without secrets still names it;
+ *              a SDF_WILD_CMD command does not name the key of a value
+ *              with no closing quote;
+ *            - a word with a '=' in the place of a required positional,
+ *              which the parser refuses, is <...> in the mask of the line
+ *              and the `commands` trace when the command has a secret
+ *              parameter (7.30.26 showed it); with no table, a word that
+ *              ends in '=' or "==", or begins with '=', is <...>;
  *            - blanks at the end of the line are no parameter (two or more
  *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
@@ -600,6 +607,118 @@ int main(int argc, char *argv[])
         if(!strstr(comment, "'zzq'")) {
             printf("     comment: %s\n", comment);
         }
+
+        /*
+         *  A SDF_WILD_CMD command (no secret parameter of its own: its free
+         *  keys go on to a table not known here) does not name the key of
+         *  a value with no closing quote either
+         */
+        result = run(yuno, "wild x=1 wqsec-hunter2='x", 0, comment, sizeof(comment));
+        check("wild x=1 wqsec-hunter2='x", "a SDF_WILD_CMD command does not name it",
+            result == -1 &&
+            strstr(comment, "parameter '<...>': value with no closing quote") != NULL &&
+            strstr(comment, "wqsec-hunter2") == NULL);
+        if(!strstr(comment, "'<...>'") || strstr(comment, "wqsec-hunter2")) {
+            printf("     comment: %s\n", comment);
+        }
+    }
+
+    /*
+     *  A word with a '=' in the place of a required positional, and no key
+     *  of the command: the parser refuses it ("required parameter 'user'
+     *  not found") without naming it. When the command has a secret
+     *  parameter the mask of the line (the `commands` trace) does not show
+     *  it either: `<...>`. Up to 7.30.26 the mask showed it as the value of
+     *  the positional. A command without secrets still shows it.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+            const char *keep;
+        } refused[] = {
+            {"opt mpos-hunter2=",               "mpos-hunter2",     "opt <...>"},
+            {"opt mb64-aHVudGVyMg== user=bob",  "mb64-aHVudGVyMg",  "opt <...> user=bob"},
+            {"opt 'mquo-hunter2='",             "mquo-hunter2",     "opt <...>"},
+            {"named mnam-hunter2=x",            "mnam-hunter2",     "named <...>"},
+        };
+        gobj_set_global_trace("ev_kw", TRUE);
+        gobj_set_global_trace("commands", TRUE);
+        for(size_t i=0; i<sizeof(refused)/sizeof(refused[0]); i++) {
+            char comment[512];
+            g_watch = refused[i].secret;
+            g_watch_hits = 0;
+            int result = run(yuno, refused[i].command, 0, comment, sizeof(comment));
+            g_watch = 0;
+            check(refused[i].command, "answers -1, required parameter not found",
+                result == -1 && strstr(comment, "required parameter") != NULL &&
+                strstr(comment, refused[i].secret) == NULL);
+            if(!strstr(comment, "required parameter") || strstr(comment, refused[i].secret)) {
+                printf("     comment: %s\n", comment);
+            }
+            check(refused[i].command, "the word in no log nor trace", g_watch_hits == 0);
+            char *masked = command_mask_secret_line(yuno, refused[i].command);
+            check(refused[i].command, "the mask of the line is <...> in its place",
+                masked && strstr(masked, refused[i].secret) == NULL &&
+                strcmp(masked, refused[i].keep) == 0);
+            if(!masked || strcmp(masked, refused[i].keep) != 0) {
+                printf("     masked: %s\n", masked? masked : "(null)");
+            }
+            GBMEM_FREE(masked)
+        }
+        gobj_set_global_trace("commands", FALSE);
+        gobj_set_global_trace("ev_kw", FALSE);
+
+        char *masked = command_mask_secret_line(yuno, "required stray=x");
+        check("required stray=x", "a command without secrets shows the word",
+            masked && strcmp(masked, "required stray=x") == 0);
+        if(!masked || strcmp(masked, "required stray=x") != 0) {
+            printf("     masked: %s\n", masked? masked : "(null)");
+        }
+        GBMEM_FREE(masked)
+    }
+
+    /*
+     *  With no command table (the ievents trace of a command to a remote
+     *  service, masked by names only): a word that ends in '=' or "==" (a
+     *  password in base64), or begins with '=', is no key=value -- `<...>`,
+     *  the rule of the agent's audit file. Up to 7.30.26 it was shown
+     *  whole. A key=value stays, an empty quoted value too.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+            const char *expected;
+        } by_names[] = {
+            {"set-user-pwd username=bob nb64-aHVudGVyMg==", "nb64-aHVudGVyMg",
+                "set-user-pwd username=bob <...>"},
+            {"set-user-pwd username=bob neq-hunter2=",      "neq-hunter2",
+                "set-user-pwd username=bob <...>"},
+            {"set-user-pwd username=bob =nlead-hunter2",    "nlead-hunter2",
+                "set-user-pwd username=bob <...>"},
+            {"set-user-pwd username=bob ndbl-hunter2==x",   "ndbl-hunter2",
+                "set-user-pwd username=bob <...>"},
+            {"set-user-pwd nfirst-aHVudGVyMg== username=bob", "nfirst-aHVudGVyMg",
+                "set-user-pwd <...> username=bob"},
+        };
+        for(size_t i=0; i<sizeof(by_names)/sizeof(by_names[0]); i++) {
+            char *masked = command_mask_secret_line(NULL, by_names[i].command);
+            check(by_names[i].command, "no table: the word is <...>",
+                masked && strstr(masked, by_names[i].secret) == NULL &&
+                strcmp(masked, by_names[i].expected) == 0);
+            if(!masked || strcmp(masked, by_names[i].expected) != 0) {
+                printf("     masked: %s\n", masked? masked : "(null)");
+            }
+            GBMEM_FREE(masked)
+        }
+        char *masked = command_mask_secret_line(NULL, "set-x id=X note='' n=1");
+        check("set-x id=X note='' n=1", "no table: key=value and an empty quoted value stay",
+            masked && strcmp(masked, "set-x id=X note= n=1") == 0);
+        if(!masked || strcmp(masked, "set-x id=X note= n=1") != 0) {
+            printf("     masked: %s\n", masked? masked : "(null)");
+        }
+        GBMEM_FREE(masked)
     }
 
     /*

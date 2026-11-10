@@ -888,7 +888,10 @@ PRIVATE BOOL secret_is_set(json_t *value)
  *  (mask_secrets_inline()).
  *  What cannot be parsed as key=value is not shown: " <...>". Nor a key
  *  that is no parameter of a command (not SDF_WILD_CMD) that has a secret
- *  parameter: " <...>" (has_secret_parameter()).
+ *  parameter: " <...>" (has_secret_parameter()). With no command table
+ *  (by names only) a word that ends in '=' or "==", or begins with '=', is
+ *  no key=value either: " <...>" -- a password in base64 ends so, and the
+ *  agent's audit file takes the same rule.
  ***************************************************************************/
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
@@ -930,6 +933,13 @@ PRIVATE void append_masked_parameters(
             /*
              *  Not an option of a command that has a secret: a word left
              *  over that ends in '=' (a password in base64) reads as a key
+             */
+            gbuffer_append_string(gbuf, " <...>");
+        } else if(!cnf_cmd && (!*key ||
+                (value[-1] != '\'' && value[-1] != '"' && (!*value || *value == '=')))) {
+            /*
+             *  No table: "x=", "x==", "x==y" or "=x" (value[-1] is the
+             *  quote of a quoted value) -- maybe a password in base64
              */
             gbuffer_append_string(gbuf, " <...>");
         } else if(strlen(value) > MAX_SHOWN_VALUE) {
@@ -1013,7 +1023,11 @@ PUBLIC json_t *command_mask_secret_kw(
  *  The command line as a trace shows it: the value of every secret
  *  parameter masked, positional (the leading required ones) or key=value.
  *  What cannot be parsed as a parameter is not shown; a value longer than
- *  MAX_SHOWN_VALUE (1 KB) is shown as "<N bytes>".
+ *  MAX_SHOWN_VALUE (1 KB) is shown as "<N bytes>". In a command with a
+ *  secret parameter, a word with a '=' in the place of a required
+ *  positional, that the parser refuses ("required parameter not found"),
+ *  is not shown: " <...>" (up to 7.30.26 `opt aHVudGVyMg== user=bob`
+ *  showed it as the value of the positional).
  ***************************************************************************/
 PUBLIC char *command_mask_secret_line(
     hgobj gobj,
@@ -1047,6 +1061,7 @@ PUBLIC char *command_mask_secret_line(
      *  one from its start, with the rest of the line after it.
      */
     const sdata_desc_t *ip = cnf_cmd? cnf_cmd->schema : NULL;
+    BOOL hide_refused = has_secret_parameter(cnf_cmd);
     while(ip && ip->name && p) {
         if(ip->flag & SDF_NOTACCESS) {
             ip++;
@@ -1079,6 +1094,8 @@ PUBLIC char *command_mask_secret_line(
         if(!is_key_value) {
             if((ip->flag & SDF_SECRET) || is_secret_name(ip->name, strlen(ip->name))) {
                 gbuffer_append_string(gbuf, " ********");
+            } else if(hide_refused && strchr(param, '=')) {
+                gbuffer_append_string(gbuf, " <...>");  // build_cmd_kw() refuses it
             } else if(strlen(param) > MAX_SHOWN_VALUE) {
                 gbuffer_printf(gbuf, " <%zu bytes>", strlen(param));
             } else {

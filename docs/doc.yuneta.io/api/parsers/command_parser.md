@@ -613,9 +613,19 @@ The command line as a trace shows it: the value of every secret parameter is
 name ([`is_secret_name()`](#is_secret_name)), as for
 [`command_mask_secret_kw()`](#command_mask_secret_kw) -- given as `key=value`
 or as one of the leading required parameters written without key. A
-positional value with a `=` in it (`abc==`, `'pa=ss'`) is that parameter's
-value, unless what is before the `=` is a key of the command or a secret's
-name: then it is the first `key=value`. In a `SDF_WILD_CMD` command a value
+positional value with a `=` in it (`abc==`, `'pa=ss'`) is shown in that
+parameter's place, unless what is before the `=` is a key of the command or a
+secret's name: then it is the first `key=value`. The parser refuses such a
+value (*"required parameter 'user' not found"*, without naming it), and when
+the command has a secret parameter it is shown `<...>` (the value of a secret
+positional is `********` as always): `opt aHVudGVyMg== user=bob`, with `user`
+required and an optional `SDF_SECRET` `password`, is `opt <...> user=bob` (up
+to 7.30.26 it showed `aHVudGVyMg==` as the user). With no command table --
+`gobj` NULL, or a command its table does not have: the ievents trace of a
+command to a remote service -- the line is masked by names only, and a word
+that ends in `=` or `==`, or begins with `=`, is no `key=value`: `<...>` (a
+password in base64 ends so; the agent's audit file takes the same rule; up to
+7.30.26 it was shown whole). In a `SDF_WILD_CMD` command a value
 with a `=` is a command line going on, shown `key='...'` masked by names. The
 whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
 `write-attr attribute=password value=X` shows `value=********`. What
@@ -659,6 +669,14 @@ line = command_mask_secret_line(gobj,   // "password" is SDF_REQUIRED|SDF_SECRET
 line = command_mask_secret_line(gobj,   // a key that is no parameter of a command with a secret
     "set-password-pos 'q=hunter2' aHVudGVyMg=="
 );                                      // "set-password-pos ******** <...>"
+
+line = command_mask_secret_line(gobj,   // "user" required, "password" optional SDF_SECRET:
+    "opt aHVudGVyMg== user=bob"         // a word the parser refuses in the place of "user"
+);                                      // "opt <...> user=bob"
+
+line = command_mask_secret_line(NULL,   // no table: by names only
+    "set-user-pwd username=bob aHVudGVyMg=="
+);                                      // "set-user-pwd username=bob <...>"
 
 line = command_mask_secret_line(agent,  // a value of 46 MB of base64
     "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."

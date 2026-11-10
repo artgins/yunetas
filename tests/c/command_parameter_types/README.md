@@ -49,7 +49,18 @@ the line): a word left over that ends in `=` reads as a key, so `opt user=bob
 <base64>==`, `opt user=bob <word>=` and `opt user=bob <word>='x` answered
 *"has no option '<it>'"* (or *"parameter '<it>': value with no closing
 quote"*); they answer `'<...>'` now. `typed s=a zzz=1` still answers *"has no
-option 'zzz'"*. Blanks at
+option 'zzz'"*, and `wild x=1 <word>='x` (a `SDF_WILD_CMD` command, no secret
+of its own) answers *"parameter '<...>': value with no closing quote"*. A word
+with a `=` in the place of a required positional that is no key of the
+command (`opt <word>=`, `opt <base64>== user=bob`, `opt '<word>='`, `named
+<word>=x`) is refused (*"required parameter 'user' not found"*) and, in a
+command with a secret parameter, is `<...>` in the mask of the line and the
+`commands` trace (`opt <...> user=bob`; 7.30.26 showed it as the value of the
+positional); `required stray=x` still shows it. With no command table
+(`command_mask_secret_line(NULL, …)`, the ievents trace of a command to a
+remote service) a word that ends in `=` or `==`, or begins with `=`, is `<...>`
+(`set-user-pwd username=bob <...>`; 7.30.26 showed it whole), and `id=X
+note=''` stays. Blanks at
 the end of the line (`typed s=a  `, `required 1 x \t`) are no parameter (two
 or more were *"extra parameters: ' '"*).
 
