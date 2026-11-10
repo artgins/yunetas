@@ -263,6 +263,8 @@ SDATA (DTP_INTEGER,     "max_subscriptions_per_client",SDF_WR, "100", "Server: t
 
 SDATA (DTP_INTEGER,     "max_topic_filter_length",SDF_WR,   "256",  "Server: maximum length in bytes of a topic filter, 0 no limit (MQTT allows 65535). A filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x8F Topic Filter invalid; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection. An UNSUBSCRIBE is never refused by it."),
 
+SDATA (DTP_INTEGER,     "max_unwritten_packets",SDF_WR,     "10000", "Server: packets that may wait in the send queue of the transport (C_TCP's cur_tx_queue) while the peer keeps sending, 0 no limit. A peer that asks for answers (PINGRESP, PUBACK, SUBACK...) faster than it reads them is dropped past it, with one WARNING, and nothing more of its read is processed. Checked once the peer has sent that many packets since the queue was last empty. The default is past what a client of a library can have unanswered (its in-flight window, 20 in the common ones and the Receive Maximum this server announces) and a SUBSCRIBE burst; a flood of PINGREQ reaches it in five reads."),
+
 /*
  *  Dynamic Data
  */
@@ -366,6 +368,7 @@ typedef struct _PRIVATE_DATA {
     BOOL allow_anonymous;
     int max_subscriptions_per_client;
     int max_topic_filter_length;
+    json_int_t max_unwritten_packets;
 
     /*
      *  Dynamic data (reset per connection)
@@ -407,6 +410,7 @@ typedef struct _PRIVATE_DATA {
     BOOL too_large_said;            // server: a PUBLISH past message_size_limit said on this connection
     BOOL tx_pending;                // a packet sent and its transport's EV_TX_READY not come yet
     BOOL drop_after_tx;             // server: the drop waits for the EV_TX_READY (ws_close())
+    json_int_t rx_since_tx_ready;   // server: packets read since the send queue was last empty
     json_t *jn_qos2_in_mids;        // server without queues: QoS 2 packet ids waiting for PUBREL
 } PRIVATE_DATA;
 
@@ -482,6 +486,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(allow_anonymous,           gobj_read_bool_attr)
     SET_PRIV(max_subscriptions_per_client, gobj_read_integer_attr)
     SET_PRIV(max_topic_filter_length,   gobj_read_integer_attr)
+    SET_PRIV(max_unwritten_packets,     gobj_read_integer_attr)
 
     SET_PRIV(protocol_name,             gobj_read_str_attr)
     SET_PRIV(protocol_version,          gobj_read_integer_attr)
@@ -537,6 +542,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_subscriptions_per_client, gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_topic_filter_length,   gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_unwritten_packets,     gobj_read_integer_attr)
 
     ELIF_EQ_SET_PRIV(protocol_name,             gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(protocol_version,          gobj_read_integer_attr)
@@ -5568,32 +5574,48 @@ PRIVATE int handle__connack(
     json_object_set_new(jn_data, "connect_flags", json_integer(connect_flags));
     json_object_set_new(jn_data, "protocol_version", json_integer(priv->protocol_version));
 
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) == 0 &&
+            reason_code >= CONNACK_REFUSED_PROTOCOL_VERSION &&
+            reason_code <= CONNACK_REFUSED_NOT_AUTHORIZED) {
+        /*
+         *  A CONNACK of MQTT 3.1.1 (no properties) that refuses: a broker
+         *  of 3.1.1 that does not take MQTT 5 (code 1), or that refuses
+         *  this client (2 to 5). Told as the MQTT 5 refusal of the same
+         *  meaning, with no DISCONNECT. Up to 7.30.26 only the code 1 was
+         *  told (as "Error in properties", with a DISCONNECT 0x82 to a
+         *  broker that had refused and a dump), and 2 to 5 were a protocol
+         *  error the user never heard of
+         */
+        static const uint8_t mqtt5_of_311[] = {
+            0,
+            MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION,   // 1
+            MQTT_RC_CLIENTID_NOT_VALID,             // 2
+            MQTT_RC_SERVER_UNAVAILABLE,             // 3
+            MQTT_RC_BAD_USERNAME_OR_PASSWORD,       // 4
+            MQTT_RC_NOT_AUTHORIZED                  // 5
+        };
+        uint8_t mqtt5_code = mqtt5_of_311[reason_code];
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt connection refused",
+            "reason",       "%s", mqtt_reason_string(mqtt5_code),
+            "connack",      "%s", "MQTT 3.1.1",
+            "peername",     "%s", peer_of(gobj),
+            NULL
+        );
+        json_object_set_new(jn_data, "reason_code", json_integer(mqtt5_code));
+        gobj_publish_event( // To client user
+            gobj,
+            EV_ON_CLOSE,
+            jn_data
+        );
+        return MQTT_ERR_CONN_REFUSED;
+    }
+
     if(priv->protocol_version == mqtt_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_CONNACK, &ret);
-        if(ret == MQTT_ERR_PROTOCOL && reason_code == CONNACK_REFUSED_PROTOCOL_VERSION) {
-            /* This could occur because we are connecting to a v3.x broker and
-             * it has replied with "unacceptable protocol version", but with a
-             * v3 CONNACK. */
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT,
-                "msg",          "%s", "Error in properties",
-                "command",      "%s", mqtt_command_string(CMD_CONNACK),
-                "reason",       "%s", mqtt_reason_string(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION),
-                "peername",     "%s", peer_of(gobj),
-                NULL
-            );
-            json_object_set_new(
-                jn_data, "reason_code", json_integer(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION)
-            );
-            gobj_publish_event( // To client user
-                gobj,
-                EV_ON_CLOSE,
-                jn_data
-            );
-            return ret;
-
-        } else if(ret<0) {
+        if(ret<0) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
@@ -5778,15 +5800,19 @@ PRIVATE int handle__connack(
             }
             /*
              *  MQTT 5 defines no CONNACK code below 0x80 but Success: a
-             *  protocol error (DISCONNECT 0x82). The user is told as for a
-             *  refusal, with the code: up to 7.30.26 it heard nothing
+             *  protocol error, said once, with a DISCONNECT 0x82. The user
+             *  is told as for a refusal, with the code: up to 7.30.26 it
+             *  heard nothing. The packet is well formed: answered here, and
+             *  not dumped as malformed by frame_completed(), as it was
+             *  (with a WARNING "Mqtt connection refused" and a number for
+             *  reason)
              */
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
-                "msg",          "%s", "Mqtt connection refused",
-                "command",      "%s", mqtt_command_string(CMD_CONNACK),
-                "reason",       "%d", reason_code,
+                "msg",          "%s", "Mqtt protocol error: CONNACK reason code not defined in MQTT 5",
+                "reason",       "%s", "reason code below 0x80 not Success",
+                "reason_code",  "%d", (int)reason_code,
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
@@ -5795,7 +5821,8 @@ PRIVATE int handle__connack(
                 EV_ON_CLOSE,
                 jn_data
             );
-            return MQTT_ERR_PROTOCOL;
+            send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
+            return MQTT_ERR_CONN_REFUSED;   // the DISCONNECT is sent: nothing more of frame_completed()
     }
 }
 
@@ -5861,7 +5888,11 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->protocol_version == mqtt_p_mqtt311 || priv->protocol_version == mqtt_p_mqtt5) {
         if(priv->frame_head.flags != 0x00) {
-            send_drop(gobj, MQTT_ERR_PROTOCOL);
+            /*
+             *  Closed by the caller (ws_close()), after the answers already
+             *  sent are written. Up to 7.30.26 it was dropped here, at once,
+             *  and the C_TCP discarded them
+             */
             return MQTT_ERR_PROTOCOL;
         }
     }
@@ -8928,6 +8959,59 @@ PRIVATE void dump_malformed_frame(hgobj gobj, mqtt_message_t command, gbuffer_t 
 }
 
 /***************************************************************************
+ *  Server: whether the peer reads what it asks for. Each packet it sends
+ *  can queue an answer in the transport (a PINGRESP of 2 bytes costs about
+ *  340 of memory), and a read of 4 KB answers 2048 PINGREQ while the
+ *  C_TCP writes one packet per turn of the loop. Up to 7.30.26 any peer
+ *  (an anonymous device of a gate too) grew the process by about 400 MB
+ *  per 2 MB of PINGREQ until it died, even reading. Past
+ *  max_unwritten_packets in the send queue the connection is dropped now:
+ *  what waits is discarded (a DISCONNECT would wait behind it), and the
+ *  rest of the read is not processed. The queue is read only once the peer
+ *  has sent max_unwritten_packets packets since it was last empty
+ *  (EV_TX_READY): the cost on each packet is a counter.
+ ***************************************************************************/
+PRIVATE BOOL peer_reads_its_answers(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rx_since_tx_ready++;
+    if(priv->max_unwritten_packets <= 0 ||
+            priv->rx_since_tx_ready <= priv->max_unwritten_packets) {
+        return TRUE;
+    }
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(!bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
+        priv->rx_since_tx_ready = 0;    // a transport with no send queue to read: no bound
+        return TRUE;
+    }
+    json_int_t unwritten = gobj_read_integer_attr(bottom, "cur_tx_queue");
+    if(unwritten <= priv->max_unwritten_packets) {
+        priv->rx_since_tx_ready = unwritten;    // a stream that keeps the queue busy, not full
+        return TRUE;
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",                 "%s", __FUNCTION__,
+        "msgset",                   "%s", MSGSET_MQTT,
+        "msg",                      "%s", "Mqtt: the peer does not read its answers, connection dropped",
+        "client_id",                "%s", SAFE_PRINT(priv->client_id),
+        "peername",                 "%s", peer_of(gobj),
+        "unwritten_packets",        "%ld", (long)unwritten,
+        "max_unwritten_packets",    "%ld", (long)priv->max_unwritten_packets,
+        NULL
+    );
+
+    gobj_change_state(gobj, ST_DISCONNECTED);
+    clear_timeout(priv->gobj_timer_periodic);
+    set_timeout(priv->gobj_timer, priv->timeout_close);    // as ws_close(), if the transport never says
+    priv->drop_after_tx = FALSE;
+    send_drop(gobj, MQTT_RC_QUOTA_EXCEEDED);
+    return FALSE;
+}
+
+/***************************************************************************
  *  Process the completed frame
  ***************************************************************************/
 PRIVATE int frame_completed(hgobj gobj, hgobj src)
@@ -9103,6 +9187,12 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         }
     }
 
+    if(ret >= 0 && priv->iamServer && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
+        if(!peer_reads_its_answers(gobj)) {
+            return MQTT_ERR_UNKNOWN;    // dropped, said: nothing more of the read is processed
+        }
+    }
+
     if(gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
         start_wait_frame_header(gobj);
     }
@@ -9130,6 +9220,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->send_disconnect = FALSE;
     priv->tx_pending = FALSE;
     priv->drop_after_tx = FALSE;
+    priv->rx_since_tx_ready = 0;
     GBUFFER_DECREF(priv->gbuf_will_payload);
     JSON_DECREF(priv->jn_will_properties)
     priv->jn_alias_list = json_object();
@@ -9249,6 +9340,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->too_large_said = FALSE;
     priv->tx_pending = FALSE;
     priv->drop_after_tx = FALSE;
+    priv->rx_since_tx_ready = 0;
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
 
@@ -10350,18 +10442,29 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  A drop of a connection that is closing: its DISCONNECT sent, waiting
  *  timeout_close for the transport to go, or, in MQTT 3.1.1, waiting for
- *  its answers to be written (ac_tx_ready()). It is dropped now. Out of a session there is nothing to drop: the
- *  transport was dropped when the session ended, or never connected.
- *  Up to 7.30.26 it was "Event NOT DEFINED": a gate that takes a client
- *  id over sent it to every connection of that id still closing.
+ *  its answers to be written (ac_tx_ready()). A server with something
+ *  sent and not yet written drops when it is written (its EV_TX_READY
+ *  posts the drop that comes here with nothing pending), or at
+ *  timeout_close; else it is dropped now. Up to 7.30.26 it was dropped
+ *  now in any case: an EV_DROP of the upper level that came after the
+ *  close had started (a gate's cut, then a malformed byte of the same
+ *  read) discarded the answers that the close was waiting to write. Out of
+ *  a session there is nothing to drop: the transport was dropped when the
+ *  session ended, or never connected. Up to 7.30.26 it was "Event NOT
+ *  DEFINED": a gate that takes a client id over sent it to every
+ *  connection of that id still closing.
  ***************************************************************************/
 PRIVATE int ac_drop_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->in_session) {
-        priv->drop_after_tx = FALSE;
-        send_drop(gobj, 0);
+        if(priv->iamServer && priv->tx_pending) {
+            priv->drop_after_tx = TRUE;
+        } else {
+            priv->drop_after_tx = FALSE;
+            send_drop(gobj, 0);
+        }
     }
 
     KW_DECREF(kw)
@@ -10403,6 +10506,7 @@ PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->tx_pending = FALSE;
+    priv->rx_since_tx_ready = 0;    // the send queue is empty
     if(priv->drop_after_tx) {
         priv->drop_after_tx = FALSE;
         gobj_post_event(gobj, EV_DROP, 0, gobj);    // to ac_drop_closing()

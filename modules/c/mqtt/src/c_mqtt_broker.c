@@ -297,6 +297,15 @@ PRIVATE int mt_start(hgobj gobj)
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
+    /*
+     *  The input side holds the queues of the database (handed to it at
+     *  the play, taken back by close_database() at the stop): it is known
+     *  from the start, as the database is. Up to 7.30.26 it was found at
+     *  the play, and a broker that ran and never played logged the ERROR
+     *  "gobj NULL" at its stop
+     */
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+
     /*-----------------------------------------*
      *  Persistent DB
      *  open_database cannot be in play/pause,
@@ -349,7 +358,6 @@ PRIVATE int mt_play(hgobj gobj)
     /*-------------------------*
      *      Get services
      *-------------------------*/
-    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
 
     priv->gobj_top_side = gobj_find_service("__top_side__", TRUE);
@@ -4256,16 +4264,17 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj
     );
     if(!session) {
-        gobj_log_error(gobj, 0,
-           "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL,
-           "msg",          "%s", "session NULL",
-           "client_id",    "%s", client_id,
-           NULL
-       );
+        /*
+         *  No session of this client id: a newer connection took it over
+         *  and has ended it already (a session not kept), while this one
+         *  was still closing (its DISCONNECT waiting timeout_close, or, in
+         *  MQTT 3.1.1, its answers being written). As when the session is
+         *  another connection's (below), nothing here is this one's to
+         *  clean. Up to 7.30.26 it was the ERROR "session NULL"
+         */
         JSON_DECREF(client)
         KW_DECREF(kw);
-        return -1;
+        return 0;
     }
 
     /*----------------------------------------------------------*

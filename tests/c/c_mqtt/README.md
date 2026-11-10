@@ -146,8 +146,9 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
 8. Five acks of unknown packet ids: one WARNING (five).
 9. `EV_DROP` with `session_take_over`: DISCONNECT `0x8E`. Then, while the
    connection is closing, `EV_SEND_MESSAGE` is `-1` (twice, one WARNING) and another
-   `EV_DROP` drops the transport at once (both were *"Event NOT DEFINED"*
-   ERRORs, and the drop waited for `timeout_close`).
+   `EV_DROP` drops the transport as soon as the DISCONNECT is written, on the
+   next cycle (both were *"Event NOT DEFINED"* ERRORs, and the drop waited for
+   `timeout_close`).
 10. A PUBLISH of 20000 bytes written in two parts, cut after its 1st to 5th
     byte: delivered every time (cut after the 3rd, the second byte of the
     length was read twice and the connection ended as malformed).
@@ -192,9 +193,14 @@ an ERROR. Last, with MQTT 3.1.1, a CONNACK with the reserved code `6`: the user
 hears `EV_ON_CLOSE` with `reason_code` 6 and nothing is sent (a protocol
 error: a WARNING and no `EV_ON_CLOSE`). Then, with MQTT 5 again, a CONNACK
 with the code `0x06` and one with `0x7F`: MQTT 5 defines no code below `0x80`
-but Success, so each is a protocol error (a WARNING, DISCONNECT `0x82`), and
-the user hears `EV_ON_CLOSE` with the code (up to 7.30.26 it heard nothing).
-The alarm is 30 s (the run is about 15 s).
+but Success, so each is a protocol error (ONE WARNING *"Mqtt protocol error:
+CONNACK reason code not defined in MQTT 5"* with a text `reason`, no dump,
+DISCONNECT `0x82`), and the user hears `EV_ON_CLOSE` with the code (up to
+7.30.26 it heard nothing). Last, a CONNACK in the form of 3.1.1 (no
+properties) to the MQTT 5 client, with the code `1` and with `4`: the user
+hears `EV_ON_CLOSE` with `0x84` and `0x86`, one WARNING *"Mqtt connection
+refused"*, nothing sent (up to 7.30.26: *"Error in properties"*, DISCONNECT
+`0x81` and no `EV_ON_CLOSE`). The alarm is 30 s (the run is about 17 s).
 
 `test_mqtt_gate_cut` (`main_gate_cut.c` + `c_gate_cut.c`) is the cut of a
 gate's MQTT 3.1.1 connection over a REAL socket (port 18115): the driver is
@@ -208,9 +214,44 @@ readings. `SUBSCRIBE a/b` and `SUBSCRIBE cut/#`: `SUBACK 0x00`, `SUBACK 0x80`,
 then the close. No WARNING: the drop does not wait for `timeout_close`. Up to
 7.30.26 a server of 3.1.1 (which sends no DISCONNECT) dropped its `C_TCP` at
 once, and the `C_TCP` discarded what waited behind its write in flight: the
-client got `[PUBACK 1, close]` and `[SUBACK 0x00, close]`. A fake transport
-cannot show it: it writes at once (its `EV_TX_READY` comes on the next cycle,
-as a `C_TCP`'s at the end of its writes).
+client got `[PUBACK 1, close]` and `[SUBACK 0x00, close]`. Three more cases
+start the close otherwise, and get every answer before it too: three QoS 1
+PUBLISH and a DISCONNECT with flags `1` (a protocol error), in 3.1.1 and in
+MQTT 5 (where `DISCONNECT 0x82` comes after the three PUBACKs); three QoS 1
+PUBLISH, the marker and a malformed packet (type 0, the WARNING *"Mqtt
+malformed packet, payload required"*), whose close the `EV_DROP` of the
+marker reaches while it waits. Up to 7.30.26 the three got `[PUBACK 1,
+close]`. A fake transport cannot show it: it writes at once (its
+`EV_TX_READY` comes on the next cycle, as a `C_TCP`'s at the end of its
+writes).
+
+`test_mqtt_gate_flood` (`main_gate_flood.c` + `c_gate_flood.c`) is a peer
+that asks a gate for answers faster than it reads them, over a REAL socket
+(port 18116), with the default `max_unwritten_packets` (10000). A client that
+reads (four bursts of 3000 PINGREQ, each after the answers of the one before)
+gets its 12000 PINGRESP and is not dropped. A flood of 131072 PINGREQ in one
+write, the client not reading (`rx_paused`), and one of 40000 QoS 1 PUBLISH:
+each dropped with ONE WARNING *"Mqtt: the peer does not read its answers,
+connection dropped"*, the memory sampled every 20 ms (the yuno's
+`timeout_periodic` is 10 ms) growing less than 8 MB. 20000 QoS 0 PUBLISH and
+a PINGREQ in one write: all taken, the PINGRESP back, not dropped (QoS 0 asks
+for no answer). Red on 7.30.26: no drop, the memory grown by 39 MB for the
+PINGREQ and 13.6 MB for the PUBLISH (`MEM_MAX_SYSTEM_MEMORY` is 1 GB, so the
+red is a failure and not an abort).
+
+`test_mqtt_broker_takeover` (`main_broker_takeover.c` +
+`c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`
+1000 and two RAW MQTT 5 clients of one client id, clean start: A connects; B
+connects (A gets DISCONNECT and does not close); B disconnects and closes
+(its session deleted); A is dropped at `timeout_close`, with the WARNING
+*"Timeout waiting mqtt disconnected"*, and its late `EV_ON_CLOSE` finds no
+session. No ERROR (up to 7.30.26: *"session NULL"*).
+
+`test_mqtt_broker_no_play` (`main_broker_no_play.c` + `c_broker_no_play.c`)
+runs the broker started and never played (its service `autoplay` false),
+and ends the yuno half a second later: the stop logs no ERROR (up to 7.30.26:
+*"gobj NULL"* with a stack, from `broadcast_tranger_queues()` at the stop).
+Port 18121, never opened.
 
 `test_mqtt_broker_no_db` (`main_broker_no_db.c` + `c_broker_no_db.c`) runs a
 `C_MQTT_BROKER` with `mqtt_persistent_db` false and `on_critical_error` 0:
@@ -239,7 +280,8 @@ DISCONNECT 0x82.
 
 The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
-`client_noqueue`, `gate_cut`) work in a dir of
+`client_noqueue`, `gate_cut`, `gate_flood`, `broker_takeover`,
+`broker_no_play`) work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.
 So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed

@@ -3,7 +3,9 @@
  *
  *          The cut of a gate's MQTT 3.1.1 connection, over a real socket:
  *          what the protocol answered before the drop goes out, then the
- *          close. See c_gate_cut.c.
+ *          close; also when the close comes from a protocol error of the
+ *          client, in MQTT 3.1.1 and 5, and when the cut's EV_DROP comes
+ *          while the close waits. See c_gate_cut.c.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -121,7 +123,9 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_array(),   // no warning: nothing waits for timeout_close
+        json_pack("[{s:s}]",   // nothing waits for timeout_close
+            "msg", "Mqtt malformed packet, payload required"    // 4. the packet of type 0
+        ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
         TRUE            // verbose

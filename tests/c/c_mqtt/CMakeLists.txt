@@ -65,6 +65,9 @@ SET(SRCS
     client_noqueue
     broker_no_db
     gate_cut
+    gate_flood
+    broker_takeover
+    broker_no_play
 )
 
 ##############################################

@@ -49,7 +49,9 @@
  *              9. The take-over: EV_DROP with session_take_over gives
  *                 DISCONNECT 0x8E. While it waits timeout_close, a message
  *                 is refused (-1, one WARNING for the connection) and
- *                 another EV_DROP drops the transport at once. Up to
+ *                 another EV_DROP drops the transport as soon as the
+ *                 DISCONNECT is written (its EV_TX_READY, the next cycle
+ *                 here), not before: the drop discards what waits. Up to
  *                 7.30.26 both were "Event NOT DEFINED" ERRORs, with a
  *                 stack.
  *          Second connection, MQTT 5:
@@ -767,7 +769,7 @@ PRIVATE void run_connection_a(hgobj gobj)
         "DROPS 0",
         "SEND -1",
         "SEND -1",
-        "DROPS 1",
+        "DROPS 0",      // the DISCONNECT is not written yet: dropped at its EV_TX_READY
         NULL
     });
 }

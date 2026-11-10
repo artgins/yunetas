@@ -120,6 +120,33 @@ code is not (see [What a peer hands C_TREEDB](#c-treedb-peer-data)). The
 broker passed it in the kw until SDK 7.27.0, when `C_TREEDB` started to
 tell the two apart.
 
+**A broker that runs and never plays** (`run-yuno play=0`, then `kill-yuno`;
+or a standalone broker without `yuno.autoplay`) stops clean: it opened its
+database at the start, and it knows its input side from the start too, the
+service it hands its queues to at the play and takes them back from at the
+stop. Up to 7.30.26 it found the input side only at the play, and such a stop
+logged the ERROR *"gobj NULL"* with a stack (`broadcast_tranger_queues()`
+from `close_database()`).
+
+**A take-over whose old connection closes late** is quiet. A client id that
+connects again takes the session over, and the broker closes the old
+connection; that close may take a while (an MQTT 5 client that does not
+close after its DISCONNECT waits `timeout_close`, an MQTT 3.1.1 one that does
+not read waits for its answers to be written). When the new connection has
+come and gone meanwhile, with a session that is not kept, the old one's
+`EV_ON_CLOSE` finds no session for its client id: nothing of it is left to
+clean, as when the session is another connection's. Up to 7.30.26 that was
+the ERROR *"session NULL"*:
+
+```text
+A  CONNECT tko_cl (MQTT 5, clean start)    CONNACK 0
+B  CONNECT tko_cl (MQTT 5, clean start)    A gets DISCONNECT, B gets CONNACK 0
+B  DISCONNECT, closes                      B's session deleted
+A  does not close                          1 s later (timeout_close 1000): WARNING
+                                           "Timeout waiting mqtt disconnected", A dropped,
+                                           its EV_ON_CLOSE finds no session: no ERROR
+```
+
 So the treedb is the code's, and no command from outside closes it, the
 broker paused or not, with `force` or without (since SDK 7.27.0): the broker
 holds its `C_NODE`, its tranger and the msg2db on that tranger, and a close
@@ -178,6 +205,7 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
 | `max_packet_size` | `0` | Max MQTT packet (v5 advertises it, 0 = no limit) |
+| `max_unwritten_packets` | `10000` | Packets that may wait in the client's send queue (`cur_tx_queue` of its `C_TCP`) while it keeps sending: past it the client does not read what it asks for (PINGRESP, PUBACK, SUBACK...) and is dropped at once, with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*. 0 = no limit. The messages the broker sends to a subscriber do not count against a client that reads, retained bursts included (see the [MQTT page](../modules/mqtt.md)) |
 
 `max_inflight_messages` also bounds the INCOMING QoS 2 messages that wait for
 their PUBREL (the receive maximum the broker advertises): a client that sends

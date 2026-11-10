@@ -16,12 +16,23 @@
  *                 four PUBACK, then the close.
  *              2. SUBSCRIBE of a/b and SUBSCRIBE of cut/#: the client gets
  *                 SUBACK 0x00 and SUBACK 0x80, then the close.
+ *              3. Three QoS 1 PUBLISH and a DISCONNECT with its flags not 0
+ *                 (a protocol error): the three PUBACK, then the close.
+ *              4. Three QoS 1 PUBLISH, the marker and a malformed packet
+ *                 (type 0, reserved): the four PUBACK, then the close. The
+ *                 malformed packet starts the close, and the EV_DROP the
+ *                 gate posted on the marker comes while it waits to write.
+ *              5. As 3, in MQTT 5: the three PUBACK, DISCONNECT 0x82, then
+ *                 the close.
  *
  *          A server of MQTT 3.1.1 sends no DISCONNECT: the drop went to the
  *          C_TCP at once, which discards what waits behind its write in
  *          flight. Up to 7.30.26 the client got the first answer only
  *          ([PUBACK 1, close]; [SUBACK 0x00, close]): the readings taken
  *          were not acknowledged, and the client would send them again.
+ *          And up to 7.30.26 the cases 3 to 5 lost them too ([PUBACK 1,
+ *          close]): the bad DISCONNECT dropped the connection at once, and
+ *          the EV_DROP that came while the close waited dropped it at once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -70,6 +81,7 @@ typedef struct _PRIVATE_DATA {
     hgobj tcp_s;
     hgobj client;           // the raw client
     int phase;
+    BOOL mqtt5;             // the client of the case speaks MQTT 5
     BOOL cut;               // the gate cut this connection: it takes nothing more
     gbuffer_t *rx;          // what the client got, not parsed yet
     json_t *got;            // what the client got, in order, and its close
@@ -242,22 +254,32 @@ PRIVATE size_t put_string(uint8_t *bf, const char *s)
 }
 
 /***************************************************************************
- *  CONNECT, MQTT 3.1.1, clean session, no user
+ *  CONNECT, MQTT 3.1.1 (or MQTT 5, no properties), clean session, no user
  ***************************************************************************/
 PRIVATE void client_connect(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     static const uint8_t head311[] = {
         0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04,   // protocol name, level 4 (3.1.1)
         0x02,                                   // flags: clean session
         0x00, 0x3C                              // keep alive 60 s
     };
+    static const uint8_t head5[] = {
+        0x00, 0x04, 'M', 'Q', 'T', 'T', 0x05,   // protocol name, level 5
+        0x02,                                   // flags: clean start
+        0x00, 0x3C,                             // keep alive 60 s
+        0x00                                    // no properties
+    };
+    const uint8_t *head = priv->mqtt5? head5 : head311;
+    size_t head_len = priv->mqtt5? sizeof(head5) : sizeof(head311);
     uint8_t bf[64];
     size_t n = 0;
 
     bf[n++] = 0x10;
-    bf[n++] = (uint8_t)(sizeof(head311) + 2 + strlen(CLIENT_ID));
-    memcpy(bf + n, head311, sizeof(head311));
-    n += sizeof(head311);
+    bf[n++] = (uint8_t)(head_len + 2 + strlen(CLIENT_ID));
+    memcpy(bf + n, head, head_len);
+    n += head_len;
     n += put_string(bf + n, CLIENT_ID);
     client_sends(gobj, bf, n);
 }
@@ -265,15 +287,23 @@ PRIVATE void client_connect(hgobj gobj)
 /***************************************************************************
  *  A QoS 1 PUBLISH, appended to bf
  ***************************************************************************/
-PRIVATE size_t put_publish_qos1(uint8_t *bf, uint16_t mid, const char *topic, const char *payload)
-{
+PRIVATE size_t put_publish_qos1(
+    uint8_t *bf,
+    BOOL mqtt5,
+    uint16_t mid,
+    const char *topic,
+    const char *payload
+) {
     size_t n = 0;
 
     bf[n++] = 0x32;     // PUBLISH QoS 1
-    bf[n++] = (uint8_t)(2 + strlen(topic) + 2 + strlen(payload));
+    bf[n++] = (uint8_t)(2 + strlen(topic) + 2 + (mqtt5? 1:0) + strlen(payload));
     n += put_string(bf + n, topic);
     bf[n++] = (uint8_t)(mid >> 8);
     bf[n++] = (uint8_t)(mid & 0xFF);
+    if(mqtt5) {
+        bf[n++] = 0x00; // no properties
+    }
     memcpy(bf + n, payload, strlen(payload));
     n += strlen(payload);
     return n;
@@ -321,6 +351,9 @@ PRIVATE void parse_rx(hgobj gobj)
             case 4:     // PUBACK
                 snprintf(line, sizeof(line), "PUBACK %d", mid);
                 break;
+            case 14:    // DISCONNECT
+                snprintf(line, sizeof(line), "DISCONNECT %d", remaining >= 1? v[0] : 0);
+                break;
             case 9:     // SUBACK
                 {
                     int l = snprintf(line, sizeof(line), "SUBACK %d", mid);
@@ -342,14 +375,24 @@ PRIVATE void parse_rx(hgobj gobj)
              */
             uint8_t bf[256];
             size_t n = 0;
-            if(priv->phase == 1) {
-                n += put_publish_qos1(bf + n, 1, "tele/x/SENSOR", "r1");
-                n += put_publish_qos1(bf + n, 2, "tele/x/SENSOR", "r2");
-                n += put_publish_qos1(bf + n, 3, "tele/x/SENSOR", "r3");
-                n += put_publish_qos1(bf + n, 4, "tele/x/SENSOR", MARKER_PAYLOAD);
-            } else {
+            if(priv->phase == 2) {
                 n += put_subscribe(bf + n, 5, "a/b");
                 n += put_subscribe(bf + n, 6, MARKER_FILTER);
+            } else {
+                n += put_publish_qos1(bf + n, priv->mqtt5, 1, "tele/x/SENSOR", "r1");
+                n += put_publish_qos1(bf + n, priv->mqtt5, 2, "tele/x/SENSOR", "r2");
+                n += put_publish_qos1(bf + n, priv->mqtt5, 3, "tele/x/SENSOR", "r3");
+                if(priv->phase == 1 || priv->phase == 4) {
+                    n += put_publish_qos1(bf + n, priv->mqtt5, 4, "tele/x/SENSOR", MARKER_PAYLOAD);
+                }
+                if(priv->phase == 3 || priv->phase == 5) {
+                    bf[n++] = 0xE1;     // DISCONNECT, flags 1: a protocol error
+                    bf[n++] = 0x00;
+                }
+                if(priv->phase == 4) {
+                    bf[n++] = 0x00;     // packet type 0: reserved
+                    bf[n++] = 0x00;
+                }
             }
             client_sends(gobj, bf, n);
         }
@@ -418,31 +461,104 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 1:
         case 2:
-            if(!priv->cut || gobj_is_running(priv->client)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "TEST: the case did not end in a close",
-                    "phase",        "%d", priv->phase,
-                    "got",          "%j", priv->got,
-                    NULL
-                );
-                set_yuno_must_die();
-                break;
-            }
-            if(priv->phase == 1) {
-                expect(gobj, "1. three QoS 1 PUBLISH and the marker: what the client got",
-                    priv->got, (const char *[]){
-                        "CONNACK 0",
-                        "PUBACK 1",
-                        "PUBACK 2",
-                        "PUBACK 3",
-                        "PUBACK 4",
-                        "CLOSED",
+        case 3:
+        case 4:
+        case 5:
+            {
+                BOOL with_marker = (priv->phase == 1 || priv->phase == 2 || priv->phase == 4);
+                if((with_marker && !priv->cut) || gobj_is_running(priv->client)) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "TEST: the case did not end in a close",
+                        "phase",        "%d", priv->phase,
+                        "got",          "%j", priv->got,
                         NULL
-                    }
-                );
-                expect(gobj, "1. three QoS 1 PUBLISH and the marker: what the gate took",
+                    );
+                    set_yuno_must_die();
+                    break;
+                }
+            }
+            switch(priv->phase) {
+                case 1:
+                    expect(gobj, "1. three QoS 1 PUBLISH and the marker: what the client got",
+                        priv->got, (const char *[]){
+                            "CONNACK 0",
+                            "PUBACK 1",
+                            "PUBACK 2",
+                            "PUBACK 3",
+                            "PUBACK 4",
+                            "CLOSED",
+                            NULL
+                        }
+                    );
+                    expect(gobj, "1. three QoS 1 PUBLISH and the marker: what the gate took",
+                        priv->taken, (const char *[]){
+                            "MSG tele/x/SENSOR r1",
+                            "MSG tele/x/SENSOR r2",
+                            "MSG tele/x/SENSOR r3",
+                            NULL
+                        }
+                    );
+                    break;
+                case 2:
+                    expect(gobj, "2. two SUBSCRIBE, the second one cut: what the client got",
+                        priv->got, (const char *[]){
+                            "CONNACK 0",
+                            "SUBACK 5 0",
+                            "SUBACK 6 128",
+                            "CLOSED",
+                            NULL
+                        }
+                    );
+                    expect(gobj, "2. two SUBSCRIBE, the second one cut: what the gate took",
+                        priv->taken, (const char *[]){
+                            "SUB a/b",
+                            NULL
+                        }
+                    );
+                    break;
+                case 3:
+                    expect(gobj, "3. three QoS 1 PUBLISH and a DISCONNECT with flags: what the client got",
+                        priv->got, (const char *[]){
+                            "CONNACK 0",
+                            "PUBACK 1",
+                            "PUBACK 2",
+                            "PUBACK 3",
+                            "CLOSED",
+                            NULL
+                        }
+                    );
+                    break;
+                case 4:
+                    expect(gobj, "4. three QoS 1 PUBLISH, the marker and a malformed packet: what the client got",
+                        priv->got, (const char *[]){
+                            "CONNACK 0",
+                            "PUBACK 1",
+                            "PUBACK 2",
+                            "PUBACK 3",
+                            "PUBACK 4",
+                            "CLOSED",
+                            NULL
+                        }
+                    );
+                    break;
+                case 5:
+                    expect(gobj, "5. MQTT 5, three QoS 1 PUBLISH and a DISCONNECT with flags: what the client got",
+                        priv->got, (const char *[]){
+                            "CONNACK 0",
+                            "PUBACK 1",
+                            "PUBACK 2",
+                            "PUBACK 3",
+                            "DISCONNECT 130",
+                            "CLOSED",
+                            NULL
+                        }
+                    );
+                    break;
+            }
+            if(priv->phase != 1 && priv->phase != 2) {
+                expect(gobj, "3-5. what the gate took",
                     priv->taken, (const char *[]){
                         "MSG tele/x/SENSOR r1",
                         "MSG tele/x/SENSOR r2",
@@ -450,34 +566,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                         NULL
                     }
                 );
-                priv->phase = 2;
+            }
+            if(priv->phase < 5) {
+                priv->phase++;
+                priv->mqtt5 = (priv->phase == 5);
                 priv->cut = FALSE;
                 gobj_start(priv->client);
                 set_timeout(priv->timer, 2000);
-            } else {
-                expect(gobj, "2. two SUBSCRIBE, the second one cut: what the client got",
-                    priv->got, (const char *[]){
-                        "CONNACK 0",
-                        "SUBACK 5 0",
-                        "SUBACK 6 128",
-                        "CLOSED",
-                        NULL
-                    }
-                );
-                expect(gobj, "2. two SUBSCRIBE, the second one cut: what the gate took",
-                    priv->taken, (const char *[]){
-                        "SUB a/b",
-                        NULL
-                    }
-                );
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INFO,
-                    "msg",          "%s", "TEST: gate cut done",
-                    NULL
-                );
-                set_yuno_must_die();
+                break;
             }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TEST: gate cut done",
+                NULL
+            );
+            set_yuno_must_die();
             break;
 
         default:
