@@ -55,6 +55,7 @@ PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *answer_broker_not_playing(hgobj gobj, json_t *kw);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -136,7 +137,7 @@ SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-
 
 SDATA (DTP_JSON,    "deny_subscribes",  0,          0,          "JSON list of topic strings to deny subscription"),
 
-SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "Log options of a critical error of the broker (mqtt_persistent_db false): 2 = LOG_OPT_EXIT_ZERO, exit 0 so the agent does not restart it; 0 = stay up, not playing"),
+SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "Log options of a critical error of the broker (mqtt_persistent_db false): 2 = LOG_OPT_EXIT_ZERO, exit 0 so the agent does not restart it; 0 = stay up, not playing, and the commands that need the treedb answer -1 \"broker not playing\""),
 SDATA (DTP_STRING,  "__username__",     SDF_RD,     "",         "Username of the yuno: the authz of the commands this service sends to its C_TREEDB is asked with it (set before the open)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
@@ -461,6 +462,9 @@ static const json_desc_t devices_desc[] = { // HACK must match with gobj_service
 
 PRIVATE json_t *cmd_list_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *device_id = kw_get_str(gobj, kw, "device_id", "", 0);
     BOOL opened = kw_get_bool(gobj, kw, "opened", 0, KW_WILD_NUMBER);
@@ -511,6 +515,9 @@ PRIVATE json_t *cmd_list_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     return msg_iev_build_response(gobj,
@@ -527,6 +534,9 @@ PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, 
  ***************************************************************************/
 PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     return msg_iev_build_response(gobj,
@@ -543,6 +553,9 @@ PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, 
  ***************************************************************************/
 PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL shared = kw_get_bool(gobj, kw, "shared", 0, 0);
 
@@ -567,6 +580,9 @@ PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw,
  ***************************************************************************/
 PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
@@ -606,6 +622,9 @@ PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
@@ -666,6 +685,9 @@ PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
 
@@ -761,6 +783,9 @@ static const json_desc_t queues_desc[] = {
 
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *queue_name = kw_get_str(gobj, kw, "queue", "", 0);
     json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
@@ -897,6 +922,9 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    if(!gobj_read_bool_attr(gobj, "mqtt_persistent_db")) {
+        return answer_broker_not_playing(gobj, kw);
+    }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_queues = tranger2_list_topic_names(priv->tranger_queues);
@@ -1004,6 +1032,25 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
 
 
+
+/***************************************************************************
+ *  The answer of a command that needs the treedb, the input side or the
+ *  subscriptions, when the broker refused to start (mqtt_persistent_db
+ *  false with on_critical_error 0): it has none of them and never plays.
+ *  Up to 7.30.26 those commands answered as an empty broker, after ERRORs
+ ***************************************************************************/
+PRIVATE json_t *answer_broker_not_playing(hgobj gobj, json_t *kw)
+{
+    return msg_iev_build_response(gobj,
+        -1,
+        json_sprintf("%s: broker not playing (mqtt_persistent_db false is refused at start)",
+            gobj_yuno_role_plus_name()
+        ),
+        0,
+        0,
+        kw  // owned
+    );
+}
 
 /***************************************************************************
  *

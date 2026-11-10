@@ -180,7 +180,7 @@ Broker-level logic: client registration, subscription tree management, message r
 | `mqtt_service` | string | — | Service name (default: yuno_role) |
 | `mqtt_tenant` | string | — | Multi-tenant identifier (default: yuno_name) |
 | `deny_subscribes` | json | — | JSON list of denied topic filters |
-| `on_critical_error` | integer | 2 | Log options of the broker's critical error (2 = exit zero; 0 = stay up, not playing) |
+| `on_critical_error` | integer | 2 | Log options of the broker's critical error (2 = exit zero; 0 = stay up, not playing: its commands answer -1 "broker not playing") |
 | `timeout` | integer | 1000 | Periodic timer interval (ms) |
 
 **Commands:**

@@ -186,9 +186,14 @@ and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`).
 `test_mqtt_broker_no_db` (`main_broker_no_db.c` + `c_broker_no_db.c`) runs a
 `C_MQTT_BROKER` with `mqtt_persistent_db` false and `on_critical_error` 0:
 one CRITICAL *"mqtt_persistent_db false is not supported: ..."* at its start,
-the broker does not play, and nothing more is logged in the next two seconds
-(up to 7.30.26 it played without a treedb, refused every CONNECT and logged
-two ERRORs per tick). No port, no store.
+the broker does not play, its commands that need the treedb, the input side
+or the subscriptions (`list-channels`, `list-sessions`, `list-queues`,
+`normal-subs`, `shared-subs`, `flatten-subs`, `list-retains`,
+`remove-retains`, `clean-queues`) answer `-1` *"broker not playing"* with no
+ERROR while `help` answers `0`, and nothing more is logged in the next two
+seconds (up to 7.30.26 it played without a treedb, refused every CONNECT and
+logged two ERRORs per tick; its commands logged about 25 ERRORs and answered
+as an empty broker). No port, no store.
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
 after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.

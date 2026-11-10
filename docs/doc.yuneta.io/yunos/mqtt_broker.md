@@ -77,6 +77,20 @@ CRITICAL: {"gclass": "C_MQTT_BROKER", "msgset": "Parameter",
   "attribute": "mqtt_persistent_db"}
 ```
 
+With `on_critical_error` `0` the yuno stays up and the broker does not play.
+Its commands that read the treedb, the input side or the subscriptions
+(`list-channels`, `list-sessions`, `list-queues`, `normal-subs`,
+`shared-subs`, `flatten-subs`, `list-retains`, `remove-retains`,
+`clean-queues`) answer `-1` and log nothing; `help` and `authzs` still answer.
+Up to 7.30.26 they logged about 25 ERRORs and answered as an empty broker
+(*"Delete 0 retained messages"*):
+
+```text
+command-yuno id=<id> service=mqtt_broker command=list-sessions
+  -> {"result": -1,
+      "comment": "mqtt_broker^<name>: broker not playing (mqtt_persistent_db false is refused at start)"}
+```
+
 The queues' tranger is opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`: a
 CRITICAL of timeranger2 ends the broker. The periodic backup of a queue
 (`backup_queue_size` of `C_PROT_MQTT2`) is the exception: a backup whose new
@@ -146,7 +160,7 @@ json_t *jn_resp = gobj_command(priv->gobj_treedbs,
 | `deny_subscribes` | — | JSON list of topics for which SUBSCRIBE is refused |
 | `mqtt_service` | *(yuno_role)* | Service name (multi-service) |
 | `mqtt_tenant` | *(yuno_name)* | Tenant id (multi-tenant) |
-| `on_critical_error` | `2` | Log options of the broker's critical error (`mqtt_persistent_db` false): `2` = `LOG_OPT_EXIT_ZERO`, exit 0, no auto-restart; `0` = the yuno stays up and the broker does not play |
+| `on_critical_error` | `2` | Log options of the broker's critical error (`mqtt_persistent_db` false): `2` = `LOG_OPT_EXIT_ZERO`, exit 0, no auto-restart; `0` = the yuno stays up, the broker does not play and its commands answer `-1` *"broker not playing"* |
 | `__username__` | *(the yuno's)* | `SDF_RD`, not configured: the broker writes the yuno's `__username__` here before it opens its treedb, and `C_TREEDB` asks the permission of the broker's `open-treedb` / `close-treedb` with it (see [above](#mqtt-broker-treedb-user)) |
 
 Session limits are from [`C_AUTHZ`](#gclass-c-authz) (for example `Authz.max_sessions_per_user`,

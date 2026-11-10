@@ -10,6 +10,10 @@
  *          2, ends it with exit 0).
  *
  *          1. After the start, the broker is not playing.
+ *          1b. Its commands that need the treedb, the input side or the
+ *             subscriptions answer -1 "broker not playing", with no ERROR;
+ *             help still answers. Up to 7.30.26 they answered as an empty
+ *             broker ("Delete 0 retained messages") after 25 ERRORs.
  *          2. Two seconds later (two ticks of its timer, 1 s), nothing more
  *             was logged.
  *
@@ -144,6 +148,32 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
+/***************************************************************************
+ *  A command of the broker, and the result and comment it answers
+ ***************************************************************************/
+PRIVATE void check_command(hgobj gobj, hgobj broker, const char *command, int result, const char *comment)
+{
+    json_t *kw_response = gobj_command(broker, command, 0, gobj);
+    int got = (int)kw_get_int(gobj, kw_response, "result", -99, KW_REQUIRED);
+    const char *got_comment = kw_get_str(gobj, kw_response, "comment", "", 0);
+    if(got != result || !strstr(got_comment, comment)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: not what was expected",
+            "command",      "%s", command,
+            "result",       "%d", got,
+            "comment",      "%s", got_comment,
+            "expected",     "%s", comment,
+            NULL
+        );
+    }
+    JSON_DECREF(kw_response)
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -172,6 +202,22 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                         NULL
                     );
                 }
+                static const char *commands[] = {
+                    "list-channels",
+                    "list-sessions",
+                    "list-queues",
+                    "normal-subs",
+                    "shared-subs",
+                    "flatten-subs",
+                    "list-retains",
+                    "remove-retains",
+                    "clean-queues",
+                    NULL
+                };
+                for(int i=0; commands[i]; i++) {
+                    check_command(gobj, broker, commands[i], -1, "broker not playing");
+                }
+                check_command(gobj, broker, "help", 0, "");
                 set_timeout(priv->timer, 2500);
             }
             break;
