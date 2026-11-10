@@ -7165,11 +7165,11 @@ PRIVATE int handle__publish_s(
     }
 
     if(mqtt_pub_topic_check2(topic, slen)<0) {
-        /* Invalid publish topic, just swallow it. */
+        // A PUBLISH, not a will: up to 7.30.26 it said "Mqtt will: invalid topic"
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
-            "msg",          "%s", "Mqtt will: invalid topic",
+            "msg",          "%s", "Mqtt: invalid topic in PUBLISH, disconnecting",
             "topic",        "%s", topic,
             "mid",          "%d", (int)mid,
             "peername",     "%s", peer_of(gobj),
@@ -7516,6 +7516,18 @@ PRIVATE int handle__publish_c(
     uint8_t qos = (header & 0x06)>>1;   // shift of two bites -> possible values of 0,1,2,3
     BOOL retain = (header & 0x01);      // possible values of 0,1
 
+    if(dup == 1 && qos == 0) {
+        // As the server refuses it: up to 7.30.26 the client delivered it
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt: Invalid PUBLISH (QoS=0 and DUP=1), disconnecting",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "peername",     "%s", peer_of(gobj),
+            NULL
+        );
+        return MQTT_ERR_MALFORMED_PACKET;
+    }
     if(qos == 3) {
         // Up to 7.30.26 it was dropped without a word
         gobj_log_warning(gobj, 0,

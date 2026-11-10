@@ -66,6 +66,11 @@
  *              13. A CONNECT of MQTT 5 with properties and a will of QoS 2,
  *                  past max_qos: CONNACK 0x9B. Up to 7.30.26 its properties
  *                  leaked (the memory check at the end).
+ *          Fifth connection, MQTT 5:
+ *              14. A PUBLISH to a topic with a wildcard: DISCONNECT 0x81, and
+ *                  the WARNING says what it is, "Mqtt: invalid topic in
+ *                  PUBLISH, disconnecting". Up to 7.30.26 it said "Mqtt will:
+ *                  invalid topic", as if it were a will.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -808,6 +813,27 @@ PRIVATE void run_connection_d(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The fifth connection: a PUBLISH to a topic with a wildcard
+ ***************************************************************************/
+PRIVATE void run_connection_e(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint8_t bf[64];
+
+    peer_connect(gobj, "lim_e");
+    size_t n = build_publish(bf, 0, 0, "a/+", (const uint8_t *)"x", 1, 0);
+    peer_sends(gobj, bf, n);
+    gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the client closes
+    expect(gobj, "14. a PUBLISH to a topic with a wildcard", (const char *[]){
+        "OPEN lim_e",
+        "CONNACK 0 maxqos=1",
+        "DISCONNECT 129",
+        "CLOSE lim_e",
+        NULL
+    });
+}
+
+/***************************************************************************
  *  The third connection
  ***************************************************************************/
 PRIVATE void run_connection_c(hgobj gobj)
@@ -856,6 +882,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 4:
             run_connection_d(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        case 5:
+            run_connection_e(gobj);
             set_timeout(priv->timer, 100);
             break;
 

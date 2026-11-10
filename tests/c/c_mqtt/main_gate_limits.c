@@ -129,16 +129,16 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     /*------------------------------------------------*
-     *  Safety: kill the yuno after 10 s if stuck
+     *  Safety: kill the yuno after 20 s if stuck
      *------------------------------------------------*/
-    set_auto_kill_time(10);
+    set_auto_kill_time(20);
 
     /*------------------------------*
      *  Capture only errors
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Mqtt: Dropped too large PUBLISH",                               // 2. once
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused", // 4.
             "msg", "The upper level did not answer one reason code per filter",     // 6.
@@ -147,7 +147,8 @@ static int register_yuno_and_more(void)
             "msg", "Mqtt: the connection is closing, message not sent",             // 9.
             "msg", "Mqtt: Dropped too large PUBLISH",                               // 10a.
             "msg", "Mqtt: client_id cannot be '.' or '..'",                         // 12.
-            "msg", "Mqtt: Unsupporred Will QoS in CONNECT"                          // 13.
+            "msg", "Mqtt: Unsupporred Will QoS in CONNECT",                         // 13.
+            "msg", "Mqtt: invalid topic in PUBLISH, disconnecting"                  // 14.
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

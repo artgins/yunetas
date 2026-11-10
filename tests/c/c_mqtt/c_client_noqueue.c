@@ -53,6 +53,9 @@
  *                 dump, and no EV_ON_CLOSE.
  *             13. Without queues, a second CONNACK in session: as 8. Up to
  *                 7.30.26 the user heard EV_ON_OPEN again.
+ *             14. A PUBLISH of QoS 0 with DUP set: malformed (WARNING,
+ *                 DISCONNECT 0x81), as the server refuses it. Up to 7.30.26
+ *                 the client delivered it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -677,6 +680,32 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
                 expect(gobj, "13. without queues, a second CONNACK", (const char *[]){
                     "DISCONNECT 130",
+                    "CLOSE",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 9:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x00);
+                expect(gobj, "14a. in session", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "OPEN",
+                    NULL
+                });
+                static const uint8_t dup_qos0[] = {
+                    0x38, 0x09,             // PUBLISH, DUP 1, QoS 0
+                    0x00, 0x03, 't', '/', 'd',
+                    0x00,                   // properties length
+                    'd', 'u', 'p'
+                };
+                broker_sends(gobj, dup_qos0, sizeof(dup_qos0));
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "14. a PUBLISH of QoS 0 with DUP", (const char *[]){
+                    "DISCONNECT 129",
                     "CLOSE",
                     NULL
                 });

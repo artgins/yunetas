@@ -153,6 +153,8 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
     ERROR *"Mqtt proplist NULL"*).
 13. An MQTT 5 CONNECT with properties and a will of QoS 2, past `max_qos`:
     CONNACK `0x9B`, and no leak (its properties were not freed).
+14. A PUBLISH to `a/+`: DISCONNECT `0x81`, and the WARNING *"Mqtt: invalid
+    topic in PUBLISH, disconnecting"* (it said *"Mqtt will: invalid topic"*).
 
 `test_mqtt_client_noqueue` (`main_client_noqueue.c` + `c_client_noqueue.c`)
 drives `C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with
@@ -172,7 +174,8 @@ queues and without (the queues were opened again and their first handles
 leaked; the user heard `EV_ON_OPEN` again); a DISCONNECT with properties and
 a PUBLISH behind it in the same read: the PUBLISH is not delivered and the
 properties are freed (delivered, leaked); a PUBLISH of QoS 3 and one to
-`a/#/+`: DISCONNECT `0x81` (dropped in silence; delivered); a CONNACK of
+`a/#/+`: DISCONNECT `0x81` (dropped in silence; delivered); a PUBLISH of QoS
+0 with DUP: DISCONNECT `0x81` (delivered); a CONNACK of
 MQTT 5 that refuses (`0x87`): the user hears `EV_ON_CLOSE` with the reason
 and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`).
 

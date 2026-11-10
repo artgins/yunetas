@@ -40,8 +40,9 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
     - a second CONNACK in the session: a protocol error, DISCONNECT `0x82`
       (MQTT 5; in 3.1.1 a DISCONNECT has no reason code), then the close. The queues are not opened again and
       the user does not hear `EV_ON_OPEN` again;
-    - a PUBLISH of QoS 3, or whose topic has a wildcard (`a/#/+`), empty or
-      of more than 200 levels: malformed, DISCONNECT `0x81` (MQTT 5);
+    - a PUBLISH of QoS 3, of QoS 0 with DUP set, or whose topic has a
+      wildcard (`a/#/+`), is empty or has more than 200 levels: malformed,
+      DISCONNECT `0x81` (MQTT 5);
     - a DISCONNECT of the broker is its last packet: nothing after it in the
       same read is processed (a PUBLISH behind it is not delivered), and its
       properties are freed (up to 7.30.26 they leaked).
@@ -163,6 +164,11 @@ subscriptions of a session that a broker restores are not counted.
   `0x95`), and the WARNING *"Mqtt: Dropped too large PUBLISH"* says it once
   per connection, with the limit and the size. Up to 7.30.26 it was one per
   PUBLISH: 16 000 WARNINGs and 11 MB of log for 1 GB sent.
+
+**A PUBLISH whose topic has a wildcard** (`a/+`), is empty or has more than
+200 levels is malformed: the WARNING *"Mqtt: invalid topic in PUBLISH,
+disconnecting"* names the topic, then DISCONNECT `0x81` (MQTT 5). Up to
+7.30.26 that WARNING said *"Mqtt will: invalid topic"*, as if it were a will.
 
 **A DISCONNECT of the client is its last packet** (MQTT 5 3.14.4): nothing
 the client sends after it is processed, and the server waits for the client
