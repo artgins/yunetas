@@ -21,8 +21,10 @@
  *                 QoS 1 or 2 PUBLISH (max_qos went to 0 at the CONNACK and
  *                 the client was disconnected).
  *              3. A PUBREL, PUBACK, PUBREC and PUBCOMP of packet ids the
- *                 server never used: answered or said, never a crash. Up to
- *                 7.30.25 each one walked the NULL queue (SIGSEGV).
+ *                 server never used: answered, and said once (one WARNING
+ *                 per connection), never a crash. Up to 7.30.25 each one
+ *                 walked the NULL queue (SIGSEGV); up to 7.30.26 each one
+ *                 was a WARNING.
  *              4. SUBSCRIBE of 5 filters: the one longer than 16 bytes and
  *                 the one past 3 are refused (0x80), the rest granted in
  *                 QoS 0 (without queues the server sends QoS 0 only). A

@@ -33,6 +33,11 @@
  *                 the publish, shared by every layer that published it: up
  *                 to 918c3d687 the treedb took its gbuffer from under them
  *                 and the payload leaked (the memory check at the end).
+ *              5. will_deny, an MQTT 3.1 client (MQIsdp, level 3),
+ *                 subscribes `denied/topic`, a topic of the broker's
+ *                 `deny_subscribes`: the SUBACK must refuse it (0x80). Up
+ *                 to 7.30.26 a client of MQTT 3.1 got the QoS it asked
+ *                 for, as if granted.
  *
  *          Each step waits for the packet it depends on (CONNACK, SUBACK,
  *          PUBACK, the PUBLISH that the subscriber gets), read from the
@@ -59,6 +64,7 @@
 
 #define RETAINED_TOPIC  "allowed/retained"
 #define RETAINED_DATA   "kept"
+#define DENIED_TOPIC    "denied/topic"  // in the broker's deny_subscribes (main_will_acl.c)
 
 /*
  *  The clients, and the index of each one's transport and receive buffer
@@ -69,11 +75,12 @@ typedef enum {
     CL_OK,          // will_ok: a will to an allowed topic
     CL_RET,         // will_ret: publishes a retained message
     CL_LATE,        // will_late: subscribes the retained topic
+    CL_DENY,        // will_deny: MQTT 3.1, subscribes a topic of deny_subscribes
     CL_MAX
 } client_t;
 
 PRIVATE const char *client_ids[CL_MAX] = {
-    "will_sub", "will_bad", "will_ok", "will_ret", "will_late"
+    "will_sub", "will_bad", "will_ok", "will_ret", "will_late", "will_deny"
 };
 
 /*
@@ -121,6 +128,7 @@ typedef struct _PRIVATE_DATA {
     int got_forbidden;      // PUBLISH of `forbidden/will` that will_sub got
     int got_allowed;        // PUBLISH of `allowed/will` that will_sub got
     int got_retained;       // retained PUBLISH of RETAINED_TOPIC, with its payload, that will_late got
+    int deny_code;          // the SUBACK code will_deny got for DENIED_TOPIC, -1 none
 } PRIVATE_DATA;
 
 
@@ -141,6 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->deny_code = -1;
     for(int cl = 0; cl < CL_MAX; cl++) {
         priv->tcp[cl] = gobj_create(client_ids[cl], C_TCP, json_pack("{s:s}", "url", BROKER_URL), gobj);
         priv->rx[cl] = gbuffer_create(1024, 1024);
@@ -279,6 +288,26 @@ PRIVATE void send_connect(hgobj gobj, hgobj gobj_tcp, const char *client_id, con
         bf[n++] = (uint8_t)(len_payload >> 8); bf[n++] = (uint8_t)(len_payload & 0xFF);
         memcpy(bf + n, will_payload, len_payload); n += len_payload;
     }
+    send_bytes(gobj, gobj_tcp, bf, n);
+}
+
+/***************************************************************************
+ *  CONNECT, MQTT 3.1 (protocol name MQIsdp, level 3), clean session
+ ***************************************************************************/
+PRIVATE void send_connect31(hgobj gobj, hgobj gobj_tcp, const char *client_id)
+{
+    uint8_t bf[128];
+    size_t len_id = strlen(client_id);
+    size_t n = 0;
+    bf[n++] = 0x10;                     // CONNECT
+    bf[n++] = (uint8_t)(12 + 2 + len_id);
+    bf[n++] = 0x00; bf[n++] = 0x06;
+    memcpy(bf + n, "MQIsdp", 6); n += 6;
+    bf[n++] = 0x03;                     // protocol level 3.1
+    bf[n++] = 0x02;                     // clean session
+    bf[n++] = 0x00; bf[n++] = 0x3C;     // keep alive 60 s
+    bf[n++] = (uint8_t)(len_id >> 8); bf[n++] = (uint8_t)(len_id & 0xFF);
+    memcpy(bf + n, client_id, len_id); n += len_id;
     send_bytes(gobj, gobj_tcp, bf, n);
 }
 
@@ -438,6 +467,12 @@ PRIVATE void finish(hgobj gobj)
             priv->got_retained, 1
         );
     }
+    if(priv->deny_code != 0x80) {
+        test_error(gobj,
+            "TEST: a topic of deny_subscribes was not refused to an MQTT 3.1 client",
+            priv->deny_code, 0x80
+        );
+    }
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
@@ -445,6 +480,7 @@ PRIVATE void finish(hgobj gobj)
         "forbidden",    "%d", priv->got_forbidden,
         "allowed",      "%d", priv->got_allowed,
         "retained",     "%d", priv->got_retained,
+        "deny_code",    "%d", priv->deny_code,
         NULL
     );
     for(int cl = 0; cl < CL_MAX; cl++) {
@@ -546,6 +582,22 @@ PRIVATE void on_packet(hgobj gobj, client_t cl, uint8_t first, const uint8_t *v,
                         (int)first, 0x31
                     );
                 }
+                /*
+                 *  5. A topic of deny_subscribes, to an MQTT 3.1 client
+                 */
+                gobj_stop(priv->tcp[CL_LATE]);
+                start_client(gobj, CL_DENY, "the CONNACK of will_deny");
+            }
+            break;
+
+        case CL_DENY:
+            if(type == PKT_CONNACK) {
+                const char *topics[] = {DENIED_TOPIC};
+                priv->waiting = "the SUBACK of will_deny";
+                send_subscribe(gobj, priv->tcp[CL_DENY], topics, 1);
+
+            } else if(type == PKT_SUBACK) {
+                priv->deny_code = len >= 3? v[2] : -1;    // packet id, then one code
                 finish(gobj);
             }
             break;
@@ -733,7 +785,11 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else if(cl == CL_OK) {
             will_topic = "allowed/will";
         }
-        send_connect(gobj, priv->tcp[cl], client_ids[cl], will_topic);
+        if(cl == CL_DENY) {
+            send_connect31(gobj, priv->tcp[cl], client_ids[cl]);
+        } else {
+            send_connect(gobj, priv->tcp[cl], client_ids[cl], will_topic);
+        }
     }
 
     KW_DECREF(kw)

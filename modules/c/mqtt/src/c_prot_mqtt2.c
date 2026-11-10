@@ -401,6 +401,9 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_subscriptions;       // server: filters held on this connection (filter -> true)
     BOOL subscriptions_capped;      // server: max_subscriptions_per_client said on this connection
     BOOL filters_capped;            // server: max_topic_filter_length said on this connection
+    BOOL unknown_ack_said;          // an ack of an unknown packet id said on this connection
+    BOOL disconnect_received;       // server: the client's DISCONNECT read, nothing after it is
+    BOOL send_closing_said;         // a message refused while closing said on this connection
     json_t *jn_qos2_in_mids;        // server without queues: QoS 2 packet ids waiting for PUBREL
 } PRIVATE_DATA;
 
@@ -1379,11 +1382,13 @@ PRIVATE int db__message_delete_outgoing(
 
         db__message_remove_from_inflight(gobj, trq, qmsg);
 
-    } else {
+    } else if(!priv->unknown_ack_said) {
         /*
          *  An ack of an unknown packet id: the peer's (mosquitto says it
-         *  and goes on)
+         *  and goes on). Said once per connection: up to 7.30.26 once per
+         *  ack, without a limit
          */
+        priv->unknown_ack_said = TRUE;
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -1482,13 +1487,14 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
             qmsg
         );
         deleted = TRUE;
-    } else {
+    } else if(!priv->unknown_ack_said) {
         /*
          *  A PUBREL of a packet id with no QoS 2 message waiting: the
          *  peer's (a PUBREL repeated after a reconnection, or one of a QoS
          *  1 message). It is still answered with PUBCOMP. Up to 7.25.20 it
-         *  was an ERROR with a stack trace.
+         *  was an ERROR with a stack trace. Said once per connection.
          */
+        priv->unknown_ack_said = TRUE;
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT,
@@ -3901,9 +3907,14 @@ PRIVATE int send__connack(
             );
         }
 
-        if(priv->max_qos != 2) {
-            mqtt_property_add_int16(
-                gobj, connack_props, MQTT_PROP_MAXIMUM_QOS, priv->max_qos
+        if(reason_code < 128 && priv->max_qos != 2) {
+            /*
+             *  A byte property: up to 7.30.26 the int16 adder refused it (an
+             *  ERROR per CONNECT, the limit not announced), and a refusal,
+             *  with no properties, logged "Mqtt proplist NULL"
+             */
+            mqtt_property_add_byte(
+                gobj, connack_props, MQTT_PROP_MAXIMUM_QOS, (uint8_t)priv->max_qos
             );
         }
 
@@ -4650,7 +4661,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
-            return -1;
+            return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
         }
         protocol_version = mosq_p_mqtt31;
         if((version_byte & 0x80) == 0x80) {
@@ -4675,7 +4686,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
-            return -1;
+            return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
         }
         if(priv->frame_head.flags != 0x00) {
             /* Reserved flags not set to 0, must disconnect. */
@@ -4716,7 +4727,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             NULL
         );
         send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*-------------------------------------------*
@@ -4829,7 +4840,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         if(version_byte == mosq_p_mqtt5) {
             send__connack(gobj, 0, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
         }
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     gobj_write_bool_attr(gobj, "clean_start", clean_start);
@@ -4875,7 +4886,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "peername",     "%s", peer_of(gobj),
             NULL
         );
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     // TODO Auth method not supported by now
@@ -4947,7 +4958,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             );
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
             JSON_DECREF(connect_properties);
-            return -1;
+            return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
 
         } else { /* mqtt311/mqtt5 */
             client_id = NULL;
@@ -4966,7 +4977,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                     send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
                 }
                 JSON_DECREF(connect_properties);
-                return -1;
+                return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
             } else {
                 const char *auto_prefix = "auto-";
                 snprintf(uuid, sizeof(uuid), "%s", auto_prefix);
@@ -5020,7 +5031,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     if(memchr(client_id, '/', client_id_len)) {
@@ -5038,7 +5049,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     if(memchr(client_id, '`', client_id_len)) {
@@ -5056,7 +5067,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     if((client_id_len == 1 && client_id[0] == '.') ||
@@ -5075,7 +5086,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
         }
         JSON_DECREF(connect_properties);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*-------------------------------------------*
@@ -5202,7 +5213,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         );
         send__connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
         JSON_DECREF(connect_properties);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*---------------------------------------------*
@@ -5245,7 +5256,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
         JSON_DECREF(auth)
         JSON_DECREF(connect_properties);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     /*--------------------------------------------------*
@@ -5422,7 +5433,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
 
         JSON_DECREF(connack_props);
-        return -1;
+        return MOSQ_ERR_CONN_REFUSED;    // refused by policy, not malformed
     }
 
     uint8_t connect_ack = 0;
@@ -5664,6 +5675,15 @@ PRIVATE int handle__connack(
                 priv->timer_ping = start_sectimer(priv->keepalive);
             }
 
+            /*
+             *  Without queues QoS 0 only, said before EV_ON_OPEN: its
+             *  subscriber may publish at once. Up to 7.30.26 it was said
+             *  after, and a QoS 1 or 2 publish went to the NULL queue
+             */
+            if(!priv->tranger_queues) {
+                gobj_write_integer_attr(gobj, "max_qos", 0);
+            }
+
             priv->inform_on_close = TRUE;
             gobj_publish_event( // To client user
                 gobj,
@@ -5677,8 +5697,6 @@ PRIVATE int handle__connack(
             if(priv->tranger_queues) {
                 open_queues(gobj);
                 message__release_to_inflight(gobj, mosq_md_out, TRUE);
-            } else {
-                gobj_write_integer_attr(gobj, "max_qos", 0);
             }
 
             return MOSQ_ERR_SUCCESS;
@@ -5758,7 +5776,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
     if(properties) {
         json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
-        int session_expiry_interval = (int)kw_get_int(gobj, property, "value", -1, 0);
+        int session_expiry_interval = property? (int)kw_get_int(gobj, property, "value", -1, 0) : -1;
         if(session_expiry_interval != -1) {
             if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
                 JSON_DECREF(properties)
@@ -5813,7 +5831,10 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
      *  Instead, let the read continue: the client will send FIN and the next
      *  recv returns EOF/EPIPE, which triggers try_to_stop_yevents() naturally.
      *  The keepalive timer provides a safety net for misbehaving clients.
+     *  But a DISCONNECT is the last packet of the client (MQTT 5 3.14.4):
+     *  nothing after it is read. Up to 7.30.26 the server went on reading
      */
+    priv->disconnect_received = TRUE;
     return 0;
 }
 
@@ -5950,7 +5971,8 @@ PRIVATE gbuffer_t *build_suback_payload(
         );
     }
 
-    gbuffer_t *gbuf_payload = gbuffer_create(json_array_size(jn_codes) + 1, 12*1024);
+    size_t n_codes = json_array_size(jn_codes);
+    gbuffer_t *gbuf_payload = gbuffer_create(n_codes, n_codes);
     if(!gbuf_payload) {
         // Error already logged
         return NULL;
@@ -6236,12 +6258,13 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
     /*
      *  The filters the protocol did not refuse go to the upper level (the
-     *  broker), which writes one reason code for each in gbuf_upper
+     *  broker), which writes one reason code for each in gbuf_upper: sized
+     *  for them, as many as the packet carries (up to 7.30.26 it held 12 KB)
      */
     size_t n_upper = json_array_size(jn_list);
     gbuffer_t *gbuf_upper = NULL;
     if(n_upper > 0) {
-        gbuf_upper = gbuffer_create(256, 12*1024);
+        gbuf_upper = gbuffer_create(n_upper, n_upper);
         gbuffer_incref(gbuf_upper); // Avoid be destroyed, get it the response
 
         json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I, s:i}",
@@ -6485,7 +6508,12 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 
     JSON_DECREF(properties); // Free unsubscribe command properties
 
-    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
+    /*
+     *  One reason code per filter, written by the upper level: sized for
+     *  them, as many as the packet carries (up to 7.30.26 it held 12 KB)
+     */
+    size_t n_filters = json_array_size(jn_list);
+    gbuffer_t *gbuf_payload = gbuffer_create(n_filters, n_filters);
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
     json_t *kw_unsubscribe = json_pack("{s:s, s:i, s:o, s:I, s:i}",
@@ -6510,6 +6538,22 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     if(rc < 0) {
         gbuffer_decref(gbuf_payload);
         return -1;
+    }
+
+    size_t got = gbuffer_leftbytes(gbuf_payload);
+    if(got != n_filters) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "The upper level did not answer one reason code per filter",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "filters",      "%d", (int)n_filters,
+            "codes",        "%d", (int)got,
+            NULL
+        );
+        while(gbuffer_leftbytes(gbuf_payload) < n_filters) {
+            gbuffer_append_char(gbuf_payload, MQTT_RC_UNSPECIFIED);
+        }
     }
 
     return send__unsuback(
@@ -7029,7 +7073,7 @@ PRIVATE int handle__publish_s(
                 "msgset",           "%s", MSGSET_MQTT,
                 "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
                 "client_id",        "%s", priv->client_id,
-                "topic",            "%d", topic,
+                "topic",            "%s", SAFE_PRINT(topic),
                 "mid",          "%d", (int)mid,
                 "peername",     "%s", peer_of(gobj),
                 NULL
@@ -7129,7 +7173,8 @@ PRIVATE int handle__publish_s(
         message_expiry_interval,
         mosquitto_time()
     );
-    payload = NULL; // owned by kw_mqtt_msg
+    payload = NULL;     // owned by kw_mqtt_msg
+    properties = NULL;  // owned by kw_mqtt_msg
 
     uint16_t user_flag = mosq_mo_client | mosq_md_in;
     if(qos == 1) {
@@ -7319,6 +7364,7 @@ process_bad_message:
 
     GBUFFER_DECREF(payload)
     GBMEM_FREE(topic)
+    JSON_DECREF(properties)     // not yet owned by a message: up to 7.30.26 it leaked
     KW_DECREF(kw_mqtt_msg)
     return rc;
 }
@@ -7534,6 +7580,7 @@ PRIVATE int handle__publish_c(
         if(mqtt_read_bytes(gobj, gbuf, pwr, (int)payloadlen)) {
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
+            GBUFFER_DECREF(payload)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         gbuffer_set_wr(payload, payloadlen);
@@ -7558,6 +7605,7 @@ PRIVATE int handle__publish_c(
         expiry_interval,
         mosquitto_time()
     );
+    payload = NULL;     // owned by kw_mqtt_msg: up to 7.30.26 the QoS 2 refusal below released it twice
 
     uint16_t user_flag = mosq_mo_broker | mosq_md_in;
     if(qos == 1) {
@@ -7600,9 +7648,21 @@ PRIVATE int handle__publish_c(
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
-            /* Client exceeded the server's receive-maximum, disconnect */
-            GBUFFER_DECREF(payload)
-            GBMEM_FREE(topic)
+            /*
+             *  Past the receive maximum, or a client without queues, which
+             *  cannot keep a QoS 2 message until its PUBREL
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", priv->trq_in_msgs?
+                    "Mqtt: QoS 2 PUBLISH past the receive maximum, disconnecting" :
+                    "Mqtt: QoS 2 PUBLISH without queues, disconnecting",
+                "client_id",    "%s", SAFE_PRINT(priv->client_id),
+                "mid",          "%d", (int)mid,
+                "peername",     "%s", peer_of(gobj),
+                NULL
+            );
             KW_DECREF(kw_mqtt_msg)
             ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
             return 0; // ws_close already sent DISCONNECT, don't trigger another
@@ -8069,15 +8129,18 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(rc == MOSQ_ERR_NOT_FOUND) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT,
-            "msg",          "%s", "Mqtt: Received PUBREC for an unknown packet ID",
-            "client_id",    "%s", priv->client_id,
-            "mid",          "%d", mid,
-            "peername",     "%s", peer_of(gobj),
-            NULL
-        );
+        if(!priv->unknown_ack_said) {   // once per connection
+            priv->unknown_ack_said = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", "Mqtt: Received PUBREC for an unknown packet ID",
+                "client_id",    "%s", priv->client_id,
+                "mid",          "%d", mid,
+                "peername",     "%s", peer_of(gobj),
+                NULL
+            );
+        }
     } else if(rc != MOSQ_ERR_SUCCESS) {
         return rc;
     }
@@ -8459,6 +8522,7 @@ PRIVATE int framehead_consume(
         data = istream_extract_matched_data(istream, 0);
         unsigned char byte = *data;
         frame->frame_length += (byte & 0x7F) * (1*128);
+        frame->must_read_remaining_length_2 = 0;    // read: up to 7.30.26 a later call read it again
         if(byte & 0x80) {
             frame->must_read_remaining_length_3 = 1;
         }
@@ -8479,6 +8543,7 @@ PRIVATE int framehead_consume(
         data = istream_extract_matched_data(istream, 0);
         unsigned char byte = *data;
         frame->frame_length += (byte & 0x7F) * (128*128);
+        frame->must_read_remaining_length_3 = 0;
         if(byte & 0x80) {
             frame->must_read_remaining_length_4 = 1;
         }
@@ -8499,6 +8564,7 @@ PRIVATE int framehead_consume(
         data = istream_extract_matched_data(istream, 0);
         unsigned char byte = *data;
         frame->frame_length += (byte & 0x7F) * (128*128*128);
+        frame->must_read_remaining_length_4 = 0;
         if(byte & 0x80) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -8759,7 +8825,11 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             break;
     }
 
-    if(ret < 0 && gbuf) {
+    if(ret < 0 && ret != MOSQ_ERR_CONN_REFUSED && gbuf) {
+        /*
+         *  A CONNECT refused by policy (its CONNACK says why) is not
+         *  malformed: up to 7.30.26 it was dumped as such
+         */
         dump_malformed_frame(gobj, frame->command, gbuf);
     }
 
@@ -8921,6 +8991,9 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     JSON_DECREF(priv->jn_qos2_in_mids)
     priv->subscriptions_capped = FALSE;
     priv->filters_capped = FALSE;
+    priv->unknown_ack_said = FALSE;
+    priv->disconnect_received = FALSE;
+    priv->send_closing_said = FALSE;
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
 
@@ -9127,6 +9200,11 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
     FRAME_HEAD *frame = &priv->frame_head;
     istream_h istream = priv->istream_frame;
 
+    if(priv->disconnect_received) {
+        KW_DECREF(kw)   // bytes after the client's DISCONNECT: not read
+        return 0;
+    }
+
     clear_timeout(priv->gobj_timer);
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
@@ -9136,7 +9214,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
         );
     }
 
-    while(gbuffer_leftbytes(gbuf)) {
+    while(gbuffer_leftbytes(gbuf) && !priv->disconnect_received) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = framehead_consume(gobj, frame, istream, bf, ln);
@@ -9313,6 +9391,23 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw_mqtt_msg,
      *   Get info of message
      *------------------------*/
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
+    if(mqtt_pub_topic_check2(topic, strlen(topic))<0) {
+        /*
+         *  A wildcard, an empty topic, too many levels: not a topic a
+         *  PUBLISH can carry [MQTT-3.3.2-2]. Up to 7.30.26 it was sent
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt publish: topic invalid",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "topic",        "%s", topic,
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+        KW_DECREF(kw_mqtt_msg)
+        return -1;
+    }
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
     );
@@ -9979,6 +10074,51 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  A drop of a connection that is closing: its DISCONNECT sent, waiting
+ *  timeout_close for the transport to go. It is dropped now. Out of a session there is nothing to drop: the
+ *  transport was dropped when the session ended, or never connected.
+ *  Up to 7.30.26 it was "Event NOT DEFINED": a gate that takes a client
+ *  id over sent it to every connection of that id still closing.
+ ***************************************************************************/
+PRIVATE int ac_drop_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->in_session) {
+        send_drop(gobj, 0);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  A message to a connection that is closing: refused, said once per
+ *  connection. Up to 7.30.26 it was "Event NOT DEFINED", once per message
+ ***************************************************************************/
+PRIVATE int ac_send_message_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->send_closing_said) {
+        priv->send_closing_said = TRUE;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Mqtt: the connection is closing, message not sent",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "topic",        "%s", kw_get_str(gobj, kw, "topic", "", 0),
+            "peername",     "%s", peer_of(gobj),
+            "src",          "%s", gobj_short_name(src),
+            NULL
+        );
+    }
+
+    KW_DECREF(kw)
+    return -1;
+}
+
+/***************************************************************************
  *  Child stopped
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -10045,8 +10185,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
         {EV_RX_DATA,            0,                                  0},
+        {EV_SEND_MESSAGE,       ac_send_message_closing,            0},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
         {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
+        {EV_DROP,               ac_drop_closing,                    0},
         {EV_STOPPED,            ac_stopped,                         0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}

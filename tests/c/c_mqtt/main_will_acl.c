@@ -101,7 +101,8 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'enable_new_clients': false,                        \n\
-                'enable_acl': true                                  \n\
+                'enable_acl': true,                                 \n\
+                'deny_subscribes': ['denied/topic']                 \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\

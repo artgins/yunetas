@@ -61,6 +61,8 @@ SET(SRCS
     gate_prot
     client_pubrec
     will_acl
+    gate_limits
+    client_noqueue
 )
 
 ##############################################

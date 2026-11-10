@@ -22,7 +22,10 @@ PUBLISH the subscriber gets); the timer is only a guard that names the step
 that did not come. The memory check at the end caught a second defect: each
 CONNECT with a will, and each retained PUBLISH with a payload, leaked its
 payload (`C_NODE` handed the treedb the event's shared kw, whose `gbuffer` the
-treedb takes; red: 3 x 357 bytes not freed).
+treedb takes; red: 3 x 357 bytes not freed). Last, `will_deny`, an MQTT 3.1
+client (`MQIsdp`, level 3), subscribes `denied/topic`, in the broker's
+`deny_subscribes`: the SUBACK must say `0x80`. Up to 7.30.26 a 3.1 client got
+the QoS it asked for, as if granted (red: code 0).
 
 The leak checks of these tests (*"system memory not free"* at the end) work
 only in a build with `CONFIG_DEBUG_TRACK_MEMORY`; where it is off (the nodes'
@@ -96,8 +99,8 @@ client. On a `C_FAKE_TRANSPORT`, with the packets written by hand:
 2. PUBLISH QoS 0, 1 and 2, each delivered once (PUBACK, PUBREC); the QoS 2
    sent again with DUP before its PUBREL gets PUBREC and is not delivered
    again; its PUBREL gets PUBCOMP.
-3. A PUBREL, PUBACK, PUBREC and PUBCOMP of ids the server never used: PUBCOMP,
-   a WARNING, PUBREL, a WARNING. No crash.
+3. A PUBREL, PUBACK, PUBREC and PUBCOMP of ids the server never used: PUBCOMP
+   and PUBREL, one WARNING for the connection. No crash.
 4. SUBSCRIBE of 5 filters: the one of 22 bytes and the one past 3 get `0x80`,
    the others QoS 0; a filter held is granted again and not counted; an
    UNSUBSCRIBE makes room.
@@ -109,6 +112,48 @@ client. On a `C_FAKE_TRANSPORT`, with the packets written by hand:
 
 No log of an ACL (there is no broker). Up to 7.30.25: CONNACK 5 (the CONNECT
 was authenticated against the broker's treedb) and nothing else.
+
+`test_mqtt_gate_limits` (`main_gate_limits.c` + `c_gate_limits.c`) is what a
+peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
+`max_subscriptions_per_client` 3, `message_size_limit` 16, `max_packet_size`
+70000, `max_qos` 1 and `timeout_close` 2 s. Every line was red on 7.30.26:
+
+1. MQTT 5 CONNACK carries Maximum QoS 1 (it was not sent, and an ERROR
+   *"Mqtt property int16 unknown"* was logged).
+2. A QoS 1 PUBLISH with three user properties past `message_size_limit`:
+   PUBACK `0x95`, and no leak (its properties were not freed: the memory check
+   at the end).
+3. A SUBSCRIBE of 13000 copies of `a`: all go up, 13000 codes in the SUBACK
+   (a 12 KB buffer: 8426 pairs of ERRORs and a SUBACK of mixed codes).
+4. A filter the upper level refuses (`0x87`) is not held: two filters more fit
+   under 3, the third gets `0x97`.
+5. An UNSUBSCRIBE of 20000 filters: 20000 codes in the UNSUBACK (12287).
+6. The upper level writes no code for one filter: ERROR *"The upper level did
+   not answer one reason code per filter"*, and `0x80` for it (the UNSUBACK
+   was short of a code, and nothing was said).
+7. `EV_SEND_MESSAGE` to `cmnd/x/#`: `-1` and an ERROR (it was published).
+8. Five acks of unknown packet ids: one WARNING (five).
+9. `EV_DROP` with `session_take_over`: DISCONNECT `0x8E`. Then, while the
+   connection is closing, `EV_SEND_MESSAGE` is `-1` (twice, one WARNING) and another
+   `EV_DROP` drops the transport at once (both were *"Event NOT DEFINED"*
+   ERRORs, and the drop waited for `timeout_close`).
+10. A PUBLISH of 20000 bytes written in two parts, cut after its 1st to 5th
+    byte: delivered every time (cut after the 3rd, the second byte of the
+    length was read twice and the connection ended as malformed).
+11. A DISCONNECT `e0 02 00 00` and a PUBLISH behind it in the same write: no
+    ERROR, and the PUBLISH is not read (*"kw must be list or dict"* with a
+    stack, and the PUBLISH delivered).
+12. A CONNECT with client id `.`: CONNACK `0x85`, and `main` finds no dump
+    *"MQTT malformed packet: CMD_CONNECT"* in the log (there was one, and an
+    ERROR *"Mqtt proplist NULL"*).
+
+`test_mqtt_client_noqueue` (`main_client_noqueue.c` + `c_client_noqueue.c`)
+drives `C_PROT_MQTT2` as a CLIENT without queues on a `C_FAKE_TRANSPORT`; the
+driver plays the broker (MQTT 5). Its user publishes in QoS 1 inside
+`EV_ON_OPEN`: `-1` and an ERROR *"qos not supported"* (it went to the NULL
+queue: SIGSEGV). A QoS 0 message goes out; a QoS 1 PUBLISH of the broker is
+delivered and acked; a QoS 2 one disconnects the client (DISCONNECT `0x93`,
+a WARNING) and is not delivered (its payload was released twice).
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
 after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.
@@ -124,7 +169,8 @@ WARNING that must name the client (`client_id`, checked in the log), and
 DISCONNECT 0x82.
 
 The tests that keep a store (`acl`, `queued_in`, `client_queues`,
-`out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`) work in a dir of
+`out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
+`client_noqueue`) work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.
 So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed

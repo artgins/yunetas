@@ -4440,11 +4440,11 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             }
         }
         if(!allowed) {
-            if(protocol_version == mosq_p_mqtt5) {
-                reason = MQTT_RC_UNSPECIFIED;
-            } else if(protocol_version == mosq_p_mqtt311) {
-                reason = 0x80;
-            }
+            /*
+             *  0x80: Unspecified error in MQTT 5, Failure in 3.1.1 and 3.1.
+             *  Up to 7.30.26 a 3.1 client kept the QoS it asked for: granted
+             */
+            reason = MQTT_RC_UNSPECIFIED;
         }
 
         /*

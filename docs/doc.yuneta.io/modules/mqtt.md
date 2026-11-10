@@ -28,7 +28,10 @@ A frame the protocol refuses is dumped in the log, at every trace level
 (*"MQTT malformed packet: <command>"*, length-capped). Of a CONNECT only the
 head is dumped, the protocol name, level, flags and keep alive, and of an AUTH
 only its reason code: the properties and the payload carry the credentials.
-Up to 7.25.20 the whole CONNECT was dumped, password included.
+Up to 7.25.20 the whole CONNECT was dumped, password included. A CONNECT
+refused by policy is not malformed and is not dumped: its CONNACK says why
+(identifier rejected, not authorized, protocol version, …) and a WARNING
+names the cause. Up to 7.30.26 it was dumped as well.
 
 ```text
 "msg": "MQTT malformed packet: CMD_CONNECT (credentials not dumped)",
@@ -76,7 +79,9 @@ of the gate's channel:
 | `max_topic_filter_length` | `256` | A filter longer than this, in bytes, gets `0x80` or `0x8F` Topic Filter invalid in the SUBACK. One WARNING per connection. An UNSUBSCRIBE is never refused by it. |
 | `max_inflight_messages` | `20` | QoS 2 packet ids that wait for their PUBREL. One more is a protocol error of the client: it is disconnected, with a WARNING. MQTT 5 clients are told it in the CONNACK (Receive Maximum). |
 | `message_size_limit` | `0` | A PUBLISH with a larger payload is not delivered. Its QoS flow is completed (MQTT 5: PUBACK or PUBREC `0x95`), and the client stays. |
-| `max_packet_size` | `0` | A packet larger than this is refused when its header arrives, before its bytes are kept, and the client is disconnected. Without it a packet is kept whole (up to 256 MB) before `message_size_limit` is checked. |
+| `max_packet_size` | `0` | A packet larger than this is refused when its header arrives, before its bytes are kept, and the client is disconnected. Without it a packet is kept whole (up to 256 MB) before `message_size_limit` is checked. It also bounds how many filters one (UN)SUBSCRIBE carries to the upper level (see below). |
+| `max_qos` | `2` | `0` or `1`: a PUBLISH of a higher QoS disconnects the client. MQTT 5 clients are told it in the CONNACK (Maximum QoS). Up to 7.30.26 that property was not sent, and each CONNECT logged an ERROR. |
+| `timeout_close` | `3000` | Milliseconds an MQTT 5 connection waits, after the server's DISCONNECT, for the client to close. Then the transport is dropped, with a WARNING *"Timeout waiting mqtt disconnected"*. |
 
 The two subscription limits count the filters of the CONNECTION: the
 subscriptions of a session that a broker restores are not counted.
@@ -93,7 +98,14 @@ subscriptions of a session that a broker restores are not counted.
   message until it is acknowledged.
 - An ack of a packet id the server never used (PUBACK, PUBREC, PUBCOMP,
   PUBREL) is the client's: PUBREL gets PUBCOMP, PUBREC gets PUBREL, and a
-  WARNING says it.
+  WARNING says it, once per connection (up to 7.30.26, once per ack).
+
+**A DISCONNECT of the client is its last packet** (MQTT 5 3.14.4): nothing
+the client sends after it is processed, and the server waits for the client
+to close (the keepalive bounds the wait). Up to 7.30.26 the server went on
+reading, and an MQTT 5 DISCONNECT with a reason code and no Session Expiry
+Interval (`e0 02 00 00`, what most MQTT 5 clients send) logged an ERROR with a
+stack.
 
 **What the upper level answers.** The protocol publishes to its parent, and
 reads the return of the publication:
@@ -103,11 +115,33 @@ reads the return of the publication:
 | `EV_ON_OPEN` | the client: `id`, `protocol_version`, `clean_start`, `peername`, the will (its payload as `gbuffer`) | returns `0`: CONNACK accepted, session present 0. Returns `-2`: CONNACK not authorized, and the connection closes. |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_MESSAGE` | `topic`, `qos`, `retain`, `gbuffer` (the payload, peer bytes) | takes the message. Returns `1` when it took it (MQTT 5: PUBACK Success); `0` is "no matching subscribers" (`0x10`). |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer` | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`. |
-| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends one code per filter (`0` Success). |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends ONE reason code per filter of `subs`, in order: `0x00` Success, `0x11` No subscription existed, or `>= 0x80` to refuse it. Every filter of the packet is in `subs`: the protocol refuses none. MQTT 3.1.1 has no codes in its UNSUBACK, but the upper level writes them all the same. |
 | `EV_ON_CLOSE` | `client_id`, `peername` | the connection ended. |
 
-A missing reason code is an internal error (ERROR *"The upper level did not
-answer one reason code per filter"*), and its filter gets `0x80`.
+**The reason codes.** The `gbuffer` has room for exactly one code per filter
+of `subs`, however many the packet carries. A code that is missing is an
+internal error of the upper level: an ERROR *"The upper level did not answer
+one reason code per filter"*, and `0x80` for the filters left without one
+(the last ones). A code too many does not fit: the `gbuffer` refuses it with
+an ERROR. A filter the upper level refuses (`>= 0x80`) is not held by the
+connection, so it does not count against `max_subscriptions_per_client`.
+Up to 7.30.26 the buffer held 12 KB: a SUBSCRIBE or an UNSUBSCRIBE of more
+than 12 287 filters logged two ERRORs with a stack per code past it, and the
+UNSUBACK went out with fewer codes than filters.
+
+**How many filters reach the upper level.** As many as one packet carries.
+A filter repeated in the same SUBSCRIBE, or one the connection already holds,
+is passed up again and not counted again: MQTT says it replaces the
+subscription, and wants one code for each filter of the packet. The bound is
+the packet: with `max_packet_size` 66560, a SUBSCRIBE carries at most about
+16 600 filters (4 bytes each at least) and an UNSUBSCRIBE about 22 000 (3
+bytes each). An example, the codes of a SUBSCRIBE of `a/1`, `a/1` and `a/2`
+by an MQTT 5 client, with an upper level that grants all three in QoS 0:
+
+```text
+SUBSCRIBE  a/1 a/1 a/2      ->  subs: [a/1, a/1, a/2]  ->  SUBACK 0x00 0x00 0x00
+                                                         (held: a/1, a/2: counted 2)
+```
 
 A minimal upper level, the action of a decoder:
 
@@ -162,10 +196,38 @@ json_t *kw_send = json_pack("{s:s, s:I, s:i, s:b}",
 gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
 ```
 
+`gobj_send_event()` returns `-1` and the message is not sent when:
+
+- the topic is not one a PUBLISH can carry: it has a wildcard (`+`, `#`), it
+  is empty, or it has more than 200 levels. An ERROR *"Mqtt publish: topic
+  invalid"* names it. A subscription FILTER is not a topic to publish to: up
+  to 7.30.26 a message to `cmnd/dev-17/#` was sent as it was [MQTT-3.3.2-2];
+- the connection is closing (its DISCONNECT sent, waiting `timeout_close`): a
+  WARNING *"Mqtt: the connection is closing, message not sent"*. Up to
+  7.30.26 it was an ERROR *"Event NOT DEFINED in state"*, with a stack.
+
 **What the protocol does not do, and the gate must:** the same client id on a
 second connection is not taken over. A broker drops the first connection; a
 gate looks for the decoder of that id in its other channels and sends it
-`EV_DROP`.
+`EV_DROP`. Say that it is a take-over, so an MQTT 5 client is told why
+(DISCONNECT `0x8E` Session taken over; without the key it gets `0x00`):
+
+```C
+gobj_send_event(
+    gobj_bottom_gobj(gobj_old_decoder),     // its C_PROT_MQTT2
+    EV_DROP,
+    json_pack("{s:b}", "session_take_over", 1),
+    gobj
+);
+```
+
+In MQTT 3.1.1 a server sends no DISCONNECT, and the old connection is dropped
+at once. In MQTT 5 it is dropped after its DISCONNECT, within `timeout_close`;
+in that window the connection is closing, and another `EV_DROP` drops it at
+once (up to 7.30.26 it was an ERROR *"Event NOT DEFINED in state"*, with a
+stack). A decoder that has dropped its connection is no longer the client's:
+it must stop taking part in the take-over, or every new connection of that id
+sends `EV_DROP` to all the connections still closing.
 
 The protocol refuses on its own a client id with a character that is not
 allowed (CONNACK `2` Identifier rejected, WARNING *"Mqtt: client_id contains
