@@ -6562,9 +6562,22 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
+    /*
+     *  Per filter of the packet, the index of its code in a C array, not
+     *  in json (as in a SUBSCRIBE). An occurrence takes at least 3 bytes
+     *  of the packet (length, one byte).
+     */
+    size_t max_occurrences = gbuffer_leftbytes(gbuf)/3 + 1;
+    int32_t *occurrences = gbmem_malloc(max_occurrences * sizeof(int32_t));
+    size_t n_occurrences = 0;
+    if(!occurrences) {
+        // Error already logged
+        JSON_DECREF(properties)
+        return -1;
+    }
+
     json_t *jn_list = json_array();
     json_t *jn_upper = json_object();       // filter of this packet gone up -> its index in jn_list
-    json_t *jn_occurrences = json_array();  // per filter of the packet, the index of its code
 
     while(gbuffer_leftbytes(gbuf)>0) {
         uint16_t slen;
@@ -6573,7 +6586,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             // Error already logged
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_upper)
-            JSON_DECREF(jn_occurrences)
+            GBMEM_FREE(occurrences)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6590,7 +6603,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             );
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_upper)
-            JSON_DECREF(jn_occurrences)
+            GBMEM_FREE(occurrences)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6606,7 +6619,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             );
             JSON_DECREF(jn_list)
             JSON_DECREF(jn_upper)
-            JSON_DECREF(jn_occurrences)
+            GBMEM_FREE(occurrences)
             JSON_DECREF(properties)
             return MQTT_ERR_MALFORMED_PACKET;
         }
@@ -6630,11 +6643,11 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
          */
         json_t *jn_first = json_object_getn(jn_upper, sub, slen);
         if(jn_first) {
-            json_array_append(jn_occurrences, jn_first);
+            occurrences[n_occurrences++] = (int32_t)json_integer_value(jn_first);
         } else {
-            json_t *jn_idx = json_integer((json_int_t)json_array_size(jn_list));
-            json_object_setn(jn_upper, sub, slen, jn_idx);
-            json_array_append_new(jn_occurrences, jn_idx);
+            size_t upper_idx = json_array_size(jn_list);
+            json_object_setn_new(jn_upper, sub, slen, json_integer((json_int_t)upper_idx));
+            occurrences[n_occurrences++] = (int32_t)upper_idx;
             json_t *jn_sub = json_pack("{s:s#}",
                 "sub", sub, (int)slen
             );
@@ -6682,7 +6695,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     );
     if(rc < 0) {
         gbuffer_decref(gbuf_upper);
-        JSON_DECREF(jn_occurrences)
+        GBMEM_FREE(occurrences)
         return -1;
     }
 
@@ -6699,22 +6712,20 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         );
     }
 
-    size_t n_filters = json_array_size(jn_occurrences);
-    gbuffer_t *gbuf_payload = gbuffer_create(n_filters, n_filters);
+    gbuffer_t *gbuf_payload = gbuffer_create(n_occurrences, n_occurrences);
     if(!gbuf_payload) {
         // Error already logged
         GBUFFER_DECREF(gbuf_upper)
-        JSON_DECREF(jn_occurrences)
+        GBMEM_FREE(occurrences)
         return -1;
     }
     const uint8_t *upper_codes = (const uint8_t *)gbuffer_cur_rd_pointer(gbuf_upper);
-    size_t idx; json_t *jn_idx;
-    json_array_foreach(jn_occurrences, idx, jn_idx) {
-        size_t upper_idx = (size_t)json_integer_value(jn_idx);
+    for(size_t i=0; i<n_occurrences; i++) {
+        size_t upper_idx = (size_t)occurrences[i];
         gbuffer_append_char(gbuf_payload, upper_idx < got? upper_codes[upper_idx] : MQTT_RC_UNSPECIFIED);
     }
     GBUFFER_DECREF(gbuf_upper)
-    JSON_DECREF(jn_occurrences)
+    GBMEM_FREE(occurrences)
 
     return send__unsuback(
         gobj,

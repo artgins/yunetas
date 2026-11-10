@@ -235,6 +235,11 @@ written once. On the development machine (with `CONFIG_DEBUG_TRACK_MEMORY`) a
 SUBSCRIBE of 64 KB costs about 0.5 ms of CPU, either as 16 000 copies of `a`
 or as 7900 distinct filters of which 7800 are past
 `max_subscriptions_per_client` (7.30.26: 3.3 ms for the distinct ones).
+An UNSUBSCRIBE keeps its occurrences the same way: one of 60 KB costs about
+0.45 ms as 20 000 copies of a filter, and about 4 ms as 8500 distinct
+filters, all of which go up (7.30.26: 2.3 ms). The difference is the
+dictionary that sends a repeated filter up once, about 0.2 µs per distinct
+filter.
 
 A minimal upper level, the action of a decoder:
 
