@@ -1530,7 +1530,7 @@ PRIVATE void log_json_from_peer_failed(
  *  and said once per json. A binary field of a peer arrives serialized
  *  ("__gbuffer___", kw_deserialize()), never as a "gbuffer".
  */
-PRIVATE size_t drop_binary_keys(json_t *jn)
+PUBLIC size_t drop_binary_keys(json_t *jn)
 {
     size_t dropped = 0;
     if(json_is_object(jn)) {

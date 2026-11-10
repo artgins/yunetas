@@ -182,6 +182,54 @@ if(jn) {
 
 ---
 
+(drop_binary_keys)=
+## `drop_binary_keys()`
+
+The walk of [`drop_peer_binary_keys()`](#drop_peer_binary_keys) without its log. It drops every `"gbuffer"` key of `jn`, at any depth, and returns how many it dropped. It logs nothing: **the caller logs**.
+
+Use it in a decoder that says a peer's bad data once per connection. [`drop_peer_binary_keys()`](#drop_peer_binary_keys) logs one warning for each json that has the key, so a peer that puts `"gbuffer"` in every message fills the log.
+
+```C
+size_t drop_binary_keys(
+    json_t *jn
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn` | `json_t *` | The json of the peer. Not owned: its keys are dropped in place. `NULL` or a scalar drops nothing. |
+
+**Returns**
+
+How many keys were dropped.
+
+**Example**
+
+A decoder that parses the payloads of a device itself and says each kind of bad data once per connection (the flag goes back to `FALSE` when the connection closes). [`anystring2json_from_peer()`](#anystring2json_from_peer) is not used here: it logs every bad payload, and it already drops the keys with its own warning.
+
+```C
+json_error_t jn_error;
+json_t *jn_msg = json_loadb(payload, len, 0, &jn_error);
+if(!json_is_object(jn_msg)) {
+    // said once per connection, then
+    JSON_DECREF(jn_msg)
+    return 0;
+}
+if(drop_binary_keys(jn_msg) > 0 && !priv->binary_key_said) {
+    priv->binary_key_said = TRUE;
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_MQTT,
+        "msg",          "%s", "Payload with 'gbuffer' keys, a binary field name: dropped",
+        NULL
+    );
+}
+```
+
+---
+
 (json_error_for_log)=
 ## `json_error_for_log()`
 

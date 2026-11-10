@@ -488,6 +488,14 @@ PUBLIC size_t drop_peer_binary_keys(
 );
 
 /*
+ *  The walk of drop_peer_binary_keys() without its log: every "gbuffer"
+ *  key of `jn`, at any depth, dropped in place. Return how many were
+ *  dropped; the CALLER logs. For a decoder that says a peer's bad data
+ *  once per connection: a log per json would let the peer flood it.
+ */
+PUBLIC size_t drop_binary_keys(json_t *jn);
+
+/*
  *  Convert a json config with comments in gbuffer to json
  */
 PUBLIC json_t *config_gbuffer2json(

@@ -17,7 +17,9 @@
  *          was refused, or cut by one character). A json2gbuf() that
  *          cannot dump the json whole says so with an ERROR (up to 7.28.7
  *          it handed back the start of the json without a word, and the
- *          peer got a frame it could not parse).
+ *          peer got a frame it could not parse). The "gbuffer" keys of a
+ *          peer's json are dropped with one warning by
+ *          drop_peer_binary_keys(), and with none by drop_binary_keys().
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -176,6 +178,46 @@ PRIVATE void test_json_from_peer(void)
     ok_or_fail(!jn && strstr(error.text, "peer-hunter2") &&
         strcmp(json_error_for_log(&error, shown, sizeof(shown)), "premature end of input") == 0,
         "json_error_for_log: jansson's text without the bytes it quotes");
+
+    gobj_log_del_handler("capture");
+}
+
+/***************************************************************************
+ *  The "gbuffer" keys of a peer's json, at any depth: drop_peer_binary_keys()
+ *  drops them and says it with ONE warning per call; drop_binary_keys()
+ *  drops them and says nothing, for a caller that warns once per
+ *  connection (a peer putting the key in every message must not flood the
+ *  log). Both answer how many they dropped.
+ *  Runs after test_json_from_peer(), which registers the handler.
+ ***************************************************************************/
+PRIVATE void test_drop_binary_keys(void)
+{
+    const char *text = "{\"gbuffer\": 1, \"a\": {\"gbuffer\": 2},"
+        " \"l\": [{\"gbuffer\": 3}, 4], \"b\": 5}";
+
+    captured_warnings = 0;
+    captured_errors = 0;
+    gobj_log_add_handler("capture", "capture", LOG_OPT_ALL, 0);
+
+    json_t *jn = json_loads(text, 0, 0);
+    size_t dropped = drop_binary_keys(jn);
+    ok_or_fail(dropped == 3, "drop_binary_keys: three keys dropped, at any depth");
+    ok_or_fail(!json_object_get(jn, "gbuffer") &&
+        !json_object_get(json_object_get(jn, "a"), "gbuffer") &&
+        !json_object_get(json_array_get(json_object_get(jn, "l"), 0), "gbuffer") &&
+        json_integer_value(json_object_get(jn, "b")) == 5,
+        "drop_binary_keys: the keys gone, the rest kept");
+    ok_or_fail(captured_warnings == 0 && captured_errors == 0,
+        "drop_binary_keys: nothing logged, the caller logs");
+    ok_or_fail(drop_binary_keys(jn) == 0, "drop_binary_keys: nothing left to drop");
+    JSON_DECREF(jn);
+
+    jn = json_loads(text, 0, 0);
+    dropped = drop_peer_binary_keys(0, jn, text, strlen(text), 0);
+    ok_or_fail(dropped == 3, "drop_peer_binary_keys: three keys dropped");
+    ok_or_fail(captured_warnings == 1 && captured_errors == 0,
+        "drop_peer_binary_keys: one warning");
+    JSON_DECREF(jn);
 
     gobj_log_del_handler("capture");
 }
@@ -397,6 +439,7 @@ int main(int argc, char *argv[])
     test_valid_path();
     test_json_from_peer();
     test_serialize_null();
+    test_drop_binary_keys();
     test_grow_to_max();
     test_printf_exact_fit();
     test_json2gbuf_failed();
