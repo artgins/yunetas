@@ -347,6 +347,14 @@ application's gate (one application).
   it that way; `C_PROT_MQTT2` waits `timeout_close` after a DISCONNECT of MQTT 5, and
   drops a 3.1.1 client at once). A "close after the queue is sent" in the transport
   fixes it for every protocol.
+- **The send queue of `C_TCP` has no byte bound: a peer that does not read takes the
+  memory of the yuno.** `max_tx_queue` counts messages, not bytes, and is 0 (no limit) by
+  default. Seen with `C_MQTT_BROKER`: each SUBSCRIBE that matches a retained message sends
+  it straight to the channel (`retain__queue`), so an authenticated client that sends 3000
+  SUBSCRIBEs of a filter with a retained message of 100 KB, and does not read, took the
+  broker from 12.6 to 307 MB. A byte bound in the transport (drop the peer past it, said
+  once) fixes it for every protocol; not done, by decision (the case needs an
+  authenticated client).
 - **`C_PROT_HTTP_SR` reads `cur_tx_queue` of the transport by name** at each request and
   answer, about 0.35 µs of a round trip. A way to read it with no walk over the attributes
   would recover part of the price of 7.30.0.

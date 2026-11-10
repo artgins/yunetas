@@ -15,8 +15,10 @@
   in 7.30.26.
     - A PUBLISH of MQTT 5 past `message_size_limit` (or denied by the ACL) leaked its
       properties: an anonymous client could take the memory of a gate (2 GB in 4 s). The
-      WARNING *"Dropped too large PUBLISH"* printed the topic as a number. A CONNECT of
-      MQTT 5 with a will QoS past `max_qos` leaked its properties too.
+      WARNING *"Dropped too large PUBLISH"* printed the topic as a number, and was said
+      for every PUBLISH (16 000 WARNINGs and 11 MB of log for 1 GB); it is said once per
+      connection now, with the limit and the size. A CONNECT of MQTT 5 with a will QoS
+      past `max_qos` leaked its properties too.
     - **The reason codes of a (UN)SUBSCRIBE** go into a buffer sized for the filters of
       the packet. It held 12 KB: a SUBSCRIBE or UNSUBSCRIBE of more than 12 287 filters
       logged two ERRORs with a stack per code past it, the SUBACK gave `0x80` to filters
@@ -24,9 +26,13 @@
       filters (malformed). The UNSUBACK is now checked like the SUBACK: a missing code is
       an ERROR *"The upper level did not answer one reason code per filter"*, and `0x80`
       takes its place. `C_MQTT_BROKER` had the same buffer and gets the same fix.
-      `max_packet_size` bounds the filters of one packet; a repeated filter, or one the
-      connection holds, still goes to the upper level and is not counted again (the MQTT
-      page says it).
+      `max_packet_size` bounds the filters of one packet. A filter the connection holds
+      goes up again and is not counted again; a filter REPEATED in the same SUBSCRIBE or
+      UNSUBSCRIBE goes up once (the repetition replaces its options) and every occurrence
+      takes its code, so the SUBACK / UNSUBACK keeps one code per filter. Each occurrence
+      went up, at ~4 µs: one anonymous peer sending SUBSCRIBEs of 16 000 copies of a filter
+      at 1 MB/s held a gate at 100 % CPU (the MQTT page says it, with an example).
+      BREAKING for an upper level that counted the repetitions: they arrive once in `subs`.
     - **BREAKING (a log watcher): a connection that is closing** (its DISCONNECT sent,
       waiting `timeout_close`) takes `EV_DROP` (the transport is dropped at once) and
       refuses `EV_SEND_MESSAGE` with `-1` and one WARNING per connection, *"Mqtt: the
@@ -47,6 +53,10 @@
     - The fixed-header parser read the second byte of the remaining length twice when a
       read ended right after it. A packet of 16 KB or more cut there ended the
       connection as malformed (client and server alike).
+    - **BREAKING (a log watcher):** the WARNING of a PUBLISH whose topic has a
+      wildcard, is empty or has more than 200 levels says *"Mqtt: invalid topic in
+      PUBLISH, disconnecting"*. Up to 7.30.26 it said *"Mqtt will: invalid topic"*, as
+      if it were a will. The connection still ends with DISCONNECT `0x81`.
     - **BREAKING (a log watcher):** an ack of an unknown packet id (PUBACK, PUBREC,
       PUBREL, PUBCOMP) is said once per connection, no longer once per ack.
     - The MQTT 5 CONNACK announces Maximum QoS when `max_qos` is below 2. It was added
@@ -70,9 +80,30 @@
       was the server's only, and a client kept whatever its broker announced, up to
       256 MB. BREAKING for a client configured with `max_packet_size` whose broker sends
       larger packets: they now end the connection. The default stays 0 (no limit).
+    - **Against a broker that breaks the protocol** (each one a WARNING and the end
+      of the connection; up to 7.30.26 each was let through): a second CONNACK in
+      the session is a protocol error, DISCONNECT `0x82` (it opened the queues again,
+      leaking the first handles, and published `EV_ON_OPEN` again); a PUBLISH of QoS
+      3 (dropped in silence), of QoS 0 with DUP set (delivered; the server already
+      refused it), or whose topic has a wildcard, is empty or has more than 200 levels
+      (delivered) is malformed, DISCONNECT `0x81`; the broker's DISCONNECT
+      is its last packet, nothing after it in the same read is processed (a PUBLISH
+      behind it was delivered) and its properties are freed (they leaked).
+    - **BREAKING (a user of the client): a CONNACK of MQTT 5 that refuses (`>= 0x80`)
+      ends in `EV_ON_CLOSE`**, with `reason_code` in its kw and one WARNING *"Mqtt
+      connection refused"*, and the client sends nothing. It was taken for a protocol
+      error: a DISCONNECT `0x82` to the broker, a dump of the CONNACK, and the user
+      never heard `EV_ON_CLOSE`.
 - `C_MQTT_BROKER`: a filter of `deny_subscribes` is refused to an MQTT 3.1 client too
   (`0x80`). It was granted with the QoS it asked for.
-
+- **BREAKING (an operator): `C_MQTT_BROKER` refuses `mqtt_persistent_db` false at its
+  start.** The broker keeps its clients, sessions and retained messages only in its
+  treedb, so it has no mode without one: with `false` it refused every CONNECT and its
+  timer logged two ERRORs per tick (the release notes of 7.30.26 speak of "a broker with
+  `mqtt_persistent_db` false": no such broker worked). Now one CRITICAL *"mqtt_persistent_db
+  false is not supported: ..."* names the attribute and the yuno exits as the broker's
+  `on_critical_error` says (`2`, the default: exit 0, not restarted; `0`: it stays up and
+  the broker does not play). An in-memory broker is not planned.
 - **BREAKING (C code using the mqtt module): the names inherited from Mosquitto are
   `mqtt_` names.** `MOSQ_ERR_*` is `MQTT_ERR_*`, `mosq_err_t` is `mqtt_err_t`,
   `mosq_p_*` / `mosq_m_*` / `mosq_md_*` / `mosq_mo_*` / `mosq_ms_*` are `mqtt_p_*` /
@@ -92,7 +123,24 @@
   (`command-yuno`, whose parameters arrive in kw) worked. From the first word that is
   `<a parameter of the command>=value` on, every parameter is `key=value`, required ones
   included; one the line does not give is taken from kw, else *"parameter 'x' is
-  required"*.
+  required"*. In that mode the line has the last word over a refused kw value of a
+  required parameter too, as of an optional one. And a word left over after a
+  `key=value` is not echoed in the *"extra parameters"* answer (or its `ev_kw` trace)
+  when the command has a required secret parameter: it can be that secret given without
+  its key (`login user=bob <pin>` answered the pin, while the mask of the line shows
+  `<...>`).
+- A command line ending in two or more blanks (or a blank and a tab) was refused with
+  *"extra parameters: ' '"* (7.30.26 and before; `ycommand` trims its line, so only a
+  caller that does not trim saw it). `get_key_value_parameter()` now answers "nothing
+  left" for a rest of blanks.
+
+### Kernel
+
+- **`drop_binary_keys()` is public** (`gbuffer.h`): the walk of `drop_peer_binary_keys()`
+  without its log. It drops every `"gbuffer"` key of a json at any depth and returns how
+  many; the caller logs. For a decoder that says a peer's bad data once per connection:
+  `drop_peer_binary_keys()` logs one WARNING per json, so a device putting the key in every
+  payload flooded the log of its gate.
 
 ## v7.30.26 (2026-11-10)
 
