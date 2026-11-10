@@ -233,7 +233,7 @@ json_t *new_mqtt_message(hgobj gobj, const char *client_id, const char *topic,
     gbuffer_t *gbuf_payload, uint8_t qos, uint16_t mid, BOOL retain, BOOL dup,
     json_t *properties, uint32_t expiry_interval, json_int_t t);
 
-time_t mosquitto_time(void);
+time_t mqtt_time(void);
 ```
 
 Defines all MQTT protocol constants: message types (`CMD_CONNECT` through `CMD_AUTH`), v3.1.1 CONNACK codes, v5 reason codes, v5 property identifiers, v5 subscription options, and protocol version constants.
@@ -285,9 +285,9 @@ Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, msg, next)
 **User flag bitmask layout** (16-bit `user_flag` in TimeRanger2 metadata):
 
 ```
-Bits 15-12: State     (mosq_ms_publish_qos0 .. mosq_ms_queued)
-Bits 11-10: Origin    (mosq_mo_client, mosq_mo_broker)
-Bits  9-8:  Direction (mosq_md_in, mosq_md_out)
+Bits 15-12: State     (mqtt_ms_publish_qos0 .. mqtt_ms_queued)
+Bits 11-10: Origin    (mqtt_mo_client, mqtt_mo_broker)
+Bits  9-8:  Direction (mqtt_md_in, mqtt_md_out)
 Bit     7:  Dup
 Bit     6:  Retain
 Bits  5-4:  QoS       (0, 1, 2)
