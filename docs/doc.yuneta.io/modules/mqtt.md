@@ -9,10 +9,11 @@ broker backed by TreeDB.
 ## C_PROT_MQTT / C_PROT_MQTT2
 
 MQTT protocol with publish, subscribe, QoS levels, and event-driven
-message handling. `C_PROT_MQTT2` is the current implementation (and works as
-both the broker's per-connection protocol and a standalone client — see
-[`mqtt_tui`](../utilities/mqtt_tui.md)). `C_PROT_MQTT` is the legacy version
-kept for backward compatibility.
+message handling. `C_PROT_MQTT2` is the current implementation. It works as
+the broker's per-connection protocol, as the input of a gate with no broker
+(see [`C_PROT_MQTT2` as the input of a gate](#mqtt-prot2-gate)), and as a
+standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). `C_PROT_MQTT`
+is the legacy version, kept until the remaining gates move to `C_PROT_MQTT2`.
 
 **Trace levels (`C_PROT_MQTT2`):** `traffic` (packets, no payload),
 `traffic-payload`, `show-decode` (decoded packet structure), `messages2`.
@@ -273,6 +274,168 @@ and disconnected in a loop with 100 filters made the gate write about 80 MB a
 second. A change inside the second of the (UN)SUBSCRIBE writes waited for the
 next packet of the client, which for a client that says nothing more is its
 keep alive.
+
+(mqtt-prot2-gate)=
+### `C_PROT_MQTT2` as the input of a gate
+
+A gate takes what its devices publish and sends it up. It is not a broker: it
+keeps no session from one connection to the next, and it forwards nothing from
+one client to another. After 7.30.25 `C_PROT_MQTT2` serves this case without
+`C_MQTT_BROKER`. Its parent (the decoder of the gate) is its upper level, and
+the protocol has no queues (`tranger_queues` NULL). Put it in the gclass tree
+of the gate's channel:
+
+```json
+{
+    "name": "input-(^^__range__^^)",
+    "gclass": "C_PROT_MQTT2",
+    "kw": {
+        "iamServer": true,
+        "allow_anonymous": true,
+        "message_size_limit": 65536,
+        "max_packet_size": 66560
+    },
+    "children": [
+        {
+            "name": "input-(^^__range__^^)",
+            "gclass": "C_TCP"
+        }
+    ]
+}
+```
+
+| Attribute | Default | What it does in a gate |
+|---|---|---|
+| `allow_anonymous` | `false` | `true`: every CONNECT is accepted without asking `C_AUTHZ`. A username and a password, if the device sends them, are not checked. With `false` the CONNECT is authenticated against the `treedb_name` service (the broker's), which a gate does not have: every device gets CONNACK `5` / `0x87`. |
+| `max_subscriptions_per_client` | `100` | Topic filters one connection holds. Each new filter past it gets `0x80` (MQTT 3.1.1) or `0x97` Quota exceeded (MQTT 5) in the SUBACK, and the client stays. One WARNING per connection. |
+| `max_topic_filter_length` | `256` | A filter longer than this, in bytes, gets `0x80` or `0x8F` Topic Filter invalid in the SUBACK. One WARNING per connection. An UNSUBSCRIBE is never refused by it. |
+| `max_inflight_messages` | `20` | QoS 2 packet ids that wait for their PUBREL. One more is a protocol error of the client: it is disconnected, with a WARNING. MQTT 5 clients are told it in the CONNACK (Receive Maximum). |
+| `message_size_limit` | `0` | A PUBLISH with a larger payload is not delivered. Its QoS flow is completed (MQTT 5: PUBACK or PUBREC `0x95`), and the client stays. |
+| `max_packet_size` | `0` | A packet larger than this is refused when its header arrives, before its bytes are kept, and the client is disconnected. Without it a packet is kept whole (up to 256 MB) before `message_size_limit` is checked. |
+
+The two subscription limits count the filters of the CONNECTION: the
+subscriptions of a session that a broker restores are not counted.
+
+**Without queues:**
+
+- A QoS 0 or 1 PUBLISH is delivered to the upper level, and a QoS 1 one gets
+  its PUBACK.
+- A QoS 2 PUBLISH is delivered when it arrives, and only its packet id waits
+  for the PUBREL (the second method of MQTT 3.1.1 4.3.3). A PUBLISH with the
+  same id before the PUBREL gets PUBREC again and is not delivered again.
+- A message to the client goes in QoS 0, whatever QoS it asks for, and a
+  SUBSCRIBE is granted QoS 0: without a queue the server cannot keep a
+  message until it is acknowledged.
+- An ack of a packet id the server never used (PUBACK, PUBREC, PUBCOMP,
+  PUBREL) is the client's: PUBREL gets PUBCOMP, PUBREC gets PUBREL, and a
+  WARNING says it.
+
+**What the upper level answers.** The protocol publishes to its parent, and
+reads the return of the publication:
+
+| Event | kw | The upper level |
+|---|---|---|
+| `EV_ON_OPEN` | the client: `id`, `protocol_version`, `clean_start`, `peername`, the will (its payload as `gbuffer`) | returns `0`: CONNACK accepted, session present 0. Returns `-2`: CONNACK not authorized, and the connection closes. |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_MESSAGE` | `topic`, `qos`, `retain`, `gbuffer` (the payload, peer bytes) | takes the message. Returns `1` when it took it (MQTT 5: PUBACK Success); `0` is "no matching subscribers" (`0x10`). |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer` | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`. |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends one code per filter (`0` Success). |
+| `EV_ON_CLOSE` | `client_id`, `peername` | the connection ended. |
+
+A missing reason code is an internal error (ERROR *"The upper level did not
+answer one reason code per filter"*), and its filter gets `0x80`.
+
+A minimal upper level, the action of a decoder:
+
+```C
+PRIVATE int ac_on_iev_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
+        gobj, kw, "__iev_event__", 0, KW_REQUIRED
+    );
+    int ret = 0;
+
+    if(iev_event == EV_MQTT_MESSAGE) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        json_t *jn_msg = gbuf? anystring2json_from_peer(    // peer bytes
+            gobj, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), gobj
+        ) : NULL;
+        if(json_is_object(jn_msg)) {
+            process_reading(gobj, kw_get_str(gobj, kw, "topic", "", 0), jn_msg);
+            ret = 1;
+        }
+        JSON_DECREF(jn_msg)
+
+    } else if(iev_event == EV_MQTT_SUBSCRIBE || iev_event == EV_MQTT_UNSUBSCRIBE) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+        json_t *subs = kw_get_list(gobj, kw, "subs", 0, KW_REQUIRED);
+        int idx; json_t *jn_sub;
+        json_array_foreach(subs, idx, jn_sub) {
+            int code = 0;
+            if(iev_event == EV_MQTT_SUBSCRIBE) {
+                code = (int)kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
+            }
+            gbuffer_append_char(gbuf, (uint8_t)code);
+        }
+    }
+
+    KW_DECREF(kw)
+    return ret;
+}
+```
+
+Declare `EV_ON_IEV_MESSAGE` in its FSM and in its `event_types` (an input
+event, flag `0`), and include `c_prot_mqtt2.h` for the `EV_MQTT_*` names. To
+send a message to the device, send `EV_SEND_MESSAGE` to the protocol:
+
+```C
+json_t *kw_send = json_pack("{s:s, s:I, s:i, s:b}",
+    "topic", "cmnd/dev-17/POWER",
+    "gbuffer", (json_int_t)(uintptr_t)str2gbuf("%s", "ON"),
+    "qos", 0,
+    "retain", 0
+);
+gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
+```
+
+**What the protocol does not do, and the gate must:** the same client id on a
+second connection is not taken over. A broker drops the first connection; a
+gate looks for the decoder of that id in its other channels and sends it
+`EV_DROP`.
+
+The protocol refuses on its own a client id with a character that is not
+allowed (CONNACK `2` Identifier rejected, WARNING *"Mqtt: client_id contains
+invalid character"*), before the upper level sees it.
+
+**Moving a gate from `C_PROT_MQTT`:**
+
+| `C_PROT_MQTT` | `C_PROT_MQTT2` |
+|---|---|
+| `EV_ON_MESSAGE` with `mqtt_action` `publishing` / `subscribing` / `unsubscribing` | `EV_ON_IEV_MESSAGE` with `EV_MQTT_MESSAGE` / `EV_MQTT_SUBSCRIBE` / `EV_MQTT_UNSUBSCRIBE` |
+| `EV_ON_OPEN` `client_id` | `EV_ON_OPEN` `id` |
+| `EV_SEND_MESSAGE` `topic_name` | `EV_SEND_MESSAGE` `topic`, `qos`, `retain` |
+| the gate's `gobj_mqtt_clients`, `gobj_mqtt_topics`, `gobj_mqtt_users` (`C_RESOURCE2`) | none: remove them |
+| a SUBSCRIBE recorded by the protocol | the upper level answers its reason codes |
+| a client's PUBLISH forwarded to the clients subscribed to it | nothing is forwarded |
+| `allow_anonymous` `true` by default | `false` by default: set it in the gate |
+
+`C_PROT_MQTT` forwarded a client's PUBLISH to the other clients subscribed to
+its topic. A few anonymous subscribers that do not read took the memory of the
+gate: in QoS 0 the send queue of `C_TCP` has no limit. A gate on
+`C_PROT_MQTT2` forwards nothing.
+
+Up to 7.30.25 a `C_PROT_MQTT2` without queues was not usable by a gate: it
+authenticated every CONNECT against the broker's treedb, it took no QoS 1 or
+2 PUBLISH (`max_qos` went to 0 at the CONNACK, and the client was
+disconnected), and a PUBACK, PUBREC, PUBCOMP or PUBREL of any peer walked the
+NULL queue: the yuno crashed. That case was reachable in a broker with
+`mqtt_persistent_db` false. Without a `C_MQTT_BROKER` each PUBLISH also
+logged a WARNING *"ACL skipped"*; an anonymous client has no user and no
+group, so it is not said any more for one.
+
+After 7.30.25 a server sends DISCONNECT only in MQTT 5: in MQTT 3.1.1 it is a
+packet of the client. A 3.1.1 client that breaks the protocol is dropped at
+once; up to 7.30.25 it got a DISCONNECT, and the drop waited for
+`timeout_close` (3 s).
 
 ## C_MQTT_BROKER
 

@@ -101,6 +101,32 @@ not carry the password (up to 7.25.20 it carried the whole CONNECT). Its
 client has a clean start: the driver also deletes its record, as the protocol
 asks when the client disconnects.
 
+`test_mqtt_gate_prot` (`main_gate_prot.c` + `c_gate_prot.c`) drives
+`C_PROT_MQTT2` as the input of a gate: no broker, no queues
+(`tranger_queues` NULL), `allow_anonymous`, `max_subscriptions_per_client` 3,
+`max_topic_filter_length` 16, `max_inflight_messages` 2. The driver is its
+upper level, as a gate's decoder is: it answers the CONNECT, writes the reason
+codes of a (UN)SUBSCRIBE, takes the messages (returns 1), and sends one to the
+client. On a `C_FAKE_TRANSPORT`, with the packets written by hand:
+
+1. MQTT 3.1.1 with a username and a password nobody checks: CONNACK 0.
+2. PUBLISH QoS 0, 1 and 2, each delivered once (PUBACK, PUBREC); the QoS 2
+   sent again with DUP before its PUBREL gets PUBREC and is not delivered
+   again; its PUBREL gets PUBCOMP.
+3. A PUBREL, PUBACK, PUBREC and PUBCOMP of ids the server never used: PUBCOMP,
+   a WARNING, PUBREL, a WARNING. No crash.
+4. SUBSCRIBE of 5 filters: the one of 22 bytes and the one past 3 get `0x80`,
+   the others QoS 0; a filter held is granted again and not counted; an
+   UNSUBSCRIBE makes room.
+5. A QoS 1 message to the client goes in QoS 0.
+6. Two QoS 2 without PUBREL, then a third: the client is dropped at once
+   (3.1.1: no DISCONNECT from the server), with a WARNING.
+7. MQTT 5 on a new connection: `0x8F` and `0x97` in the SUBACK (the counts
+   are of the connection), PUBACK Success for a message taken.
+
+No log of an ACL (there is no broker). Up to 7.30.25: CONNACK 5 (the CONNECT
+was authenticated against the broker's treedb) and nothing else.
+
 `test_mqtt_legacy_sessions` (`main_legacy_sessions.c` + `c_legacy_sessions.c`)
 drives twenty-six `C_PROT_MQTT` gobjs the same way, each on its own
 `C_FAKE_TRANSPORT`, with the clients in a persistent `C_RESOURCE2` (as an MQTT
@@ -206,7 +232,7 @@ WARNING that must name the client (`client_id`, checked in the log), and
 DISCONNECT 0x82.
 
 The tests that keep a store (`acl`, `queued_in`, `client_queues`,
-`out_flight`, `wrong_ack`, `legacy_prot`, `legacy_sessions`, `client_pubrec`) work in a dir of
+`out_flight`, `wrong_ack`, `legacy_prot`, `legacy_sessions`, `client_pubrec`, `gate_prot`) work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.
 So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed

@@ -2,6 +2,51 @@
 
 ## Unreleased
 
+### MQTT
+
+- **`C_PROT_MQTT2` is the input of a gate, with no broker.** A gate takes what
+  its devices publish; it keeps no session and forwards nothing between
+  clients. `C_PROT_MQTT2` now serves it with its parent (the gate's decoder)
+  as its upper level and no queues (`tranger_queues` NULL). The contract of
+  that upper level, a minimal one in C and how to move a gate from
+  `C_PROT_MQTT` are on the MQTT page (*"`C_PROT_MQTT2` as the input of a
+  gate"*). Up to 7.30.25 a gate could not use it: every CONNECT was
+  authenticated against the broker's treedb (CONNACK 5), and a protocol
+  without queues took no QoS 1 or 2 PUBLISH.
+    - **`allow_anonymous`** (default `false`): every CONNECT is accepted
+      without asking `C_AUTHZ`; a username and a password are not checked.
+      Without a `C_MQTT_BROKER`, a PUBLISH of an anonymous client no longer
+      logs *"ACL skipped"* (one WARNING per PUBLISH before).
+    - **Without queues:** a QoS 1 PUBLISH gets its PUBACK; a QoS 2 one is
+      delivered at its PUBLISH and only its packet id waits for the PUBREL
+      (a PUBLISH with that id before the PUBREL gets PUBREC again and is not
+      delivered again; past `max_inflight_messages` the client is
+      disconnected, with a WARNING). A message to the client goes in QoS 0,
+      and a SUBSCRIBE is granted QoS 0. Up to 7.30.25 `max_qos` went to 0 at
+      the CONNACK, and a client publishing QoS 1 was disconnected.
+- **BREAKING (MQTT clients of a `C_PROT_MQTT2` with more than 100 filters, or
+  filters past 256 bytes): `max_subscriptions_per_client` (100) and
+  `max_topic_filter_length` (256 bytes) in `C_PROT_MQTT2`**, as in
+  `C_PROT_MQTT`. Each new filter past them gets `0x80` (MQTT 3.1.1) or `0x97`
+  / `0x8F` (MQTT 5) in the SUBACK, the client stays, one WARNING per
+  connection. They count the filters of the connection: the subscriptions of
+  a session that `C_MQTT_BROKER` restores are not counted. An UNSUBSCRIBE is
+  never refused by them. `0` is no limit. Up to 7.30.25 a client could hold
+  any number of filters of any length.
+- **`C_PROT_MQTT2` without queues no longer crashes on an ack of the peer.**
+  A PUBACK, PUBREC, PUBCOMP or PUBREL looked for its message in a queue that a
+  protocol without `tranger_queues` does not have, and read a NULL pointer:
+  any client of a broker with `mqtt_persistent_db` false could take it down.
+  Now nothing is found: PUBREL gets PUBCOMP, PUBREC gets PUBREL, and a
+  WARNING says it (the ERROR *"No output queue"* of a PUBREC is gone).
+- **A server sends DISCONNECT only in MQTT 5** (`C_PROT_MQTT2`). In MQTT 3.1.1
+  it is a packet of the client: a 3.1.1 client that breaks the protocol is
+  now dropped at once. Up to 7.30.25 it got a DISCONNECT, and the drop
+  waited for `timeout_close` (3 s).
+- **`C_PROT_MQTT2` destroyed with its connection open** leaked its two
+  topic-alias maps; `mt_destroy()` frees them.
+- Test: `c_mqtt/gate_prot` (new).
+
 ## v7.30.25 (2026-11-10)
 
 A correction release of `C_PROT_MQTT`, the deprecated MQTT protocol every MQTT
