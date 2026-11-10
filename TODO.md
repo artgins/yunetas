@@ -288,6 +288,13 @@ application's gate (one application).
   signatures, `sig` a JWKS key use); a `user:password@host` with no `://`
   before it (a DSN, an scp target); a token written as the user of a URL
   (`https://TOKEN@host`).
+- **The agent's audit file writes a positional secret of a command sent straight to a
+  service of the agent** (`ycommand -S authz -c 'set-user-pwd username=bob <password>'`,
+  no `command-yuno` around it): the record is built before the parser runs, and the
+  audit callback gets no command table to say which word is a secret. A nested command
+  line (`command-yuno` / `command-agent`) has every word with no key written `<...>`;
+  doing the same for every command would hide every positional value of the audit, and
+  passing the table would change the callback. Left so, by decision.
 
 ### Resolver
 
@@ -345,7 +352,8 @@ application's gate (one application).
   that answers and then drops the peer loses the answer when the send has not finished
   (`C_PROT_MQTT`, removed after 7.30.26, lost its DISCONNECT 0x93 and the PUBRECs before
   it that way; `C_PROT_MQTT2` waits `timeout_close` after a DISCONNECT of MQTT 5, and
-  drops a 3.1.1 client at once). A "close after the queue is sent" in the transport
+  drops a 3.1.1 connection when its `EV_TX_READY` says the answers are written, after
+  7.30.26). A "close after the queue is sent" in the transport
   fixes it for every protocol.
 - **The send queue of `C_TCP` has no byte bound: a peer that does not read takes the
   memory of the yuno.** `max_tx_queue` counts messages, not bytes, and is 0 (no limit) by
@@ -355,6 +363,11 @@ application's gate (one application).
   broker from 12.6 to 307 MB. A byte bound in the transport (drop the peer past it, said
   once) fixes it for every protocol; not done, by decision (the case needs an
   authenticated client).
+- **`mqtt_broker` sets no `max_packet_size`, and the `0` of `C_PROT_MQTT2` is no limit:**
+  a client with a session makes the broker hold a packet of up to 256 MB per connection
+  before `message_size_limit` is checked. Same family as the send queue of `C_TCP` above
+  (the case needs an authenticated client); a bound in the broker's input config fixes it.
+  Not done, by decision.
 - **`C_PROT_HTTP_SR` reads `cur_tx_queue` of the transport by name** at each request and
   answer, about 0.35 µs of a round trip. A way to read it with no walk over the attributes
   would recover part of the price of 7.30.0.

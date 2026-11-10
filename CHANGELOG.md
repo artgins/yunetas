@@ -33,16 +33,29 @@
       went up, at ~4 µs: one anonymous peer sending SUBSCRIBEs of 16 000 copies of a filter
       at 1 MB/s held a gate at 100 % CPU (the MQTT page says it, with an example). A repetition, and a filter the protocol
       refuses, cost one dictionary lookup: the code of each occurrence is kept in a C
-      array, not in a json, and the options of a repeated filter are written once. A
-      SUBSCRIBE of 64 KB costs about 0.5 ms of CPU, of 16 000 copies of a filter or of 7900
-      distinct filters past `max_subscriptions_per_client` (7.30.26: 3.3 ms for the
-      distinct ones; measured with `CONFIG_DEBUG_TRACK_MEMORY`). An UNSUBSCRIBE keeps its
-      occurrences the same way: one of 60 KB costs about 0.45 ms as 20 000 copies of a
-      filter, and about 4 ms as 8500 distinct filters, **slower than 7.30.26 (2.3 ms)**:
-      the price of the dictionary that sends a repeated filter up once, about 0.2 µs per
-      distinct filter (a gate reaches 100 % CPU at about 15 MB/s of distinct UNSUBSCRIBEs,
-      26 MB/s in 7.30.26).
+      array, not in a json, and the options of a repeated filter are written once.
+      Measured over a TCP connection (the CPU of the gate's process, 300 packets per shape,
+      four rounds alternated with 7.30.26, with `CONFIG_DEBUG_TRACK_MEMORY`): a SUBSCRIBE
+      of 64 KB costs 0.52-0.59 ms as 16 000 copies of a filter and 0.60-0.70 ms as 7900
+      distinct filters past `max_subscriptions_per_client` (7.30.26: 4.1-4.3 ms). An
+      UNSUBSCRIBE keeps its occurrences the same way: one of 48 KB costs 0.43-0.48 ms as
+      16 000 copies, and one of 55 KB costs 4.4-6.3 ms as 7900 distinct filters, **slower
+      than 7.30.26 (2.5 ms)**. That is the price of the dictionary that sends a repeated
+      filter up once. A gate reaches 100 % CPU at about 9-12 MB/s of distinct UNSUBSCRIBEs
+      (7.30.26: about 22 MB/s). A slower machine costs more.
       BREAKING for an upper level that counted the repetitions: they arrive once in `subs`.
+    - **BREAKING (a log watcher): a server's drop of an MQTT 3.1.1 connection waits for
+      the answers already sent.** A 3.1.1 server sends no DISCONNECT, so the drop went
+      to the `C_TCP` at once, and the `C_TCP` discards what waits behind its write in
+      flight. A gate that cut a connection (`EV_DROP` posted from the action that saw
+      it) lost the answers of the same read. Three QoS 1 readings and a cut message in
+      one write got `PUBACK 1` and the close: the readings were taken, and the client
+      sends them again. `SUBSCRIBE a/b` and a cut SUBSCRIBE got `SUBACK 0x00` and the
+      close, without the `0x80`. Now the drop waits for the `EV_TX_READY` of what was
+      sent, and nothing read after it is processed. A peer that does not read is dropped
+      at `timeout_close` (3 s), with the WARNING *"Timeout waiting mqtt disconnected"*,
+      as in MQTT 5. This is new for 3.1.1, where the drop was at once. Test:
+      `c_mqtt/gate_cut` (new, over a real socket).
     - **BREAKING (a log watcher): a connection that is closing** (its DISCONNECT sent,
       waiting `timeout_close`) takes `EV_DROP` (the transport is dropped at once) and
       refuses `EV_SEND_MESSAGE` with `-1` and one WARNING per connection, *"Mqtt: the
@@ -111,7 +124,9 @@
       connection refused"*, and the client sends nothing. It was taken for a protocol
       error: a DISCONNECT `0x82` to the broker, a dump of the CONNACK, and the user
       never heard `EV_ON_CLOSE`. A 3.1.1 code past 5 ended the connection with a
-      WARNING and no `EV_ON_CLOSE` either.
+      WARNING and no `EV_ON_CLOSE` either. An MQTT 5 code from `0x06` to `0x7F` (MQTT 5
+      defines none below `0x80` but Success) stays a protocol error, DISCONNECT `0x82`,
+      but the user also hears `EV_ON_CLOSE` with the code. Before, it heard nothing.
 - `C_MQTT_BROKER`: a filter of `deny_subscribes` is refused to an MQTT 3.1 client too
   (`0x80`). It was granted with the QoS it asked for.
 - **BREAKING (an operator): `C_MQTT_BROKER` refuses `mqtt_persistent_db` false at its
@@ -152,10 +167,34 @@
   given without its key. `login user=bob <pin>`, `set-user-pwd username=bob <password>`
   and `command-yuno id=x login bob <password>` answered it (7.30.26 echoed all three); the
   answer says `'<...>'` now. A command without secrets still echoes the word.
+  An unknown option of such a command is not named either (a command with a secret
+  parameter, by `SDF_SECRET` or by its name): a word left over that ends in `=` reads as
+  a key, so `set-user-pwd username=bob aHVudGVyMg==` answered *"has no option
+  'aHVudGVyMg'"* and `set-user-pwd username=bob hunter2='x` *"parameter 'hunter2': value
+  with no closing quote"*, and the `commands` trace and `command_mask_secret_line()`
+  showed it (7.30.26). They say `'<...>'` now (the second for a `SDF_WILD_CMD` command
+  too); a command without secrets still names the option.
 - A command line ending in two or more blanks (or a blank and a tab) was refused with
   *"extra parameters: ' '"* (7.30.26 and before; `ycommand` trims its line, so only a
   caller that does not trim saw it). `get_key_value_parameter()` now answers "nothing
   left" for a rest of blanks.
+
+### Agent
+
+- **BREAKING (an operator reading the agent's audit file): a word with no key in a
+  nested command line is written `<...>`.** The agent writes the record of a command
+  before it is parsed, and the command carried by `command-yuno` / `command-agent` runs
+  under a command table the agent does not have: a secret given without its key was
+  written in clear (`command-yuno id=x service=authz command=set-user-pwd username=bob
+  <password>`, quoted or not; `set-kc-config kc_realm=r <client secret>`), in the record
+  of the wrapper and again in the record of the command the agent forwards, whose kw
+  carries the wrapper's line in `__command__` (7.30.26 and before). Now every word after
+  the command name of a nested line that is not a `key=value` is `<...>` -- in the text,
+  in `kw.command`, and in the text and `__command__` of the forwarded record; a word
+  whose `=` ends it or is doubled (a password in base64) is no key. Keys and their values
+  stay, a named secret is `<redacted>` as before. The cost: a positional value of a
+  nested line is `<...>` too (`command-agent command='kill-yuno <...>'`). A command sent
+  to the agent itself keeps its words. `DEBUGGING.md` §5.5 shows it.
 
 ### Kernel
 
