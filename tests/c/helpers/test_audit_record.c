@@ -43,7 +43,9 @@
  *            that comes as json text in a kw string: no secret is written,
  *          - a word with the shell's '\'' in it, in a command of the agent
  *            itself or nested: from it on the line is <...>, its key kept
- *            (7.30.26 wrote a password of a json quoted that way),
+ *            (7.30.26 wrote a password of a json quoted that way), and the
+ *            same for a word with the shell's quote splice '"'"' (or its
+ *            twin "'"'"), which has no backslash,
  *          - what mask_secrets_inline() masks, the audit redacts (the same
  *            function, mark_secrets_inline()): a JWE, a JWT of two parts, a
  *            name: value, a password with blanks, and random texts,
@@ -1061,6 +1063,73 @@ PRIVATE void test_shell_quote(void)
         "command-yuno service=treedb command=update-node topic_name=users "
             "record={\"id\":\"bob\",\"password\":\"<redacted>\"} id=X",
         "(d6) a json without its own quotes: still written, the id= after it");
+}
+
+/***************************************************************************
+ *  (d7) the shell's OTHER way of putting a quote inside a quoted piece, the
+ *  quote splice '"'"' (and its twin "'"'"): no backslash, but the same
+ *  trouble as '\''. The json reader of the text paired the quotes otherwise
+ *  than the shell and wrote the password after them in clear:
+ *  `update-node record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` was written
+ *  `...'<redacted>'"'<s>'"'"'}'` (7.30.26). Fail closed as with '\'': from
+ *  such a word on the line is <...>, its key kept. A quote of one kind
+ *  inside a value quoted with the other (note="it's", {"id":"a'b"}) is no
+ *  splice, and is written.
+ ***************************************************************************/
+PRIVATE void test_shell_quote_splice(void)
+{
+    static const char *lines[] = {
+        // a command of the agent itself
+        "update-node record='{'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'}'",
+        "update-node record='{'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'}' id=X",
+        "update-node record='{\"password\":\"it'\"'\"'s hunter2\"}'",
+        "write-attr x={'\"'\"'password'\"'\"': '\"'\"'hunter2'\"'\"'}",
+        "write-attr x='{'\"'\"'password'\"'\"': '\"'\"'hunter2'\"'\"'}'",
+        "update-node record={'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'} id=X",
+        "update-node {'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'}",
+        // the twin, with double quotes
+        "update-node record=\"{\"'\"'\"password\"'\"'\":\"'\"'\"hunter2\"'\"'\"}\"",
+        "update-node record=\"{'password':'it\"'\"'\"s hunter2'}\" id=X",
+        "write-attr x=\"{\"'\"'\"password\"'\"'\": \"'\"'\"hunter2\"'\"'\"}\"",
+        // nested
+        "command-yuno id=X command=update-node record={'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'}",
+        "command-agent service=x command='update-node record=\"{\"'\"'\"password\"'\"'\":\"'\"'\"hunter2\"'\"'\"}\"'",
+        0
+    };
+    for(int i=0; lines[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(d7) a quote splice '\"'\"' in a word: <...> (%d)", i);
+        check_nested(lines[i], NULL, "hunter2", "<...>", name);
+    }
+    check_command_is("update-node record='{'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'}'", NULL,
+        "update-node record=<...>",
+        "(d7) record='{'\"'\"'password'\"'\"':...}': the value <...>, the key kept");
+    check_command_is("update-node record=\"{\"'\"'\"password\"'\"'\":\"'\"'\"hunter2\"'\"'\"}\" id=X", NULL,
+        "update-node record=<...>",
+        "(d7) the twin \"'\"'\" and id=X after it: from the value on, <...>");
+    check_command_is("update-node id=X note='it'\"'\"'s' Basic hunter2", NULL,
+        "update-node id=X note=<...>",
+        "(d7) a word kept after it could be a secret by what it follows: the rest <...>");
+
+    /*
+     *  What stays: a secret's whole shell word redacted, and a quote of one
+     *  kind inside a value quoted with the other
+     */
+    check_command_is("set-user-pwd username=bob password='it'\"'\"'s hunter2' n=1", NULL,
+        "set-user-pwd username=bob password='<redacted>' n=1",
+        "(d7) password='it'\"'\"'s <s>': still redacted whole, n=1 kept");
+    check_command_is("update-node id=X note=\"it's\" n=1", NULL,
+        "update-node id=X note=\"it's\" n=1",
+        "(d7) note=\"it's\": written");
+    check_command_is("update-node record={\"id\":\"a'b\",\"password\":\"hunter2\"} n=1", NULL,
+        "update-node record={\"id\":\"a'b\",\"password\":\"<redacted>\"} n=1",
+        "(d7) {\"id\":\"a'b\"}: written, its password redacted");
+    check_command_is("update-node record='{\"id\":\"a\\\"b\"}' note='\"' n=1", NULL,
+        "update-node record='{\"id\":\"a\\\"b\"}' note='\"' n=1",
+        "(d7) a lone quote of the other kind: written");
+    check_command_is("update-node record={\"id\":\"'\",\"password\":\"hunter2\"} n=1", NULL,
+        "update-node record={\"id\":\"'\",\"password\":\"<redacted>\"} n=1",
+        "(d7) a json value that is one quote, \"'\": written, its password redacted");
 }
 
 /***************************************************************************
@@ -2901,6 +2970,7 @@ int main(int argc, char *argv[])
     test_secrets();
     test_nested_positional_secret();
     test_shell_quote();
+    test_shell_quote_splice();
     test_stats_reset();
     test_content64_blank_before_equal();
     test_short_content64_values();
