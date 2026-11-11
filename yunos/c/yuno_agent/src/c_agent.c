@@ -7558,15 +7558,6 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    if(strcasecmp(command, cmd)==0) {
-        return msg_iev_build_response(gobj,
-            -1,
-            json_sprintf("%s: Loop command", gobj_yuno_role_plus_name()),
-            0,
-            0,
-            kw  // owned
-        );
-    }
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
     hgobj service_gobj;
@@ -7583,6 +7574,25 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 kw  // owned
             );
         }
+    }
+
+    /*
+     *  The command the line names, found as the parser finds it (its first
+     *  word, in any case, or an alias): the forwarded kw still carries this
+     *  `command`, so a line that runs this function again runs it for ever.
+     *  Comparing the whole text let "'command-agent'" or
+     *  "command-agent service=agent" through, until the stack overflowed.
+     */
+    const sdata_desc_t *cmd_table = gobj_command_desc(service_gobj, NULL, FALSE);
+    const sdata_desc_t *cnf_cmd = cmd_table? command_get_cmd_desc(cmd_table, command) : NULL;
+    if(cnf_cmd && cnf_cmd->json_fn == cmd_command_agent) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: Loop command", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
     }
 
     json_t *webix = gobj_command(
