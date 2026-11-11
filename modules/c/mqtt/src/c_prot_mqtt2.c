@@ -831,18 +831,43 @@ PRIVATE int open_queues(hgobj gobj)
 }
 
 /***************************************************************************
- *  Close the queues of the connection, and delete their topics when its
- *  session is not kept: its own clean start, or delete_session, a take-over
- *  by a connection that does not keep it (the broker's EV_DROP). Up to
- *  7.30.26 a take-over with a clean session left the topics of a
- *  persistent session, and the new connection, opening them, got the old
- *  session's messages [MQTT-3.1.2-4] (5.0), [MQTT-3.1.2-6] (3.1.1).
+ *  Does the session of the connection end with it? As a server: in MQTT 5
+ *  when its Session Expiry Interval is 0 at the close (a DISCONNECT may
+ *  have changed it [MQTT-3.14.2.2.2]), in MQTT 3.1.1 when it has a clean
+ *  session (read at the CONNECT as an expiry of 0; otherwise one that never
+ *  ends). Clean Start of MQTT 5 cleans at the CONNECT only [MQTT-3.1.2-4]:
+ *  up to 7.30.26 it ended the session at the close too, and a session with
+ *  Clean Start 1 and Session Expiry > 0 lost its queued messages at each
+ *  close. As a client, its clean_start (not set by the client itself).
  ***************************************************************************/
-PRIVATE void close_queues(hgobj gobj, BOOL delete_session)
+PRIVATE BOOL session_ends_with_connection(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->iamServer) {
+        return (priv->session_expiry_interval == 0)? TRUE : FALSE;
+    }
+    return priv->clean_start;
+}
+
+/***************************************************************************
+ *  Close the queues of the connection, and delete their topics when
+ *  delete_topics: its session ends with it (session_ends_with_connection()),
+ *  or a take-over by a connection that does not keep it ("delete_session"
+ *  of the broker's EV_DROP). A take-over that KEEPS the session closes them
+ *  without deleting: the topics are the new connection's. Up to 7.30.26 a
+ *  take-over with a clean session left the topics of a persistent session,
+ *  and the new connection, opening them, got the old session's messages
+ *  [MQTT-3.1.2-4] (5.0), [MQTT-3.1.2-6] (3.1.1); and the close of a
+ *  connection taken over keeping its session deleted, when it had come
+ *  with Clean Start 1, the topics the new connection had open (its queue
+ *  then read a freed topic every second: an ERROR, or a crash).
+ ***************************************************************************/
+PRIVATE void close_queues(hgobj gobj, BOOL delete_topics)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char queue_name[NAME_MAX];
-    BOOL delete_topics = (priv->clean_start || delete_session) && priv->tranger_queues;
+    delete_topics = delete_topics && priv->tranger_queues;
 
     if(priv->trq_in_msgs) {
         tr2q_close(priv->trq_in_msgs);
@@ -9577,7 +9602,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  to 7.30.26 they leaked ("system memory not free" at the end)
      */
     if(priv->trq_in_msgs || priv->trq_out_msgs) {
-        close_queues(gobj, FALSE);
+        close_queues(gobj, session_ends_with_connection(gobj));
     }
 
     GBUFFER_DECREF(priv->gbuf_will_payload);
@@ -10746,11 +10771,14 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /*
      *  Session taken over by another connection with the same client_id:
-     *  an MQTT 5 client is told 0x8E [MQTT-3.1.4-3], and its queues stay
-     *  with the session, unless the taker deletes it ("delete_session",
-     *  a clean start: the broker sends both). Up to 7.30.26 a session
-     *  deleted was told 0x00. kw may be NULL when drop is triggered by
-     *  user/iogate without session_take_over context.
+     *  an MQTT 5 client is told 0x8E [MQTT-3.1.4-3], and its queues are
+     *  closed now, their topics left to the taker, unless the taker deletes
+     *  the session ("delete_session", a clean start: the broker sends
+     *  both). Up to 7.30.26 a session deleted was told 0x00, and the queues
+     *  of a session kept were left open to the end of the close, which
+     *  deleted their topics by its own view of the session. kw may be NULL
+     *  when drop is triggered by user/iogate without session_take_over
+     *  context.
      */
     BOOL session_take_over = FALSE;
     BOOL delete_session = FALSE;
@@ -10763,8 +10791,10 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(session_take_over) {
         reason_code = (priv->protocol_version == mqtt_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
     }
-    if(!session_take_over || delete_session) {
+    if(session_take_over || delete_session) {
         close_queues(gobj, delete_session);
+    } else {
+        close_queues(gobj, session_ends_with_connection(gobj));
     }
 
     ws_close(gobj, reason_code); // this send drop
@@ -10786,18 +10816,22 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *  a session there is nothing to drop: the transport was dropped when the
  *  session ended, or never connected. Up to 7.30.26 it was "Event NOT
  *  DEFINED": a gate that takes a client id over sent it to every
- *  connection of that id still closing. A take-over by a connection that
- *  does not keep the session ("delete_session") closes and deletes the
- *  queues now, as ac_drop() does: they were left to the end of this close,
- *  which keeps the topics of a session kept, and the new clean session
- *  reloaded the old messages.
+ *  connection of that id still closing. A take-over closes the queues now,
+ *  as ac_drop() does, and deletes their topics only when the taker does
+ *  not keep the session ("delete_session"): they were left to the end of
+ *  this close, which decides by its own view of the session, so a new
+ *  clean session reloaded the old messages, and the close deleted the
+ *  topics under a taker that kept them.
  ***************************************************************************/
 PRIVATE int ac_drop_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(kw && json_is_object(kw) && kw_get_bool(gobj, kw, "delete_session", 0, 0)) {
-        close_queues(gobj, TRUE);   // before the taker opens them: a clean take-over starts empty
+    if(kw && json_is_object(kw)) {
+        BOOL delete_session = kw_get_bool(gobj, kw, "delete_session", 0, 0);
+        if(delete_session || kw_get_bool(gobj, kw, "session_take_over", 0, 0)) {
+            close_queues(gobj, delete_session);   // before the taker opens them
+        }
     }
 
     if(priv->in_session) {

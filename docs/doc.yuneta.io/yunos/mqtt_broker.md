@@ -177,6 +177,30 @@ while the old connection is itself still closing (its last answers not yet
 written to a peer that does not read): its queues are closed and deleted at
 the take-over, not left to the end of that close.
 
+**A session that is kept outlives its connection, whatever its Clean
+Start.** In MQTT 5 Clean Start only says whether the CONNECT starts from an
+empty session [MQTT-3.1.2-4]; how long the session lives is its Session
+Expiry Interval, the one of the CONNECT or of its DISCONNECT. The close of a
+connection deletes its queues only when that interval is 0 (in MQTT 3.1.1,
+with a clean session), and the broker deletes them when a kept session
+expires. A take-over that keeps the session leaves the queues to the new
+connection, and the end of the old one does not touch them:
+
+```text
+A  CONNECT x (MQTT 5, Clean Start 1, Session Expiry 300)   CONNACK 0
+A  SUBSCRIBE q/# QoS 1, PUBLISH 5 x QoS 1 to q/x            5 PUBLISH, not acked
+B  CONNECT x (Clean Start 0, Session Expiry 300; or 3.1.1 clean session 0)
+                                                           A taken over; B: CONNACK 1, the 5
+B  PUBACK the 5                                            nothing more: no ERROR, no crash
+```
+
+Up to 7.30.26 the close of A deleted the queue topics because A had come with
+Clean Start 1, its session kept or not: the topics B had open were deleted
+under it, and its queue read the freed topic at every backup check (an ERROR
+*"json refcount 0"* every second, or a crash once messages were queued and
+acknowledged), and a client that sent DISCONNECT and came back keeping the
+session got only what was published after it left.
+
 **A broker that stops while connections are still closing** stops clean. A
 peer that does not take what is written to it holds its connection in the
 `C_TCP` (up to `timeout_stop_tx`, 10 s), and a stop of the yuno

@@ -4432,11 +4432,12 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         sub__remove_client(gobj, client_id);
 
         /*
-         *  Delete the client's queues.
-         *  close_queues() in c_prot_mqtt2 only deletes queue topics when
-         *  wire clean_start=TRUE.  For temporary sessions where wire
-         *  clean_start=FALSE (e.g. assigned_id clients, or MQTT5 with
-         *  session_expiry_interval=0), the broker must delete them here.
+         *  Delete the client's queues. close_queues() of c_prot_mqtt2 has
+         *  deleted them at its close, before this EV_ON_CLOSE, by the same
+         *  rule (MQTT 5: Session Expiry 0 at the close; MQTT 3.1.1: clean
+         *  session). Up to 7.30.26 it deleted them only with the wire's
+         *  clean_start, and those of a temporary session without it were
+         *  deleted here; a deletion of a topic already deleted does nothing.
          */
         BOOL wire_clean_start = gobj_read_bool_attr(gobj_channel, "clean_start");
         if(priv->tranger_queues && !wire_clean_start) {

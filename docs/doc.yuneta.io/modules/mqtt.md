@@ -28,7 +28,32 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
   PUBLISH released its payload twice.
 - **With queues** they are opened BEFORE `EV_ON_OPEN` is published, so its
   user may publish in any QoS there (up to 7.30.26 they opened after it: the
-  NULL queue, a crash).
+  NULL queue, a crash). Its close deletes their topics only when its
+  `clean_start` attribute is set (the client does not set it itself).
+
+**As a server, the close of a connection deletes its queue topics only when
+its session ends with it:** in MQTT 5 when its Session Expiry Interval is 0 at
+the close (the one of the CONNECT, or the one of its DISCONNECT
+[MQTT-3.14.2.2.2]), in MQTT 3.1.1 when it came with a clean session. Clean
+Start (MQTT 5) cleans at the CONNECT only [MQTT-3.1.2-4]: a session with
+Clean Start 1 and Session Expiry 300 keeps its messages across the close, and
+the broker deletes them when the session expires. A connection taken over is
+told by the broker's `EV_DROP` (see below), and its close deletes nothing.
+
+```text
+A  CONNECT x (MQTT 5, Clean Start 1, Session Expiry 300)     CONNACK 0
+A  SUBSCRIBE q/# QoS 1; 25 QoS 1 to q/x, not acked           20 in flight, 5 queued
+A  DISCONNECT, closes                                        the session and its queues kept
+C  5 QoS 1 to q/x                                            queued for x
+B  CONNECT x (MQTT 5, Clean Start 0, Session Expiry 300)     CONNACK 1, the 30 messages
+```
+
+Up to 7.30.26 the close deleted the topics whenever the connection had come
+with Clean Start 1: B got 5 of the 30, against [MQTT-4.4.0-1]. And when B came
+while A was still connected (or still closing), the close of A deleted the
+topics B had open: the queue of B then read a freed topic at each backup
+check, every second (the ERROR *"json refcount 0"*, or a crash with messages
+queued and acknowledged).
 - **`max_packet_size`** bounds what the broker may send: a larger packet is
   refused at its header (WARNING *"Incoming packet exceeds max_packet_size"*,
   DISCONNECT `0x82`), and an MQTT 5 CONNECT announces it (Maximum Packet
@@ -380,8 +405,10 @@ broker sends the same key, and `"delete_session": true` when the new
 connection does not keep the session, which closes the queues of the old one
 and deletes their topics, whether the OLD connection kept its session or
 not (up to 7.30.26 only when it did not: the new connection, with a clean
-session, opened the same topics and got the old session's messages); a gate
-has no queues and needs only the first:
+session, opened the same topics and got the old session's messages). A
+take-over without it closes the queues of the old connection too, and leaves
+their topics to the new one: the end of the old connection does not touch
+them any more. A gate has no queues and needs only the first:
 
 ```C
 gobj_send_event(

@@ -348,8 +348,24 @@ A as in 1, then STALLED (receive buffer 4 KB, the broker's side send buffer
 4 KB): it reads nothing more and sends 5 SUBSCRIBEs of 8000 times `a` and
 `0xF0`, so the broker's close waits for 40 KB of SUBACKs; B takes the session
 over while A is still closing, with a clean session (7: nothing) or keeping
-it (8: the 5 messages). Red on 7.30.26: B of 1, 2 and 7 got the 5 messages of
-A's session; 6 closed with no log.
+it (8: the 5 messages). 9 to 18: what the CLOSE of a connection does to the
+queues of its session; B acknowledges what it gets and stays 2.5 s (the queue
+backup looks every second). A comes with MQTT 5, Clean Start 1 and Session
+Expiry 300 (a session kept): taken over, still connected, by B keeping the
+session in MQTT 5 (9) and 3.1.1 (10): session present 1, the 5 messages, no
+ERROR; 25 messages (20 in flight), DISCONNECT and close, 5 more published by C,
+B back keeping it (11): the 30; 30 messages, STALLED in MQTT 5 as in 7, B
+keeping it while A closes (12): the 30; DISCONNECT with Session Expiry 0,
+still connected (13), or closing by its keepalive of 1 s (14: one WARNING
+*"Client keepalive timeout, closing connection"*), B keeping it (the broker's
+record still says 300): session present 1, the 5, no ERROR. What is not kept
+is still deleted at the close, B keeping: 3.1.1 clean session (15), MQTT 5
+without Session Expiry (16), with a DISCONNECT of Session Expiry 0 (17),
+Session Expiry 1 and B 3 s later (18, the broker's expiry): session present 0
+and nothing. About 42 s. Red on 7.30.26: B of 1, 2 and 7 got the 5 messages of
+A's session; 6 closed with no log; the close of A deleted the topics B had
+open: 9, 10, 13 and 14 the ERRORs *"Cannot open topic"* and *"kw must be list
+or dict"* every second, 12 a SIGSEGV; and 11 B got 5 of 30.
 
 `test_mqtt_broker_takeover` (`main_broker_takeover.c` +
 `c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`

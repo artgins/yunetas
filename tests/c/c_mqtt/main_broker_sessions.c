@@ -2,9 +2,11 @@
  *          MAIN_BROKER_SESSIONS.C
  *
  *          Self-contained MQTT broker test: a take-over with a clean
- *          session starts empty, one that keeps it gets its messages, and
- *          a QoS 2 past the in-flight limit of a session with queues is
- *          said. See c_broker_sessions.c.
+ *          session starts empty, one that keeps it gets its messages, a
+ *          QoS 2 past the in-flight limit of a session with queues is
+ *          said, and the close of a connection deletes the queues of its
+ *          session only when the session is not kept. See
+ *          c_broker_sessions.c.
  *
  *          Embedded C_AUTHZ + C_MQTT_BROKER, an input gate on port 18126,
  *          and raw MQTT 3.1.1 and 5 clients (plain sockets of the driver)
@@ -203,19 +205,21 @@ static int register_yuno_and_more(void)
     /*------------------------------------------------*
      *  Safety: kill the yuno after 60 s if stuck
      *------------------------------------------------*/
-    set_auto_kill_time(60);
+    set_auto_kill_time(120);
 
     /*------------------------------*
      *  Capture only errors
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "No authz db, authz only to local access",   // C_AUTHZ of the test, without a db
             "msg", "Command unknown or not implemented",        // 5. A's 0xF0
             "msg", "Mqtt: QoS 2 PUBLISH past max_inflight_messages (Receive Maximum), disconnecting", // 6.
             "msg", "Command unknown or not implemented",        // 7. A's 0xF0
-            "msg", "Command unknown or not implemented"         // 8. A's 0xF0
+            "msg", "Command unknown or not implemented",        // 8. A's 0xF0
+            "msg", "Command unknown or not implemented",        // 12. A's 0xF0
+            "msg", "Client keepalive timeout, closing connection" // 14. A after its DISCONNECT
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
