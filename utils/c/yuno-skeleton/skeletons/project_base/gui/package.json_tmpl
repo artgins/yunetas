@@ -18,7 +18,7 @@
         "@yuneta/gobj-ui": "^7.30.0",
         "bulma": "^1.0.4",
         "i18next": "^26.5.12",
-        "maplibre-gl": "^6.17.0",
+        "maplibre-gl": "^6.18.0",
         "tabulator-tables": "^6.7.1",
         "tom-select": "^2.6.2",
         "uplot": "^1.6.32",
