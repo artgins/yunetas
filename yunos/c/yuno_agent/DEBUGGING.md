@@ -951,6 +951,34 @@ nearest first:
   (`record={"id":"bob","password":"<redacted>"} id=1620`). A quoted piece
   with a blank in such a value is cut otherwise (`record={"note":"a b"}`:
   the parser ends the value at `"a`), and from it on the line is `<...>`.
+
+  A word with the shell's `'\''` in it (a `\` before a `'`) fails closed,
+  nested or not -- also in a command sent to the agent itself, which
+  otherwise keeps its words. JSON has no such escape and the parser takes
+  no `\` as one, so nobody can tell which `'` opens a string and which
+  one closes it: the JSON reader of the text took `'\''` as a string and
+  wrote the password after it in clear. From that word on, the line is
+  `<...>`, the word's key kept (a word left after it could be a secret
+  only by what came before it, as after `Basic`). These commands:
+
+  ```text
+  update-node record='{'\''password'\'':'\''hunter2'\''}' id=X
+  write-attr x={'\''password'\'': '\''hunter2'\''}
+  command-yuno id=X command=update-node record={'\''password'\'':'\''hunter2'\''}
+  ```
+
+  are recorded as
+
+  ```text
+  update-node record=<...>
+  write-attr x=<...>
+  command-yuno id=X command=update-node <...>
+  ```
+
+  Up to 7.30.26 the first was recorded
+  `update-node record='{'\''password'\'':'<redacted>'hunter2'\''}' id=X`. The
+  value of a secret's own key keeps its rule above (its whole shell word,
+  redacted): `password='it'\''s hunter2'` is still `password='<redacted>'`.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

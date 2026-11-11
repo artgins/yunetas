@@ -121,6 +121,16 @@
  *            is read alike and written. See mask_nested_line(),
  *            word_read_alike() and command_word().
  *
+ *          - A word with the shell's '\'' in it (a '\' before a "'") fails
+ *            closed, nested or not: from it on the line is `<...>`, its key
+ *            kept. Json has no such escape and the parser takes no '\' as
+ *            one: nobody can tell which "'" opens a string, and the json
+ *            reader took '\'' as one, so `update-node
+ *            record='{'\''password'\'':'\''<s>'\''}'` was written with <s>
+ *            in clear (7.30.26). The value of a secret's own key keeps its
+ *            whole shell word, redacted. See has_shell_quote() and
+ *            mask_shell_quote_words().
+ *
  *          - The scan of a string is ONE pass, in linear time: a value
  *            inside a quoted value is followed with a small stack of
  *            regions (MAX_REGIONS), and the key of a json member is the
@@ -2658,6 +2668,26 @@ PRIVATE const char *keyed_word_equal(const char *w, const char *e)
 }
 
 /*
+ *  TRUE if the word [w, e) holds the shell's quote inside a quoted piece,
+ *  '\'' (a '\' before a "'"). Json has no such escape, the command parser
+ *  takes no '\' as one, and the shell's reading of it depends on where
+ *  the pieces around began: no reader of the audit can tell which "'"
+ *  opens a string and which one closes it. The json reader of the text
+ *  (mask_secrets_inline()) read '\'' as a string "\'" and wrote the
+ *  password after it in clear: {'\''password'\'':'\''<s>'\''} was written
+ *  {'\''password'\'':'<redacted>'<s>'\''} (7.30.26).
+ */
+PRIVATE BOOL has_shell_quote(const char *w, const char *e)
+{
+    for(const char *p = w; p + 1 < e; p++) {
+        if(p[0] == '\\' && p[1] == '\'') {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*
  *  TRUE if the command parser cuts the word [w, e) where word_end() does
  *  (get_parameter(), get_key_value_parameter()): the parser takes no '\'
  *  as an escape, and a quote only where a value begins, closed by the
@@ -2675,6 +2705,12 @@ PRIVATE const char *keyed_word_equal(const char *w, const char *e)
  *  Elsewhere the two read otherwise: x=''\'' <password> is ONE keyed
  *  word of the shell, and a value '' and two more words of the parser;
  *  x=a' <password>' is one word of the shell and two of the parser.
+ *  And a word with the shell's '\'' in it (has_shell_quote()) is judged
+ *  as one the two read otherwise, whatever its blanks: where its "'"
+ *  pieces begin and end is known to nobody (record={'\''password'\'':
+ *  '\''<s>'\''} was written with the password in clear, 7.30.26). But the
+ *  quoted value of a wrapper's `command`, whose words are judged one by
+ *  one (mask_command_value()).
  */
 PRIVATE BOOL word_read_alike(const char *w, const char *e, const char *eq)
 {
@@ -2769,7 +2805,9 @@ PRIVATE void mask_line_words(
         const char *last_quote;
         const char *e = word_end(p, end, &last_quote);
         const char *eq = first? NULL : keyed_word_equal(p, e);
-        if(!word_read_alike(p, e, eq)) {
+        BOOL command_value = (wrapper && eq && eq - p == (ptrdiff_t)strlen("command") &&
+            strncasecmp(p, "command", strlen("command")) == 0)? TRUE: FALSE;
+        if(!word_read_alike(p, e, eq) || (!command_value && has_shell_quote(p, e))) {
             out_append(sc, BARE_WORD, strlen(BARE_WORD));  // and the rest of the line
             *changed = TRUE;
             return;
@@ -2790,8 +2828,7 @@ PRIVATE void mask_line_words(
         } else if(!eq) {
             out_append(sc, BARE_WORD, strlen(BARE_WORD));
             *changed = TRUE;
-        } else if(wrapper && eq - p == (ptrdiff_t)strlen("command") &&
-                strncasecmp(p, "command", strlen("command")) == 0) {
+        } else if(command_value) {
             out_append(sc, p, (size_t)(eq + 1 - p));
             mask_command_value(sc, eq + 1, e, level, changed);
         } else {
@@ -2819,6 +2856,70 @@ PRIVATE char *mask_nested_line(const char *text, size_t len, BOOL wrapper, redac
     };
     BOOL changed = FALSE;
     mask_line_words(&sc, text, text + len, wrapper, 0, &changed);
+    if(sc.no_memory) {
+        gbmem_free(sc.out);
+        ctx->no_memory = TRUE;  // Error already logged
+        return NULL;
+    }
+    if(!changed) {
+        gbmem_free(sc.out);
+        return NULL;
+    }
+    return sc.out;
+}
+
+/*
+ *  A line that is not nested (a command of the agent itself keeps its
+ *  words): from a word with the shell's '\'' in it (has_shell_quote()) on,
+ *  the line is BARE_WORD, that word's key kept -- fail closed, as a nested
+ *  line does with a word the two read otherwise. The rest goes too: a word
+ *  kept after it could be a secret only by what came before it ("Basic
+ *  <s>", "Authorization: <s>"), and that is gone. But the value of a
+ *  secret or a content64 key, which is its whole word, the shell's way,
+ *  redacted whole by redact_param_value() (password='it'\''s <s>' is
+ *  password='<redacted>'), and the line goes on.
+ *  NULL if there is nothing to mask (use the text), or if the copy could
+ *  not be allocated: then ctx->no_memory is set, and the text must not be
+ *  written. Free with gbmem_free().
+ */
+PRIVATE char *mask_shell_quote_words(const char *text, size_t len, redact_ctx_t *ctx)
+{
+    if(!memchr(text, '\\', len)) {
+        return NULL;
+    }
+    redact_scan_t sc = {
+        .text = text,
+        .text_len = len,
+        .from = text,
+        .ctx = ctx
+    };
+    BOOL changed = FALSE;
+    const char *p = text;
+    const char *end = text + len;
+    while(p < end) {
+        if(is_blank(*p)) {
+            const char *b = p;
+            while(p < end && is_blank(*p)) {
+                p++;
+            }
+            out_append(&sc, b, (size_t)(p - b));
+            continue;
+        }
+        const char *last_quote;
+        const char *e = word_end(p, end, &last_quote);
+        const char *eq = keyed_word_equal(p, e);
+        if(!has_shell_quote(p, e) || (eq && key_kind(p, (size_t)(eq - p), ctx) != KEY_PLAIN)) {
+            out_append(&sc, p, (size_t)(e - p));
+            p = e;
+            continue;
+        }
+        if(eq) {
+            out_append(&sc, p, (size_t)(eq + 1 - p));
+        }
+        out_append(&sc, BARE_WORD, strlen(BARE_WORD));  // and the rest of the line
+        changed = TRUE;
+        break;
+    }
     if(sc.no_memory) {
         gbmem_free(sc.out);
         ctx->no_memory = TRUE;  // Error already logged
@@ -2935,6 +3036,8 @@ PRIVATE json_t *record_build(
     char *command_masked = NULL;
     if((wrapper || forwarded) && command_len <= ctx.budget) {
         command_masked = mask_nested_line(command, command_len, wrapper, &ctx);
+    } else if(command_len <= ctx.budget) {
+        command_masked = mask_shell_quote_words(command, command_len, &ctx);
     }
     char *command_redacted = NULL;
     const char *command_text = command;

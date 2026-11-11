@@ -79,7 +79,11 @@ without quotes of its own (`record={"id":"item1"} options={"force":1}`, the
 documented form) is written whole, its `password` redacted inside, with the
 `id=` after it (7.30.26 wrote it whole too; before this fix the unreleased rule
 made the rest of the line `<...>`); `record={"note":"a <s>"}` still makes the
-rest `<...>`. A `stats=__reset__` makes a stats command a
+rest `<...>`. A word with the shell's `'\''` in it fails closed, nested or
+not: `update-node record='{'\''password'\'':'\''<s>'\''}'` is
+`update-node record=<...>`, the rest of the line with it (7.30.26 wrote
+`...:'<redacted>'<s>'\''}`), and twelve such shapes lose the secret; a
+secret's own value (`password='it'\''s <s>'`) is still redacted whole. A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A
