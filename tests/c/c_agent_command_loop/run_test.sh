@@ -14,7 +14,13 @@
 #   link, which is down in the sandbox, must be answered at once with -1
 #   and one WARNING (up to 7.30.26: no answer, and an ERROR with a stack),
 #   and so must a stats-agent of it. A content64 that is not base64 is
-#   answered -1 with one WARNING (up to 7.30.26: an ERROR with a stack).
+#   answered -1 with one WARNING (up to 7.30.26: an ERROR with a stack), and
+#   so is a config content64 that is empty or not json, with nothing of the
+#   content in the log (7.30.26: ERRORs with a stack and a dump of the whole
+#   config). A secret whose key the shell's quotes split never reaches the
+#   audit file (7.30.26 wrote it). A write-tty to a service that is no
+#   console is answered EV_TTY_CLOSE with a WARNING (7.30.26: "Event NOT
+#   DEFINED in state", or the agent writing to itself).
 #   Then the agent is stopped in order: it must end with 0, with no
 #   "system memory not free" (the gbmem audit of CONFIG_DEBUG_TRACK_MEMORY),
 #   and its audit file must hold one record per command sent, not one per
@@ -114,6 +120,37 @@ if [ "$nb" != "3" ] || [ "$eb" != "0" ]; then
     echo "TEST FAILED: a bad content64 logged $nb WARNING(s) and $eb ERROR(s), expected three WARNINGs"
     failed=1
 fi
+#   A config content64 that is empty or not json: one WARNING each, no
+#   ERROR, and nothing of the content in the log (7.30.26: "len is ZERO" and
+#   "json_loads() FAILED", ERRORs with a stack, and a dump of the whole
+#   config)
+ne=$(grep -a '"msg": "content64 of a config is empty, refused"' "$WORK/agent.log" | grep -ac "WARNING")
+nj=$(grep -a '"msg": "content64 of a config is not json, refused"' "$WORK/agent.log" | grep -ac "WARNING")
+ej=$(grep -aE 'len is ZERO|json_loads\(\) FAILED' "$WORK/agent.log" | grep -ac "ERROR")
+dj=$(grep -acE 'comments removed|PRIVATE KEY|MIIEvQ' "$WORK/agent.log")
+if [ "$ne" != "2" ] || [ "$nj" != "2" ] || [ "$ej" != "0" ] || [ "$dj" != "0" ]; then
+    echo "TEST FAILED: an empty / not json config logged $ne / $nj WARNING(s), $ej ERROR(s) and $dj line(s) of its content, expected two WARNINGs each and nothing else"
+    failed=1
+fi
+#   A write-tty to a service that is not a console: one WARNING each, no
+#   ERROR (7.30.26: "Event NOT DEFINED in state" with a stack, and the agent
+#   writing to itself: "content64 required")
+#   And one without content64: one WARNING (7.30.26: an ERROR)
+nc=$(grep -a '"msg": "not a console"' "$WORK/agent.log" | grep -ac "WARNING")
+nr=$(grep -a '"msg": "content64 required"' "$WORK/agent.log" | grep -ac "WARNING")
+ec=$(grep -aE 'Event NOT DEFINED in state|content64 required' "$WORK/agent.log" | grep -ac "ERROR")
+if [ "$nc" != "2" ] || [ "$nr" != "1" ] || [ "$ec" != "0" ]; then
+    echo "TEST FAILED: a write-tty to a service that is no console / without content64 logged $nc / $nr WARNING(s) and $ec ERROR(s), expected two WARNINGs and one"
+    failed=1
+fi
+#   A secret's key split by the shell's quotes: never in the audit file
+#   (7.30.26 wrote the five of client.py with their secret)
+na=$(grep -ac "AUDITSEKRET" "$WORK/audit.txt" 2>/dev/null)
+if [ "${na:-0}" != "0" ]; then
+    echo "TEST FAILED: $na audit record(s) hold a secret whose key the shell's quotes split"
+    grep -a "AUDITSEKRET" "$WORK/audit.txt" | cut -c1-300
+    failed=1
+fi
 n=$(grep -ac "command-agent" "$WORK/audit.txt" 2>/dev/null)
 if [ -z "$n" ] || [ "$n" -lt 8 ] || [ "$n" -gt 20 ]; then
     echo "TEST FAILED: ${n:-no} audit records of command-agent, expected one per command sent (8 to 20)"
@@ -124,5 +161,5 @@ if [ $failed -ne 0 ]; then
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | cut -c1-600 | tail -40
     exit 1
 fi
-echo "TEST PASSED: every command-agent that names command-agent answered 'Loop command', a command and a stats to a link that is down answered -1, a bad content64 -1 with a WARNING, and the agent lived"
+echo "TEST PASSED: every command-agent that names command-agent answered 'Loop command', a command and a stats to a link that is down answered -1, a bad content64 and a bad config -1 with a WARNING, no secret of a quoted key in the audit, a write-tty to no console refused, and the agent lived"
 exit 0

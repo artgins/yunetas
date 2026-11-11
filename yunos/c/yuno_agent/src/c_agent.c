@@ -4507,6 +4507,62 @@ PRIVATE json_t *cmd_list_configs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  The json of a config that a PEER sent in content64 (create-config,
+ *  update-config), its comments (INLINE_COMMENT) removed. An empty content
+ *  or one that is not json is the peer's doing: ONE warning, no stack and
+ *  NO dump of the content -- a config holds keys under names that no mask
+ *  knows (a PEM under ssl_certificate_key). config_gbuffer2json() logged
+ *  "len is ZERO" and "json_loads() FAILED" as ERRORs with a stack, and
+ *  dumped the whole config (7.30.26). Its "gbuffer" keys are dropped, as
+ *  for any json of a peer. gbuf is decref. Return NULL if error.
+ ***************************************************************************/
+PRIVATE json_t *config_from_peer(hgobj gobj, gbuffer_t *gbuf, const char *cmd, hgobj src)
+{
+    size_t len = gbuffer_leftbytes(gbuf);
+    if(len == 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "content64 of a config is empty, refused",
+            "command",      "%s", cmd,
+            NULL
+        );
+        GBUFFER_DECREF(gbuf)
+        return NULL;
+    }
+
+    const char *p = gbuffer_cur_rd_pointer(gbuf);
+    json_t *jn_config = json_config_string2json(p, FALSE);
+    if(!jn_config) {
+        /*
+         *  Where it fails, read without the removal of the comments (which
+         *  joins the lines): only the position and jansson's text without
+         *  the bytes it quotes
+         */
+        json_error_t error;
+        memset(&error, 0, sizeof(error));
+        json_t *jn_raw = json_loadb(p, len, 0, &error);
+        JSON_DECREF(jn_raw)
+        char error_shown[JSON_ERROR_TEXT_LENGTH];
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "content64 of a config is not json, refused",
+            "command",      "%s", cmd,
+            "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
+            "line",         "%d", error.line,
+            "column",       "%d", error.column,
+            "len",          "%d", (int)len,
+            NULL
+        );
+    } else {
+        drop_peer_binary_keys(gobj, jn_config, p, len, src);
+    }
+    GBUFFER_DECREF(gbuf)
+    return jn_config;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -4543,9 +4599,11 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 kw  // owned
             );
         }
-        jn_config = config_gbuffer2json(
+        jn_config = config_from_peer(
+            gobj,
             gbuf_content,  // owned
-            2
+            cmd,
+            src
         );
         if(!jn_config) {
             return msg_iev_build_response(
@@ -4721,9 +4779,11 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 kw  // owned
             );
         }
-        jn_config = config_gbuffer2json(
+        jn_config = config_from_peer(
+            gobj,
             gbuf_content,  // owned
-            2
+            cmd,
+            src
         );
     }
     if(!jn_config) {
@@ -15151,21 +15211,24 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *name= kw_get_str(gobj, kw, "name", 0, 0);
     const char *content64 = kw_get_str(gobj, kw, "content64", 0, 0);
     if(empty_string(content64)) {
-        gobj_log_error(gobj, 0,
+        /*
+         *  Malformed write-tty frame, the peer's doing: a WARNING (an ERROR
+         *  up to 7.30.26), and drop THIS message, not the shared
+         *  controlcenter_cli link.
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "content64 required",
             "name",         "%s", name,
             NULL
         );
-        /*  Malformed write-tty frame: log and drop THIS message, not the
-         *  shared controlcenter_cli link. */
         KW_DECREF(kw);
-        return 0;
+        return -1;
     }
 
     hgobj gobj_console = gobj_find_service(name, FALSE);
-    if(!gobj_console) {
+    if(!gobj_console || !gobj_typeof_gclass(gobj_console, C_PTY)) {
         /*
          *  A write-tty for a console that isn't here — usually a benign race:
          *  the client (e.g. gui_agent) sent a keystroke in the window between
@@ -15173,11 +15236,15 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  client. Do NOT EV_DROP src: over the shared controlcenter_cli link
          *  that would tear down the whole control channel (every panel + every
          *  other console) for one stray tty write. Log and ignore.
+         *  A service that is not a console (__yuno__, the agent itself) is no
+         *  console by that name either: up to 7.30.26 it was sent
+         *  EV_WRITE_TTY, which __yuno__ answered with "Event NOT DEFINED in
+         *  state" (an ERROR with a stack), and the agent sent it to itself.
          */
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "console not found",
+            "msg",          "%s", gobj_console? "not a console" : "console not found",
             "name",         "%s", name,
             NULL
         );
@@ -15200,7 +15267,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj
         );
         KW_DECREF(kw);
-        return 0;
+        return gobj_console? -1 : 0;
     }
 
     gbuffer_t *gbuf = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));

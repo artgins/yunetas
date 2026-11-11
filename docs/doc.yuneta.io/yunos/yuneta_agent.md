@@ -508,6 +508,32 @@ Other commands act on EVERY record when they have no filter, by design:
 `kill-yuno`, `run-yuno`, `command-yuno` and the rest of the list in
 [bulk when unfiltered](#agent-bulk-commands).
 
+## A `content64` that is not what it must be
+
+A `create-config` or `update-config` whose `content64` decodes to nothing,
+or to text that is not json (its `#^^` comments removed), answers `-1`
+*"…: Bad json in content64"*. The log gets ONE WARNING with the position of
+the error and the length, and nothing of the content: a config holds keys
+under names that no mask knows.
+
+```text
+create-config id=x content64=aGVsbG8=
+-1 "yuneta_agent^node: Bad json in content64"
+WARNING {"msgset": "Parameter", "msg": "content64 of a config is not json, refused",
+         "command": "create-config", "error": "'[' or '{' expected", "line": 1, "column": 5, "len": 5}
+```
+
+Up to 7.30.26 these were ERRORs with a stack (*"len is ZERO"*, *"json_loads()
+FAILED"*), and a dump of the whole config.
+
+A `write-tty` to a `name` that is no open console, or to a service that is
+not a console (`__yuno__`, `agent`), logs one WARNING (*"console not found"*,
+*"not a console"*) and answers `EV_TTY_CLOSE` with that `name`. One without
+`content64` logs one WARNING (*"content64 required"*) and is dropped. Up to
+7.30.26 `name=__yuno__` gave *"Event NOT DEFINED in state"* with a stack,
+`name=agent` made the agent send the write to itself, and a missing
+`content64` was an ERROR.
+
 ## A yuno that runs but is not connected
 
 `command-yuno`, `stats-yuno` and `authzs-yuno` go to every yuno that matches

@@ -63,6 +63,29 @@ in content64"*, *"Bad data in content64"*), and the log must hold three
 WARNINGs *"base64 of a peer not decodable, refused"* and no ERROR. Up to
 7.30.26 each wrote *"b64_decode() FAILED"* as an ERROR with a stack.
 
+Then `create-config` and `update-config` with a `content64` that decodes to
+nothing (`content64='  '`) and with one that is not json (a private key
+under `ssl_certificate_key` in it): each must answer -1 *"Bad json in
+content64"*. The log must hold two WARNINGs *"content64 of a config is
+empty, refused"*, two *"content64 of a config is not json, refused"*, no
+ERROR and nothing of the content. Up to 7.30.26 they were *"len is ZERO"*
+and *"json_loads() FAILED"*, ERRORs with a stack, and a dump of the whole
+config.
+
+Then five lines whose secret's key the shell's quotes split
+(`create-realm p'a'ssword=<s>`, `'p'assword=<s>`, `p"a"ssword=<s>`,
+`record='{"p'a'ssword":"<s>"}'`, `record='{"'p'assword":"'<s>'"}'`): the
+agent's audit file must not hold any of the secrets. Up to 7.30.26 it wrote
+all five.
+
+Then `write-tty name=__yuno__ content64=YQ==` and `write-tty name=agent
+content64=YQ==`: each must be answered with `EV_TTY_CLOSE` naming it, and
+log one WARNING *"not a console"*. And a `write-tty name=nosuch` without
+`content64` must log one WARNING *"content64 required"*. No ERROR. Up to
+7.30.26 `__yuno__` answered *"Event NOT DEFINED in state"* with a stack,
+`agent` made the agent send the write to itself (*"content64 required"*),
+and a missing `content64` was an ERROR.
+
 Then `command-agent command="help cmd=list-yunos"` is still forwarded and
 answered, and the agent answers a `help`.
 

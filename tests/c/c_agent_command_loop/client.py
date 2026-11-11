@@ -17,7 +17,11 @@
 #   so is a stats-agent of it.
 #
 #   A content64 that is not base64 (create-config, update-config,
-#   install-binary): answered -1 naming it.
+#   install-binary): answered -1 naming it. A config content64 that is
+#   empty or not json: answered -1 too.
+#
+#   Lines whose secret's key the shell's quotes split, for the audit file;
+#   and write-tty to services that are no console: EV_TTY_CLOSE.
 #
 #   Then a command-agent of another command (help) is still forwarded and
 #   answered, and the session still works.
@@ -26,6 +30,7 @@
 #   All Rights Reserved.
 #
 import asyncio
+import base64
 import json
 import os
 import sys
@@ -35,6 +40,13 @@ import websockets
 
 URL = "ws://127.0.0.1:1991"
 failures = []
+
+#   A config that is not json, with a private key under a name that no mask
+#   knows: none of it may reach the agent's log
+NOT_JSON64 = base64.b64encode(
+    b'{"crypto": {"ssl_certificate_key": "-----BEGIN PRIVATE KEY-----'
+    b'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"} oops'
+).decode()
 
 LOOP_LINES = (
     "command-agent command=\"'command-agent'\"",
@@ -192,6 +204,51 @@ async def main():
         r = await ask(ws, line, {}, secs=5)
         check("%s: %s" % (line, r.get("comment")),
             r.get("result") == -1 and says in (r.get("comment") or ""))
+
+    #   A content64 that is base64 of nothing, or of a config that is not
+    #   json: answered -1, a WARNING with no stack and no dump of the
+    #   content (up to 7.30.26 "len is ZERO" and "json_loads() FAILED", ERRORs
+    #   with a stack, and a dump of the WHOLE config: a private key under a
+    #   name no mask knows among it)
+    for line, says in (
+        ("create-config id=empty64 content64='  '", "Bad json in content64"),
+        ("update-config id=empty64 content64='  '", "Bad json in content64"),
+        ("create-config id=notjson content64=" + NOT_JSON64, "Bad json in content64"),
+        ("update-config id=notjson content64=" + NOT_JSON64, "Bad json in content64"),
+    ):
+        r = await ask(ws, line, {}, secs=5)
+        check("%s: %s" % (line[:48], r.get("comment")),
+            r.get("result") == -1 and says in (r.get("comment") or ""))
+
+    #   A secret's key split by quotes, which the shell reads without them:
+    #   the audit file must not hold the secret (run_test.sh checks it; up
+    #   to 7.30.26 each of these lines was written with it)
+    for line in (
+        "create-realm p'a'ssword=AUDITSEKRET1",
+        "create-realm 'p'assword=AUDITSEKRET2",
+        "update-node p\"a\"ssword=AUDITSEKRET3",
+        "update-realm id=x record='{\"p'a'ssword\":\"AUDITSEKRET4\"}'",
+        "update-realm id=x record='{\"'p'assword\":\"'AUDITSEKRET5'\"}'",
+    ):
+        r = await ask(ws, line, {}, secs=5)
+        check("%s: answered" % line, bool(r))
+
+    #   A write-tty to a service that is not a console: refused with a
+    #   WARNING, the requester told there is no such console (EV_TTY_CLOSE).
+    #   Up to 7.30.26 __yuno__ answered "Event NOT DEFINED in state" (an
+    #   ERROR with a stack), and the agent sent EV_WRITE_TTY to itself
+    for name in ("__yuno__", "agent"):
+        line = "write-tty name=%s content64=YQ==" % name
+        await ws.send(command(line, {}))
+        got = await answers(ws, 3, lambda g: g[-1].get("event") == "EV_TTY_CLOSE")
+        closed = [g for g in got if g.get("event") == "EV_TTY_CLOSE"]
+        check("%s: EV_TTY_CLOSE" % line,
+            bool(closed) and (closed[-1].get("kw", {}).get("data") or {}).get("name") == name)
+
+    #   A write-tty without content64: a WARNING, this message dropped (up
+    #   to 7.30.26 an ERROR); run_test.sh counts it
+    await ws.send(command("write-tty name=nosuch", {}))
+    await answers(ws, 1)
 
     #   Another command is still forwarded
     r = await ask(ws, "command-agent command=\"help cmd=list-yunos\"", {})
