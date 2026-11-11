@@ -2,7 +2,7 @@
  *          C_GATE_FLOOD.H
  *
  *          Driver of the test of a peer that asks for more answers than it
- *          reads: dropped at max_unwritten_packets, its memory bounded.
+ *          reads: dropped at max_unwritten_bytes, its memory bounded.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

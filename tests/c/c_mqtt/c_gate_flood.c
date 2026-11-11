@@ -5,24 +5,25 @@
  *          than it reads, over a real socket. This driver is the upper level
  *          of a server C_PROT_MQTT2 (no broker, no queues, allow_anonymous),
  *          as the decoder of a gate is, and its C_TCP_S accepts on that
- *          protocol, with the default max_unwritten_packets (10000). The
+ *          protocol, with the default max_unwritten_bytes (100000). The
  *          client is RAW: a C_TCP of this driver that writes MQTT 3.1.1
  *          packets by hand.
  *
- *              1. A client that reads its answers: four bursts of 3000
- *                 PINGREQ, each one written after the 3000 PINGRESP of the
- *                 one before. 12000 answers in all, more than the bound:
- *                 it gets them all and is never dropped.
+ *              1. A client that reads its answers: twenty bursts of 200
+ *                 PINGREQ, each one written after the 200 PINGRESP of the
+ *                 one before. 4000 answers in all, far more than the bound
+ *                 holds (about 300): it gets them all and is never
+ *                 dropped. What is bounded is what waits, not the total.
  *              2. A flood of 131072 PINGREQ (256 KB) in one write, the
  *                 client not reading (rx_paused): the gate drops it, with
- *                 ONE WARNING, and its memory does not grow past 8 MB.
+ *                 ONE WARNING, and its memory does not grow past 2 MB.
  *              3. The same with 40000 QoS 1 PUBLISH (320 KB): dropped,
  *                 one WARNING, memory bounded.
  *              4. 20000 QoS 0 PUBLISH in one write, then a PINGREQ: QoS 0
  *                 asks for no answer, so nothing waits to be written, and
  *                 the client is not dropped: the gate takes the 20000
  *                 messages and answers the PINGREQ. The bound is on the
- *                 send queue, not on the packets read.
+ *                 answers waiting, not on the packets read.
  *
  *          Each PINGREQ (2 bytes) queued a PINGRESP in the send queue of
  *          the C_TCP, which has no bound, at about 340 bytes of memory per
@@ -31,7 +32,9 @@
  *          gate grew by about 400 MB per 2 MB of PINGREQ, whether the peer
  *          read or not, until the process died. Red on 7.30.26: case 2 not
  *          dropped, the memory grown by 39 MB; case 3 (run alone) not
- *          dropped, 13.6 MB.
+ *          dropped, 13.6 MB. The bound that came next counted packets
+ *          (10000 in the send queue): case 2 was dropped with about 3.4 MB
+ *          held, past the 2 MB checked now, and case 1 had bursts of 3000.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -47,12 +50,12 @@
 #define GATE_URL            "tcp://127.0.0.1:18116"
 #define CLIENT_ID           "flood_cl"
 
-#define BURST_PINGREQ       3000
-#define BURSTS              4
+#define BURST_PINGREQ       200
+#define BURSTS              20
 #define FLOOD_PINGREQ       131072      // 256 KB
 #define FLOOD_PUBLISH       40000       // 320 KB
 #define STREAM_QOS0         20000       // 120 KB
-#define MAX_MEMORY_GROWTH   (8*1024*1024)   // 10000 answers waiting: about 3 MB
+#define MAX_MEMORY_GROWTH   (2*1024*1024)   // the answers waiting: about 200 KB
 
 /***************************************************************************
  *              Prototypes

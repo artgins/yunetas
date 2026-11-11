@@ -2,7 +2,7 @@
  *          MAIN_GATE_FLOOD.C
  *
  *          A peer that asks a gate for more answers than it reads, over a
- *          real socket: dropped at max_unwritten_packets with one WARNING,
+ *          real socket: dropped at max_unwritten_bytes with one WARNING,
  *          its memory bounded; a peer that reads them is never dropped.
  *          See c_gate_flood.c.
  *

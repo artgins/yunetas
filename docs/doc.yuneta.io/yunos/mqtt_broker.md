@@ -140,11 +140,41 @@ the ERROR *"session NULL"*:
 
 ```text
 A  CONNECT tko_cl (MQTT 5, clean start)    CONNACK 0
-B  CONNECT tko_cl (MQTT 5, clean start)    A gets DISCONNECT, B gets CONNACK 0
+B  CONNECT tko_cl (MQTT 5, clean start)    A gets DISCONNECT 0x8E, B gets CONNACK 0
 B  DISCONNECT, closes                      B's session deleted
 A  does not close                          1 s later (timeout_close 1000): WARNING
                                            "Timeout waiting mqtt disconnected", A dropped,
                                            its EV_ON_CLOSE finds no session: no ERROR
+```
+
+**The old connection of a take-over is told why.** An MQTT 5 client whose
+client id connects again gets DISCONNECT `0x8E` (Session taken over), as MQTT 5
+asks [MQTT-3.1.4-3], whether the session is kept or not. The broker sends its
+`EV_DROP` with `"session_take_over": true`, and `"delete_session": true` when
+the new connection does not keep the session (a clean start): then the queues
+of the old connection are closed with it. Up to 7.30.26 a session that was not
+kept got `0x00` (Normal disconnection), the reason of a client that leaves.
+An MQTT 3.1.1 client gets no DISCONNECT (a server of 3.1.1 sends none).
+
+**A broker that stops while connections are still closing** stops clean. A
+peer that does not take what is written to it holds its connection in the
+`C_TCP` (up to `timeout_stop_tx`, 10 s), and a stop of the yuno
+(`kill-yuno`, an update) closes the broker's database before that connection
+ends. When its `EV_ON_CLOSE` comes, the broker has no database: it logs the
+INFO *"Mqtt connection closed after the broker stopped, its session left as
+it is"*, and the session stays in the store as after a crash (not in session:
+the next CONNECT of that client id deletes it, and its queues, if it is not
+kept). The queues the connection had open are freed. Up to 7.30.26 the broker
+kept the pointer of its destroyed treedb and read it there: a use of freed
+memory that ended the process at its stop (SIGSEGV), and that any peer could
+arm by not reading; and the queues of such a connection leaked. For example:
+
+```text
+client:  CONNECT, 5 SUBSCRIBEs of 8000 filters (40 KB of SUBACKs), 0xF0, reads nothing
+broker:  WARNING "Command unknown or not implemented"; the close waits for the SUBACKs
+yuno:    kill-yuno 1.5 s later; the database closes; the client resets the connection
+broker:  INFO "Mqtt connection closed after the broker stopped, its session left as it is"
+         the yuno ends with no ERROR (was: SIGSEGV)
 ```
 
 So the treedb is the code's, and no command from outside closes it, the
@@ -205,7 +235,7 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
 | `max_packet_size` | `0` | Max MQTT packet (v5 advertises it, 0 = no limit) |
-| `max_unwritten_packets` | `10000` | Packets that may wait in the client's send queue (`cur_tx_queue` of its `C_TCP`) while it keeps sending: past it the client does not read what it asks for (PINGRESP, PUBACK, SUBACK...) and is dropped at once, with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*. 0 = no limit. The messages the broker sends to a subscriber do not count against a client that reads, retained bursts included (see the [MQTT page](../modules/mqtt.md)) |
+| `max_unwritten_bytes` | `100000` | Memory that the answers to a client (PINGRESP, PUBACK, SUBACK...) may hold in its send queue (`cur_tx_queue` of its `C_TCP`): a client that does not read them is dropped, with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*, holding at most about twice this. 0 = no limit. The messages the broker forwards to a subscriber are not answers: they do not count, and a client that reads them is never dropped for them, however fast it publishes (see the [MQTT page](../modules/mqtt.md)) |
 
 `max_inflight_messages` also bounds the INCOMING QoS 2 messages that wait for
 their PUBREL (the receive maximum the broker advertises): a client that sends

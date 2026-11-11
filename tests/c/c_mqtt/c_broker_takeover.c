@@ -8,9 +8,10 @@
  *
  *              1. A connects.
  *              2. B connects with the same client id: the broker takes the
- *                 session over and closes A, which gets a DISCONNECT; A does
- *                 not close its side, so the broker waits timeout_close (1 s
- *                 here) for it.
+ *                 session over and closes A, which gets a DISCONNECT 0x8E
+ *                 (Session taken over), though the session is not kept; A
+ *                 does not close its side, so the broker waits timeout_close
+ *                 (1 s here) for it.
  *              3. B disconnects at once (DISCONNECT, then it closes): its
  *                 session is not kept, the broker deletes it.
  *              4. A's wait ends: the broker drops it, with the WARNING
@@ -19,7 +20,9 @@
  *
  *          The same happens in MQTT 3.1.1 while the old connection drains
  *          the answers it was sent. It is a normal sequence: up to 7.30.26
- *          the late EV_ON_CLOSE logged the ERROR "session NULL".
+ *          the late EV_ON_CLOSE logged the ERROR "session NULL". And up to
+ *          7.30.26 A got DISCONNECT 0x00 (Normal disconnection) whenever
+ *          the session was not kept: MQTT 5 [MQTT-3.1.4-3] says 0x8E.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -246,8 +249,8 @@ PRIVATE void parse_rx(hgobj gobj, hgobj gobj_tcp)
             case 2:     // CONNACK
                 snprintf(line, sizeof(line), "%s CONNACK %d", is_a? "A":"B", remaining >= 2? v[1] : -1);
                 break;
-            case 14:    // DISCONNECT
-                snprintf(line, sizeof(line), "%s DISCONNECT", is_a? "A":"B");
+            case 14:    // DISCONNECT, with its reason code
+                snprintf(line, sizeof(line), "%s DISCONNECT %d", is_a? "A":"B", remaining >= 1? v[0] : 0);
                 break;
             default:
                 snprintf(line, sizeof(line), "%s TYPE %d", is_a? "A":"B", type);
@@ -299,7 +302,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     json_t *expected = json_pack("[s,s,s,s,s]",
         "A CONNACK 0",
-        "A DISCONNECT",     // the take-over
+        "A DISCONNECT 142", // the take-over: 0x8E Session taken over
         "B CONNACK 0",
         "B CLOSED",
         "A CLOSED"          // timeout_close

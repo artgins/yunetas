@@ -89,6 +89,16 @@
  *                 nothing sent. Up to 7.30.26 the code 1 was told with a
  *                 DISCONNECT 0x82 and a dump, and 2 to 5 were a protocol
  *                 error the user never heard of.
+ *             22. A CONNACK of MQTT 5 (with its properties) with the code 2,
+ *                 a code of MQTT 3.1.1: as 18. Up to 7.30.26 it was a
+ *                 refusal with the text of the MQTT 5 code 2 ("Granted QoS
+ *                 2") and no DISCONNECT.
+ *             23. A CONNACK in the form of MQTT 3.1.1 with the code 0, and
+ *                 24. with 6: not a refusal of 3.1.1, and not a CONNACK of
+ *                 MQTT 5. The user hears EV_ON_CLOSE with 0x81 (the
+ *                 properties are missing), one WARNING, nothing sent. Up to
+ *                 7.30.26 it was "Error in properties", a dump, a
+ *                 DISCONNECT 0x81, and no EV_ON_CLOSE.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -920,6 +930,47 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     (const char *[]){
                         "CONNECT maxpkt=1000",
                         (priv->phase == 15)? "CLOSE 132" : "CLOSE 134",
+                        NULL
+                    }
+                );
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 17:
+            {
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                broker_connack(gobj, 0x02);     // with its properties: a CONNACK of MQTT 5
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj, "22. a CONNACK of MQTT 5 with the code 2 (of MQTT 3.1.1)", (const char *[]){
+                    "CONNECT maxpkt=1000",
+                    "CLOSE 2",
+                    "DISCONNECT 130",
+                    NULL
+                });
+                set_timeout(priv->timer, 100);
+            }
+            break;
+
+        case 18:
+        case 19:
+            {
+                uint8_t code = (priv->phase == 18)? 0x00 : 0x06;
+                gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+                const uint8_t connack311[] = {
+                    0x20, 0x02,     // CONNACK in the form of MQTT 3.1.1: no properties
+                    0x00,           // no session present
+                    code
+                };
+                broker_sends(gobj, connack311, sizeof(connack311));
+                gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
+                expect(gobj,
+                    (priv->phase == 18)?
+                        "23. an MQTT 5 client, a CONNACK of MQTT 3.1.1 with the code 0" :
+                        "24. an MQTT 5 client, a CONNACK of MQTT 3.1.1 with the code 6",
+                    (const char *[]){
+                        "CONNECT maxpkt=1000",
+                        "CLOSE 129",
                         NULL
                     }
                 );

@@ -37,6 +37,12 @@
  *              7. MQTT 5: the refusals are 0x8F and 0x97, the counts are of
  *                 the connection (the previous one's are gone), and a QoS 1
  *                 PUBLISH taken by the upper level gets PUBACK Success.
+ *              8. A PUBLISH with a property that is not of MQTT 5 (127): a
+ *                 malformed packet, said with ONE WARNING "Mqtt unknown
+ *                 property" (with the peer), DISCONNECT 0x81, the drop. Up
+ *                 to 7.30.26 it was two ERRORs ("Mqtt unknown property",
+ *                 "Mqtt empty property", with no peer) and a WARNING, for
+ *                 each such packet of any peer, before its authentication.
  *
  *          No log of an ACL: there is no broker, and an anonymous client
  *          has nothing to ask it.
@@ -595,6 +601,19 @@ PRIVATE void run_mqtt5(hgobj gobj)
         "PUBACK 7 0",
         NULL
     });
+
+    static const uint8_t publish_unknown_property[] = {
+        0x30, 0x09,                 // PUBLISH QoS 0
+        0x00, 0x03, 't', '/', '8',  // topic
+        0x02,                       // properties length
+        0x7F, 0x00,                 // property 127: not of MQTT 5
+        'z'
+    };
+    peer_sends(gobj, publish_unknown_property, sizeof(publish_unknown_property));
+    expect(gobj, "8. a PUBLISH with a property not of MQTT 5", (const char *[]){
+        "DISCONNECT 129",
+        NULL
+    });
 }
 
 
@@ -628,6 +647,10 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         default:
+            expect(gobj, "8. the drop", (const char *[]){
+                "CLOSE " CLIENT_ID5,
+                NULL
+            });
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,

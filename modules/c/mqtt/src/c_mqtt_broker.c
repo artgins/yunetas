@@ -1322,6 +1322,15 @@ PRIVATE int close_database(hgobj gobj)
         EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
     }
 
+    /*
+     *  The treedb and its timeranger went with the close: their pointers go
+     *  too, and what comes after the stop finds no database (ac_on_close()).
+     *  Up to 7.30.26 they were kept, and a close that came late used the
+     *  destroyed treedb
+     */
+    priv->gobj_treedb_mqtt_broker = 0;
+    priv->tranger_treedb_mqtt_broker = 0;
+
     /*-------------------------*
      *  Stop tranger_queues
      *-------------------------*/
@@ -4108,8 +4117,14 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  Disconnect previous session before close session
          */
         if(prev_gobj_channel) {
-            json_t *kw_disconnect = json_pack("{s:b}",
-                "session_take_over", !delete_prev_session
+            /*
+             *  Always a take-over, told 0x8E in MQTT 5 [MQTT-3.1.4-3]; the
+             *  queues of the session go with it only when it is deleted. Up
+             *  to 7.30.26 a deleted session was told 0x00
+             */
+            json_t *kw_disconnect = json_pack("{s:b, s:b}",
+                "session_take_over", 1,
+                "delete_session", delete_prev_session
             );
             gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj); // will close queues
         }
@@ -4231,6 +4246,27 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
        );
         KW_DECREF(kw);
         return -1;
+    }
+
+    if(!priv->gobj_treedb_mqtt_broker) {
+        /*
+         *  The database is closed: the broker stopped while this connection
+         *  was still closing (a peer that does not take what is written to
+         *  it holds its transport up to timeout_stop_tx). Nothing of its
+         *  session can be done: it stays in the store as the stop left it,
+         *  as after a crash (not in session, the next CONNECT of the client
+         *  id finds it so). Up to 7.30.26 the destroyed treedb was read
+         *  here, a use after free that ended the process at its stop
+         */
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Mqtt connection closed after the broker stopped, its session left as it is",
+            "client_id",    "%s", gobj_read_str_attr(gobj_channel, "client_id"),
+            NULL
+        );
+        KW_DECREF(kw);
+        return 0;
     }
 
     /*------------------------------*

@@ -113,16 +113,16 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     /*------------------------------------------------*
-     *  Safety: kill the yuno after 10 s if stuck
+     *  Safety: kill the yuno after 45 s if stuck (the run is about 20 s)
      *------------------------------------------------*/
-    set_auto_kill_time(30);
+    set_auto_kill_time(45);
 
     /*------------------------------*
      *  Capture only errors
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s}, {s:s}]",
             "msg", "Mqtt publish: qos not supported",                               // 1.
             "msg", "Mqtt: QoS 2 PUBLISH without queues, disconnecting",             // 5.
             "msg", "Incoming packet exceeds max_packet_size",                       // 7.
@@ -143,7 +143,11 @@ static int register_yuno_and_more(void)
             "msg", "Mqtt connection refused",                                       // 20.
                 "reason", "Unsupported Protocol Version",
             "msg", "Mqtt connection refused",                                       // 21.
-                "reason", "Bad User Name or Password"
+                "reason", "Bad User Name or Password",
+            "msg", "Mqtt protocol error: CONNACK reason code not defined in MQTT 5",  // 22.
+                "reason", "reason code below 0x80 not Success",
+            "msg", "Mqtt protocol error: CONNACK of MQTT 3.1.1 to an MQTT 5 client", // 23.
+            "msg", "Mqtt protocol error: CONNACK of MQTT 3.1.1 to an MQTT 5 client"  // 24.
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

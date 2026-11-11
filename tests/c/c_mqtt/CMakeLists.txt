@@ -66,8 +66,11 @@ SET(SRCS
     broker_no_db
     gate_cut
     gate_flood
+    gate_answers
     broker_takeover
     broker_no_play
+    broker_answers
+    broker_stop_drain
 )
 
 ##############################################
