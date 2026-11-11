@@ -1002,6 +1002,35 @@ nearest first:
   so is a value that is one quote (`note="'"`). The cost: a JSON string that
   is one quote, written without quotes around the JSON
   (`record={"id":"'","password":"x"}`), is `record=<...>` too.
+
+  A **key** with quotes in it is judged as the shell reads it, without
+  them. The shell reads `p'a'ssword=hunter2` as `password=hunter2`, and
+  `'{"p'a'ssword":"hunter2"}'` as `{"password":"hunter2"}`. The parser keeps
+  the quotes in the key, and the audit judged only the word after the last
+  quote (`ssword`). A `key=value` word whose key is a secret's name without
+  its quotes fails closed: from it on, the line is `<...>`. A JSON key is
+  judged without its quotes, and with the bytes before its string when they
+  are glued to it (`"pass"word":`), and its value is redacted. These
+  commands:
+
+  ```text
+  create-realm id=X p'a'ssword=hunter2 n=1
+  update-node id=X p"a"ssword=hunter2
+  update-realm id=x record='{"p'a'ssword":"hunter2"}'
+  update-realm id=x record='{"'p'assword":"'hunter2'"}'
+  ```
+
+  are recorded as
+
+  ```text
+  create-realm id=X <...>
+  update-node id=X <...>
+  update-realm id=x record='{"p'a'ssword":"<redacted>"}'
+  update-realm id=x record='{"'p'assword":"<redacted>"}'
+  ```
+
+  Up to 7.30.26 they were recorded as they came, with `hunter2`. A quote in
+  a key that is not a secret's name (`a'b'=c`, `'{"a'b'":"c"}'`) is kept.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

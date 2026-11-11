@@ -136,6 +136,18 @@
  *            a secret's own key keeps its whole shell word, redacted. See
  *            has_shell_quote() and mask_shell_quote_words().
  *
+ *          - A KEY with quotes in it is judged as the shell reads it, without
+ *            them: p'a'ssword=<s> and 'p'assword=<s> are password=<s>, and
+ *            '{"p'a'ssword":"<s>"}' is {"password":"<s>"}, while the parser
+ *            keeps the quotes and the scan judged the word after the last
+ *            one ("ssword"): written with <s> in clear (7.30.26). A
+ *            key=value word whose key is a secret's without its quotes fails
+ *            closed, from it on `<...>`; a json key is judged without its
+ *            quotes, and with the bytes before its string when they are
+ *            glued to it ("pass"word":), and its value is redacted. A quote
+ *            in a key that is no secret's, or in a value, is kept. See
+ *            key_kind(), has_quoted_secret_key() and scan_json_member().
+ *
  *          - The scan of a string is ONE pass, in linear time: a value
  *            inside a quoted value is followed with a small stack of
  *            regions (MAX_REGIONS), and the key of a json member is the
@@ -240,6 +252,13 @@
  *  the last level is not written: its size and sha256 only.
  */
 #define MAX_ESCAPE_LEVELS   8
+
+/*
+ *  How far back a json key glued to the bytes before its string
+ *  ("pass"word":) is read: a secret's name is short, and the scan stays
+ *  linear
+ */
+#define GLUED_KEY_MAX   128
 
 /*
  *  A string of the routing of a peer (a field of a hop, the user, the
@@ -733,7 +752,7 @@ PRIVATE char ascii_lower(char c)
     return (c >= 'A' && c <= 'Z')? (char)(c + ('a' - 'A')): c;
 }
 
-PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx)
+PRIVATE key_kind_t key_kind_as_is(const char *key, size_t len, const redact_ctx_t *ctx)
 {
     if(len == strlen(CONTENT64_KEY) && strncasecmp(key, CONTENT64_KEY, len) == 0) {
         return KEY_CONTENT64;
@@ -745,6 +764,33 @@ PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx
         return KEY_SECRET;
     }
     return KEY_PLAIN;
+}
+
+/*
+ *  A key with quotes in it is judged as written and, if that is plain,
+ *  with its quotes removed: that is the key the shell reads
+ *  (p'a'ssword=x is password=x, and so is the json member "p'a'ssword"
+ *  of '{"p'a'ssword":"x"}').
+ */
+PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx)
+{
+    key_kind_t kind = key_kind_as_is(key, len, ctx);
+    if(kind != KEY_PLAIN || (!memchr(key, '\'', len) && !memchr(key, '"', len))) {
+        return kind;
+    }
+    char *bf = gbmem_malloc(len + 1);
+    if(!bf) {
+        return KEY_SECRET;  // Error already logged. Never write what cannot be judged
+    }
+    size_t n = 0;
+    for(size_t i = 0; i < len; i++) {
+        if(key[i] != '\'' && key[i] != '"') {
+            bf[n++] = key[i];
+        }
+    }
+    kind = key_kind_as_is(bf, n, ctx);
+    gbmem_free(bf);
+    return kind;
 }
 
 /***************************************************************************
@@ -1841,6 +1887,18 @@ PRIVATE const char *scan_json_member(redact_scan_t *sc, scan_state_t *st, const 
     if(st->q_last && st->q_prev && k_end - 1 == st->q_last && st->q_prev >= st->lo) {
         const char *k = st->q_prev + 1;
         kind = json_key_kind(k, (size_t)(st->q_last - k), sc->ctx);
+        if(kind == KEY_PLAIN && st->q_prev > st->lo && !strchr("{[,: \t", st->q_prev[-1])) {
+            /*
+             *  A string glued to the bytes before it ("pass"word":, a key
+             *  split by the shell's quotes): the key the shell reads goes
+             *  back to the member's start, judged without its quotes
+             */
+            const char *w = st->q_prev;
+            while(w > st->lo && !strchr("{[,: \t", w[-1]) && st->q_prev - w < GLUED_KEY_MAX) {
+                w--;
+            }
+            kind = json_key_kind(w, (size_t)(st->q_last - w), sc->ctx);
+        }
     } else if(k_end > st->lo && k_end[-1] == '"') {
         size_t r = backslashes_before(st->lo, k_end - 1);
         const char *w_end = k_end - 1;
@@ -2743,16 +2801,52 @@ PRIVATE BOOL has_shell_quote(const char *w, const char *e)
 }
 
 /*
- *  TRUE if the text may hold a word that has_shell_quote() takes: a '\',
- *  or two quotes in a row. A quick look before the scan of the words.
+ *  TRUE if the key of the word [w, e) -- its bytes up to the first '=',
+ *  quoted or not, the bytes of a key and quotes only -- holds a quote and,
+ *  read the shell's way, without its quotes, is a secret's or content64:
+ *  p'a'ssword=x and 'p'assword=x are password=x to the shell, while the
+ *  parser keeps the quotes in the key and the scan of the text judges the
+ *  word after the last quote ("ssword"): they were written with x in clear
+ *  (7.30.26).
+ */
+PRIVATE BOOL has_quoted_secret_key(const char *w, const char *e, const redact_ctx_t *ctx)
+{
+    const char *eq = memchr(w, '=', (size_t)(e - w));
+    if(!eq || eq == w) {
+        return FALSE;
+    }
+    BOOL quoted = FALSE;
+    for(const char *p = w; p < eq; p++) {
+        if(is_quote(*p)) {
+            quoted = TRUE;
+        } else if(!is_key_byte(*p)) {
+            return FALSE;   // no key's shape ({token:"a b"=c}): the scan judges it
+        }
+    }
+    if(!quoted) {
+        return FALSE;
+    }
+    return (key_kind(w, (size_t)(eq - w), ctx) != KEY_PLAIN)? TRUE: FALSE;
+}
+
+/*
+ *  TRUE if the text may hold a word that has_shell_quote() or
+ *  has_quoted_secret_key() takes: a '\', two quotes in a row, or a quote
+ *  with a '=' after it. A quick look before the scan of the words.
  */
 PRIVATE BOOL may_have_shell_quote(const char *text, size_t len)
 {
     if(memchr(text, '\\', len)) {
         return TRUE;
     }
-    for(size_t i = 0; i + 1 < len; i++) {
-        if(is_quote(text[i]) && is_quote(text[i+1])) {
+    BOOL quote_seen = FALSE;
+    for(size_t i = 0; i < len; i++) {
+        if(is_quote(text[i])) {
+            if(i + 1 < len && is_quote(text[i+1])) {
+                return TRUE;
+            }
+            quote_seen = TRUE;
+        } else if(text[i] == '=' && quote_seen) {
             return TRUE;
         }
     }
@@ -2944,6 +3038,8 @@ PRIVATE char *mask_nested_line(const char *text, size_t len, BOOL wrapper, redac
  *  A line that is not nested (a command of the agent itself keeps its
  *  words): from a word with the shell's '\'' or a quote switch in it
  *  ('"'"', 'a''b'; has_shell_quote()) on,
+ *  and from a word whose key holds a quote and is a secret's without it
+ *  (p'a'ssword=<s>; has_quoted_secret_key()) on,
  *  the line is BARE_WORD, that word's key kept -- fail closed, as a nested
  *  line does with a word the two read otherwise. The rest goes too: a word
  *  kept after it could be a secret only by what came before it ("Basic
@@ -2981,7 +3077,8 @@ PRIVATE char *mask_shell_quote_words(const char *text, size_t len, redact_ctx_t 
         const char *last_quote;
         const char *e = word_end(p, end, &last_quote);
         const char *eq = keyed_word_equal(p, e);
-        if(!has_shell_quote(p, e) || (eq && key_kind(p, (size_t)(eq - p), ctx) != KEY_PLAIN)) {
+        if(!has_quoted_secret_key(p, e, ctx) &&
+                (!has_shell_quote(p, e) || (eq && key_kind(p, (size_t)(eq - p), ctx) != KEY_PLAIN))) {
             out_append(&sc, p, (size_t)(e - p));
             p = e;
             continue;

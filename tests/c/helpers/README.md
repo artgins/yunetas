@@ -92,7 +92,12 @@ record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` is `update-node record=<...>`
 (7.30.26 wrote `...:'<redacted>'"'<s>'"'"'}'`), and nineteen such shapes lose
 the secret; `note="it's"`, `{"id":"a'b"}`, `note="'"`, empty pieces and
 escaped quotes in a `"..."` piece are written, and `{"id":"'"}` without its
-own quotes is `<...>` (the cost). A `stats=__reset__` makes a stats command a
+own quotes is `<...>` (the cost). A key with quotes in it is judged without
+them, as the shell reads it: `create-realm p'a'ssword=<s>` is `create-realm
+<...>` and `record='{"p'a'ssword":"<s>"}'` has its value redacted (7.30.26
+wrote both with `<s>`), twelve such shapes lose the secret, also nested and
+with the json key glued to its bytes (`"pa"ss"word"`); `a'b'=c` and a json
+key `"a'b'"` are written. A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A

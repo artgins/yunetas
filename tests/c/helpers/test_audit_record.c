@@ -47,6 +47,9 @@
  *            same for a word with a switch of quoted pieces (the shell's
  *            quote splice '"'"', its twin "'"'", 'a''b'), which has no
  *            backslash,
+ *          - a secret's key split by quotes, which the shell reads without
+ *            them (p'a'ssword=<s>, '{"p'a'ssword":"<s>"}'): the secret is
+ *            not written (7.30.26 wrote it),
  *          - what mask_secrets_inline() masks, the audit redacts (the same
  *            function, mark_secrets_inline()): a JWE, a JWT of two parts, a
  *            name: value, a password with blanks, and random texts,
@@ -1164,6 +1167,74 @@ PRIVATE void test_shell_quote_splice(void)
     check_command_is("update-node record={\"a\":\"\",\"b\":[\"x\",\"y\"],\"password\":\"hunter2\"} n=1", NULL,
         "update-node record={\"a\":\"\",\"b\":[\"x\",\"y\"],\"password\":\"<redacted>\"} n=1",
         "(d7) a json without its own quotes (empty strings, a list): written, its password redacted");
+}
+
+/***************************************************************************
+ *  (d8) a quote inside a KEY: the shell reads the key without its quotes
+ *  (p'a'ssword=<s> is password=<s>, '{"p'a'ssword":"<s>"}' is
+ *  {"password":"<s>"}), while the parser keeps them and the scan judged
+ *  the word after the last quote ("ssword"): written with <s> in clear
+ *  (7.30.26). A key=value word whose key, without its quotes, is a
+ *  secret's fails closed: from it on, <...>. A json key is judged without
+ *  its quotes, and with the bytes it is glued to ("pass"word":), and its
+ *  value is redacted. A quote in a plain key, or in a value, is written.
+ ***************************************************************************/
+PRIVATE void test_quote_in_key(void)
+{
+    static const char *lines[] = {
+        "create-realm p'a'ssword=hunter2",
+        "create-realm 'p'assword=hunter2 n=1",
+        "update-node p\"a\"ssword=hunter2",
+        "update-node id=X P\"assw\"o\"rd\"='a hunter2' n=1",
+        "write-attr j'w't=hunter2",
+        "update-realm id=x record='{\"p'a'ssword\":\"hunter2\"}'",
+        "update-realm id=x record='{\"'p'assword\":\"'hunter2'\"}'",
+        "update-realm id=x record={\"p'a'ssword\":\"hunter2\"} n=1",
+        "update-node record={\"'api_k\"e\"y'\":\"'hunter2'\"} n=1",
+        "update-node record='{\"id\":1,\"pa\"ss\"word\":\"hunter2\"}'",
+        "command-yuno id=X command=create-realm p'a'ssword=hunter2",
+        "command-yuno id=X command='update-realm record={\"p\"a\"ssword\":\"hunter2\"}'",
+        0
+    };
+    for(int i=0; lines[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(d8) a quote in a secret's key: the secret not written (%d)", i);
+        check_nested(lines[i], NULL, "hunter2", "", name);
+    }
+    check_nested("update-node id=X content'64'=aHVudGVyMg== n=1", NULL, "aHVudGVyMg", "",
+        "(d8) content'64'=<base64>: the content not written");
+
+    check_command_is("create-realm p'a'ssword=hunter2", NULL,
+        "create-realm <...>",
+        "(d8) p'a'ssword=<s>: from it on, <...>");
+    check_command_is("create-realm id=X 'p'assword=hunter2 n=1", NULL,
+        "create-realm id=X <...>",
+        "(d8) 'p'assword=<s> n=1: from it on, <...>, id=X kept");
+    check_command_is("update-node id=X p\"a\"ssword=hunter2", NULL,
+        "update-node id=X <...>",
+        "(d8) p\"a\"ssword=<s>: from it on, <...>");
+    check_command_is("update-realm id=x record='{\"p'a'ssword\":\"hunter2\"}'", NULL,
+        "update-realm id=x record='{\"p'a'ssword\":\"<redacted>\"}'",
+        "(d8) the json key \"p'a'ssword\": its value redacted");
+    check_command_is("update-realm id=x record='{\"'p'assword\":\"'hunter2'\"}'", NULL,
+        "update-realm id=x record='{\"'p'assword\":\"<redacted>\"}'",
+        "(d8) the json key \"'p'assword\": its value redacted");
+
+    /*
+     *  What stays: a quote in a key that is no secret's, in a value
+     */
+    check_command_is("update-node id=X a'b'=c n=1", NULL,
+        "update-node id=X a'b'=c n=1",
+        "(d8) a'b'=c: a plain key, written");
+    check_command_is("update-node id=X record='{\"a'b'\":\"c\"}' n=1", NULL,
+        "update-node id=X record='{\"a'b'\":\"c\"}' n=1",
+        "(d8) a plain json key with quotes: written");
+    check_command_is("update-node id=X note=\"it's\" record={\"id\":\"a'b\"} n=1", NULL,
+        "update-node id=X note=\"it's\" record={\"id\":\"a'b\"} n=1",
+        "(d8) a quote in a value: written");
+    check_command_is("update-node id=X record={\"id\":\"x\",\"note\":\"a=b\"} n=1", NULL,
+        "update-node id=X record={\"id\":\"x\",\"note\":\"a=b\"} n=1",
+        "(d8) a '=' after a quote in a value: written");
 }
 
 /***************************************************************************
@@ -3005,6 +3076,7 @@ int main(int argc, char *argv[])
     test_nested_positional_secret();
     test_shell_quote();
     test_shell_quote_splice();
+    test_quote_in_key();
     test_stats_reset();
     test_content64_blank_before_equal();
     test_short_content64_values();
