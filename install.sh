@@ -259,6 +259,19 @@ curl -fsSL -o "$PKG" "$ASSET_URL"
 chmod 0755 "$TMP"
 chmod 0644 "$PKG"
 
+# The node's web server choice, seeded here when the node has none. The
+# packages of 7.12.0-7.30.26 name a variable of the BUILD in their postinst /
+# %post, where it does not exist, so the first install on a fresh node (no
+# /etc/yuneta/webserver yet) died on "WEB_CHOICE: parameter not set" and left
+# the package unconfigured. Seeding the same default they would have written
+# lets those packages install; a node that already has its choice keeps it.
+if [ ! -e /etc/yuneta/webserver ]; then
+    mkdir -p /etc/yuneta
+    printf '%s\n' "nginx" > /etc/yuneta/webserver
+    chmod 0644 /etc/yuneta/webserver
+    echo "[i] Seeded /etc/yuneta/webserver: nginx"
+fi
+
 echo "[i] Installing $(basename "$PKG")"
 if [ "$FAMILY" = "debian" ]; then
     # Refresh the package index FIRST. A freshly imaged node carries whatever

@@ -2363,7 +2363,7 @@ if command -v systemctl >/dev/null 2>&1; then
             cp -a /etc/yuneta/webserver.pkgsave /etc/yuneta/webserver
             echo "[postinst] restored /etc/yuneta/webserver from the pre-upgrade copy"
         else
-            printf '%s\n' "${WEB_CHOICE}" > /etc/yuneta/webserver
+            printf '%s\n' "@WEB_CHOICE_DEFAULT@" > /etc/yuneta/webserver
         fi
         chmod 0644 /etc/yuneta/webserver
     fi
@@ -2561,6 +2561,16 @@ echo "    sudo reboot"
 exit 0
 
 EOF
+# The postinst is written from a QUOTED heredoc, so a build variable named in
+# it is a variable of the NODE's shell, where it does not exist: under
+# `set -eu` the first fresh install (no /etc/yuneta/webserver yet) died on
+# "WEB_CHOICE: parameter not set" and left the package unconfigured
+# (7.12.0-7.30.26). The build default goes in as text.
+sed -i "s/@WEB_CHOICE_DEFAULT@/${WEB_CHOICE_DEFAULT}/g" "${WORKDIR}/DEBIAN/postinst"
+if grep -q '@WEB_CHOICE_DEFAULT@\|\${WEB_CHOICE' "${WORKDIR}/DEBIAN/postinst"; then
+    echo "[-] postinst still names the build's WEB_CHOICE" >&2
+    exit 1
+fi
 chmod 0755 "${WORKDIR}/DEBIAN/postinst"
 
 # --- prerm (stop before upgrade/remove) ---

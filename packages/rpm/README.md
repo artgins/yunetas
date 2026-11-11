@@ -154,6 +154,19 @@ flavours:
 So a node that already chose keeps its choice, and only a node that never had
 one gets a default.
 
+The default is the build's choice, written into the scriptlets as TEXT when the
+package is built. From 7.12.0 to 7.30.26 the scriptlets named the build's
+variable instead (`${WEB_CHOICE}`, inside a quoted heredoc), which does not
+exist on the node, so the first install on a fresh node died with *"WEB_CHOICE:
+parameter not set"* and left the package unconfigured. `install.sh` seeds
+`nginx` when the node has no choice, so those packages install with it; by
+hand, the same thing is:
+
+```bash
+printf 'nginx\n' | sudo tee /etc/yuneta/webserver   # or openresty
+sudo dpkg --configure -a                             # .deb; a .rpm: sudo dnf reinstall yuneta-agent
+```
+
 ### No automatic reboot
 
 The `.deb` postinst offers/forces a reboot. The `.rpm` does **not**: `dnf` runs

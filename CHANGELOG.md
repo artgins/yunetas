@@ -454,6 +454,19 @@
   `drop_peer_binary_keys()` logs one WARNING per json, so a device putting the key in every
   payload flooded the log of its gate.
 
+### Packaging
+
+- **A fresh install of the `.deb` or the `.rpm` died in its postinst / `%post`
+  with *"WEB_CHOICE: parameter not set"*** and left the package unconfigured
+  (7.12.0-7.30.26). The scriptlets are written from a quoted heredoc and named
+  the build's `${WEB_CHOICE}`, a variable the node does not have; only a node
+  with no `/etc/yuneta/webserver` reached that line, so an upgrade never did.
+  The build default now goes into the scriptlets as text, and the build fails
+  if the name is still there. `install.sh` (taken from `main`) seeds `nginx`
+  when the node has no choice, so the packages already published install too.
+  By hand on a stuck node: `printf 'nginx\n' | sudo tee /etc/yuneta/webserver`,
+  then `sudo dpkg --configure -a`.
+
 ## v7.30.26 (2026-11-10)
 
 The MQTT gates leave the deprecated `C_PROT_MQTT`: `C_PROT_MQTT2` becomes the

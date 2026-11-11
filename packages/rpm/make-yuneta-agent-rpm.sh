@@ -2238,7 +2238,7 @@ if [ ! -e /etc/yuneta/webserver ]; then
         cp -a /etc/yuneta/webserver.pkgsave /etc/yuneta/webserver
         info "restored /etc/yuneta/webserver from the pre-upgrade copy"
     else
-        printf '%s\n' "${WEB_CHOICE}" > /etc/yuneta/webserver
+        printf '%s\n' "@WEB_CHOICE_DEFAULT@" > /etc/yuneta/webserver
     fi
     chmod 0644 /etc/yuneta/webserver
 fi
@@ -2525,6 +2525,17 @@ SPEC_EOF
 if ! command -v rpmbuild >/dev/null 2>&1; then
     echo "[-] rpmbuild not found. Install it: sudo dnf install rpm-build" >&2
     exit 3
+fi
+
+# The scriptlets are written from a QUOTED heredoc, so a build variable named
+# in them is a variable of the NODE's shell, where it does not exist: under
+# `set -u` the first fresh install (no /etc/yuneta/webserver yet) failed %post
+# on "WEB_CHOICE: parameter not set" (7.12.0-7.30.26). The build default goes
+# in as text.
+sed -i "s/@WEB_CHOICE_DEFAULT@/${WEB_CHOICE_DEFAULT}/g" "${SPEC}"
+if grep -q '@WEB_CHOICE_DEFAULT@\|\${WEB_CHOICE' "${SPEC}"; then
+    echo "[-] the spec's scriptlets still name the build's WEB_CHOICE" >&2
+    exit 1
 fi
 
 echo "[i] Running rpmbuild…"
