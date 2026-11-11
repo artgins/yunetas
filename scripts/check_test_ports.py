@@ -18,16 +18,21 @@ A port built at compile time (a -DPORT from CMake, as c_task_authenticate
 does) is not seen here: keep such ranges apart by hand.
 
 A test whose `run_test.sh` runs it in a network namespace of its own
-(`unshare` with `-n`, as c_agent_sandbox does) has a loopback nobody else
-sees: its ports are not listed (the agent's fixed 1991 runs in two of them).
+(`unshare` with `-n` or a bare `--net`, as c_agent_sandbox does) has a
+loopback nobody else sees: its ports are not listed (the agent's fixed 1991
+runs in two of them). Only a command line counts: not a comment, not
+`--net=<file>` (a namespace that already exists, maybe shared), and not the
+`unshare ... true` that probes whether namespaces are allowed.
 """
 import collections
 import os
 import re
+import shlex
 import sys
 
 ROOTS = ['tests/c', 'performance/c']
-OWN_NETNS = re.compile(r'\bunshare\s+(-\w*n\w*|--net)\b')
+# Short options of unshare(1) that take a value in the next word
+UNSHARE_ARG_OPTS = set('SGRw')
 EXTENSIONS = ('.c', '.h', '.json', '.py', '.sh')
 PATTERNS = [
     re.compile(r'[a-z]+s?://[^\s\'"/]*?:(\d{3,5})\b'),
@@ -52,13 +57,51 @@ def binary_of(path):
     return os.path.join(d, stem)
 
 
+def unshare_runs_in_new_netns(words):
+    """Whether an unshare command (its words after `unshare`) runs a program
+    in a NEW network namespace. The probe `unshare -n true` runs nothing."""
+    new_netns = False
+    i = 0
+    while i < len(words):
+        w = words[i]
+        if w == '--':
+            i += 1
+            break
+        if w.startswith('--'):
+            if w == '--net':
+                new_netns = True
+            i += 1
+            continue
+        if w.startswith('-') and len(w) > 1:
+            opts = w[1:]
+            if 'n' in opts:
+                new_netns = True
+            if opts[-1] in UNSHARE_ARG_OPTS:
+                i += 1
+            i += 1
+            continue
+        break
+    program = words[i] if i < len(words) else None
+    return new_netns and program not in (None, 'true', ':')
+
+
 def own_network_namespace(d):
     """Whether the test of dir d runs in a network namespace of its own."""
     try:
         with open(os.path.join(d, 'run_test.sh'), errors='replace') as fh:
-            return OWN_NETNS.search(fh.read()) is not None
+            text = fh.read()
     except FileNotFoundError:
         return False
+    for line in text.splitlines():
+        try:
+            words = shlex.split(line, comments=True)
+        except ValueError:
+            # an open quote: a command that spans lines, cut at the quote
+            words = shlex.split(line.split('"')[0].split("'")[0], comments=True)
+        if 'unshare' in words:
+            if unshare_runs_in_new_netns(words[words.index('unshare') + 1:]):
+                return True
+    return False
 
 
 def main():
