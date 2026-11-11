@@ -372,9 +372,12 @@ application's gate (one application).
   once) fixes it for every protocol; not done, by decision (the case needs an
   authenticated client). What `C_PROT_MQTT2` itself ANSWERS is bounded since the release
   after 7.30.26, anonymous peers included: `max_unwritten_bytes` pauses the reading of a peer
-  past it and drops one that takes nothing for `timeout_close`. What stays unbounded is
-  what a broker FORWARDS to a subscriber (a retained burst, a fan-out), and the queue of
-  the transport after a drop, up to `timeout_stop_tx`.
+  past it and drops one that takes nothing for `timeout_close` while answers wait in the
+  protocol (a connection holds the bound and one read). A non-reader whose answers all
+  fit in the kernels is idle, not dropped: only its keepalive or the pool ends it, as
+  any connection that sends nothing. What stays unbounded is what a broker FORWARDS to a
+  subscriber (a retained burst, a fan-out), and the queue of the transport after a drop,
+  up to `timeout_stop_tx`.
 - **`mqtt_broker` sets no `max_packet_size`, and the `0` of `C_PROT_MQTT2` is no limit:**
   a client with a session makes the broker hold a packet of up to 256 MB per connection
   before `message_size_limit` is checked. Same family as the send queue of `C_TCP` above

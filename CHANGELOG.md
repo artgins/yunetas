@@ -25,10 +25,14 @@
       about 300 bytes of buffer) waiting in the transport since its queue was last
       empty. Past it, the reading of the peer is paused (backpressure: the rest of the
       read is kept, `rx_paused` of its `C_TCP`), and resumed when the answers are
-      written. A peer that reads is slowed to what it takes and never dropped, however
+      written: the rest is read with the `C_TCP` still paused, which reads again only
+      once all of it was read with no new pause. A peer that reads is slowed to what it takes and never dropped, however
       much it pipelines: 3000 QoS 1 PUBLISH or 30000 PINGREQ in one write get every
       answer (a client of mqtt.js has no in-flight window by default). A peer that takes
-      nothing of what waits for it during `timeout_close` (3 s) is dropped, with ONE
+      nothing of what waits for it during `timeout_close` (3 s) is dropped -- only while
+      the protocol holds answers its transport cannot write: once every answer is in
+      the kernel the connection is idle, and only its keepalive (or the pool) ends it --
+      with ONE
       WARNING *"Mqtt: the peer does not read its answers, connection dropped"*
       (`client_id`, `peername`, `unwritten_packets`, `answer_bytes`,
       `max_unwritten_bytes`). A connection holds about the bound and one read (1000
@@ -44,7 +48,9 @@
       and SUBACKs of 16 KB, never read: all dropped, the memory bounded) and
       `c_mqtt/broker_answers` (a subscriber that reads a burst of 30000 of its own
       messages; a client with a window of 20 in QoS 1 and 2; 3000 QoS 1 and 30000
-      PINGREQ in one write, read: never dropped), all new, over real sockets. On a gate,
+      PINGREQ in one write, read: never dropped) and `c_mqtt/gate_reader` (20 clients
+      that pipeline PINGREQ and read for 20 s: every PINGRESP in order, none dropped,
+      +2.6 MB), all new, over real sockets. On a gate,
       50 anonymous connections each sending exactly 10000 PINGREQ and never reading took
       it from 10 to 193 MB with nobody dropped under the earlier packet bound; now all 50
       are paused and dropped, and the gate peaks at 17 MB.
@@ -109,7 +115,8 @@
       client DISCONNECT `0x8E`, and the gate's decoder leaves its session state at once,
       so it is neither dropped again nor picked by a command.
       A broker sends the same key, with `"delete_session": true` when the new connection
-      does not keep the session (the queues of the old one are closed too).
+      does not keep the session (the queues of the old one are closed, and their topics
+      deleted).
     - An MQTT 5 DISCONNECT with a reason code and no Session Expiry Interval (`e0 02 00
       00`, what most clients send) logged an ERROR with a stack (*"kw must be list or
       dict"*), and the server went on reading after it. Nothing the client sends after
@@ -119,9 +126,11 @@
       property identifier log two ERRORs with no peer (*"Mqtt unknown property"*, *"Mqtt
       empty property"*) and a WARNING *"Mqtt Unsupported property type"*. Now it is one
       WARNING *"Mqtt unknown property"* (`MSGSET_MQTT`, `identifier`, `peername`), the
-      capped dump of the malformed packet and DISCONNECT `0x81`, as before. The WARNING
-      *"Mqtt unknown property of command"* printed its command as a number. Test:
-      `c_mqtt/gate_prot` (step 8).
+      capped dump of the malformed packet and DISCONNECT `0x81`, as before. The eleven
+      WARNINGs *"Mqtt invalid property of command"* (a property of MQTT 5 in a packet
+      that may not carry it, as a Payload Format Indicator in a CONNECT) printed their
+      `command` as a number (a string through `%d`); it is the name now
+      (`"CMD_CONNECT"`). Test: `c_mqtt/gate_prot` (steps 8 and 9).
     - **BREAKING (a caller of `EV_SEND_MESSAGE`): a topic a PUBLISH cannot carry is
       refused**: a wildcard (`+`, `#`) or empty [MQTT-3.3.2-2]; on the server side also
       more than 200 `/` separators (201 levels pass; `TOPIC_HIERARCHY_LIMIT`, the
@@ -217,6 +226,28 @@
   and the session stays as after a crash (the next CONNECT of that client id deletes a
   session not kept). The queues of such a connection leaked too (*"system memory not
   free"*); they are freed. Test: `c_mqtt/broker_stop_drain` (new).
+- **BREAKING (a client of the broker): a take-over with a clean session starts
+  empty** [MQTT-3.1.2-4] (5.0), [MQTT-3.1.2-6] (3.1.1). The old connection's queues
+  were deleted only when IT had a clean session (and an old connection still
+  closing left them to the end of its close), and the broker deleted them itself
+  only with no previous connection: a client that took its own persistent session
+  over with a clean session got CONNACK with session present 0, and then every
+  message the old session had queued. A take-over that keeps the session gets them,
+  as before. Test: `c_mqtt/broker_sessions` (new).
+- `C_PROT_MQTT2`: the queues of a connection whose transport is still stopping when
+  the yuno ends (one dropped by the bound on the answers, waiting `timeout_stop_tx`;
+  a subscriber that does not read, whose `C_TCP` holds QoS 0 forwards) are freed at
+  its destroy. They leaked: *"system memory not free"* and exit 255 at every such
+  stop, 2 x 768 bytes per session, and every QoS 1 or 2 message its queue held (a
+  subscriber that did not read while QoS 0 and QoS 1 publications mixed: about
+  45 000 blocks in 3 s of traffic). Its session is left as after a crash. Test:
+  `c_mqtt/broker_stop_dropped` (new).
+- **BREAKING (a log watcher): a broker with queues says why it closes a client past
+  its in-flight QoS 2**, with the WARNING *"Mqtt: QoS 2 PUBLISH past
+  max_inflight_messages (Receive Maximum), disconnecting"* (`client_id`,
+  `max_inflight_messages`, `peername`), as the path without queues did. It closed
+  with no log (an MQTT 3.1.1 client got only the close). Test:
+  `c_mqtt/broker_sessions` (6).
 - **BREAKING (a client of the broker, MQTT 5): the old connection of a take-over gets
   DISCONNECT `0x8E`** (Session taken over) whether its session is kept or not, as MQTT 5
   asks [MQTT-3.1.4-3]. It got `0x00` (Normal disconnection) when the new connection did
@@ -228,7 +259,10 @@
   `test_hivemq_mqtt_cli.sh` used to SKIP tests 1, 2, 13, 15, 18 and 19 when they should
   fail, and to pass test 14 on a partial delivery and test 25 with no result. Each of
   these now fails without its evidence, and the evidence of 13-15, 18 and 19 is read from
-  the clients' CONNACK and SUBACK. Checked with HiveMQ MQTT CLI 4.57.0.
+  the clients' CONNACK and SUBACK. Checked with HiveMQ MQTT CLI 4.57.0. And an invalid
+  CONNECT passes the Python script only when the broker closes the connection or sends a
+  CONNACK with a failure code: a timeout, a packet that is not a CONNACK or a CONNACK cut
+  short passed it, so a broker that left such a connection open and silent got 22 of 22.
 - **BREAKING (an operator): `C_MQTT_BROKER` refuses `mqtt_persistent_db` false at its
   start.** The broker keeps its clients, sessions and retained messages only in its
   treedb, so it has no mode without one: with `false` it refused every CONNECT and its
@@ -282,12 +316,24 @@
   service) a word that ends in `=` or `==`, or begins with `=`, is `<...>`, the rule of the
   agent's audit file: `set-user-pwd username=bob aHVudGVyMg==` was shown whole (7.30.26).
   The first word of the line is judged too: in its own quotes a whole line is one word,
-  and the parser runs the command of ITS first word, so `'login bob <pin>' note=x` runs
-  `login` with `note=x` (refused) while the `commands` trace, the ievents trace and
-  `help cmd=` showed `login bob <pin> note=x` (7.30.26). A first word with a blank, a
-  quote or a backslash in it (its own enclosing quotes apart) is `<...>` in
+  and the `commands` trace, the ievents trace and `help cmd=` showed
+  `'login bob <pin>' note=x` as `login bob <pin> note=x` (7.30.26). A first word with a
+  blank, a quote or a backslash in it (its own enclosing quotes apart) is `<...>` in
   `command_mask_secret_line()` now, with a command table or without; a command name alone
-  in its quotes stays (`'list-yunos'` is `list-yunos`).
+  in its quotes stays (`'list-yunos'` is `list-yunos`). The parser does not echo such a
+  word either: it answers *"command not available: '<...>'"*, and so does `help` for a
+  `cmd` whose first word is one. And the `cmd` of `help` is a command line: the
+  `commands` trace showed `help cmd="login bob <pin>"` as `help cmd=login bob <pin>`
+  (7.30.26); it is masked now the way the header of the help shows it
+  (`help cmd='login bob ********'`, `help cmd='login <...>'` with no table).
+- **BREAKING (an operator typing a command line): the first word is read once.** The
+  parser read the first word of a line twice, taking one level of quotes off each time:
+  `"'list-yunos'"` ran `list-yunos`, and `"list-yunos x" y=1` ran `list-yunos` with `y=1`
+  (7.30.26 and before), while `command_get_cmd_desc()` -- the documented lookup, and the
+  one the agent's `command-agent` uses to refuse a line that runs itself -- read it once
+  and saw no command. Now `find_command_desc()` and `search_command_desc()` (help) read it
+  once too: such a line answers *"command not available: '<...>'"*. A command name in one
+  level of quotes still runs (`'list-yunos' x=1`).
 - A command line ending in two or more blanks (or a blank and a tab) was refused with
   *"extra parameters: ' '"* (7.30.26 and before; `ycommand` trims its line, so only a
   caller that does not trim saw it). `get_key_value_parameter()` now answers "nothing
@@ -304,7 +350,13 @@
   before). Any operator with the permission, or a local peer of `127.0.0.*` (which
   `C_AUTHZ` takes for `yuneta`), could do it. The command the line names is now found as
   the parser finds it (its first word, any case, an alias) in the table of the service it
-  goes to, and such a line answers *"Loop command"*. A `service=` that does not exist is
+  goes to, and such a line answers *"Loop command"*. And the parser read that first word
+  TWICE (each read takes one level of quotes off) while the check read it once: with
+  `{"command": "\"'command-agent'\""}` in the kw (also `'"COMMAND-AGENT" x=1'`,
+  `" \t\"'command-agent'\" service=agent"`) the check saw `'command-agent'` and the
+  parser `command-agent`, and the agent died the same way. The parser reads it once now
+  (see *Commands*): such a line names no command, and answers *"command not available:
+  '<...>'"*. A `service=` that does not exist is
   now answered first (*"Service '...' not found"*). Test: `c_agent_command_loop` (new).
 - **BREAKING (an operator reading the agent's audit file): a word with no key in a
   nested command line is written `<...>`.** The agent writes the record of a command
@@ -322,8 +374,7 @@
   to the agent itself keeps its words.
   The command name of a nested line is judged too: in its own quotes a whole line is one
   word (`command-agent service=authz command="'set-user-pwd username=bob <password>'"`,
-  `command="'unlock'<pin>"`), and the parser runs the command of its first word, so the
-  password was written whole (7.30.26). A command name with a blank, a quote or a
+  `command="'unlock'<pin>"`), and the password was written whole (7.30.26). A command name with a blank, a quote or a
   backslash in it (its own enclosing quotes apart) is `<...>` now, in the text, in
   `kw.command`, and as the command word of any record: such a word in `kw.command` no
   longer makes the record read-only (`'list-x ... <password>'` was written after
@@ -337,8 +388,14 @@
   these lines, so the secret was not used; 7.30.26). From the first word the two cut
   otherwise, the rest of that line is `<...>` now; what follows the value at the level
   above stays. A `\"` inside a `"..."` command value (where the parser ends it) makes
-  the whole value `<...>`, and a bare `\` in a word of it (`attribute=api_key`)
-  makes the rest of the nested line `<...>`.
+  the whole value `<...>`. What is compared is where the two END a word: a value that
+  does not begin with a quote is cut by the parser at the first blank, whatever quotes or
+  `\` it holds, so with no blank in it (no quoted piece with a blank, no `\` before a
+  blank) it is read alike and written -- a json without quotes of its own, the documented
+  form (`record={"id":"item1"} options={"force":1}`, `filter={"id":"bob"}`), is written
+  whole, its `password` redacted inside, with the target's `id=` or `service=` after it,
+  as in 7.30.26. A quoted piece with a blank in such a value (`record={"note":"a <s>"}`)
+  is cut otherwise: from it on, `<...>`.
   `DEBUGGING.md` §5.5 shows it.
 
 ### Kernel
