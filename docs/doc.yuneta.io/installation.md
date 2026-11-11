@@ -902,7 +902,7 @@ sudo dnf -y install \
   python3-devel python3-pip python3-setuptools \
   python3-tkinter python3-wheel \
   jansson-devel pcre2-devel liburing-devel \
-  pcre-devel zlib-devel openssl-devel \
+  zlib-devel openssl-devel \
   perl dos2unix tree wget \
   libpq-devel \
   telnet pipx \
@@ -980,7 +980,7 @@ only for the dynamic link of nginx and openresty.
 
 ```{dropdown} What each non-obvious package is for
 - `libjansson-dev` / `jansson-devel` — required for libjwt
-- `libpcre2-dev` / `pcre2-devel`      — required by openresty
+- `libpcre2-dev` / `pcre2-devel`      — required by nginx and openresty, which link PCRE2. PCRE1 (`libpcre3-dev` / `pcre-devel`) is not needed: Debian 13 and Rocky 10 no longer have it
 - `perl dos2unix mercurial wget`      — required by openresty (wget fetches its tarballs)
 - `pipx kconfiglib`                   — yunetas configuration tool
 - `kconfig-frontends`                 — alternative configuration tool (Debian only)

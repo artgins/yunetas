@@ -193,12 +193,14 @@ jobs:
           # --setopt=strict=0 installs everything that exists and skips only
           # the unfindable ones; dnf's default is all-or-nothing, so one
           # missing CRB-only -devel would abort the entire set.
+          # No pcre-devel: PCRE1 is gone from Rocky 10, and nginx/openresty
+          # link PCRE2 (pcre2-devel), as on Debian.
           dnf -y --setopt=strict=0 install \
             git make cmake ninja-build \
             gcc clang gcc-c++ \
             python3 python3-devel python3-pip python3-setuptools python3-wheel \
             jansson-devel pcre2-devel liburing-devel \
-            pcre-devel zlib-devel openssl-devel \
+            zlib-devel openssl-devel \
             perl dos2unix wget tar \
             libpq-devel \
             patch gettext \

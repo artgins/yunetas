@@ -1593,7 +1593,7 @@ PKGS=(
     python3-devel python3-pip python3-setuptools
     python3-tkinter python3-wheel
     jansson-devel pcre2-devel liburing-devel
-    pcre-devel zlib-devel openssl-devel
+    zlib-devel openssl-devel
     perl dos2unix tree wget
     libpq-devel
     telnet pipx
