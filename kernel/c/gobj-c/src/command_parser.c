@@ -891,6 +891,48 @@ PRIVATE BOOL secret_is_set(json_t *value)
 }
 
 /***************************************************************************
+ *  The gobj whose table masks the `cmd` of a help line of `gobj`: where
+ *  the help finds that command, at the `level` of the line (a command of a
+ *  child with `level=2`), else at any level -- the level can come in the
+ *  kw, or be the wrong one, and the line is still a command line of that
+ *  gobj. NULL when there is no table (by names only). The table of `gobj`
+ *  itself does not know a child's command, and a secret of it (`help
+ *  cmd='create-config id=x content64=<s>' level=2`) was traced whole.
+ ***************************************************************************/
+PRIVATE hgobj help_cmd_gobj(hgobj gobj, const char *line, const char *cmd)
+{
+    if(!gobj) {
+        return NULL;
+    }
+    int level = -1;
+    char *str = gbmem_strdup(line);
+    char *p = str;
+    while(p) {
+        char *key;
+        char *value = get_key_value_parameter(p, &key, &p);
+        if(!value || !key) {
+            break;
+        }
+        if(strcasecmp(key, "level") == 0) {
+            level = atoi(value);
+        }
+    }
+    GBMEM_FREE(str)
+
+    hgobj gobj_found = NULL;
+    if(level >= 0) {
+        search_command_desc(gobj, cmd, level, &gobj_found);
+    }
+    if(!gobj_found) {
+        search_command_desc(gobj, cmd, 2, &gobj_found);
+    }
+    if(!gobj_found) {
+        search_command_desc(gobj, cmd, 1, &gobj_found);
+    }
+    return gobj_found? gobj_found : gobj;
+}
+
+/***************************************************************************
  *  Append to gbuf the key=value parameters of `line`, as a trace shows
  *  them: " key=value", the value of a secret key as "********", a value
  *  longer than MAX_SHOWN_VALUE as "<N bytes>". In a
@@ -904,15 +946,16 @@ PRIVATE BOOL secret_is_set(json_t *value)
  *  no key=value either: " <...>" -- a password in base64 ends so, and the
  *  agent's audit file takes the same rule.
  *  In a line of help (`help_line`) the value of `cmd` is a command line:
- *  it is shown as command_mask_secret_line() shows a line of `gobj`, the
- *  way the header of the help shows it (up to 7.30.26 `help cmd="login
- *  bob <pin>"` was shown `help cmd=login bob <pin>`).
+ *  it is shown as command_mask_secret_line() shows a line of the gobj
+ *  where the help finds that command (help_cmd_gobj()), the way the header
+ *  of the help shows it (up to 7.30.26 `help cmd="login bob <pin>"` was
+ *  shown `help cmd=login bob <pin>`).
  ***************************************************************************/
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
     const char *line,
     const sdata_desc_t *cnf_cmd,    // NULL: by names only
-    hgobj gobj,                     // whose table masks the `cmd` of help, NULL: by names only
+    hgobj gobj,                     // of the help: its `cmd` masked where found, NULL: by names only
     BOOL help_line
 )
 {
@@ -962,7 +1005,7 @@ PRIVATE void append_masked_parameters(
         } else if(strlen(value) > MAX_SHOWN_VALUE) {
             gbuffer_printf(gbuf, " %s=<%zu bytes>", key, strlen(value));
         } else if(help_line && strcasecmp(key, "cmd") == 0) {
-            char *shown = command_mask_secret_line(gobj, value);
+            char *shown = command_mask_secret_line(help_cmd_gobj(gobj, line, value), value);
             if(shown && strpbrk(shown, " \t")) {
                 gbuffer_printf(gbuf, " %s='%s'", key, shown);
             } else {
@@ -1999,33 +2042,42 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 
         /*
          *  The caller's word, see find_command_desc(): a first word that is
-         *  no name ('login bob <pin>') is not echoed
+         *  no name ('login bob <pin>') is not echoed. A search that found
+         *  something is a piece of a name or a description, said whole.
          */
         char *first = gbmem_strdup(cmd);
         char *pfirst = first;
         char *word = first? get_parameter(pfirst, &pfirst) : NULL;
         BOOL no_name = (!first || (word && strpbrk(word, " \t'\"\\")))? TRUE : FALSE;
-        GBMEM_FREE(first)
         char *cmd_masked = no_name? NULL : mask_secrets_inline(cmd);
-        const char *word_shown = no_name? "<...>" : (cmd_masked? cmd_masked : cmd);
+        const char *search_shown = no_name? "<...>" : (cmd_masked? cmd_masked : cmd);
         gbuffer_t *gbuf = gbuffer_create(4*1024, 64*1024);
-        gbuffer_printf(gbuf, "Commands that mention '%s'\n", word_shown);
+        gbuffer_printf(gbuf, "Commands that mention '%s'\n", search_shown);
         gbuffer_printf(gbuf, "===========================\n");
         if(list_commands(gobj, gbuf, level, cmd) > 0) {
             json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
             gbuffer_decref(gbuf);
             GBMEM_FREE(cmd_masked)
+            GBMEM_FREE(first)
             KW_DECREF(kw)   // after: `cmd` is a text of kw
             return jn_resp;
         }
         gbuffer_decref(gbuf);
+        GBMEM_FREE(cmd_masked)
 
+        /*
+         *  Nothing found: its first word only, as the parser answers it
+         *  (up to 7.30.26 `help cmd='login bob <pin>'` echoed the whole cmd)
+         */
+        char *word_masked = (no_name || !word)? NULL : mask_secrets_inline(word);
+        const char *word_shown = (no_name || !word)? "<...>" : (word_masked? word_masked : word);
         json_t *jn_resp = json_sprintf(
             "%s: command '%s' not available.\n",
             gobj_short_name(gobj),
             word_shown
         );
-        GBMEM_FREE(cmd_masked)
+        GBMEM_FREE(word_masked)
+        GBMEM_FREE(first)
         KW_DECREF(kw)   // after: `cmd` is a text of kw
         return jn_resp;
     }

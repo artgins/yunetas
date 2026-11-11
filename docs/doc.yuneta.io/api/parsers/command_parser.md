@@ -318,7 +318,15 @@ A JSON string containing the formatted documentation of available commands. If a
 
 If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also include commands from child objects of the given `hgobj`.
 
-A `cmd` that is no command is searched: the answer lists the commands that have that text, in any case, in their name, an alias or their description. `level` searches the same gobjs that it lists. If no command has the text, the answer is *"command 'x' not available"*.
+A `cmd` that is no command is searched: the answer lists the commands that have that text, in any case, in their name, an alias or their description. `level` searches the same gobjs that it lists. If no command has the text, the answer is *"command 'x' not available"*, where `x` is the FIRST word of `cmd` only, as the parser answers an unknown command (`'<...>'` when that word holds a blank, a quote or a backslash). Up to 7.30.26 it was the whole `cmd`, a secret given without its key too:
+
+```bash
+ycommand -c "help cmd='nosuch bob hunter2'"
+```
+
+```text
+C_AGENT^agent: command 'nosuch' not available.
+```
 
 ```bash
 ycommand -c 'help cmd=snap'
@@ -653,9 +661,14 @@ shows `<...> note=x` (up to 7.30.26 the parser ran `login` with `note=x`, and
 the trace showed `login bob hunter2 note=x`). A command name alone in its
 quotes stays: `'list-yunos'` is `list-yunos`. In a line of `help` the value of
 `cmd` is a command line too: it is shown masked the way the header of the help
-shows it, with the command table of `gobj` (`help cmd="login bob hunter2"` is
-`help cmd='login bob ********'`, or `help cmd='login <...>'` with no table; up
-to 7.30.26 the trace showed `help cmd=login bob hunter2`). In a `SDF_WILD_CMD` command a value
+shows it, with the command table of the gobj where the help finds that command
+-- `gobj`, or with `level=1`/`level=2` a bottom gobj or a child; with no
+`level` on the line (it can come in the kw) at any level
+(`help cmd="login bob hunter2"` is `help cmd='login bob ********'`, or
+`help cmd='login <...>'` with no table; up to 7.30.26 the trace showed `help
+cmd=login bob hunter2`). The table of `gobj` itself does not know a child's
+`SDF_SECRET` parameter: `help cmd='create-config id=x content64=<s>' level=2`
+would show `<s>`. In a `SDF_WILD_CMD` command a value
 with a `=` is a command line going on, shown `key='...'` masked by names. The
 whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
 `write-attr attribute=password value=X` shows `value=********`. What
@@ -715,6 +728,10 @@ line = command_mask_secret_line(gobj,   // a whole line in quotes is one word: n
 line = command_mask_secret_line(gobj,   // the cmd of help is a command line ("pin" SDF_SECRET)
     "help cmd=\"login bob hunter2\""
 );                                      // "help cmd='login bob ********'"
+
+line = command_mask_secret_line(yuno,   // masked with the table of the gobj where help
+    "help cmd='create-config id=x content64=QUJD' level=2"  // finds it: a child (C_AGENT)
+);                                      // "help cmd='create-config id=x content64=********' level=2"
 
 line = command_mask_secret_line(agent,  // a value of 46 MB of base64
     "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."

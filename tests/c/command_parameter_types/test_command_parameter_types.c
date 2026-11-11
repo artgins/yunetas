@@ -72,7 +72,10 @@
  *              answered '<...>', by the parser and by help;
  *            - the `cmd` of help is a command line: the `commands` trace
  *              and the mask show it masked (7.30.26 showed `help
- *              cmd=login bob <pin>`);
+ *              cmd=login bob <pin>`), with the table of the gobj where the
+ *              help finds the command (a child's, with `level=2`);
+ *            - a `cmd` that help does not find is answered by its first
+ *              word only, as the parser does (7.30.26 echoed it whole);
  *            - blanks at the end of the line are no parameter (two or more
  *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
@@ -200,6 +203,53 @@ SDATA_END()
 };
 
 PRIVATE const GMETHODS gmt = {0};
+
+/*
+ *  A child of the yuno with a secret of its own: `help ... level=2` finds
+ *  its command there, and masks it with its table
+ */
+PRIVATE sdata_desc_t pm_store[] = {
+/*-PM----type-----------name------------flag------------------------default-----description---------- */
+SDATAPM (DTP_STRING,    "id",           0,                          0,          "Id"),
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,                 0,          "A secret with no secret's name"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t child_command_table[] = {
+/*-CMD---type-----------name------------flag----------alias---items-------json_fn-----description--*/
+SDATACM2(DTP_SCHEMA,    "store",        0,            0,      pm_store,   cmd_probe,  "Store a content"),
+SDATA_END()
+};
+
+GOBJ_DEFINE_GCLASS(C_PARAMTYPESCHILD);
+
+PRIVATE int register_paramtypeschild(void)
+{
+    ev_action_t st_idle[] = {
+        {0, 0, 0}
+    };
+    states_t states[] = {
+        {ST_IDLE, st_idle},
+        {0, 0}
+    };
+    event_type_t event_types[] = {
+        {0, 0}
+    };
+    hgclass gc = gclass_create(
+        C_PARAMTYPESCHILD,
+        event_types,
+        states,
+        &gmt,
+        0,              // lmt
+        attrs_table,
+        0,              // priv_size
+        0,              // authz_table
+        child_command_table,
+        0,              // trace_level
+        0               // gclass_flag
+    );
+    return gc ? 0 : -1;
+}
 
 PRIVATE int register_paramtypestest(void)
 {
@@ -360,7 +410,7 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("capture_logs", "capture_logs", LOG_OPT_ALL, 0);
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
-    if(register_paramtypestest() != 0) {
+    if(register_paramtypestest() != 0 || register_paramtypeschild() != 0) {
         printf("%s: FAIL (gclass_create)\n", APP);
         gobj_end();
         return -1;
@@ -369,6 +419,11 @@ int main(int argc, char *argv[])
     hgobj yuno = gobj_create_yuno("paramtypestest_yuno", C_PARAMTYPESTEST, 0);
     if(!yuno) {
         printf("%s: FAIL (gobj_create_yuno)\n", APP);
+        gobj_end();
+        return -1;
+    }
+    if(!gobj_create("paramtypes_child", C_PARAMTYPESCHILD, 0, yuno)) {
+        printf("%s: FAIL (gobj_create child)\n", APP);
         gobj_end();
         return -1;
     }
@@ -917,6 +972,60 @@ int main(int argc, char *argv[])
     }
 
     /*
+     *  The `cmd` of help masked with the table of the gobj where the help
+     *  finds that command: a child's, with `level=2` (on the line, before
+     *  or after `cmd`, or in the kw), and at any level when the help does
+     *  not find it at its own (`level=1`: no bottom gobj here). With the
+     *  table of the gobj running the help, a secret of the child's command
+     *  was traced whole.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+            const char *with_table;
+            BOOL level_in_kw;
+        } child_helps[] = {
+            {"help cmd='store id=x content64=hc1-QUJDREVG' level=2", "hc1-QUJDREVG",
+                "help cmd='store id=x content64=********' level=2", FALSE},
+            {"help level=2 cmd='store id=x content64=hc2-QUJDREVG'", "hc2-QUJDREVG",
+                "help level=2 cmd='store id=x content64=********'", FALSE},
+            {"help cmd='store id=x content64=hc3-QUJDREVG'", "hc3-QUJDREVG",
+                "help cmd='store id=x content64=********'", TRUE},
+            // a level where help does not find it: still a line of the child
+            {"help cmd='store id=x content64=hc4-QUJDREVG' level=1", "hc4-QUJDREVG",
+                "help cmd='store id=x content64=********' level=1", FALSE},
+        };
+        gobj_set_global_trace("commands", TRUE);
+        for(size_t i=0; i<sizeof(child_helps)/sizeof(child_helps[0]); i++) {
+            char comment[2048];
+            g_watch = child_helps[i].secret;
+            g_watch_hits = 0;
+            json_t *kw = child_helps[i].level_in_kw? json_pack("{s:i}", "level", 2) : 0;
+            int result = run(yuno, child_helps[i].command, kw, comment, sizeof(comment));
+            g_watch = 0;
+            BOOL found = strstr(child_helps[i].command, "level=1")? FALSE : TRUE;
+            check(child_helps[i].command, "help answers, the secret not in it",
+                result == 0 && (!found || strstr(comment, "Store a content")) &&
+                strstr(comment, child_helps[i].secret) == NULL);
+            if(result != 0 || (found && !strstr(comment, "Store a content")) ||
+                    strstr(comment, child_helps[i].secret)) {
+                printf("     comment: %s\n", comment);
+            }
+            check(child_helps[i].command, "the child's secret in no log nor trace", g_watch_hits == 0);
+
+            char *masked = command_mask_secret_line(yuno, child_helps[i].command);
+            check(child_helps[i].command, "the mask: cmd with the child's table",
+                masked && strcmp(masked, child_helps[i].with_table) == 0);
+            if(!masked || strcmp(masked, child_helps[i].with_table) != 0) {
+                printf("     masked: %s\n", masked? masked : "(null)");
+            }
+            GBMEM_FREE(masked)
+        }
+        gobj_set_global_trace("commands", FALSE);
+    }
+
+    /*
      *  Blanks at the end of the line are no parameter. Up to 7.30.26 two
      *  or more answered "extra parameters: ' '"
      */
@@ -1145,6 +1254,13 @@ int main(int argc, char *argv[])
     // the first word read once: in two levels of quotes it is no command (7.30.26: typed)
     expect_help(yuno, "\"'typed'\"", "command '<...>' not available", "A parameter of each type");
     expect_help(yuno, "'login bob hl6-hunter2' x", "command '<...>' not available", "hl6-hunter2");
+    /*
+     *  Nothing found: its first word only, as the parser answers it (up to
+     *  7.30.26 the whole cmd was echoed, a secret given without its key too)
+     */
+    expect_help(yuno, "nosuch bob hl7-hunter23", "command 'nosuch' not available.", "hl7-hunter23");
+    expect_help(yuno, "nosuch id=x content64=hl8-QUJD", "command 'nosuch' not available.", "hl8-QUJD");
+    expect_help(yuno, "password=hl9-hunter2 x", "command 'password=********' not available.", "hl9-hunter2");
 
     JSON_DECREF(g_seen)
     gobj_end();
