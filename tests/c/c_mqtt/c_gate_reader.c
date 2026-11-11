@@ -22,7 +22,11 @@
  *              order; and the memory, sampled every 20 ms, grows less than
  *              5 MB (measured: 2.6 MB, the bound and one read for each
  *              connection). At the end the clients stop sending, get the
- *              PINGRESP still owed to them, and close.
+ *              PINGRESP still owed to them, and close. That drain (about 17
+ *              s here, 54-81 s under ASan) fails only when no reader gets a
+ *              byte for 10 s, or when it is not over in 300 s: a drain that
+ *              is slow but goes on is not a failure. Up to the first version
+ *              of this test it had 60 s in all, and failed under ASan.
  *
  *          In the first pause (never released) the resume let the C_TCP
  *          read again BEFORE the rest held was processed: that rest paused
@@ -55,7 +59,8 @@
 #define N_CONN              20
 #define RUN_MSEC            20000
 #define WINDOW              (512*1024)  // PINGREQ bytes not yet answered, at most
-#define DRAIN_MSEC          60000
+#define DRAIN_STALL_MSEC    10000       // the drain fails when no reader gets a byte for so long
+#define DRAIN_MAX_MSEC      300000      // and when it is not over by then
 #define MAX_GROWTH          (5*1024*1024)
 
 /***************************************************************************
@@ -91,6 +96,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t tx_bytes[N_CONN];  // of PINGREQ handed to the kernel
     uint64_t rx_bytes[N_CONN];  // got, the CONNACK included
     int phase;
+    uint64_t rx_drained;    // the bytes got by all the readers, at the last progress of the drain
+    uint64_t t_drain_stall; // the drain stalled when it fires with nothing more got
     int gate_closed;        // the gates' EV_ON_CLOSE
     BOOL failed;
     size_t mem_base;
@@ -459,11 +466,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 1:
             priv->phase = 2;
-            set_timeout(priv->timer, DRAIN_MSEC);
+            priv->rx_drained = 0;
+            for(int i=0; i<N_CONN; i++) {
+                priv->rx_drained += priv->rx_bytes[i];
+            }
+            priv->t_drain_stall = start_msectimer(DRAIN_STALL_MSEC);
+            set_timeout(priv->timer, DRAIN_MAX_MSEC);
             break;
 
         case 2:
-            case_failed(gobj, "TEST: the readers did not get every PINGRESP", -1);
+            case_failed(gobj, "TEST: the readers did not get every PINGRESP in 300 s", -1);
             break;
 
         case 3:
@@ -524,10 +536,23 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     BOOL all_answered = TRUE;
+    uint64_t rx_total = 0;
     for(int i=0; i<N_CONN && !priv->failed; i++) {
         client_io(gobj, i);
+        rx_total += priv->rx_bytes[i];
         if(priv->rx_bytes[i] != 4 + priv->tx_bytes[i] || priv->tx_bytes[i] % 2) {
             all_answered = FALSE;
+        }
+    }
+
+    if(priv->phase == 2 && !all_answered && !priv->failed) {
+        if(rx_total > priv->rx_drained) {
+            priv->rx_drained = rx_total;
+            priv->t_drain_stall = start_msectimer(DRAIN_STALL_MSEC);
+        } else if(test_msectimer(priv->t_drain_stall)) {
+            case_failed(gobj, "TEST: the drain stalled: no reader got a byte in 10 s", -1);
+            KW_DECREF(kw)
+            return 0;
         }
     }
 

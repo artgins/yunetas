@@ -285,9 +285,15 @@ written: none is dropped, each gets its CONNACK and one PINGRESP per PINGREQ,
 in order (checked byte by byte), and the memory grows less than 5 MB
 (measured: 2.6 MB, the bound and one read each; about 11 million PINGRESP in
 the run). Then the clients stop, get the PINGRESP still owed to them, and
-close. No WARNING. Red on the first pause (never released): the resume let
-the `C_TCP` read before the rest held was read, the rest grew by a read on
-each pause, and the memory passed 5 MB in under 2 s.
+close. No WARNING. About 37 s here, the drain about 17 s of it; under ASan,
+or on a slow or loaded machine, the drain takes much longer (54-81 s seen
+under ASan, about 140 s at a quarter of a CPU), and it fails only when no
+reader gets a byte for 10 s (a real stall: a reading never resumed fails 10 s
+into the drain), or when it is not over in 300 s. Up to its first version it
+had 60 s in all for the drain, and failed under ASan. Red on the first pause
+(never released): the resume let the `C_TCP` read before the rest held was
+read, the rest grew by a read on each pause, and the memory passed 5 MB in
+under 2 s.
 
 `test_mqtt_broker_answers` (`main_broker_answers.c` + `c_broker_answers.c`)
 runs the broker on port 18123 and RAW MQTT 3.1.1 clients that read
