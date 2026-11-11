@@ -12,8 +12,10 @@
  *            command of command-yuno / command-agent, and the command they
  *            forward) is written <...>: it can be a secret without its key,
  *            and from the first word that its parser cuts otherwise than
- *            the shell (a '\', a quote that does not open a value), the
- *            rest of that line is <...>,
+ *            the shell (a '\', a quote that does not open a value, a
+ *            quoted piece with a blank in a value), the rest of that line
+ *            is <...>; a json without quotes of its own (record={...}) is
+ *            cut alike, and written,
  *          - a stats command with a reset is a write,
  *          - the command carried by command-yuno is the one its handler
  *            reads (the key exactly `command`; COMMAND=... is not it),
@@ -924,9 +926,70 @@ PRIVATE void test_nested_positional_secret(void)
     check_command_is("command-yuno id=X command=\"set-x n=1 note='a b' m=\\\"q\\\"\" k=2", NULL,
         "command-yuno id=X <...>",
         "(d4) a backslash in the command value of the wrapper: from it on, <...>");
-    check_command_is("command-yuno id=X command=\"set-x n=1 note='a b' x=a'b\" k=2", NULL,
+    check_command_is("command-yuno id=X command=\"set-x n=1 note='a b' x=a'b c'\" k=2", NULL,
         "command-yuno id=X command=\"set-x n=1 note='a b' <...>\" k=2",
         "(d4) the level above goes on after the value's closing quote");
+
+    /*
+     *  (d5) what is judged is where the two CUT a word, not every quote in
+     *  it. A value that does not open with a quote is cut by the parser
+     *  at the first blank, whatever quotes it holds: a word with no blank
+     *  in it (no quoted piece with a blank, no '\' before a blank) ends
+     *  at the same byte for both. A json written without quotes of its own
+     *  -- the documented form of record=, options=, filter= -- is such a
+     *  word, and up to the fix it made the rest of the line <...>, the
+     *  target's id= and service= with it. A quoted piece with a blank in
+     *  such a value is still cut otherwise: from it on, <...>.
+     */
+    check_command_is(
+        "command-yuno id=X service=treedb command=delete-node topic_name=items "
+            "record={\"id\":\"item1\"} options={\"force\":1}", NULL,
+        "command-yuno id=X service=treedb command=delete-node topic_name=items "
+            "record={\"id\":\"item1\"} options={\"force\":1}",
+        "(d5) a json without its own quotes, at the top of a wrapper's line: written");
+    check_command_is(
+        "command-yuno service=treedb command=delete-node topic_name=items "
+            "record={\"id\":\"item1\"} options={\"force\":1} id=X", NULL,
+        "command-yuno service=treedb command=delete-node topic_name=items "
+            "record={\"id\":\"item1\"} options={\"force\":1} id=X",
+        "(d5) a json without its own quotes: the id= after it is written");
+    check_command_is(
+        "command-yuno service=treedb command=update-node topic_name=users "
+            "record={\"id\":\"bob\",\"password\":\"hunter2\"} id=X", NULL,
+        "command-yuno service=treedb command=update-node topic_name=users "
+            "record={\"id\":\"bob\",\"password\":\"<redacted>\"} id=X",
+        "(d5) a json without its own quotes: its password redacted inside, the id= after it");
+    check_command_is(
+        "command-yuno id=X service=treedb command='update-node topic_name=users "
+            "record={\"id\":\"bob\",\"password\":\"hunter2\"} options={\"force\":1}'", NULL,
+        "command-yuno id=X service=treedb command='update-node topic_name=users "
+            "record={\"id\":\"bob\",\"password\":\"<redacted>\"} options={\"force\":1}'",
+        "(d5) a json without its own quotes in a nested line: written, its password redacted");
+    check_command_is(
+        "command-agent service=authz command=list-x filter={\"id\":\"bob\"} level=2", NULL,
+        "command-agent service=authz command=list-x filter={\"id\":\"bob\"} level=2",
+        "(d5) filter={...} in the line of command-agent: written");
+    check_command_is("command-yuno id=X command=\"set-x n=1 note='a b' x=a'b\" k=2", NULL,
+        "command-yuno id=X command=\"set-x n=1 note='a b' x=a'b\" k=2",
+        "(d5) a quote inside a value with no blank: both cut it at the blank, written");
+
+    static const char *json_apart[] = {
+        // a blank inside a quoted piece of a json value: the parser cuts the value there
+        "command-yuno id=X command='update-node record={\"note\":\"a hunter2\"}'",
+        "command-yuno id=X command=update-node record={\"note\":\"a hunter2\"} id=Y",
+        "command-yuno id=X command=\"update-node record={'note':'a hunter2'}\"",
+        "command-yuno id=X command='update-node record={\"a\":1}x\\ hunter2'",
+        "command-agent service=authz command=set-x filter={\"id\":\"bob\tx\"}\thunter2",
+        0
+    };
+    for(int i=0; json_apart[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(d5) a json value the parser cuts otherwise (%d)", i);
+        check_nested(json_apart[i], NULL, "hunter2", "command", name);
+    }
+    check_command_is("command-yuno id=X command=update-node record={\"note\":\"a hunter2\"} id=Y", NULL,
+        "command-yuno id=X command=update-node <...>",
+        "(d5) a quoted piece with a blank in a json value: from it on, <...>");
 }
 
 /***************************************************************************
@@ -2125,8 +2188,8 @@ PRIVATE void test_blank_keys_inner_quotes_jwt_dot(void)
     check_no_secret("update-node pass\\u0077ord=S3CRu6", NULL, "S3CRu6",
         "(u) a parameter key with a \\u escape");
     check_command_written("command-yuno id=x command=\"write-attr attribute=api\\u005fkey value=S3CRq1\" n=1",
-        "command-yuno id=x command=\"write-attr <...>\" n=1",
-        "(u) a '\\' in a word of a \"...\" command value: <...>, its closing quote and n=1 stay");
+        "command-yuno id=x command=\"write-attr attribute=api_key value=<redacted>\" n=1",
+        "(u) a '\\' in a word with no blank of a \"...\" command value: cut alike, the value redacted");
     check_command_written("command-yuno id=x command=\"write-attr attribute='api\\u005fkey' value=S3CRq1\" n=1",
         "command-yuno id=x command=\"write-attr attribute='api_key' value=<redacted>\" n=1",
         "(u) a secret value at the end of a \"...\" value: its closing quote and n=1 stay");

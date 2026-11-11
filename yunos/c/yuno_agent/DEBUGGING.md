@@ -934,6 +934,23 @@ nearest first:
 
   The parser of the target refuses these lines, so the secret is not used.
   Up to 7.30.26 the records held `hunter2` in clear.
+
+  What is compared is where the two END a word. A value that does not
+  begin with a quote is cut by the parser at the first blank, whatever
+  quotes or `\` it holds, so such a word with no blank in it (no quoted
+  piece with a blank, no `\` before a blank) is read alike and written. A
+  json written without quotes of its own, the documented form of `record=`,
+  `options=` and `filter=`, is such a word:
+
+  ```text
+  command-yuno id=1620 service=treedb_items command=delete-node topic_name=items record={"id":"item1"} options={"force":1}
+  command-yuno service=treedb_users command=update-node topic_name=users record={"id":"bob","password":"x"} id=1620
+  ```
+
+  are recorded as they came, the password of the json redacted
+  (`record={"id":"bob","password":"<redacted>"} id=1620`). A quoted piece
+  with a blank in such a value is cut otherwise (`record={"note":"a b"}`:
+  the parser ends the value at `"a`), and from it on the line is `<...>`.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

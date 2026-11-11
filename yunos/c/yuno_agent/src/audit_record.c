@@ -114,7 +114,11 @@
  *            value begins: from the first word the two cut otherwise
  *            (x=''\'' <password>, x=a' <password>', x='a'<password>), the
  *            rest of that line is `<...>` (up to 7.30.26 the bare word
- *            inside it was written in clear). See mask_nested_line(),
+ *            inside it was written in clear). What is compared is where
+ *            the two END a word: a value that does not begin with a quote
+ *            is cut by the parser at the first blank, so with no blank in
+ *            it (a json without quotes of its own, record={"id":"x"}) it
+ *            is read alike and written. See mask_nested_line(),
  *            word_read_alike() and command_word().
  *
  *          - The scan of a string is ONE pass, in linear time: a value
@@ -2657,15 +2661,32 @@ PRIVATE const char *keyed_word_equal(const char *w, const char *e)
  *  TRUE if the command parser cuts the word [w, e) where word_end() does
  *  (get_parameter(), get_key_value_parameter()): the parser takes no '\'
  *  as an escape, and a quote only where a value begins, closed by the
- *  next quote of its kind. So: no '\' and no quote outside one quoted
- *  piece, which opens the value (after `eq`, or at `w` in a word with no
- *  key) and whose first quote of its kind ends the word. Elsewhere the two
- *  read otherwise: x=''\'' <password> is ONE keyed word of the shell, and
- *  a value '' and two more words of the parser.
+ *  next quote of its kind.
+ *  - A value that does not begin with a quote is cut by the parser at the
+ *    first blank, whatever quotes or '\' it holds: the two cut it at the
+ *    same byte when the word has no blank (no quoted piece with a blank,
+ *    no '\' before a blank). So a json written without quotes of its own
+ *    (record={"id":"item1"}) is read alike; up to the fix it made the
+ *    rest of the line BARE_WORD.
+ *  - Else (a value in quotes, a word with no key): no '\' and no quote
+ *    outside one quoted piece, which opens the value (after `eq`, or at
+ *    `w` in a word with no key) and whose first quote of its kind ends
+ *    the word.
+ *  Elsewhere the two read otherwise: x=''\'' <password> is ONE keyed
+ *  word of the shell, and a value '' and two more words of the parser;
+ *  x=a' <password>' is one word of the shell and two of the parser.
  */
 PRIVATE BOOL word_read_alike(const char *w, const char *e, const char *eq)
 {
     const char *v = eq? eq + 1 : w;
+    if(eq && v < e && !is_quote(*v)) {
+        for(const char *p = w; p < e; p++) {
+            if(is_blank(*p)) {
+                return FALSE;
+            }
+        }
+        return TRUE;
+    }
     for(const char *p = w; p < e; p++) {
         if(*p == '\\') {
             return FALSE;

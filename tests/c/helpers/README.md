@@ -71,7 +71,15 @@ bob x=''\'' hunter2"` is `command="set-user-pwd <...> <...>"`, and
 `x=''\\'' y=6' <s>`, `\"COMMAND-AGENT\" command='kill-yuno <s>'`, `x=a' <s>'`,
 `x='a <s>`, `x='a'<s>` and `x=a\ <s>` lose the secret (7.30.26 wrote it); a
 `\"` in a `"..."` command value, where the parser ends it, makes the whole
-value `<...>`; what follows the value (`n=1`) stays. A `stats=__reset__` makes a stats command a
+value `<...>`; what follows the value (`n=1`) stays. What is compared is where
+the two END a word: a value that does not begin with a quote is cut by the
+parser at the first blank, so with no blank in it (no quoted piece with a
+blank, no `\` before a blank) it is read alike, quotes and all. A json written
+without quotes of its own (`record={"id":"item1"} options={"force":1}`, the
+documented form) is written whole, its `password` redacted inside, with the
+`id=` after it (7.30.26 wrote it whole too; before this fix the unreleased rule
+made the rest of the line `<...>`); `record={"note":"a <s>"}` still makes the
+rest `<...>`. A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A
