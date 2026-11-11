@@ -74,8 +74,10 @@ whatever it put in `__md_iev__`. One publication per requester and service: a
 new call replaces it and renews it. It ends -- with an INFO *"publish-stats
 ended"* and its reason -- when its `ttl` passes without a new call (`0` or
 `-1`: never), when the requester is no more, when the requester's link (a
-`C_IEVENT_CLI`) leaves its session, or when the service is gone; `stop=1`
-ends it at once. The requester must be a service (it is found again by name
+`C_IEVENT_CLI`) leaves its session, when the service is gone, or when the
+service is itself a link (a `C_IEVENT_CLI` or `C_IEVENT_SRV`) out of its
+session, which would answer every period with -1 *"not in session"* and a
+WARNING; `stop=1` ends it at once. The requester must be a service (it is found again by name
 at each publication); `period` is never under `timeout_periodic`, and a yuno
 keeps at most 64 publications. Refused: a service that does not exist
 (*"Service not found"*), a requester that is not a service, a `stats_service`

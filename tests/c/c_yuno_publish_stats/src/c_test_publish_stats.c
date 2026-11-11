@@ -97,6 +97,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj child;            // a requester that is not a service
+    hgobj link;             // a C_IEVENT_CLI service that never had a session
     int phase;
     int received;           // publications of the current phase
     int bad;                // publications that are not what they must be
@@ -112,6 +113,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->child = gobj_create_pure_child("not_a_service", C_TIMER, 0, gobj);
+    priv->link = gobj_create_service("a_link", C_IEVENT_CLI, 0, gobj);
 }
 
 /***************************************************************************
@@ -269,6 +271,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 if(ask(gobj, gobj, long_name, 0, FALSE, TRUE) == 0) {
                     priv->result += fail(gobj, "F: a stats_service longer than NAME_MAX was taken", 0);
                 }
+            }
+            /*  G: the stats of a link out of session, with no ttl to end it  */
+            if(ask(gobj, gobj, "a_link", -1, TRUE, FALSE) != 0) {
+                priv->result += fail(gobj, "G: publish-stats refused", 0);
+            }
+            priv->received = 0;
+            set_timeout(priv->timer, 500);
+            break;
+
+        case 5:
+            if(priv->received != 0) {
+                priv->result += fail(gobj, "G: publications of a link out of session", priv->received);
             }
             if(priv->bad) {
                 priv->result += fail(gobj, "publications that are not what they must be", priv->bad);

@@ -111,11 +111,13 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO: every gobj_log_info the run emits, in order. */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Starting yuno",
             "msg", "Playing yuno",
             "msg", "publish-stats ended",               // A: its ttl
             "msg", "publish-stats ended",               // C: publish_stats_ttl
+            "msg", "publish-stats ended",               // G: a link out of session
+            "why", "its service is a link out of session",
             "msg", "All publish-stats tests PASSED",
             "msg", "Exit to die",
             "msg", "Exit to die",

@@ -52,6 +52,7 @@
 #include "c_timer0.h"
 #include "msg_ievent.h"
 #include "c_ievent_cli.h"
+#include "c_ievent_srv.h"
 #include "entry_point.h"
 #include "c_yuno.h"
 
@@ -6124,6 +6125,11 @@ PRIVATE void publish_stats_tick(hgobj gobj)
             why = "the link of its requester is out of session";
         } else if(!gobj_service) {
             why = "its service is gone";
+        } else if((gobj_typeof_gclass(gobj_service, C_IEVENT_CLI) ||
+                gobj_typeof_gclass(gobj_service, C_IEVENT_SRV)) &&
+                gobj_current_state(gobj_service) != ST_SESSION) {
+            // It answers -1 "not in session", with a WARNING, every period
+            why = "its service is a link out of session";
         }
         if(why) {
             gobj_log_info(gobj, 0,
