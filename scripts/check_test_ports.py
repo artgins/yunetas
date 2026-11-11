@@ -16,6 +16,10 @@ sharing a port is a collision.
 
 A port built at compile time (a -DPORT from CMake, as c_task_authenticate
 does) is not seen here: keep such ranges apart by hand.
+
+A test whose `run_test.sh` runs it in a network namespace of its own
+(`unshare` with `-n`, as c_agent_sandbox does) has a loopback nobody else
+sees: its ports are not listed (the agent's fixed 1991 runs in two of them).
 """
 import collections
 import os
@@ -23,6 +27,7 @@ import re
 import sys
 
 ROOTS = ['tests/c', 'performance/c']
+OWN_NETNS = re.compile(r'\bunshare\s+(-\w*n\w*|--net)\b')
 EXTENSIONS = ('.c', '.h', '.json', '.py', '.sh')
 PATTERNS = [
     re.compile(r'[a-z]+s?://[^\s\'"/]*?:(\d{3,5})\b'),
@@ -47,6 +52,15 @@ def binary_of(path):
     return os.path.join(d, stem)
 
 
+def own_network_namespace(d):
+    """Whether the test of dir d runs in a network namespace of its own."""
+    try:
+        with open(os.path.join(d, 'run_test.sh'), errors='replace') as fh:
+            return OWN_NETNS.search(fh.read()) is not None
+    except FileNotFoundError:
+        return False
+
+
 def main():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ports = collections.defaultdict(lambda: collections.defaultdict(set))
@@ -55,6 +69,9 @@ def main():
         top = os.path.join(base, root)
         for d, dirs, files in os.walk(top):
             dirs[:] = [x for x in dirs if x != 'build']
+            if own_network_namespace(d):
+                dirs[:] = []
+                continue
             for f in files:
                 if not f.endswith(EXTENSIONS):
                     continue
