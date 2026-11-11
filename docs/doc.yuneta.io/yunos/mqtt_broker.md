@@ -156,6 +156,27 @@ of the old connection are closed with it. Up to 7.30.26 a session that was not
 kept got `0x00` (Normal disconnection), the reason of a client that leaves.
 An MQTT 3.1.1 client gets no DISCONNECT (a server of 3.1.1 sends none).
 
+**A take-over with a clean session starts empty** [MQTT-3.1.2-4] (5.0),
+[MQTT-3.1.2-6] (3.1.1). When the new connection does not keep the session,
+the queues of the old one are closed AND their topics deleted before the new
+connection opens its own, whether the old connection kept its session or
+not. A take-over that keeps the session gets its messages, as before:
+
+```text
+A  CONNECT sess (clean session 0; MQTT 5: Session Expiry 3600)   CONNACK 0
+A  SUBSCRIBE q/# QoS 1, PUBLISH 5 x QoS 1 to q/x                  5 PUBACK, 5 PUBLISH, not acked
+B  CONNECT sess (clean session 1)                                 CONNACK 0, nothing more
+   (or) CONNECT sess (clean session 0)                            CONNACK 1, the 5 messages again
+```
+
+Up to 7.30.26 the broker deleted the queues of a session it did not keep only
+when that session had no connection, and a connection told to go deleted them
+only when IT had a clean session: B with a clean session got CONNACK 0 and
+then the 5 messages of A's session. One window is left: a take-over that
+comes while the old connection is itself still closing (its last answers not
+yet written to a peer that does not read) leaves its queues to that close,
+which does not delete the topics of a session it kept.
+
 **A broker that stops while connections are still closing** stops clean. A
 peer that does not take what is written to it holds its connection in the
 `C_TCP` (up to `timeout_stop_tx`, 10 s), and a stop of the yuno
@@ -168,7 +189,17 @@ kept). The queues the connection had open are freed, and so is the rest of a
 read the bound on the answers had paused. Up to 7.30.26 the broker
 kept the pointer of its destroyed treedb and read it there: a use of freed
 memory that ended the process at its stop (SIGSEGV), and that any peer could
-arm by not reading; and the queues of such a connection leaked. For example:
+arm by not reading; and the queues of such a connection leaked.
+
+A connection whose transport is STILL stopping when the yuno ends (one the
+bound on the answers dropped, waiting `timeout_stop_tx` for its write in
+flight; or a subscriber that does not read, whose `C_TCP` holds QoS 0
+forwards) gets no `EV_ON_CLOSE` at all: the protocol frees its queues when it
+is destroyed, and the session is left as after a crash. Up to 7.30.26 those
+queues leaked: 2 x 768 bytes per session, and with a subscriber that does not
+read while QoS 0 and QoS 1 publications mix, every QoS 1 message its queue
+held (some 20000 blocks with one publisher of 20000 messages); the yuno
+ended with *"system memory not free"* and exit 255. For example:
 
 ```text
 client:  CONNECT, 5 SUBSCRIBEs of 8000 filters (40 KB of SUBACKs), 0xF0, reads nothing
@@ -240,7 +271,17 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 
 `max_inflight_messages` also bounds the INCOMING QoS 2 messages that wait for
 their PUBREL (the receive maximum the broker advertises): a client that sends
-more is disconnected (`RECEIVE_MAXIMUM_EXCEEDED`). When a persistent session is
+more is disconnected (`RECEIVE_MAXIMUM_EXCEEDED`), with one WARNING *"Mqtt:
+QoS 2 PUBLISH past max_inflight_messages (Receive Maximum), disconnecting"*
+(`client_id`, `max_inflight_messages`, `peername`). Up to 7.30.26 a broker
+said nothing of it (an MQTT 3.1.1 client got only the close):
+
+```text
+client:  CONNECT (3.1.1), 21 QoS 2 PUBLISH without PUBREL (max_inflight_messages 20)
+broker:  PUBREC 1 .. 20; WARNING "Mqtt: QoS 2 PUBLISH past max_inflight_messages
+         (Receive Maximum), disconnecting"; the connection closed
+```
+ When a persistent session is
 reloaded with more such messages than that (the limit was lowered between two
 connections), the ones beyond it wait QUEUED, and each goes in flight when a
 PUBREL frees a slot, as mosquitto does: with ITS OWN packet id, the client's,

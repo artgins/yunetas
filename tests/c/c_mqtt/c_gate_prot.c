@@ -43,6 +43,12 @@
  *                 to 7.30.26 it was two ERRORs ("Mqtt unknown property",
  *                 "Mqtt empty property", with no peer) and a WARNING, for
  *                 each such packet of any peer, before its authentication.
+ *              9. MQTT 5 on a third connection: a CONNECT with the property
+ *                 0x01 (Payload Format Indicator, not of a CONNECT): one
+ *                 WARNING "Mqtt invalid property of command" whose
+ *                 "command" is "CMD_CONNECT", nothing answered. Up to
+ *                 7.30.26 the command was printed as a number (a string
+ *                 through "%d").
  *
  *          No log of an ACL: there is no broker, and an anonymous client
  *          has nothing to ask it.
@@ -618,6 +624,37 @@ PRIVATE void run_mqtt5(hgobj gobj)
 
 
 
+/***************************************************************************
+ *  A third connection, MQTT 5: a CONNECT with the property 0x01 (Payload
+ *  Format Indicator), which MQTT 5 does not allow in a CONNECT
+ ***************************************************************************/
+PRIVATE void run_connect_bad_property(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint8_t bf[512];
+    size_t n;
+
+    priv->mqtt5 = TRUE;
+    gobj_send_event(priv->prot, EV_CONNECTED, 0, priv->fake);
+
+    static const uint8_t head5[] = {
+        0x00, 0x04, 'M', 'Q', 'T', 'T', 0x05,   // protocol name, level 5
+        0x02,                                   // flags: clean start
+        0x00, 0x3C,                             // keep alive 60 s
+        0x02,                                   // properties length
+        0x01, 0x01                              // Payload Format Indicator: not of a CONNECT
+    };
+    n = put_fixed_header(bf, 0x10, sizeof(head5) + 2 + strlen(CLIENT_ID5));
+    memcpy(bf + n, head5, sizeof(head5));
+    n += sizeof(head5);
+    n += put_string(bf + n, CLIENT_ID5);
+    peer_sends(gobj, bf, n);
+    expect(gobj, "9. a CONNECT with a property of a PUBLISH", (const char *[]){
+        NULL
+    });
+}
+
+
 
                     /***************************
                      *      Actions
@@ -646,9 +683,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_timeout(priv->timer, 100);
             break;
 
-        default:
+        case 3:
             expect(gobj, "8. the drop", (const char *[]){
                 "CLOSE " CLIENT_ID5,
+                NULL
+            });
+            run_connect_bad_property(gobj);
+            set_timeout(priv->timer, 100);
+            break;
+
+        default:
+            expect(gobj, "9. the drop", (const char *[]){
                 NULL
             });
             gobj_log_info(gobj, 0,

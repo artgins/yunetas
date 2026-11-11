@@ -141,6 +141,16 @@ server:  WARNING "Mqtt unknown property" {"identifier": 127, "peername": "..."}
          DISCONNECT 0x81, the close
 ```
 
+A property of MQTT 5 in a packet that may not carry it (a Payload Format
+Indicator in a CONNECT) is one WARNING *"Mqtt invalid property of command"*,
+whose `command` is the packet's name; up to 7.30.26 it was printed as a
+number (a string through `%d`), in all eleven sites:
+
+```text
+client:  CONNECT (MQTT 5) with the property 0x01
+server:  WARNING "Mqtt invalid property of command" {"command": "CMD_CONNECT", "identifier": 1, "peername": "..."}
+```
+
 ```text
 "msg": "MQTT malformed packet: CMD_CONNECT (credentials not dumped)",
 "data": {"0000": "00 04 4D 51 54 54 05 C2 00 3C     ..MQTT...<"}
@@ -368,7 +378,10 @@ gate looks for the decoder of that id in its other channels and sends it
 (DISCONNECT `0x8E` Session taken over; without the key it gets `0x00`). A
 broker sends the same key, and `"delete_session": true` when the new
 connection does not keep the session, which closes the queues of the old one
-too; a gate has no queues and needs only the first:
+and deletes their topics, whether the OLD connection kept its session or
+not (up to 7.30.26 only when it did not: the new connection, with a clean
+session, opened the same topics and got the old session's messages); a gate
+has no queues and needs only the first:
 
 ```C
 gobj_send_event(
@@ -464,9 +477,15 @@ on. A pool of 1000 anonymous connections that do not read holds about
 130 MB, not the 3.7 GB of the bound in packets that came before it. A peer
 that reads is never dropped for its answers, however much it pipelines: 3000
 QoS 1 PUBLISH or 30000 PINGREQ in one write get every answer, at the pace the
-peer takes them. A peer whose kernel still takes a little at each look is not
-dropped either: it holds the same bounded memory, and its keepalive (or the
-peer's own close) ends it.
+peer takes them. **A peer that does not read is dropped after
+`timeout_close` only while the protocol holds answers its transport cannot
+write.** Once every answer is in the kernel (the transport's queue empty),
+the protocol holds nothing of the connection and reads again: if the peer
+then sends nothing more (its own kernel stalled on full buffers, or it
+simply stopped), the connection is idle like any other, and only its
+keepalive (or the pool's bound, or the peer's close) ends it. A peer whose
+kernel still takes a little at each look is not dropped either: it holds the
+same bounded memory until one of those ends it.
 
 A client that publishes 3000 QoS 1 in one write, reading:
 

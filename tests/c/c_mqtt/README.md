@@ -114,6 +114,11 @@ client. On a `C_FAKE_TRANSPORT`, with the packets written by hand:
    7.30.26: two ERRORs, *"Mqtt unknown property"* and *"Mqtt empty
    property"*, and a WARNING).
 
+9. MQTT 5 on a third connection: a CONNECT with the property 0x01
+   (Payload Format Indicator, not of a CONNECT): one WARNING *"Mqtt invalid
+   property of command"* whose `command` is `CMD_CONNECT` (up to 7.30.26 a
+   number: a string printed with `%d`).
+
 No log of an ACL (there is no broker). Up to 7.30.25: CONNACK 5 (the CONNECT
 was authenticated against the broker's treedb) and nothing else.
 
@@ -315,6 +320,32 @@ ERROR, no crash, no leak. Red on 7.30.26: SIGSEGV at the stop (the broker
 read its destroyed treedb); with only that fixed, the queues of the closing
 connections leaked (*"system memory not free"*).
 
+`test_mqtt_broker_stop_dropped` (`main_broker_stop_dropped.c` +
+`c_broker_stop_dropped.c`) runs the broker on port 18127 and four raw clients
+on plain sockets that keep their sockets open through the stop: A (3.1.1) and
+B (MQTT 5) send 20 SUBSCRIBEs of 16000 times `a` and never read (receive
+buffer 4 KB, the broker's side send buffer 4 KB, `timeout_close` 500): each is
+dropped with one WARNING *"Mqtt: the peer does not read its answers,
+connection dropped"*, its `C_TCP` waiting `timeout_stop_tx`; C subscribes to
+`s/#` QoS 1 and never reads, while D (reading) publishes 20000 messages to
+`s/x`, QoS 0 and 1 in turn. 3 s later the yuno stops: no transport has ended,
+no `EV_ON_CLOSE` comes, and the protocol frees the queues at its destroy. No
+ERROR, no leak, exit 0. Red up to the fix: *"system memory not free"*, 21452
+blocks (the queues of the sessions, and the QoS 1 messages of C's), exit 255.
+
+`test_mqtt_broker_sessions` (`main_broker_sessions.c` +
+`c_broker_sessions.c`) runs the broker on port 18126 and raw clients on plain
+sockets. 1 (MQTT 3.1.1) and 2 (MQTT 5): A keeps its session, subscribes to
+`q<n>/#` QoS 1, publishes 5 QoS 1 messages to it and does not ack the
+forwards; B takes the client id over with a CLEAN session: CONNACK with
+session present 0 and nothing more. 3 and 4: the same, B keeping the session:
+session present 1 and the 5 messages. 5 (MQTT 5): A as in 2 sends `0xF0`, the
+broker answers DISCONNECT and drops it; B with a clean session gets nothing.
+6 (3.1.1): 21 QoS 2 PUBLISH without PUBREL against `max_inflight_messages`
+20: at most 20 PUBREC, then the close with one WARNING *"Mqtt: QoS 2 PUBLISH
+past max_inflight_messages (Receive Maximum), disconnecting"*. Red on 7.30.26:
+B of 1 and 2 got the 5 messages of A's session; 6 closed with no log.
+
 `test_mqtt_broker_takeover` (`main_broker_takeover.c` +
 `c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`
 1000 and two RAW MQTT 5 clients of one client id, clean start: A connects; B
@@ -360,7 +391,7 @@ The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
 `client_noqueue`, `gate_cut`, `gate_flood`, `gate_answers`,
 `broker_takeover`, `broker_no_play`, `broker_answers`, `broker_stop_drain`,
-`gate_reader`)
+`gate_reader`, `broker_sessions`, `broker_stop_dropped`)
 work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.

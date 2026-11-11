@@ -24,14 +24,14 @@
  *              connection). At the end the clients stop sending, get the
  *              PINGRESP still owed to them, and close.
  *
- *          Up to the fix, the resume let the C_TCP read again BEFORE the
- *          rest held was processed: that rest paused the reading again,
- *          after about 331 PINGREQ, and the read the C_TCP had just started
- *          came while paused and went behind it. The rest held grew by
- *          about 3.4 KB on each pause and was copied whole each time: the
- *          memory without bound (here, up to the window of each client),
- *          the CPU at 100 %, and no WARNING. Red there: the memory past
- *          5 MB within seconds.
+ *          In the first pause (never released) the resume let the C_TCP
+ *          read again BEFORE the rest held was processed: that rest paused
+ *          the reading again, after about 331 PINGREQ, and the read the
+ *          C_TCP had just started came while paused and went behind it.
+ *          The rest held grew by about 3.4 KB on each pause and was copied
+ *          whole each time: the memory without bound (here, up to the
+ *          window of each client), the CPU at 100 %, and no WARNING. Red
+ *          there: the memory past 5 MB within seconds.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

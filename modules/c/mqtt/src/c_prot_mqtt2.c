@@ -674,6 +674,23 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_subscriptions)
     JSON_DECREF(priv->jn_qos2_in_mids)
     release_held_read(gobj);
+
+    /*
+     *  Queues still open at the end: a connection dropped whose transport
+     *  was still stopping (timeout_stop_tx) when the yuno ended, so its
+     *  EV_DISCONNECTED never came. Only freed: the timeranger may be gone,
+     *  and the broker deletes the topics of a session not kept at its next
+     *  CONNECT. Up to 7.30.26 they leaked ("system memory not free"), with
+     *  every QoS 1 or 2 message they held
+     */
+    if(priv->trq_in_msgs) {
+        tr2q_close(priv->trq_in_msgs);
+        priv->trq_in_msgs = NULL;
+    }
+    if(priv->trq_out_msgs) {
+        tr2q_close(priv->trq_out_msgs);
+        priv->trq_out_msgs = NULL;
+    }
 }
 
 
@@ -814,17 +831,23 @@ PRIVATE int open_queues(hgobj gobj)
 }
 
 /***************************************************************************
- *
+ *  Close the queues of the connection, and delete their topics when its
+ *  session is not kept: its own clean start, or delete_session, a take-over
+ *  by a connection that does not keep it (the broker's EV_DROP). Up to
+ *  7.30.26 a take-over with a clean session left the topics of a
+ *  persistent session, and the new connection, opening them, got the old
+ *  session's messages [MQTT-3.1.2-4] (5.0), [MQTT-3.1.2-6] (3.1.1).
  ***************************************************************************/
-PRIVATE void close_queues(hgobj gobj)
+PRIVATE void close_queues(hgobj gobj, BOOL delete_session)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char queue_name[NAME_MAX];
+    BOOL delete_topics = (priv->clean_start || delete_session) && priv->tranger_queues;
 
     if(priv->trq_in_msgs) {
         tr2q_close(priv->trq_in_msgs);
 
-        if(priv->clean_start && priv->tranger_queues) {
+        if(delete_topics) {
             /*
              *  Delete the queues if it's not a persistent session
              */
@@ -851,7 +874,7 @@ PRIVATE void close_queues(hgobj gobj)
     if(priv->trq_out_msgs) {
         tr2q_close(priv->trq_out_msgs);
 
-        if(priv->clean_start && priv->tranger_queues) {
+        if(delete_topics) {
             /*
              *  Delete the queues if it's not a persistent session
              */
@@ -2682,7 +2705,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2697,7 +2720,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2712,7 +2735,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2728,7 +2751,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2750,7 +2773,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2765,7 +2788,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2781,7 +2804,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2796,7 +2819,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2812,7 +2835,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2829,7 +2852,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -2844,7 +2867,7 @@ PRIVATE int mqtt_property_check_command(hgobj gobj, int command, int identifier)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", mqtt_command_string(command),
+                    "command",      "%s", mqtt_command_string(command),
                     "identifier",   "%d", identifier,
                     "peername",     "%s", peer_of(gobj),
                     NULL
@@ -7597,7 +7620,21 @@ PRIVATE int handle__publish_s(
         }
 
         if(!db__ready_for_flight(gobj, mqtt_md_in, qos)) {
-            /* Client exceeded the server's receive-maximum, disconnect */
+            /*
+             *  Client exceeded the server's receive-maximum, disconnect.
+             *  Said as the path without queues says it: up to 7.30.26 a
+             *  broker closed it with no log (MQTT 3.1.1 has no DISCONNECT
+             *  of the server to tell the peer either)
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT,
+                "msg",          "%s", "Mqtt: QoS 2 PUBLISH past max_inflight_messages (Receive Maximum), disconnecting",
+                "client_id",    "%s", SAFE_PRINT(priv->client_id),
+                "max_inflight_messages", "%d", priv->max_inflight_messages,
+                "peername",     "%s", peer_of(gobj),
+                NULL
+            );
             GBUFFER_DECREF(payload)
             GBMEM_FREE(topic)
             KW_DECREF(kw_mqtt_msg)
@@ -9540,7 +9577,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  to 7.30.26 they leaked ("system memory not free" at the end)
      */
     if(priv->trq_in_msgs || priv->trq_out_msgs) {
-        close_queues(gobj);
+        close_queues(gobj, FALSE);
     }
 
     GBUFFER_DECREF(priv->gbuf_will_payload);
@@ -10727,7 +10764,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         reason_code = (priv->protocol_version == mqtt_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
     }
     if(!session_take_over || delete_session) {
-        close_queues(gobj);
+        close_queues(gobj, delete_session);
     }
 
     ws_close(gobj, reason_code); // this send drop
@@ -10824,8 +10861,8 @@ PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *  read with no new pause. A pause inside the rest keeps the C_TCP paused
  *  and holds what is left of it (shorter each time), so nothing is ever
  *  appended to it but the read that was in flight at the first pause: a
- *  connection holds the bound and one read. Up to the fix the C_TCP was
- *  let read first: the rest paused again (after about 331 PINGREQ), the
+ *  connection holds the bound and one read. The first pause (never
+ *  released) let the C_TCP read first: the rest paused again (after about 331 PINGREQ), the
  *  read just started came while paused and went behind it, and a peer
  *  that pipelines and reads grew the rest held by about 3.4 KB on each
  *  pause, copied whole each time: the memory without bound and the CPU at

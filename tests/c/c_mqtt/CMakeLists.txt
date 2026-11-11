@@ -72,6 +72,8 @@ SET(SRCS
     broker_answers
     broker_stop_drain
     gate_reader
+    broker_sessions
+    broker_stop_dropped
 )
 
 ##############################################

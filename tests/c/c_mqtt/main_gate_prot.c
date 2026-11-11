@@ -123,14 +123,15 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s, s:s}]",
             "msg", "Message not found",                                 // 3. PUBREL 21, once per connection
             "msg", "Mqtt: topic filter longer than max_topic_filter_length, refused",
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused",
             "msg", "Mqtt: QoS 2 PUBLISH past max_inflight_messages (Receive Maximum), disconnecting",
             "msg", "Mqtt: topic filter longer than max_topic_filter_length, refused",       // 7.
             "msg", "Mqtt: SUBSCRIBE past max_subscriptions_per_client, filters refused",    // 7.
-            "msg", "Mqtt unknown property"                                                  // 8.
+            "msg", "Mqtt unknown property",                                                 // 8.
+            "msg", "Mqtt invalid property of command", "command", "CMD_CONNECT"             // 9.
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
