@@ -1231,30 +1231,53 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *name= kw_get_str(gobj, kw, "name", 0, 0);
     const char *content64 = kw_get_str(gobj, kw, "content64", 0, 0);
     if(empty_string(content64)) {
-        gobj_log_error(gobj, 0,
+        /*
+         *  Malformed write-tty frame, the peer's doing: a WARNING, and drop
+         *  THIS message, not the shared controlcenter_cli link, as the agent
+         *  does (up to 7.30.26 an ERROR, and EV_DROP of the link).
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "content64 required",
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, EV_DROP, 0, gobj);
         KW_DECREF(kw);
-        return 0;
+        return -1;
     }
 
     hgobj gobj_console = gobj_find_service(name, FALSE);
-    if(!gobj_console) {
-        gobj_log_error(gobj, 0,
+    if(!gobj_console || !gobj_typeof_gclass(gobj_console, C_PTY)) {
+        /*
+         *  A write-tty for a console that isn't here, usually a key typed
+         *  right after the console closed, or a service that is no console:
+         *  as the agent does, a WARNING and EV_TTY_CLOSE to the requester,
+         *  never EV_DROP of the shared controlcenter_cli link, which took
+         *  down the whole control channel for one stray key (7.30.26).
+         *  src is the gate this write-tty came through.
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "console not found",
+            "msg",          "%s", gobj_console? "not a console" : "console not found",
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, EV_DROP, 0, gobj);
+        gobj_send_event(
+            src,
+            EV_TTY_CLOSE,
+            msg_iev_build_response(gobj,
+                0,  // result
+                0,  // comment
+                0,  // schema
+                json_pack("{s:s}", "name", name?name:""),   // owned
+                kw_incref(kw)  // owned, echoes __md_iev__ back
+            ),
+            gobj
+        );
         KW_DECREF(kw);
-        return 0;
+        return gobj_console? -1 : 0;
     }
 
     gbuffer_t *gbuf = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
