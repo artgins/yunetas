@@ -1,0 +1,33 @@
+{
+    "global": {
+        "authz.master": true,
+        "authz.authz_service": "agent",
+        "authz.initial_load": {
+            "roles": [
+                {
+                    "id": "root",
+                    "disabled": false,
+                    "description": "Super-Owner of system",
+                    "realm_id": "*",
+                    "parent_role_id": "",
+                    "service": "*",
+                    "permission": "*"
+                }
+            ],
+            "users": [
+                {
+                    "id": "yuneta",
+                    "roles": [
+                        "roles^root^users"
+                    ]
+                }
+            ]
+        },
+        "controlcenter.__json_config_variables__": {
+            "__output_url__": "cc.test:19898"
+        }
+    },
+    "environment": {
+        "node_owner": "sandbox"
+    }
+}
