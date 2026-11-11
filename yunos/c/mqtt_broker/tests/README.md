@@ -128,7 +128,10 @@ Low-level tests that craft raw MQTT packets to test protocol edge cases:
 
 ### Pass Criteria
 
-- **Invalid CONNECT**: broker closes socket or sends non-success CONNACK
+- **Invalid CONNECT**: the broker closes the connection (end of stream or reset) or sends a
+  CONNACK with a failure code. A timeout (the connection left open and silent), any packet
+  that is not a CONNACK, or a CONNACK cut short fails: in 7.30.26 they passed, so a broker
+  that never refused an invalid CONNECT got 22 of 22.
 - **Valid CONNECT**: broker sends success CONNACK (code 0)
 - **DISCONNECT**: each row opens its own connection (its CONNECT must succeed) and sends
   the DISCONNECT. It passes when the broker sends nothing back: the broker may close the

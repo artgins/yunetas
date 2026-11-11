@@ -13,7 +13,9 @@ Covers:
 - v5 DISCONNECT: Reason Codes (0x00, 0x04, 0x80) + Properties (Session Expiry, Reason String).
 
 Expectations model:
-- For invalid CONNECT: PASS if broker closes socket OR sends non-success CONNACK RC/reason code.
+- For invalid CONNECT: PASS only if the broker closes the connection (end of stream or reset)
+  OR sends a CONNACK with a failure code. A timeout (the broker keeps the connection open and
+  says nothing), any packet that is not a CONNACK, or a CONNACK cut short FAILS.
 - For valid CONNECT: PASS only if success ACK received (Code=0 in v3; Reason=0x00 in v5).
 - For DISCONNECT: each row opens its own connection (a CONNECT that must succeed), sends the
   DISCONNECT and waits: PASS only if the broker sends nothing back (it may close the connection,
@@ -254,6 +256,9 @@ def build_disconnect_v5(reason: Optional[int] = None, props: Optional[bytes] = N
 
 # --------------- Parsers -----------------
 
+# The only "no CONNACK" that refuses a CONNECT: the broker closed the connection.
+CLOSED_BY_BROKER = "closed by the broker"
+
 def recv_all(sock: socket.socket, n: int, timeout: float) -> bytes:
     sock.settimeout(timeout)
     buf = bytearray()
@@ -288,7 +293,7 @@ def read_connack_v311(sock: socket.socket, timeout: float) -> Tuple[bool, Option
     sock.settimeout(timeout)
     h = sock.recv(1)
     if not h:
-        return False, None, "no header"
+        return False, None, CLOSED_BY_BROKER
     if h[0] != 0x20:
         return False, None, f"unexpected packet type 0x{h[0]:02x}"
     rl = sock.recv(1)
@@ -312,7 +317,7 @@ def read_connack_v5(sock: socket.socket, timeout: float) -> Tuple[bool, Optional
     sock.settimeout(timeout)
     h = sock.recv(1)
     if not h:
-        return False, None, "no header"
+        return False, None, CLOSED_BY_BROKER
     if h[0] != 0x20:
         return False, None, f"unexpected packet type 0x{h[0]:02x}"
     vi = read_varint(sock, timeout)
@@ -629,7 +634,13 @@ def do_connect(host: str, port: int, timeout: float, version: str, params: Dict[
         else:
             got, rc, info = read_connack_v5(s, timeout)
         return got, rc, info, s
-    except (socket.timeout, ConnectionResetError, OSError) as e:
+    except socket.timeout:
+        s.close()
+        return False, None, f"timeout: no answer in {timeout} s", None
+    except ConnectionResetError:
+        s.close()
+        return False, None, f"{CLOSED_BY_BROKER} (reset)", None
+    except OSError as e:
         s.close()
         return False, None, f"exception: {e}", None
 
@@ -733,10 +744,15 @@ def main():
                         if sock:
                             sock.close()
             else:
-                # expecting failure: either no CONNACK, or non-zero code
+                # expecting failure: the connection closed, or a CONNACK with a failure code
                 if not got:
-                    ok = True
-                    detail = f"fail as expected ({info})"
+                    ok = info.startswith(CLOSED_BY_BROKER)
+                    if ok:
+                        detail = f"refused as expected ({info})"
+                    else:
+                        detail = f"not refused: {info}"
+                    if sock:
+                        sock.close()
                 else:
                     if version == "3.1.1":
                         ok = (code != 0)
