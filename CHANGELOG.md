@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **maplibre-gl 6.18.0** in the JS layer: gobj-ui's lockfile and its demo
+  (no gobj-ui release, the peer floor stays `^6.14.0`), gui_treedb 1.2.8 and
+  the `gui/` of the project templates. No breaking change for Yuneta: it adds
+  layer-blend properties and the maplibre-native rotation inertia, and fixes a
+  map that jumped when dragged or zoomed past the identity projection and
+  `setMaxBounds` that fired no move or zoom events.
+
 ### MQTT
 
 - **BREAKING (a yuno that still creates `C_PROT_MQTT`): `C_PROT_MQTT` is removed**
@@ -448,6 +455,17 @@
   `{"id":"a'b"}`), and so are a value that is one quote (`note="'"`) and empty
   pieces; the cost is a json string that is one quote, with no quotes around the
   json (`record={"id":"'"}`), which is `record=<...>` too.
+  And a secret's KEY split by quotes is judged as the shell reads it, without
+  them: `create-realm p'a'ssword=<s>`, `'p'assword=<s>`, `p"a"ssword=<s>` and
+  `record='{"p'a'ssword":"<s>"}'` or `'{"'p'assword":"'<s>'"}'` were written
+  with `<s>` in clear (7.30.26), because the parser keeps the quotes in the key
+  and the audit judged the word after the last quote (`ssword`). A `key=value`
+  word whose key, without its quotes, is a secret's or `content64` fails closed
+  (`create-realm <...>`); a json key is judged without its quotes, and with the
+  bytes before its string when they are glued to it (`"pass"word":`), and its
+  value is redacted (`record='{"p'a'ssword":"<redacted>"}'`). A quote in a key
+  that is no secret's (`a'b'=c`) or in a value is kept; the cost: a quoted
+  secret's key (`'password'=x`) makes the rest of its line `<...>`.
   `DEBUGGING.md` §5.5 shows it.
 - **BREAKING (a log watcher): a `content64` that is not base64 is a WARNING, not
   an ERROR.** `create-config`, `update-config`, `install-binary`,
@@ -460,8 +478,46 @@
   refused"* (`MSGSET_PARAMETER`, no stack, the length only). New
   `gbuffer_base64_to_binary_from_peer()` (`gbuffer.h`), the twin of
   `gbuffer_deserialize_from_peer()`; `gbuffer_base64_to_binary()` keeps its
-  ERROR for a base64 we encoded ourselves. Tests: `c_agent_command_loop`,
-  `c_node_commands`.
+  ERROR for a base64 we encoded ourselves.
+  And after the base64: a `create-config` / `update-config` whose `content64`
+  decodes to nothing, or to a config that is not json, logged *"len is ZERO"*
+  and *"json_loads() FAILED"*, ERRORs with a stack, and a dump of the WHOLE
+  config, masked by names only (a private key under `ssl_certificate_key` was
+  dumped; 7.30.26). Now ONE WARNING, *"content64 of a config is empty,
+  refused"* or *"content64 of a config is not json, refused"*
+  (`MSGSET_PARAMETER`, the error's position and the length, NO dump of the
+  content); the answer is -1 *"Bad json in content64"* as before, and the
+  config is still read with its `#^^` comments removed. Tests:
+  `c_agent_command_loop`, `c_node_commands`.
+- **BREAKING (a log watcher, a GUI): a `write-tty` that cannot be written is a
+  WARNING, answered `EV_TTY_CLOSE`, and no longer drops agent22's link to the
+  control center.** agent22 answered a write-tty for a console that is not
+  there (a key typed right after the console closed) and one without
+  `content64` with an ERROR and `EV_DROP` of the shared `controlcenter_cli`
+  link: one stray key took down the node's whole control channel. In both
+  agents a `name` that is a service but not a console was sent the write:
+  `__yuno__` answered *"Event NOT DEFINED in state"* with a stack, and the agent
+  (agent22) sent it to itself; any authenticated peer could do it (7.30.26 and
+  before). Now a `name` that is no console logs ONE WARNING (*"console not
+  found"*, *"not a console"*) and the requester gets `EV_TTY_CLOSE` with that
+  `name`; a missing `content64` is ONE WARNING (an ERROR before, in the agent
+  too) and only that message is dropped. Tests: `c_agent_command_loop`, new
+  `c_agent22_write_tty` (the real agent22 against a control center written in
+  python).
+- **`stats-yuno`, `command-yuno` and `authzs` to a yuno whose link refuses the
+  order at once (out of session, or its peer closing) answer -1**,
+  *"<yuno>: <command>: yuno <id> runs but is not connected to the agent
+  (starting or stopping): nothing sent"*. The link's answer was dropped and
+  the yuno counted as sent: the operator waited for an answer nobody would
+  send (7.30.26 and before). Test: `c_agent_peer_close`.
+- **`command-agent` and `stats-agent service=controlcenter` with the link in
+  session are answered.** The request went up with the operator's channel as
+  its `src_service`, which is no service, and the link dropped the control
+  center's answer (*"service of the event not found, event dropped"*): the
+  operator waited for its own timeout (7.30.26 and before). Now the request
+  goes from the agent, with the operator's channel in
+  `__md_iev__.agent_requester`, which the answer echoes, and the agent sends
+  the answer on. Test: `c_agent_controlcenter_link`.
 
 ### Kernel
 
@@ -476,12 +532,23 @@
   session"* as one WARNING (`MSGSET_OPERATIONAL`, no stack) instead of an ERROR
   (`MSGSET_INTERNAL`) with a stack: a link that is down is a state, not a broken
   contract. An event sent to a `C_IEVENT_CLI` out of session still returns -1,
-  with the same WARNING instead of the ERROR. (For `C_IEVENT_SRV` it happens only
-  in a race with its peer's close.) A `publish-stats` whose service is such a link
+  with the same WARNING instead of the ERROR.
+  A link whose peer is closing is out of session too: a WebSocket Close of
+  the peer (or a protocol error of its frames) puts `C_WEBSOCKET` in
+  `ST_DISCONNECTED` at once, and so does the close of `C_PROT_TCP4H`, while
+  the link leaves its session only at `EV_ON_CLOSE`, when the connection
+  ends. A command or a stats in that window is answered the same way, and
+  anything else sent to the peer (an answer, an event of a subscription, an
+  injected event) is dropped with one WARNING *"Transport closing, nothing
+  sent"* per session. Up to 7.30.26 each of them was *"Event NOT DEFINED in
+  state"* in the transport, an ERROR with a stack, and the command or the
+  stats was never answered: the agent's `stats-yuno` / `command-yuno` to a
+  yuno that closes just then, or the answer to an operator who closes.
+  A `publish-stats` whose service is such a link
   ends at its first tick (*"publish-stats ended"*, *"its service is a link out of
   session"*), as the NULL used to end it, instead of publishing that -1 and its
   WARNING every period. Tests: `c_agent_command_loop`, `secret_attrs`,
-  `c_yuno_publish_stats`.
+  `c_yuno_publish_stats`, `c_agent_peer_close`.
 - **The `ievents` / `ievents2` traces mask the command line of the frame's
   `command_stack`.** Every emitter (`C_IEVENT_CLI`, `C_IEVENT_SRV`, gobj-js) puts
   the line in `__md_iev__.command_stack` as well as in `__command__`, and the
