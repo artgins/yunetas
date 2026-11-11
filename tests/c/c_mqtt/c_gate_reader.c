@@ -22,11 +22,22 @@
  *              order; and the memory, sampled every 20 ms, grows less than
  *              5 MB (measured: 2.6 MB, the bound and one read for each
  *              connection). At the end the clients stop sending, get the
- *              PINGRESP still owed to them, and close. That drain (about 17
- *              s here, 54-81 s under ASan) fails only when no reader gets a
- *              byte for 10 s, or when it is not over in 300 s: a drain that
- *              is slow but goes on is not a failure. Up to the first version
- *              of this test it had 60 s in all, and failed under ASan.
+ *              PINGRESP still owed to them, and close.
+ *
+ *          What fails, in the run and in the drain alike: a reader owed
+ *          answers that gets no byte for 1 s, in 10 looks or more. The
+ *          gate and the readers share one loop, so a reader that is owed
+ *          gets bytes at every look (20 ms) at any speed of the machine:
+ *          no look found one without bytes, at a full CPU, at an eighth of
+ *          one, and under ASan at a quarter of one. A reading not resumed
+ *          (an EV_RX_RESUME lost) waits for the look of timeout_close, 3 s,
+ *          or for ever: red in about 1 s, though the other readers go on.
+ *          The drain (about 17 s here) fails too when it is not over in
+ *          300 s: a drain that is slow but goes on is not a failure. Up to
+ *          the first version of this test the drain had 60 s in all and
+ *          failed under ASan; up to the second it failed only when NO
+ *          reader got a byte for 10 s, so a resume lost now and then,
+ *          rescued at 3 s, passed (in 275-296 s, the drain at half speed).
  *
  *          In the first pause (never released) the resume let the C_TCP
  *          read again BEFORE the rest held was processed: that rest paused
@@ -59,8 +70,9 @@
 #define N_CONN              20
 #define RUN_MSEC            20000
 #define WINDOW              (512*1024)  // PINGREQ bytes not yet answered, at most
-#define DRAIN_STALL_MSEC    10000       // the drain fails when no reader gets a byte for so long
-#define DRAIN_MAX_MSEC      300000      // and when it is not over by then
+#define READER_STALL_MSEC   1000        // a reader owed answers that gets no byte for so long fails,
+#define READER_STALL_LOOKS  10          // and in so many looks (a margin for a late look after a pause)
+#define DRAIN_MAX_MSEC      300000      // the drain fails when it is not over by then
 #define MAX_GROWTH          (5*1024*1024)
 
 /***************************************************************************
@@ -95,9 +107,11 @@ typedef struct _PRIVATE_DATA {
     int fd[N_CONN];         // the raw clients
     uint64_t tx_bytes[N_CONN];  // of PINGREQ handed to the kernel
     uint64_t rx_bytes[N_CONN];  // got, the CONNACK included
+    uint64_t t_reader_stall[N_CONN];    // a reader owed answers fails when it fires with no byte got
+    unsigned empty_looks[N_CONN];       // and the looks that found it so
+    uint64_t t_rx_last[N_CONN]; // ms (monotonic) of its last byte, or of the last look with nothing owed
+    uint64_t wait_max;          // the longest a reader owed answers waited for a byte, ms
     int phase;
-    uint64_t rx_drained;    // the bytes got by all the readers, at the last progress of the drain
-    uint64_t t_drain_stall; // the drain stalled when it fires with nothing more got
     int gate_closed;        // the gates' EV_ON_CLOSE
     BOOL failed;
     size_t mem_base;
@@ -284,6 +298,7 @@ PRIVATE void case_failed(hgobj gobj, const char *what, int idx)
         "rx_bytes_all", "%lu", (unsigned long)rx,
         "gate_closed",  "%d", priv->gate_closed,
         "mem_growth",   "%lu", (unsigned long)priv->mem_growth,
+        "wait_max_ms",  "%lu", (unsigned long)priv->wait_max,
         NULL
     );
     clear_timeout(priv->timer_io);
@@ -457,6 +472,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     case_failed(gobj, "TEST: a reader cannot connect", i);
                     break;
                 }
+                priv->t_rx_last[i] = time_in_milliseconds_monotonic();
+                priv->t_reader_stall[i] = start_msectimer(READER_STALL_MSEC);
             }
             if(!priv->failed) {
                 set_timeout_periodic(priv->timer_io, 20);
@@ -466,11 +483,6 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 1:
             priv->phase = 2;
-            priv->rx_drained = 0;
-            for(int i=0; i<N_CONN; i++) {
-                priv->rx_drained += priv->rx_bytes[i];
-            }
-            priv->t_drain_stall = start_msectimer(DRAIN_STALL_MSEC);
             set_timeout(priv->timer, DRAIN_MAX_MSEC);
             break;
 
@@ -495,6 +507,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "connections",  "%d", N_CONN,
                     "pingreq",      "%lu", (unsigned long)pingreq,
                     "mem_growth",   "%lu", (unsigned long)priv->mem_growth,
+                    "wait_max_ms",  "%lu", (unsigned long)priv->wait_max,
                     NULL
                 );
             }
@@ -536,23 +549,38 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     BOOL all_answered = TRUE;
-    uint64_t rx_total = 0;
+    uint64_t now = time_in_milliseconds_monotonic();
     for(int i=0; i<N_CONN && !priv->failed; i++) {
+        uint64_t rx_before = priv->rx_bytes[i];
         client_io(gobj, i);
-        rx_total += priv->rx_bytes[i];
+        if(priv->failed) {
+            break;
+        }
         if(priv->rx_bytes[i] != 4 + priv->tx_bytes[i] || priv->tx_bytes[i] % 2) {
             all_answered = FALSE;
         }
-    }
 
-    if(priv->phase == 2 && !all_answered && !priv->failed) {
-        if(rx_total > priv->rx_drained) {
-            priv->rx_drained = rx_total;
-            priv->t_drain_stall = start_msectimer(DRAIN_STALL_MSEC);
-        } else if(test_msectimer(priv->t_drain_stall)) {
-            case_failed(gobj, "TEST: the drain stalled: no reader got a byte in 10 s", -1);
-            KW_DECREF(kw)
-            return 0;
+        /*
+         *  A reader owed answers gets bytes at every look, at any speed of
+         *  the machine (the gate and the readers share this loop); the
+         *  looks are a margin for one that comes late after a pause of the
+         *  whole process. One that waits is a reading not resumed: rescued
+         *  only by the look of timeout_close (3 s), or never.
+         */
+        BOOL owed = priv->rx_bytes[i] < 4 + priv->tx_bytes[i] - priv->tx_bytes[i] % 2;
+        if(priv->rx_bytes[i] > rx_before || !owed) {
+            priv->t_rx_last[i] = now;
+            priv->t_reader_stall[i] = start_msectimer(READER_STALL_MSEC);
+            priv->empty_looks[i] = 0;
+        } else {
+            priv->empty_looks[i]++;
+            if(now - priv->t_rx_last[i] > priv->wait_max) {
+                priv->wait_max = now - priv->t_rx_last[i];
+            }
+            if(test_msectimer(priv->t_reader_stall[i]) && priv->empty_looks[i] >= READER_STALL_LOOKS) {
+                case_failed(gobj, "TEST: a reader owed answers got no byte in 1 s: its reading not resumed", i);
+                break;
+            }
         }
     }
 
