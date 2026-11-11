@@ -370,7 +370,11 @@ application's gate (one application).
   SUBSCRIBEs of a filter with a retained message of 100 KB, and does not read, took the
   broker from 12.6 to 307 MB. A byte bound in the transport (drop the peer past it, said
   once) fixes it for every protocol; not done, by decision (the case needs an
-  authenticated client).
+  authenticated client). What `C_PROT_MQTT2` itself ANSWERS is bounded since the release
+  after 7.30.26, anonymous peers included: `max_unwritten_bytes` pauses the reading of a peer
+  past it and drops one that takes nothing for `timeout_close`. What stays unbounded is
+  what a broker FORWARDS to a subscriber (a retained burst, a fan-out), and the queue of
+  the transport after a drop, up to `timeout_stop_tx`.
 - **`mqtt_broker` sets no `max_packet_size`, and the `0` of `C_PROT_MQTT2` is no limit:**
   a client with a session makes the broker hold a packet of up to 256 MB per connection
   before `message_size_limit` is checked. Same family as the send queue of `C_TCP` above

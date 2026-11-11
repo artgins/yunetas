@@ -13,26 +13,41 @@
   table *"Moving a gate from `C_PROT_MQTT`"*).
 - **`C_PROT_MQTT2` as the input of a gate: what a peer could do to it.** Every item was
   in 7.30.26.
-    - **BREAKING (an operator, a log watcher): a peer that does not read its answers is
-      dropped.** Each packet a peer sends can queue an answer in the `C_TCP` (a PINGRESP,
-      a PUBACK, a SUBACK...) at about 340 bytes of memory, in a queue with no bound, and a
-      read of 4 KB answers 2048 PINGREQ while the `C_TCP` writes one packet per turn of
-      the loop: one anonymous peer grew a gate by about 400 MB per 2 MB of PINGREQ, even
-      reading, and about 12 MB of them ended the process. New attribute
-      `max_unwritten_packets` (default 10000, `0` no limit): past it in the send queue
-      (`cur_tx_queue` of `C_TCP`) the connection is dropped at once, with ONE WARNING
-      *"Mqtt: the peer does not read its answers, connection dropped"* (`client_id`,
-      `peername`, `unwritten_packets`), and nothing more of its read is processed. The
-      queue is read only after the peer has sent that many packets since it was last
-      empty: the cost on each packet is a counter (a QoS 1 round trip, 8 rounds alternated:
-      11.94 µs of CPU against 11.87, inside the noise). A client that reads is far below
-      it (its in-flight window, the Receive Maximum of 20 the server announces), and the
-      messages a broker sends to a subscriber, retained ones included, do not count
-      against it. The broker's clients get the same bound. `max_tx_queue` of `C_TCP` was
-      not a way out (it discards the oldest packet, with an ERROR). On a gate, 2 MB of
-      PINGREQ never read took it from 7 to 391 MB; now the peer is dropped after about
-      20 KB and the gate stays at 11 MB. Test: `c_mqtt/gate_flood` (new, over a real
-      socket).
+    - **BREAKING (an operator, a log watcher): the answers a peer does not read are
+      bounded; its reading is paused, and it is dropped if it takes nothing.** Each
+      packet a peer sends can queue an answer in the `C_TCP` (a PINGRESP of 2 bytes holds
+      about 340 bytes of memory, the SUBACK of a SUBSCRIBE of 16000 filters 16 KB), in a
+      queue with no bound, and a read of 4 KB answers 2048 PINGREQ while the `C_TCP`
+      writes one packet per turn of the loop: one anonymous peer grew a gate by about
+      400 MB per 2 MB of PINGREQ, even reading, and about 12 MB of them ended the
+      process. New attribute `max_unwritten_bytes` (default 100000, `0` no limit): the
+      memory of the protocol's answers (every packet but PUBLISH, each its size plus
+      about 300 bytes of buffer) waiting in the transport since its queue was last
+      empty. Past it, the reading of the peer is paused (backpressure: the rest of the
+      read is kept, `rx_paused` of its `C_TCP`), and resumed when the answers are
+      written. A peer that reads is slowed to what it takes and never dropped, however
+      much it pipelines: 3000 QoS 1 PUBLISH or 30000 PINGREQ in one write get every
+      answer (a client of mqtt.js has no in-flight window by default). A peer that takes
+      nothing of what waits for it during `timeout_close` (3 s) is dropped, with ONE
+      WARNING *"Mqtt: the peer does not read its answers, connection dropped"*
+      (`client_id`, `peername`, `unwritten_packets`, `answer_bytes`,
+      `max_unwritten_bytes`). A connection holds about the bound and one read (1000
+      anonymous connections that do not read, about 130 MB), and the messages a broker
+      forwards to a subscriber are not answers: they do not count, and a subscriber
+      that reads them is never dropped. The cost on each packet is a counter (a QoS 1
+      round trip, 8 rounds alternated: 12.15 µs of CPU against 12.20, inside the
+      noise). The drop says nothing more of the MQTT connection; the `C_TCP` keeps its
+      queue until its stop ends, at once, or at `timeout_stop_tx` (10 s) with its own
+      WARNING when the peer does not take the write in flight. `max_tx_queue` of
+      `C_TCP` was not a way out (it discards the oldest packet, with an ERROR). Tests:
+      `c_mqtt/gate_flood`, `c_mqtt/gate_answers` (50 connections of 10000 PINGREQ each,
+      and SUBACKs of 16 KB, never read: all dropped, the memory bounded) and
+      `c_mqtt/broker_answers` (a subscriber that reads a burst of 30000 of its own
+      messages; a client with a window of 20 in QoS 1 and 2; 3000 QoS 1 and 30000
+      PINGREQ in one write, read: never dropped), all new, over real sockets. On a gate,
+      50 anonymous connections each sending exactly 10000 PINGREQ and never reading took
+      it from 10 to 193 MB with nobody dropped under the earlier packet bound; now all 50
+      are paused and dropped, and the gate peaks at 17 MB.
     - A PUBLISH of MQTT 5 past `message_size_limit` (or denied by the ACL) leaked its
       properties: an anonymous client could take the memory of a gate (2 GB in 4 s). The
       WARNING *"Dropped too large PUBLISH"* printed the topic as a number, and was said
@@ -93,10 +108,20 @@
       shows the take-over: `EV_DROP` with `{"session_take_over": true}` gives an MQTT 5
       client DISCONNECT `0x8E`, and the gate's decoder leaves its session state at once,
       so it is neither dropped again nor picked by a command.
+      A broker sends the same key, with `"delete_session": true` when the new connection
+      does not keep the session (the queues of the old one are closed too).
     - An MQTT 5 DISCONNECT with a reason code and no Session Expiry Interval (`e0 02 00
       00`, what most clients send) logged an ERROR with a stack (*"kw must be list or
       dict"*), and the server went on reading after it. Nothing the client sends after
       its DISCONNECT is read now.
+    - **BREAKING (a log watcher): a property that MQTT 5 does not define is ONE
+      WARNING.** Any peer, before its authentication, made each packet with an unknown
+      property identifier log two ERRORs with no peer (*"Mqtt unknown property"*, *"Mqtt
+      empty property"*) and a WARNING *"Mqtt Unsupported property type"*. Now it is one
+      WARNING *"Mqtt unknown property"* (`MSGSET_MQTT`, `identifier`, `peername`), the
+      capped dump of the malformed packet and DISCONNECT `0x81`, as before. The WARNING
+      *"Mqtt unknown property of command"* printed its command as a number. Test:
+      `c_mqtt/gate_prot` (step 8).
     - **BREAKING (a caller of `EV_SEND_MESSAGE`): a topic a PUBLISH cannot carry is
       refused**: a wildcard (`+`, `#`) or empty [MQTT-3.3.2-2]; on the server side also
       more than 200 `/` separators (201 levels pass; `TOPIC_HIERARCHY_LIMIT`, the
@@ -153,8 +178,10 @@
       error: a DISCONNECT `0x82` to the broker, a dump of the CONNACK, and the user
       never heard `EV_ON_CLOSE`. A 3.1.1 code past 5 ended the connection with a
       WARNING and no `EV_ON_CLOSE` either.
-      An MQTT 5 code from `0x06` to `0x7F` (MQTT 5 defines none below `0x80` but Success)
-      stays a protocol error, DISCONNECT `0x82`, but the user also hears `EV_ON_CLOSE` with
+      An MQTT 5 code from `1` to `0x7F` (MQTT 5 defines none below `0x80` but Success;
+      1 to 5 are codes of 3.1.1: they were taken for a refusal, with the text of the
+      MQTT 5 code of that number, *"Granted QoS 2"* for 2, and no DISCONNECT) stays a
+      protocol error, DISCONNECT `0x82`, but the user also hears `EV_ON_CLOSE` with
       the code (before, it heard nothing), and its one WARNING says *"Mqtt protocol error:
       CONNACK reason code not defined in MQTT 5"* with a text `reason` (it said *"Mqtt
       connection refused"* with a number, and the CONNACK was dumped as malformed). A
@@ -164,6 +191,11 @@
       connection refused"*, and nothing is sent. It was *"Error in properties"*, a
       DISCONNECT `0x81` and a dump, with no `EV_ON_CLOSE`, the code 1 included (its case
       never matched).
+      A CONNACK in the form of 3.1.1 with the code 0 or past 5, to an MQTT 5 client, is
+      not a CONNACK of MQTT 5 nor a refusal of 3.1.1: the user hears `EV_ON_CLOSE` with
+      `0x81`, one WARNING *"Mqtt protocol error: CONNACK of MQTT 3.1.1 to an MQTT 5
+      client"*, and nothing is sent. It was *"Error in properties"*, a dump, DISCONNECT
+      `0x81`, and no `EV_ON_CLOSE`. Test: `c_mqtt/client_noqueue` (steps 22 to 24).
 - `C_MQTT_BROKER`: a filter of `deny_subscribes` is refused to an MQTT 3.1 client too
   (`0x80`). It was granted with the QoS it asked for.
 - `C_MQTT_BROKER`: the close of a connection taken over that comes after the new one
@@ -175,6 +207,28 @@
   its input side only at the play, and the stop logged *"gobj NULL"* with a stack; it is
   found at the start now, with the database whose queues it holds. Test:
   `c_mqtt/broker_no_play` (new).
+- **`C_MQTT_BROKER`: a stop while connections are still closing no longer crashes the
+  broker.** A peer that does not take what is written to it holds its connection in the
+  `C_TCP` (up to `timeout_stop_tx`); when the yuno stops (`kill-yuno`, an update), the
+  broker closes its database before that connection ends, and its `EV_ON_CLOSE` read the
+  destroyed treedb: a use of freed memory, SIGSEGV at the stop, that any peer could arm by
+  not reading. The pointers of the treedb go with it now; a close after the stop logs the
+  INFO *"Mqtt connection closed after the broker stopped, its session left as it is"*,
+  and the session stays as after a crash (the next CONNECT of that client id deletes a
+  session not kept). The queues of such a connection leaked too (*"system memory not
+  free"*); they are freed. Test: `c_mqtt/broker_stop_drain` (new).
+- **BREAKING (a client of the broker, MQTT 5): the old connection of a take-over gets
+  DISCONNECT `0x8E`** (Session taken over) whether its session is kept or not, as MQTT 5
+  asks [MQTT-3.1.4-3]. It got `0x00` (Normal disconnection) when the new connection did
+  not keep the session (a clean start). Test: `c_mqtt/broker_takeover`.
+- `mqtt_broker`'s test scripts (`yunos/c/mqtt_broker/tests`) pass a test only on its
+  evidence. In 7.30.26, `mqtt_connect_disconnect_test.py` printed PASS for the three MQTT
+  5.0 DISCONNECT rows without running them, and its `0x80` row sent a malformed packet.
+  Every row now runs on its own connection, and the script exits 1 on a failure.
+  `test_hivemq_mqtt_cli.sh` used to SKIP tests 1, 2, 13, 15, 18 and 19 when they should
+  fail, and to pass test 14 on a partial delivery and test 25 with no result. Each of
+  these now fails without its evidence, and the evidence of 13-15, 18 and 19 is read from
+  the clients' CONNACK and SUBACK. Checked with HiveMQ MQTT CLI 4.57.0.
 - **BREAKING (an operator): `C_MQTT_BROKER` refuses `mqtt_persistent_db` false at its
   start.** The broker keeps its clients, sessions and retained messages only in its
   treedb, so it has no mode without one: with `false` it refused every CONNECT and its
@@ -227,6 +281,13 @@
   (`command_mask_secret_line(NULL, ...)`, the ievents trace of a command to a remote
   service) a word that ends in `=` or `==`, or begins with `=`, is `<...>`, the rule of the
   agent's audit file: `set-user-pwd username=bob aHVudGVyMg==` was shown whole (7.30.26).
+  The first word of the line is judged too: in its own quotes a whole line is one word,
+  and the parser runs the command of ITS first word, so `'login bob <pin>' note=x` runs
+  `login` with `note=x` (refused) while the `commands` trace, the ievents trace and
+  `help cmd=` showed `login bob <pin> note=x` (7.30.26). A first word with a blank, a
+  quote or a backslash in it (its own enclosing quotes apart) is `<...>` in
+  `command_mask_secret_line()` now, with a command table or without; a command name alone
+  in its quotes stays (`'list-yunos'` is `list-yunos`).
 - A command line ending in two or more blanks (or a blank and a tab) was refused with
   *"extra parameters: ' '"* (7.30.26 and before; `ycommand` trims its line, so only a
   caller that does not trim saw it). `get_key_value_parameter()` now answers "nothing
@@ -234,6 +295,17 @@
 
 ### Agent
 
+- **`command-agent` no longer kills the agent with a line that names `command-agent`.**
+  It compared the whole text of `command` with its own name and forwarded the line with
+  the same kw, which still carries `command`: `command-agent command="'command-agent'"`,
+  `command-agent command="command-agent service=agent"` or `command-agent
+  command="command-agent "` passed the check and ran `command-agent` again with the same
+  kw until the stack overflowed (SIGSEGV, after about 35 000 audit records; 7.30.26 and
+  before). Any operator with the permission, or a local peer of `127.0.0.*` (which
+  `C_AUTHZ` takes for `yuneta`), could do it. The command the line names is now found as
+  the parser finds it (its first word, any case, an alias) in the table of the service it
+  goes to, and such a line answers *"Loop command"*. A `service=` that does not exist is
+  now answered first (*"Service '...' not found"*). Test: `c_agent_command_loop` (new).
 - **BREAKING (an operator reading the agent's audit file): a word with no key in a
   nested command line is written `<...>`.** The agent writes the record of a command
   before it is parsed, and the command carried by `command-yuno` / `command-agent` runs
@@ -256,6 +328,17 @@
   `kw.command`, and as the command word of any record: such a word in `kw.command` no
   longer makes the record read-only (`'list-x ... <password>'` was written after
   `command=`). A command name alone in its quotes stays (`command="'list-yunos'"`).
+  And the words of a nested line were cut the shell's way (a `\` escapes, a quoted piece
+  anywhere in a word), while its parser takes no `\` as an escape and a quote only where
+  a value begins: one `key=value` of the audit could hold a bare word of the parser, and
+  it was written in clear (`command="set-user-pwd bob x=''\'' <password>"`,
+  `command="kill-yuno x=''\\'' y=6' <password>"`, `command="\"COMMAND-AGENT\"
+  command='kill-yuno <password>'"`, `x=a' <s>'`, `x='a'<s>`; the target's parser refuses
+  these lines, so the secret was not used; 7.30.26). From the first word the two cut
+  otherwise, the rest of that line is `<...>` now; what follows the value at the level
+  above stays. A `\"` inside a `"..."` command value (where the parser ends it) makes
+  the whole value `<...>`, and a bare `\` in a word of it (`attribute=api_key`)
+  makes the rest of the nested line `<...>`.
   `DEBUGGING.md` §5.5 shows it.
 
 ### Kernel
