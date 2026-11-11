@@ -188,6 +188,56 @@ run_pub() {
 }
 
 # =============================================================================
+# Helpers: the evidence a test reads in the debug output (-d) of a client
+# =============================================================================
+wait_for() {
+    # wait_for FILE PATTERN SECONDS: until a line of FILE matches PATTERN
+    local file="$1"
+    local pattern="$2"
+    local tenths=$(( $3 * 10 ))
+    while (( tenths > 0 )); do
+        if grep -q -- "${pattern}" "${file}" 2>/dev/null; then
+            return 0
+        fi
+        sleep 0.1
+        tenths=$(( tenths - 1 ))
+    done
+    return 1
+}
+
+packet_after() {
+    # packet_after FILE WHAT: the debug lines that follow "received WHAT"
+    # (read whole, not piped into grep -q: with pipefail a SIGPIPE would fail it)
+    grep -A1 "received $2" "$1" 2>/dev/null || true
+}
+
+connack_ok() {
+    # connack_ok FILE: the client was accepted (5.0 reasonCode, 3.1.1 returnCode)
+    local ack
+    ack="$(packet_after "$1" CONNACK)"
+    [[ "${ack}" == *"reasonCode=SUCCESS"* || "${ack}" == *"returnCode=SUCCESS"* ]]
+}
+
+suback_granted() {
+    # suback_granted FILE: the client's SUBSCRIBE was granted
+    local ack
+    ack="$(packet_after "$1" SUBACK)"
+    [[ "${ack}" == *"reasonCodes=[GRANTED_QOS_"* || "${ack}" == *"returnCodes=[SUCCESS_MAXIMUM_QOS_"* ]]
+}
+
+suback_refused() {
+    # suback_refused FILE: the client's SUBSCRIBE was refused (0x80)
+    local ack
+    ack="$(packet_after "$1" SUBACK)"
+    [[ "${ack}" == *"reasonCodes=[UNSPECIFIED_ERROR]"* || "${ack}" == *"returnCodes=[FAILURE]"* ]]
+}
+
+count_msg() {
+    # count_msg FILE MSG: how many times the payload MSG was received
+    grep -cxF -- "$2" "$1" || true
+}
+
+# =============================================================================
 # Check broker is running
 # =============================================================================
 check_broker
@@ -229,7 +279,7 @@ if grep -q "^MQTT 3: OK" /tmp/mqtt_test_v3.log; then
 elif grep -q "^MQTT 3:" /tmp/mqtt_test_v3.log; then
     log_fail "MQTT v3.1.1 spec compliance tests had failures"
 else
-    log_skip "MQTT v3.1.1 spec compliance: could not connect to broker"
+    log_fail "MQTT v3.1.1 spec compliance: no verdict (could not connect to broker?)"
 fi
 fi
 
@@ -250,14 +300,13 @@ ${MQTT} test \
 # they can land in the middle of the "MQTT N: OK" line. Show stderr apart.
 grep -v '^WARNING' /tmp/mqtt_test_v5.err >&2 || true
 
+# --all runs both versions: each one must say OK.
 if grep -q "^MQTT 5: OK" /tmp/mqtt_test_v5.log && grep -q "^MQTT 3: OK" /tmp/mqtt_test_v5.log; then
     log_ok "MQTT v5.0 spec compliance tests passed (v3+v5)"
-elif grep -q "^MQTT 5: OK" /tmp/mqtt_test_v5.log; then
-    log_ok "MQTT v5.0 spec compliance tests passed"
-elif grep -q "^MQTT 5:" /tmp/mqtt_test_v5.log; then
-    log_fail "MQTT v5.0 spec compliance tests had failures"
+elif grep -q "^MQTT [35]:" /tmp/mqtt_test_v5.log; then
+    log_fail "MQTT v5.0 spec compliance tests had failures (each of 'MQTT 3' and 'MQTT 5' must be OK)"
 else
-    log_skip "MQTT v5.0 spec compliance: could not connect to broker"
+    log_fail "MQTT v5.0 spec compliance: no verdict (could not connect to broker?)"
 fi
 fi
 
@@ -629,17 +678,19 @@ if should_run 13; then
 log_section "13. ${TEST_NAMES[13]}"
 
 # This test is specific to yuno mqtt_broker with deny_subscribes configuration.
-# The broker denies subscriptions to "test/nosubscribe" (configured in mqtt_broker.json).
-# When running against the yuneta mqtt_broker, messages on this topic should NOT
-# be delivered to subscribers. Other brokers (mosquitto, etc.) will deliver them.
+# The broker denies subscriptions to "test/nosubscribe" (configured in mqtt_broker.json):
+# the evidence is a subscriber that was accepted, got its SUBSCRIBE refused (SUBACK
+# 0x80), and did not receive the message. A message not seen by a subscriber that
+# never connected proves nothing. Other brokers (mosquitto, etc.) fail this test.
 TOPIC="test/nosubscribe"
 MSG="should-be-denied-$$"
 OUT=$(mktemp)
 
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${TOPIC}" \
-    --identifier "sub-denied-$$")
-sleep 0.5
+    --identifier "sub-denied-$$" \
+    -d)
+wait_for "${OUT}" "received SUBACK" 10 || true
 
 run_pub \
     --topic "${TOPIC}" \
@@ -650,11 +701,14 @@ sleep 1
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
 
-if ! grep -q "${MSG}" "${OUT}"; then
-    log_ok "Denied topic 'test/nosubscribe': message not delivered (yuneta deny_subscribes working)"
+if ! connack_ok "${OUT}"; then
+    log_fail "Denied topic 'test/nosubscribe': the subscriber was not accepted, nothing proven"
+elif ! suback_refused "${OUT}"; then
+    log_fail "Denied topic 'test/nosubscribe': the SUBSCRIBE was not refused with 0x80"
+elif [[ $(count_msg "${OUT}" "${MSG}") -ne 0 ]]; then
+    log_fail "Denied topic 'test/nosubscribe': message was delivered"
 else
-    # This is expected when running against other brokers (mosquitto etc.)
-    log_skip "Denied topic 'test/nosubscribe': message was delivered (only yuneta mqtt_broker enforces deny_subscribes)"
+    log_ok "Denied topic 'test/nosubscribe': SUBSCRIBE refused, message not delivered (yuneta deny_subscribes working)"
 fi
 rm -f "${OUT}"
 fi
@@ -676,12 +730,15 @@ OUT2=$(mktemp)
 SUB_PID1=$(run_sub_bg "${OUT1}" \
     --topic "${SHARE_TOPIC}" \
     --identifier "sub-share1-$$" \
-    --mqttVersion 5)
+    --mqttVersion 5 \
+    -d)
 SUB_PID2=$(run_sub_bg "${OUT2}" \
     --topic "${SHARE_TOPIC}" \
     --identifier "sub-share2-$$" \
-    --mqttVersion 5)
-sleep 0.5
+    --mqttVersion 5 \
+    -d)
+wait_for "${OUT1}" "received SUBACK" 10 || true
+wait_for "${OUT2}" "received SUBACK" 10 || true
 
 run_pub \
     --topic "${TOPIC}" \
@@ -699,20 +756,17 @@ sleep 1
 kill "${SUB_PID1}" "${SUB_PID2}" 2>/dev/null || true
 wait "${SUB_PID1}" "${SUB_PID2}" 2>/dev/null || true
 
-TOTAL_RECV=0
-grep -q "${MSG1}\|${MSG2}" "${OUT1}" && TOTAL_RECV=$((TOTAL_RECV+1))
-grep -q "${MSG1}\|${MSG2}" "${OUT2}" && TOTAL_RECV=$((TOTAL_RECV+1))
+# A shared subscription delivers each message to exactly ONE member of the group:
+# both members subscribed, and each message arrived once across the two of them.
+N1=$(( $(count_msg "${OUT1}" "${MSG1}") + $(count_msg "${OUT2}" "${MSG1}") ))
+N2=$(( $(count_msg "${OUT1}" "${MSG2}") + $(count_msg "${OUT2}" "${MSG2}") ))
 
-if [[ ${TOTAL_RECV} -ge 1 ]]; then
-    # Both messages received across both subscribers
-    ALL_RECV=$(cat "${OUT1}" "${OUT2}")
-    if echo "${ALL_RECV}" | grep -q "${MSG1}" && echo "${ALL_RECV}" | grep -q "${MSG2}"; then
-        log_ok "Shared subscriptions: both messages distributed across group"
-    else
-        log_ok "Shared subscriptions: messages received (partial delivery is valid)"
-    fi
+if ! suback_granted "${OUT1}" || ! suback_granted "${OUT2}"; then
+    log_fail "Shared subscriptions: a member of the group was not subscribed"
+elif [[ ${N1} -eq 1 && ${N2} -eq 1 ]]; then
+    log_ok "Shared subscriptions: each message delivered once across the group"
 else
-    log_fail "Shared subscriptions: no messages received by either subscriber"
+    log_fail "Shared subscriptions: '${MSG1}' delivered ${N1} times, '${MSG2}' ${N2} times (expected 1 and 1)"
 fi
 rm -f "${OUT1}" "${OUT2}"
 fi
@@ -727,46 +781,54 @@ WILL_TOPIC="test/will/$$"
 WILL_MSG="client-disconnected-unexpectedly"
 OUT=$(mktemp)
 
+WILL_OUT=$(mktemp)
+
 # Subscribe to will topic
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${WILL_TOPIC}" \
-    --identifier "sub-will-$$")
-sleep 0.5
+    --identifier "sub-will-$$" \
+    -d)
+wait_for "${OUT}" "received SUBACK" 10 || true
 
-# Connect with will then kill (simulate ungraceful disconnect)
-(
-    ${MQTT} pub \
-        -l \
-        --host "${BROKER_HOST}" \
-        --port "${BROKER_PORT}" \
-        --topic "test/will/dummy/$$" \
-        --message "keepalive" \
-        --identifier "will-client-$$" \
-        -Wt "${WILL_TOPIC}" \
-        -Wm "${WILL_MSG}" \
-        -Wq 1 \
-        --keepAlive 2 \
-        2>/dev/null &
-    WILL_CLIENT_PID=$!
-    sleep 1
-    # Kill without DISCONNECT to trigger will
-    kill -9 "${WILL_CLIENT_PID}" 2>/dev/null || true
-) &
-WILL_PROC=$!
-wait "${WILL_PROC}" 2>/dev/null || true
+# A client with a will that stays connected (a sub, not a pub: a pub ends with a
+# normal DISCONNECT, which discards the will). Killed with SIGKILL once it is in
+# session, so the connection closes with no DISCONNECT and the will must go out.
+${MQTT} sub \
+    -l \
+    --host "${BROKER_HOST}" \
+    --port "${BROKER_PORT}" \
+    --topic "test/will/dummy/$$" \
+    --identifier "will-client-$$" \
+    -Wt "${WILL_TOPIC}" \
+    -Wm "${WILL_MSG}" \
+    -Wq 1 \
+    -d \
+    2>/dev/null >"${WILL_OUT}" &
+WILL_CLIENT_PID=$!
+wait_for "${WILL_OUT}" "received SUBACK" 10 || true
+WILL_BEFORE=$(count_msg "${OUT}" "${WILL_MSG}")
 
-# Wait for broker to deliver will (after keepalive timeout)
-sleep 4
+kill -9 "${WILL_CLIENT_PID}" 2>/dev/null || true
+wait "${WILL_CLIENT_PID}" 2>/dev/null || true
+
+wait_for "${OUT}" "^${WILL_MSG}\$" 5 || true
 
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
 
-if grep -q "${WILL_MSG}" "${OUT}"; then
+WILL_AFTER=$(count_msg "${OUT}" "${WILL_MSG}")
+if ! suback_granted "${OUT}"; then
+    log_fail "Will message: the subscriber of the will topic was not subscribed"
+elif ! connack_ok "${WILL_OUT}"; then
+    log_fail "Will message: the client with the will was not accepted"
+elif [[ ${WILL_BEFORE} -ne 0 ]]; then
+    log_fail "Will message: published while its client was still connected"
+elif [[ ${WILL_AFTER} -eq 1 ]]; then
     log_ok "Will message delivered after ungraceful client disconnect"
 else
-    log_skip "Will message: not received within timeout (may need longer keepalive timeout)"
+    log_fail "Will message: received ${WILL_AFTER} times after the ungraceful disconnect (expected 1)"
 fi
-rm -f "${OUT}"
+rm -f "${OUT}" "${WILL_OUT}"
 fi
 
 # =============================================================================
@@ -861,9 +923,10 @@ ${MQTT} sub \
     --mqttVersion 3 \
     --no-cleanStart \
     --qos 1 \
+    -d \
     2>/dev/null >"${OUT}" &
 SUB_PID=$!
-sleep 2
+wait_for "${OUT}" "received SUBACK" 10 || true
 
 # Disconnect the subscriber
 kill "${SUB_PID}" 2>/dev/null || true
@@ -896,10 +959,12 @@ sleep 2
 kill "${SUB_PID2}" 2>/dev/null || true
 wait "${SUB_PID2}" 2>/dev/null || true
 
-if grep -q "${MSG1}" "${OUT2}"; then
+if ! suback_granted "${OUT}"; then
+    log_fail "Persistent session: the first subscription was not granted"
+elif grep -q "${MSG1}" "${OUT2}"; then
     log_ok "Persistent session: queued message delivered on reconnect"
 else
-    log_skip "Persistent session: queued message not received (broker may require persistent storage enabled)"
+    log_fail "Persistent session: queued message not received on reconnect"
 fi
 rm -f "${OUT}" "${OUT2}"
 fi
@@ -926,9 +991,10 @@ ${MQTT} sub \
     --no-cleanStart \
     --sessionExpiryInterval 30 \
     --qos 1 \
+    -d \
     2>/dev/null >"${OUT}" &
 SUB_PID=$!
-sleep 2
+wait_for "${OUT}" "received SUBACK" 10 || true
 
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
@@ -962,10 +1028,12 @@ sleep 2
 kill "${SUB_PID2}" 2>/dev/null || true
 wait "${SUB_PID2}" 2>/dev/null || true
 
-if grep -q "${MSG}" "${OUT2}"; then
+if ! suback_granted "${OUT}"; then
+    log_fail "MQTT v5.0 session expiry: the first subscription was not granted"
+elif grep -q "${MSG}" "${OUT2}"; then
     log_ok "MQTT v5.0 session expiry: message delivered within session window"
 else
-    log_skip "MQTT v5.0 session expiry: message not received (session persistence may require storage)"
+    log_fail "MQTT v5.0 session expiry: message not received within the session window"
 fi
 rm -f "${OUT}" "${OUT2}"
 fi
@@ -1174,21 +1242,20 @@ else
         --payload 64 \
         2>&1 | tee "${BENCH_OUT}"
 
-    # Parse machine-readable RESULT lines
-    ALL_QOS_PASS=1
-    while IFS= read -r line; do
-        if [[ "${line}" == RESULT:* ]]; then
-            STATUS=$(echo "${line}" | sed 's/.*:status=\([^:]*\).*/\1/')
-            if [[ "${STATUS}" == "FAIL" ]]; then
-                ALL_QOS_PASS=0
-            fi
+    # Machine-readable RESULT lines: one per QoS level, and each must say PASS
+    QOS_PASS=0
+    for qos in 0 1 2; do
+        if grep -q "^RESULT:qos=${qos}:status=PASS:" "${BENCH_OUT}"; then
+            QOS_PASS=$(( QOS_PASS + 1 ))
         fi
-    done < "${BENCH_OUT}"
+    done
 
-    if [[ ${ALL_QOS_PASS} -eq 1 ]]; then
+    if [[ ${QOS_PASS} -eq 3 ]]; then
         log_ok "Max speed benchmark completed successfully"
+    elif grep -q "^RESULT:" "${BENCH_OUT}"; then
+        log_fail "Max speed benchmark: ${QOS_PASS} of 3 QoS levels passed (below threshold or error)"
     else
-        log_fail "Max speed benchmark: some QoS levels below threshold"
+        log_fail "Max speed benchmark: benchmark did not produce results"
     fi
     rm -f "${BENCH_OUT}"
 fi

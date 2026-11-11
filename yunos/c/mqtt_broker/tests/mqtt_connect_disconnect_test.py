@@ -15,13 +15,18 @@ Covers:
 Expectations model:
 - For invalid CONNECT: PASS if broker closes socket OR sends non-success CONNACK RC/reason code.
 - For valid CONNECT: PASS only if success ACK received (Code=0 in v3; Reason=0x00 in v5).
-- For DISCONNECT: PASS if the broker closes the connection reasonably soon (common behavior),
-  or remains open without error (allowed). We don’t fail on either unless the broker sends a protocol error.
+- For DISCONNECT: each row opens its own connection (a CONNECT that must succeed), sends the
+  DISCONNECT and waits: PASS only if the broker sends nothing back (it may close the connection,
+  as a 3.1.1 server does, or wait for the client to close it, as an MQTT 5.0 server may). Any
+  byte back (a DISCONNECT with 0x81 Malformed Packet, say) FAILS. The client then closes the
+  connection, as the spec asks of the sender of a DISCONNECT. A row that cannot run FAILS.
+- The exit status is 0 only when every row passes.
 
 Author: ChatGPT (GPT-5 Thinking)
 """
 
 import argparse
+import sys
 import socket
 import struct
 import time
@@ -550,25 +555,30 @@ def t_v5_keepalive_65535():
 def t_disc_v311():
     return {
         "name": "v311: DISCONNECT",
-        "disconnect": {"version": "3.1.1"}
+        "version": "3.1.1",
+        "disconnect": {"client_id": "cid-disc"}
     }
 
 def t_disc_v5_normal():
     return {
         "name": "v5: DISCONNECT reason=0x00",
-        "disconnect": {"version": "5.0", "reason": 0x00}
+        "version": "5.0",
+        "disconnect": {"client_id": "cid5-disc00", "reason": 0x00}
     }
 
 def t_disc_v5_with_will():
     return {
         "name": "v5: DISCONNECT reason=0x04 (Disconnect with Will)",
-        "disconnect": {"version": "5.0", "reason": 0x04}
+        "version": "5.0",
+        "disconnect": {"client_id": "cid5-disc04", "reason": 0x04}
     }
 
 def t_disc_v5_unspecified():
+    # props are the raw properties: build_disconnect_v5() writes their length
     return {
         "name": "v5: DISCONNECT reason=0x80 (Unspecified error) + Reason String",
-        "disconnect": {"version": "5.0", "reason": 0x80, "props": wrap_props(prop_str(0x1F, "bye"))}  # Reason String id=0x1F
+        "version": "5.0",
+        "disconnect": {"client_id": "cid5-disc80", "reason": 0x80, "props": prop_str(0x1F, "bye")}  # Reason String id=0x1F
     }
 
 TESTS: List[Dict[str, Any]] = [
@@ -592,7 +602,7 @@ TESTS: List[Dict[str, Any]] = [
     t_v5_pw_without_user_allowed(),
     t_v5_bad_protocol_name(),
     t_v5_keepalive_65535(),
-    # disconnects (executed only after a preceding successful CONNECT)
+    # disconnects (each one on its own connection)
     t_disc_v311(),
     t_disc_v5_normal(),
     t_disc_v5_with_will(),
@@ -623,33 +633,59 @@ def do_connect(host: str, port: int, timeout: float, version: str, params: Dict[
         s.close()
         return False, None, f"exception: {e}", None
 
-def do_disconnect(sock: socket.socket, version: str, timeout: float, disc: Dict[str, Any], verbose: bool) -> Tuple[bool, str]:
+def build_disconnect(version: str, disc: Dict[str, Any]) -> bytes:
+    if version == "3.1.1":
+        return build_disconnect_v311()
+    return build_disconnect_v5(disc.get("reason"), disc.get("props"))
+
+def close_politely(sock: socket.socket, version: str) -> None:
     try:
-        if version == "3.1.1":
-            pkt = build_disconnect_v311()
-        else:
-            reason = disc.get("reason")
-            props = disc.get("props")
-            pkt = build_disconnect_v5(reason, props)
+        sock.sendall(build_disconnect(version, {}))
+    except OSError:
+        pass
+    try:
+        sock.close()
+    except OSError:
+        pass
+
+def do_disconnect(host: str, port: int, timeout: float, version: str, disc: Dict[str, Any], verbose: bool) -> Tuple[bool, str]:
+    """
+    Open a connection of its own, send the DISCONNECT, and PASS only if the broker
+    sends nothing back. Closing the connection is the client's job ([MQTT-3.14.4-2]
+    in 5.0, 3.14.4 in 3.1.1): a 3.1.1 server closes it, a 5.0 one may wait for the
+    client, so neither a close nor an open socket is the verdict.
+    """
+    connect = {"client_id": disc["client_id"], "clean": True, "keepalive": 0}
+    try:
+        got, code, info, sock = do_connect(host, port, timeout, version, connect, verbose)
+    except OSError as e:
+        return False, f"cannot run: no connection ({e})"
+    if not got or code != 0:
+        if sock:
+            sock.close()
+        return False, f"cannot run: CONNECT not accepted ({info}, code={code})"
+
+    try:
+        pkt = build_disconnect(version, disc)
         if verbose:
             print(f"> DISCONNECT[{version}] {pkt.hex()}")
         sock.sendall(pkt)
-        # Most brokers will close soon after; allow both close or idle as PASS
-        sock.settimeout(timeout)
-        time.sleep(0.1)
+        sock.settimeout(min(timeout, 1.0))
         try:
-            data = sock.recv(1)
-            # If we get anything unexpected, not fatal; consider PASS
-            return True, "ok (socket stayed open or sent data)"
+            data = sock.recv(64)
         except socket.timeout:
-            # no data (likely closed by broker later) — acceptable
-            return True, "ok (no data; likely closed)"
-    except Exception as e:
+            return True, "accepted (nothing back; the client closes)"
+        except ConnectionResetError:
+            return True, "accepted (closed by the broker)"
+        if not data:
+            return True, "accepted (closed by the broker)"
+        return False, f"the broker answered {data.hex()}"
+    except OSError as e:
         return False, f"exception: {e}"
     finally:
         try:
             sock.close()
-        except Exception:
+        except OSError:
             pass
 
 def main():
@@ -665,8 +701,8 @@ def main():
     print(f"Target broker: {host}:{port}")
     print("Test\t\t\t\t\tResult\tDetails")
 
-    last_success_sock = None
-    last_success_version = None
+    passed = 0
+    failed = 0
 
     for t in TESTS:
         name = t["name"]
@@ -682,7 +718,8 @@ def main():
                 if not got:
                     ok = False
                     detail = f"no CONNACK ({info})"
-                    if sock: sock.close()
+                    if sock:
+                        sock.close()
                 else:
                     if version == "3.1.1":
                         ok = (code == 0)
@@ -691,8 +728,7 @@ def main():
                         ok = (code == 0x00 if "reason_ok" not in exp else code in exp["reason_ok"])
                         detail = f"Reason={code}"
                     if ok:
-                        last_success_sock = sock
-                        last_success_version = version
+                        close_politely(sock, version)
                     else:
                         if sock:
                             sock.close()
@@ -712,16 +748,16 @@ def main():
                         sock.close()
 
         elif "disconnect" in t:
-            if last_success_sock is None or last_success_version is None:
-                ok = True
-                detail = "skipped (no prior successful CONNECT)"
-            else:
-                ok, detail = do_disconnect(last_success_sock, t["disconnect"]["version"], timeout, t["disconnect"], verbose)
-                # After a disconnect, clear the live socket
-                last_success_sock = None
-                last_success_version = None
+            ok, detail = do_disconnect(host, port, timeout, t["version"], t["disconnect"], verbose)
 
+        if ok:
+            passed += 1
+        else:
+            failed += 1
         print(f"{name:40s}\t{'PASS' if ok else 'FAIL'}\t{detail}")
 
+    print(f"{len(TESTS)} tests: {passed} passed, {failed} failed")
+    return 0 if failed == 0 else 1
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
