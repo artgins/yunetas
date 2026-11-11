@@ -654,6 +654,21 @@ PRIVATE int run_tests(hgobj gobj)
         "Can't decode json content64")
 
     /*
+     *  A content64 that is not base64 is the sender's bytes: refused with
+     *  one WARNING (up to 7.30.26 an ERROR "b64_decode() FAILED" with a
+     *  stack), in create-node, update-node and import-db.
+     */
+    CHECK(expect_refused, "refused: a content64 that is not base64 (create)", "create-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments", "content64", "@@@notbase64@@@"),
+        "Invalid base64 in content64")
+    CHECK(expect_refused, "refused: a content64 that is not base64 (update)", "update-node",
+        json_pack("{s:s, s:s}", "topic_name", "departments", "content64", "@@@notbase64@@@"),
+        "Invalid base64 in content64")
+    CHECK(expect_refused, "refused: a content64 that is not base64 (import-db)", "import-db",
+        json_pack("{s:s}", "content64", "@@@notbase64@@@"),
+        "Invalid base64 in content64")
+
+    /*
      *  A record in content64 is a peer's json: a "gbuffer" key in it (the
      *  name of a kw's binary field) is dropped with a WARNING, and the node
      *  is written without it. Up to 7.30.16 C_NODE made a kw of the record

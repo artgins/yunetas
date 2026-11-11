@@ -2865,7 +2865,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  Get content in base64 and decode
          */
-        gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
         if(!gbuf_content) {
             // Invalid base64: gbuffer_base64_to_binary returns NULL; do NOT
             // pass it to gbuffer_cur_rd_pointer (would deref NULL -> crash).
@@ -3057,7 +3057,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  Get content in base64 and decode
          */
-        gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
         if(!gbuf_content) {
             // Invalid base64 -> NULL; avoid the NULL deref in gbuffer_cur_rd_pointer.
             GBUFFER_DECREF(gbuf_files)
@@ -5897,7 +5897,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+    gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
     if(!gbuf_content) {
         // Invalid base64 -> NULL; gbuf2json would deref it (gbuffer_cur_rd_pointer).
         return msg_iev_build_response(

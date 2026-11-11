@@ -1257,16 +1257,11 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
+    gbuffer_t *gbuf = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
     if(!gbuf) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Bad data",
-            "name",         "%s", name,
-            NULL
-        );
-        gobj_send_event(src, EV_DROP, 0, gobj);
+        /*  Undecodable base64: a WARNING already logged (the sender's
+         *  bytes); drop THIS message, not the shared controlcenter_cli link,
+         *  as the agent does. */
         KW_DECREF(kw);
         return 0;
     }
