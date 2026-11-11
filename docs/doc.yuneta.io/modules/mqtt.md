@@ -479,14 +479,22 @@ size plus about 300 bytes. The messages a broker forwards to a subscriber
 (100000), after the packet that passed it:
 
 - **the reading of the peer is paused.** The rest of the read waits in the
-  protocol (a copy, at most one read of the `C_TCP`, 4 KB), and the `C_TCP`
-  reads nothing more (`rx_paused`). The peer's own TCP window then stops it.
+  protocol (a copy), and the `C_TCP` reads nothing more (`rx_paused`). The
+  peer's own TCP window then stops it. In clear the rest is at most one read
+  of the `C_TCP` (`rx_buffer_size`, 4 KB). Over TLS it is clear text: a read
+  of 4 KB can complete a record of up to 16 KB (the TLS limit, in OpenSSL and
+  in mbedTLS), and the records that the same read completes after it are
+  kept too, so the rest is up to about 20 KB. Measured with 10 clients
+  pipelining PINGREQ for 15 s: 4094 bytes at most in clear; over TLS 16 376
+  with writes of 64 KB (records of 16 KB), and 19 570 with a write of 16 KB
+  followed by writes of 200 bytes.
 - **The `EV_TX_READY` of the queue written resumes it:** the rest is read
   while the `C_TCP` is still paused, and the `C_TCP` reads again only when all
   of the rest was read with no new pause. If the rest passes the bound again,
   what is left of it waits (shorter each time) for the next `EV_TX_READY`.
   Nothing is added to the rest but the read that was already in flight when
-  the reading was first paused (a TLS read can bring several records).
+  the reading was first paused (a TLS read can bring several records: that
+  is the 20 KB above).
 - **`timeout_close` (3 s) at most between two looks:** if the queue is empty,
   the reading resumes; if something of it was written since the last look,
   the protocol waits another `timeout_close`; if nothing was written, the
@@ -496,8 +504,8 @@ size plus about 300 bytes. The messages a broker forwards to a subscriber
   `max_unwritten_bytes`). No DISCONNECT is sent (it would wait behind the
   rest), and the rest of the read is not processed.
 
-So a connection holds about the bound of answers (about 100 KB) and one read,
-whether its peer reads or not, whatever the queue of forwarded messages holds,
+So a connection holds about the bound of answers (about 100 KB) and one read
+(4 KB in clear, up to about 20 KB over TLS), whether its peer reads or not, whatever the queue of forwarded messages holds,
 and the cost on each packet is a counter. 20 peers that send PINGREQ without
 end and read every answer hold about 2.6 MB in all, for as long as they go
 on. A pool of 1000 anonymous connections that do not read holds about
