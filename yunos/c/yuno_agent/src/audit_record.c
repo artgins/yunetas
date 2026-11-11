@@ -122,7 +122,9 @@
  *            word_read_alike() and command_word().
  *
  *          - A word with the shell's '\'' in it (a '\' before a "'"), or
- *            with its quote splice '"'"' (or the twin "'"'"), fails closed,
+ *            with a quoted piece closed and another one opened right after
+ *            it (the quote splice '"'"', its twin "'"'", '"'<s>'"',
+ *            'a''b'), fails closed,
  *            nested or not: from it on the line is `<...>`, its key kept.
  *            Json has no such thing and the parser takes no '\' as an
  *            escape: nobody can tell which quote opens a string, and the
@@ -130,7 +132,7 @@
  *            record='{'\''password'\'':'\''<s>'\''}'` and `update-node
  *            record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` were written with
  *            <s> in clear (7.30.26). A quote of one kind inside a value
- *            quoted with the other (note="it's") is no splice. The value of
+ *            quoted with the other (note="it's") is no switch. The value of
  *            a secret's own key keeps its whole shell word, redacted. See
  *            has_shell_quote() and mask_shell_quote_words().
  *
@@ -2671,19 +2673,31 @@ PRIVATE const char *keyed_word_equal(const char *w, const char *e)
 }
 
 /*
- *  TRUE if the word [w, e) holds the shell's quote inside a quoted piece:
- *  '\'' (a '\' before a "'"), or the quote splice '"'"' (and its twin
- *  "'"'"), which closes the piece, quotes the quote with the other kind
- *  and opens the piece again. Json has no such thing, the command parser
- *  takes no '\' as an escape, and the shell's reading of it depends on
- *  where the pieces around began: no reader of the audit can tell which
- *  quote opens a string and which one closes it. The json reader of the
- *  text (mask_secrets_inline()) paired them otherwise and wrote the
- *  password after them in clear: {'\''password'\'':'\''<s>'\''} was
- *  written {'\''password'\'':'<redacted>'<s>'\''}, and
- *  {'"'"'password'"'"':'"'"'<s>'"'"'} was written with '"'<s>'"'"'} after
- *  its '<redacted>' (7.30.26). A quote of one kind inside a value quoted
- *  with the other (note="it's", {"id":"a'b"}, {"id":"'"}) is no splice.
+ *  TRUE if the word [w, e) quotes a quote the shell's way, which no other
+ *  reader of the line pairs alike:
+ *  - '\'' (a '\' before a "'"),
+ *  - a quoted piece closed and another one opened right after it, of
+ *    either kind: the quote splice '"'"' (close the piece, quote the quote
+ *    with the other kind, open the piece again), its twin "'"'", and any
+ *    other switch ('"'<s>'"', 'a''b'),
+ *  - a piece that holds only quotes of the other kind ("'" or '"'), the
+ *    shell's way to write a quote between unquoted bytes:
+ *    {'"'password'"':'"'<s>'"'} is {"password":"<s>"} to the shell. But
+ *    such a piece that is the whole value (note="'") is a value.
+ *  The word is read the shell's way (in a '...' piece nothing is special,
+ *  in a "..." piece and outside a '\' escapes the next byte). Json has no
+ *  such thing, the command parser takes no '\' as an escape and a quote
+ *  only where a value begins: no reader of the audit can tell which quote
+ *  opens a string and which one closes it. The json reader of the text
+ *  (mask_secrets_inline()) paired them otherwise and wrote the password
+ *  after them in clear: {'\''password'\'':'\''<s>'\''} was written
+ *  {'\''password'\'':'<redacted>'<s>'\''}, and {'"'"'password'"'"':
+ *  '"'"'<s>'"'"'}, {'"'password'"':'"'<s>'"'} and {'"'password'"':
+ *  '"'<s>'"'} unquoted were written with <s> after their '<redacted>'
+ *  (7.30.26). Json never closes a string right before a quote, and a quote
+ *  inside a piece with other bytes is no such thing (note="it's",
+ *  {"id":"a'b"}); the cost is a json string that is one quote between
+ *  unquoted bytes ({"id":"'"}), which fails closed too.
  */
 PRIVATE BOOL has_shell_quote(const char *w, const char *e)
 {
@@ -2691,9 +2705,38 @@ PRIVATE BOOL has_shell_quote(const char *w, const char *e)
         if(p[0] == '\\' && p[1] == '\'') {
             return TRUE;
         }
-        if(e - p >= 5 && is_quote(p[0]) && p[1] != p[0] && is_quote(p[1]) &&
-                p[2] == p[0] && p[3] == p[1] && p[4] == p[0]) {
-            return TRUE;
+    }
+    const char *eq = keyed_word_equal(w, e);
+    const char *v = eq? eq + 1 : w;
+    char in = 0;            // the quote of the piece the byte is in, 0 outside
+    const char *piece = NULL;
+    BOOL only_quotes = FALSE;
+    for(const char *p = w; p < e; p++) {
+        if(in != '\'' && *p == '\\') {
+            p++;    // an escaped byte
+            only_quotes = FALSE;
+            continue;
+        }
+        if(in) {
+            if(*p != in) {
+                if(!is_quote(*p)) {
+                    only_quotes = FALSE;
+                }
+                continue;
+            }
+            in = 0;
+            if(p + 1 < e && is_quote(p[1])) {
+                return TRUE;
+            }
+            if(only_quotes && p > piece + 1 && !(piece == v && p == e - 1)) {
+                return TRUE;
+            }
+            continue;
+        }
+        if(is_quote(*p)) {
+            in = *p;
+            piece = p;
+            only_quotes = TRUE;
         }
     }
     return FALSE;
@@ -2701,7 +2744,7 @@ PRIVATE BOOL has_shell_quote(const char *w, const char *e)
 
 /*
  *  TRUE if the text may hold a word that has_shell_quote() takes: a '\',
- *  or a "'" next to a '"'. A quick look before the scan of the words.
+ *  or two quotes in a row. A quick look before the scan of the words.
  */
 PRIVATE BOOL may_have_shell_quote(const char *text, size_t len)
 {
@@ -2709,7 +2752,7 @@ PRIVATE BOOL may_have_shell_quote(const char *text, size_t len)
         return TRUE;
     }
     for(size_t i = 0; i + 1 < len; i++) {
-        if(is_quote(text[i]) && is_quote(text[i+1]) && text[i] != text[i+1]) {
+        if(is_quote(text[i]) && is_quote(text[i+1])) {
             return TRUE;
         }
     }
@@ -2899,8 +2942,8 @@ PRIVATE char *mask_nested_line(const char *text, size_t len, BOOL wrapper, redac
 
 /*
  *  A line that is not nested (a command of the agent itself keeps its
- *  words): from a word with the shell's '\'' or '"'"' in it
- *  (has_shell_quote()) on,
+ *  words): from a word with the shell's '\'' or a quote switch in it
+ *  ('"'"', 'a''b'; has_shell_quote()) on,
  *  the line is BARE_WORD, that word's key kept -- fail closed, as a nested
  *  line does with a word the two read otherwise. The rest goes too: a word
  *  kept after it could be a secret only by what came before it ("Basic

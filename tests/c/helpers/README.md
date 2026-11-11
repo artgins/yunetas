@@ -84,11 +84,15 @@ not: `update-node record='{'\''password'\'':'\''<s>'\''}'` is
 `update-node record=<...>`, the rest of the line with it (7.30.26 wrote
 `...:'<redacted>'<s>'\''}`), and twelve such shapes lose the secret; a
 secret's own value (`password='it'\''s <s>'`) is still redacted whole. The
-shell's quote splice `'"'"'` (and its twin `"'"'"`), which has no `\`, fails
-closed the same way: `update-node record='{'"'"'password'"'"':'"'"'<s>'"'"'}'`
-is `update-node record=<...>` (7.30.26 wrote `...:'<redacted>'"'<s>'"'"'}'`),
-and twelve such shapes lose the secret; `note="it's"`, `{"id":"a'b"}` and
-`{"id":"'"}` are no splice and are written. A `stats=__reset__` makes a stats command a
+shell's other ways to quote a quote, which have no `\`, fail closed the same
+way: a piece closed and another opened right after it (`'"'"'`, `"'"'"`,
+`'"'<s>'"'`, `'a''b'`) and a piece holding only a quote between unquoted bytes
+(`{'"'password'"':'"'<s>'"'}`): `update-node
+record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` is `update-node record=<...>`
+(7.30.26 wrote `...:'<redacted>'"'<s>'"'"'}'`), and nineteen such shapes lose
+the secret; `note="it's"`, `{"id":"a'b"}`, `note="'"`, empty pieces and
+escaped quotes in a `"..."` piece are written, and `{"id":"'"}` without its
+own quotes is `<...>` (the cost). A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A

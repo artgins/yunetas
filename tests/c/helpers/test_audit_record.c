@@ -44,8 +44,9 @@
  *          - a word with the shell's '\'' in it, in a command of the agent
  *            itself or nested: from it on the line is <...>, its key kept
  *            (7.30.26 wrote a password of a json quoted that way), and the
- *            same for a word with the shell's quote splice '"'"' (or its
- *            twin "'"'"), which has no backslash,
+ *            same for a word with a switch of quoted pieces (the shell's
+ *            quote splice '"'"', its twin "'"'", 'a''b'), which has no
+ *            backslash,
  *          - what mask_secrets_inline() masks, the audit redacts (the same
  *            function, mark_secrets_inline()): a JWE, a JWT of two parts, a
  *            name: value, a password with blanks, and random texts,
@@ -1071,10 +1072,13 @@ PRIVATE void test_shell_quote(void)
  *  trouble as '\''. The json reader of the text paired the quotes otherwise
  *  than the shell and wrote the password after them in clear:
  *  `update-node record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` was written
- *  `...'<redacted>'"'<s>'"'"'}'` (7.30.26). Fail closed as with '\'': from
- *  such a word on the line is <...>, its key kept. A quote of one kind
- *  inside a value quoted with the other (note="it's", {"id":"a'b"}) is no
- *  splice, and is written.
+ *  `...'<redacted>'"'<s>'"'"'}'` (7.30.26), and so was any other switch of
+ *  quoted pieces inside a word ('"'<s>'"', 'a''b'), and a piece that holds
+ *  only a quote between unquoted bytes ({'"'password'"':...}, the shell's
+ *  {"password":...}). Fail closed as with
+ *  '\'': from such a word on the line is <...>, its key kept. A quote of
+ *  one kind inside a value quoted with the other (note="it's",
+ *  {"id":"a'b"}) is no switch, and is written.
  ***************************************************************************/
 PRIVATE void test_shell_quote_splice(void)
 {
@@ -1091,6 +1095,15 @@ PRIVATE void test_shell_quote_splice(void)
         "update-node record=\"{\"'\"'\"password\"'\"'\":\"'\"'\"hunter2\"'\"'\"}\"",
         "update-node record=\"{'password':'it\"'\"'\"s hunter2'}\" id=X",
         "write-attr x=\"{\"'\"'\"password\"'\"'\": \"'\"'\"hunter2\"'\"'\"}\"",
+        // any other switch of quoted pieces, of either kind
+        "update-node record='{'\"'password'\"':'\"'hunter2'\"'}'",
+        "update-node record=\"{\"'\"password\"'\":\"'\"hunter2\"'\"}\" id=X",
+        "update-node record='{\"password\":'\"'hunter2'\"'}'",
+        "update-node record='{\"password\":\"a\"'\"'hunter2'\"'}'",
+        "update-node record='{\"password\":'' hunter2}'",
+        // a piece that holds only a quote, between unquoted bytes
+        "update-node record={'\"'id'\"':1,'\"'password'\"':'\"'hunter2'\"'} n=1",
+        "update-node record={\"'\"password\"'\":\"'\"hunter2\"'\"} id=X",
         // nested
         "command-yuno id=X command=update-node record={'\"'\"'password'\"'\"':'\"'\"'hunter2'\"'\"'}",
         "command-agent service=x command='update-node record=\"{\"'\"'\"password\"'\"'\":\"'\"'\"hunter2\"'\"'\"}\"'",
@@ -1107,6 +1120,12 @@ PRIVATE void test_shell_quote_splice(void)
     check_command_is("update-node record=\"{\"'\"'\"password\"'\"'\":\"'\"'\"hunter2\"'\"'\"}\" id=X", NULL,
         "update-node record=<...>",
         "(d7) the twin \"'\"'\" and id=X after it: from the value on, <...>");
+    check_command_is("update-node record='{'\"'password'\"':'\"'hunter2'\"'}' id=X", NULL,
+        "update-node record=<...>",
+        "(d7) '\"'<s>'\"': a switch of pieces, from the value on, <...>");
+    check_command_is("update-node id=X note='a''b' Basic hunter2", NULL,
+        "update-node id=X note=<...>",
+        "(d7) 'a''b': a switch of the same kind, from it on, <...>");
     check_command_is("update-node id=X note='it'\"'\"'s' Basic hunter2", NULL,
         "update-node id=X note=<...>",
         "(d7) a word kept after it could be a secret by what it follows: the rest <...>");
@@ -1127,9 +1146,24 @@ PRIVATE void test_shell_quote_splice(void)
     check_command_is("update-node record='{\"id\":\"a\\\"b\"}' note='\"' n=1", NULL,
         "update-node record='{\"id\":\"a\\\"b\"}' note='\"' n=1",
         "(d7) a lone quote of the other kind: written");
+    check_command_is("update-node note=\"'\" x='\"' n=1", NULL,
+        "update-node note=\"'\" x='\"' n=1",
+        "(d7) a value that is one quote of the other kind: written");
     check_command_is("update-node record={\"id\":\"'\",\"password\":\"hunter2\"} n=1", NULL,
-        "update-node record={\"id\":\"'\",\"password\":\"<redacted>\"} n=1",
-        "(d7) a json value that is one quote, \"'\": written, its password redacted");
+        "update-node record=<...>",
+        "(d7) the cost: a json string that is one quote between unquoted bytes, <...>");
+    check_command_is("update-node id=X note='a b' x=\"c d\" y='' z=\"\" n=1", NULL,
+        "update-node id=X note='a b' x=\"c d\" y='' z=\"\" n=1",
+        "(d7) quoted pieces with no switch in a word, empty ones too: written");
+    check_command_is("update-node note=\"a\\\"'\\\"b\" n=1", NULL,
+        "update-node note=\"a\\\"'\\\"b\" n=1",
+        "(d7) an escaped quote in a \"...\" piece closes nothing: written");
+    check_command_is("update-node record={\"cfg\":\"{\\\"a\\\":\\\"\\\"}\"} n=1", NULL,
+        "update-node record={\"cfg\":\"{\\\"a\\\":\\\"\\\"}\"} n=1",
+        "(d7) an escaped json with an empty string: written");
+    check_command_is("update-node record={\"a\":\"\",\"b\":[\"x\",\"y\"],\"password\":\"hunter2\"} n=1", NULL,
+        "update-node record={\"a\":\"\",\"b\":[\"x\",\"y\"],\"password\":\"<redacted>\"} n=1",
+        "(d7) a json without its own quotes (empty strings, a list): written, its password redacted");
 }
 
 /***************************************************************************

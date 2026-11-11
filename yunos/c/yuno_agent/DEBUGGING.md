@@ -980,22 +980,28 @@ nearest first:
   value of a secret's own key keeps its rule above (its whole shell word,
   redacted): `password='it'\''s hunter2'` is still `password='<redacted>'`.
 
-  The shell's other way to put a quote inside a quoted piece, the quote
-  splice `'"'"'` (and its twin `"'"'"`), has no `\` and fails closed the
-  same way: it closes the piece, quotes the quote with the other kind and
-  opens the piece again, and the JSON reader paired those quotes otherwise.
-  These commands:
+  The shell's other ways to put a quote inside a quoted piece have no `\`
+  and fail closed the same way: a quoted piece closed and another one
+  opened right after it (the quote splice `'"'"'`, its twin `"'"'"`,
+  `'"'password'"'`, `'a''b'`), and a piece that holds only a quote between
+  unquoted bytes (`{'"'password'"':'"'hunter2'"'}`, which the shell reads
+  as `{"password":"hunter2"}`). The JSON reader paired those quotes
+  otherwise. These commands:
 
   ```text
   update-node record='{'"'"'password'"'"':'"'"'hunter2'"'"'}' id=X
+  update-node record='{'"'password'"':'"'hunter2'"'}'
   update-node record='{"password":"it'"'"'s hunter2"}'
-  update-node record="{"'"'"password"'"'":"'"'"hunter2"'"'"}"
+  update-node record={'"'id'"':1,'"'password'"':'"'hunter2'"'} n=1
   ```
 
   are recorded as `update-node record=<...>`. Up to 7.30.26 the first was
   recorded `update-node record='{'"'"'password'"'"':'<redacted>'"'hunter2'"'"'}' id=X`.
-  A quote of one kind inside a value quoted with the other is no splice and
-  is kept: `update-node id=X note="it's" n=1` is recorded as it came.
+  A quote inside a piece with other bytes is kept (`update-node id=X
+  note="it's" n=1` and `record={"id":"a'b"}` are recorded as they came), and
+  so is a value that is one quote (`note="'"`). The cost: a JSON string that
+  is one quote, written without quotes around the JSON
+  (`record={"id":"'","password":"x"}`), is `record=<...>` too.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any
