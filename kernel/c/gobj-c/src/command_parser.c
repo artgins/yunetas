@@ -80,7 +80,9 @@ PRIVATE json_t *refuse_parameter(
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
     const char *line,
-    const sdata_desc_t *cnf_cmd
+    const sdata_desc_t *cnf_cmd,
+    hgobj gobj,
+    BOOL help_line
 );
 
 /***************************************************************
@@ -278,19 +280,11 @@ PRIVATE json_t *refuse_command_without_authz(
 }
 
 /***************************************************************************
- *  Find the command descriptor
+ *  The descriptor of the command named `name` (a word already read, with
+ *  no quotes of its own), NULL if the table has none
  ***************************************************************************/
-PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *command)
+PRIVATE const sdata_desc_t *cmd_desc_of_name(const sdata_desc_t *command_table, const char *name)
 {
-    char *str, *p;
-    str = p = gbmem_strdup(command);
-    char *cmd = get_parameter(p, &p);
-    if(empty_string(cmd)) {
-        GBMEM_FREE(str)
-        return NULL;
-    }
-
-
     const sdata_desc_t *pcmd = command_table;
     while(pcmd->name) {
         /*
@@ -302,22 +296,19 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
             alias_checked = TRUE;
             const char **alias = pcmd->alias;
             while(alias && *alias) {
-                if(strcasecmp(*alias, cmd)==0) {
-                    GBMEM_FREE(str)
+                if(strcasecmp(*alias, name)==0) {
                     return pcmd;
                 }
                 alias++;
             }
         }
-        if(strcasecmp(pcmd->name, cmd)==0) {
-            GBMEM_FREE(str)
+        if(strcasecmp(pcmd->name, name)==0) {
             return pcmd;
         }
         if(!alias_checked) {
             const char **alias = pcmd->alias;
             while(alias && *alias) {
-                if(strcasecmp(*alias, cmd)==0) {
-                    GBMEM_FREE(str)
+                if(strcasecmp(*alias, name)==0) {
                     return pcmd;
                 }
                 alias++;
@@ -326,9 +317,29 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
 
         pcmd++;
     }
-
-    GBMEM_FREE(str)
     return NULL;
+}
+
+/***************************************************************************
+ *  Find the command descriptor of the line `command`: its first word, read
+ *  ONCE with get_parameter() (one level of quotes taken off), as the
+ *  parser reads it. Up to 7.30.26 the parser read it twice
+ *  (find_command_desc() and then this function), so `"'list-yunos'"` ran
+ *  list-yunos while a caller of this function saw no command in it.
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *command)
+{
+    char *str, *p;
+    str = p = gbmem_strdup(command);
+    char *cmd = get_parameter(p, &p);
+    if(empty_string(cmd)) {
+        GBMEM_FREE(str)
+        return NULL;
+    }
+
+    const sdata_desc_t *pcmd = cmd_desc_of_name(command_table, cmd);
+    GBMEM_FREE(str)
+    return pcmd;
 }
 
 /***************************************************************************
@@ -892,11 +903,17 @@ PRIVATE BOOL secret_is_set(json_t *value)
  *  (by names only) a word that ends in '=' or "==", or begins with '=', is
  *  no key=value either: " <...>" -- a password in base64 ends so, and the
  *  agent's audit file takes the same rule.
+ *  In a line of help (`help_line`) the value of `cmd` is a command line:
+ *  it is shown as command_mask_secret_line() shows a line of `gobj`, the
+ *  way the header of the help shows it (up to 7.30.26 `help cmd="login
+ *  bob <pin>"` was shown `help cmd=login bob <pin>`).
  ***************************************************************************/
 PRIVATE void append_masked_parameters(
     gbuffer_t *gbuf,
     const char *line,
-    const sdata_desc_t *cnf_cmd     // NULL: by names only
+    const sdata_desc_t *cnf_cmd,    // NULL: by names only
+    hgobj gobj,                     // whose table masks the `cmd` of help, NULL: by names only
+    BOOL help_line
 )
 {
     if(empty_string(line)) {
@@ -944,6 +961,14 @@ PRIVATE void append_masked_parameters(
             gbuffer_append_string(gbuf, " <...>");
         } else if(strlen(value) > MAX_SHOWN_VALUE) {
             gbuffer_printf(gbuf, " %s=<%zu bytes>", key, strlen(value));
+        } else if(help_line && strcasecmp(key, "cmd") == 0) {
+            char *shown = command_mask_secret_line(gobj, value);
+            if(shown && strpbrk(shown, " \t")) {
+                gbuffer_printf(gbuf, " %s='%s'", key, shown);
+            } else {
+                gbuffer_printf(gbuf, " %s=%s", key, shown? shown : "<...>");
+            }
+            GBMEM_FREE(shown)
         } else if(wild && strchr(value, '=')) {
             char *shown = mask_secrets_inline(value);
             gbuffer_printf(gbuf, " %s='%s'", key, shown? shown : value);
@@ -1030,9 +1055,10 @@ PUBLIC json_t *command_mask_secret_kw(
  *  showed it as the value of the positional). A first word with a blank,
  *  a quote or a backslash in it (its own enclosing quotes apart) is no
  *  command name: "<...>", the rule of the agent's audit file. In its own
- *  quotes a whole line is one word, and the parser runs the command of
- *  ITS first word: up to 7.30.26 `'login bob <pin>' note=x` was shown
- *  whole.
+ *  quotes a whole line is one word (the parser runs no command for it):
+ *  up to 7.30.26 `'login bob <pin>' note=x` was shown whole. The `cmd` of
+ *  a help is a command line, shown masked the same way (see
+ *  append_masked_parameters()).
  ***************************************************************************/
 PUBLIC char *command_mask_secret_line(
     hgobj gobj,
@@ -1121,7 +1147,8 @@ PUBLIC char *command_mask_secret_line(
         ip++;
     }
 
-    append_masked_parameters(gbuf, p, cnf_cmd);
+    BOOL help_line = (cmd && strcasecmp(cnf_cmd? cnf_cmd->name : cmd, "help") == 0)? TRUE : FALSE;
+    append_masked_parameters(gbuf, p, cnf_cmd, gobj, help_line);
     GBMEM_FREE(str)
 
     /*
@@ -1162,13 +1189,19 @@ PRIVATE const sdata_desc_t *find_command_desc(
         return NULL;
     }
 
-    const sdata_desc_t *cnf_cmd = command_get_cmd_desc(cmd_table, cmd);
+    const sdata_desc_t *cnf_cmd = cmd_desc_of_name(cmd_table, cmd);    // the word read once
     if(!cnf_cmd) {
-        char *cmd_masked = mask_secrets_inline(cmd);  // the caller's word: it can be a secret
+        /*
+         *  The caller's word: it can be a secret. One with a blank, a quote
+         *  or a backslash is no name, and can be a whole line in its quotes
+         *  ('login bob <pin>'): "<...>", as command_mask_secret_line() shows it
+         */
+        BOOL no_name = strpbrk(cmd, " \t'\"\\")? TRUE : FALSE;
+        char *cmd_masked = no_name? NULL : mask_secrets_inline(cmd);
         *jn_error = json_sprintf(
             "%s: command not available: '%s'. Try 'help' command.",
             gobj_short_name(gobj),
-            cmd_masked? cmd_masked : cmd
+            no_name? "<...>" : (cmd_masked? cmd_masked : cmd)
         );
         GBMEM_FREE(cmd_masked)
     }
@@ -1756,7 +1789,7 @@ PUBLIC const sdata_desc_t *search_command_desc(
 
     const sdata_desc_t *command_desc = gobj_command_desc(gobj, NULL, FALSE);
     if(command_desc) {
-        cnf_cmd = command_get_cmd_desc(command_desc, cmd);
+        cnf_cmd = cmd_desc_of_name(command_desc, cmd);
         if(cnf_cmd) {
             /*
              *  Found in gobj
@@ -1776,7 +1809,7 @@ PUBLIC const sdata_desc_t *search_command_desc(
         hgobj bottom = gobj_bottom_gobj(gobj);
         while(bottom) {
             if(gobj_command_desc(bottom, NULL, FALSE)) {
-                cnf_cmd = command_get_cmd_desc(gobj_command_desc(bottom, NULL, FALSE), cmd);
+                cnf_cmd = cmd_desc_of_name(gobj_command_desc(bottom, NULL, FALSE), cmd);
                 if(cnf_cmd) {
                     /*
                      *  Found in bottom
@@ -1800,7 +1833,7 @@ PUBLIC const sdata_desc_t *search_command_desc(
         while(child) {
             command_desc = gobj_command_desc(child, NULL, FALSE);
             if(command_desc) {
-                cnf_cmd = command_get_cmd_desc(command_desc, cmd);
+                cnf_cmd = cmd_desc_of_name(command_desc, cmd);
                 if(cnf_cmd) {
                     /*
                      *  Found in child
@@ -1964,9 +1997,19 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
             return jn_resp;
         }
 
-        char *cmd_masked = mask_secrets_inline(cmd);  // the caller's word, see find_command_desc()
+        /*
+         *  The caller's word, see find_command_desc(): a first word that is
+         *  no name ('login bob <pin>') is not echoed
+         */
+        char *first = gbmem_strdup(cmd);
+        char *pfirst = first;
+        char *word = first? get_parameter(pfirst, &pfirst) : NULL;
+        BOOL no_name = (!first || (word && strpbrk(word, " \t'\"\\")))? TRUE : FALSE;
+        GBMEM_FREE(first)
+        char *cmd_masked = no_name? NULL : mask_secrets_inline(cmd);
+        const char *word_shown = no_name? "<...>" : (cmd_masked? cmd_masked : cmd);
         gbuffer_t *gbuf = gbuffer_create(4*1024, 64*1024);
-        gbuffer_printf(gbuf, "Commands that mention '%s'\n", cmd_masked? cmd_masked : cmd);
+        gbuffer_printf(gbuf, "Commands that mention '%s'\n", word_shown);
         gbuffer_printf(gbuf, "===========================\n");
         if(list_commands(gobj, gbuf, level, cmd) > 0) {
             json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
@@ -1980,7 +2023,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         json_t *jn_resp = json_sprintf(
             "%s: command '%s' not available.\n",
             gobj_short_name(gobj),
-            cmd_masked? cmd_masked : cmd
+            word_shown
         );
         GBMEM_FREE(cmd_masked)
         KW_DECREF(kw)   // after: `cmd` is a text of kw

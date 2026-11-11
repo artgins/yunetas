@@ -31,6 +31,24 @@ Up to 7.30.26 the guard compared the WHOLE text of `command` with the name,
 so every line but `command=command-agent` passed it: the agent called itself until its
 stack overflowed (SIGSEGV), writing one audit record per call (about 35 000).
 
+Then four lines in the kw with two levels of quotes. The guard and the
+parser read the first word once each (the parser's own lookup,
+`command_get_cmd_desc()`), so both see a word in quotes, which is no
+command: each must answer -1 *"…: command not available: '<...>'"*.
+
+```
+command-agent          (kw: {"command": "\"'command-agent'\""})
+command-agent          (kw: {"command": "'\"COMMAND-AGENT\" x=1'"})
+command-agent          (kw: {"command": " \t\"'command-agent'\" service=agent"})
+command-agent          (kw: {"command": "'\"'command-agent'\"'"})
+```
+
+Up to 7.30.26 the parser read the first word TWICE (each read takes one
+level of quotes off) and the guard once: the guard saw `'command-agent'`,
+the parser `command-agent`, and the first of these lines killed the agent
+the same way. Quotes cannot nest a third level (the next quote of its kind
+closes a quoted word), so the last line names no command either.
+
 Then `command-agent command="help cmd=list-yunos"` is still forwarded and
 answered, and the agent answers a `help`.
 

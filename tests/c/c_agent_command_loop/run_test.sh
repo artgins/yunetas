@@ -8,7 +8,9 @@
 #   /yuneta, a passwd where uid 0 is `yuneta`, and a loopback nobody else
 #   sees, with its memory bounded (ulimit -v) and no core. Up to 7.30.26
 #   each of those lines made the agent call itself until its stack
-#   overflowed (SIGSEGV), writing one audit record per call (~35 000).
+#   overflowed (SIGSEGV), writing one audit record per call (~35 000);
+#   and so did a line with two levels of quotes, which the parser read
+#   twice and the guard once.
 #   Then the agent is stopped in order: it must end with 0, with no
 #   "system memory not free" (the gbmem audit of CONFIG_DEBUG_TRACK_MEMORY),
 #   and its audit file must hold one record per command sent, not one per

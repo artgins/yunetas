@@ -7578,10 +7578,13 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
     /*
      *  The command the line names, found as the parser finds it (its first
-     *  word, in any case, or an alias): the forwarded kw still carries this
+     *  word read once, in any case, or an alias: command_get_cmd_desc() is
+     *  the parser's own lookup): the forwarded kw still carries this
      *  `command`, so a line that runs this function again runs it for ever.
      *  Comparing the whole text let "'command-agent'" or
-     *  "command-agent service=agent" through, until the stack overflowed.
+     *  "command-agent service=agent" through, until the stack overflowed;
+     *  and while the parser read the first word twice, so did
+     *  "\"'command-agent'\"" (the guard read it once).
      */
     const sdata_desc_t *cmd_table = gobj_command_desc(service_gobj, NULL, FALSE);
     const sdata_desc_t *cnf_cmd = cmd_table? command_get_cmd_desc(cmd_table, command) : NULL;

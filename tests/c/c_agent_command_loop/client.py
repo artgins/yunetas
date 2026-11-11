@@ -9,6 +9,9 @@
 #   the line to itself with the same kw (which still carried the line) until
 #   its stack overflowed: SIGSEGV, with one audit record per call.
 #
+#   Lines with two levels of quotes are no command for the guard nor for
+#   the parser (each reads the first word once): "command not available".
+#
 #   Then a command-agent of another command (help) is still forwarded and
 #   answered, and the session still works.
 #
@@ -135,6 +138,28 @@ async def main():
     r = await ask(ws, "command-agent", {"command": "'command-agent' service=agent"})
     check("command-agent, kw command='command-agent' service=agent: %s" % r.get("comment"),
         r.get("result") == -1 and "Loop command" in (r.get("comment") or ""))
+
+    #   Two levels of quotes, the line in the kw: the guard and the parser
+    #   read its first word once each, so both see `'command-agent'` (no
+    #   command). Up to 7.30.26 the parser read it twice, saw command-agent
+    #   behind the guard's back, and the agent called itself for ever
+    #   (SIGSEGV). Quotes cannot nest a third level: the next quote of its
+    #   kind closes a quoted word, so the last line names no command either.
+    for kw_line in (
+        "\"'command-agent'\"",
+        "'\"COMMAND-AGENT\" x=1'",
+        " \t\"'command-agent'\" service=agent",
+        "'\"'command-agent'\"'",
+    ):
+        try:
+            r = await ask(ws, "command-agent", {"command": kw_line})
+        except websockets.ConnectionClosed:
+            r = {}
+        if not r:
+            check("command-agent, kw command=%r: no answer (the agent died)" % kw_line, False)
+            return
+        check("command-agent, kw command=%r: %s" % (kw_line, r.get("comment")),
+            r.get("result") == -1 and "command not available" in (r.get("comment") or ""))
 
     #   Another command is still forwarded
     r = await ask(ws, "command-agent command=\"help cmd=list-yunos\"", {})

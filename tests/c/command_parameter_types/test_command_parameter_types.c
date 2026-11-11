@@ -66,6 +66,13 @@
  *              <...> in the mask (with and without a table) and the
  *              `commands` trace: `'login bob <pin>' note=x` was shown
  *              whole up to 7.30.26; `'typed'` stays `typed`;
+ *            - the first word is read once (one level of quotes off), by
+ *              the parser and by every lookup: `"'typed'"` is no command
+ *              (7.30.26 ran typed), and an unknown word that is no name is
+ *              answered '<...>', by the parser and by help;
+ *            - the `cmd` of help is a command line: the `commands` trace
+ *              and the mask show it masked (7.30.26 showed `help
+ *              cmd=login bob <pin>`);
  *            - blanks at the end of the line are no parameter (two or more
  *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
@@ -105,9 +112,22 @@ PRIVATE json_t *cmd_probe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return build_command_response(gobj, 0, json_sprintf("ok"), 0, 0);
 }
 
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);    // owns kw
+    return build_command_response(gobj, 0, jn_resp, 0, 0);
+}
+
 /***************************************************************
  *              GClass scaffolding
  ***************************************************************/
+PRIVATE sdata_desc_t pm_help[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "The command"),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "Search level"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t pm_typed[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "s",            0,              "dflt",     "A string"),
@@ -171,6 +191,7 @@ SDATACM2(DTP_SCHEMA,    "login",        0,            0,      pm_login,   cmd_pr
 SDATACM2(DTP_SCHEMA,    "opt",          0,            0,      pm_opt,     cmd_probe,  "A user and an optional password"),
 SDATACM2(DTP_SCHEMA,    "named",        0,            0,      pm_named,   cmd_probe,  "A user and a password known by its name"),
 SDATACM2(DTP_SCHEMA,    "wild",         SDF_WILD_CMD, 0,      pm_wild,    cmd_probe,  "Free keys"),
+SDATACM2(DTP_SCHEMA,    "help",         0,            0,      pm_help,    cmd_help,   "Help of the commands"),
 SDATA_END()
 };
 
@@ -728,9 +749,9 @@ int main(int argc, char *argv[])
     /*
      *  A first word with a blank, a quote or a backslash in it is no
      *  command name: `<...>`, the rule of the agent's audit file. In its
-     *  own quotes a whole line is one word, and the parser runs the command
-     *  of ITS first word with the rest of the line after the closing quote
-     *  (`'login bob <pin>' note=x` runs `login` with `note=x`, refused).
+     *  own quotes a whole line is one word, which is no command (up to
+     *  7.30.26 the parser ran `login` for `'login bob <pin>' note=x`, with
+     *  `note=x`, refused).
      *  Up to 7.30.26 the mask (the `commands` trace, the ievents trace,
      *  `help cmd=`) wrote that word whole, the pin in it. A command name
      *  alone in its quotes stays.
@@ -789,6 +810,106 @@ int main(int argc, char *argv[])
             check("'typed' s=a", "a command name alone in its quotes stays",
                 masked && strcmp(masked, "typed s=a") == 0);
             if(!masked || strcmp(masked, "typed s=a") != 0) {
+                printf("     masked: %s\n", masked? masked : "(null)");
+            }
+            GBMEM_FREE(masked)
+        }
+    }
+
+    /*
+     *  The first word is read ONCE, by the parser and by every lookup of a
+     *  command (command_get_cmd_desc(), help, the mask): one level of quotes
+     *  comes off. Up to 7.30.26 the parser read it twice, so `"'typed'"`
+     *  ran typed, and a caller that looked the command up the documented
+     *  way (command-agent's guard against calling itself) saw no command.
+     *  Now it is no command, and the answer does not echo a word that is
+     *  no name.
+     */
+    {
+        char comment[512];
+        int result = run(yuno, "\"'typed'\" s=a", 0, comment, sizeof(comment));
+        check("\"'typed'\" s=a", "two levels of quotes: no command",
+            result == -1 && strstr(comment, "command not available: '<...>'") != NULL &&
+            g_seen == NULL);
+        if(result != -1 || !strstr(comment, "command not available: '<...>'")) {
+            printf("     comment: %s\n", comment);
+        }
+        check("\"'typed'\" s=a", "command_get_cmd_desc() finds no command",
+            command_get_cmd_desc(command_table, "\"'typed'\" s=a") == NULL);
+        expect_value(yuno, "'typed' s=a", "'typed' s=a", 0, "s", json_string("a"));
+        check("'typed' s=a", "command_get_cmd_desc() finds typed",
+            command_get_cmd_desc(command_table, "'typed' s=a") == &command_table[0]);
+
+        g_watch = "fq5-hunter2";
+        g_watch_hits = 0;
+        result = run(yuno, "'login bob fq5-hunter2' note=x", 0, comment, sizeof(comment));
+        g_watch = 0;
+        check("'login bob <s>' note=x", "refused, the word not echoed",
+            result == -1 && strstr(comment, "fq5-hunter2") == NULL &&
+            strstr(comment, "command not available: '<...>'") != NULL);
+        if(result != -1 || strstr(comment, "fq5-hunter2")) {
+            printf("     comment: %s\n", comment);
+        }
+        check("'login bob <s>' note=x", "the word in no log", g_watch_hits == 0);
+    }
+
+    /*
+     *  The `cmd` of help is a command line: the `commands` trace shows it
+     *  masked as the header of the help shows it (its first word judged,
+     *  its secrets masked). Up to 7.30.26 `help cmd="login bob <pin>"` was
+     *  traced `help cmd=login bob <pin>`.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+            const char *with_table;
+            const char *no_table;
+        } helps[] = {
+            {"help cmd=\"login bob hl1-hunter2\"", "hl1-hunter2",
+                "help cmd='login bob ********'", "help cmd='login <...>'"},
+            {"help cmd='login bob hl2-hunter2' level=1", "hl2-hunter2",
+                "help cmd='login bob ********' level=1", "help cmd='login <...>' level=1"},
+            {"help cmd=\"'login bob hl3-hunter2' x\"", "hl3-hunter2",
+                "help cmd='<...> <...>'", "help cmd='<...> <...>'"},
+            {"help cmd=\"opt bob password=hl4-hunter2\"", "hl4-hunter2",
+                "help cmd='opt bob password=********'", "help cmd='opt <...>'"},
+            {"help cmd='help cmd=\"login bob hl5-hunter2\"'", "hl5-hunter2",
+                "help cmd='help cmd='login bob ********''", "help cmd='help cmd='login <...>''"},
+        };
+        gobj_set_global_trace("commands", TRUE);
+        for(size_t i=0; i<sizeof(helps)/sizeof(helps[0]); i++) {
+            char comment[2048];
+            g_watch = helps[i].secret;
+            g_watch_hits = 0;
+            int result = run(yuno, helps[i].command, 0, comment, sizeof(comment));
+            g_watch = 0;
+            check(helps[i].command, "help answers, the secret not in it",
+                result == 0 && strstr(comment, helps[i].secret) == NULL);
+            if(result != 0 || strstr(comment, helps[i].secret)) {
+                printf("     comment: %s\n", comment);
+            }
+            check(helps[i].command, "the secret in no log nor trace", g_watch_hits == 0);
+
+            for(int with_table=1; with_table>=0; with_table--) {
+                const char *expected = with_table? helps[i].with_table : helps[i].no_table;
+                char *masked = command_mask_secret_line(with_table? yuno : NULL, helps[i].command);
+                check(helps[i].command,
+                    with_table? "the mask: cmd as a command line" : "no table: cmd as a command line",
+                    masked && strcmp(masked, expected) == 0);
+                if(!masked || strcmp(masked, expected) != 0) {
+                    printf("     masked: %s\n", masked? masked : "(null)");
+                }
+                GBMEM_FREE(masked)
+            }
+        }
+        gobj_set_global_trace("commands", FALSE);
+
+        for(int with_table=1; with_table>=0; with_table--) {
+            char *masked = command_mask_secret_line(with_table? yuno : NULL, "help cmd=typed level=2");
+            check("help cmd=typed level=2", "a command name alone stays",
+                masked && strcmp(masked, "help cmd=typed level=2") == 0);
+            if(!masked || strcmp(masked, "help cmd=typed level=2") != 0) {
                 printf("     masked: %s\n", masked? masked : "(null)");
             }
             GBMEM_FREE(masked)
@@ -1021,6 +1142,9 @@ int main(int argc, char *argv[])
      */
     expect_help(yuno, "unlock 4711-pin-help", "Unlock with a pin", "4711-pin-help");
     expect_help(yuno, "unlock 4711-pin-help", "unlock ********", NULL);
+    // the first word read once: in two levels of quotes it is no command (7.30.26: typed)
+    expect_help(yuno, "\"'typed'\"", "command '<...>' not available", "A parameter of each type");
+    expect_help(yuno, "'login bob hl6-hunter2' x", "command '<...>' not available", "hl6-hunter2");
 
     JSON_DECREF(g_seen)
     gobj_end();

@@ -401,6 +401,26 @@ A pointer to the matching `sdata_desc_t` entry in the command table, or `NULL` i
 
 Aliases have precedence when the descriptor has no `json_fn` command function set. This is the mechanism used to redirect commands as named events.
 
+The first word is read ONCE, with [`get_parameter()`](#get_parameter): one
+level of quotes comes off (`'list-yunos' x=1` finds `list-yunos`). That is
+how [`command_parser()`](#command_parser) finds the command it runs, so a
+caller that looks a line up with this function sees the command the parser
+will run -- `command-agent` relies on it to refuse a line that would run
+itself. A word that still holds a quote or a blank names no command:
+
+```C
+command_get_cmd_desc(table, "'list-yunos' x=1");    // list-yunos
+command_get_cmd_desc(table, "\"'list-yunos'\"");    // NULL: the word is 'list-yunos'
+```
+
+BREAKING (an operator typing a line): up to 7.30.26 the parser read the first
+word twice (one level of quotes off each time), so `"'list-yunos'"` ran
+`list-yunos` and `"list-yunos x" y=1` ran `list-yunos` with `y=1`. Such a line
+answers *"command not available: '<...>'"* now. And while the parser read the
+word twice and `command-agent`'s guard once, `command-agent` with
+`{"command": "\"'command-agent'\""}` in its kw called itself until the stack
+of the agent overflowed (SIGSEGV).
+
 ---
 
 (command_parameter_from_text)=
@@ -628,11 +648,14 @@ password in base64 ends so; the agent's audit file takes the same rule; up to
 7.30.26 it was shown whole). A first word with a blank, a quote or a
 backslash in it (its own enclosing quotes apart) is no command name: `<...>`,
 the rule of the agent's audit file. In its own quotes a whole line is one word,
-and the parser runs the command of ITS first word with the rest of the line
-after the closing quote: `'login bob hunter2' note=x` runs `login` with
-`note=x` (refused), and the trace shows `<...> note=x` (up to 7.30.26 it showed
-`login bob hunter2 note=x`). A command name alone in its quotes stays:
-`'list-yunos'` is `list-yunos`. In a `SDF_WILD_CMD` command a value
+which names no command: `'login bob hunter2' note=x` is refused, and the trace
+shows `<...> note=x` (up to 7.30.26 the parser ran `login` with `note=x`, and
+the trace showed `login bob hunter2 note=x`). A command name alone in its
+quotes stays: `'list-yunos'` is `list-yunos`. In a line of `help` the value of
+`cmd` is a command line too: it is shown masked the way the header of the help
+shows it, with the command table of `gobj` (`help cmd="login bob hunter2"` is
+`help cmd='login bob ********'`, or `help cmd='login <...>'` with no table; up
+to 7.30.26 the trace showed `help cmd=login bob hunter2`). In a `SDF_WILD_CMD` command a value
 with a `=` is a command line going on, shown `key='...'` masked by names. The
 whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
 `write-attr attribute=password value=X` shows `value=********`. What
@@ -688,6 +711,10 @@ line = command_mask_secret_line(NULL,   // no table: by names only
 line = command_mask_secret_line(gobj,   // a whole line in quotes is one word: no command name
     "'login bob hunter2' note=x"
 );                                      // "<...> note=x"
+
+line = command_mask_secret_line(gobj,   // the cmd of help is a command line ("pin" SDF_SECRET)
+    "help cmd=\"login bob hunter2\""
+);                                      // "help cmd='login bob ********'"
 
 line = command_mask_secret_line(agent,  // a value of 46 MB of base64
     "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."
@@ -764,7 +791,10 @@ their credential too (up to 7.26.9 each was repeated whole):
 
 A key that is not a parameter, and the first word that names no command, are
 the caller's words: they are echoed as `mask_secrets_inline()` shows them (a
-JWT written as a key was repeated in clear).
+JWT written as a key was repeated in clear). A first word with a blank, a
+quote or a backslash is no name and is not echoed: `'login bob hunter2' note=x`
+answers *"command not available: '<...>'"*, and so does `help` for a `cmd`
+whose first word is such a word.
 
 That masking holds because a required secret is always the LAST required
 parameter: [`gclass_create()`](#gclass_create) refuses a command table where
@@ -821,7 +851,9 @@ A pointer to the matching `sdata_desc_t` command descriptor, or `NULL` if the co
 
 **Notes**
 
-Uses [`command_get_cmd_desc()`](#command_get_cmd_desc) internally for each GObj's command table lookup.
+Reads the first word of `command` once, as [`command_get_cmd_desc()`](#command_get_cmd_desc)
+does, and looks it up in each GObj's command table the same way (up to 7.30.26
+it read the word twice, so `help cmd="'login bob x'"` found `login`).
 
 ---
 
