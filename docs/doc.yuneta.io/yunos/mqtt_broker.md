@@ -172,10 +172,10 @@ B  CONNECT sess (clean session 1)                                 CONNACK 0, not
 Up to 7.30.26 the broker deleted the queues of a session it did not keep only
 when that session had no connection, and a connection told to go deleted them
 only when IT had a clean session: B with a clean session got CONNACK 0 and
-then the 5 messages of A's session. One window is left: a take-over that
-comes while the old connection is itself still closing (its last answers not
-yet written to a peer that does not read) leaves its queues to that close,
-which does not delete the topics of a session it kept.
+then the 5 messages of A's session. The same holds when the take-over comes
+while the old connection is itself still closing (its last answers not yet
+written to a peer that does not read): its queues are closed and deleted at
+the take-over, not left to the end of that close.
 
 **A broker that stops while connections are still closing** stops clean. A
 peer that does not take what is written to it holds its connection in the

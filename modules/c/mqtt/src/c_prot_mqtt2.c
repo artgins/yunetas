@@ -10786,11 +10786,19 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *  a session there is nothing to drop: the transport was dropped when the
  *  session ended, or never connected. Up to 7.30.26 it was "Event NOT
  *  DEFINED": a gate that takes a client id over sent it to every
- *  connection of that id still closing.
+ *  connection of that id still closing. A take-over by a connection that
+ *  does not keep the session ("delete_session") closes and deletes the
+ *  queues now, as ac_drop() does: they were left to the end of this close,
+ *  which keeps the topics of a session kept, and the new clean session
+ *  reloaded the old messages.
  ***************************************************************************/
 PRIVATE int ac_drop_closing(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kw && json_is_object(kw) && kw_get_bool(gobj, kw, "delete_session", 0, 0)) {
+        close_queues(gobj, TRUE);   // before the taker opens them: a clean take-over starts empty
+    }
 
     if(priv->in_session) {
         if(priv->iamServer && priv->tx_pending) {

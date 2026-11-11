@@ -343,8 +343,13 @@ session present 1 and the 5 messages. 5 (MQTT 5): A as in 2 sends `0xF0`, the
 broker answers DISCONNECT and drops it; B with a clean session gets nothing.
 6 (3.1.1): 21 QoS 2 PUBLISH without PUBREL against `max_inflight_messages`
 20: at most 20 PUBREC, then the close with one WARNING *"Mqtt: QoS 2 PUBLISH
-past max_inflight_messages (Receive Maximum), disconnecting"*. Red on 7.30.26:
-B of 1 and 2 got the 5 messages of A's session; 6 closed with no log.
+past max_inflight_messages (Receive Maximum), disconnecting"*. 7 and 8 (3.1.1):
+A as in 1, then STALLED (receive buffer 4 KB, the broker's side send buffer
+4 KB): it reads nothing more and sends 5 SUBSCRIBEs of 8000 times `a` and
+`0xF0`, so the broker's close waits for 40 KB of SUBACKs; B takes the session
+over while A is still closing, with a clean session (7: nothing) or keeping
+it (8: the 5 messages). Red on 7.30.26: B of 1, 2 and 7 got the 5 messages of
+A's session; 6 closed with no log.
 
 `test_mqtt_broker_takeover` (`main_broker_takeover.c` +
 `c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`

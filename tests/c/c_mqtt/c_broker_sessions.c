@@ -28,11 +28,19 @@
  *                 max_inflight_messages (20): at most 20 PUBREC, then it is
  *                 dropped with ONE WARNING "Mqtt: QoS 2 PUBLISH past
  *                 max_inflight_messages (Receive Maximum), disconnecting".
+ *              7. MQTT 3.1.1, then 8: A as in 1, then STALLED: a receive
+ *                 buffer of 4 KB (and the broker's side a send buffer of
+ *                 4 KB), it reads nothing more and sends 5 SUBSCRIBEs of 8000
+ *                 times "a" and 0xF0: the broker's close waits for 40 KB of
+ *                 SUBACKs it cannot write. B takes the session over while A
+ *                 is still closing: with a clean session (7) NOTHING, keeping
+ *                 it (8) the 5 messages.
  *
- *          Up to 7.30.26 B of 1 and 2 got the 5 messages of A's session:
+ *          Up to 7.30.26 B of 1, 2 and 7 got the 5 messages of A's session:
  *          the broker deleted the queues of a session not kept only when it
  *          had no connection, and a connection told to go by a take-over
- *          deleted them only when IT had a clean session. And C of 6 was
+ *          deleted them only when IT had a clean session (and one still
+ *          closing left them to the end of its close). And C of 6 was
  *          dropped with no log (the path without queues said its WARNING).
  *
  *          Copyright (c) 2026, ArtGins.
@@ -44,6 +52,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/select.h>
 #include <yunetas.h>
 #include "c_broker_sessions.h"
 
@@ -57,6 +66,9 @@
 #define STEP_MSEC           5000        // a step that takes longer failed
 #define SETTLE_MSEC         1000        // what B gets after its CONNACK
 #define RX_MAX              (64*1024)
+#define BIG_SUBSCRIBES      5
+#define BIG_FILTERS         8000        // a SUBACK of 8 KB: 40 KB that a stalled A never takes
+#define BIG_REMAINING       (2 + BIG_FILTERS * 4)
 
 enum {
     SC_CLEAN_311 = 0,
@@ -65,6 +77,8 @@ enum {
     SC_KEEP_5,
     SC_CLOSING_CLEAN_5,
     SC_QOS2_FLIGHT_311,
+    SC_STALLED_CLEAN_311,
+    SC_STALLED_KEEP_311,
     SC_END
 };
 
@@ -83,7 +97,18 @@ typedef struct {
     int pubrec;
     int publish;
     int disconnect;
+    BOOL no_read;           // stalled: reads nothing more
+    const uint8_t *tx;      // what is still to be written, as the kernel takes it
+    size_t tx_len;
+    size_t tx_off;
 } client_t;
+
+/*
+ *  A's burst when it stalls: 5 SUBSCRIBEs of 8000 times "a" (MQTT 3.1.1) and
+ *  0xF0 (a type the server does not take: the close, which waits for the
+ *  SUBACKs to be written). Not of gbmem: built once.
+ */
+PRIVATE uint8_t burst[BIG_SUBSCRIBES * (4 + BIG_REMAINING) + 2];
 
 /***************************************************************************
  *              Prototypes
@@ -141,6 +166,24 @@ PRIVATE void mt_create(hgobj gobj)
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->a.fd = -1;
     priv->b.fd = -1;
+
+    size_t n = 0;
+    for(int k=0; k<BIG_SUBSCRIBES; k++) {
+        burst[n++] = 0x82;                          // SUBSCRIBE, remaining length in 3 bytes
+        burst[n++] = (uint8_t)((BIG_REMAINING & 0x7F) | 0x80);
+        burst[n++] = (uint8_t)(((BIG_REMAINING >> 7) & 0x7F) | 0x80);
+        burst[n++] = (uint8_t)(BIG_REMAINING >> 14);
+        burst[n++] = 0x00;
+        burst[n++] = (uint8_t)(k + 10);             // packet id
+        for(int i=0; i<BIG_FILTERS; i++) {
+            burst[n++] = 0x00;
+            burst[n++] = 0x01;
+            burst[n++] = 'a';
+            burst[n++] = 0x00;                      // QoS 0
+        }
+    }
+    burst[n++] = 0xF0;                              // a type the server does not take
+    burst[n++] = 0x00;
 }
 
 /***************************************************************************
@@ -287,10 +330,15 @@ PRIVATE void send_packet(hgobj gobj, client_t *cl, uint8_t type, const uint8_t *
  *  Connect a raw client and send its CONNECT. keep: a session kept (clean
  *  session 0; MQTT 5: Session Expiry Interval 3600)
  ***************************************************************************/
-PRIVATE void client_connect(hgobj gobj, client_t *cl, int version, const char *client_id, BOOL keep)
+PRIVATE void client_connect(hgobj gobj, client_t *cl, int version, const char *client_id, BOOL keep, int rcvbuf)
 {
     memset(cl, 0, sizeof(*cl));
     cl->fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(cl->fd >= 0 && rcvbuf > 0 &&
+            setsockopt(cl->fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf)) < 0) {
+        case_failed(gobj, "TEST: cannot make the receive buffer small");
+        return;
+    }
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -371,7 +419,7 @@ PRIVATE void client_publish(hgobj gobj, client_t *cl, int version, uint8_t type,
  ***************************************************************************/
 PRIVATE void client_read(client_t *cl)
 {
-    if(cl->fd < 0 || cl->closed) {
+    if(cl->fd < 0 || cl->closed || cl->no_read) {
         return;
     }
     while(cl->rx_len < sizeof(cl->rx)) {
@@ -439,6 +487,57 @@ PRIVATE void client_read(client_t *cl)
 }
 
 /***************************************************************************
+ *  Write what the kernel takes of what a client still has to write
+ ***************************************************************************/
+PRIVATE void client_flush(hgobj gobj, client_t *cl)
+{
+    if(cl->fd < 0 || !cl->tx || cl->tx_off >= cl->tx_len) {
+        return;
+    }
+    ssize_t sent = send(cl->fd, cl->tx + cl->tx_off, cl->tx_len - cl->tx_off, MSG_DONTWAIT|MSG_NOSIGNAL);
+    if(sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        case_failed(gobj, "TEST: a raw client cannot write");
+        return;
+    }
+    if(sent > 0) {
+        cl->tx_off += (size_t)sent;
+    }
+}
+
+/***************************************************************************
+ *  Give a small send buffer to the broker's side of the connection of a
+ *  raw client: the socket of this process whose local port is the
+ *  broker's and whose peer is the client
+ ***************************************************************************/
+PRIVATE void small_send_buffer_of_broker(hgobj gobj, int fd_client)
+{
+    struct sockaddr_in local;
+    socklen_t len = sizeof(local);
+    if(getsockname(fd_client, (struct sockaddr *)&local, &len) < 0) {
+        case_failed(gobj, "TEST: getsockname() FAILED");
+        return;
+    }
+    for(int fd=3; fd<FD_SETSIZE; fd++) {
+        struct sockaddr_in me, peer;
+        socklen_t lme = sizeof(me), lpeer = sizeof(peer);
+        if(fd == fd_client ||
+                getsockname(fd, (struct sockaddr *)&me, &lme) < 0 ||
+                getpeername(fd, (struct sockaddr *)&peer, &lpeer) < 0 ||
+                me.sin_family != AF_INET ||
+                ntohs(me.sin_port) != BROKER_PORT ||
+                peer.sin_port != local.sin_port) {
+            continue;
+        }
+        int sndbuf = 4096;
+        if(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf)) < 0) {
+            case_failed(gobj, "TEST: cannot make the send buffer of the broker small");
+        }
+        return;
+    }
+    case_failed(gobj, "TEST: the broker's side of the raw client not found");
+}
+
+/***************************************************************************
  *  Close the raw clients
  ***************************************************************************/
 PRIVATE void close_clients(hgobj gobj)
@@ -474,7 +573,8 @@ PRIVATE void run_step(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int sc = priv->scenario;
     int version = (sc == SC_CLEAN_5 || sc == SC_KEEP_5 || sc == SC_CLOSING_CLEAN_5)? 5 : 4;
-    BOOL b_keeps = (sc == SC_KEEP_311 || sc == SC_KEEP_5);
+    BOOL b_keeps = (sc == SC_KEEP_311 || sc == SC_KEEP_5 || sc == SC_STALLED_KEEP_311);
+    BOOL stalled = (sc == SC_STALLED_CLEAN_311 || sc == SC_STALLED_KEEP_311);
     char client_id[32];
     char filter[32];
     char topic[32];
@@ -485,7 +585,7 @@ PRIVATE void run_step(hgobj gobj)
     if(sc == SC_QOS2_FLIGHT_311) {
         switch(priv->step) {
             case 0:
-                client_connect(gobj, &priv->a, 4, client_id, FALSE);
+                client_connect(gobj, &priv->a, 4, client_id, FALSE, 0);
                 next_step(gobj);
                 break;
             case 1:
@@ -519,11 +619,14 @@ PRIVATE void run_step(hgobj gobj)
 
     switch(priv->step) {
         case 0:
-            client_connect(gobj, &priv->a, version, client_id, TRUE);
+            client_connect(gobj, &priv->a, version, client_id, TRUE, stalled? 4096 : 0);
             next_step(gobj);
             break;
         case 1:
             if(priv->a.connack == 1) {
+                if(stalled) {
+                    small_send_buffer_of_broker(gobj, priv->a.fd);
+                }
                 client_subscribe(gobj, &priv->a, version, filter);
                 for(int m=1; m<=N_MESSAGES; m++) {
                     client_publish(gobj, &priv->a, version, 0x32, topic, (uint16_t)m);
@@ -540,12 +643,23 @@ PRIVATE void run_step(hgobj gobj)
                         return;
                     }
                 }
+                if(stalled) {
+                    priv->a.no_read = TRUE;
+                    priv->a.tx = burst;
+                    priv->a.tx_len = sizeof(burst);
+                    priv->a.tx_off = 0;
+                    client_flush(gobj, &priv->a);
+                    priv->t_settle = start_msectimer(500);  // the close waiting for the SUBACKs
+                }
                 next_step(gobj);
             }
             break;
         case 3:
+            if(stalled && (priv->a.tx_off < priv->a.tx_len || !test_msectimer(priv->t_settle))) {
+                break;
+            }
             if(sc != SC_CLOSING_CLEAN_5 || priv->a.disconnect == 1) {
-                client_connect(gobj, &priv->b, version, client_id, b_keeps);
+                client_connect(gobj, &priv->b, version, client_id, b_keeps, 0);
                 next_step(gobj);
             }
             break;
@@ -602,6 +716,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    client_flush(gobj, &priv->a);
     client_read(&priv->a);
     client_read(&priv->b);
 
