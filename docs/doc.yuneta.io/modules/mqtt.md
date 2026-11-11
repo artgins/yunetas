@@ -441,8 +441,12 @@ size plus about 300 bytes. The messages a broker forwards to a subscriber
 - **the reading of the peer is paused.** The rest of the read waits in the
   protocol (a copy, at most one read of the `C_TCP`, 4 KB), and the `C_TCP`
   reads nothing more (`rx_paused`). The peer's own TCP window then stops it.
-- **The `EV_TX_READY` of the queue written resumes it:** the rest is read, and
-  then the `C_TCP` reads again.
+- **The `EV_TX_READY` of the queue written resumes it:** the rest is read
+  while the `C_TCP` is still paused, and the `C_TCP` reads again only when all
+  of the rest was read with no new pause. If the rest passes the bound again,
+  what is left of it waits (shorter each time) for the next `EV_TX_READY`.
+  Nothing is added to the rest but the read that was already in flight when
+  the reading was first paused (a TLS read can bring several records).
 - **`timeout_close` (3 s) at most between two looks:** if the queue is empty,
   the reading resumes; if something of it was written since the last look,
   the protocol waits another `timeout_close`; if nothing was written, the
@@ -453,8 +457,10 @@ size plus about 300 bytes. The messages a broker forwards to a subscriber
   rest), and the rest of the read is not processed.
 
 So a connection holds about the bound of answers (about 100 KB) and one read,
-whatever the queue of forwarded messages holds, and the cost on each packet is
-a counter. A pool of 1000 anonymous connections that do not read holds about
+whether its peer reads or not, whatever the queue of forwarded messages holds,
+and the cost on each packet is a counter. 20 peers that send PINGREQ without
+end and read every answer hold about 2.6 MB in all, for as long as they go
+on. A pool of 1000 anonymous connections that do not read holds about
 130 MB, not the 3.7 GB of the bound in packets that came before it. A peer
 that reads is never dropped for its answers, however much it pipelines: 3000
 QoS 1 PUBLISH or 30000 PINGREQ in one write get every answer, at the pace the
@@ -512,7 +518,13 @@ queue (it was dropped). The bound in bytes that came next (never released)
 dropped instead of pausing: a reader that pipelines cannot show progress
 inside one read, so a client of 1000 QoS 1 in one write was dropped after 4
 PUBACKs. And a drop was said three times: its WARNING, then *"Timeout waiting
-mqtt disconnected"* at `timeout_close`, then the `C_TCP`'s abort. `max_tx_queue` of `C_TCP` is not a way out: it discards the oldest
+mqtt disconnected"* at `timeout_close`, then the `C_TCP`'s abort. The first
+pause that came next (never released) let the `C_TCP` read again before the
+rest held was read: the rest paused the reading again after about 331
+PINGREQ, the new read came while paused and went behind it, and a peer that
+pipelined PINGREQ AND read its answers grew the rest by about 3.4 KB on each
+pause, copied whole each time: the memory without bound and the CPU at
+100 %, with no WARNING (a broker with 50 such peers, 41 to 105 MB in 30 s). `max_tx_queue` of `C_TCP` is not a way out: it discards the oldest
 packet (the stream is broken) with an ERROR every `max_tx_queue` packets.
 
 The protocol refuses on its own a client id with a character that is not

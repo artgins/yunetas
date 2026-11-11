@@ -10820,10 +10820,16 @@ PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Server: the end of a pause of the reading: the counts start again, the
- *  rest held is read now, and then the C_TCP reads again. Synchronous: no
- *  new read of the C_TCP ends before this returns, so the bytes keep their
- *  order (if the rest pauses the reading again, the read just started
- *  goes behind it, append_to_held_read())
+ *  rest held is read now, and the C_TCP reads again only if all of it was
+ *  read with no new pause. A pause inside the rest keeps the C_TCP paused
+ *  and holds what is left of it (shorter each time), so nothing is ever
+ *  appended to it but the read that was in flight at the first pause: a
+ *  connection holds the bound and one read. Up to the fix the C_TCP was
+ *  let read first: the rest paused again (after about 331 PINGREQ), the
+ *  read just started came while paused and went behind it, and a peer
+ *  that pipelines and reads grew the rest held by about 3.4 KB on each
+ *  pause, copied whole each time: the memory without bound and the CPU at
+ *  100 %.
  ***************************************************************************/
 PRIVATE void resume_reading(hgobj gobj)
 {
@@ -10835,9 +10841,11 @@ PRIVATE void resume_reading(hgobj gobj)
     priv->tx_since_check = 0;
     priv->answers_since_check = 0;
     clear_timeout(priv->gobj_timer);
-    gobj_write_bool_attr(gobj_bottom_gobj(gobj), "rx_paused", FALSE);
     if(kw_held) {
         gobj_send_event(gobj, EV_RX_DATA, kw_held, gobj);
+    }
+    if(!priv->rx_hold) {
+        gobj_write_bool_attr(gobj_bottom_gobj(gobj), "rx_paused", FALSE);
     }
 }
 

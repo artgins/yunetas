@@ -71,6 +71,7 @@ SET(SRCS
     broker_no_play
     broker_answers
     broker_stop_drain
+    gate_reader
 )
 
 ##############################################

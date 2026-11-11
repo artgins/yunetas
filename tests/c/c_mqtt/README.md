@@ -270,6 +270,20 @@ answered by a SUBACK of 16 KB: paused, dropped, the memory growing less than
 176 MB; case 2 not dropped after 150 SUBSCRIBEs, 2.3 MB; and the drop said a
 second time, *"Timeout waiting mqtt disconnected"*.
 
+`test_mqtt_gate_reader` (`main_gate_reader.c` + `c_gate_reader.c`) is the
+bound on the answers against peers that pipeline AND read, over REAL sockets
+(port 18125): 20 raw plain sockets with the kernel's default buffers, each
+sending a CONNECT and then PINGREQ without end (up to 512 KB of them not yet
+answered) and reading everything every 20 ms, for 20 s. The reading of each
+is paused by the bound again and again and resumed when its answers are
+written: none is dropped, each gets its CONNACK and one PINGRESP per PINGREQ,
+in order (checked byte by byte), and the memory grows less than 5 MB
+(measured: 2.6 MB, the bound and one read each; about 11 million PINGRESP in
+the run). Then the clients stop, get the PINGRESP still owed to them, and
+close. No WARNING. Red on the first pause (never released): the resume let
+the `C_TCP` read before the rest held was read, the rest grew by a read on
+each pause, and the memory passed 5 MB in under 2 s.
+
 `test_mqtt_broker_answers` (`main_broker_answers.c` + `c_broker_answers.c`)
 runs the broker on port 18123 and RAW MQTT 3.1.1 clients that read
 everything: 1. S subscribes to `fc/#` and publishes 30000 QoS 0 to `fc/x` in
@@ -345,7 +359,8 @@ DISCONNECT 0x82.
 The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
 `client_noqueue`, `gate_cut`, `gate_flood`, `gate_answers`,
-`broker_takeover`, `broker_no_play`, `broker_answers`, `broker_stop_drain`)
+`broker_takeover`, `broker_no_play`, `broker_answers`, `broker_stop_drain`,
+`gate_reader`)
 work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.
