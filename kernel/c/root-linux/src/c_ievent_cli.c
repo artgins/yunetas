@@ -39,6 +39,7 @@ PRIVATE int send_static_iev(
     hgobj src
 );
 PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw);
+PRIVATE BOOL transport_closing(hgobj gobj);
 PRIVATE json_t *build_cli_ievent_request(
     hgobj gobj,
     const char *src_service,
@@ -117,6 +118,7 @@ typedef struct _PRIVATE_DATA {
     BOOL inside_on_open;    // TODO review,not used
                             // avoid duplicates, no subscriptions while in on_open,
                             // they will send in resend_subscriptions
+    BOOL closing_logged;    // "Transport closing" was logged in this session
 
 } PRIVATE_DATA;
 
@@ -244,12 +246,13 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    if(gobj_current_state(gobj) != ST_SESSION) {
+    if(gobj_current_state(gobj) != ST_SESSION || transport_closing(gobj)) {
         /*
-         *  The link is down: answered at once, as mt_command() does (up to
-         *  7.30.26 NULL, "the answer will come", and none came: the agent's
-         *  stats-agent service=controlcenter waited for its timeout, after an
-         *  ERROR with a stack).
+         *  The link is down, or closing (see transport_closing()): answered
+         *  at once, as mt_command() does (up to 7.30.26 NULL, "the answer
+         *  will come", and none came: the agent's stats-agent
+         *  service=controlcenter waited for its timeout, after an ERROR with
+         *  a stack).
          */
         char name[65];  // the caller's text: masked, then capped (a cap first can unshape a token)
         mask_secrets_inline_capped(name, sizeof(name), stats? stats : "", stats? strlen(stats) : 0);
@@ -322,10 +325,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
-    if(gobj_current_state(gobj) != ST_SESSION) {
+    if(gobj_current_state(gobj) != ST_SESSION || transport_closing(gobj)) {
         /*
-         *  The link is down: a state, not a broken contract, and a peer with
-         *  a session in this yuno can ask it (command-agent
+         *  The link is down, or closing: a state, not a broken contract,
+         *  and a peer with a session in this yuno can ask it (command-agent
          *  service=controlcenter). Answered at once: NULL is "the answer will
          *  come", and none would (up to 7.30.26 the caller waited for ever,
          *  after an ERROR with a stack).
@@ -731,7 +734,24 @@ PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw)
 }
 
 /***************************************************************************
+ *  TRUE when the transport below can carry nothing more: the server closed
+ *  (a WebSocket Close, or a protocol error, puts C_WEBSOCKET in
+ *  ST_DISCONNECTED at once, and so does C_PROT_TCP4H's), while the
+ *  EV_ON_CLOSE that ends this session comes when the connection ends: a
+ *  client waits for the server to end it, or for its `timeout_close`. Up to
+ *  7.30.26 what was sent in between was "Event NOT DEFINED in state" in the
+ *  transport, an ERROR with a stack, and lost.
+ ***************************************************************************/
+PRIVATE BOOL transport_closing(hgobj gobj)
+{
+    hgobj below_gobj = gobj_bottom_gobj(gobj);
+    return below_gobj && gobj_in_this_state(below_gobj, ST_DISCONNECTED);
+}
+
+/***************************************************************************
  *  Route must be connected
+ *  A transport that is closing takes nothing: what goes to it is dropped
+ *  with one WARNING per session (see transport_closing())
  ***************************************************************************/
 PRIVATE int send_static_iev(
     hgobj gobj,
@@ -740,7 +760,24 @@ PRIVATE int send_static_iev(
     hgobj src
 )
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     hgobj below_gobj = gobj_bottom_gobj(gobj);
+
+    if(transport_closing(gobj)) {
+        if(!priv->closing_logged) {
+            priv->closing_logged = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "Transport closing, nothing sent",
+                "event",        "%s", event,
+                NULL
+            );
+        }
+        KW_DECREF(kw)
+        return -1;
+    }
+
     uint32_t trace_level = gobj_trace_level(gobj);
 
     if(trace_level) {
@@ -1040,6 +1077,9 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->closing_logged = FALSE;
+
     /*
      *  Route (channel) close.
      */

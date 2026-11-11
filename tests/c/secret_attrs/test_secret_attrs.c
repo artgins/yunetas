@@ -59,6 +59,15 @@
  *               first word, "store-blob <...>". Up to 7.30.26 the stack was
  *               looked for under a name no emitter uses, and its line went
  *               masked by names only.
+ *            4f. A C_IEVENT_SRV and a C_IEVENT_CLI in session whose
+ *               C_WEBSOCKET is closing (ST_DISCONNECTED, as a Close of the
+ *               peer leaves it before EV_ON_CLOSE): a command and a stats
+ *               are answered -1 "not in session", an answer and an event
+ *               to the peer return -1, with ONE WARNING "Transport
+ *               closing, nothing sent" per channel and no ERROR. Up to
+ *               7.30.26 each was "Event NOT DEFINED in state" in the
+ *               transport (an ERROR with a stack) and a command or a stats
+ *               was never answered.
  *            2b. view-config also masks: a secret that is a number, a
  *               'global' key whose prefix is the name of a child (not a
  *               gclass, not a service), and the __json_config_variables__
@@ -2194,6 +2203,63 @@ PRIVATE void check_secret_values(hgobj gobj)
     check_int("an event out of session (C_IEVENT_CLI): -1",
         gobj_send_event(cli, EV_SEND_IEV, json_object(), gobj), -1);
     unwatch_peer("an event out of session (C_IEVENT_CLI)");
+
+    /*
+     *  In session, its transport closing: the peer's WebSocket Close put
+     *  C_WEBSOCKET in ST_DISCONNECTED at once, and the EV_ON_CLOSE that ends
+     *  the session comes when the connection ends. A command or a stats is
+     *  answered -1 "not in session"; an answer or an event to the peer is
+     *  dropped, with ONE WARNING "Transport closing, nothing sent" for all
+     *  of them. Up to 7.30.26 each was "Event NOT DEFINED in state" in the
+     *  transport, an ERROR with a stack, and the caller of a command or a
+     *  stats waited for ever.
+     */
+    hgobj srv_closing = gobj_create("ievent-srv-closing", C_IEVENT_SRV, 0, gobj);
+    gobj_set_bottom_gobj(srv_closing, gobj_create(
+        "ievent-srv-closing", C_WEBSOCKET, json_pack("{s:b}", "iamServer", 1), srv_closing
+    ));
+    gobj_change_state(srv_closing, ST_SESSION);
+    hgobj cli_closing = gobj_create("ievent-cli-closing", C_IEVENT_CLI, 0, gobj);
+    gobj_set_bottom_gobj(cli_closing, gobj_create(
+        "ievent-cli-closing", C_WEBSOCKET, json_pack("{s:b}", "iamServer", 0), cli_closing
+    ));
+    gobj_change_state(cli_closing, ST_SESSION);
+
+    watch("closing-not-written", "Not in session");
+    resp = gobj_command(srv_closing, "help", 0, gobj);
+    check_not_in_session("a command, its transport closing (C_IEVENT_SRV)", resp);
+    JSON_DECREF(resp)
+    resp = gobj_stats(srv_closing, "", 0, gobj);
+    check_not_in_session("a stats, its transport closing (C_IEVENT_SRV)", resp);
+    JSON_DECREF(resp)
+    resp = gobj_command(cli_closing, "help", 0, gobj);
+    check_not_in_session("a command, its transport closing (C_IEVENT_CLI)", resp);
+    JSON_DECREF(resp)
+    resp = gobj_stats(cli_closing, "", 0, gobj);
+    check_not_in_session("a stats, its transport closing (C_IEVENT_CLI)", resp);
+    JSON_DECREF(resp)
+    unwatch_peer("a command and a stats, the transport closing");
+
+    watch("closing-not-written", "Transport closing, nothing sent");
+    json_t *kw_answer = json_object();
+    push_command_frame(gobj, kw_answer, "help", "ievent-srv-closing");
+    check_int("an answer, the transport closing (C_IEVENT_SRV): -1",
+        gobj_send_event(srv_closing, EV_MT_COMMAND_ANSWER, kw_answer, gobj), -1);
+    check_int("an event to the peer, the transport closing (C_IEVENT_SRV): -1",
+        gobj_send_event(srv_closing, EV_TEST_SECRET_PUB, json_object(), gobj), -1);
+    unwatch_peer("an answer and an event, the transport closing (C_IEVENT_SRV)");
+    check_int("the transport closing (C_IEVENT_SRV): ONE warning", s_watch_msg_seen, 1);
+    watch("closing-not-written", "Transport closing, nothing sent");
+    check_int("an event to the server, the transport closing (C_IEVENT_CLI): -1",
+        gobj_send_event(cli_closing, EV_SEND_IEV,
+            iev_create(gobj, EV_MT_COMMAND_ANSWER, json_object()), gobj),
+        -1);
+    check_int("another event to the server, the transport closing (C_IEVENT_CLI): -1",
+        gobj_send_event(cli_closing, EV_TEST_SECRET_PUB, json_object(), gobj), -1);
+    unwatch_peer("two events, the transport closing (C_IEVENT_CLI)");
+    check_int("the transport closing (C_IEVENT_CLI): ONE warning", s_watch_msg_seen, 1);
+    gobj_destroy(srv_closing);
+    gobj_destroy(cli_closing);
 
     /*
      *  Masked BEFORE they are capped: capped first, the token that the cap

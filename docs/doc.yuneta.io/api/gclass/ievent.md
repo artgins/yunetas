@@ -617,7 +617,7 @@ service=controlcenter` with the link down never answered, after an ERROR with a
 stack. An event sent to a `C_IEVENT_CLI` out of session (`mt_inject_event`)
 still returns -1, and logs one WARNING instead of an ERROR with a stack.
 `C_IEVENT_SRV` answers a command or a stats out of session the same way (-1,
-one WARNING): it happens only in a race with the close of its peer.
+one WARNING).
 
 ```bash
 ycommand -c 'stats-agent service=controlcenter'
@@ -625,6 +625,39 @@ ycommand -c 'stats-agent service=controlcenter'
 
 ```text
 yuneta_agent^node1: service 'controlcenter' not in session
+```
+
+**A peer that is closing.** A WebSocket Close of the peer (or a protocol error
+of its frames) puts `C_WEBSOCKET` in `ST_DISCONNECTED` at once, and so does
+the close of `C_PROT_TCP4H`; the channel leaves `ST_SESSION` only at its
+`EV_ON_CLOSE`, when the connection ends, on a later turn of the loop (a
+client waits for the server to end it, or for its `timeout_close`). In that
+window the channel is still in session, but its transport takes nothing.
+`C_IEVENT_SRV` and `C_IEVENT_CLI` ask their transport first (its state is
+`ST_DISCONNECTED`): a command or a stats is answered -1 *"`<yuno>`: service
+'`<name>`' not in session"* with one WARNING *"Not in session"*, as out of
+session; anything else that goes to the peer -- an answer, an event of a
+subscription, an injected event -- is dropped, and the channel logs one
+WARNING *"Transport closing, nothing sent"* per session, naming the first
+event. Up to 7.30.26 each of them was *"Event NOT DEFINED in state"* in the
+transport, an ERROR with a stack, and the caller of a command or a stats
+waited for ever. The agent's `stats-yuno` or `command-yuno` to a yuno that
+closes just then is the usual case. So a caller of `gobj_command()` or
+`gobj_stats()` on a channel takes a non-NULL return as the answer, and as
+*nothing sent*:
+
+```c
+json_t *webix = gobj_command(channel_gobj, "help", kw, src);    // kw owned
+if(webix) {
+    /*
+     *  Answered at once: the channel is out of session, or its peer is
+     *  closing. Nothing went to the peer, and no answer will come.
+     */
+    int result = (int)kw_get_int(gobj, webix, "result", -1, 0);     // -1
+    JSON_DECREF(webix)
+    return result;
+}
+return 0;   // sent: the answer comes as EV_MT_COMMAND_ANSWER
 ```
 
 The `ievents` and `ievents2` traces of `C_IEVENT_CLI` and `C_IEVENT_SRV`

@@ -80,6 +80,7 @@ PRIVATE int send_static_iev(
     hgobj src
 );
 PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw);
+PRIVATE BOOL transport_closing(hgobj gobj);
 PRIVATE json_t *build_srv_ievent_request(
     hgobj gobj,
     const char *src_service,
@@ -258,6 +259,7 @@ typedef struct _PRIVATE_DATA {
     json_t *refused_subscriptions;  // "service`event" -> subscriptions refused (authz, size, cap) (not a kw path)
     BOOL subscriptions_capped;      // max_subscriptions was logged, until the peer is under it again
     peer_log_t peer_log[PEER_LOG_KINDS];
+    BOOL closing_logged;            // "Transport closing" was logged in this session
 } PRIVATE_DATA;
 
 
@@ -377,11 +379,13 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    if(gobj_current_state(gobj) != ST_SESSION) {
+    if(gobj_current_state(gobj) != ST_SESSION || transport_closing(gobj)) {
         /*
-         *  The peer is gone (a race with its close): a state, not a broken
-         *  contract. Answered at once, as C_IEVENT_CLI does (up to 7.30.26
-         *  NULL, "the answer will come", after an ERROR with a stack).
+         *  The peer is gone, or closing (see transport_closing()): a state,
+         *  not a broken contract. Answered at once, as C_IEVENT_CLI does (up
+         *  to 7.30.26 NULL, "the answer will come", and none came: out of
+         *  session after an ERROR with a stack, closing after "Event NOT
+         *  DEFINED in state" in the transport).
          */
         char name[65];  // the caller's text: masked, then capped (a cap first can unshape a token)
         mask_secrets_inline_capped(name, sizeof(name), stats? stats : "", stats? strlen(stats) : 0);
@@ -454,11 +458,11 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
-    if(gobj_current_state(gobj) != ST_SESSION) {
+    if(gobj_current_state(gobj) != ST_SESSION || transport_closing(gobj)) {
         /*
-         *  The peer is gone (a race with its close): answered at once, as
-         *  mt_stats(). The name only (the line carries the parameters),
-         *  masked: the first word can be a secret
+         *  The peer is gone, or closing: answered at once, as mt_stats().
+         *  The name only (the line carries the parameters), masked: the
+         *  first word can be a secret
          */
         const char *line = command? command : "";
         char name[65];
@@ -738,7 +742,25 @@ PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw)
 }
 
 /***************************************************************************
+ *  TRUE when the transport below can carry nothing more: its peer closed.
+ *  A WebSocket Close (or a protocol error) puts C_WEBSOCKET in
+ *  ST_DISCONNECTED at once, and so does C_PROT_TCP4H's, while the
+ *  EV_ON_CLOSE that ends this session comes when the connection ends, on a
+ *  later turn of the loop. Up to 7.30.26 what was sent in between --
+ *  a command or a stats of a caller, an answer, a publication -- was
+ *  "Event NOT DEFINED in state" in the transport, an ERROR with a stack,
+ *  and lost.
+ ***************************************************************************/
+PRIVATE BOOL transport_closing(hgobj gobj)
+{
+    hgobj below_gobj = gobj_bottom_gobj(gobj);
+    return below_gobj && gobj_in_this_state(below_gobj, ST_DISCONNECTED);
+}
+
+/***************************************************************************
  *  Route must be connected
+ *  A transport that is closing takes nothing: what goes to it is dropped
+ *  with one WARNING per session (see transport_closing())
  ***************************************************************************/
 PRIVATE int send_static_iev(
     hgobj gobj,
@@ -747,9 +769,27 @@ PRIVATE int send_static_iev(
     hgobj src
 )
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     hgobj below_gobj = get_bottom_gobj(gobj);
     if(!below_gobj) {
         // Error already logged
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(transport_closing(gobj)) {
+        if(!priv->closing_logged) {
+            priv->closing_logged = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
+                "msg",          "%s", "Transport closing, nothing sent",
+                "event",        "%s", event,
+                NULL
+            );
+        }
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -888,6 +928,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     json_object_clear(priv->refused_subscriptions);
     priv->subscriptions_capped = FALSE;
     memset(priv->peer_log, 0, sizeof(priv->peer_log));
+    priv->closing_logged = FALSE;
 
     /*
      *  Route (channel) close.
