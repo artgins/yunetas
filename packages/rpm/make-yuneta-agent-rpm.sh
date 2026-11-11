@@ -1996,8 +1996,11 @@ done
 # --- Save the node's web server choice ---
 #
 # The package stopped shipping /etc/yuneta/webserver, and a file an upgrade no
-# longer provides is a file rpm removes. Same trap nginx.conf fell into, so
-# the same net: copy it aside here, %posttrans puts it back.
+# longer provides is a file rpm removes. Same trap nginx.conf fell into: copy
+# it aside here. %post restores the copy only when the file is ABSENT, which
+# it is not yet on an upgrade from a package that shipped it (7.11.0-1/-2):
+# rpm removes it after %post, and %posttrans restores nginx.conf only. Such a
+# node gets the file back by hand from webserver.pkgsave (or .rpmsave).
 if [ -f /etc/yuneta/webserver ]; then
     cp -a /etc/yuneta/webserver /etc/yuneta/webserver.pkgsave || true
     echo "[pre] saved /etc/yuneta/webserver"

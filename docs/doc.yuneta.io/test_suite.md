@@ -53,9 +53,11 @@ target_compile_definitions(${binary} PRIVATE IDP_PORT="${idp_port}")
 ```
 
 The script reads those values from the `flags.make` of each target, so it
-needs a configured `build/` (as `check_test_databases.py` does). Without one
-it names the CMakeLists.txt and exits 1: a port it cannot read is a port it
-did not check.
+needs a configured `build/` of the Makefile generator (as
+`check_test_databases.py` does; `yunetas` configures it that way). Without
+one, or when a computed name is in no `flags.make` of the dir (a Ninja tree
+has none), it names the CMakeLists.txt and exits 1: a port it cannot read is
+a port it did not check.
 
 The `c_mqtt` tests that keep a store make a work dir of their
 own run, `<$TMPDIR or /tmp>/<name>.<pid>.<n>`, and remove it at the end

@@ -128,11 +128,14 @@ def own_network_namespace(d):
 def computed_ports(build_dir, rel_dir, names):
     """The ports named `names` that CMake computed for the targets of the
     source dir rel_dir, read from the flags.make of each target in the build
-    tree: {(port, target)}. None when that dir has no configured build."""
+    tree: {(port, target)}. None when that dir has no configured build, or
+    when a name is not found in it (a tree of another generator, Ninja,
+    has no flags.make: not checked is a failure, never a pass)."""
     cmake_files = os.path.join(build_dir, rel_dir, 'CMakeFiles')
     if not os.path.isdir(cmake_files):
         return None
     found = set()
+    seen = set()
     for entry in sorted(os.listdir(cmake_files)):
         if not entry.endswith('.dir'):
             continue
@@ -145,6 +148,9 @@ def computed_ports(build_dir, rel_dir, names):
         for m in FLAGS_PORT.finditer(text):
             if m.group(1) in names:
                 found.add((int(m.group(2)), entry[:-len('.dir')]))
+                seen.add(m.group(1))
+    if seen != set(names):
+        return None
     return found
 
 
@@ -188,8 +194,9 @@ def main():
                         found = computed_ports(build_dir, rel_dir, computed)
                         if found is None:
                             print(f'{rel}: {", ".join(sorted(computed))} computed by CMake, '
-                                  f'and {os.path.join(build_dir, rel_dir)} is not '
-                                  f'configured: build the tests first', file=sys.stderr)
+                                  f'and not found in the flags.make of {os.path.join(build_dir, rel_dir)} '
+                                  f'(not configured, or not a Makefile tree): '
+                                  f'build the tests first', file=sys.stderr)
                             unreadable += 1
                             continue
                         for port, target in found:
