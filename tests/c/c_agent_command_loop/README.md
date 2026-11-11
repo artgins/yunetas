@@ -49,6 +49,13 @@ the parser `command-agent`, and the first of these lines killed the agent
 the same way. Quotes cannot nest a third level (the next quote of its kind
 closes a quoted word), so the last line names no command either.
 
+Then `command-agent service=controlcenter command=list-yunos`: that service
+is the agent's link to the control center (`C_IEVENT_CLI`), down in the
+sandbox. It must answer -1 *"…: service 'controlcenter' not in session"* at
+once, and the agent log must hold one WARNING *"Not in session"* and no
+ERROR. Up to 7.30.26 the link returned NULL (*"the answer will come"*) after
+an ERROR with a stack, and the peer waited for ever.
+
 Then `command-agent command="help cmd=list-yunos"` is still forwarded and
 answered, and the agent answers a `help`.
 

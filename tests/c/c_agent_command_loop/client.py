@@ -12,6 +12,9 @@
 #   Lines with two levels of quotes are no command for the guard nor for
 #   the parser (each reads the first word once): "command not available".
 #
+#   A command-agent to a service that is a link to another yuno (the
+#   control center's), with the link down: answered at once with -1.
+#
 #   Then a command-agent of another command (help) is still forwarded and
 #   answered, and the session still works.
 #
@@ -160,6 +163,14 @@ async def main():
             return
         check("command-agent, kw command=%r: %s" % (kw_line, r.get("comment")),
             r.get("result") == -1 and "command not available" in (r.get("comment") or ""))
+
+    #   A service of the agent that is a link to another yuno, with the link
+    #   down (the sandbox has no control center): an answer at once, -1.
+    #   Up to 7.30.26 the link answered nothing (NULL is "the answer will
+    #   come") and the peer waited for ever
+    r = await ask(ws, "command-agent service=controlcenter command=list-yunos", {}, secs=5)
+    check("command-agent service=controlcenter with the link down: %s" % r.get("comment"),
+        r.get("result") == -1 and "not in session" in (r.get("comment") or ""))
 
     #   Another command is still forwarded
     r = await ask(ws, "command-agent command=\"help cmd=list-yunos\"", {})

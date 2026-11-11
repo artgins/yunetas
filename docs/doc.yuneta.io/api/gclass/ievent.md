@@ -594,6 +594,23 @@ word, capped to 64 bytes and masked: the line is forwarded whole, so up to
 now). A stats asked out of session (`mt_stats`) is said the same way, its
 name capped to 64 bytes and masked: it was logged whole (7.27.0+).
 
+`C_IEVENT_CLI` ANSWERS such a command at once: -1, *"`<yuno>`: service
+'`<name>`' not in session"*, and logs it as one WARNING with no stack
+(`MSGSET_OPERATIONAL`). A link that is down is a state, not a broken
+contract, and a peer with a session in the yuno can ask for it. Up to 7.30.26
+it returned NULL -- which for a command means *"the answer will come"* -- after
+an ERROR with a stack, and the caller waited for ever: the agent's
+`command-agent service=controlcenter` with the link to the control center
+down answered nothing.
+
+```bash
+ycommand -c 'command-agent service=controlcenter command=list-yunos'
+```
+
+```text
+yuneta_agent^node1: service 'controlcenter' not in session
+```
+
 The `ievents` and `ievents2` traces of `C_IEVENT_CLI` and `C_IEVENT_SRV`
 (`trace_inter_event()`, `trace_inter_event2()`) mask the same way, in both
 directions. A command (`__command__`, v6 or v7) is also masked by the command

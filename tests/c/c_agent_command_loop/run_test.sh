@@ -10,7 +10,9 @@
 #   each of those lines made the agent call itself until its stack
 #   overflowed (SIGSEGV), writing one audit record per call (~35 000);
 #   and so did a line with two levels of quotes, which the parser read
-#   twice and the guard once.
+#   twice and the guard once. And a command-agent to the control center's
+#   link, which is down in the sandbox, must be answered at once with -1
+#   and one WARNING (up to 7.30.26: no answer, and an ERROR with a stack).
 #   Then the agent is stopped in order: it must end with 0, with no
 #   "system memory not free" (the gbmem audit of CONFIG_DEBUG_TRACK_MEMORY),
 #   and its audit file must hold one record per command sent, not one per
@@ -94,6 +96,14 @@ if grep -aq "system memory not free" "$WORK/agent.log"; then
     echo "TEST FAILED: the agent ended with memory not free ($blocks blocks)"
     failed=1
 fi
+#   The command to the link that is down: one WARNING, no ERROR (7.30.26:
+#   an ERROR with a stack, and no answer)
+nis=$(grep -a '"msg": "Not in session"' "$WORK/agent.log" | grep -ac "WARNING")
+eis=$(grep -a '"msg": "Not in session"' "$WORK/agent.log" | grep -ac "ERROR")
+if [ "$nis" != "1" ] || [ "$eis" != "0" ]; then
+    echo "TEST FAILED: 'Not in session' logged as $nis WARNING(s) and $eis ERROR(s), expected one WARNING"
+    failed=1
+fi
 n=$(grep -ac "command-agent" "$WORK/audit.txt" 2>/dev/null)
 if [ -z "$n" ] || [ "$n" -lt 8 ] || [ "$n" -gt 20 ]; then
     echo "TEST FAILED: ${n:-no} audit records of command-agent, expected one per command sent (8 to 20)"
@@ -104,5 +114,5 @@ if [ $failed -ne 0 ]; then
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | cut -c1-600 | tail -40
     exit 1
 fi
-echo "TEST PASSED: every command-agent that names command-agent answered 'Loop command', and the agent lived"
+echo "TEST PASSED: every command-agent that names command-agent answered 'Loop command', the one to a link that is down answered -1, and the agent lived"
 exit 0
