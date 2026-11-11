@@ -57,7 +57,7 @@
 #define MEM_MAX_SYSTEM_MEMORY   0
 
 #define TCP_HELD_PORT   7784
-#define TLS_PORT        7798
+#define TLS_PORT        7792
 #define UDP_HELD_PORT   34301
 #define QUEUES_PATH     "/tmp/test_exit_on_error"
 
@@ -118,7 +118,7 @@ PRIVATE char config_tcp_held[] = VARIABLE_CONFIG_HEAD "\
 PRIVATE char config_tls_no_cert[] = VARIABLE_CONFIG_HEAD "\
             'gclass': 'C_TCP_S',                                    \n\
             'kw': {                                                 \n\
-                'url': 'tcps://127.0.0.1:7798',                     \n\
+                'url': 'tcps://127.0.0.1:7792',                     \n\
                 'crypto': {                                         \n\
                     'ssl_certificate': '" QUEUES_PATH "/none.crt',  \n\
                     'ssl_certificate_key': '" QUEUES_PATH "/none.key' \n\

@@ -14,8 +14,10 @@ sharing a port is a collision.
     python3 scripts/check_test_ports.py            # exit 1 on a collision, or a file not read
     python3 scripts/check_test_ports.py --list     # every port and its tests
 
-A port built at compile time (a -DPORT from CMake, as c_task_authenticate
-does) is not seen here: keep such ranges apart by hand.
+A port built at compile time is read from the `target_compile_definitions()`
+of a CMakeLists.txt (`TEST7_PORT_TLS="7798"`, `YUNETA_DNS_PORT=15353`), and
+belongs to the target named there: a test twin built with another TLS
+library from the same sources gets its ports this way.
 
 A test whose `run_test.sh` runs it in a network namespace of its own
 (`unshare` with `-n` or a bare `--net`, as c_agent_sandbox does) has a
@@ -31,8 +33,13 @@ import shlex
 import sys
 
 ROOTS = ['tests/c', 'performance/c']
-# Short options of unshare(1) that take a value in the next word
-UNSHARE_ARG_OPTS = set('SGRw')
+# Options of unshare(1) that take a value in the next word
+UNSHARE_ARG_OPTS = set('SGRwl')
+UNSHARE_LONG_ARG_OPTS = {
+    '--propagation', '--setgroups', '--map-user', '--map-users',
+    '--map-group', '--map-groups', '--owner', '--setuid', '--setgid',
+    '--root', '--wd', '--load-interp', '--monotonic', '--boottime',
+}
 EXTENSIONS = ('.c', '.h', '.json', '.py', '.sh')
 PATTERNS = [
     re.compile(r'[a-z]+s?://[^\s\'"/]*?:(\d{3,5})\b'),
@@ -41,6 +48,9 @@ PATTERNS = [
     re.compile(r'[\'"]\w*port\w*[\'"]\s*:\s*[\'"]?(\d{3,5})\b', re.I),
     re.compile(r'\bport\s*=\s*(\d{3,5})\b', re.I),
 ]
+CMAKE_DEFINITIONS = re.compile(
+    r'target_compile_definitions\(\s*([^\s)]+)([^)]*)\)', re.S)
+CMAKE_PORT = re.compile(r'\b\w*PORT\w*\s*=\s*\\?"?(\d{3,5})\b')
 
 
 def binary_of(path):
@@ -70,6 +80,8 @@ def unshare_runs_in_new_netns(words):
         if w.startswith('--'):
             if w == '--net':
                 new_netns = True
+            if w in UNSHARE_LONG_ARG_OPTS:
+                i += 1
             i += 1
             continue
         if w.startswith('-') and len(w) > 1:
@@ -92,7 +104,8 @@ def own_network_namespace(d):
             text = fh.read()
     except FileNotFoundError:
         return False
-    for line in text.splitlines():
+    # a command continued with a trailing backslash is one line
+    for line in text.replace('\\\n', ' ').splitlines():
         try:
             words = shlex.split(line, comments=True)
         except ValueError:
@@ -116,6 +129,23 @@ def main():
                 dirs[:] = []
                 continue
             for f in files:
+                if f == 'CMakeLists.txt':
+                    p = os.path.join(d, f)
+                    rel = os.path.relpath(p, base)
+                    try:
+                        with open(p, errors='replace') as fh:
+                            s = fh.read()
+                    except OSError as e:
+                        print(f'cannot read {rel}: {e.strerror}', file=sys.stderr)
+                        unreadable += 1
+                        continue
+                    for m in CMAKE_DEFINITIONS.finditer(s):
+                        target = os.path.join(os.path.relpath(d, base), m.group(1))
+                        for pm in CMAKE_PORT.finditer(m.group(2)):
+                            port = int(pm.group(1))
+                            if 1024 <= port <= 65535:
+                                ports[port][target].add(rel)
+                    continue
                 if not f.endswith(EXTENSIONS):
                     continue
                 p = os.path.join(d, f)
