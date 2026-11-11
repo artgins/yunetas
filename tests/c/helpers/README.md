@@ -53,9 +53,10 @@ secret attribute) is `<redacted>`. In a command line nested in another one
 or in the kw, and the command the agent forwards, whose kw holds the wrapper's
 line in `__command__`), every word with no key after the command name is
 `<...>`: `command-yuno ... command=set-user-pwd username=bob hunter2` and
-eighteen other shapes (quotes, `'\''`, `\"`, base64 that ends in `=`,
+sixteen other shapes (quotes, base64 that ends in `=`,
 `set-kc-config kc_realm=r <secret>`, a wrapper in a wrapper) keep
-`username=bob` and lose `hunter2` (7.30.26 wrote it); `kill-yuno 3` nested
+`username=bob` and lose `hunter2` (7.30.26 wrote it), and two more (`'\''`,
+`\"` in the value) lose it with the rest of the value; `kill-yuno 3` nested
 is `kill-yuno <...>`, and a command that is not nested keeps its words. The
 command name of a nested line in its own quotes is one word with the secret
 inside it (`command="'set-user-pwd username=bob hunter2'"`, `"'unlock'hunter2"`,
@@ -63,7 +64,14 @@ inside it (`command="'set-user-pwd username=bob hunter2'"`, `"'unlock'hunter2"`,
 a backslash (its enclosing quotes apart) is `<...>`, in the text, in
 `kw.command`, in the read-only record (`'list-x … hunter2'` no longer makes it
 read-only) and in the record forwarded (7.30.26 wrote it); `"'list-yunos'"`
-stays. A `stats=__reset__` makes a stats command a
+stays. The words of a nested line are the shell's, while its parser takes no
+`\` as an escape and a quote only where a value begins: from the first word
+the two cut otherwise, the rest of that line is `<...>` -- `command="set-user-pwd
+bob x=''\'' hunter2"` is `command="set-user-pwd <...> <...>"`, and
+`x=''\\'' y=6' <s>`, `\"COMMAND-AGENT\" command='kill-yuno <s>'`, `x=a' <s>'`,
+`x='a <s>`, `x='a'<s>` and `x=a\ <s>` lose the secret (7.30.26 wrote it); a
+`\"` in a `"..."` command value, where the parser ends it, makes the whole
+value `<...>`; what follows the value (`n=1`) stays. A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
 quote that never ends leak nothing. Bad data from a peer logs no error. A

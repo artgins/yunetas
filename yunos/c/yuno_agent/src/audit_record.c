@@ -108,8 +108,14 @@
  *            record, is `<...>` when it holds a blank, a quote or a
  *            backslash (its own enclosing quotes apart): in its quotes a
  *            whole line is one word (command="'set-user-pwd username=bob
- *            <password>'"), written whole up to 7.30.26. See
- *            mask_nested_line() and command_word().
+ *            <password>'"), written whole up to 7.30.26. And the words
+ *            of a nested line are the shell's (word_end()), while its
+ *            parser takes no '\' as an escape and a quote only where a
+ *            value begins: from the first word the two cut otherwise
+ *            (x=''\'' <password>, x=a' <password>', x='a'<password>), the
+ *            rest of that line is `<...>` (up to 7.30.26 the bare word
+ *            inside it was written in clear). See mask_nested_line(),
+ *            word_read_alike() and command_word().
  *
  *          - The scan of a string is ONE pass, in linear time: a value
  *            inside a quoted value is followed with a small stack of
@@ -2602,6 +2608,10 @@ PRIVATE char *record_command_text(const char *command, const char *verb, redact_
  *  backslash in it (its own enclosing quotes apart) is BARE_WORD -- the
  *  shell's quotes make a whole line one word ("'set-user-pwd username=bob
  *  <password>'"), and the parser runs the command of its first word.
+ *  A word the parser cuts otherwise (word_read_alike()) is BARE_WORD with
+ *  the rest of its line: from there on the parser's words are not these
+ *  (x=''\'' <password> is one keyed word here, and a value and two
+ *  words there).
  ***************************************************************************/
 
 /*
@@ -2641,6 +2651,37 @@ PRIVATE const char *keyed_word_equal(const char *w, const char *e)
         }
     }
     return NULL;
+}
+
+/*
+ *  TRUE if the command parser cuts the word [w, e) where word_end() does
+ *  (get_parameter(), get_key_value_parameter()): the parser takes no '\'
+ *  as an escape, and a quote only where a value begins, closed by the
+ *  next quote of its kind. So: no '\' and no quote outside one quoted
+ *  piece, which opens the value (after `eq`, or at `w` in a word with no
+ *  key) and whose first quote of its kind ends the word. Elsewhere the two
+ *  read otherwise: x=''\'' <password> is ONE keyed word of the shell, and
+ *  a value '' and two more words of the parser.
+ */
+PRIVATE BOOL word_read_alike(const char *w, const char *e, const char *eq)
+{
+    const char *v = eq? eq + 1 : w;
+    for(const char *p = w; p < e; p++) {
+        if(*p == '\\') {
+            return FALSE;
+        }
+        if(is_quote(*p)) {
+            if(p != v) {
+                return FALSE;
+            }
+            const char *q = v + 1;
+            while(q < e && *q != *v) {
+                q++;
+            }
+            return (q == e - 1)? TRUE: FALSE;
+        }
+    }
+    return TRUE;
 }
 
 PRIVATE void mask_line_words(
@@ -2707,6 +2748,11 @@ PRIVATE void mask_line_words(
         const char *last_quote;
         const char *e = word_end(p, end, &last_quote);
         const char *eq = first? NULL : keyed_word_equal(p, e);
+        if(!word_read_alike(p, e, eq)) {
+            out_append(sc, BARE_WORD, strlen(BARE_WORD));  // and the rest of the line
+            *changed = TRUE;
+            return;
+        }
         if(first) {
             const char *n = p;
             const char *n_end = e;

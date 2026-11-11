@@ -908,6 +908,32 @@ nearest first:
   line in `command` of the kw (`"'list-x username=bob hunter2'"`) makes the
   record full, not read-only, and the record of the command that the agent
   sends on is `<...>`. Up to 7.30.26 these records held `hunter2` in clear.
+
+  The audit reads the words of a nested line the shell's way: a `\` takes
+  the byte after it, and a quoted piece can be anywhere in a word. The
+  parser does not: it takes no `\` as an escape, and a quote only where a
+  value begins, closed by the next quote of its kind. Where the two cut a
+  word otherwise, a bare word of the parser can be inside a `key=value` of
+  the audit. So from the first word that the two cut otherwise, the rest of
+  that line is written `<...>`. What follows a quoted value at the level
+  above stays. These commands:
+
+  ```text
+  command-agent service=authz command="set-user-pwd bob x=''\'' hunter2"
+  command-yuno id=auth command="set-user-pwd username=bob x=a' hunter2'"
+  command-agent command="\"COMMAND-AGENT\" command='kill-yuno hunter2'"
+  ```
+
+  are recorded as
+
+  ```text
+  command-agent service=authz command="set-user-pwd <...> <...>"
+  command-yuno id=auth command="set-user-pwd username=bob <...>"
+  command-agent <...>
+  ```
+
+  The parser of the target refuses these lines, so the secret is not used.
+  Up to 7.30.26 the records held `hunter2` in clear.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

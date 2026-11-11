@@ -11,6 +11,9 @@
  *          - a bare word of a command line nested in another one (the
  *            command of command-yuno / command-agent, and the command they
  *            forward) is written <...>: it can be a secret without its key,
+ *            and from the first word that its parser cuts otherwise than
+ *            the shell (a '\', a quote that does not open a value), the
+ *            rest of that line is <...>,
  *          - a stats command with a reset is a write,
  *          - the command carried by command-yuno is the one its handler
  *            reads (the key exactly `command`; COMMAND=... is not it),
@@ -731,7 +734,9 @@ PRIVATE void test_nested_positional_secret(void)
         snprintf(name, sizeof(name), "(d2) a positional secret in a nested line (%d)", i);
         const char *hidden = strstr(lines[i], "aHVudGVyMg")? "aHVudGVyMg" : "hunter2";
         // `command = '...'`: a key the parser takes as empty, then a quoted word: all <...>
-        const char *must_hold = strstr(lines[i], "command = ")? "service=authz" : "username=bob";
+        // '\'' and \" in the value: the parser ends it at that quote, see (d4): all <...>
+        const char *must_hold = (strstr(lines[i], "command = ") || strstr(lines[i], "'\\''") ||
+            strstr(lines[i], "\\\""))? "service=authz" : "username=bob";
         check_nested(lines[i], NULL, hidden, must_hold, name);
     }
 
@@ -879,6 +884,49 @@ PRIVATE void test_nested_positional_secret(void)
     check_command_is("command-agent command=\"'kill-yuno' 3\"", NULL,
         "command-agent command=\"'kill-yuno' <...>\"",
         "(d3) a nested command name in its own quotes is kept, its bare word is not");
+
+    /*
+     *  (d4) where the shell's words are not the parser's. The parser takes
+     *  no '\' as an escape, and a quote only where a value (or a word)
+     *  begins, closed by the next quote of its kind; the shell's words
+     *  join what it cuts (x=''\'' <s> is ONE keyed word for the shell, a
+     *  value '' and two more words for the parser). The parser of the
+     *  target refuses such a line, so nothing is used, but up to 7.30.26
+     *  the bare word it holds was written in clear. From the first word
+     *  the two read otherwise, the rest of the line is <...>.
+     */
+    static const char *apart[] = {
+        "command-agent service=authz command=\"set-user-pwd bob x=''\\'' hunter2\"",
+        "command-yuno id=X command=\"kill-yuno x=''\\\\'' y=6' hunter2\"",
+        "command-agent command=\"\\\"COMMAND-AGENT\\\" command='kill-yuno hunter2'\"",
+        // a quote inside a value, a value with no closing quote, a word after the quote
+        "command-yuno id=X command=\"set-user-pwd username=bob x=a' hunter2'\"",
+        "command-yuno id=X command=\"set-user-pwd username=bob x='a hunter2\"",
+        "command-yuno id=X command=\"set-user-pwd username=bob x='a'hunter2\"",
+        // a '\' that takes the blank after it: one word of the shell, two of the parser
+        "command-yuno id=X command=\"set-user-pwd username=bob x=a\\ hunter2\"",
+        0
+    };
+    for(int i=0; apart[i]; i++) {
+        char name[128];
+        snprintf(name, sizeof(name), "(d4) a nested line the parser reads otherwise (%d)", i);
+        check_nested(apart[i], NULL, "hunter2", "command", name);
+    }
+    check_command_is("command-agent service=authz command=\"set-user-pwd bob x=''\\'' hunter2\"", NULL,
+        "command-agent service=authz command=\"set-user-pwd <...> <...>\"",
+        "(d4) the shell's quote in a word of the command value: from it on, <...>");
+    check_command_is("command-agent command=\"\\\"COMMAND-AGENT\\\" command='kill-yuno hunter2'\"", NULL,
+        "command-agent <...>",
+        "(d4) a \\\" in the command value: the parser ends it there, <...>");
+    check_command_is("command-yuno id=X command=\"set-user-pwd username=bob x=a' hunter2'\"", NULL,
+        "command-yuno id=X command=\"set-user-pwd username=bob <...>\"",
+        "(d4) a quote inside a value: from it on, <...>");
+    check_command_is("command-yuno id=X command=\"set-x n=1 note='a b' m=\\\"q\\\"\" k=2", NULL,
+        "command-yuno id=X <...>",
+        "(d4) a backslash in the command value of the wrapper: from it on, <...>");
+    check_command_is("command-yuno id=X command=\"set-x n=1 note='a b' x=a'b\" k=2", NULL,
+        "command-yuno id=X command=\"set-x n=1 note='a b' <...>\" k=2",
+        "(d4) the level above goes on after the value's closing quote");
 }
 
 /***************************************************************************
@@ -2077,11 +2125,14 @@ PRIVATE void test_blank_keys_inner_quotes_jwt_dot(void)
     check_no_secret("update-node pass\\u0077ord=S3CRu6", NULL, "S3CRu6",
         "(u) a parameter key with a \\u escape");
     check_command_written("command-yuno id=x command=\"write-attr attribute=api\\u005fkey value=S3CRq1\" n=1",
-        "command-yuno id=x command=\"write-attr attribute=api_key value=<redacted>\" n=1",
+        "command-yuno id=x command=\"write-attr <...>\" n=1",
+        "(u) a '\\' in a word of a \"...\" command value: <...>, its closing quote and n=1 stay");
+    check_command_written("command-yuno id=x command=\"write-attr attribute='api\\u005fkey' value=S3CRq1\" n=1",
+        "command-yuno id=x command=\"write-attr attribute='api_key' value=<redacted>\" n=1",
         "(u) a secret value at the end of a \"...\" value: its closing quote and n=1 stay");
     check_command_written("command-yuno id=x command=\"update-node x=\\\"1\\\" password=S3CRq2\"",
-        "command-yuno id=x command=\"update-node x=\\\"1\\\" password=<redacted>\"",
-        "(u) a secret value at the end of a \"...\" value with escapes: its closing quote stays");
+        "command-yuno id=x <...>",
+        "(u) a \\\" in a \"...\" command value: the parser ends the value there, <...>");
     check_no_secret("x \" \\ password='a'\" S3CR4\" n2=1", NULL, "S3CR4",
         "(u) a stray quote, a backslash, then password='a'\" S\": the word goes on after the run");
     check_command_written("update-node x=\"\\\\ password='S3CR5'\" n2=1",
