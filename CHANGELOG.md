@@ -52,8 +52,10 @@
       messages; a client with a window of 20 in QoS 1 and 2; 3000 QoS 1 and 30000
       PINGREQ in one write, read: never dropped) and `c_mqtt/gate_reader` (20 clients
       that pipeline PINGREQ and read for 20 s: every PINGRESP in order, none dropped,
-      +2.6 MB; its drain fails only on 10 s with no byte, so ASan or a slow machine
-      does not fail it), all new, over real sockets. On a gate,
+      +2.6 MB; a reader owed answers that gets no byte for 1 s fails it, in the run
+      and in the drain, so a resume lost now and then is red in about 1.4 s; the
+      drain is given 300 s, enough under ASan at a quarter of a CPU and without
+      it at an eighth), all new, over real sockets. On a gate,
       50 anonymous connections each sending exactly 10000 PINGREQ and never reading took
       it from 10 to 193 MB with nobody dropped under the earlier packet bound; now all 50
       are paused and dropped, and the gate peaks at 17 MB.
@@ -434,20 +436,63 @@
   a word kept after it could be a secret only by what came before it (`Basic`).
   The value of a secret's own key is still its whole shell word, redacted
   (`password='it'\''s <s>'` is `password='<redacted>'`).
+  The same holds for the shell's other ways to quote a quote, which have no `\`:
+  a quoted piece closed and another one opened right after it, of either kind
+  (the quote splice `'"'"'`, its twin `"'"'"`, `'"'<s>'"'`, `'a''b'`), and a
+  piece that holds only a quote between unquoted bytes
+  (`{'"'password'"':'"'<s>'"'}`, which the shell reads as `{"password":"<s>"}`).
+  The json reader paired those quotes otherwise and wrote the password after
+  them (`update-node record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` was written
+  `...'<redacted>'"'<s>'"'"'}'`; 7.30.26), also nested, in a word with no blank.
+  A quote inside a piece with other bytes is kept (`note="it's"`,
+  `{"id":"a'b"}`), and so are a value that is one quote (`note="'"`) and empty
+  pieces; the cost is a json string that is one quote, with no quotes around the
+  json (`record={"id":"'"}`), which is `record=<...>` too.
   `DEBUGGING.md` §5.5 shows it.
+- **BREAKING (a log watcher): a `content64` that is not base64 is a WARNING, not
+  an ERROR.** `create-config`, `update-config`, `install-binary`,
+  `update-binary` and `write-tty` of the agent, `write-tty` of agent22, and
+  `create-node`, `update-node` and `import-db` of `C_NODE` (every treedb service)
+  logged the operator's bad bytes as *"b64_decode() FAILED"*, an ERROR with a
+  stack (7.30.26 and before); their -1 answers are unchanged, and agent22's
+  `write-tty` no longer drops the link the message came on (the agent stopped
+  doing it before). Now one WARNING, *"base64 of a peer not decodable,
+  refused"* (`MSGSET_PARAMETER`, no stack, the length only). New
+  `gbuffer_base64_to_binary_from_peer()` (`gbuffer.h`), the twin of
+  `gbuffer_deserialize_from_peer()`; `gbuffer_base64_to_binary()` keeps its
+  ERROR for a base64 we encoded ourselves. Tests: `c_agent_command_loop`,
+  `c_node_commands`.
 
 ### Kernel
 
-- **BREAKING (a caller of `gobj_command()`, a log watcher): a command to a
-  `C_IEVENT_CLI` that is not in session is answered at once.** It returned NULL --
-  for a command, *"the answer will come"* -- and none came: the agent's
-  `command-agent service=controlcenter` with the link to the control center down
-  left the peer waiting until its own timeout, and any peer with a session in the
-  agent could ask it (7.30.26 and before). Now it answers -1, *"<yuno>: service
-  '<name>' not in session"*, and logs *"Not in session"* as one WARNING
-  (`MSGSET_OPERATIONAL`, no stack) instead of an ERROR (`MSGSET_INTERNAL`) with a
-  stack: a link that is down is a state, not a broken contract. Test:
-  `c_agent_command_loop`.
+- **BREAKING (a caller of `gobj_command()` / `gobj_stats()`, a log watcher): a
+  command or a stats to a `C_IEVENT_CLI` or a `C_IEVENT_SRV` that is not in
+  session is answered at once.** They returned NULL -- for a command or a stats,
+  *"the answer will come"* -- and none came: the agent's `command-agent
+  service=controlcenter` and `stats-agent service=controlcenter` with the link to
+  the control center down left the peer waiting until its own timeout, and any
+  peer with a session in the agent could ask it (7.30.26 and before). Now they
+  answer -1, *"<yuno>: service '<name>' not in session"*, and log *"Not in
+  session"* as one WARNING (`MSGSET_OPERATIONAL`, no stack) instead of an ERROR
+  (`MSGSET_INTERNAL`) with a stack: a link that is down is a state, not a broken
+  contract. An event sent to a `C_IEVENT_CLI` out of session still returns -1,
+  with the same WARNING instead of the ERROR. (For `C_IEVENT_SRV` it happens only
+  in a race with its peer's close.) A `publish-stats` whose service is such a link
+  ends at its first tick (*"publish-stats ended"*, *"its service is a link out of
+  session"*), as the NULL used to end it, instead of publishing that -1 and its
+  WARNING every period. Tests: `c_agent_command_loop`, `secret_attrs`,
+  `c_yuno_publish_stats`.
+- **The `ievents` / `ievents2` traces mask the command line of the frame's
+  `command_stack`.** Every emitter (`C_IEVENT_CLI`, `C_IEVENT_SRV`, gobj-js) puts
+  the line in `__md_iev__.command_stack` as well as in `__command__`, and the
+  traces looked for it under `__md_iev__.__command__`, a name nobody uses: the
+  stack was masked by names only, so `create-config id=x content64=<s>`,
+  `write-tty ... content64=<s>` or `help cmd='create-config ... content64=<s>'`
+  sent to the agent with the trace on were traced with `<s>` in clear, in the
+  request and in its answer (7.30.26 and before). Now the stack is masked by the
+  destination's command table, and in any event but the request (its answer, the
+  agent's `EV_TTY_CLOSE`) the line is its first word, `create-config <...>`: the
+  routing of an answer names no service that knows the line. Test: `secret_attrs`.
 - **`drop_binary_keys()` is public** (`gbuffer.h`): the walk of `drop_peer_binary_keys()`
   without its log. It drops every `"gbuffer"` key of a json at any depth and returns how
   many; the caller logs. For a decoder that says a peer's bad data once per connection:
