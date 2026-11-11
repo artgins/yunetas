@@ -398,6 +398,20 @@ PUBLIC gbuffer_t *gbuffer_file2base64(const char *path);
 PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len);
 
 /*
+ *  The same, for a base64 that came from OUTSIDE (the content64 of a
+ *  command, an operator's bytes): not base64 is logged as a WARNING
+ *  (MSGSET_PARAMETER, no stack, the length only: the bytes can be a
+ *  secret), and NULL is returned: the caller answers the sender. Use
+ *  gbuffer_base64_to_binary() for what we encoded ourselves (an ERROR with
+ *  a stack: our broken contract).
+ */
+PUBLIC gbuffer_t *gbuffer_base64_to_binary_from_peer(
+    hgobj gobj,
+    const char *base64,
+    size_t base64_len
+);
+
+/*
  *  Return new gbuffer using gbuffer_binary_to_base64() to encode string in gbuf_input
  */
 PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer using gbuffer_binary_to_base64()

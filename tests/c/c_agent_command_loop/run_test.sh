@@ -12,7 +12,9 @@
 #   and so did a line with two levels of quotes, which the parser read
 #   twice and the guard once. And a command-agent to the control center's
 #   link, which is down in the sandbox, must be answered at once with -1
-#   and one WARNING (up to 7.30.26: no answer, and an ERROR with a stack).
+#   and one WARNING (up to 7.30.26: no answer, and an ERROR with a stack),
+#   and so must a stats-agent of it. A content64 that is not base64 is
+#   answered -1 with one WARNING (up to 7.30.26: an ERROR with a stack).
 #   Then the agent is stopped in order: it must end with 0, with no
 #   "system memory not free" (the gbmem audit of CONFIG_DEBUG_TRACK_MEMORY),
 #   and its audit file must hold one record per command sent, not one per
@@ -100,8 +102,16 @@ fi
 #   an ERROR with a stack, and no answer)
 nis=$(grep -a '"msg": "Not in session"' "$WORK/agent.log" | grep -ac "WARNING")
 eis=$(grep -a '"msg": "Not in session"' "$WORK/agent.log" | grep -ac "ERROR")
-if [ "$nis" != "1" ] || [ "$eis" != "0" ]; then
-    echo "TEST FAILED: 'Not in session' logged as $nis WARNING(s) and $eis ERROR(s), expected one WARNING"
+if [ "$nis" != "2" ] || [ "$eis" != "0" ]; then
+    echo "TEST FAILED: 'Not in session' logged as $nis WARNING(s) and $eis ERROR(s), expected two WARNINGs (command, stats)"
+    failed=1
+fi
+#   A content64 that is not base64: one WARNING per command, no ERROR
+#   (7.30.26: "b64_decode() FAILED", an ERROR with a stack)
+nb=$(grep -a '"msg": "base64 of a peer not decodable, refused"' "$WORK/agent.log" | grep -ac "WARNING")
+eb=$(grep -a 'b64_decode() FAILED' "$WORK/agent.log" | grep -ac "ERROR")
+if [ "$nb" != "3" ] || [ "$eb" != "0" ]; then
+    echo "TEST FAILED: a bad content64 logged $nb WARNING(s) and $eb ERROR(s), expected three WARNINGs"
     failed=1
 fi
 n=$(grep -ac "command-agent" "$WORK/audit.txt" 2>/dev/null)
@@ -114,5 +124,5 @@ if [ $failed -ne 0 ]; then
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | cut -c1-600 | tail -40
     exit 1
 fi
-echo "TEST PASSED: every command-agent that names command-agent answered 'Loop command', the one to a link that is down answered -1, and the agent lived"
+echo "TEST PASSED: every command-agent that names command-agent answered 'Loop command', a command and a stats to a link that is down answered -1, a bad content64 -1 with a WARNING, and the agent lived"
 exit 0

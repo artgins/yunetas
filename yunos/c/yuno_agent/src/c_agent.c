@@ -3372,7 +3372,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
             kw  // owned
         );
     }
-    gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+    gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
     if(!gbuf_content) {
         return msg_iev_build_response(
             gobj,
@@ -3693,7 +3693,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+    gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
     if(!gbuf_content) {
         json_decref(node);
         return msg_iev_build_response(
@@ -4532,7 +4532,7 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_config;
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     if(!empty_string(content64)) {
-        gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
         if(!gbuf_content) {
             return msg_iev_build_response(
                 gobj,
@@ -4710,7 +4710,7 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     json_t *jn_config = 0;
     if(!empty_string(content64)) {
-        gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
+        gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
         if(!gbuf_content) {
             return msg_iev_build_response(
                 gobj,
@@ -15203,17 +15203,10 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
+    gbuffer_t *gbuf = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
     if(!gbuf) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "Bad data",
-            "name",         "%s", name,
-            NULL
-        );
-        /*  Undecodable base64: log and drop THIS message, not the shared
-         *  controlcenter_cli link. */
+        /*  Undecodable base64: a WARNING already logged (the sender's
+         *  bytes); drop THIS message, not the shared controlcenter_cli link. */
         KW_DECREF(kw);
         return 0;
     }

@@ -52,9 +52,16 @@ closes a quoted word), so the last line names no command either.
 Then `command-agent service=controlcenter command=list-yunos`: that service
 is the agent's link to the control center (`C_IEVENT_CLI`), down in the
 sandbox. It must answer -1 *"…: service 'controlcenter' not in session"* at
-once, and the agent log must hold one WARNING *"Not in session"* and no
+once, and so must `stats-agent service=controlcenter`; the agent log must
+hold two WARNINGs *"Not in session"* (the command and the stats) and no
 ERROR. Up to 7.30.26 the link returned NULL (*"the answer will come"*) after
 an ERROR with a stack, and the peer waited for ever.
+
+Then `create-config`, `update-config` and `install-binary` with
+`content64=@@@notbase64@@@`: each must answer -1 naming it (*"Invalid base64
+in content64"*, *"Bad data in content64"*), and the log must hold three
+WARNINGs *"base64 of a peer not decodable, refused"* and no ERROR. Up to
+7.30.26 each wrote *"b64_decode() FAILED"* as an ERROR with a stack.
 
 Then `command-agent command="help cmd=list-yunos"` is still forwarded and
 answered, and the agent answers a `help`.

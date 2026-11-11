@@ -1252,6 +1252,50 @@ PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len
 }
 
 /*****************************************************************
+ *  The same, for a base64 that came from OUTSIDE (the content64 of a
+ *  command): not base64 is the sender's doing, a WARNING without a stack
+ *  and without the bytes (they can be a secret: a configuration, a
+ *  binary). gbuffer_base64_to_binary() logs an ERROR with a stack: for
+ *  what we encoded ourselves.
+ *****************************************************************/
+PUBLIC gbuffer_t *gbuffer_base64_to_binary_from_peer(
+    hgobj gobj,
+    const char *base64,
+    size_t base64_len
+)
+{
+    if(!base64) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "base64 of a peer missing, refused",
+            NULL
+        );
+        return NULL;
+    }
+
+    size_t output_len = b64_output_decode_len(base64_len);
+    gbuffer_t *gbuf_output = gbuffer_create(output_len, output_len);
+    if(!gbuf_output) {
+        return NULL;    // Error already logged
+    }
+    size_t decoded = b64_decode(base64, base64_len, gbuffer_cur_wr_pointer(gbuf_output), output_len);
+    if(decoded == (size_t)-1) {
+        GBUFFER_DECREF(gbuf_output)
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "base64 of a peer not decodable, refused",
+            "len",          "%d", (int)base64_len,
+            NULL
+        );
+        return NULL;
+    }
+    gbuffer_set_wr(gbuf_output, decoded);
+    return gbuf_output;
+}
+
+/*****************************************************************
  *
  *****************************************************************/
 PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer

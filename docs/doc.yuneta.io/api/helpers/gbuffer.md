@@ -1219,6 +1219,52 @@ if(gbuf) {
 
 ---
 
+(gbuffer_base64_to_binary_from_peer)=
+## [`gbuffer_base64_to_binary_from_peer()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/gbuffer.c#L1211)
+
+The same as [`gbuffer_base64_to_binary()`](#gbuffer_base64_to_binary), for a Base64 text that came from **outside**: the `content64` of a command, an operator's bytes.
+
+```C
+gbuffer_t *gbuffer_base64_to_binary_from_peer(
+    hgobj gobj,
+    const char *base64,
+    size_t base64_len
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj that logs the refusal. |
+| `base64` | `const char *` | Pointer to the Base64-encoded input string. |
+| `base64_len` | `size_t` | Length of the Base64 input string in bytes. |
+
+**Returns**
+
+A new `gbuffer_t` with the decoded data, or NULL when the text is missing or is not Base64. The caller answers the sender.
+
+**Notes**
+
+A text that is not Base64 is the sender's doing, not a broken contract: it is logged as a WARNING (`MSGSET_PARAMETER`, no stack trace) with its length only, never its bytes (they can be a secret: a configuration, a binary). [`gbuffer_base64_to_binary()`](#gbuffer_base64_to_binary) logs an ERROR with a stack trace, for a Base64 we encoded ourselves. The agent's `create-config`, `update-config`, `install-binary`, `update-binary` and `write-tty` use this one: up to 7.30.26 a bad `content64` wrote *"b64_decode() FAILED"* as an ERROR with a stack trace.
+
+**Example**
+
+```C
+const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
+gbuffer_t *gbuf = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
+if(!gbuf) {
+    // A WARNING already logged: answer the sender
+    return msg_iev_build_response(gobj,
+        -1,
+        json_sprintf("%s: Invalid base64 in content64", gobj_yuno_role_plus_name()),
+        0, 0, kw
+    );
+}
+```
+
+---
+
 (gbuffer_binary_to_base64)=
 ## [`gbuffer_binary_to_base64()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/gbuffer.c#L1134)
 

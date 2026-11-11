@@ -13,7 +13,11 @@
 #   the parser (each reads the first word once): "command not available".
 #
 #   A command-agent to a service that is a link to another yuno (the
-#   control center's), with the link down: answered at once with -1.
+#   control center's), with the link down: answered at once with -1, and
+#   so is a stats-agent of it.
+#
+#   A content64 that is not base64 (create-config, update-config,
+#   install-binary): answered -1 naming it.
 #
 #   Then a command-agent of another command (help) is still forwarded and
 #   answered, and the session still works.
@@ -171,6 +175,23 @@ async def main():
     r = await ask(ws, "command-agent service=controlcenter command=list-yunos", {}, secs=5)
     check("command-agent service=controlcenter with the link down: %s" % r.get("comment"),
         r.get("result") == -1 and "not in session" in (r.get("comment") or ""))
+
+    #   The same for the stats of that link: up to 7.30.26 no answer either
+    r = await ask(ws, "stats-agent service=controlcenter", {}, secs=5)
+    check("stats-agent service=controlcenter with the link down: %s" % r.get("comment"),
+        r.get("result") == -1 and "not in session" in (r.get("comment") or ""))
+
+    #   A content64 that is not base64: the operator's bytes, answered -1
+    #   naming the problem, and a WARNING in the log (up to 7.30.26 an ERROR
+    #   with a stack, "b64_decode() FAILED")
+    for line, says in (
+        ("create-config id=bad64 content64=@@@notbase64@@@", "Invalid base64 in content64"),
+        ("update-config id=bad64 content64=@@@notbase64@@@", "Invalid base64 in content64"),
+        ("install-binary id=bad64 content64=@@@notbase64@@@", "Bad data in content64"),
+    ):
+        r = await ask(ws, line, {}, secs=5)
+        check("%s: %s" % (line, r.get("comment")),
+            r.get("result") == -1 and says in (r.get("comment") or ""))
 
     #   Another command is still forwarded
     r = await ask(ws, "command-agent command=\"help cmd=list-yunos\"", {})
