@@ -94,7 +94,7 @@ if [[ "$FAMILY" == "debian" ]]; then
         python3-dev python3-pip python3-setuptools
         python3-tk python3-wheel python3-venv
         libjansson-dev libpcre2-dev liburing-dev
-        libpcre3-dev zlib1g-dev libssl-dev
+        zlib1g-dev libssl-dev
         perl dos2unix tree curl wget
         postgresql-server-dev-all libpq-dev
         kconfig-frontends telnet pipx

@@ -7,7 +7,7 @@
  *          All Rights Reserved.
  *
  *
- *  sudo apt-get install libpcre3-dev
+ *  sudo apt-get install libpcre2-dev
  *
  ****************************************************************************/
 #define _POSIX_SOURCE
