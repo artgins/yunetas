@@ -190,7 +190,7 @@ of the gate's channel:
 | `max_packet_size` | `0` | A packet larger than this is refused when its header arrives, before its bytes are kept, and the client is disconnected. Without it a packet is kept whole (up to 256 MB) before `message_size_limit` is checked. It also bounds how many filters one (UN)SUBSCRIBE carries to the upper level (see below). |
 | `max_qos` | `2` | `0` or `1`: a PUBLISH of a higher QoS disconnects the client. MQTT 5 clients are told it in the CONNACK (Maximum QoS). Up to 7.30.26 that property was not sent, and each CONNECT logged an ERROR. |
 | `timeout_close` | `3000` | Milliseconds a connection the server closes waits: in MQTT 5, after its DISCONNECT, for the client to close; in MQTT 3.1.1, for its answers to be written. Then the transport is dropped, with a WARNING *"Timeout waiting mqtt disconnected"*; a transport whose write in flight the peer does not take waits `timeout_stop_tx` of `C_TCP` (10 s) more, and aborts with its own WARNING (see below). |
-| `max_unwritten_bytes` | `100000` | Memory that the protocol's answers (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) may hold in the send queue of the transport. Each answer counts its size plus about 300 bytes of buffer. A peer that does not read them is dropped, with one WARNING; a connection holds at most about twice this (see below). The messages a broker forwards to a subscriber do not count. `0`: no limit. |
+| `max_unwritten_bytes` | `100000` | Memory that the protocol's answers (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) may hold in the send queue of the transport before the reading of the peer is paused. Each answer counts its size plus about 300 bytes of buffer. A peer that reads is slowed to what it takes, however much it pipelines; one that takes nothing of what waits for it during `timeout_close` is dropped, with one WARNING (see below). The messages a broker forwards to a subscriber do not count. `0`: no limit. |
 
 The two subscription limits count the filters of the CONNECTION: the
 subscriptions of a session that a broker restores are not counted.
@@ -426,54 +426,60 @@ close, without the `0x80`. A protocol error of an MQTT 5 client lost its
 answers the same way (`PUBACK 1`, then the close), and an MQTT 5 peer that
 did not read was dropped at once.
 
-**A peer that does not read its answers is dropped.** Each packet a peer
-sends can queue an answer in the `C_TCP`: a PINGRESP of 2 bytes holds about
-340 bytes of memory, a SUBACK of a SUBSCRIBE of 16000 filters 16 KB. A read of
-4 KB answers 2048 PINGREQ, and the `C_TCP` writes one packet per turn of the
-loop, even to a peer that reads.
+**The answers a peer does not read are bounded: backpressure.** Each packet
+a peer sends can queue an answer in the `C_TCP`: a PINGRESP of 2 bytes holds
+about 340 bytes of memory, a SUBACK of a SUBSCRIBE of 16000 filters 16 KB. A
+read of 4 KB answers 2048 PINGREQ, and the `C_TCP` writes one packet per turn
+of the loop, even to a peer that reads.
 
-The protocol counts what it hands to the transport: every packet, and the
-memory of its answers (each one its size plus about 300 bytes). The messages a
-broker forwards to a subscriber (PUBLISH) are not answers: they are not
-counted. When the answers since the last check pass `max_unwritten_bytes`
-(100000), the protocol does a check:
+The protocol counts the memory of the answers it hands to the transport since
+the transport's queue was last empty (`EV_TX_READY`); each answer counts its
+size plus about 300 bytes. The messages a broker forwards to a subscriber
+(PUBLISH) are not answers: they are not counted. Past `max_unwritten_bytes`
+(100000), after the packet that passed it:
 
-- The queue of the transport (`cur_tx_queue` of `C_TCP`) holds no more packets
-  than were handed to it since the last check. Everything handed before that
-  check has gone, so the peer reads. This is the new check.
-- The queue holds more. The peer does not read what it asks for. The
-  connection is dropped at once, with one WARNING *"Mqtt: the peer does not
-  read its answers, connection dropped"* (with `client_id`, `peername`,
-  `unwritten_packets`, `answer_bytes` and `max_unwritten_bytes`). No
-  DISCONNECT is sent (it would wait behind the rest), and nothing more of the
-  read is processed.
+- **the reading of the peer is paused.** The rest of the read waits in the
+  protocol (a copy, at most one read of the `C_TCP`, 4 KB), and the `C_TCP`
+  reads nothing more (`rx_paused`). The peer's own TCP window then stops it.
+- **The `EV_TX_READY` of the queue written resumes it:** the rest is read, and
+  then the `C_TCP` reads again.
+- **`timeout_close` (3 s) at most between two looks:** if the queue is empty,
+  the reading resumes; if something of it was written since the last look,
+  the protocol waits another `timeout_close`; if nothing was written, the
+  peer does not read: the connection is dropped at once, with one WARNING
+  *"Mqtt: the peer does not read its answers, connection dropped"* (with
+  `client_id`, `peername`, `unwritten_packets`, `answer_bytes` and
+  `max_unwritten_bytes`). No DISCONNECT is sent (it would wait behind the
+  rest), and the rest of the read is not processed.
 
-So the answers that wait are at most about twice the bound (about 200 KB of
-memory per connection), whatever the queue of forwarded messages holds, and
-the cost on each packet is a counter. A pool of 1000 anonymous connections
-that do not read holds about 200 MB, not the 3.7 GB of the bound in packets
-that came before it.
+So a connection holds about the bound of answers (about 100 KB) and one read,
+whatever the queue of forwarded messages holds, and the cost on each packet is
+a counter. A pool of 1000 anonymous connections that do not read holds about
+130 MB, not the 3.7 GB of the bound in packets that came before it. A peer
+that reads is never dropped for its answers, however much it pipelines: 3000
+QoS 1 PUBLISH or 30000 PINGREQ in one write get every answer, at the pace the
+peer takes them. A peer whose kernel still takes a little at each look is not
+dropped either: it holds the same bounded memory, and its keepalive (or the
+peer's own close) ends it.
 
-What is never dropped: a client of a library (its in-flight window of 20, the
-Receive Maximum this server announces in MQTT 5, the QoS 2 flow, its
-keepalive), one SUBSCRIBE of many filters (one answer), and a subscriber that
-reads what the broker forwards to it, however fast it publishes. What is
-dropped, reading or not: a peer that sends, faster than the `C_TCP` writes,
-more than about 300 packets that need an answer (PINGREQ, QoS 1 or 2 PUBLISH
-without waiting for their acks, SUBSCRIBE). Raise the bound for a gate whose
-devices do that.
-
-A flood of 256 KB of PINGREQ, the client not reading:
+A client that publishes 3000 QoS 1 in one write, reading:
 
 ```text
-client:  PINGREQ x 131072, in one write, reads nothing
-server:  WARNING "Mqtt: the peer does not read its answers, connection dropped"
-         {"unwritten_packets": 653, "answer_bytes": 100062, "max_unwritten_bytes": 100000}
-         the close; the gate held about 200 KB of answers (650 PINGRESP), not 40 MB
+client:  PUBLISH QoS 1 x 3000, in one write, reads everything
+server:  PUBACK 1 .. 325, its reading paused; PUBACK 326 .. 650 when they are
+         written; ... PUBACK 3000. No WARNING, not dropped
 ```
 
-A bound of its own, for a gate whose devices send a backlog of QoS 1 readings
-without waiting for their PUBACKs:
+A peer that sends 10000 PINGREQ and never reads (its receive buffer of 4 KB
+full):
+
+```text
+server:  PINGRESP 1 .. 327, its reading paused; nothing written for timeout_close
+         WARNING "Mqtt: the peer does not read its answers, connection dropped"
+         {"unwritten_packets": ..., "answer_bytes": 100062, "max_unwritten_bytes": 100000}
+```
+
+A bound and a wait of its own, for a gate whose devices are slow to read:
 
 ```json
 {
@@ -481,7 +487,8 @@ without waiting for their PUBACKs:
     "kw": {
         "iamServer": true,
         "allow_anonymous": true,
-        "max_unwritten_bytes": 400000
+        "max_unwritten_bytes": 400000,
+        "timeout_close": 10000
     }
 }
 ```
@@ -491,9 +498,9 @@ After the drop the protocol says nothing more of the connection. The
 takes the write in flight. Otherwise the `C_TCP` waits `timeout_stop_tx`
 (10 s), aborts, and logs its own WARNING *"The peer did not take the data in
 flight in timeout_stop_tx, connection aborted"*. The connection's
-`EV_ON_CLOSE` comes then. So a peer that does not read holds at most about
-twice `max_unwritten_bytes` of answers (plus the messages forwarded to it)
-for at most `timeout_stop_tx`.
+`EV_ON_CLOSE` comes then. So a peer that does not read holds about
+`max_unwritten_bytes` of answers (plus the messages forwarded to it) for at
+most `timeout_close` after its last progress plus `timeout_stop_tx`.
 
 Up to 7.30.26 there was no bound: one anonymous peer grew a gate by about
 400 MB per 2 MB of PINGREQ, whether it read or not, until the process died.
@@ -501,9 +508,11 @@ The first bound, `max_unwritten_packets` (10000, never released), counted
 packets: a peer that sent exactly 10000 PINGREQ was never checked (3.7 MB
 held per connection), a SUBACK of 16 KB counted as one packet, and the
 messages forwarded to a subscriber that read everything were counted in the
-queue (it was dropped). And a drop was said three times: its WARNING, then
-*"Timeout waiting mqtt disconnected"* at `timeout_close`, then the `C_TCP`'s
-abort. `max_tx_queue` of `C_TCP` is not a way out: it discards the oldest
+queue (it was dropped). The bound in bytes that came next (never released)
+dropped instead of pausing: a reader that pipelines cannot show progress
+inside one read, so a client of 1000 QoS 1 in one write was dropped after 4
+PUBACKs. And a drop was said three times: its WARNING, then *"Timeout waiting
+mqtt disconnected"* at `timeout_close`, then the `C_TCP`'s abort. `max_tx_queue` of `C_TCP` is not a way out: it discards the oldest
 packet (the stream is broken) with an ERROR every `max_tx_queue` packets.
 
 The protocol refuses on its own a client id with a character that is not

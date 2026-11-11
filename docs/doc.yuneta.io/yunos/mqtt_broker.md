@@ -164,7 +164,8 @@ ends. When its `EV_ON_CLOSE` comes, the broker has no database: it logs the
 INFO *"Mqtt connection closed after the broker stopped, its session left as
 it is"*, and the session stays in the store as after a crash (not in session:
 the next CONNECT of that client id deletes it, and its queues, if it is not
-kept). The queues the connection had open are freed. Up to 7.30.26 the broker
+kept). The queues the connection had open are freed, and so is the rest of a
+read the bound on the answers had paused. Up to 7.30.26 the broker
 kept the pointer of its destroyed treedb and read it there: a use of freed
 memory that ended the process at its stop (SIGSEGV), and that any peer could
 arm by not reading; and the queues of such a connection leaked. For example:
@@ -235,7 +236,7 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
 | `max_packet_size` | `0` | Max MQTT packet (v5 advertises it, 0 = no limit) |
-| `max_unwritten_bytes` | `100000` | Memory that the answers to a client (PINGRESP, PUBACK, SUBACK...) may hold in its send queue (`cur_tx_queue` of its `C_TCP`): a client that does not read them is dropped, with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*, holding at most about twice this. 0 = no limit. The messages the broker forwards to a subscriber are not answers: they do not count, and a client that reads them is never dropped for them, however fast it publishes (see the [MQTT page](../modules/mqtt.md)) |
+| `max_unwritten_bytes` | `100000` | Memory that the answers to a client (PINGRESP, PUBACK, SUBACK...) may hold in its send queue (`cur_tx_queue` of its `C_TCP`) before its reading is paused until they are written (backpressure): a client that reads is slowed, never dropped, however much it pipelines (1000 QoS 1 in one write, as a client with no in-flight window sends); one that takes nothing during `timeout_close` is dropped with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*. 0 = no limit. The messages the broker forwards to a subscriber are not answers: they do not count (see the [MQTT page](../modules/mqtt.md)) |
 
 `max_inflight_messages` also bounds the INCOMING QoS 2 messages that wait for
 their PUBREL (the receive maximum the broker advertises): a client that sends

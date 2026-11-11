@@ -104,6 +104,7 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+GOBJ_DECLARE_EVENT(EV_RX_RESUME);   // internal: the answers of a paused reading written
 PRIVATE void restore_client_attributes(hgobj gobj);
 PRIVATE int send__publish(
     hgobj gobj,
@@ -146,6 +147,9 @@ PRIVATE int send__disconnect(
 );
 PRIVATE void send_drop(hgobj gobj, int reason);
 PRIVATE void ws_close(hgobj gobj, int reason);
+PRIVATE void release_held_read(hgobj gobj);
+PRIVATE void resume_reading(hgobj gobj);
+PRIVATE void hold_rest_of_read(hgobj gobj, json_t *kw);
 PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 PRIVATE int db__message_write_queued_in(hgobj gobj);
 PRIVATE void db__message_write_queued_out(hgobj gobj);
@@ -270,7 +274,7 @@ SDATA (DTP_INTEGER,     "max_subscriptions_per_client",SDF_WR, "100", "Server: t
 
 SDATA (DTP_INTEGER,     "max_topic_filter_length",SDF_WR,   "256",  "Server: maximum length in bytes of a topic filter, 0 no limit (MQTT allows 65535). A filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x8F Topic Filter invalid; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection. An UNSUBSCRIBE is never refused by it."),
 
-SDATA (DTP_INTEGER,     "max_unwritten_bytes",SDF_WR,       "100000", "Server: memory that the answers of the protocol (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) may hold in the send queue of the transport, 0 no limit. Each answer counts its size plus the ~300 bytes of its buffer. Each time the answers handed to the transport since the last check pass it, the transport must have taken everything handed before that check: if it has not, the peer does not read its answers, and it is dropped, with one WARNING, and nothing more of its read is processed. A connection holds at most about twice this of answers. The messages a broker sends to a subscriber are not answers: they do not count, and a client that reads is not dropped for them. The default (about 300 small answers between two checks) is past what a client of a library has unanswered (its in-flight window, 20 in the common ones and the Receive Maximum this server announces; a SUBSCRIBE of many filters is one answer)."),
+SDATA (DTP_INTEGER,     "max_unwritten_bytes",SDF_WR,       "100000", "Server: memory that the answers of the protocol (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) may hold in the send queue of the transport before the reading of the peer is paused, 0 no limit. Each answer counts its size plus the ~300 bytes of its buffer. Past it, nothing more of the peer is read (rx_paused of its C_TCP) until the transport has written everything (EV_TX_READY): a peer that reads, however much it pipelines, is slowed and never dropped. A peer that takes nothing of what waits for it during timeout_close is dropped, with one WARNING. A connection holds about this of answers plus the rest of one read. The messages a broker sends to a subscriber are not answers: they do not count."),
 
 /*
  *  Dynamic Data
@@ -419,6 +423,11 @@ typedef struct _PRIVATE_DATA {
     BOOL drop_after_tx;             // server: the drop waits for the EV_TX_READY (ws_close())
     json_int_t tx_since_check;      // server: packets handed to the transport since the last check
     json_int_t answers_since_check; // server: memory of the answers handed since the last check
+    BOOL rx_hold;                   // server: the read paused until the answers are written
+    BOOL rx_resume_posted;          // server: EV_RX_RESUME posted, not delivered yet
+    json_t *kw_rx_held;             // server: the rest of the read paused (a copy), or NULL
+    json_int_t rx_hold_queue;       // server: the send queue at the last look of the pause
+    json_int_t rx_hold_tx;          // server: tx_since_check at the last look of the pause
     json_t *jn_qos2_in_mids;        // server without queues: QoS 2 packet ids waiting for PUBREL
 } PRIVATE_DATA;
 
@@ -664,6 +673,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->jn_outgoing_alias_map)
     JSON_DECREF(priv->jn_subscriptions)
     JSON_DECREF(priv->jn_qos2_in_mids)
+    release_held_read(gobj);
 }
 
 
@@ -9069,48 +9079,18 @@ PRIVATE void dump_malformed_frame(hgobj gobj, mqtt_message_t command, gbuffer_t 
 }
 
 /***************************************************************************
- *  Server: whether the peer reads what it asks for. Each packet it sends
- *  can queue an answer in the transport (a PINGRESP of 2 bytes costs about
- *  340 of memory, a SUBACK of a SUBSCRIBE of 16000 filters 16 KB), and a
- *  read of 4 KB answers 2048 PINGREQ while the C_TCP writes one packet per
- *  turn of the loop. Up to 7.30.26 any peer (an anonymous device of a gate
- *  too) grew the process by about 400 MB per 2 MB of PINGREQ until it
- *  died, even reading.
- *
- *  send_packet() counts what is handed to the transport since the last
- *  check: every packet, and the memory of the answers (all but PUBLISH:
- *  what a broker forwards to a subscriber is not an answer, and its queue
- *  is not bounded here). When the answers pass max_unwritten_bytes, the
- *  queue of the transport (C_TCP's cur_tx_queue, FIFO) must hold no more
- *  than what was handed since the last check, that is, everything handed
- *  before it must have left the queue: then this is the new check. If it
- *  holds more, the peer does not read: dropped now, what waits is
- *  discarded (a DISCONNECT would wait behind it), and the rest of the read
- *  is not processed. So the answers waiting are at most about twice the
- *  bound, whatever the queue of forwarded messages is, and the cost on
- *  each packet is a counter.
+ *  Server: the peer does not read its answers: dropped now, with ONE
+ *  WARNING. What waits is discarded (a DISCONNECT would wait behind it),
+ *  and the rest of the read is not processed. No timeout_close: its
+ *  EV_TIMEOUT said the drop again ("Timeout waiting mqtt disconnected")
+ *  and sent a second EV_DROP; the stop of the transport is bounded by its
+ *  own timeout_stop_tx (a peer whose socket does not take the write in
+ *  flight: the C_TCP says its abort), and its EV_DISCONNECTED ends the
+ *  connection here.
  ***************************************************************************/
-PRIVATE BOOL peer_reads_its_answers(hgobj gobj)
+PRIVATE void drop_peer_not_reading(hgobj gobj, json_int_t unwritten)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->max_unwritten_bytes <= 0 ||
-            priv->answers_since_check <= priv->max_unwritten_bytes) {
-        return TRUE;
-    }
-
-    hgobj bottom = gobj_bottom_gobj(gobj);
-    if(!bottom || !gobj_has_attr(bottom, "cur_tx_queue")) {
-        priv->tx_since_check = 0;       // a transport with no send queue to read: no bound
-        priv->answers_since_check = 0;
-        return TRUE;
-    }
-    json_int_t unwritten = gobj_read_integer_attr(bottom, "cur_tx_queue");
-    if(unwritten <= priv->tx_since_check) {
-        priv->tx_since_check = 0;       // what was before the last check is gone: a new check
-        priv->answers_since_check = 0;
-        return TRUE;
-    }
 
     gobj_log_warning(gobj, 0,
         "function",             "%s", __FUNCTION__,
@@ -9124,19 +9104,142 @@ PRIVATE BOOL peer_reads_its_answers(hgobj gobj)
         NULL
     );
 
-    /*
-     *  Said once: no timeout_close, whose EV_TIMEOUT said the drop again
-     *  ("Timeout waiting mqtt disconnected") and sent a second EV_DROP.
-     *  The stop of the transport is bounded by its own timeout_stop_tx
-     *  (a peer whose socket does not take the write in flight: the C_TCP
-     *  says its abort), and its EV_DISCONNECTED ends the connection here
-     */
+    release_held_read(gobj);
     gobj_change_state(gobj, ST_DISCONNECTED);
     clear_timeout(priv->gobj_timer_periodic);
     clear_timeout(priv->gobj_timer);
     priv->drop_after_tx = FALSE;
     send_drop(gobj, MQTT_RC_QUOTA_EXCEEDED);
-    return FALSE;
+}
+
+/***************************************************************************
+ *  Server: whether the peer may be read on. Each packet it sends can
+ *  queue an answer in the transport (a PINGRESP of 2 bytes costs about 340
+ *  of memory, a SUBACK of a SUBSCRIBE of 16000 filters 16 KB), and a read
+ *  of 4 KB answers 2048 PINGREQ while the C_TCP writes one packet per turn
+ *  of the loop. Up to 7.30.26 any peer (an anonymous device of a gate too)
+ *  grew the process by about 400 MB per 2 MB of PINGREQ until it died,
+ *  even reading.
+ *
+ *  send_packet() counts what is handed to the transport since the send
+ *  queue was last empty (EV_TX_READY): every packet, and the memory of the
+ *  answers (all but PUBLISH: what a broker forwards to a subscriber is not
+ *  an answer, and its queue is not bounded here). Past max_unwritten_bytes
+ *  the reading is PAUSED (answer 1): the caller keeps the rest of the read
+ *  (hold_rest_of_read()), the C_TCP reads nothing more (rx_paused), and
+ *  the EV_TX_READY of the queue written resumes it (ac_rx_resume()). So a
+ *  peer that reads is slowed to what it takes, however much it pipelines,
+ *  and never dropped; one that takes nothing during timeout_close is
+ *  dropped (ac_timeout_waiting_frame_header()). The answers waiting are
+ *  about the bound, plus the rest of one read held.
+ *
+ *  The queue (cur_tx_queue, FIFO, fed only by this protocol) holding more
+ *  than what was handed since the last empty queue means that one was
+ *  never said: a transport that publishes no EV_TX_READY. Then the pause
+ *  could never end: the peer is dropped now (answer -1). The cost on each
+ *  packet is a counter.
+ ***************************************************************************/
+PRIVATE int answers_check(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->max_unwritten_bytes <= 0 ||
+            priv->answers_since_check <= priv->max_unwritten_bytes) {
+        return 0;
+    }
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(!bottom || !gobj_has_attr(bottom, "cur_tx_queue") || !gobj_has_attr(bottom, "rx_paused")) {
+        priv->tx_since_check = 0;       // a transport with no send queue to read: no bound
+        priv->answers_since_check = 0;
+        return 0;
+    }
+    json_int_t unwritten = gobj_read_integer_attr(bottom, "cur_tx_queue");
+    if(unwritten > priv->tx_since_check) {
+        drop_peer_not_reading(gobj, unwritten);
+        return -1;
+    }
+
+    priv->rx_hold = TRUE;
+    priv->rx_hold_queue = unwritten;
+    priv->rx_hold_tx = priv->tx_since_check;
+    return 1;
+}
+
+/***************************************************************************
+ *  Server: the reading was paused by answers_check() after the frame just
+ *  completed: keep the rest of this read, read nothing more, and wait for
+ *  the answers to be written (EV_TX_READY), timeout_close at most between
+ *  two looks. The rest is COPIED: the C_TCP clears its read buffer when
+ *  the publication of the read returns. kw is owned, and released.
+ ***************************************************************************/
+PRIVATE void hold_rest_of_read(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    size_t left = gbuf? gbuffer_leftbytes(gbuf) : 0;
+    if(left > 0) {
+        gbuffer_t *rest = gbuffer_create(left, left);
+        if(!rest) {
+            // Error already logged
+            KW_DECREF(kw)
+            drop_peer_not_reading(gobj, gobj_read_integer_attr(gobj_bottom_gobj(gobj), "cur_tx_queue"));
+            return;
+        }
+        gbuffer_append(rest, gbuffer_cur_rd_pointer(gbuf), left);
+        priv->kw_rx_held = json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)rest);
+    }
+    KW_DECREF(kw)
+
+    gobj_write_bool_attr(gobj_bottom_gobj(gobj), "rx_paused", TRUE);
+    set_timeout(priv->gobj_timer, priv->timeout_close);
+}
+
+/***************************************************************************
+ *  Server: a read that comes while the reading is paused (the read in
+ *  flight when it was paused; a TLS read can publish several records): it
+ *  goes behind the rest held. kw is owned, and released.
+ ***************************************************************************/
+PRIVATE void append_to_held_read(hgobj gobj, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
+    size_t len = gbuf? gbuffer_leftbytes(gbuf) : 0;
+    if(len > 0) {
+        gbuffer_t *held = priv->kw_rx_held?
+            (gbuffer_t *)(uintptr_t)kw_get_int(gobj, priv->kw_rx_held, "gbuffer", 0, KW_REQUIRED) : NULL;
+        size_t held_len = held? gbuffer_leftbytes(held) : 0;
+        gbuffer_t *rest = gbuffer_create(held_len + len, held_len + len);
+        if(!rest) {
+            // Error already logged
+            KW_DECREF(kw)
+            drop_peer_not_reading(gobj, gobj_read_integer_attr(gobj_bottom_gobj(gobj), "cur_tx_queue"));
+            return;
+        }
+        if(held_len > 0) {
+            gbuffer_append(rest, gbuffer_cur_rd_pointer(held), held_len);
+        }
+        gbuffer_append(rest, gbuffer_cur_rd_pointer(gbuf), len);
+        KW_DECREF(priv->kw_rx_held)
+        priv->kw_rx_held = json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)rest);
+    }
+    KW_DECREF(kw)
+}
+
+/***************************************************************************
+ *  Server: the end of a pause of the reading, whatever ends it (the
+ *  answers written, the drop, the end of the connection): the rest held is
+ *  released. The reading of the transport is resumed by the caller that
+ *  goes on reading, or by the end of the connection (ac_disconnected())
+ ***************************************************************************/
+PRIVATE void release_held_read(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rx_hold = FALSE;
+    KW_DECREF(priv->kw_rx_held)
 }
 
 /***************************************************************************
@@ -9316,9 +9419,10 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
     }
 
     if(ret >= 0 && priv->iamServer && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
-        if(!peer_reads_its_answers(gobj)) {
+        if(answers_check(gobj) < 0) {
             return MQTT_ERR_UNKNOWN;    // dropped, said: nothing more of the read is processed
         }
+        // a pause (rx_hold): the caller keeps the rest of the read
     }
 
     if(gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
@@ -9350,6 +9454,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->drop_after_tx = FALSE;
     priv->tx_since_check = 0;
     priv->answers_since_check = 0;
+    release_held_read(gobj);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     JSON_DECREF(priv->jn_will_properties)
     priv->jn_alias_list = json_object();
@@ -9412,6 +9517,15 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(priv->istream_payload) {
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
+    }
+
+    /*
+     *  A read paused by the answers: released, and the transport not left
+     *  paused for its next connection (a C_TCP of a C_TCP_S is reused)
+     */
+    release_held_read(gobj);
+    if(src && gobj_has_attr(src, "rx_paused") && gobj_read_bool_attr(src, "rx_paused")) {
+        gobj_write_bool_attr(src, "rx_paused", FALSE);
     }
 
     /*----------------*
@@ -9649,6 +9763,10 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                     break;
                 }
+                if(priv->rx_hold) {
+                    hold_rest_of_read(gobj, kw);    // paused: the rest waits for the answers
+                    return 0;
+                }
             }
         }
     }
@@ -9687,6 +9805,10 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
 
     if(priv->disconnect_received) {
         KW_DECREF(kw)   // bytes after the client's DISCONNECT: not read
+        return 0;
+    }
+    if(priv->rx_hold) {
+        append_to_held_read(gobj, kw);  // the reading is paused: kept, in order
         return 0;
     }
 
@@ -9778,6 +9900,10 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                     break;
                 }
+                if(priv->rx_hold) {
+                    hold_rest_of_read(gobj, kw);    // paused: the rest waits for the answers
+                    return 0;
+                }
             }
         }
     }
@@ -9791,7 +9917,30 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     // We wait forever, if it has done the login.
+    if(priv->rx_hold) {
+        /*
+         *  The reading paused, for timeout_close: the queue empty (no
+         *  EV_TX_READY came for it) resumes it; something written since the
+         *  last look waits one more; nothing written, the peer does not
+         *  read: dropped
+         */
+        hgobj bottom = gobj_bottom_gobj(gobj);
+        json_int_t unwritten = gobj_read_integer_attr(bottom, "cur_tx_queue");
+        json_int_t written = priv->rx_hold_queue + (priv->tx_since_check - priv->rx_hold_tx) - unwritten;
+        if(unwritten == 0) {
+            resume_reading(gobj);
+        } else if(written > 0) {
+            priv->rx_hold_queue = unwritten;
+            priv->rx_hold_tx = priv->tx_since_check;
+            set_timeout(priv->gobj_timer, priv->timeout_close);
+        } else {
+            drop_peer_not_reading(gobj, unwritten);
+        }
+    }
+
     KW_DECREF(kw)
     return 0;
 }
@@ -9831,6 +9980,10 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
             KW_DECREF(kw)
             return -1;
+        }
+        if(priv->rx_hold) {
+            hold_rest_of_read(gobj, kw);    // paused: the rest waits for the answers
+            return 0;
         }
     } else {
         set_timeout(priv->gobj_timer, priv->timeout_payload);
@@ -10652,9 +10805,56 @@ PRIVATE int ac_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->tx_pending = FALSE;
     priv->tx_since_check = 0;       // the send queue is empty: a check
     priv->answers_since_check = 0;
+    if(priv->rx_hold && !priv->rx_resume_posted) {
+        priv->rx_resume_posted = TRUE;
+        gobj_post_event(gobj, EV_RX_RESUME, 0, gobj);   // to ac_rx_resume()
+    }
     if(priv->drop_after_tx) {
         priv->drop_after_tx = FALSE;
         gobj_post_event(gobj, EV_DROP, 0, gobj);    // to ac_drop_closing()
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Server: the end of a pause of the reading: the counts start again, the
+ *  rest held is read now, and then the C_TCP reads again. Synchronous: no
+ *  new read of the C_TCP ends before this returns, so the bytes keep their
+ *  order (if the rest pauses the reading again, the read just started
+ *  goes behind it, append_to_held_read())
+ ***************************************************************************/
+PRIVATE void resume_reading(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw_held = priv->kw_rx_held;
+    priv->kw_rx_held = NULL;
+    priv->rx_hold = FALSE;
+    priv->tx_since_check = 0;
+    priv->answers_since_check = 0;
+    clear_timeout(priv->gobj_timer);
+    gobj_write_bool_attr(gobj_bottom_gobj(gobj), "rx_paused", FALSE);
+    if(kw_held) {
+        gobj_send_event(gobj, EV_RX_DATA, kw_held, gobj);
+    }
+}
+
+/***************************************************************************
+ *  The EV_TX_READY of the answers of a paused reading, posted by
+ *  ac_tx_ready(): it ran inside the transport's publication, where the
+ *  read held cannot be processed (it may drop the transport). It may come
+ *  after its connection ended, whose end released the read held (and, in
+ *  a C_TCP reused, after a new connection began): nothing to resume then.
+ ***************************************************************************/
+PRIVATE int ac_rx_resume(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->rx_resume_posted = FALSE;
+    if(priv->rx_hold && gobj_in_this_state(gobj, ST_WAIT_FRAME_HEADER)) {
+        resume_reading(gobj);
     }
 
     KW_DECREF(kw)
@@ -10704,6 +10904,7 @@ GOBJ_DEFINE_EVENT(EV_MQTT_SUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_MESSAGE);
 GOBJ_DEFINE_EVENT(EV_MQTT_ACL_CHECK);
+GOBJ_DEFINE_EVENT(EV_RX_RESUME);    // internal: posted to itself (ac_tx_ready())
 
 /***************************************************************************
  *
@@ -10734,6 +10935,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DROP,               ac_drop_closing,                    0},
         {EV_STOPPED,            ac_stopped,                         0},
         {EV_TX_READY,           ac_tx_ready,                        0},
+        {EV_RX_RESUME,          ac_rx_resume,                       0},
         {0,0,0}
     };
     ev_action_t st_wait_handshake[] = {
@@ -10742,6 +10944,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           ac_tx_ready,                        0},
+        {EV_RX_RESUME,          ac_rx_resume,                       0},
         {0,0,0}
     };
     ev_action_t st_wait_frame_header[] = {
@@ -10756,6 +10959,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT_PERIODIC,   ac_timeout_periodic,                0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           ac_tx_ready,                        0},
+        {EV_RX_RESUME,          ac_rx_resume,                       0},
         {0,0,0}
     };
     ev_action_t st_wait_payload[] = {
@@ -10795,6 +10999,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DISCONNECTED,       0},
         {EV_STOPPED,            0},
         {EV_DROP,               0},
+        {EV_RX_RESUME,          0},
 
         {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},

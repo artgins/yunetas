@@ -114,9 +114,9 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     /*------------------------------------------------*
-     *  Safety: kill the yuno after 60 s if stuck
+     *  Safety: kill the yuno after 90 s if stuck
      *------------------------------------------------*/
-    set_auto_kill_time(60);
+    set_auto_kill_time(90);
 
     /*------------------------------*
      *  Capture only errors
@@ -125,6 +125,11 @@ static int register_yuno_and_more(void)
     for(int i=0; i<50; i++) {
         json_array_append_new(expected, json_pack("{s:s}",  // 1. one per connection
             "msg", "Mqtt: the peer does not read its answers, connection dropped"
+        ));
+    }
+    for(int i=0; i<50; i++) {
+        json_array_append_new(expected, json_pack("{s:s}",  // 1. the transport's own abort
+            "msg", "The peer did not take the data in flight in timeout_stop_tx, connection aborted"
         ));
     }
     json_array_append_new(expected, json_pack("{s:s}",      // 2.

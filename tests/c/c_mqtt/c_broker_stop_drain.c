@@ -12,8 +12,10 @@
  *              A (MQTT 3.1.1), B (MQTT 5): 8000 PINGREQ and the byte 0xF0
  *                 (a packet of a type the server does not take: a protocol
  *                 error, the close of the connection). The bound on the
- *                 answers drops them before the 0xF0, and their closes end
- *                 at once (up to 7.30.26 they waited, as C and D do).
+ *                 answers pauses their reading before the 0xF0, which is
+ *                 held, and they are still paused at the stop: the read held
+ *                 is released with the connection (up to 7.30.26 they were
+ *                 closing, as C and D are).
  *              C (MQTT 3.1.1), D (MQTT 5): 5 SUBSCRIBEs of 8000 times the
  *                 filter "a" (40 KB of SUBACKs, under the bound), and the
  *                 byte 0xF0. Their closes wait for the SUBACKs to be
@@ -23,9 +25,9 @@
  *          1.5 s later the yuno stops, as a kill-yuno or an update stops
  *          it. The broker closes its database at its stop; this driver,
  *          stopped right after it, closes its sockets, and the kernel
- *          resets the connections (they have unread data): the closes of C
- *          and D end then, and their EV_ON_CLOSE reaches the broker with no
- *          database. It says so (an INFO) and leaves the sessions as the
+ *          resets the connections (they have unread data): the closes of
+ *          the four end then, and their EV_ON_CLOSE reaches the broker with
+ *          no database. It says so (an INFO) and leaves the sessions as the
  *          stop left them. Up to 7.30.26 the broker kept the pointer of its
  *          destroyed treedb and read it there: a use after free (SIGSEGV,
  *          or ASan heap-use-after-free in gobj_get_node()) that a remote

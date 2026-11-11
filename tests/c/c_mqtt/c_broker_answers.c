@@ -19,11 +19,22 @@
  *                 answers wait behind the messages forwarded to it: it gets
  *                 every PUBACK and PUBCOMP and the 4000 messages back, and
  *                 is not dropped.
+ *              3. P publishes 3000 QoS 1 messages in ONE write, reading
+ *                 (a client with no in-flight window, as mqtt.js has by
+ *                 default): it gets the 3000 PUBACK, and is not dropped. Its
+ *                 reading is paused while its answers wait (backpressure).
+ *                 QoS 2 cannot be sent so: past max_inflight_messages (the
+ *                 Receive Maximum) the broker disconnects the client.
+ *              4. K sends 30000 PINGREQ in ONE write, reading: it gets the
+ *                 30000 PINGRESP, slowed, and is not dropped.
  *
  *          The bound that came after 7.30.26 counted the packets read since
  *          the send queue was last empty, and read the whole queue, the
  *          forwarded messages included: case 1 was dropped ("Mqtt: the peer
- *          does not read its answers") while reading everything.
+ *          does not read its answers") while reading everything. The bound
+ *          in bytes that came next dropped the readers of cases 3 and 4 (P
+ *          after 4 PUBACKs): a reader that pipelines cannot show progress
+ *          inside one read, as the C_TCP writes one packet per turn.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -40,6 +51,8 @@
 #define BURST_QOS0          30000
 #define WINDOW              20
 #define LIB_MESSAGES        2000        // of each QoS
+#define PIPELINED_QOS1      3000
+#define PIPELINED_PINGREQ   30000
 
 /***************************************************************************
  *              Prototypes
@@ -204,7 +217,8 @@ PRIVATE void client_connect(hgobj gobj)
         0x02,                                   // flags: clean session
         0x00, 0x3C                              // keep alive 60 s
     };
-    const char *client_id = (priv->phase == 1)? "answers_s" : "answers_l";
+    static const char *client_ids[] = {"", "answers_s", "answers_l", "answers_p", "answers_k"};
+    const char *client_id = client_ids[priv->phase];
     size_t remaining = sizeof(head311) + 2 + strlen(client_id);
     gbuffer_t *gbuf = gbuffer_create(remaining + 2, remaining + 2);
 
@@ -251,6 +265,41 @@ PRIVATE void client_sends_qos0_burst(hgobj gobj, int count)
         gbuffer_append_char(gbuf, 0x04);
         gbuffer_append(gbuf, "fc/x", 4);
         gbuffer_append_char(gbuf, 'x');
+    }
+    client_sends_gbuf(gobj, gbuf);
+}
+
+/***************************************************************************
+ *  `count` QoS 1 PUBLISH to pl/x, payload "z", in one write
+ ***************************************************************************/
+PRIVATE void client_sends_qos1_burst(hgobj gobj, int count)
+{
+    size_t len = 11 * (size_t)count;
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    for(int i=0; i<count; i++) {
+        uint16_t mid = (uint16_t)(i + 1);
+        gbuffer_append_char(gbuf, 0x32);        // PUBLISH QoS 1
+        gbuffer_append_char(gbuf, 9);
+        gbuffer_append_char(gbuf, 0x00);
+        gbuffer_append_char(gbuf, 0x04);
+        gbuffer_append(gbuf, "pl/x", 4);
+        gbuffer_append_char(gbuf, (char)(mid >> 8));
+        gbuffer_append_char(gbuf, (char)(mid & 0xFF));
+        gbuffer_append_char(gbuf, 'z');
+    }
+    client_sends_gbuf(gobj, gbuf);
+}
+
+/***************************************************************************
+ *  `count` PINGREQ in one write
+ ***************************************************************************/
+PRIVATE void client_sends_pingreqs(hgobj gobj, int count)
+{
+    size_t len = 2 * (size_t)count;
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    for(int i=0; i<count; i++) {
+        gbuffer_append_char(gbuf, (char)0xC0);  // PINGREQ
+        gbuffer_append_char(gbuf, 0x00);
     }
     client_sends_gbuf(gobj, gbuf);
 }
@@ -354,7 +403,13 @@ PRIVATE void parse_rx(hgobj gobj)
 
         switch(type) {
             case 2:     // CONNACK
-                client_subscribe(gobj, (priv->phase == 1)? "fc/#" : "lib/#");
+                if(priv->phase == 3) {
+                    client_sends_qos1_burst(gobj, PIPELINED_QOS1);
+                } else if(priv->phase == 4) {
+                    client_sends_pingreqs(gobj, PIPELINED_PINGREQ);
+                } else {
+                    client_subscribe(gobj, (priv->phase == 1)? "fc/#" : "lib/#");
+                }
                 break;
 
             case 9:     // SUBACK
@@ -379,7 +434,26 @@ PRIVATE void parse_rx(hgobj gobj)
                 }
                 break;
 
+            case 13:    // PINGRESP
+                if(priv->phase != 4) {
+                    unexpected_packet(gobj, type);
+                    break;
+                }
+                priv->acked++;
+                if(priv->acked == PIPELINED_PINGREQ) {
+                    end_case(gobj);
+                }
+                break;
+
             case 4:     // PUBACK
+                if(priv->phase == 3) {
+                    priv->acked++;
+                    if(priv->acked == PIPELINED_QOS1) {
+                        end_case(gobj);
+                    }
+                    break;
+                }
+                // fall through
             case 7:     // PUBCOMP
                 if(priv->phase != 2 || (type == 4) != (priv->qos == 1)) {
                     unexpected_packet(gobj, type);
@@ -483,9 +557,11 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         case 1:
         case 2:
+        case 3:
+        case 4:
             if(priv->case_done) {
-                if(priv->phase == 1) {
-                    start_case(gobj, 2);
+                if(priv->phase < 4) {
+                    start_case(gobj, priv->phase + 1);
                 } else {
                     gobj_log_info(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -497,10 +573,16 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 }
                 break;
             }
-            case_failed(gobj, (priv->phase == 1)?
-                "TEST: 1. a subscriber that reads a burst of its own messages did not get them all" :
-                "TEST: 2. a client with a window of 20 did not get all its acks and messages"
-            );
+            {
+                static const char *what[] = {
+                    "",
+                    "TEST: 1. a subscriber that reads a burst of its own messages did not get them all",
+                    "TEST: 2. a client with a window of 20 did not get all its acks and messages",
+                    "TEST: 3. a reader that pipelines 3000 QoS 1 did not get all its PUBACKs",
+                    "TEST: 4. a reader that pipelines 30000 PINGREQ did not get all its PINGRESPs"
+                };
+                case_failed(gobj, what[priv->phase]);
+            }
             set_yuno_must_die();
             break;
 

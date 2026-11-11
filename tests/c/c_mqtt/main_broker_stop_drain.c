@@ -211,10 +211,8 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]",
+        json_pack("[{s:s},{s:s},{s:s}]",
             "msg", "No authz db, authz only to local access",   // C_AUTHZ of the test, without a db
-            "msg", "Mqtt: the peer does not read its answers, connection dropped", // A
-            "msg", "Mqtt: the peer does not read its answers, connection dropped", // B
             "msg", "Command unknown or not implemented",        // C: its 0xF0
             "msg", "Command unknown or not implemented"         // D: its 0xF0
         ),

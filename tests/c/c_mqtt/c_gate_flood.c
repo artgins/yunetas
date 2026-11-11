@@ -15,10 +15,14 @@
  *                 holds (about 300): it gets them all and is never
  *                 dropped. What is bounded is what waits, not the total.
  *              2. A flood of 131072 PINGREQ (256 KB) in one write, the
- *                 client not reading (rx_paused): the gate drops it, with
- *                 ONE WARNING, and its memory does not grow past 2 MB.
- *              3. The same with 40000 QoS 1 PUBLISH (320 KB): dropped,
- *                 one WARNING, memory bounded.
+ *                 client not reading (rx_paused) for 3 s, then reading: the
+ *                 gate pauses its reading while the answers wait
+ *                 (backpressure), its memory does not grow past 2 MB, and
+ *                 the client gets the 131072 PINGRESP and is not dropped.
+ *                 The gate's timeout_close is 10 s here: a peer that takes
+ *                 nothing for that long would be dropped (c_gate_answers).
+ *              3. The same with 40000 QoS 1 PUBLISH (320 KB): the 40000
+ *                 PUBACK, not dropped, memory bounded.
  *              4. 20000 QoS 0 PUBLISH in one write, then a PINGREQ: QoS 0
  *                 asks for no answer, so nothing waits to be written, and
  *                 the client is not dropped: the gate takes the 20000
@@ -32,9 +36,10 @@
  *          gate grew by about 400 MB per 2 MB of PINGREQ, whether the peer
  *          read or not, until the process died. Red on 7.30.26: case 2 not
  *          dropped, the memory grown by 39 MB; case 3 (run alone) not
- *          dropped, 13.6 MB. The bound that came next counted packets
- *          (10000 in the send queue): case 2 was dropped with about 3.4 MB
- *          held, past the 2 MB checked now, and case 1 had bursts of 3000.
+ *          dropped, 13.6 MB. The bounds that came next DROPPED the client of
+ *          cases 2 and 3, which reads after its pause: the first counted
+ *          packets (10000 in the send queue; case 3 held 2.9 MB), the
+ *          second bytes, but cut a peer whose answers waited.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -55,7 +60,8 @@
 #define FLOOD_PINGREQ       131072      // 256 KB
 #define FLOOD_PUBLISH       40000       // 320 KB
 #define STREAM_QOS0         20000       // 120 KB
-#define MAX_MEMORY_GROWTH   (2*1024*1024)   // the answers waiting: about 200 KB
+#define MAX_MEMORY_GROWTH   (2*1024*1024)   // the answers waiting: about 100 KB
+#define PAUSE_MS            3000            // cases 2 and 3: the client does not read
 
 /***************************************************************************
  *              Prototypes
@@ -101,6 +107,7 @@ typedef struct _PRIVATE_DATA {
     size_t mem_growth;      // the most the memory grew during the flood
     size_t mem_growth_2;    // the one of the case 2, said at the end
     size_t mem_growth_3;    // the one of the case 3, said at the end
+    uint64_t t_unpause;     // cases 2 and 3: when the client reads again
 } PRIVATE_DATA;
 
 
@@ -122,14 +129,15 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->timer_mem = gobj_create_pure_child("memory", C_TIMER, 0, gobj);
-    priv->rx = gbuffer_create(4*1024, 64*1024);
+    priv->rx = gbuffer_create(4*1024, 16*1024*1024);
 
     priv->prot = gobj_create(
         "gate_input",
         C_PROT_MQTT2,
-        json_pack("{s:b, s:b}",
+        json_pack("{s:b, s:b, s:i}",
             "iamServer", 1,
-            "allow_anonymous", 1
+            "allow_anonymous", 1,
+            "timeout_close", 10000
         ),
         gobj
     );
@@ -364,6 +372,7 @@ PRIVATE void parse_rx(hgobj gobj)
                      */
                     gobj_write_bool_attr(priv->client, "rx_paused", TRUE);
                     priv->mem_base = get_cur_system_memory();
+                    priv->t_unpause = start_msectimer(PAUSE_MS);
                     set_timeout_periodic(priv->timer_mem, 20);
                     if(priv->phase == 2) {
                         client_sends_pingreqs(gobj, FLOOD_PINGREQ);
@@ -375,11 +384,14 @@ PRIVATE void parse_rx(hgobj gobj)
 
             case 4:     // PUBACK
                 priv->puback++;
+                if(priv->phase == 3 && priv->puback == FLOOD_PUBLISH) {
+                    gobj_post_event(gobj, EV_STOP_CLIENT, 0, gobj);
+                }
                 break;
 
             case 13:    // PINGRESP
                 priv->pingresp++;
-                if(priv->phase == 4) {
+                if(priv->phase == 4 || (priv->phase == 2 && priv->pingresp == FLOOD_PINGREQ)) {
                     gobj_post_event(gobj, EV_STOP_CLIENT, 0, gobj);
                 }
                 if(priv->phase == 1 && priv->pingresp == priv->bursts * BURST_PINGREQ) {
@@ -403,6 +415,9 @@ PRIVATE void parse_rx(hgobj gobj)
                 );
                 break;
         }
+    }
+    if(gbuffer_leftbytes(priv->rx) == 0) {
+        gbuffer_clear(priv->rx);    // what was parsed is not kept
     }
 }
 
@@ -439,7 +454,7 @@ PRIVATE void start_case(hgobj gobj, int phase)
     priv->mem_growth = 0;
     gobj_write_bool_attr(priv->client, "rx_paused", FALSE);
     gobj_start(priv->client);       // CONNECT at its EV_CONNECTED
-    set_timeout(priv->timer, 5000);
+    set_timeout(priv->timer, 15000);
 }
 
 /***************************************************************************
@@ -504,10 +519,12 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         case 2:
         case 3:
             clear_timeout(priv->timer_mem);
-            if(!priv->gate_closed) {
+            if(!priv->gate_closed ||
+                    (priv->phase == 2 && priv->pingresp != FLOOD_PINGREQ) ||
+                    (priv->phase == 3 && priv->puback != FLOOD_PUBLISH)) {
                 case_failed(gobj, (priv->phase == 2)?
-                    "TEST: 2. a flood of PINGREQ was not dropped" :
-                    "TEST: 3. a flood of QoS 1 PUBLISH was not dropped"
+                    "TEST: 2. a client that paused its reading did not get all its PINGRESP" :
+                    "TEST: 3. a client that paused its reading did not get all its PUBACK"
                 );
                 set_yuno_must_die();
                 break;
@@ -558,11 +575,21 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  A sample of the memory during a flood
+ *  A sample of the memory during a flood, and the end of the pause of the
+ *  client
  ***************************************************************************/
 PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     measure_memory(gobj);
+    if(test_msectimer(priv->t_unpause)) {
+        /*
+         *  The pause of the client is over: it reads, and gets its answers
+         */
+        clear_timeout(priv->timer_mem);
+        gobj_write_bool_attr(priv->client, "rx_paused", FALSE);
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -655,8 +682,8 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The gate's connection closed. A flooding client, which reads nothing,
- *  reads again now, to see its close.
+ *  The gate's connection closed. A flooding client that still reads
+ *  nothing reads again now, to see its close.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {

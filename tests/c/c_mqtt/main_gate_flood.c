@@ -2,7 +2,7 @@
  *          MAIN_GATE_FLOOD.C
  *
  *          A peer that asks a gate for more answers than it reads, over a
- *          real socket: dropped at max_unwritten_bytes with one WARNING,
+ *          real socket: its reading paused at max_unwritten_bytes (backpressure),
  *          its memory bounded; a peer that reads them is never dropped.
  *          See c_gate_flood.c.
  *
@@ -114,19 +114,16 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     /*------------------------------------------------*
-     *  Safety: kill the yuno after 30 s if stuck
+     *  Safety: kill the yuno after 90 s if stuck
      *------------------------------------------------*/
-    set_auto_kill_time(30);
+    set_auto_kill_time(90);
 
     /*------------------------------*
      *  Capture only errors
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}]",
-            "msg", "Mqtt: the peer does not read its answers, connection dropped", // 2.
-            "msg", "Mqtt: the peer does not read its answers, connection dropped"  // 3.
-        ),
+        json_pack("[]"),    // no drop: a client that reads after a pause is slowed, not dropped
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys
         TRUE            // verbose
