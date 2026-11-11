@@ -51,6 +51,14 @@
  *               routing (msg_iev_get_stack(), msg_iev_pop_stack()) are the
  *               peer's: a WARNING, masked. Up to 7.26.9 each was an ERROR
  *               with the text, or the kw, in clear.
+ *            4e. The ievents and ievents2 traces of a command frame built
+ *               as the emitters build it (the line in __command__ and in
+ *               the command_stack of __md_iev__): a positional secret and a
+ *               content64 masked by the destination's table, and in the
+ *               answer (and any other echo of the request) the line is its
+ *               first word, "store-blob <...>". Up to 7.30.26 the stack was
+ *               looked for under a name no emitter uses, and its line went
+ *               masked by names only.
  *            2b. view-config also masks: a secret that is a number, a
  *               'global' key whose prefix is the name of a child (not a
  *               gclass, not a service), and the __json_config_variables__
@@ -959,6 +967,46 @@ PRIVATE void unwatch(const char *what)
 }
 
 /*
+ *  The answer of a command or a stats to a link out of session: -1 at once
+ */
+PRIVATE void check_not_in_session(const char *what, json_t *resp)
+{
+    char name[128];
+    snprintf(name, sizeof(name), "%s: answered -1, not in session", what);
+    check_true(name, resp && kw_get_int(0, resp, "result", 0, 0) == -1 &&
+        strstr(kw_get_str(0, resp, "comment", "", 0), "not in session"));
+}
+
+/*
+ *  A command frame as C_IEVENT_CLI.mt_command() and C_IEVENT_SRV.mt_command()
+ *  build it (and gobj-js): the line in the COMMAND_STACK_ID stack of
+ *  __md_iev__ and in "__command__", routed to `dst_service` from "remote-cli"
+ */
+PRIVATE void push_command_frame(hgobj gobj, json_t *kw, const char *command, const char *dst_service)
+{
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        COMMAND_STACK_ID,
+        json_pack("{s:s, s:{}}",   // owned
+            "command", command,
+            "kw"
+        )
+    );
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_STACK_ID,
+        json_pack("{s:s, s:s, s:s, s:s}",   // owned
+            "dst_yuno", "", "dst_service", dst_service,
+            "src_yuno", "", "src_service", "remote-cli"
+        )
+    );
+    json_object_set_new(kw, "__command__", json_string(command));
+    msg_iev_set_msg_type(gobj, kw, "__command__");
+}
+
+/*
  *  unwatch() of what a peer sent: a WARNING, never an ERROR
  */
 PRIVATE void unwatch_peer(const char *what)
@@ -1030,31 +1078,68 @@ PRIVATE void check_log_dumps(hgobj gobj)
     unwatch("the ievents2 trace of a command to a local service");
     JSON_DECREF(kw)
 
-    kw = json_pack("{s:s, s:{s:[{s:s}], s:[{s:s}]}}",
-        "password", "iev7kw-hunter2",
-        "__md_iev__",
-            "ievent_gate_stack", "dst_service", "remote-service",
-            "__command__", "command", "set-user-pwd username=bob password=iev7-hunter2"
-    );
+    kw = json_pack("{s:s}", "password", "iev7kw-hunter2");
+    push_command_frame(gobj, kw, "set-user-pwd username=bob password=iev7-hunter2", "remote-service");
+    json_object_del(kw, "__command__");     // the line only in the stack
     watch("hunter2", "ievents2-v7");
     trace_inter_event2(gobj, "ievents2-v7", "EV_MT_COMMAND", kw);
     unwatch("the ievents2 trace of a command to a remote service");
     JSON_DECREF(kw)
 
     /*
-     *  The ievents trace shows only result and __md_iev__, where a v7
-     *  command lives: a positional secret in it is masked by the command
-     *  table. Up to 7.25.21 it was masked by names only, and went in clear.
+     *  A command frame as the emitters build it (C_IEVENT_CLI, C_IEVENT_SRV,
+     *  gobj-js): the line in "__command__" AND in the COMMAND_STACK_ID stack
+     *  of __md_iev__, where the ievents trace shows it. Both are masked by
+     *  the command table, a positional secret and a content64 too. Up to
+     *  7.30.26 the trace looked for the stack under "__command__", a name no
+     *  emitter uses, and showed the line of the stack masked by names only:
+     *  a create-config's content64 went in clear. And its answer, which
+     *  carries the same stack with the routing reversed: masked by the table
+     *  of the service that ran it (its src_service).
      */
-    kw = json_pack("{s:{s:[{s:s}], s:[{s:s}]}}",
-        "__md_iev__",
-            "ievent_gate_stack", "dst_service", "secret-holder",
-            "__command__", "command", "set-password-pos ievpos-hunter2"
-    );
+    kw = json_object();
+    push_command_frame(gobj, kw, "set-password-pos ievpos-hunter2", "secret-holder");
     watch("ievpos-hunter2", "ievents-v7");
     trace_inter_event(gobj, "ievents-v7", "EV_MT_COMMAND", kw);
     unwatch("the ievents trace of a positional secret");
-    JSON_DECREF(kw)
+    watch("ievpos-hunter2", "ievents2-v7");
+    trace_inter_event2(gobj, "ievents2-v7", "EV_MT_COMMAND", kw);
+    unwatch("the ievents2 trace of a positional secret");
+    json_t *kw_answer = msg_iev_build_response(gobj, 0, 0, 0, 0, kw);  // owns kw
+    watch("ievpos-hunter2", "ievents-v7 answer");
+    trace_inter_event(gobj, "ievents-v7 answer", "EV_MT_COMMAND_ANSWER", kw_answer);
+    unwatch("the ievents trace of the answer of a positional secret");
+    JSON_DECREF(kw_answer)
+
+    kw = json_object();
+    push_command_frame(gobj, kw, "store-blob id=x content64=aWV2YmxvYi1odW50ZXIy", "secret-holder");
+    watch("aWV2YmxvYi1odW50ZXIy", "ievents-v7 content64");
+    trace_inter_event(gobj, "ievents-v7 content64", "EV_MT_COMMAND", kw);
+    trace_inter_event2(gobj, "ievents2-v7 content64", "EV_MT_COMMAND", kw);
+    unwatch("the ievents traces of a content64");
+    /*
+     *  Its answer as a C_IEVENT_SRV sends it: the src_service of the routing
+     *  is the gate's channel, which knows no line (input-0): the line of the
+     *  request is its first word, "store-blob <...>", in the answer and in
+     *  any other event that echoes the request (the agent's EV_TTY_CLOSE)
+     */
+    kw_answer = msg_iev_build_response(gobj, -1, 0, 0, 0, kw);  // owns kw
+    json_object_set_new(
+        json_array_get(json_object_get(json_object_get(kw_answer, "__md_iev__"), IEVENT_STACK_ID), 0),
+        "src_service", json_string("input-0")
+    );
+    watch("store-blob <...>", "ievents-v7 content64 answer");
+    trace_inter_event(gobj, "ievents-v7 content64 answer", "EV_MT_COMMAND_ANSWER", kw_answer);
+    trace_inter_event2(gobj, "ievents2-v7 content64 answer", "EV_MT_COMMAND_ANSWER", kw_answer);
+    s_capturing = FALSE;
+    check_true("the ievents traces of the answer of a content64: its first word shown",
+        s_watch_seen > 0);
+    watch("aWV2YmxvYi1odW50ZXIy", "ievents-v7 content64 answer");
+    trace_inter_event(gobj, "ievents-v7 content64 answer", "EV_MT_COMMAND_ANSWER", kw_answer);
+    trace_inter_event2(gobj, "ievents2-v7 content64 answer", "EV_MT_COMMAND_ANSWER", kw_answer);
+    trace_inter_event2(gobj, "ievents2-v7 content64 echo", "EV_TTY_CLOSE", kw_answer);
+    unwatch("the ievents traces of the answer of a content64, and of another echo");
+    JSON_DECREF(kw_answer)
 
     gobj_set_global_trace("commands", TRUE);
     watch("wa-hunter2", "write-attr");
@@ -2069,31 +2154,46 @@ PRIVATE void check_secret_values(hgobj gobj)
 
     /*
      *  Out of session the first word of the line is logged, masked: it can
-     *  be a secret itself
+     *  be a secret itself. And the caller is answered at once, -1 "not in
+     *  session", with one WARNING: a link that is down is a state (up to
+     *  7.30.26 C_IEVENT_SRV, and C_IEVENT_CLI for a stats, returned NULL --
+     *  "the answer will come" -- after an ERROR with a stack)
      */
     hgobj srv = gobj_create("ievent-out-of-session", C_IEVENT_SRV, 0, gobj);
     watch("oos-hunter2", "Not in session");
     resp = gobj_command(srv, "password=oos-hunter2 user=x", 0, gobj);
+    check_not_in_session("a command out of session (C_IEVENT_SRV)", resp);
     JSON_DECREF(resp)
-    unwatch("the first word of a line out of session (C_IEVENT_SRV)");
+    unwatch_peer("the first word of a line out of session (C_IEVENT_SRV)");
 
     hgobj cli = gobj_create("ievent-cli-out-of-session", C_IEVENT_CLI, 0, gobj);
     watch("oos2-hunter2", "Not in session");
     resp = gobj_command(cli, "token=oos2-hunter2 x=1", 0, gobj);
+    check_not_in_session("a command out of session (C_IEVENT_CLI)", resp);
     JSON_DECREF(resp)
-    unwatch("the first word of a line out of session (C_IEVENT_CLI)");
+    unwatch_peer("the first word of a line out of session (C_IEVENT_CLI)");
 
     /*
      *  And the name of a stats out of session: it was logged whole
      */
     watch("oos3-hunter2", "Not in session");
     resp = gobj_stats(srv, "password=oos3-hunter2 x=1", 0, gobj);
+    check_not_in_session("a stats out of session (C_IEVENT_SRV)", resp);
     JSON_DECREF(resp)
-    unwatch("the stats asked out of session (C_IEVENT_SRV)");
+    unwatch_peer("the stats asked out of session (C_IEVENT_SRV)");
     watch("oos4-hunter2", "Not in session");
     resp = gobj_stats(cli, "token=oos4-hunter2", 0, gobj);
+    check_not_in_session("a stats out of session (C_IEVENT_CLI)", resp);
     JSON_DECREF(resp)
-    unwatch("the stats asked out of session (C_IEVENT_CLI)");
+    unwatch_peer("the stats asked out of session (C_IEVENT_CLI)");
+
+    /*
+     *  An event to a C_IEVENT_CLI out of session: -1, one WARNING
+     */
+    watch("oos5-not-written", "Not in session");
+    check_int("an event out of session (C_IEVENT_CLI): -1",
+        gobj_send_event(cli, EV_SEND_IEV, json_object(), gobj), -1);
+    unwatch_peer("an event out of session (C_IEVENT_CLI)");
 
     /*
      *  Masked BEFORE they are capped: capped first, the token that the cap
@@ -2921,12 +3021,18 @@ PRIVATE sdata_desc_t pm_set_note_pos[] = {
 SDATAPM (DTP_STRING,    "note",         SDF_REQUIRED,           0,      "Not a secret, positional"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_store_blob[] = {
+SDATAPM (DTP_STRING,    "id",           0,                      0,      "Id of the blob"),
+SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,             0,      "The blob in base64: no secret's name, a secret by the table"),
+SDATA_END()
+};
 
 PRIVATE sdata_desc_t holder_command_table[] = {
 /*-CMD---type-----------name----------------alias---items-------------------json_fn-------------description--*/
 SDATACM (DTP_SCHEMA,    "set-password",     0,      pm_set_password,        cmd_set_password,   "Set the password"),
 SDATACM (DTP_SCHEMA,    "set-password-pos", 0,      pm_set_password_pos,    cmd_set_password,   "Set the password, positional"),
 SDATACM (DTP_SCHEMA,    "set-note-pos",     0,      pm_set_note_pos,        cmd_set_password,   "Set nothing, a positional plain value"),
+SDATACM (DTP_SCHEMA,    "store-blob",       0,      pm_store_blob,          cmd_set_password,   "Store nothing: a content64 that only the table knows is secret"),
 SDATACM2 (DTP_SCHEMA,   "command-yuno",     SDF_WILD_CMD,   0,      pm_command_yuno,    cmd_command_yuno,   "Command to yuno, free keys"),
 SDATA_END()
 };

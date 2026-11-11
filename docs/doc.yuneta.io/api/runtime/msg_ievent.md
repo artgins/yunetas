@@ -462,9 +462,15 @@ Message type string, or an empty string if not set.
 
 Traces an inter-event with compact metadata (only `result` and
 `__md_iev__`). Used by the `ievents` trace level. The secrets are masked as in
-[`trace_inter_event2()`](#trace_inter_event2) — the command of a v7
-inter-event lives in `__md_iev__`, and a positional `SDF_SECRET` parameter in
-it is masked by the command table of its destination service.
+[`trace_inter_event2()`](#trace_inter_event2) — the command line of an
+inter-event is also in `__md_iev__`, in the `command_stack` (`COMMAND_STACK_ID`)
+where every emitter puts it, and a `SDF_SECRET` parameter in it (a positional
+one, a `content64`) is masked by the command table of its destination service.
+In any event but the request (`EV_MT_COMMAND`) -- its answer, or another event
+that echoes the request's metadata, as the agent's `EV_TTY_CLOSE` -- the line
+is its first word only, with `<...>` for the rest: the routing of an answer
+names no service that knows the line, and the line was shown, masked, with the
+request.
 
 ```C
 void trace_inter_event(
@@ -500,18 +506,24 @@ This function does not return a value.
  *      SDATA_END()
  *      };
  */
-json_t *kw = json_pack("{s:{s:[{s:s}], s:[{s:s}]}}",
+json_t *kw = json_pack("{s:s, s:{s:[{s:s}], s:[{s:s, s:{}}]}}",
+    "__command__", "set-password hunter2",
     "__md_iev__",
         "ievent_gate_stack", "dst_service", "vault",
-        "__command__", "command", "set-password hunter2"
+        "command_stack", "command", "set-password hunter2", "kw"
 );
 trace_inter_event(gobj, "ievents", "EV_MT_COMMAND", kw);
 // the trace shows "command": "set-password ********"
+trace_inter_event(gobj, "ievents", "EV_MT_COMMAND_ANSWER", kw);
+// the trace shows "command": "set-password <...>"
 json_decref(kw);
 ```
 
 Up to 7.25.21 this trace masked by key names only, and such a positional
-secret went in clear.
+secret went in clear. Up to 7.30.26 it looked for the line under
+`__md_iev__.__command__`, a name no emitter uses: the `command_stack` was shown
+masked by names only, so `create-config id=x content64=<s>` sent to the agent
+was traced with `<s>` in clear, in the request and in its answer.
 
 ---
 

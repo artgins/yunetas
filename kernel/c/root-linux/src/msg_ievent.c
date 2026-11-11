@@ -740,46 +740,78 @@ PUBLIC const char *msg_iev_get_msg_type(
 }
 
 /***************************************************************************
- *  The kw of an inter-event as a trace shows it. A command (v6: its
- *  "__command__" string; v7: the "command" of the "__command__" stack of
- *  __md_iev__) is masked by the command table of its destination service
- *  when that service is here (the SDF_SECRET parameters, positional ones
- *  too), and everything by names (json_mask_secrets(): keys with a
- *  secret's name, "name=value" secrets in a string) -- the table of a
- *  remote service is not known here. Return a new reference.
+ *  A command line as a trace shows it: masked by the command table of
+ *  `service` (names only without it); in an ECHO of the request (its
+ *  answer, or another event that carries the request's metadata back:
+ *  EV_TTY_CLOSE), its first word only, masked, and `<...>` for the rest:
+ *  its routing names no service that knows the line (the line was shown,
+ *  masked, with the request). New json string.
  ***************************************************************************/
-PRIVATE json_t *ievent_kw_masked(json_t *kw)
+PRIVATE json_t *shown_command_line(hgobj service, const char *line, BOOL echo)
+{
+    if(echo) {
+        size_t first = strcspn(line, " \t\r\n");
+        char name[65];  // masked, then capped (a cap first can unshape a token)
+        mask_secrets_inline_capped(name, sizeof(name), line, first);
+        BOOL rest = (line[first + strspn(line + first, " \t\r\n")] != 0)? TRUE: FALSE;
+        json_t *jn = json_sprintf("%s%s", name, rest? " <...>" : "");
+        return jn? jn : json_string("<...>");   // not utf-8: never the line
+    }
+    char *masked = command_mask_secret_line(service, line);
+    json_t *jn = json_string(masked? masked : "");
+    GBMEM_FREE(masked)
+    return jn? jn : json_string("<...>");       // not utf-8: never the line
+}
+
+/***************************************************************************
+ *  The kw of an inter-event as a trace shows it. A command line (the
+ *  "__command__" string of the kw, and the "command" of the COMMAND_STACK_ID
+ *  stack of __md_iev__, where every emitter puts it too) is masked by the
+ *  command table of its destination service when that service is here (the
+ *  SDF_SECRET parameters, positional ones too), and everything by names
+ *  (json_mask_secrets(): keys with a secret's name, "name=value" secrets in
+ *  a string) -- the table of a remote service is not known here. In any
+ *  event but the request, EV_MT_COMMAND (its answer, an EV_TTY_CLOSE), the
+ *  line of the request is its first word only (shown_command_line()). Up
+ *  to 7.30.26 the line of the stack was
+ *  looked for under "__command__", a name no emitter uses, so it was shown
+ *  masked by names only, in the request and in its answer: a content64 (or
+ *  a positional secret) went in clear. Return a new reference.
+ ***************************************************************************/
+PRIVATE json_t *ievent_kw_masked(const char *event, json_t *kw)
 {
     json_t *md_iev = json_object_get(kw, "__md_iev__");
-    json_t *jn_command_stack = json_array_get(json_object_get(md_iev, "__command__"), 0);
+    json_t *jn_command_stack = json_array_get(json_object_get(md_iev, COMMAND_STACK_ID), 0);
     const char *command = json_string_value(json_object_get(kw, "__command__"));
+    const char *stack_command = json_string_value(json_object_get(jn_command_stack, "command"));
     if(!command) {
-        command = json_string_value(json_object_get(jn_command_stack, "command"));
+        command = stack_command;
     }
     if(!command) {
         return json_mask_secrets(kw);
     }
 
-    const char *dst_service = json_string_value(json_object_get(
-        json_array_get(json_object_get(md_iev, "ievent_gate_stack"), 0), "dst_service"
-    ));
-    hgobj service = empty_string(dst_service)? NULL : gobj_find_service(dst_service, FALSE);
+    BOOL echo = (event && strcmp(event, EV_MT_COMMAND) == 0)? FALSE: TRUE;
+    hgobj service = NULL;
+    if(!echo) {
+        const char *dst_service = json_string_value(json_object_get(
+            json_array_get(json_object_get(md_iev, IEVENT_STACK_ID), 0), "dst_service"
+        ));
+        service = empty_string(dst_service)? NULL : gobj_find_service(dst_service, FALSE);
+    }
 
     json_t *kw_masked = command_mask_secret_kw(service, command, kw);
-    char *line = command_mask_secret_line(service, command);
     json_t *kw_shown = json_deep_copy(kw_masked);
     JSON_DECREF(kw_masked)
     if(json_is_string(json_object_get(kw_shown, "__command__"))) {
-        json_object_set_new(kw_shown, "__command__", json_string(line?line:""));
-    } else {
-        json_t *stack = json_array_get(
-            json_object_get(json_object_get(kw_shown, "__md_iev__"), "__command__"), 0
-        );
-        if(json_is_object(stack)) {
-            json_object_set_new(stack, "command", json_string(line?line:""));
-        }
+        json_object_set_new(kw_shown, "__command__", shown_command_line(service, command, echo));
     }
-    GBMEM_FREE(line)
+    json_t *stack = json_array_get(
+        json_object_get(json_object_get(kw_shown, "__md_iev__"), COMMAND_STACK_ID), 0
+    );
+    if(stack_command && json_is_object(stack)) {
+        json_object_set_new(stack, "command", shown_command_line(service, stack_command, echo));
+    }
     return kw_shown;
 }
 
@@ -791,7 +823,7 @@ PRIVATE json_t *ievent_kw_masked(json_t *kw)
  ***************************************************************************/
 PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw)
 {
-    json_t *kw_shown = ievent_kw_masked(kw);
+    json_t *kw_shown = ievent_kw_masked(event, kw);
     if(!kw_shown) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -837,7 +869,7 @@ PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event,
  ***************************************************************************/
 PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw)
 {
-    json_t *kw_shown = ievent_kw_masked(kw);
+    json_t *kw_shown = ievent_kw_masked(event, kw);
     if(!kw_shown) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

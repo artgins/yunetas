@@ -611,13 +611,35 @@ ycommand -c 'command-agent service=controlcenter command=list-yunos'
 yuneta_agent^node1: service 'controlcenter' not in session
 ```
 
+A stats asked out of session (`mt_stats` of `C_IEVENT_CLI`) is answered the
+same way, -1 and one WARNING: up to 7.30.26 the agent's `stats-agent
+service=controlcenter` with the link down never answered, after an ERROR with a
+stack. An event sent to a `C_IEVENT_CLI` out of session (`mt_inject_event`)
+still returns -1, and logs one WARNING instead of an ERROR with a stack.
+`C_IEVENT_SRV` answers a command or a stats out of session the same way (-1,
+one WARNING): it happens only in a race with the close of its peer.
+
+```bash
+ycommand -c 'stats-agent service=controlcenter'
+```
+
+```text
+yuneta_agent^node1: service 'controlcenter' not in session
+```
+
 The `ievents` and `ievents2` traces of `C_IEVENT_CLI` and `C_IEVENT_SRV`
 (`trace_inter_event()`, `trace_inter_event2()`) mask the same way, in both
-directions. A command (`__command__`, v6 or v7) is also masked by the command
+directions. A command line (in `__command__`, and in the `command_stack` of
+`__md_iev__`, where every emitter puts it too) is also masked by the command
 table of its destination service when that service is in this yuno -- its
-`SDF_SECRET` parameters, positional ones too -- as the `commands` trace does
-([`command_mask_secret_line()`](#command_mask_secret_line)). Up to 7.25.20
-`ievents2` printed a command's password in clear.
+`SDF_SECRET` parameters, positional ones too, a `content64` -- as the
+`commands` trace does
+([`command_mask_secret_line()`](#command_mask_secret_line)); in its answer, and
+in any other event that echoes the request, the line is its first word only
+(`create-config <...>`). Up to 7.25.20 `ievents2` printed a command's password
+in clear, and up to 7.30.26 both traces showed the line of the `command_stack`
+masked by names only: `create-config id=x content64=<s>` sent to the agent was
+traced with `<s>` in clear, in the request and in its answer.
 
 ```text
 kw   {"__command__": "set-user-pwd username=bob password=hunter2", "password": "hunter2"}

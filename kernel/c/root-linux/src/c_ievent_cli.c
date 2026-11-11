@@ -245,17 +245,31 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
+        /*
+         *  The link is down: answered at once, as mt_command() does (up to
+         *  7.30.26 NULL, "the answer will come", and none came: the agent's
+         *  stats-agent service=controlcenter waited for its timeout, after an
+         *  ERROR with a stack).
+         */
         char name[65];  // the caller's text: masked, then capped (a cap first can unshape a token)
         mask_secrets_inline_capped(name, sizeof(name), stats? stats : "", stats? strlen(stats) : 0);
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "Not in session",
             "stats",        "%s", name,
             NULL
         );
         KW_DECREF(kw)
-        return NULL;
+        return build_command_response(
+            gobj,
+            -1,
+            json_sprintf("%s: service '%s' not in session",
+                gobj_yuno_role_plus_name(), gobj_name(gobj)
+            ),
+            0,
+            0
+        );
     }
 
     kw = own_kw_to_send(gobj, kw);
@@ -391,9 +405,10 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        // The link is down: a state, not a broken contract (up to 7.30.26 an ERROR with a stack)
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "Not in session",
             "event",        "%s", event,
             NULL
