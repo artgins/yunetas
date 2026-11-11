@@ -35,8 +35,10 @@
       with ONE
       WARNING *"Mqtt: the peer does not read its answers, connection dropped"*
       (`client_id`, `peername`, `unwritten_packets`, `answer_bytes`,
-      `max_unwritten_bytes`). A connection holds about the bound and one read (1000
-      anonymous connections that do not read, about 130 MB), and the messages a broker
+      `max_unwritten_bytes`). A connection holds about the bound and one read (4 KB in
+      clear; over TLS a record of up to 16 KB of clear text and the records the same
+      read completes after it, about 20 KB at most; 1000 anonymous connections that do
+      not read, about 130 MB), and the messages a broker
       forwards to a subscriber are not answers: they do not count, and a subscriber
       that reads them is never dropped. The cost on each packet is a counter (a QoS 1
       round trip, 8 rounds alternated: 12.15 µs of CPU against 12.20, inside the
@@ -50,7 +52,8 @@
       messages; a client with a window of 20 in QoS 1 and 2; 3000 QoS 1 and 30000
       PINGREQ in one write, read: never dropped) and `c_mqtt/gate_reader` (20 clients
       that pipeline PINGREQ and read for 20 s: every PINGRESP in order, none dropped,
-      +2.6 MB), all new, over real sockets. On a gate,
+      +2.6 MB; its drain fails only on 10 s with no byte, so ASan or a slow machine
+      does not fail it), all new, over real sockets. On a gate,
       50 anonymous connections each sending exactly 10000 PINGREQ and never reading took
       it from 10 to 193 MB with nobody dropped under the earlier packet bound; now all 50
       are paused and dropped, and the gate peaks at 17 MB.
@@ -116,7 +119,8 @@
       so it is neither dropped again nor picked by a command.
       A broker sends the same key, with `"delete_session": true` when the new connection
       does not keep the session (the queues of the old one are closed, and their topics
-      deleted).
+      deleted); without it the queues of the old one are closed too, their topics left
+      to the new connection.
     - An MQTT 5 DISCONNECT with a reason code and no Session Expiry Interval (`e0 02 00
       00`, what most clients send) logged an ERROR with a stack (*"kw must be list or
       dict"*), and the server went on reading after it. Nothing the client sends after
@@ -234,6 +238,23 @@
   over with a clean session got CONNACK with session present 0, and then every
   message the old session had queued. A take-over that keeps the session gets them,
   as before. Test: `c_mqtt/broker_sessions` (new).
+- **BREAKING (a client of the broker): a session kept outlives its connection,
+  whatever its Clean Start** [MQTT-3.1.2-4], [MQTT-4.4.0-1]. The close of a
+  connection deleted the queues of its session whenever it had come with MQTT 5
+  Clean Start 1, its Session Expiry Interval > 0 or not; Clean Start cleans at
+  the CONNECT only. Such a client that sent DISCONNECT with 25 QoS 1 messages
+  not acknowledged and came back with Clean Start 0 got session present 1 and
+  only what was published after it left. And when it was taken over by a
+  connection that kept the session while it was still connected or closing,
+  its close deleted the topics the new connection had open: the new queue read
+  the freed topic at every backup check, every second (the ERRORs *"Cannot open
+  topic"* and *"kw must be list or dict"*, a SIGSEGV with messages queued and
+  acknowledged; 7.30.26 and before). Now the close deletes them only when the
+  session ends with it (MQTT 5: Session Expiry 0 at the close, the CONNECT's or
+  its DISCONNECT's; MQTT 3.1.1: clean session), and a take-over closes the old
+  connection's queues at once, deleting their topics only with
+  `"delete_session"`. A kept session that expires is deleted by the broker, as
+  before. Test: `c_mqtt/broker_sessions` (9-18).
 - `C_PROT_MQTT2`: the queues of a connection whose transport is still stopping when
   the yuno ends (one dropped by the bound on the answers, waiting `timeout_stop_tx`;
   a subscriber that does not read, whose `C_TCP` holds QoS 0 forwards) are freed at
@@ -322,10 +343,16 @@
   `command_mask_secret_line()` now, with a command table or without; a command name alone
   in its quotes stays (`'list-yunos'` is `list-yunos`). The parser does not echo such a
   word either: it answers *"command not available: '<...>'"*, and so does `help` for a
-  `cmd` whose first word is one. And the `cmd` of `help` is a command line: the
-  `commands` trace showed `help cmd="login bob <pin>"` as `help cmd=login bob <pin>`
-  (7.30.26); it is masked now the way the header of the help shows it
-  (`help cmd='login bob ********'`, `help cmd='login <...>'` with no table).
+  `cmd` whose first word is one. And `help` names only the FIRST word of a `cmd` that
+  nothing mentions, as the parser does: `help cmd='login bob <pin>'` to a service
+  without `login` answered *"command 'login bob <pin>' not available"* (7.30.26); it is
+  `'login'` now. And the `cmd` of `help` is a command line: the `commands` trace showed
+  `help cmd="login bob <pin>"` as `help cmd=login bob <pin>` (7.30.26); it is masked now
+  the way the header of the help shows it (`help cmd='login bob ********'`,
+  `help cmd='login <...>'` with no table), with the command table of the gobj where the
+  help finds that command -- at the `level` of the line, else at any level -- not of the
+  gobj that runs the help, which does not know a child's `SDF_SECRET` parameter
+  (`help cmd='create-config id=x content64=<s>' level=2` to `__yuno__`).
 - **BREAKING (an operator typing a command line): the first word is read once.** The
   parser read the first word of a line twice, taking one level of quotes off each time:
   `"'list-yunos'"` ran `list-yunos`, and `"list-yunos x" y=1` ran `list-yunos` with `y=1`
@@ -396,10 +423,31 @@
   whole, its `password` redacted inside, with the target's `id=` or `service=` after it,
   as in 7.30.26. A quoted piece with a blank in such a value (`record={"note":"a <s>"}`)
   is cut otherwise: from it on, `<...>`.
+  And a word with the shell's `'\''` in it (a `\` before a `'`) fails closed,
+  nested or not -- also in a command of the agent itself, which otherwise keeps
+  its words: json has no such escape and the parser takes no `\` as one, and the
+  json reader of the text took `'\''` as a string and wrote the password after it
+  in clear (`update-node record='{'\''password'\'':'\''<s>'\''}'` was written
+  `...:'<redacted>'<s>'\''}`; also `write-attr x={'\''password'\'': '\''<s>'\''}`,
+  and a nested `record={'\''password'\''...}` with no blank; 7.30.26). From such a
+  word on, the line is `<...>`, the word's key kept (`update-node record=<...>`):
+  a word kept after it could be a secret only by what came before it (`Basic`).
+  The value of a secret's own key is still its whole shell word, redacted
+  (`password='it'\''s <s>'` is `password='<redacted>'`).
   `DEBUGGING.md` §5.5 shows it.
 
 ### Kernel
 
+- **BREAKING (a caller of `gobj_command()`, a log watcher): a command to a
+  `C_IEVENT_CLI` that is not in session is answered at once.** It returned NULL --
+  for a command, *"the answer will come"* -- and none came: the agent's
+  `command-agent service=controlcenter` with the link to the control center down
+  left the peer waiting until its own timeout, and any peer with a session in the
+  agent could ask it (7.30.26 and before). Now it answers -1, *"<yuno>: service
+  '<name>' not in session"*, and logs *"Not in session"* as one WARNING
+  (`MSGSET_OPERATIONAL`, no stack) instead of an ERROR (`MSGSET_INTERNAL`) with a
+  stack: a link that is down is a state, not a broken contract. Test:
+  `c_agent_command_loop`.
 - **`drop_binary_keys()` is public** (`gbuffer.h`): the walk of `drop_peer_binary_keys()`
   without its log. It drops every `"gbuffer"` key of a json at any depth and returns how
   many; the caller logs. For a decoder that says a peer's bad data once per connection:
