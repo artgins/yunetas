@@ -17,7 +17,13 @@ sharing a port is a collision.
 A port built at compile time is read from the `target_compile_definitions()`
 of a CMakeLists.txt (`TEST7_PORT_TLS="7798"`, `YUNETA_DNS_PORT=15353`), and
 belongs to the target named there: a test twin built with another TLS
-library from the same sources gets its ports this way.
+library from the same sources gets its ports this way. A port CMake computes
+(`math(EXPR idp_port "18910 + ${n}")` then `IDP_PORT="${idp_port}"`) is not
+in the source: it is read from the build tree, where CMake wrote it into
+the `flags.make` of each target. Without a configured build tree such a
+port is not checked, and that is a failure like a file not read.
+
+    python3 scripts/check_test_ports.py --build-dir=X   # another build tree (default: build)
 
 A test whose `run_test.sh` runs it in a network namespace of its own
 (`unshare` with `-n` or a bare `--net`, as c_agent_sandbox does) has a
@@ -51,6 +57,8 @@ PATTERNS = [
 CMAKE_DEFINITIONS = re.compile(
     r'target_compile_definitions\(\s*([^\s)]+)([^)]*)\)', re.S)
 CMAKE_PORT = re.compile(r'\b\w*PORT\w*\s*=\s*\\?"?(\d{3,5})\b')
+CMAKE_COMPUTED_PORT = re.compile(r'\b(\w*PORT\w*)\s*=\s*\\?"?\$\{')
+FLAGS_PORT = re.compile(r'-D(\w*PORT\w*)=\\?"?(\d{3,5})\b')
 
 
 def binary_of(path):
@@ -117,8 +125,35 @@ def own_network_namespace(d):
     return False
 
 
+def computed_ports(build_dir, rel_dir, names):
+    """The ports named `names` that CMake computed for the targets of the
+    source dir rel_dir, read from the flags.make of each target in the build
+    tree: {(port, target)}. None when that dir has no configured build."""
+    cmake_files = os.path.join(build_dir, rel_dir, 'CMakeFiles')
+    if not os.path.isdir(cmake_files):
+        return None
+    found = set()
+    for entry in sorted(os.listdir(cmake_files)):
+        if not entry.endswith('.dir'):
+            continue
+        flags = os.path.join(cmake_files, entry, 'flags.make')
+        try:
+            with open(flags, errors='replace') as fh:
+                text = fh.read()
+        except FileNotFoundError:
+            continue
+        for m in FLAGS_PORT.finditer(text):
+            if m.group(1) in names:
+                found.add((int(m.group(2)), entry[:-len('.dir')]))
+    return found
+
+
 def main():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    build_dir = os.path.join(base, 'build')
+    for arg in sys.argv[1:]:
+        if arg.startswith('--build-dir='):
+            build_dir = os.path.abspath(arg[len('--build-dir='):])
     ports = collections.defaultdict(lambda: collections.defaultdict(set))
     unreadable = 0
     for root in ROOTS:
@@ -139,12 +174,27 @@ def main():
                         print(f'cannot read {rel}: {e.strerror}', file=sys.stderr)
                         unreadable += 1
                         continue
+                    rel_dir = os.path.relpath(d, base)
+                    computed = set()
                     for m in CMAKE_DEFINITIONS.finditer(s):
-                        target = os.path.join(os.path.relpath(d, base), m.group(1))
+                        target = os.path.join(rel_dir, m.group(1))
                         for pm in CMAKE_PORT.finditer(m.group(2)):
                             port = int(pm.group(1))
                             if 1024 <= port <= 65535:
                                 ports[port][target].add(rel)
+                        for pm in CMAKE_COMPUTED_PORT.finditer(m.group(2)):
+                            computed.add(pm.group(1))
+                    if computed:
+                        found = computed_ports(build_dir, rel_dir, computed)
+                        if found is None:
+                            print(f'{rel}: {", ".join(sorted(computed))} computed by CMake, '
+                                  f'and {os.path.join(build_dir, rel_dir)} is not '
+                                  f'configured: build the tests first', file=sys.stderr)
+                            unreadable += 1
+                            continue
+                        for port, target in found:
+                            if 1024 <= port <= 65535:
+                                ports[port][os.path.join(rel_dir, target)].add(rel)
                     continue
                 if not f.endswith(EXTENSIONS):
                     continue

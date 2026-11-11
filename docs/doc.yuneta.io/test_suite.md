@@ -37,12 +37,27 @@ ports of its own, and a new test takes new ones:
 ```bash
 python3 scripts/check_test_ports.py          # exit 1 when two binaries share a port, or a file cannot be read
 python3 scripts/check_test_ports.py --list   # every port and the binary of it
+python3 scripts/check_test_ports.py --build-dir=X   # another build tree (default: build)
 ```
 
 The files of one binary may share a port (`main_<name>.c` with `c_<name>.c`,
-or everything under `<test>/src/`); a port given at compile time (`-DIDP_PORT`
-of `c_task_authenticate`, one per binary from its CMake loop) is not seen by
-the script. The `c_mqtt` tests that keep a store make a work dir of their
+or everything under `<test>/src/`). A port given at compile time is read from
+the `target_compile_definitions()` of the CMakeLists.txt when it is written
+there (`TEST7_PORT_TLS="7798"`), and from the build tree when CMake computes
+it: `c_task_authenticate` gives each binary of its loop its own `IDP_PORT`
+(18911-18942):
+
+```cmake
+math(EXPR idp_port "18910 + ${test_number}")
+target_compile_definitions(${binary} PRIVATE IDP_PORT="${idp_port}")
+```
+
+The script reads those values from the `flags.make` of each target, so it
+needs a configured `build/` (as `check_test_databases.py` does). Without one
+it names the CMakeLists.txt and exits 1: a port it cannot read is a port it
+did not check.
+
+The `c_mqtt` tests that keep a store make a work dir of their
 own run, `<$TMPDIR or /tmp>/<name>.<pid>.<n>`, and remove it at the end
 (`tests/c/c_mqtt/test_work_dir.c`). Up to 7.25.20 ten ports were shared (the
 `c_tcp`/`c_tcps` families on 7778, the `c_auth_bff` binaries on 18801/18802,

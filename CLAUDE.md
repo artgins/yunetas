@@ -2136,8 +2136,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   4. `TODO.md` is pruned of items the commits resolved.
   5. READMEs/docs scanned for stale content (old versions, removed features,
      renamed APIs).
-  6. The three checks of the tests pass: `scripts/check_test_ports.py`,
-     `scripts/check_test_databases.py` (needs a built `build/`) and
+  6. The three checks of the tests pass: `scripts/check_test_ports.py`
+     and `scripts/check_test_databases.py` (both need a built `build/`), and
      `scripts/check_test_links.py` (an archive linked by a bare name is never
      relinked when it changes).
   Surface gaps as a punch list before committing/tagging.
