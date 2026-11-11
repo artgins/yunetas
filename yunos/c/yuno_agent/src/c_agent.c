@@ -7658,6 +7658,19 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    /*
+     *  A link to another yuno (the control center's) addresses its answer
+     *  to the `src` of the request, and the requester's channel is no
+     *  service: the link dropped the answer ("service of the event not
+     *  found") and the requester waited for ever. It goes from the agent,
+     *  with the requester named in the metadata the answer echoes, and
+     *  ac_command_yuno_answer() sends it on.
+     */
+    if(gobj_typeof_gclass(service_gobj, C_IEVENT_CLI)) {
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_requester", json_string(gobj_name(src)));
+        src = gobj;
+    }
+
     json_t *webix = gobj_command(
         service_gobj,
         command,
@@ -7690,6 +7703,15 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 kw  // owned
             );
         }
+    }
+
+    /*
+     *  A link to another yuno: as in cmd_command_agent(), the answer comes
+     *  back to the agent, and ac_stats_yuno_answer() sends it on
+     */
+    if(gobj_typeof_gclass(service_gobj, C_IEVENT_CLI)) {
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_requester", json_string(gobj_name(src)));
+        src = gobj;
     }
 
     json_t *webix = gobj_stats(
@@ -11660,13 +11682,22 @@ PRIVATE int command_to_yuno(hgobj gobj, json_t *yuno, const char *command, json_
         KW_DECREF(kw);
         return -1;
     }
-    json_t *webix = gobj_command( // debe retornar siempre 0.
+    json_t *webix = gobj_command(
         channel_gobj,
         command,
         kw,
         src //gobj
     );
-    JSON_DECREF(webix);
+    if(webix) {
+        /*
+         *  Answered at once, not sent: the link to the yuno is closing, or
+         *  out of session ("not in session", its WARNING logged). Up to
+         *  7.30.26 that answer was dropped and the yuno counted as sent: the
+         *  requester waited for an answer nobody would send.
+         */
+        JSON_DECREF(webix);
+        return -1;
+    }
     return 0;
 }
 
@@ -11695,13 +11726,22 @@ PRIVATE int stats_to_yuno(hgobj gobj, json_t *yuno, const char* stats, json_t* k
             json_object_set_new(kw, "service", json_string(yuno_role));
         }
     }
-    json_t *webix =  gobj_stats(  // debe retornar siempre 0.
+    json_t *webix = gobj_stats(
         channel_gobj,
         stats,
         kw,
         src // gobj
     );
-    JSON_DECREF(webix);
+    if(webix) {
+        /*
+         *  Answered at once, not sent: the link to the yuno is closing, or
+         *  out of session ("not in session", its WARNING logged). Up to
+         *  7.30.26 that answer was dropped and the yuno counted as sent: the
+         *  requester waited for an answer nobody would send.
+         */
+        JSON_DECREF(webix);
+        return -1;
+    }
     return 0;
 }
 
@@ -11720,13 +11760,22 @@ PRIVATE int authzs_to_yuno(
         KW_DECREF(kw);
         return -1;
     }
-    json_t *webix = gobj_command( // debe retornar siempre 0.
+    json_t *webix = gobj_command(
         channel_gobj,
         "authzs",
         kw,
         src //gobj
     );
-    JSON_DECREF(webix);
+    if(webix) {
+        /*
+         *  Answered at once, not sent: the link to the yuno is closing, or
+         *  out of session ("not in session", its WARNING logged). Up to
+         *  7.30.26 that answer was dropped and the yuno counted as sent: the
+         *  requester waited for an answer nobody would send.
+         */
+        JSON_DECREF(webix);
+        return -1;
+    }
     return 0;
 }
 
@@ -14382,6 +14431,20 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    char requester[NAME_MAX + 1] = "";
+    if(strcmp(dst_service, gobj_name(gobj))==0) {
+        /*
+         *  The answer of a link to another yuno, asked by an operator
+         *  (command-agent / stats-agent): its requester rides in the metadata
+         */
+        json_t *md_iev = json_object_get(kw, "__md_iev__");
+        const char *agent_requester = json_string_value(json_object_get(md_iev, "agent_requester"));
+        if(!empty_string(agent_requester)) {
+            snprintf(requester, sizeof(requester), "%s", agent_requester);
+            json_object_del(md_iev, "agent_requester");
+            dst_service = requester;
+        }
+    }
     if(strcmp(dst_service, gobj_name(gobj))==0) {
         /*
          *  Stats asked by the agent itself: a reading of a watch-yuno-stats
@@ -14457,6 +14520,20 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    char requester[NAME_MAX + 1] = "";
+    if(strcmp(dst_service, gobj_name(gobj))==0) {
+        /*
+         *  The answer of a link to another yuno, asked by an operator
+         *  (command-agent / stats-agent): its requester rides in the metadata
+         */
+        json_t *md_iev = json_object_get(kw, "__md_iev__");
+        const char *agent_requester = json_string_value(json_object_get(md_iev, "agent_requester"));
+        if(!empty_string(agent_requester)) {
+            snprintf(requester, sizeof(requester), "%s", agent_requester);
+            json_object_del(md_iev, "agent_requester");
+            dst_service = requester;
+        }
+    }
     if(strcmp(dst_service, gobj_name(gobj))==0) {
         /*
          *  Command requested by the agent itself: nothing to forward. The

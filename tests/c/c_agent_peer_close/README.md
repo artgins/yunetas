@@ -39,9 +39,14 @@ read after the Close.
    - a continuation frame with no message begun (a protocol error);
    - a Ping of 126 bytes (a protocol error).
 
-   The yuno's channel refuses the pair read after the Close at once (-1
-   *"not in session"*, one WARNING each); every answer the operators get is
-   -1. The other pair reached the yuno, which never answers it.
+   The pair read after the Close must be answered -1 at once:
+
+   ```
+   yuneta_agent^<host>: stats-yuno: yuno 1 runs but is not connected to the agent (starting or stopping): nothing sent
+   yuneta_agent^<host>: help: yuno 1 runs but is not connected to the agent (starting or stopping): nothing sent
+   ```
+
+   The other pair reached the yuno, which never answers it.
 2. Two operators send `command-yuno` to the yuno, and close (a Close frame)
    while the yuno answers both: the answer to the one that closed first is
    dropped.

@@ -18,9 +18,9 @@
 #      Close, a Close and the end of the connection, a continuation frame
 #      with no message begun and a Ping of 126 bytes (both a protocol
 #      error, which the agent's websocket answers with its Close). The pair
-#      that reaches the yuno closing is refused at once by the yuno's
-#      channel (-1, "not in session", a WARNING each); the other went to
-#      the yuno, which never answers.
+#      that reaches the yuno closing is answered at once (-1, "not
+#      connected to the agent"); the other went to the yuno, which never
+#      answers.
 #   2. Two operators close while the answers to their command-yuno come
 #      back from the yuno: the answer to the one that closed first has
 #      nobody to go to, and is dropped.
@@ -310,9 +310,9 @@ async def main():
             )
             a, b = await asyncio.gather(answers_of(op, 1.5), answers_of(op_after, 1.5))
             got = a + b
-            check("cycle %d, %s: the orders to the yuno closing refused: %s" % (
+            check("cycle %d, %s: the orders to the yuno closing answered: %s" % (
                     cycle, how, [(a.get("result"), a.get("comment")) for a in got]),
-                all(a.get("result") == -1 for a in got))
+                len(got) == 2 and all(a.get("result") == -1 for a in got))
             check("cycle %d, %s: the agent ends the connection" % (cycle, how), await p.closed(10))
             p.close()
             op_after.close()

@@ -3,10 +3,9 @@
 #   Run the real agent in a sandbox, and close its peers while orders go to
 #   them (client.py): a yuno that closes while the operator's stats-yuno
 #   and command-yuno go to it, and an operator that closes while the answer
-#   to its command comes back. Each order that reaches the yuno closing is
-#   refused by its channel with a WARNING, the answer to an operator closing
-#   is dropped with a WARNING, and nothing may be "Event NOT DEFINED in
-#   state".
+#   to its command comes back. Each order that reaches the yuno closing must
+#   be answered (-1), the answer to an operator closing is dropped with a
+#   WARNING, and nothing may be "Event NOT DEFINED in state".
 #
 #   The agent's 1991 and its pid file are fixed in the binary, so it runs in
 #   namespaces of its own (user, mount, network, pid): a tmpfs on /yuneta, a
@@ -121,5 +120,5 @@ if [ $failed -ne 0 ]; then
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | grep -o "\"function\".*" | cut -c1-400 | tail -40
     exit 1
 fi
-echo "TEST PASSED: every order to a peer that was closing was refused or dropped with a WARNING, never \"Event NOT DEFINED\", and the agent lived"
+echo "TEST PASSED: every order to a peer that was closing was answered or dropped with a WARNING, never \"Event NOT DEFINED\", and the agent lived"
 exit 0
