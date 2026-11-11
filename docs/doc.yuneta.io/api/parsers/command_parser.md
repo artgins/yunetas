@@ -625,7 +625,14 @@ to 7.30.26 it showed `aHVudGVyMg==` as the user). With no command table --
 command to a remote service -- the line is masked by names only, and a word
 that ends in `=` or `==`, or begins with `=`, is no `key=value`: `<...>` (a
 password in base64 ends so; the agent's audit file takes the same rule; up to
-7.30.26 it was shown whole). In a `SDF_WILD_CMD` command a value
+7.30.26 it was shown whole). A first word with a blank, a quote or a
+backslash in it (its own enclosing quotes apart) is no command name: `<...>`,
+the rule of the agent's audit file. In its own quotes a whole line is one word,
+and the parser runs the command of ITS first word with the rest of the line
+after the closing quote: `'login bob hunter2' note=x` runs `login` with
+`note=x` (refused), and the trace shows `<...> note=x` (up to 7.30.26 it showed
+`login bob hunter2 note=x`). A command name alone in its quotes stays:
+`'list-yunos'` is `list-yunos`. In a `SDF_WILD_CMD` command a value
 with a `=` is a command line going on, shown `key='...'` masked by names. The
 whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
 `write-attr attribute=password value=X` shows `value=********`. What
@@ -677,6 +684,10 @@ line = command_mask_secret_line(gobj,   // "user" required, "password" optional 
 line = command_mask_secret_line(NULL,   // no table: by names only
     "set-user-pwd username=bob aHVudGVyMg=="
 );                                      // "set-user-pwd username=bob <...>"
+
+line = command_mask_secret_line(gobj,   // a whole line in quotes is one word: no command name
+    "'login bob hunter2' note=x"
+);                                      // "<...> note=x"
 
 line = command_mask_secret_line(agent,  // a value of 46 MB of base64
     "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."

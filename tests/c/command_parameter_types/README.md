@@ -60,7 +60,11 @@ positional); `required stray=x` still shows it. With no command table
 (`command_mask_secret_line(NULL, …)`, the ievents trace of a command to a
 remote service) a word that ends in `=` or `==`, or begins with `=`, is `<...>`
 (`set-user-pwd username=bob <...>`; 7.30.26 showed it whole), and `id=X
-note=''` stays. Blanks at
+note=''` stays. A first word with a blank, a quote or a backslash in it is
+`<...>` in the mask, with the table and without it, and in the `commands`
+trace: `'login bob <pin>' note=x` (the parser runs `login`, refused) is
+`<...> note=x`, `"login bob <pin>"` is `<...>`, `log\in s=a` is `<...> s=a`
+(7.30.26 showed the first two whole); `'typed' s=a` stays `typed s=a`. Blanks at
 the end of the line (`typed s=a  `, `required 1 x \t`) are no parameter (two
 or more were *"extra parameters: ' '"*).
 

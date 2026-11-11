@@ -1027,7 +1027,12 @@ PUBLIC json_t *command_mask_secret_kw(
  *  secret parameter, a word with a '=' in the place of a required
  *  positional, that the parser refuses ("required parameter not found"),
  *  is not shown: " <...>" (up to 7.30.26 `opt aHVudGVyMg== user=bob`
- *  showed it as the value of the positional).
+ *  showed it as the value of the positional). A first word with a blank,
+ *  a quote or a backslash in it (its own enclosing quotes apart) is no
+ *  command name: "<...>", the rule of the agent's audit file. In its own
+ *  quotes a whole line is one word, and the parser runs the command of
+ *  ITS first word: up to 7.30.26 `'login bob <pin>' note=x` was shown
+ *  whole.
  ***************************************************************************/
 PUBLIC char *command_mask_secret_line(
     hgobj gobj,
@@ -1052,7 +1057,11 @@ PUBLIC char *command_mask_secret_line(
         return gbmem_strdup("");
     }
     char *cmd = get_parameter(p, &p);
-    gbuffer_append_string(gbuf, cmd?cmd:"");
+    if(cmd && strpbrk(cmd, " \t'\"\\")) {
+        gbuffer_append_string(gbuf, "<...>");   // in its quotes, a whole line is one word
+    } else {
+        gbuffer_append_string(gbuf, cmd?cmd:"");
+    }
 
     /*
      *  The leading required parameters can go without key, as

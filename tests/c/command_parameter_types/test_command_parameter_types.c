@@ -62,6 +62,10 @@
  *              and the `commands` trace when the command has a secret
  *              parameter (7.30.26 showed it); with no table, a word that
  *              ends in '=' or "==", or begins with '=', is <...>;
+ *            - a first word with a blank, a quote or a backslash in it is
+ *              <...> in the mask (with and without a table) and the
+ *              `commands` trace: `'login bob <pin>' note=x` was shown
+ *              whole up to 7.30.26; `'typed'` stays `typed`;
  *            - blanks at the end of the line are no parameter (two or more
  *              answered "extra parameters: ' '");
  *            - command_parameter_from_text() reads a text as the parser
@@ -719,6 +723,76 @@ int main(int argc, char *argv[])
             printf("     masked: %s\n", masked? masked : "(null)");
         }
         GBMEM_FREE(masked)
+    }
+
+    /*
+     *  A first word with a blank, a quote or a backslash in it is no
+     *  command name: `<...>`, the rule of the agent's audit file. In its
+     *  own quotes a whole line is one word, and the parser runs the command
+     *  of ITS first word with the rest of the line after the closing quote
+     *  (`'login bob <pin>' note=x` runs `login` with `note=x`, refused).
+     *  Up to 7.30.26 the mask (the `commands` trace, the ievents trace,
+     *  `help cmd=`) wrote that word whole, the pin in it. A command name
+     *  alone in its quotes stays.
+     */
+    {
+        static const struct {
+            const char *command;
+            const char *secret;
+            const char *expected;
+        } first_word[] = {
+            {"'login bob fq1-hunter2' note=x",  "fq1-hunter2",  "<...> note=x"},
+            {"\"login bob fq2-hunter2\"",       "fq2-hunter2",  "<...>"},
+        };
+        gobj_set_global_trace("commands", TRUE);
+        for(size_t i=0; i<sizeof(first_word)/sizeof(first_word[0]); i++) {
+            char comment[512];
+            g_watch = first_word[i].secret;
+            g_watch_hits = 0;
+            int result = run(yuno, first_word[i].command, 0, comment, sizeof(comment));
+            g_watch = 0;
+            check(first_word[i].command, "refused, the word not in the answer",
+                result == -1 && strstr(comment, first_word[i].secret) == NULL);
+            if(result != -1 || strstr(comment, first_word[i].secret)) {
+                printf("     comment: %s\n", comment);
+            }
+            check(first_word[i].command, "the word in no log nor trace", g_watch_hits == 0);
+
+            for(int with_table=1; with_table>=0; with_table--) {
+                const char *expected = first_word[i].expected;
+                char *masked = command_mask_secret_line(
+                    with_table? yuno : NULL, first_word[i].command
+                );
+                check(first_word[i].command,
+                    with_table? "the mask: the first word is <...>" :
+                        "no table: the first word is <...>",
+                    masked && strstr(masked, first_word[i].secret) == NULL &&
+                    strcmp(masked, expected) == 0);
+                if(!masked || strcmp(masked, expected) != 0) {
+                    printf("     masked: %s\n", masked? masked : "(null)");
+                }
+                GBMEM_FREE(masked)
+            }
+        }
+        gobj_set_global_trace("commands", FALSE);
+
+        for(int with_table=1; with_table>=0; with_table--) {
+            char *masked = command_mask_secret_line(with_table? yuno : NULL, "log\\in s=a");
+            check("log\\in s=a", "a backslash in the first word: <...>",
+                masked && strcmp(masked, "<...> s=a") == 0);
+            if(!masked || strcmp(masked, "<...> s=a") != 0) {
+                printf("     masked: %s\n", masked? masked : "(null)");
+            }
+            GBMEM_FREE(masked)
+
+            masked = command_mask_secret_line(with_table? yuno : NULL, "'typed' s=a");
+            check("'typed' s=a", "a command name alone in its quotes stays",
+                masked && strcmp(masked, "typed s=a") == 0);
+            if(!masked || strcmp(masked, "typed s=a") != 0) {
+                printf("     masked: %s\n", masked? masked : "(null)");
+            }
+            GBMEM_FREE(masked)
+        }
     }
 
     /*
