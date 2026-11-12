@@ -17,6 +17,20 @@
 
 ### MQTT
 
+- **BREAKING (a log watcher): `C_MQTT_BROKER` obeys `EV_TREEDB_NODE_CREATED`
+  / `_UPDATED` / `_DELETED` only when its own treedb publishes them.** The
+  broker turns a change of the topic `users` of `treedb_mqtt_broker` into
+  authz user administration (`EV_ADD_USER`, `EV_REJECT_USER`). The names are
+  public (`C_NODE`), so a peer of the broker's `__top_side__` (an ievent
+  session with any role, such as a device credential) could send them, and
+  `C_IOGATE` published them again as its own: in 7.30.26 one frame disabled
+  any authz user (`admin` too, persistently, its sessions dropped),
+  re-enabled a disabled one, or created one. Now the event is dropped when
+  it comes from any other `src`: the action answers -1 and authz is not
+  asked, with a WARNING (*"treedb event not published by the treedb of the
+  broker, refused"*, `MSGSET_AUTH`, with `src`, `channel`, `username` and
+  `suppressed`) at most once per 10 s. This is the second layer, behind the
+  `C_IEVENT_SRV` frontier (### Kernel). Test: new `c_mqtt/broker_treedb_src`.
 - **BREAKING (a yuno that still creates `C_PROT_MQTT`): `C_PROT_MQTT` is removed**
   (`c_prot_mqtt.c`, `c_prot_mqtt.h`, `register_c_prot_mqtt()`), with its tests
   (`c_mqtt/legacy_prot`, `c_mqtt/legacy_sessions`). It was deprecated, and since 7.30.26
@@ -610,6 +624,28 @@
   watches first, while the channels and the treedb are open. Test:
   `c_agent_answer_routing`.
 
+- **The answer of the play of a `run-yuno` goes once, to the session that
+  asked.** A `run-yuno` that plays (`play=1`, the default) keeps its
+  requester for the answer of the play. A yuno that does not play by itself
+  (`must_play` false) kept it, and after a `play-yuno` the next relaunch (by
+  its watcher, after a crash) answered that `run-yuno` again, to whoever
+  held the channel then: the same session, another session with that
+  channel's name and the first one's data, or, with nobody, the yuno
+  itself, whose link to the agent was cut by it and came back 3 s later
+  (7.30.26). The requester is now taken out at the first open of the yuno,
+  and the play answers it only for the launch it ran and while the session
+  that asked holds its channel. Test: `c_agent_sandbox`.
+- **BREAKING (a log watcher): the agent takes the events of a console only
+  from its consoles, and its own requests only by their commands.** A
+  session could send `EV_TTY_OPEN` / `EV_TTY_DATA` / `EV_TTY_CLOSE` (public
+  in `C_PTY`): an ERROR *"named dict not found"* per frame. It could send
+  `EV_EDIT_CONFIG`, `EV_READ_FILE` and the other seven requests that the
+  commands `edit-config`, `read-file`... send: the agent answered them to
+  the gate of its channels, an ERROR *"Event NOT DEFINED in state"* with a
+  stack per frame (7.30.26). They are dropped now, with one WARNING of each
+  kind per 10 s (*"console event not from a console: dropped"*, *"request of
+  the agent not by its command: dropped"*). The commands are not changed;
+  no client sends those events. Test: `c_agent_answer_routing`.
 ### Kernel
 
 - **BREAKING** (for anything that played or paused a yuno through a link not
@@ -637,6 +673,34 @@
   could take a forged `EV_ON_OPEN` to the check of its node key, and an
   `EV_ON_CLOSE` wiped its channel's state. Test: new
   `c_ievent_srv_transport_events`.
+- **BREAKING** (for a peer that sent such an event on purpose; none in the
+  SDK or its known consumers): **a peer cannot send the events a treedb
+  publishes.** A frame of a session that names `EV_TREEDB_NODE_CREATED`,
+  `_UPDATED`, `_DELETED`, `_LINKED` or `_UNLINKED` (public in `C_NODE`, so it
+  decodes) is dropped by `C_IEVENT_SRV`, the channel kept, with a WARNING
+  (*"event of a treedb sent by a peer, refused"*, `MSGSET_AUTH`, the
+  `peername` and `username`) at most once per 10 s per channel. Up to 7.30.26
+  `C_IOGATE` published it to its subscriber, often the yuno's main gclass
+  subscribed to its own treedb: a session of the lowest privilege could
+  disable any user of the yuno's `C_AUTHZ` (`admin` too, persistently, its
+  sessions cut), enable one, or create one. A remote subscription to those
+  events is not affected (it arrives at `C_IEVENT_CLI`). Test:
+  `c_ievent_srv_transport_events`.
+- **BREAKING** (for a log watcher: an ERROR becomes a WARNING): **`C_IOGATE`
+  refuses an event of a peer that its subscriber does not take in its
+  current state.** The frame is dropped, the channel kept, with ONE WARNING
+  (*"event of a peer the yuno does not take now, refused"*,
+  `MSGSET_PROTOCOL`, the subscriber, its state, the channel, `peername`,
+  `username`) at most once per 10 s per channel; the ones not said are said
+  once when the channel closes or the gate stops (INFO *"Events of a peer
+  refused, not said"*). Up to 7.30.26 each such frame was an *"Event NOT
+  DEFINED in state"* in the subscriber, an ERROR with a stack and no brake
+  (in the agent 120 ERRORs for 180 frames, in a broker 1.2 MB of log for
+  200). The same event sent by the yuno's own code is still that ERROR. With
+  several unfiltered subscribers, a frame one of them does not take is now
+  dropped for all. New `gobj_find_subscriber_refusing_event()` (gobj-c): the
+  first subscriber a publication would reach that does not take the event,
+  with no allocation. Test: `c_ievent_srv_transport_events`.
 
 - **BREAKING (for a peer or yuno that relied on it, none in the SDK):
   `__temp__` never crosses a yuno boundary, in either direction.** It is
@@ -672,11 +736,19 @@
   last one. The end of the run (a send that finds a channel, or the gate's
   stop) is said once, an INFO *"Sends with no channel ended"* with
   `without_channel` and `not_said`, and the count starts again. A send to
-  all channels that finds none and a drop of a channel the gate does not
-  have (*"channel NOT FOUND"*) go through the same brake. The gate's stats
+  all channels that finds none goes through the same brake. A drop of a
+  channel the gate does not have (*"channel NOT FOUND"*) counts in a run of
+  its own, ended by a drop that finds its channel or by the gate's stop
+  (INFO *"Drops of a channel not found ended"*), so a drop never hides the
+  first send of an outage nor counts as one of its sends. The gate's stats
   count what it could not send: `txMsgsNoChannel`. Up to 7.30.26 the counter
   never moved (and was shared by every gate of the yuno): one ERROR per
   send, the send to all with a stack. Test: new `c_iogate_channel`.
+- `C_TCP`: a local stop says the writes queued behind the one in flight
+  that it drops, once, an INFO (*"tcp data queued at a local stop,
+  dropped"*, `dropped_msgs`, `dropped_bytes`), and counts them in the new
+  stat `txMsgsDroppedAtStop`. Up to 7.30.26 they went in silence. Test:
+  `c_tcp/test9`.
 - `__send_type__` (the `C_IOGATE` send-to-all switch) is documented as a key
   of the yuno, like `__temp__`: the kw of a send is built by the yuno's own
   code.
@@ -752,6 +824,13 @@
   7.30.26 it was a SIGSEGV in `is_from_agent_side()`. `requester_of_route()`
   read an agent's `__temp__` the same way: closed by the same frontier.
   Test: `c_controlcenter_scenarios` (case 4).
+- An `EV_TREEDB_NODE_*` of the users store is believed only from the store:
+  from any other source it is ignored with a WARNING (*"event of the users
+  store not sent by the store, ignored"*, `MSGSET_AUTH`) at most once per
+  10 s. Up to 7.30.26 a forged `EV_TREEDB_NODE_UPDATED` of `roles` (from an
+  agent's input or any operator) made every client ask `my-permissions`
+  again; the kernel frontier now refuses it too. Test:
+  `c_controlcenter_scenarios` (case 15).
 
 ### Packaging
 
