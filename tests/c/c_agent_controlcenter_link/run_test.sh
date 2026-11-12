@@ -78,7 +78,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=yuneta_agent.yuneta
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=agent" \
     -keyout "$WORK/agent.key" -out "$WORK/agent.crt" 2>/dev/null || skip "openssl cannot make a certificate"
 
-timeout 100 unshare -rmn --pid --fork --mount-proc bash -c "
+timeout 150 unshare -rmn --pid --fork --mount-proc bash -c "
     ip link set lo up || exit 1
     mount -t tmpfs none /yuneta || exit 1
     mount --bind '$WORK/passwd' /etc/passwd || exit 1
@@ -187,6 +187,22 @@ nhn=$(grep -ac '"msg": "hgobj NULL or DESTROYED"' "$WORK/agent.log")
 if [ "$npp" != "1" ] || [ "$nnc" != "0" ] || [ "$nhn" != "0" ]; then
     echo "TEST FAILED: $npp WARNING(s) for a play/pause refused (expected 1), $nnc \"No channel FOUND to send\" and $nhn \"hgobj NULL or DESTROYED\" (expected 0)"
     failed=1
+fi
+#   The console of the control center that floods while it does not read:
+#   ONE WARNING, the console closed for the link
+nslow=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "WARNING")
+if [ "$nslow" != "1" ]; then
+    echo "TEST FAILED: $nslow WARNING(s) for a link that does not take its console output (expected 1)"
+    failed=1
+fi
+#   The console that writes while the link is down: said once, not per chunk
+ntty=$(grep -a '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log" | grep -ac "EV_TTY_DATA")
+if [ "$ntty" -gt 1 ]; then
+    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected 1)"
+    failed=1
+fi
+if [ -n "$KEEP_AGENT_LOG" ]; then
+    cp "$WORK/agent.log" "$KEEP_AGENT_LOG"
 fi
 if [ $failed -ne 0 ]; then
     echo "---- agent log (errors and warnings) ----"

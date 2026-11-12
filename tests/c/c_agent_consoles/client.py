@@ -1,0 +1,501 @@
+#
+#   The consoles of the agent and the sessions that see them
+#
+#   Run by run_test.sh inside the sandbox. Every peer is a websocket client
+#   written by hand on the agent's 1991.
+#
+#   1. A session opens a console that floods (`yes`) and does not read: the
+#      agent's memory stays bounded and it lives. Over the bound of what may
+#      wait to be sent to that session (`console_max_tx_queue`) the console
+#      is closed for it, with ONE WARNING; it is the session that opened
+#      it, so the console is closed. Up to 7.30.26 the agent grew some
+#      50 MB/s until it aborted ("REACHED MAX_SYSTEM_MEMORY").
+#   2. A session opens a console and reads; another joins it and does not
+#      read. The console prints 30 MB at a pace a reader follows: the
+#      reading session gets ALL of it, in order, and the one that does not
+#      read is taken off the console (ONE WARNING): when it reads at last,
+#      its backlog ends with the console's EV_TTY_CLOSE.
+#   3. A session that only JOINS a console leaves: the console lives, and
+#      the one that opened it still gets its output. The session that
+#      opened it leaves: the console is closed, and the session still
+#      joined gets its EV_TTY_CLOSE. Up to 7.30.26 the joiner's leaving
+#      closed the console for everybody, and nobody was told.
+#   4. A session that presents the card of a registered yuno opens a
+#      console that writes, and leaves: the console goes with it, and the
+#      next session of that channel gets nothing of it. Up to 7.30.26 the
+#      console of such a session outlived it, the next session of the
+#      channel got its output, and an INFO "requester gone" was logged per
+#      chunk in between.
+#
+#   Usage: client.py <logcenter binary>
+#   Exit 0 when every check passed.
+#
+#   Copyright (c) 2026, ArtGins.
+#   All Rights Reserved.
+#
+import asyncio
+import base64
+import json
+import os
+import re
+import struct
+import sys
+import time
+
+HOST = "127.0.0.1"
+PORT = 1991
+YUNO_BINARY = sys.argv[1]
+RSS_CAP_MB = 300        # a run that grows more is a failure, and stops there
+RSS_BOUND_MB = 160      # what the agent may grow while a session does not read
+failures = []
+
+
+def check(what, ok):
+    print(("ok    " if ok else "FAIL  ") + what, flush=True)
+    if not ok:
+        failures.append(what)
+
+
+def routing(src_role, dst_service="agent"):
+    return {
+        "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": dst_service,
+        "src_yuno": "", "src_role": src_role, "src_service": "cli",
+        "user": "yuneta", "host": "sandbox",
+    }
+
+
+def card(role, pid, yuno_id="", yuno_name="x", yuno_release="1", realm_id="", watcher_pid=0):
+    kw = {
+        "yuno_role": role, "yuno_id": yuno_id, "yuno_name": yuno_name, "yuno_tag": "",
+        "yuno_version": "1", "yuno_release": yuno_release, "yuneta_version": "",
+        "playing": False, "pid": pid, "watcher_pid": watcher_pid,
+        "jwt": "", "username": "yuneta", "launch_id": 0, "yuno_startdate": "",
+        "id": "sandbox", "realm_id": realm_id, "required_services": [],
+        "__md_iev__": {
+            "ievent_gate_stack": [routing(role)],
+            "__msg_type__": "__identity__",
+        },
+    }
+    return {"event": "EV_IDENTITY_CARD", "kw": kw}
+
+
+def command(cmd, kw_cmd, role="ycommand"):
+    kw = {
+        "__command__": cmd,
+        "__md_iev__": {
+            "ievent_gate_stack": [routing(role)],
+            "__msg_type__": "__command__",
+            "command_stack": [{"command": cmd, "kw": {}}],
+        },
+    }
+    kw.update(kw_cmd)
+    return {"event": "EV_MT_COMMAND", "kw": kw}
+
+
+class Peer:
+    """A websocket client written by hand: its frames go out as they are made"""
+
+    async def open(self):
+        for i in range(300):    # the agent is starting: up to 30 s
+            try:
+                self.r, self.w = await asyncio.open_connection(HOST, PORT)
+                break
+            except OSError:
+                await asyncio.sleep(0.1)
+        else:
+            raise SystemExit("the agent never listened on %s:%d" % (HOST, PORT))
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.w.write((
+            "GET / HTTP/1.1\r\nHost: %s:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (HOST, PORT, key)
+        ).encode())
+        head = await asyncio.wait_for(self.r.readuntil(b"\r\n\r\n"), 10)
+        if b" 101 " not in head.split(b"\r\n")[0]:
+            raise SystemExit("no websocket upgrade: %r" % head[:80])
+        return self
+
+    @staticmethod
+    def frame(opcode, payload):
+        n = len(payload)
+        b0 = 0x80 | opcode
+        if n < 126:
+            hdr = bytes([b0, 0x80 | n])
+        elif n < 65536:
+            hdr = bytes([b0, 0x80 | 126]) + struct.pack(">H", n)
+        else:
+            hdr = bytes([b0, 0x80 | 127]) + struct.pack(">Q", n)
+        mask = os.urandom(4)
+        return hdr + mask + bytes(c ^ mask[i % 4] for i, c in enumerate(payload))
+
+    def send(self, iev):
+        self.w.write(self.frame(0x1, json.dumps(iev).encode()))
+
+    async def recv(self, secs):
+        """The next text frame as json; None at a Close, at the end or at the time"""
+        try:
+            b = await asyncio.wait_for(self.r.readexactly(2), secs)
+            n = b[1] & 0x7f
+            if n == 126:
+                n = struct.unpack(">H", await self.r.readexactly(2))[0]
+            elif n == 127:
+                n = struct.unpack(">Q", await self.r.readexactly(8))[0]
+            payload = await self.r.readexactly(n)
+        except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError):
+            return None
+        if (b[0] & 0x0f) != 0x1:
+            return None
+        return json.loads(payload)
+
+    async def until(self, events, secs):
+        end = time.monotonic() + secs
+        while time.monotonic() < end:
+            iev = await self.recv(end - time.monotonic())
+            if iev is None:
+                return None
+            if iev.get("event") in events:
+                return iev
+        return None
+
+    async def ask(self, cmd, kw_cmd, secs=10):
+        self.send(command(cmd, kw_cmd))
+        iev = await self.until(("EV_MT_COMMAND_ANSWER",), secs)
+        return iev["kw"] if iev else {}
+
+    async def frames(self, secs, done=None):
+        """Every frame within `secs`, or until done(frames)"""
+        got = []
+        end = time.monotonic() + secs
+        while time.monotonic() < end:
+            iev = await self.recv(end - time.monotonic())
+            if iev is None:
+                break
+            got.append(iev)
+            if done and done(got):
+                break
+        return got
+
+    async def closed(self, secs):
+        """TRUE when the agent ends the connection within `secs`"""
+        end = time.monotonic() + secs
+        while time.monotonic() < end:
+            try:
+                data = await asyncio.wait_for(self.r.read(65536), end - time.monotonic())
+            except asyncio.TimeoutError:
+                return False
+            except ConnectionError:
+                return True
+            if not data:
+                return True
+        return False
+
+    def close(self):
+        self.w.close()
+
+
+async def session(card_iev=None):
+    o = await Peer().open()
+    o.send(card_iev or card("ycommand", os.getpid()))
+    ack = await o.until(("EV_IDENTITY_CARD_ACK",), 10)
+    return o if ack and ack["kw"].get("result") == 0 else None
+
+
+async def leave(peer):
+    peer.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
+    await peer.closed(10)
+    peer.close()
+
+
+def events_of(frames, event):
+    return [f["kw"] for f in frames if f.get("event") == event]
+
+
+def names_of(frames, event):
+    return [(k.get("data") or {}).get("name") for k in events_of(frames, event)]
+
+
+def tty_bytes(frames, name=None):
+    """What a console wrote, in the EV_TTY_DATA of `frames`"""
+    text = b""
+    for kw in events_of(frames, "EV_TTY_DATA"):
+        data = kw.get("data") or {}
+        if name is None or data.get("name") == name:
+            text += base64.b64decode(data.get("content64") or "")
+    return text
+
+
+def tty_text(frames, name=None):
+    return tty_bytes(frames, name).decode(errors="replace")
+
+
+def write_tty(peer, name, text):
+    peer.send(command("write-tty", {"name": name,
+        "content64": base64.b64encode(text.encode()).decode()}))
+
+
+async def open_console(peer, name, process="cat"):
+    """open-console of `name`: its answer and the frames that came with it"""
+    peer.send(command("open-console", {"name": name, "process": process, "cwd": "/yuneta"}))
+    got = await peer.frames(5, lambda g: events_of(g, "EV_MT_COMMAND_ANSWER") and
+        events_of(g, "EV_TTY_OPEN"))
+    answer = (events_of(got, "EV_MT_COMMAND_ANSWER") or [{}])[0]
+    return answer, got
+
+
+async def consoles(peer):
+    r = await peer.ask("list-consoles", {})
+    return r.get("data") or {}
+
+
+async def wait_for(cond, secs):
+    end = time.monotonic() + secs
+    while time.monotonic() < end:
+        if await cond():
+            return True
+        await asyncio.sleep(0.1)
+    return await cond()
+
+
+def agent_pid():
+    """The agent of the sandbox (a pid namespace of its own)"""
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                with open("/proc/%s/comm" % d) as f:
+                    if f.read().strip() == "yuneta_agent":
+                        return int(d)
+            except OSError:
+                pass
+    return 0
+
+
+def rss_mb(pid):
+    try:
+        with open("/proc/%d/status" % pid) as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return -1
+
+
+async def drain(peer, secs):
+    """Read everything that waits for `peer`, up to its EV_TTY_CLOSE"""
+    got = []
+    end = time.monotonic() + secs
+    while time.monotonic() < end:
+        iev = await peer.recv(min(2, end - time.monotonic()))
+        if iev is None:
+            break
+        got.append(iev)
+        if iev.get("event") == "EV_TTY_CLOSE":
+            break
+    return got
+
+
+async def flood_not_read(op, pid):
+    """1. A session opens a console that floods, and does not read"""
+    n = await session()
+    if n is None:
+        check("flood: a session", False)
+        return
+    rss0 = rss_mb(pid)
+    n.send(command("open-console", {"name": "flood", "process": "yes", "cwd": "/yuneta"}))
+    peak = rss0
+    gone = False
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 12:
+        await asyncio.sleep(0.25)
+        rss = rss_mb(pid)
+        if rss < 0:
+            break
+        peak = max(peak, rss)
+        if peak - rss0 > RSS_CAP_MB:
+            break
+        if time.monotonic() - t0 > 4 and not gone:
+            gone = "flood" not in await consoles(op)
+        if gone and time.monotonic() - t0 > 6:
+            break
+    print("flood: the agent from %d to %d MB (peak)" % (rss0, peak), flush=True)
+    check("flood: the agent lives", rss_mb(pid) > 0 and (await op.ask("help", {})).get("result") == 0)
+    check("flood: the agent's memory stays bounded: +%d MB (bound %d MB)" % (peak - rss0, RSS_BOUND_MB),
+        peak - rss0 < RSS_BOUND_MB)
+    check("flood: the console of the session that does not read is closed",
+        "flood" not in await consoles(op))
+    n.close()
+
+
+SEQ_LINES = 3000000
+SEQ_COMMAND = ("for i in $(seq 1 300); do seq -f %08.0f $((i*10000)) $((i*10000+9999)); "
+    "sleep 0.02; done; echo END_OF_OUTPUT\n")
+
+
+async def joiner_not_read(op):
+    """2. A reading session and a joined one that does not read"""
+    r = await session()
+    n = await session()
+    if r is None or n is None:
+        check("slow joiner: two sessions", False)
+        return
+    answer, got = await open_console(r, "paced", "bash")
+    check("slow joiner: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    answer, got_n = await open_console(n, "paced")
+    check("slow joiner: the other session joins: %s" % answer.get("comment"), answer.get("result") == 0)
+    await asyncio.sleep(0.5)
+    await r.frames(1)
+    write_tty(r, "paced", SEQ_COMMAND)
+    data = bytearray()
+    end = time.monotonic() + 60
+    while time.monotonic() < end:
+        iev = await r.recv(10)
+        if iev is None:
+            break
+        if iev.get("event") == "EV_TTY_DATA":
+            data += base64.b64decode((iev["kw"].get("data") or {}).get("content64") or "")
+            if b"\nEND_OF_OUTPUT" in data[-1024:]:
+                break
+    numbers = []
+    for line in bytes(data).split(b"\n"):
+        line = line.rstrip(b"\r").split(b"\r")[-1]    # what the terminal printed before it, overwritten
+        if re.fullmatch(rb"\d{8}", line):
+            numbers.append(int(line))
+    check("slow joiner: the reading session gets all the output, in order: %d of %d lines" % (
+            len(numbers), SEQ_LINES),
+        numbers == list(range(10000, 10000 + SEQ_LINES)))
+    routes = ((await consoles(op)).get("paced") or {}).get("routes") or {}
+    check("slow joiner: the session that does not read is off the console: %s" % list(routes),
+        len(routes) == 1)
+    got_n = await drain(n, 30)
+    check("slow joiner: its backlog ends with the close of the console for it: %s" % (
+            [f.get("event") for f in got_n[-1:]]),
+        bool(got_n) and got_n[-1].get("event") == "EV_TTY_CLOSE" and
+        names_of(got_n[-1:], "EV_TTY_CLOSE") == ["paced"])
+    write_tty(r, "paced", "echo STILL_HERE\n")
+    got = await r.frames(5, lambda g: "STILL_HERE\r\n" in tty_text(g))
+    check("slow joiner: the console goes on for the reading session", "STILL_HERE\r\n" in tty_text(got))
+    r.send(command("close-console", {"name": "paced"}))
+    await r.frames(5, lambda g: events_of(g, "EV_TTY_CLOSE"))
+    await leave(r)
+    await leave(n)
+
+
+async def joiner_leaves(op):
+    """3. The session that joins leaves; then the one that opened it"""
+    a = await session()
+    b = await session()
+    c = await session()
+    if a is None or b is None or c is None:
+        check("joiner leaves: three sessions", False)
+        return
+    answer, got = await open_console(a, "j1")
+    check("joiner leaves: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    answer, got = await open_console(b, "j1")
+    check("joiner leaves: another session joins: %s" % answer.get("comment"), answer.get("result") == 0)
+    await leave(b)
+    await asyncio.sleep(0.5)
+    check("joiner leaves: the console lives after the joiner left", "j1" in await consoles(op))
+    write_tty(a, "j1", "after the joiner left\n")
+    got = await a.frames(5, lambda g: "after the joiner left" in tty_text(g))
+    check("joiner leaves: the session that opened it still gets its output",
+        "after the joiner left" in tty_text(got))
+    check("joiner leaves: and no close", names_of(got, "EV_TTY_CLOSE") == [])
+
+    answer, got = await open_console(c, "j1")
+    check("joiner leaves: a third session joins: %s" % answer.get("comment"), answer.get("result") == 0)
+    await leave(a)
+    got = await c.frames(5, lambda g: events_of(g, "EV_TTY_CLOSE"))
+    check("joiner leaves: the session that opened it leaves: the one joined gets the close: %s" % (
+            names_of(got, "EV_TTY_CLOSE")),
+        names_of(got, "EV_TTY_CLOSE") == ["j1"])
+    check("joiner leaves: and the console is closed", await wait_for(
+        lambda: _absent(op, "j1"), 5))
+    await leave(c)
+
+
+async def _absent(op, name):
+    return name not in await consoles(op)
+
+
+async def register_yuno(op):
+    """A logcenter registered and never run: its card can be presented"""
+    with open(YUNO_BINARY, "rb") as f:
+        content64 = base64.b64encode(f.read()).decode()
+    config64 = base64.b64encode(json.dumps(
+        {"__version__": "1", "__description__": "sandbox"}).encode()).decode()
+    for cmd, kw in (
+        ("create-realm", {"id": "w.prod.test", "realm_owner": "t", "realm_role": "prod",
+            "realm_name": "w", "realm_env": "test", "bind_ip": "127.0.0.1"}),
+        ("install-binary", {"id": "logcenter", "content64": content64}),
+        ("create-config", {"id": "logcenter.x", "content64": config64}),
+        ("create-yuno", {"realm_id": "w.prod.test", "yuno_role": "logcenter", "yuno_name": "x"}),
+    ):
+        r = await op.ask(cmd, kw, secs=30)
+        check(cmd, r.get("result") == 0)
+    r = await op.ask("list-yunos", {"yuno_role": "logcenter"})
+    rows = r.get("data") or []
+    check("the logcenter is registered", len(rows) == 1)
+    return rows[0] if len(rows) == 1 else None
+
+
+async def console_of_a_yuno_card(op, row):
+    """4. The console of a session that presents the card of a yuno"""
+    realm_id = row["realm_id"][0] if isinstance(row["realm_id"], list) else row["realm_id"]
+    y = await session(card("logcenter", 999999, yuno_id=row["id"], yuno_name="x",
+        yuno_release=row["yuno_release"], realm_id=realm_id, watcher_pid=999999))
+    if y is None:
+        check("yuno card: a session with the card of the yuno", False)
+        return
+    y.send(command("open-console", {"name": "fy", "process": "bash", "cwd": "/yuneta"}, role="logcenter"))
+    got = await y.frames(5, lambda g: events_of(g, "EV_MT_COMMAND_ANSWER") and events_of(g, "EV_TTY_OPEN"))
+    answer = (events_of(got, "EV_MT_COMMAND_ANSWER") or [{}])[0]
+    check("yuno card: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    routes = ((await consoles(op)).get("fy") or {}).get("routes") or {}
+    y.send(command("write-tty", {"name": "fy", "content64": base64.b64encode(
+        b"while true; do echo TICK; sleep 0.01; done\n").decode()}, role="logcenter"))
+    got = await y.frames(3, lambda g: "TICK\r\n" in tty_text(g))
+    check("yuno card: its console writes", "TICK\r\n" in tty_text(got))
+    y.close()      # abrupt, as a crash
+    await asyncio.sleep(1)
+    check("yuno card: the console goes with the session: %s" % list(await consoles(op)),
+        await wait_for(lambda: _absent(op, "fy"), 5))
+    z = await session()
+    if z is None:
+        check("yuno card: the next session", False)
+        return
+    got = await z.frames(2)
+    check("yuno card: the next session gets nothing of the console: %d bytes" % len(tty_bytes(got)),
+        tty_bytes(got) == b"")
+    print("yuno card: its route was %s" % list(routes), flush=True)
+    await leave(z)
+
+
+async def main():
+    op = await session()
+    check("a session of ycommand on 1991", op is not None)
+    if op is None:
+        return
+    pid = agent_pid()
+    check("the agent's pid: %d" % pid, pid > 0)
+
+    #   The agent runs its enabled yunos once, some 3 s after it starts
+    #   (timerStBoot is 0.1 s in agent.json): the yuno is created after it
+    await asyncio.sleep(4)
+    row = await register_yuno(op)
+
+    await flood_not_read(op, pid)
+    await joiner_not_read(op)
+    await joiner_leaves(op)
+    if row:
+        await console_of_a_yuno_card(op, row)
+
+    r = await op.ask("help", {})
+    check("the agent still answers", r.get("result") == 0)
+    print("the agent at the end: %d MB" % rss_mb(pid), flush=True)
+    op.close()
+
+
+asyncio.run(main())
+if failures:
+    print("%d check(s) failed" % len(failures))
+    sys.exit(1)
+sys.exit(0)

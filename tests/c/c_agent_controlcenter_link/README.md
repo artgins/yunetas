@@ -83,6 +83,15 @@ link. A `read-file` by the link is answered up it with `EV_READ_FILE`. They
 did already up to 7.30.26: the agent now sends the events of a console with
 `EV_SEND_IEV`, as its answers, and this is the route that must stay.
 
+The control center opens a console that floods (`open-console name=t4
+process=yes`) and stops reading the link. The agent's memory (`VmRSS`) must
+grow less than 160 MB and the console must be closed: the link opened it, and
+it fell behind by `console_max_tx_queue` messages (ONE WARNING *"console
+output not taken by its session, console closed for it"*). When the control
+center reads again, what it had waiting ends with the `EV_TTY_CLOSE` of `t4`.
+Up to 7.30.26 the agent grew until it aborted. The run stops at 300 MB of
+growth.
+
 The control center then plays and pauses
 the agent through its link: it sends `EV_PLAY_YUNO`, and, in ONE write, an
 order (`list-yunos`), `EV_PAUSE_YUNO` and the first two bytes of the next
@@ -94,6 +103,13 @@ Up to 7.30.26 the pause reached the agent's `mt_pause`, which stops that
 same link inside its own action and closes the treedbs: the agent died
 (SIGSEGV in `C_PROT_TCP4H`, which read on after its own stop), or, without
 the extra bytes, it lived with its `1991` and its link closed for good.
+
+The control center opens a console (`bash`) that writes `TICK` every 10 ms,
+and drops its connection: the link is out of session while the console
+writes. The agent says it ONCE, an INFO *"requester gone before its answer,
+answer dropped"* for `EV_TTY_DATA` (up to 7.30.26 one per chunk), the link
+connects again (its `timeout_between_connections`, 10 s) and the console
+writes up the new connection; `close-console` closes it.
 
 Last, the control center sends 300 orders
 (`list-yunos`) to the agent: the first 150 one by one, each answered with 0;

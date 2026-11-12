@@ -583,12 +583,81 @@ ycommand -c 'close-console name=c1'                           # both get EV_TTY_
 
 The agent sends them as it sends its answers: an inter-event, with
 `EV_SEND_IEV`, to the channel of the session or to the link, while it is
-listening. A console goes with the session that opened it: when that session
-closes, the console is closed. Through the control center a console stays
-while the link comes and goes. Up to 7.30.26 a console opened by a session
-never reached it: the agent sent the events to the session's channel, which
-takes no such event (an ERROR *"Event NOT DEFINED in state"* with a stack per
-frame), and the console outlived the session.
+listening. Up to 7.30.26 a console opened by a session never reached it: the
+agent sent the events to the session's channel, which takes no such event (an
+ERROR *"Event NOT DEFINED in state"* with a stack per frame).
+
+### Whose console it is
+
+A console belongs to the route that **opened** it. The routes that join it
+come and go:
+
+- A session that only **joined** the console leaves: its route goes off the
+  console, and the console goes on for the others.
+- The session that **opened** the console leaves: the console is closed (its
+  process is killed), and every session still joined gets its
+  `EV_TTY_CLOSE`.
+- Through the control center, the link is one route for all its operators,
+  and it stays while the link comes and goes: a console opened through the
+  control center lives until `close-console`, or until its process ends.
+
+```bash
+# session A
+ycommand -c 'open-console name=j1 process=bash cwd=/yuneta'
+# session B joins, and leaves: j1 goes on for A
+ycommand -c 'open-console name=j1'
+# A leaves: B (if it is still joined) gets EV_TTY_CLOSE of j1
+```
+
+A route is tied to the **session**, not to the name of its channel: the
+channels of the agent are a pool, and the next session of a channel never
+gets the console of the last one, whatever card that session presented (a
+session that presented the card of a yuno too). Up to 7.30.26 a session that
+only joined a console closed it for everybody when it left, without telling
+them, and the console of a session that presented the card of a yuno outlived
+it and wrote to the next session of its channel. A route that is not
+listening (the link to the control center out of session) is said once, an
+INFO *"requester gone before its answer, answer dropped"*, not once per
+chunk of output as up to 7.30.26.
+
+### A session that does not read
+
+What a console has waiting to be sent to one route is bounded by the agent's
+attribute `console_max_tx_queue` (default `8192`): the messages waiting in the
+transport of the route (a session, or the link to the control center) when the
+console writes. A message carries up to 1 KB of output. Over the bound the
+console is closed for that route: it is sent the console's `EV_TTY_CLOSE`
+after what it has waiting, and the agent logs ONE WARNING:
+
+```text
+"msg": "console output not taken by its session, console closed for it",
+"console": "j1", "route": "__input_side__.input-2", "peername": "10.0.0.7:51234",
+"opener": "no", "tx_queue": 8192, "console_max_tx_queue": 8192, "tx_queue_bytes_about": 3473408
+```
+
+The console goes on for the other routes; when the route is the one that
+opened the console, the console is closed for everybody. `0` turns the bound
+off. Set it in the agent's config, under `global`:
+
+```json
+{
+    "global": {
+        "agent.console_max_tx_queue": 16384
+    }
+}
+```
+
+Up to 7.30.26 there was no bound: a session that flooded its console and did
+not read grew the agent some 50 MB/s until it aborted (*"REACHED
+MAX_SYSTEM_MEMORY"*), and so did a control center that did not read its link.
+
+The agent does not pause the reading of the console, so a session that reads
+SLOWER than the console writes is taken off it too, once it falls behind by
+the bound: a session on the same machine or a near one keeps up with a
+`journalctl` or an `ls -R /` (the test does 30 MB at a steady pace), a slow
+link far away may not with a very long output. Then raise
+`console_max_tx_queue`, or page the output (`| less`, `journalctl` without
+`--no-pager`).
 
 ## A yuno that runs but is not connected
 
