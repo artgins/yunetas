@@ -149,10 +149,20 @@ flavours:
 |---|---|
 | `preinst` / `%pre` | Copies the node's value to `/etc/yuneta/webserver.pkgsave` |
 | unpack | A file the package no longer provides is removed by the package manager |
-| `postinst` / `%posttrans` | Absent → restore from `.pkgsave`; no `.pkgsave` → seed the build default; present → leave it alone |
+| `postinst` / `%post` | Absent → restore from `.pkgsave`; no `.pkgsave` → seed the build default; present → leave it alone |
 
 So a node that already chose keeps its choice, and only a node that never had
 one gets a default.
+
+One upgrade does not keep it: an `.rpm` upgrade from 7.11.0-1/-2, the
+packages that still shipped the file. At `%post` the old package's file is
+still there, so nothing is restored; rpm removes it after `%post`, and
+`%posttrans` restores `nginx.conf` only. Such a node gets its choice back by
+hand:
+
+```bash
+sudo cp -a /etc/yuneta/webserver.pkgsave /etc/yuneta/webserver   # or webserver.rpmsave
+```
 
 The default is the build's choice, written into the scriptlets as TEXT when the
 package is built. From 7.12.0 to 7.30.26 the scriptlets named the build's

@@ -20,8 +20,12 @@ belongs to the target named there: a test twin built with another TLS
 library from the same sources gets its ports this way. A port CMake computes
 (`math(EXPR idp_port "18910 + ${n}")` then `IDP_PORT="${idp_port}"`) is not
 in the source: it is read from the build tree, where CMake wrote it into
-the `flags.make` of each target. Without a configured build tree such a
-port is not checked, and that is a failure like a file not read.
+the `flags.make` of each target, and each target is judged on its own: a
+target with no `flags.make` (a Ninja tree), a value that is not a port, a
+target that defines some of the names and not the others, or a build tree
+configured before the CMakeLists.txt last changed (a test just added to the
+list has no target yet) is a failure like a file not read -- not checked is
+never a pass.
 
     python3 scripts/check_test_ports.py --build-dir=X   # another build tree (default: build)
 
@@ -58,7 +62,7 @@ CMAKE_DEFINITIONS = re.compile(
     r'target_compile_definitions\(\s*([^\s)]+)([^)]*)\)', re.S)
 CMAKE_PORT = re.compile(r'\b\w*PORT\w*\s*=\s*\\?"?(\d{3,5})\b')
 CMAKE_COMPUTED_PORT = re.compile(r'\b(\w*PORT\w*)\s*=\s*\\?"?\$\{')
-FLAGS_PORT = re.compile(r'-D(\w*PORT\w*)=\\?"?(\d{3,5})\b')
+FLAGS_DEFINE = re.compile(r'-D(\w*PORT\w*)=(\S*)')
 
 
 def binary_of(path):
@@ -125,33 +129,58 @@ def own_network_namespace(d):
     return False
 
 
-def computed_ports(build_dir, rel_dir, names):
+def computed_ports(build_dir, rel_dir, names, cmakelists):
     """The ports named `names` that CMake computed for the targets of the
     source dir rel_dir, read from the flags.make of each target in the build
-    tree: {(port, target)}. None when that dir has no configured build, or
-    when a name is not found in it (a tree of another generator, Ninja,
-    has no flags.make: not checked is a failure, never a pass)."""
+    tree: ({(port, target)}, None), or (None, why) when they cannot all be
+    read -- not checked is a failure, never a pass. Each target is judged
+    on its own: a target with no flags.make (a tree of another generator,
+    Ninja), a value that is not a port, or a target that defines some of
+    the names and not the others; and so is the tree, configured before the
+    CMakeLists.txt last changed (a test added to the list is not in it)."""
     cmake_files = os.path.join(build_dir, rel_dir, 'CMakeFiles')
     if not os.path.isdir(cmake_files):
-        return None
+        return None, 'not configured'
+    check_cache = os.path.join(build_dir, 'CMakeFiles', 'cmake.check_cache')
+    try:
+        if os.path.getmtime(check_cache) < os.path.getmtime(cmakelists):
+            return None, 'the build tree was configured before this CMakeLists.txt changed'
+    except OSError:
+        return None, f'no {check_cache}'
     found = set()
-    seen = set()
+    problems = []
     for entry in sorted(os.listdir(cmake_files)):
         if not entry.endswith('.dir'):
             continue
+        target = entry[:-len('.dir')]
         flags = os.path.join(cmake_files, entry, 'flags.make')
         try:
             with open(flags, errors='replace') as fh:
                 text = fh.read()
         except FileNotFoundError:
+            problems.append(f'{target} has no flags.make (not a Makefile tree?)')
             continue
-        for m in FLAGS_PORT.finditer(text):
+        defined = {}
+        for m in FLAGS_DEFINE.finditer(text):
             if m.group(1) in names:
-                found.add((int(m.group(2)), entry[:-len('.dir')]))
-                seen.add(m.group(1))
-    if seen != set(names):
-        return None
-    return found
+                defined[m.group(1)] = m.group(2)
+        if not defined:
+            continue
+        for name in sorted(names):
+            value = defined.get(name)
+            if value is None:
+                problems.append(f'{target} lacks {name}')
+                continue
+            pm = re.fullmatch(r'\\?"?(\d{3,5})\\?"?', value)
+            if not pm or not 1024 <= int(pm.group(1)) <= 65535:
+                problems.append(f'{target}: {name}={value} is not a port')
+                continue
+            found.add((int(pm.group(1)), target))
+    if problems:
+        return None, '; '.join(problems)
+    if not found:
+        return None, f'{", ".join(sorted(names))} not found in any flags.make'
+    return found, None
 
 
 def main():
@@ -191,12 +220,11 @@ def main():
                         for pm in CMAKE_COMPUTED_PORT.finditer(m.group(2)):
                             computed.add(pm.group(1))
                     if computed:
-                        found = computed_ports(build_dir, rel_dir, computed)
+                        found, why = computed_ports(build_dir, rel_dir, computed, p)
                         if found is None:
                             print(f'{rel}: {", ".join(sorted(computed))} computed by CMake, '
-                                  f'and not found in the flags.make of {os.path.join(build_dir, rel_dir)} '
-                                  f'(not configured, or not a Makefile tree): '
-                                  f'build the tests first', file=sys.stderr)
+                                  f'not read from {os.path.join(build_dir, rel_dir)}: {why}; '
+                                  f'configure and build the tests first', file=sys.stderr)
                             unreadable += 1
                             continue
                         for port, target in found:
