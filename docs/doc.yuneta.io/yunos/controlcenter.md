@@ -899,7 +899,11 @@ child of another. A client subscribes to it on the service `controlcenter`
 and asks `my-permissions` again; the console does, so a user given
 `run-scenarios` while their console is open sees the actions appear without
 a reload. An update of a user's own record (its sessions, at every login) is
-not announced.
+not announced. Only the store itself is believed: the same event from any
+other source is ignored, with a WARNING at most once per 10 s (*"event of the
+users store not sent by the store, ignored"*, `MSGSET_AUTH`). A peer cannot
+send it anyway: a session's `EV_TREEDB_NODE_*` is refused at the frontier
+(7.30.27+).
 
 ```js
 gobj_subscribe_event(iev, "EV_PERMISSIONS_CHANGED", {__service__: "controlcenter"}, subscriber);

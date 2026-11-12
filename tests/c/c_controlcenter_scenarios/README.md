@@ -144,10 +144,15 @@ still reported and fails the test.
     to the viewer, true for everything to a user who may do everything.
 
 15. What a user may do changed in the users store. The store's events are
-    sent to the control center as C_NODE publishes them: a role created,
+    published to the control center by the store (a service
+    `treedb_authzs` of the test) as C_NODE publishes them: a role created,
     updated or deleted, and a link or unlink whose parent is a role, publish
     `EV_PERMISSIONS_CHANGED` once each; an update of a user (its sessions
-    change at every login) and a link of another topic publish nothing.
+    change at every login) and a link of another topic publish nothing. The
+    same `EV_TREEDB_NODE_UPDATED` of `roles` sent three times by another gobj
+    publishes nothing, with ONE warning (*"event of the users store not sent
+    by the store, ignored"*). Up to 7.30.26 each told every client to ask
+    `my-permissions` again. Mutant killed: the check of the source removed.
 
 16. A scenario's `max_run`: its start schedules its stop, which the control
     center runs itself when it is due. The scenario "mr" (`max_run` 1 s) is

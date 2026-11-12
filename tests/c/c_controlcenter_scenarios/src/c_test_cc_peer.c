@@ -273,6 +273,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DROP,                   0},
         {EV_REJECT_USER,            0},
         {EV_STOPPED,                0},
+        /*  As the users store (treedb_authzs), case 15: what C_NODE publishes  */
+        {EV_TREEDB_NODE_CREATED,    EVF_OUTPUT_EVENT},
+        {EV_TREEDB_NODE_UPDATED,    EVF_OUTPUT_EVENT},
+        {EV_TREEDB_NODE_DELETED,    EVF_OUTPUT_EVENT},
+        {EV_TREEDB_NODE_LINKED,     EVF_OUTPUT_EVENT},
+        {EV_TREEDB_NODE_UNLINKED,   EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

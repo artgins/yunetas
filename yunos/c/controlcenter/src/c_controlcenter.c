@@ -195,6 +195,10 @@
  *  not append a record at every open  */
 #define LAST_SEEN_STEP  3600
 
+/*  A store event that does not come from the store: one warning per this
+ *  window, in ms  */
+#define STORE_FORGED_LOG_INTERVAL   (10*1000)
+
 /*  What the users store publishes when something in it changes  */
 #define AUTHZ_STORE_EVENTS {                \
     EV_TREEDB_NODE_CREATED,                 \
@@ -592,6 +596,8 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_treedbs;
     hgobj gobj_treedb_controlcenter;
     hgobj gobj_treedb_authzs;       // the users store of C_AUTHZ: watched for permission changes
+    uint64_t t_store_forged_log;    // msectimer: no warning of a store event not from the store before it
+    json_int_t store_forged_suppressed; // those not said since the last one
     hgobj gobj_authz;
 
 
@@ -6228,6 +6234,33 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_authz_store_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Only the store it subscribed to says what changed in it: anything
+     *  else (a peer's frame that got past the frontier) would make every
+     *  client ask my-permissions again
+     */
+    if(!src || src != priv->gobj_treedb_authzs) {
+        if(priv->t_store_forged_log && !test_msectimer(priv->t_store_forged_log)) {
+            priv->store_forged_suppressed++;
+        } else {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "event of the users store not sent by the store, ignored",
+                "event",        "%s", event,
+                "src",          "%s", gobj_short_name(src),
+                "suppressed",   "%ld", (long)priv->store_forged_suppressed,
+                NULL
+            );
+            priv->t_store_forged_log = start_msectimer(STORE_FORGED_LOG_INTERVAL);
+            priv->store_forged_suppressed = 0;
+        }
+        KW_DECREF(kw)
+        return 0;
+    }
+
     const char *topic = (event == EV_TREEDB_NODE_LINKED || event == EV_TREEDB_NODE_UNLINKED)?
         kw_get_str(gobj, kw, "parent_topic_name", "", 0) :
         kw_get_str(gobj, kw, "topic_name", "", 0);

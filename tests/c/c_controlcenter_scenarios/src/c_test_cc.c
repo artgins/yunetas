@@ -1323,7 +1323,10 @@ PRIVATE int test_scoped_viewer(hgobj gobj, hgobj client)
  *      its subscribers (EV_PERMISSIONS_CHANGED), which ask my-permissions
  *      again; a user's own record (it changes at every login) and a link
  *      of another topic are not a change of permissions. The store's
- *      events are sent here as C_NODE publishes them.
+ *      events are published here by the store (the service treedb_authzs)
+ *      as C_NODE publishes them. The same event sent by anybody else (a
+ *      peer's frame past the frontier) is ignored, with ONE warning for
+ *      three: no EV_PERMISSIONS_CHANGED.
  ***************************************************************************/
 PRIVATE int test_permissions_changed(hgobj gobj)
 {
@@ -1348,17 +1351,28 @@ PRIVATE int test_permissions_changed(hgobj gobj)
         {EV_TREEDB_NODE_LINKED,   "parent_topic_name", "users", 0},
         {0}
     };
+    hgobj store = gobj_find_service("treedb_authzs", TRUE);
     for(int i=0; cases[i].event; i++) {
         int before = priv->permissions_changed;
-        gobj_send_event(priv->cc, cases[i].event,
-            json_pack("{s:s, s:s}", cases[i].key, cases[i].topic, "treedb_name", "treedb_authzs"),
-            gobj
+        gobj_publish_event(store, cases[i].event,
+            json_pack("{s:s, s:s}", cases[i].key, cases[i].topic, "treedb_name", "treedb_authzs")
         );
         if(priv->permissions_changed - before != cases[i].told) {
             char what[NAME_MAX];
             snprintf(what, sizeof(what), "%s of %s", cases[i].event, cases[i].topic);
             ret += fail(gobj, "EV_PERMISSIONS_CHANGED told for a change of the users store", what);
         }
+    }
+
+    int before = priv->permissions_changed;
+    for(int i=0; i<3; i++) {
+        gobj_send_event(priv->cc, EV_TREEDB_NODE_UPDATED,
+            json_pack("{s:s, s:s}", "topic_name", "roles", "treedb_name", "treedb_authzs"),
+            gobj
+        );
+    }
+    if(priv->permissions_changed != before) {
+        ret += fail(gobj, "a store event not from the store tells EV_PERMISSIONS_CHANGED", "");
     }
     gobj_unsubscribe_event(priv->cc, EV_PERMISSIONS_CHANGED, 0, gobj);
     return ret;

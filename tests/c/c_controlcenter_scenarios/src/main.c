@@ -83,6 +83,11 @@ PRIVATE char variable_config[]= "\
             'autostart': true                                       \n\
         },                                                          \n\
         {                                                           \n\
+            'name': 'treedb_authzs',                                \n\
+            'gclass': 'C_TEST_CC_PEER',                             \n\
+            'autostart': true                                       \n\
+        },                                                          \n\
+        {                                                           \n\
             'name': 'controlcenter',                                \n\
             'gclass': 'C_CONTROLCENTER',                            \n\
             'autostart': true,                                      \n\
@@ -365,6 +370,7 @@ PRIVATE const char *expected_msgs[] = {
     "answer of an agent for no requester of this control center, dropped",
     "answer of an agent for no requester of this control center, dropped",  // a link that did not ask
     "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
+    "event of the users store not sent by the store, ignored||||WARNING",  // 15: three forged, said once
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 35: host-amb
     "stopping a scenario: its max_run is reached",          // 16
     "a step of a scenario run was not answered",            // 17: one step, said once
