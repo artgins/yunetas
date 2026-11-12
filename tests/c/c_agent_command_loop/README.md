@@ -3,7 +3,8 @@
 Runs the **real agent** (`yunos/c/yuno_agent/build/yuneta_agent`) in the
 sandbox of `c_agent_sandbox` (namespaces of its own: a tmpfs on `/yuneta`, a
 `/etc/passwd` where uid 0 is `yuneta`, a loopback nobody else sees), with its
-memory bounded (`ulimit -v 4000000`) and no core, and sends it on its `1991`
+memory bounded (`ulimit -v 4000000`; none for an agent built with ASan, whose
+shadow memory fits no bound) and no core, and sends it on its `1991`
 `command-agent` lines whose forwarded command is `command-agent` again.
 
 ## What it pins
@@ -71,6 +72,24 @@ empty, refused"*, two *"content64 of a config is not json, refused"*, no
 ERROR and nothing of the content. Up to 7.30.26 they were *"len is ZERO"*
 and *"json_loads() FAILED"*, ERRORs with a stack, and a dump of the whole
 config.
+
+Then three `create-config` (versions `g1`, `g2`, `g3`) with a `gbuffer` key:
+written whole, split by a line (`"gbu` / `ffer"`), and split by a comment
+(`"gbu#^^ a comment` / `ffer"`), which the comment cut joins. None of the
+configs stored (`list-configs-instances id=gbuf`) may hold a `gbuffer` key,
+and the log holds three WARNINGs *"Json of a peer with 'gbuffer' keys, a
+binary field name: dropped"*. Up to 7.30.26 only the first was dropped.
+
+Then a `create-config` of `{"__version__": "1", "pw": "ab#^^cd"}`, json that
+the comment cut breaks: -1 *"Bad json in content64"* and one WARNING
+*"content64 of a config is not json once its comments are removed,
+refused"* (up to 7.30.26 *"not json"*, with no error and no position). And
+`create-config` and `update-config` of `[1, 2]`, `{"__version__": 5}` and
+`{"__version__": "1", "__description__": 7}`: -1 *"Bad json in content64"*,
+two WARNINGs *"content64 of a config is not a json object, refused"*, four
+*"content64 of a config with a key of its own that is not a string,
+refused"*, and no *"path MUST BE a json str"* (up to 7.30.26 an ERROR with a
+stack, up to two per order).
 
 Then five lines whose secret's key the shell's quotes split
 (`create-realm p'a'ssword=<s>`, `'p'assword=<s>`, `p"a"ssword=<s>`,

@@ -18,7 +18,9 @@
 #
 #   A content64 that is not base64 (create-config, update-config,
 #   install-binary): answered -1 naming it. A config content64 that is
-#   empty or not json: answered -1 too.
+#   empty or not json, json once its comments are cut, or json but not the
+#   shape of a config: answered -1 too. A "gbuffer" key that the comment cut
+#   makes is not stored.
 #
 #   Lines whose secret's key the shell's quotes split, for the audit file;
 #   and write-tty to services that are no console: EV_TTY_CLOSE.
@@ -47,6 +49,25 @@ NOT_JSON64 = base64.b64encode(
     b'{"crypto": {"ssl_certificate_key": "-----BEGIN PRIVATE KEY-----'
     b'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"} oops'
 ).decode()
+
+#   Configs whose comment cut (#^^ to the end of a line, the lines joined)
+#   makes a "gbuffer" key, the name of the binary field of a kw: the plain
+#   key, the key split by a line, and the key split by a comment
+GBUFFER_CONFIGS = (
+    b'{"__version__": "g1", "gbuffer": 5}',
+    b'{"__version__": "g2", "gbu\nffer": 5}',
+    b'{"__version__": "g3", "x": {"gbu#^^ a comment\nffer": 6}}',
+)
+
+#   A config that is json, and is not once its comments are cut
+CUT_BY_COMMENT64 = base64.b64encode(b'{"__version__": "1", "pw": "ab#^^cd"}').decode()
+
+#   Configs that are json but not the shape of a config
+BAD_SHAPES = (
+    b'[1, 2]',
+    b'{"__version__": 5}',
+    b'{"__version__": "1", "__description__": 7}',
+)
 
 LOOP_LINES = (
     "command-agent command=\"'command-agent'\"",
@@ -219,6 +240,35 @@ async def main():
         r = await ask(ws, line, {}, secs=5)
         check("%s: %s" % (line[:48], r.get("comment")),
             r.get("result") == -1 and says in (r.get("comment") or ""))
+
+    #   A "gbuffer" key, however the comment cut makes it: dropped from the
+    #   config stored, with a WARNING each (up to 7.30.26 the two that the
+    #   cut makes were stored, the binary field of a kw)
+    for content in GBUFFER_CONFIGS:
+        r = await ask(ws, "create-config", {"id": "gbuf",
+            "content64": base64.b64encode(content).decode()}, secs=5)
+        check("create-config %r: %s" % (content, r.get("comment")), r.get("result") == 0)
+    r = await ask(ws, "list-configs-instances", {"id": "gbuf"}, secs=5)
+    rows = r.get("data") or []
+    check("the configs stored hold no \"gbuffer\" key: %s" % [(x.get("version"), x.get("zcontent")) for x in rows],
+        len(rows) >= 1 and "gbuffer" not in json.dumps(rows))
+
+    #   A config that is json and is not once its comments are cut: answered
+    #   -1, a WARNING that says so (up to 7.30.26 "not json" with no error
+    #   and no position)
+    r = await ask(ws, "create-config id=cut content64=" + CUT_BY_COMMENT64, {}, secs=5)
+    check("create-config of a json cut by its comment mark: %s" % r.get("comment"),
+        r.get("result") == -1 and "Bad json in content64" in (r.get("comment") or ""))
+
+    #   Configs that are json but not the shape of a config: answered -1, one
+    #   WARNING each (up to 7.30.26 "path MUST BE a json str", ERRORs with a
+    #   stack, up to two per order)
+    for content in BAD_SHAPES:
+        for cmd in ("create-config", "update-config"):
+            r = await ask(ws, cmd, {"id": "shape",
+                "content64": base64.b64encode(content).decode()}, secs=5)
+            check("%s %r: %s" % (cmd, content, r.get("comment")),
+                r.get("result") == -1 and "Bad json in content64" in (r.get("comment") or ""))
 
     #   A secret's key split by quotes, which the shell reads without them:
     #   the audit file must not hold the secret (run_test.sh checks it; up

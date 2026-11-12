@@ -526,6 +526,38 @@ WARNING {"msgset": "Parameter", "msg": "content64 of a config is not json, refus
 Up to 7.30.26 these were ERRORs with a stack (*"len is ZERO"*, *"json_loads()
 FAILED"*), and a dump of the whole config.
 
+The comments of a config (`#^^` to the end of the line) are cut and the lines
+joined before it is read. A config that is json as it is, but not once its
+comments are cut, has a `#^^` inside a string: the WARNING says so, with the
+place of that mark (up to 7.30.26 it said *"not json"*, with an empty error
+and no position).
+
+```text
+create-config id=x content64=<base64 of {"__version__": "1", "pw": "ab#^^cd"}>
+-1 "yuneta_agent^node: Bad json in content64"
+WARNING {"msgset": "Parameter",
+         "msg": "content64 of a config is not json once its comments are removed, refused",
+         "command": "create-config", "comment_mark": "#^^", "line": 1, "column": 31, "len": 37}
+```
+
+A config must be a json object, and its `__version__` and `__description__`
+strings. Another shape answers the same `-1`, with ONE WARNING (*"content64 of
+a config is not a json object, refused"*, or *"content64 of a config with a
+key of its own that is not a string, refused"* and the `key`). Up to 7.30.26
+it was *"path MUST BE a json str"*, an ERROR with a stack, up to two per
+order.
+
+```text
+create-config id=x content64=<base64 of [1, 2]>
+create-config id=x content64=<base64 of {"__version__": 5}>
+```
+
+A `gbuffer` key (the name of the binary field of a kw) is dropped from the
+config, with one WARNING, wherever it is, and also when the comment cut makes
+it: `"gbu` and `ffer"` on two lines, or `"gbu#^^ a comment` and `ffer"`.
+Up to 7.30.26 only the key written whole was dropped, and those two were
+stored.
+
 A `write-tty` to a `name` that is no open console, or to a service that is
 not a console (`__yuno__`, `agent`), logs one WARNING (*"console not found"*,
 *"not a console"*) and answers `EV_TTY_CLOSE` with that `name`. One without
@@ -550,6 +582,58 @@ yuneta_agent^node-a: set-interval: yuno gen1 runs but is not connected to the ag
 and when it reached only some, the others are named in a warning of the
 agent's log (*"yuno running but not connected to the agent, nothing sent to
 it"*): the ones that got it answer on their own.
+
+## Answers that come to the agent
+
+The agent sends orders on and takes their answers back: `command-yuno`,
+`stats-yuno` and `authzs-yuno` to its yunos, `command-agent` and
+`stats-agent service=controlcenter` up its link to the control center, and
+its own readings of a watch (`watch-yuno-stats`) and `publish-stats` to the
+yunos. An answer is an `EV_MT_COMMAND_ANSWER` or `EV_MT_STATS_ANSWER` that
+any session of the agent can also send, so the agent takes one only from
+where it sent the order:
+
+- **To an operator through the link.** `command-agent` and `stats-agent`
+  to `service=controlcenter` go up with the operator's channel in
+  `__md_iev__.agent_requester`, which the control center's answer echoes.
+  The agent takes `agent_requester` only from an answer that came from the
+  link, and it names only a channel of the agent. Up to 7.30.26 a session
+  with a role for the service `agent` only could send an answer to `agent`
+  naming the link (`agent_requester: controlcenter`), and the agent sent it
+  to the control center with its own identity.
+- **To the agent itself.** A reading of a watch (`__md_iev__.agent_watch`)
+  and the answer to a `publish-stats` (`__md_iev__.agent_publish`) are taken
+  only from the channel of the yuno they name. Up to 7.30.26 any session
+  could send the watchers a reading of a yuno, or make the agent take a yuno
+  as refusing to publish its stats.
+- **To the session that asked.** The channels of the agent are a pool: a
+  session takes the first one free, so the next session takes the one that
+  the last one left, and its name (`input-2`). Each session of a channel
+  gets an id when it opens, and an order the agent sends on carries the id of
+  its requester in `__md_iev__.agent_session`. An answer for a session that
+  left is dropped, as one for a requester that closed: *"requester gone
+  before its answer, answer dropped"* (INFO, `"detail": "its channel is
+  another session's now"`). Up to 7.30.26 the next session on that channel
+  got it.
+
+What goes nowhere is a peer's doing: a WARNING (`MSGSET_PROTOCOL`, no stack)
+with a brake, ONE of each kind per 10 s, with `dropped`, the answers of that
+kind since the last one:
+
+```text
+WARNING {"msgset": "Protocol", "msg": "answer naming a requester of a link, not from a link: dropped",
+         "event": "EV_MT_COMMAND_ANSWER", "requester": "controlcenter", "channel": "C_CHANNEL^input-1", "dropped": 1}
+WARNING {"msgset": "Protocol", "msg": "answer for the agent, not from the yuno it names: dropped",
+         "event": "EV_MT_STATS_ANSWER", "yuno_id": "1", "channel": "C_CHANNEL^input-3", "dropped": 1}
+WARNING {"msgset": "Protocol", "msg": "requester of the answer not found: dropped",
+         "event": "EV_MT_COMMAND_ANSWER", "requester": "nosuch", "channel": "C_CHANNEL^input-1", "dropped": 1}
+```
+
+The last one is an answer whose requester is no channel of the agent and no
+link (a `dst_service` or an `agent_requester` that names nothing, or a
+service of the agent that is not a link: `authz`). Up to 7.30.26 it was
+*"child not found"*, an ERROR (`MSGSET_INTERNAL`) for each answer, and an
+answer to a service that is no link was sent to it.
 
 ## Tracing a yuno (`trace-on-yuno`, `trace-off-yuno`)
 

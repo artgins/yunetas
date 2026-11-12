@@ -12,6 +12,15 @@
                     "parent_role_id": "",
                     "service": "*",
                     "permission": "*"
+                },
+                {
+                    "id": "operator",
+                    "disabled": false,
+                    "description": "Operator of the agent only",
+                    "realm_id": "*",
+                    "parent_role_id": "",
+                    "service": "agent",
+                    "permission": "*"
                 }
             ],
             "users": [

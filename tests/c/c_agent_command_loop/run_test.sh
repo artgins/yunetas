@@ -6,8 +6,9 @@
 #   The agent's 1991/1993 and its pid file are fixed in the binary, so it
 #   runs in namespaces of its own (user, mount, network, pid): a tmpfs on
 #   /yuneta, a passwd where uid 0 is `yuneta`, and a loopback nobody else
-#   sees, with its memory bounded (ulimit -v) and no core. Up to 7.30.26
-#   each of those lines made the agent call itself until its stack
+#   sees, with its memory bounded (ulimit -v, not for an agent built with
+#   ASan, whose shadow memory does not fit in any bound) and no core. Up to
+#   7.30.26 each of those lines made the agent call itself until its stack
 #   overflowed (SIGSEGV), writing one audit record per call (~35 000);
 #   and so did a line with two levels of quotes, which the parser read
 #   twice and the guard once. And a command-agent to the control center's
@@ -17,7 +18,12 @@
 #   answered -1 with one WARNING (up to 7.30.26: an ERROR with a stack), and
 #   so is a config content64 that is empty or not json, with nothing of the
 #   content in the log (7.30.26: ERRORs with a stack and a dump of the whole
-#   config). A secret whose key the shell's quotes split never reaches the
+#   config); a config that is json but not an object, or whose __version__
+#   or __description__ is not a string, and one that its comment cut breaks,
+#   are answered -1 with one WARNING that says so (7.30.26: "path MUST BE a
+#   json str", ERRORs with a stack; "not json" with no error), and a
+#   "gbuffer" key that the comment cut makes is dropped (7.30.26 stored it).
+#   A secret whose key the shell's quotes split never reaches the
 #   audit file (7.30.26 wrote it). A write-tty to a service that is no
 #   console is answered EV_TTY_CLOSE with a WARNING (7.30.26: "Event NOT
 #   DEFINED in state", or the agent writing to itself).
@@ -49,6 +55,17 @@ unshare -rmn --pid --fork --mount-proc true 2>/dev/null || skip "unprivileged na
 [ -d /yuneta ] || skip "no /yuneta to mount the sandbox on"
 
 #
+#   An agent built with ASan reserves terabytes of address space for its
+#   shadow memory: under ulimit -v it cannot start, and the test would blame
+#   the agent
+#
+VMEM_LIMIT="ulimit -v 4000000;"
+if grep -aq "__asan_init" "$AGENT"; then
+    VMEM_LIMIT=""
+    echo "an agent built with ASan: no ulimit -v"
+fi
+
+#
 #   Sandbox
 #
 WORK=$(mktemp -d)
@@ -68,7 +85,7 @@ timeout 100 unshare -rmn --pid --fork --mount-proc bash -c "
     cp '$WORK/agent.json' /yuneta/agent/yuneta_agent.json
     cd /yuneta/agent
     ulimit -c 0
-    (ulimit -v 4000000; exec ./yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json) > '$WORK/agent.log' 2>&1 &
+    ($VMEM_LIMIT exec ./yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json) > '$WORK/agent.log' 2>&1 &
     APID=\$!
     python3 -I '$WORK/client.py'
     echo \"client exit code \$?\" > '$WORK/client.rc'
@@ -130,6 +147,32 @@ ej=$(grep -aE 'len is ZERO|json_loads\(\) FAILED' "$WORK/agent.log" | grep -ac "
 dj=$(grep -acE 'comments removed|PRIVATE KEY|MIIEvQ' "$WORK/agent.log")
 if [ "$ne" != "2" ] || [ "$nj" != "2" ] || [ "$ej" != "0" ] || [ "$dj" != "0" ]; then
     echo "TEST FAILED: an empty / not json config logged $ne / $nj WARNING(s), $ej ERROR(s) and $dj line(s) of its content, expected two WARNINGs each and nothing else"
+    failed=1
+fi
+#   A "gbuffer" key in a config, however its comment cut makes it: dropped
+#   with one WARNING per config (7.30.26: only the plain key, the two that
+#   the cut makes were stored)
+ngb=$(grep -a "Json of a peer with 'gbuffer' keys, a binary field name: dropped" "$WORK/agent.log" | grep -ac "WARNING")
+if [ "$ngb" != "3" ]; then
+    echo "TEST FAILED: $ngb WARNING(s) for a \"gbuffer\" key in a config, expected three"
+    failed=1
+fi
+#   A config that is json and is not once its comments are cut: the WARNING
+#   says that (7.30.26: "not json", with no error and no position)
+ncut=$(grep -a '"msg": "content64 of a config is not json once its comments are removed, refused"' "$WORK/agent.log" | grep -ac "WARNING")
+if [ "$ncut" != "1" ]; then
+    echo "TEST FAILED: $ncut WARNING(s) for a config that its comment cut breaks, expected one"
+    failed=1
+fi
+#   A config that is json but not an object, or whose __version__ or
+#   __description__ is not a string: one WARNING per order, no ERROR
+#   (7.30.26: "path MUST BE a json str", an ERROR with a stack, up to two
+#   per order)
+nno=$(grep -a '"msg": "content64 of a config is not a json object, refused"' "$WORK/agent.log" | grep -ac "WARNING")
+nns=$(grep -a '"msg": "content64 of a config with a key of its own that is not a string, refused"' "$WORK/agent.log" | grep -ac "WARNING")
+ens=$(grep -a 'path MUST BE a json str' "$WORK/agent.log" | grep -ac "ERROR")
+if [ "$nno" != "2" ] || [ "$nns" != "4" ] || [ "$ens" != "0" ]; then
+    echo "TEST FAILED: a config of a bad shape logged $nno / $nns WARNING(s) and $ens ERROR(s), expected two and four WARNINGs and no ERROR"
     failed=1
 fi
 #   A write-tty to a service that is not a console: one WARNING each, no

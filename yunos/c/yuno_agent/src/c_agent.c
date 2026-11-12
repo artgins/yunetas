@@ -51,11 +51,23 @@
 
 #define AUDIT_TTY_BURST_SECONDS 60  // console writes: one record per burst, see audit_tty_command()
 #define MAX_FAILED_YUNOS_NAMED  50  // the answer of kill-yuno names these, and counts the rest
+#define ANSWER_DROP_LOG_INTERVAL_MS (10*1000)   // one WARNING of each kind of answer dropped per interval
+#define ANSWER_NAME_SHOWN       129 // a requester's name of an answer, as a log shows it: masked, capped
 
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
+/*
+ *  Answers that come to the agent and go nowhere: what a peer sent, logged
+ *  with a brake (log_answer_dropped())
+ */
+typedef enum {
+    ANSWER_DROP_NOT_FROM_LINK,  // names a requester of a link, and did not come from a link
+    ANSWER_DROP_NOT_FROM_YUNO,  // a reading or a publication of a yuno, not from that yuno
+    ANSWER_DROP_NO_REQUESTER,   // its requester is no channel of the agent, nor a link
+    ANSWER_DROP_KINDS
+} answer_drop_kind_t;
 
 /***************************************************************************
  *              Prototypes
@@ -218,6 +230,26 @@ PRIVATE int add_console_route(
 );
 PRIVATE int delete_console(hgobj gobj, const char *name);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
+PRIVATE json_int_t requester_session(hgobj gobj, hgobj src);
+PRIVATE hgobj answer_requester(
+    hgobj gobj,
+    gobj_event_t event,
+    const char *dst_service,
+    json_t *kw,
+    hgobj src,
+    BOOL *for_agent
+);
+PRIVATE BOOL answer_is_of_its_yuno(hgobj gobj, gobj_event_t event, json_t *jn_md, json_t *kw);
+PRIVATE void log_answer_dropped(
+    hgobj gobj,
+    answer_drop_kind_t kind,
+    const char *msg,
+    gobj_event_t event,
+    const char *name_key,
+    const char *name,
+    json_t *kw,
+    hgobj src
+);
 PRIVATE int watch_rearm_timer(hgobj gobj);
 PRIVATE int watch_tick(hgobj gobj, const char *only_route);
 PRIVATE int publications_arm(hgobj gobj, json_t *yuno, const char *yuno_id, json_t *jn_services);
@@ -1125,6 +1157,10 @@ typedef struct _PRIVATE_DATA {
     json_t *audit_tty_bursts;   // console writes being counted, see audit_tty_command()
 
     json_int_t timeout_expiration;
+
+    json_int_t channel_sessions;    // sessions opened on __input_side__: each one's id, see ac_on_open()
+    uint64_t t_answer_drop_log[ANSWER_DROP_KINDS];  // msectimer: no WARNING of this kind before it
+    json_int_t answer_drops[ANSWER_DROP_KINDS];     // answers of this kind dropped since its last WARNING
 
     /* cert auto-sync (see attrs cert_sync_*) */
     hgobj cert_sync_timer;
@@ -4513,8 +4549,10 @@ PRIVATE json_t *cmd_list_configs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *  NO dump of the content -- a config holds keys under names that no mask
  *  knows (a PEM under ssl_certificate_key). config_gbuffer2json() logged
  *  "len is ZERO" and "json_loads() FAILED" as ERRORs with a stack, and
- *  dumped the whole config (7.30.26). Its "gbuffer" keys are dropped, as
- *  for any json of a peer. gbuf is decref. Return NULL if error.
+ *  dumped the whole config (7.30.26). So is a json that is not the shape of
+ *  a config (not an object, a __version__ or __description__ that is not a
+ *  string). Its "gbuffer" keys are dropped, as for any json of a peer. gbuf
+ *  is decref. Return NULL if error.
  ***************************************************************************/
 PRIVATE json_t *config_from_peer(hgobj gobj, gbuffer_t *gbuf, const char *cmd, hgobj src)
 {
@@ -4542,23 +4580,96 @@ PRIVATE json_t *config_from_peer(hgobj gobj, gbuffer_t *gbuf, const char *cmd, h
         json_error_t error;
         memset(&error, 0, sizeof(error));
         json_t *jn_raw = json_loadb(p, len, 0, &error);
+        BOOL json_as_it_is = jn_raw? TRUE : FALSE;
         JSON_DECREF(jn_raw)
-        char error_shown[JSON_ERROR_TEXT_LENGTH];
+        if(json_as_it_is) {
+            /*
+             *  Json as it is, and not once its comments are cut: a comment
+             *  mark inside a string cut it, and the first mark is in one (out
+             *  of a string it is no json). Its position, where jansson has
+             *  no error to tell (7.30.26 said "not json" with an empty error
+             *  and no position).
+             */
+            const char *mark = memmem(p, len, INLINE_COMMENT, strlen(INLINE_COMMENT));
+            int line = 1;
+            int column = 1;
+            for(const char *c = p; mark && c < mark; c++) {
+                if(*c == '\n') {
+                    line++;
+                    column = 1;
+                } else {
+                    column++;
+                }
+            }
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "content64 of a config is not json once its comments are removed, refused",
+                "command",      "%s", cmd,
+                "comment_mark", "%s", INLINE_COMMENT,
+                "line",         "%d", mark? line : -1,
+                "column",       "%d", mark? column : -1,
+                "len",          "%d", (int)len,
+                NULL
+            );
+        } else {
+            char error_shown[JSON_ERROR_TEXT_LENGTH];
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "content64 of a config is not json, refused",
+                "command",      "%s", cmd,
+                "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
+                "line",         "%d", error.line,
+                "column",       "%d", error.column,
+                "len",          "%d", (int)len,
+                NULL
+            );
+        }
+        GBUFFER_DECREF(gbuf)
+        return NULL;
+    }
+    GBUFFER_DECREF(gbuf)
+
+    /*
+     *  The shape of a config: a json object whose __version__ and
+     *  __description__ are strings (kw_get_str() of anything else was "path
+     *  MUST BE a json str", an ERROR with a stack, 7.30.26)
+     */
+    if(!json_is_object(jn_config)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "content64 of a config is not json, refused",
+            "msg",          "%s", "content64 of a config is not a json object, refused",
             "command",      "%s", cmd,
-            "error",        "%s", json_error_for_log(&error, error_shown, sizeof(error_shown)),
-            "line",         "%d", error.line,
-            "column",       "%d", error.column,
-            "len",          "%d", (int)len,
             NULL
         );
-    } else {
-        drop_peer_binary_keys(gobj, jn_config, p, len, src);
+        JSON_DECREF(jn_config)
+        return NULL;
     }
-    GBUFFER_DECREF(gbuf)
+    const char *own_keys[] = {"__version__", "__description__", NULL};
+    for(int i=0; own_keys[i]; i++) {
+        json_t *jn_value = json_object_get(jn_config, own_keys[i]);
+        if(jn_value && !json_is_string(jn_value)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "content64 of a config with a key of its own that is not a string, refused",
+                "command",      "%s", cmd,
+                "key",          "%s", own_keys[i],
+                NULL
+            );
+            JSON_DECREF(jn_config)
+            return NULL;
+        }
+    }
+
+    /*
+     *  Its "gbuffer" keys, looked for in the json and not in the text: the
+     *  comment cut joins lines, and "gbu\nffer" or "gbu#^^ x\nffer" become
+     *  one (7.30.26 stored them)
+     */
+    drop_peer_binary_keys(gobj, jn_config, NULL, 0, src);
     return jn_config;
 }
 
@@ -7668,6 +7779,10 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     if(gobj_typeof_gclass(service_gobj, C_IEVENT_CLI)) {
         kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_requester", json_string(gobj_name(src)));
+        json_int_t session = requester_session(gobj, src);
+        if(session) {
+            kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_session", json_integer(session));
+        }
         src = gobj;
     }
 
@@ -7711,6 +7826,10 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      */
     if(gobj_typeof_gclass(service_gobj, C_IEVENT_CLI)) {
         kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_requester", json_string(gobj_name(src)));
+        json_int_t session = requester_session(gobj, src);
+        if(session) {
+            kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_session", json_integer(session));
+        }
         src = gobj;
     }
 
@@ -11682,6 +11801,10 @@ PRIVATE int command_to_yuno(hgobj gobj, json_t *yuno, const char *command, json_
         KW_DECREF(kw);
         return -1;
     }
+    json_int_t session = requester_session(gobj, src);
+    if(session) {
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_session", json_integer(session));
+    }
     json_t *webix = gobj_command(
         channel_gobj,
         command,
@@ -11710,6 +11833,10 @@ PRIVATE int stats_to_yuno(hgobj gobj, json_t *yuno, const char* stats, json_t* k
     if(!channel_gobj) {
         KW_DECREF(kw);
         return -1;
+    }
+    json_int_t session = requester_session(gobj, src);
+    if(session) {
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_session", json_integer(session));
     }
     /*  Default `service` to the yuno_role of the matched yuno.  The
      *  convention is `gobj_create_default_service(yuno_role, GCLASS,
@@ -11759,6 +11886,10 @@ PRIVATE int authzs_to_yuno(
     if(!channel_gobj) {
         KW_DECREF(kw);
         return -1;
+    }
+    json_int_t session = requester_session(gobj, src);
+    if(session) {
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "agent_session", json_integer(session));
     }
     json_t *webix = gobj_command(
         channel_gobj,
@@ -13267,6 +13398,194 @@ PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t ev
     return listening;
 }
 
+/***************************************************************************
+ *  The session of `src`, the requester of an order, when it is a channel of
+ *  __input_side__ (an operator): the id ac_on_open() gave the session that
+ *  holds that channel now. 0 when it is none (the agent, a link).
+ *
+ *  The channels are a pool: a session takes the first one free, so the next
+ *  session to come takes the one the last left, and its name. An order the
+ *  agent sends on carries this id in __md_iev__`agent_session, which its
+ *  answer echoes: the answer goes to the session that asked, or to nobody.
+ ***************************************************************************/
+PRIVATE json_int_t requester_session(hgobj gobj, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj channel = src? gobj_child_by_name(priv->gobj_input_side, gobj_name(src)) : NULL;
+    if(!channel) {
+        return 0;
+    }
+    return json_integer_value(gobj_read_user_data(channel, "__session__"));
+}
+
+/***************************************************************************
+ *  Where an answer that came to the agent goes (ac_command_yuno_answer,
+ *  ac_stats_yuno_answer): the requester to send it to, or NULL. NULL with
+ *  *for_agent TRUE: the answer is the agent's own; else it goes to nobody
+ *  (said here).
+ *
+ *  Answers come from the __input_side__, where a yuno's channel and any
+ *  session's look alike (anybody may send one), and from a link the agent
+ *  opened (a C_IEVENT_CLI: the control center's). So:
+ *  - `agent_requester` (the operator of a command-agent / stats-agent sent
+ *    through a link, cmd_command_agent()) is taken only from a link, and
+ *    names only a channel of __input_side__. Any session could send an
+ *    answer to `agent` naming the link, and the agent sent it to the
+ *    control center with its own identity;
+ *  - a `dst_service` names a channel of __input_side__, or a link (an order
+ *    the control center cascaded): a requester that is neither is a peer's
+ *    doing, a WARNING with a brake (up to 7.30.26 an ERROR "child not found"
+ *    per answer, and a service that is no link was sent the answer);
+ *  - `agent_session` (requester_session()) must be the session that holds
+ *    the requester's channel now: one that left, its channel taken by the
+ *    next session, has its answer dropped as gone.
+ ***************************************************************************/
+PRIVATE hgobj answer_requester(
+    hgobj gobj,
+    gobj_event_t event,
+    const char *dst_service,
+    json_t *kw,     // not owned
+    hgobj src,
+    BOOL *for_agent
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    *for_agent = FALSE;
+    json_t *md_iev = json_object_get(kw, "__md_iev__");
+    const char *agent_requester = json_string_value(json_object_get(md_iev, "agent_requester"));
+    json_int_t session = json_integer_value(json_object_get(md_iev, "agent_session"));
+
+    hgobj requester;
+    const char *requester_name;
+    if(strcmp(dst_service, gobj_name(gobj))==0) {
+        if(empty_string(agent_requester)) {
+            *for_agent = TRUE;
+            return NULL;
+        }
+        if(!gobj_typeof_gclass(src, C_IEVENT_CLI)) {
+            log_answer_dropped(gobj, ANSWER_DROP_NOT_FROM_LINK,
+                "answer naming a requester of a link, not from a link: dropped",
+                event, "requester", agent_requester, kw, src
+            );
+            return NULL;
+        }
+        requester_name = agent_requester;
+        requester = gobj_child_by_name(priv->gobj_input_side, requester_name);
+    } else {
+        requester_name = dst_service;
+        requester = gobj_child_by_name(priv->gobj_input_side, requester_name);
+        if(!requester) {
+            /*
+             *  Command cascaded from a controlcenter: it arrived via the
+             *  outbound "controlcenter" C_IEVENT_CLI service, not an
+             *  __input_side__ child. Send EV_SEND_IEV to that C_IEVENT_CLI:
+             *  it is the ievent serializer on its own stack (its channel sits
+             *  above a raw C_PROT_TCP4H, not a C_IEVENT_SRV), so its
+             *  ac_send_iev unwraps and serializes the inner iev
+             *  (EV_MT_COMMAND_ANSWER / EV_MT_STATS_ANSWER) up the link --
+             *  uniform with the input-side C_CHANNEL path.
+             */
+            requester = gobj_find_service(requester_name, FALSE);
+            if(requester && !gobj_typeof_gclass(requester, C_IEVENT_CLI)) {
+                requester = NULL;
+            }
+        }
+    }
+    if(!requester) {
+        log_answer_dropped(gobj, ANSWER_DROP_NO_REQUESTER,
+            "requester of the answer not found: dropped",
+            event, "requester", requester_name, kw, src
+        );
+        return NULL;
+    }
+    if(!requester_is_listening(gobj, requester, event)) {
+        return NULL;
+    }
+    if(session && json_integer_value(gobj_read_user_data(requester, "__session__")) != session) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "requester gone before its answer, answer dropped",
+            "requester",    "%s", gobj_short_name(requester),
+            "event",        "%s", event,
+            "detail",       "%s", "its channel is another session's now",
+            NULL
+        );
+        return NULL;
+    }
+
+    json_object_del(md_iev, "agent_requester");
+    json_object_del(md_iev, "agent_session");
+    return requester;
+}
+
+/***************************************************************************
+ *  A reading of a watch (`agent_watch`) or the answer to a publish-stats
+ *  (`agent_publish`) is taken only from the channel of the yuno it names:
+ *  the agent asked that yuno. Any session could send one, and the watchers
+ *  got its reading, or the yuno was taken as refusing its publication.
+ ***************************************************************************/
+PRIVATE BOOL answer_is_of_its_yuno(hgobj gobj, gobj_event_t event, json_t *jn_md, json_t *kw)
+{
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    const char *yuno_id = json_string_value(json_object_get(jn_md, "yuno_id"));
+    const char *channel_yuno = channel_gobj?
+        json_string_value(gobj_read_user_data(channel_gobj, "__yuno__")) : NULL;
+    if(!empty_string(yuno_id) && !empty_string(channel_yuno) && strcmp(yuno_id, channel_yuno)==0) {
+        return TRUE;
+    }
+    log_answer_dropped(gobj, ANSWER_DROP_NOT_FROM_YUNO,
+        "answer for the agent, not from the yuno it names: dropped",
+        event, "yuno_id", yuno_id? yuno_id : "", kw, NULL
+    );
+    return FALSE;
+}
+
+/***************************************************************************
+ *  An answer that goes nowhere is what a peer sent: one WARNING of each
+ *  kind per ANSWER_DROP_LOG_INTERVAL_MS, with how many were dropped since
+ *  the last one (a session can send them in a loop)
+ ***************************************************************************/
+PRIVATE void log_answer_dropped(
+    hgobj gobj,
+    answer_drop_kind_t kind,
+    const char *msg,
+    gobj_event_t event,
+    const char *name_key,   // what `name` is: "requester", "yuno_id"
+    const char *name,       // of the peer
+    json_t *kw,     // not owned
+    hgobj src       // NULL: the channel of kw
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->answer_drops[kind]++;
+    if(priv->t_answer_drop_log[kind] && !test_msectimer(priv->t_answer_drop_log[kind])) {
+        return;
+    }
+    priv->t_answer_drop_log[kind] = start_msectimer(ANSWER_DROP_LOG_INTERVAL_MS);
+
+    hgobj from = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    if(!from) {
+        from = src;
+    }
+    char shown[ANSWER_NAME_SHOWN];
+    mask_secrets_inline_capped(shown, sizeof(shown), name, strlen(name));
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", msg,
+        "event",        "%s", event,
+        name_key,       "%s", shown,
+        "channel",      "%s", from? gobj_short_name(from) : "",
+        "dropped",      "%ld", (long)priv->answer_drops[kind],
+        NULL
+    );
+    priv->answer_drops[kind] = 0;
+}
+
 
 
 
@@ -14426,69 +14745,26 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-    char requester[NAME_MAX + 1] = "";
-    if(strcmp(dst_service, gobj_name(gobj))==0) {
-        /*
-         *  The answer of a link to another yuno, asked by an operator
-         *  (command-agent / stats-agent): its requester rides in the metadata
-         */
-        json_t *md_iev = json_object_get(kw, "__md_iev__");
-        const char *agent_requester = json_string_value(json_object_get(md_iev, "agent_requester"));
-        if(!empty_string(agent_requester)) {
-            snprintf(requester, sizeof(requester), "%s", agent_requester);
-            json_object_del(md_iev, "agent_requester");
-            dst_service = requester;
-        }
-    }
-    if(strcmp(dst_service, gobj_name(gobj))==0) {
+    BOOL for_agent;
+    hgobj gobj_requester = answer_requester(gobj, event, dst_service, kw, src, &for_agent);
+    JSON_DECREF(jn_ievent_id);
+    if(for_agent) {
         /*
          *  Stats asked by the agent itself: a reading of a watch-yuno-stats
          *  goes to its requesters, anything else has nowhere to go.
          */
         json_t *jn_watch_md = kw_get_dict(gobj, kw, "__md_iev__`agent_watch", 0, 0);
-        if(jn_watch_md) {
+        if(jn_watch_md && answer_is_of_its_yuno(gobj, event, jn_watch_md, kw)) {
             watch_answer(gobj, jn_watch_md, kw);
         }
-        JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;
     }
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_input_side,
-        dst_service
-    );
     if(!gobj_requester) {
-        /*
-         *  Command cascaded from a controlcenter: it arrived via the outbound
-         *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child.
-         *  Send EV_SEND_IEV to that C_IEVENT_CLI: it is the ievent serializer on
-         *  its own stack (its channel sits above a raw C_PROT_TCP4H, not a
-         *  C_IEVENT_SRV), so its ac_send_iev unwraps and serializes the inner
-         *  iev (EV_MT_COMMAND_ANSWER / EV_MT_STATS_ANSWER) up the link — uniform
-         *  with the input-side C_CHANNEL path.
-         */
-        gobj_requester = gobj_find_service(dst_service, FALSE);
-    }
-    if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "child not found",
-            "child",        "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jn_ievent_id);
-        KW_DECREF(kw);
-        return 0;
-    }
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        // Error already logged
         KW_DECREF(kw);
         return 0;
     }
@@ -14515,26 +14791,13 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
-    char requester[NAME_MAX + 1] = "";
-    if(strcmp(dst_service, gobj_name(gobj))==0) {
-        /*
-         *  The answer of a link to another yuno, asked by an operator
-         *  (command-agent / stats-agent): its requester rides in the metadata
-         */
-        json_t *md_iev = json_object_get(kw, "__md_iev__");
-        const char *agent_requester = json_string_value(json_object_get(md_iev, "agent_requester"));
-        if(!empty_string(agent_requester)) {
-            snprintf(requester, sizeof(requester), "%s", agent_requester);
-            json_object_del(md_iev, "agent_requester");
-            dst_service = requester;
-        }
-    }
-    if(strcmp(dst_service, gobj_name(gobj))==0) {
+    BOOL for_agent;
+    hgobj gobj_requester = answer_requester(gobj, event, dst_service, kw, src, &for_agent);
+    JSON_DECREF(jn_ievent_id);
+    if(for_agent) {
         /*
          *  Command requested by the agent itself: nothing to forward. The
          *  answer to a publish-stats says whether the yuno publishes; any
@@ -14542,7 +14805,9 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
          */
         json_t *jn_publish_md = kw_get_dict(gobj, kw, "__md_iev__`agent_publish", 0, 0);
         if(jn_publish_md) {
-            publication_answer(gobj, jn_publish_md, kw);
+            if(answer_is_of_its_yuno(gobj, event, jn_publish_md, kw)) {
+                publication_answer(gobj, jn_publish_md, kw);
+            }
         } else if(kw_get_int(gobj, kw, "result", 0, KW_WILD_NUMBER) < 0) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -14552,41 +14817,11 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
                 NULL
             );
         }
-        JSON_DECREF(jn_ievent_id);
         KW_DECREF(kw);
         return 0;
     }
-
-    hgobj gobj_requester = gobj_child_by_name(
-        priv->gobj_input_side,
-        dst_service
-    );
     if(!gobj_requester) {
-        /*
-         *  Command cascaded from a controlcenter: it arrived via the outbound
-         *  "controlcenter" C_IEVENT_CLI service, not an __input_side__ child.
-         *  Send EV_SEND_IEV to that C_IEVENT_CLI: it is the ievent serializer on
-         *  its own stack (its channel sits above a raw C_PROT_TCP4H, not a
-         *  C_IEVENT_SRV), so its ac_send_iev unwraps and serializes the inner
-         *  iev (EV_MT_COMMAND_ANSWER / EV_MT_STATS_ANSWER) up the link — uniform
-         *  with the input-side C_CHANNEL path.
-         */
-        gobj_requester = gobj_find_service(dst_service, FALSE);
-    }
-    if(!gobj_requester) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
-            "msg",          "%s", "child not found",
-            "child",        "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jn_ievent_id);
-        KW_DECREF(kw);
-        return 0;
-    }
-    JSON_DECREF(jn_ievent_id);
-    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        // Error already logged
         KW_DECREF(kw);
         return 0;
     }
@@ -14614,6 +14849,14 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  The id of this session of the channel (requester_session())
+     */
+    hgobj session_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    if(session_channel) {
+        gobj_write_user_data(session_channel, "__session__", json_integer(++priv->channel_sessions));
+    }
 
     const char *client_yuno_role = kw_get_str(gobj, kw, "client_yuno_role", "", 0);
     if(strcasecmp(client_yuno_role, "yuneta_cli")==0 ||
