@@ -1589,6 +1589,17 @@ PUBLIC int gobj_unsubscribe_list(
     BOOL force  // delete hard_subscription subs too
 );
 
+/*
+ *  The first subscriber a publication of `event` would reach that does not
+ *  take it in its current state ("Event NOT DEFINED in state"), or NULL.
+ *  For a gclass that publishes again what a peer sent, to refuse it at the
+ *  frontier. No allocation.
+ */
+PUBLIC hgobj gobj_find_subscriber_refusing_event(
+    hgobj publisher,
+    gobj_event_t event
+);
+
 PUBLIC json_t *gobj_find_subscriptions( // Return is YOURS
     hgobj gobj,
     gobj_event_t event,

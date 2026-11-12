@@ -133,14 +133,14 @@ static int register_yuno_and_more(void)
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",  // a string
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",  // an integer
-            "msg", "No channel FOUND to send", "repeated", "0",
+            "msg", "channel NOT FOUND", "repeated", "0",            // a drop before the outage
+            "msg", "No channel FOUND to send", "repeated", "0",     // the outage, said at once
             "msg", "No channel FOUND to send", "repeated", "999",
             "msg", "No channel FOUND to send", "repeated", "999",
             "msg", "No channel FOUND to send", "repeated", "0",     // a new run: said at once
             "msg", "No channel FOUND to send", "repeated", "0",     // to all
             "msg", "No channel FOUND to send", "repeated", "999",
-            "msg", "channel NOT FOUND", "repeated", "0",            // drops
-            "msg", "channel NOT FOUND", "repeated", "999"
+            "msg", "channel NOT FOUND", "repeated", "999"           // drops, in the run of the first
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -155,16 +155,19 @@ static int register_yuno_and_more(void)
  *  what the brake did not say
  ***************************************************************************/
 typedef struct {
+    const char *msg;
     const char *why;
     const char *without_channel;
     const char *not_said;
 } run_end_t;
+#define SENDS_ENDED "Sends with no channel ended"
+#define DROPS_ENDED "Drops of a channel not found ended"
 PRIVATE const run_end_t run_ends[] = {
-    {"a channel found to send", "2500", "499"},
-    {"a channel found to send", "1",    "0"},
-    {"a channel found to send", "1500", "499"},
-    {"the gate stops",          "1200", "199"},
-    {0, 0, 0}
+    {SENDS_ENDED, "a channel found to send", "2500", "499"},    // not 2501: the drop is not a send
+    {SENDS_ENDED, "a channel found to send", "1",    "0"},
+    {SENDS_ENDED, "a channel found to send", "1500", "499"},    // a send to all
+    {DROPS_ENDED, "the gate stops",          "1201", "200"},
+    {0, 0, 0, 0}
 };
 int run_ends_seen = 0;
 int run_ends_wrong = 0;
@@ -188,13 +191,14 @@ static BOOL line_has(const char *bf, size_t len, const char *key, const char *va
 
 static int run_end_log_write(void *v, int priority, const char *bf, size_t len)
 {
-    const char *mark = "Sends with no channel ended";
-    if(!memmem(bf, len, mark, strlen(mark))) {
+    if(!memmem(bf, len, SENDS_ENDED, strlen(SENDS_ENDED)) &&
+            !memmem(bf, len, DROPS_ENDED, strlen(DROPS_ENDED))) {
         return 0;
     }
     int i = run_ends_seen++;
     if(i >= (int)(sizeof(run_ends)/sizeof(run_ends[0])) - 1 ||
             priority != LOG_INFO ||
+            !memmem(bf, len, run_ends[i].msg, strlen(run_ends[i].msg)) ||
             !line_has(bf, len, "why", run_ends[i].why, TRUE) ||
             !line_has(bf, len, "without_channel", run_ends[i].without_channel, FALSE) ||
             !line_has(bf, len, "not_said", run_ends[i].not_said, FALSE)) {

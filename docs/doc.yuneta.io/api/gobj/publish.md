@@ -88,6 +88,51 @@ gobj_unsubscribe_list(publisher, subs, FALSE);  // owned: the dicts are the subs
 
 ---
 
+(gobj_find_subscriber_refusing_event)=
+## [`gobj_find_subscriber_refusing_event()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/gobj.c#L10730)
+
+Finds the first subscriber that a publication of `event` would reach and that does not take the event in its current state: [`gobj_send_event()`](#gobj_send_event) would answer it *"Event NOT DEFINED in state"*, an ERROR with a stack.
+
+```C
+hgobj gobj_find_subscriber_refusing_event(
+    hgobj publisher,
+    gobj_event_t event
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `publisher` | `hgobj` | The gobj that would publish the event. |
+| `event` | `gobj_event_t` | The event it would publish. |
+
+**Returns**
+
+The first subscriber that would refuse the event, or `NULL` when every subscriber takes it (an action for it in its current state, or a `mt_inject_event`). Also `NULL` when it cannot be told before publishing: the publisher's gclass has `mt_publish_event`, `mt_publication_pre_filter` or `mt_publication_filter`. A subscription with a `__filter__` is not judged. A system event that a subscriber does not have is skipped, as [`gobj_publish_event()`](#gobj_publish_event) skips it.
+
+**Notes**
+
+For a gclass that publishes again what a PEER sent. An event of a peer that the yuno does not take now is the peer's fault and is refused at the frontier with a warning; the same event sent by the yuno's own code stays the loud error. It allocates nothing: pointer compares over the subscriptions and the actions of each subscriber's state. Used by `C_IOGATE` for every inter-event a session receives (7.30.27+).
+
+```C
+hgobj subscriber = gobj_find_subscriber_refusing_event(gobj, iev_event);
+if(subscriber) {
+    gobj_log_warning(gobj, 0,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "event of a peer the yuno does not take now, refused",
+        "event",        "%s", iev_event,
+        "subscriber",   "%s", gobj_short_name(subscriber),
+        NULL
+    );
+    KW_DECREF(kw)
+    return 0;
+}
+return gobj_publish_event(gobj, iev_event, kw);
+```
+
+---
+
 (gobj_list_subscriptions)=
 ## [`gobj_list_subscriptions()`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/gobj-c/src/gobj.c#L10808)
 

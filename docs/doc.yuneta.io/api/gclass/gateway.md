@@ -149,16 +149,41 @@ to its own treedb too, and cannot tell the two apart): the session refuses
 it before it gets here (7.30.27+, see
 [`C_IEVENT_SRV`](#gclass-c-ievent-srv), "A frame the gate cannot route").
 
+And an event of a peer that a subscriber of the gate does not take in its
+current state (no action for it there, no `mt_inject_event`) is refused by
+the gate: the frame is dropped, the channel stays, and the subscriber never
+sees it. The subscriber is often the yuno's main gclass, subscribed to every
+event of the gate, and a peer can name any event some gclass has as public.
+Said with a WARNING at most once per 10 s per channel, `suppressed` the ones
+not said since; the rest are said, once, when the channel closes or the gate
+stops (7.30.27+). Up to 7.30.26 each such frame was an *"Event NOT DEFINED in
+state"* in the subscriber, an ERROR with a stack: 200 frames were 200 stacks
+and over 1 MB of log. The same event sent by the yuno's own code is still that
+loud error. The check is
+[`gobj_find_subscriber_refusing_event()`](#gobj_find_subscriber_refusing_event).
+
+```text
+WARNING "event of a peer the yuno does not take now, refused",
+    "event": "EV_TRANGER_RECORD_ADDED", "subscriber": "C_AGENT^agent",
+    "state": "ST_IDLE", "channel": "input-3", "peername": "10.0.0.7:51200",
+    "username": "operator@example.com", "suppressed": 0
+INFO "Events of a peer refused, not said", "why": "the channel closed",
+    "channel": "input-3", "not_said": 199
+```
+
 A send with no channel to go to (none named, none open) is refused with
 *"No channel FOUND to send"*, an ERROR said once every 1000 in a row, per
 gate, its `repeated` the ones not said since the last one. A send to all
-channels (`__send_type__` 1) that finds none, and a drop (`EV_DROP`) of a
-channel name the gate does not have (*"channel NOT FOUND"*), go through the
-same brake. The run ends when a send finds a channel, or when the gate
-stops: then ONE INFO says it, with the whole run and the ones the brake did
-not say, and the count starts again, so a new outage is said at once
-(7.30.27+; up to 7.30.26 every send said it, the send to all with a stack,
-and nothing said the end of the run):
+channels (`__send_type__` 1) that finds none goes through the same brake. A
+drop (`EV_DROP`) of a channel name the gate does not have (*"channel NOT
+FOUND"*) has a brake of its own, so a drop never hides the first send of an
+outage, nor counts as one of its sends. The run ends when a send finds a
+channel (for the drops, when a drop finds its channel), or when the gate
+stops: then ONE INFO says it (*"Sends with no channel ended"*, *"Drops of a
+channel not found ended"*), with the whole run and the ones the brake did not
+say, and the count starts again, so a new outage is said at once (7.30.27+;
+up to 7.30.26 every send said it, the send to all with a stack, and nothing
+said the end of the run):
 
 ```text
 ERROR: {"msg": "No channel FOUND to send", "event": "EV_SEND_MESSAGE", "repeated": 0, ...}

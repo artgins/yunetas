@@ -10711,6 +10711,90 @@ PUBLIC int gobj_unsubscribe_list(
 }
 
 /***************************************************************************
+ *  The first subscriber that a publication of `event` by `publisher` would
+ *  reach and that does not take the event in its current state (no action
+ *  for it there, no mt_inject_event): gobj_send_event() would answer it
+ *  "Event NOT DEFINED in state", an ERROR with a stack. NULL when every
+ *  one takes it, or when it cannot be told before publishing (a hook of
+ *  the publisher that decides the publication; a subscription with a
+ *  __filter__ is not judged).
+ *
+ *  For a gclass that publishes again what a PEER sent (C_IOGATE): an
+ *  event of a peer that the yuno does not take now is the peer's fault,
+ *  to be refused at the frontier, while the same event sent by our own
+ *  code stays the loud error it is. No allocation: pointer compares over
+ *  the subscriptions and the actions of each one's state.
+ *  A COPY of the delivery rules of gobj_publish_event(): a change of those
+ *  rules is made here too.
+ ***************************************************************************/
+PUBLIC hgobj gobj_find_subscriber_refusing_event(
+    hgobj publisher_,
+    gobj_event_t event
+)
+{
+    gobj_t *publisher = publisher_;
+    if(!publisher || empty_string(event)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "publisher or event NULL",
+            NULL
+        );
+        return NULL;
+    }
+
+    const GMETHODS *gmt = publisher->gclass->gmt;
+    if(gmt->mt_publish_event ||
+        gmt->mt_publication_pre_filter ||
+        gmt->mt_publication_filter
+    ) {
+        return NULL;
+    }
+
+    for(size_t idx = 0; idx < publisher->subs_recs_size; idx++) {
+        const subs_rec_t *rec = publisher->subs_recs[idx];
+        gobj_t *subscriber = rec->subscriber;
+        if(!(subscriber && !(subscriber->obflag & (obflag_destroying|obflag_destroyed)))) {
+            continue;
+        }
+
+        gobj_event_t event_ = rec->event;
+        if(!(empty_string(event_) || event_ == event)) {
+            continue;
+        }
+
+        if(json_size(rec->__filter__)>0) {
+            continue;
+        }
+
+        event_type_t *ev_ = gobj_event_type(subscriber, event, TRUE);
+        if(ev_ && (ev_->event_flag & EVF_SYSTEM_EVENT) &&
+            !gobj_has_event(subscriber, ev_->event_name, 0)
+        ) {
+            continue;   // not sent to it
+        }
+
+        gobj_event_t event_name = rec->renamed_event;
+        if(empty_string(event_name)) {
+            event_name = event;
+        }
+
+        if(!subscriber->current_state) {
+            continue;   // gobj_send_event() says it
+        }
+        if(_find_event_action(subscriber->current_state, event_name)) {
+            continue;
+        }
+        if(subscriber->gclass->gmt->mt_inject_event) {
+            continue;
+        }
+        return subscriber;
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
  *  Return list of subscriptions in the publisher gobj,
  *  filtering by matching:
  *      event,

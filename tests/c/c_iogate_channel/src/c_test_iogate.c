@@ -16,22 +16,26 @@
  *         The same with a __temp__ that is a string or an integer (each
  *         replaced, one ERROR); one that is a dict without the channel
  *         gets the channel written in it, its other keys kept, no log.
- *      2) 2500 sends with no channel to go to: "No channel FOUND to send"
- *         is said for the 1st, the 1001st and the 2001st, with `repeated`
- *         the ones not said since (0, 999, 999). Up to 7.30.26 its brake
- *         never counted: 2500 ERRORs.
+ *      2) A drop of a channel that does not exist ("channel NOT FOUND",
+ *         said), then 2500 sends with no channel to go to: "No channel
+ *         FOUND to send" is said for the 1st, the 1001st and the 2001st,
+ *         with `repeated` the ones not said since (0, 999, 999): the drop
+ *         counts in a run of its own, so it hides no send of the outage.
+ *         Up to 7.30.26 its brake never counted: 2500 ERRORs.
  *      3) A send that finds a channel (this gobj, named in its __temp__)
  *         ends the run: an INFO says it, with the 499 the brake did not
  *         say, and the count starts again: the next send with no channel
  *         is said at once (`repeated` 0).
  *      4) The same brake for a send to all channels (1500 with no
- *         channel: said at 1 and 1001) and for a drop of a channel that
- *         does not exist (1200: said at 1 and 1001); the INFO of the end
- *         of each run, the last one when the gate stops (199 not said).
- *         Up to 7.30.26 both said every one, the send to all with a
- *         stack.
+ *         channel: said at 1 and 1001; then a send to all that finds an
+ *         open channel ends the run, 499 not said) and for the drops of a
+ *         channel that does not exist (1200 more, in the run of the first
+ *         drop: said at its 1001st; the INFO of the end of the drops, of
+ *         their own, when the gate stops: 1201, 200 not said). Up to
+ *         7.30.26 both said every one, the send to all with a stack.
  *      5) The gate counts the messages it could not send
- *         (txMsgsNoChannel: 2500 + 1 + 1500; a drop is not a message).
+ *         (txMsgsNoChannel: 2500 + 1 + 1500; a drop is not a message),
+ *         and `stats __reset__` puts the count back to 0.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -285,8 +289,11 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  2) No channel to send to
+     *  2) A drop of a channel that is not there, then no channel to send
+     *  to: the drop does not take the first send of the outage
      */
+    gobj_send_event(priv->iogate, EV_DROP,
+        json_pack("{s:{s:s}}", "__temp__", "channel", "nobody"), gobj);
     for(int i=0; i<N_SENDS; i++) {
         gobj_send_event(priv->iogate, EV_SEND_MESSAGE, json_pack("{s:i}", "n", i), gobj);
     }
@@ -306,7 +313,19 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_send_event(priv->iogate, EV_SEND_MESSAGE,
             json_pack("{s:i, s:i}", "n", i, "__send_type__", 1), gobj);
     }
-    send_to_me(gobj);
+
+    /*
+     *  A send to all that finds an open channel ends the run: a C_CHANNEL
+     *  of the gate whose bottom is this gobj, opened, closed after it
+     */
+    hgobj channel = gobj_create("chan", C_CHANNEL, 0, priv->iogate);
+    gobj_set_bottom_gobj(channel, gobj);
+    gobj_send_event(channel, EV_ON_OPEN, 0, gobj);
+    gobj_send_event(priv->iogate, EV_SEND_MESSAGE,
+        json_pack("{s:s, s:i}", "n", "to all", "__send_type__", 1), gobj);
+    gobj_set_bottom_gobj(channel, 0);
+    gobj_send_event(channel, EV_ON_CLOSE, 0, gobj);
+
     for(int i=0; i<N_DROPS; i++) {
         gobj_send_event(priv->iogate, EV_DROP,
             json_pack("{s:{s:s}}", "__temp__", "channel", "nobody"), gobj);
@@ -325,6 +344,15 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     if(kw_get_int(gobj, jn_data, "txMsgs", -1, 0) != 3) {
         fail(gobj, "txMsgs counts the messages sent", "");
+    }
+    JSON_DECREF(jn_stats)
+
+    jn_stats = gobj_stats(priv->iogate, "__reset__", 0, gobj);
+    JSON_DECREF(jn_stats)
+    jn_stats = gobj_stats(priv->iogate, NULL, 0, gobj);
+    jn_data = kw_get_dict(gobj, jn_stats, "data", 0, 0);
+    if(kw_get_int(gobj, jn_data, "txMsgsNoChannel", -1, 0) != 0) {
+        fail(gobj, "stats __reset__ puts txMsgsNoChannel to 0", "");
     }
     JSON_DECREF(jn_stats)
 

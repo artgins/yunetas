@@ -16,12 +16,17 @@
  *          the decoders of a gate do with EV_ON_ID, so the frame reads);
  *          then the five a treedb publishes (EV_TREEDB_NODE_CREATED,
  *          _UPDATED, _DELETED, _LINKED, _UNLINKED), which this gclass has as
- *          actions, as a yuno subscribed to its own treedb does -- and then
+ *          actions, as a yuno subscribed to its own treedb does; then
+ *          NOT_TAKEN_FRAMES frames of EV_TRANGER_RECORD_ADDED, public in
+ *          C_TRANGER and not an event of this gclass -- and then
  *          EV_TEST_LEGIT, an event of this service. The six are refused with
- *          ONE warning, the five with another, and the gate publishes none of
- *          them; the legit one is published, and it ends the test. Up to
- *          7.30.26 the gate published all of them as its own, with the kw
- *          the peer wrote.
+ *          ONE warning, the five with another, the frames this gclass does
+ *          not take with a third (the rest said when the gate stops), and the
+ *          gate publishes none of them; the legit one is published, and it
+ *          ends the test. Up to 7.30.26 the gate published all of them as
+ *          its own, with the kw the peer wrote, and each frame of an event
+ *          this gclass does not take was an "Event NOT DEFINED in state",
+ *          an ERROR with a stack.
  *
  *          A wrong result is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -35,6 +40,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define NOT_TAKEN_FRAMES    50  // frames of an event this gclass does not have
 
 /***************************************************************************
  *              Structures
@@ -327,6 +333,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "enabled", 1
         ));
         send_frame(gobj, treedb_events[i], kw_node);
+    }
+
+    for(int i=0; i<NOT_TAKEN_FRAMES; i++) {
+        send_frame(gobj, EV_TRANGER_RECORD_ADDED, frame_kw("__message__"));
     }
     json_t *kw_legit = frame_kw("__message__");
     json_object_set_new(kw_legit, "which", json_string("legit"));

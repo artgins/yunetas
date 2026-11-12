@@ -5,8 +5,10 @@
  *          Tests that a peer of a C_IEVENT_SRV cannot send the events of the
  *          transport itself (EV_ON_OPEN, EV_ON_CLOSE, EV_ON_MESSAGE,
  *          EV_ON_IEV_MESSAGE, EV_ON_ID, EV_ON_ID_NAK) nor the events a treedb
- *          publishes (EV_TREEDB_NODE_*): the gate publishes none of them, one
- *          warning for each family, and a legit event still goes
+ *          publishes (EV_TREEDB_NODE_*), and that an event of a peer its
+ *          subscriber does not take is refused at the gate: the gate
+ *          publishes none of them, one warning for each, and a legit event
+ *          still goes
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -182,10 +184,17 @@ static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj 
  ***************************************************************************/
 #define REFUSAL_MARK "event of the transport itself sent by a peer, refused"
 #define TREEDB_REFUSAL_MARK "event of a treedb sent by a peer, refused"
+#define NOT_TAKEN_MARK "event of a peer the yuno does not take now, refused"
+#define NOT_SAID_MARK "Events of a peer refused, not said"
+#define NOT_SAID_EXPECTED "\"not_said\": 49"
 int refusal_lines = 0;
 int refusal_priority = -1;
 int treedb_refusal_lines = 0;
 int treedb_refusal_priority = -1;
+int not_taken_lines = 0;
+int not_taken_priority = -1;
+int not_said_lines = 0;
+int not_said_right = 0;
 
 static int refusal_log_write(void *v, int priority, const char *bf, size_t len)
 {
@@ -196,6 +205,16 @@ static int refusal_log_write(void *v, int priority, const char *bf, size_t len)
     if(memmem(bf, len, TREEDB_REFUSAL_MARK, strlen(TREEDB_REFUSAL_MARK))) {
         treedb_refusal_lines++;
         treedb_refusal_priority = priority;
+    }
+    if(memmem(bf, len, NOT_TAKEN_MARK, strlen(NOT_TAKEN_MARK))) {
+        not_taken_lines++;
+        not_taken_priority = priority;
+    }
+    if(memmem(bf, len, NOT_SAID_MARK, strlen(NOT_SAID_MARK))) {
+        not_said_lines++;
+        if(memmem(bf, len, NOT_SAID_EXPECTED, strlen(NOT_SAID_EXPECTED))) {
+            not_said_right++;
+        }
     }
     return 0;
 }
@@ -221,10 +240,12 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one refusal for the six,
-         *  one for the five  */
-        json_pack("[{s:s}, {s:s}]",
+         *  one for the five, one for the frames the tester does not take
+         *  (no "Event NOT DEFINED in state")  */
+        json_pack("[{s:s}, {s:s}, {s:s}]",
             "msg", REFUSAL_MARK,
-            "msg", TREEDB_REFUSAL_MARK
+            "msg", TREEDB_REFUSAL_MARK,
+            "msg", NOT_TAKEN_MARK
         ),
         NULL,   // expected
         NULL,   // ignore_keys
@@ -265,6 +286,27 @@ static void cleaning(void)
             treedb_refusal_lines,
             treedb_refusal_priority,
             LOG_WARNING,
+            Color_Off
+        );
+        result += -1;
+    }
+    if(not_taken_lines != 1 || not_taken_priority != LOG_WARNING) {
+        printf("%sERROR --> %s: lines %d (expected 1), priority %d (expected %d)%s\n",
+            On_Red BWhite,
+            "the refusal of the events not taken is not ONE warning",
+            not_taken_lines,
+            not_taken_priority,
+            LOG_WARNING,
+            Color_Off
+        );
+        result += -1;
+    }
+    if(not_said_lines != 1 || not_said_right != 1) {
+        printf("%sERROR --> %s: lines %d (expected 1), with not_said 49: %d%s\n",
+            On_Red BWhite,
+            "the end of the refusals is not ONE line with the ones not said",
+            not_said_lines,
+            not_said_right,
             Color_Off
         );
         result += -1;

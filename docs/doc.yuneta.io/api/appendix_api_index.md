@@ -243,7 +243,7 @@ it by hand, run the script.
 
 35. [**`print_error`**](logging/log.md#print_error) — `PUBLIC void print_error( pe_flag_t quit, const char *fmt, ... ) JANSSON_ATTRS((format(printf, 2, 3)))`
 
-### `gobj.h` — 252 functions
+### `gobj.h` — 253 functions
 
 **Source:** `kernel/c/gobj-c/src/gobj.h`
 
@@ -587,169 +587,171 @@ it by hand, run the script.
 
 170. [**`gobj_unsubscribe_list`**](gobj/publish.md#gobj_unsubscribe_list) — `PUBLIC int gobj_unsubscribe_list( hgobj gobj, json_t *dl_subs, BOOL force )`
 
-171. [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) — `PUBLIC json_t *gobj_find_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+171. [**`gobj_find_subscriber_refusing_event`**](gobj/publish.md#gobj_find_subscriber_refusing_event) — `PUBLIC hgobj gobj_find_subscriber_refusing_event( hgobj publisher, gobj_event_t event )`
 
-172. [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) — `PUBLIC json_t *gobj_find_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher )`
+172. [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) — `PUBLIC json_t *gobj_find_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-173. [**`gobj_list_subscriptions`**](gobj/publish.md#gobj_list_subscriptions) — `PUBLIC json_t *gobj_list_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+173. [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) — `PUBLIC json_t *gobj_find_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher )`
 
-174. [**`gobj_list_subscribings`**](gobj/publish.md#gobj_list_subscribings) — `PUBLIC json_t *gobj_list_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
+174. [**`gobj_list_subscriptions`**](gobj/publish.md#gobj_list_subscriptions) — `PUBLIC json_t *gobj_list_subscriptions( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-175. [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) — `PUBLIC int gobj_publish_event( hgobj publisher, gobj_event_t event, json_t *kw )`
+175. [**`gobj_list_subscribings`**](gobj/publish.md#gobj_list_subscribings) — `PUBLIC json_t *gobj_list_subscribings( hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber )`
 
-176. [**`gobj_authenticate`**](gobj/authz.md#gobj_authenticate) — `PUBLIC json_t *gobj_authenticate( hgobj gobj, json_t *kw, hgobj src )`
+176. [**`gobj_publish_event`**](gobj/publish.md#gobj_publish_event) — `PUBLIC int gobj_publish_event( hgobj publisher, gobj_event_t event, json_t *kw )`
 
-177. [**`gobj_authzs`**](gobj/authz.md#gobj_authzs) — `PUBLIC json_t *gobj_authzs( hgobj gobj )`
+177. [**`gobj_authenticate`**](gobj/authz.md#gobj_authenticate) — `PUBLIC json_t *gobj_authenticate( hgobj gobj, json_t *kw, hgobj src )`
 
-178. [**`gobj_authz`**](gobj/authz.md#gobj_authz) — `PUBLIC json_t *gobj_authz( hgobj gobj, const char *authz )`
+178. [**`gobj_authzs`**](gobj/authz.md#gobj_authzs) — `PUBLIC json_t *gobj_authzs( hgobj gobj )`
 
-179. [**`gobj_user_has_authz`**](gobj/authz.md#gobj_user_has_authz) — `PUBLIC BOOL gobj_user_has_authz( hgobj gobj, const char *authz, json_t *kw, hgobj src )`
+179. [**`gobj_authz`**](gobj/authz.md#gobj_authz) — `PUBLIC json_t *gobj_authz( hgobj gobj, const char *authz )`
 
-180. [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) — `PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)`
+180. [**`gobj_user_has_authz`**](gobj/authz.md#gobj_user_has_authz) — `PUBLIC BOOL gobj_user_has_authz( hgobj gobj, const char *authz, json_t *kw, hgobj src )`
 
-181. [**`authzs_list`**](gobj/authz.md#authzs_list) — `PUBLIC json_t *authzs_list( hgobj gobj, const char *authz )`
+181. [**`gobj_get_global_authz_table`**](gobj/authz.md#gobj_get_global_authz_table) — `PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)`
 
-182. [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) — `PUBLIC const sdata_desc_t *authz_get_level_desc( const sdata_desc_t *authz_table, const char *authz )`
+182. [**`authzs_list`**](gobj/authz.md#authzs_list) — `PUBLIC json_t *authzs_list( hgobj gobj, const char *authz )`
 
-183. [**`gobj_build_authzs_doc`**](gobj/authz.md#gobj_build_authzs_doc) — `PUBLIC json_t *gobj_build_authzs_doc( hgobj gobj, const char *cmd, json_t *kw )`
+183. [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) — `PUBLIC const sdata_desc_t *authz_get_level_desc( const sdata_desc_t *authz_table, const char *authz )`
 
-184. [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) — `PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value)`
+184. [**`gobj_build_authzs_doc`**](gobj/authz.md#gobj_build_authzs_doc) — `PUBLIC json_t *gobj_build_authzs_doc( hgobj gobj, const char *cmd, json_t *kw )`
 
-185. [**`gobj_incr_stat`**](gobj/stats.md#gobj_incr_stat) — `PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)`
+185. [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) — `PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value)`
 
-186. [**`gobj_decr_stat`**](gobj/stats.md#gobj_decr_stat) — `PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)`
+186. [**`gobj_incr_stat`**](gobj/stats.md#gobj_incr_stat) — `PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)`
 
-187. [**`gobj_get_stat`**](gobj/stats.md#gobj_get_stat) — `PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)`
+187. [**`gobj_decr_stat`**](gobj/stats.md#gobj_decr_stat) — `PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)`
 
-188. [**`gobj_jn_stats`**](gobj/stats.md#gobj_jn_stats) — `PUBLIC json_t *gobj_jn_stats(hgobj gobj)`
+188. [**`gobj_get_stat`**](gobj/stats.md#gobj_get_stat) — `PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path)`
 
-189. [**`gobj_create_resource`**](gobj/resource.md#gobj_create_resource) — `PUBLIC json_t *gobj_create_resource( hgobj gobj, const char *resource, json_t *kw, json_t *jn_options )`
+189. [**`gobj_jn_stats`**](gobj/stats.md#gobj_jn_stats) — `PUBLIC json_t *gobj_jn_stats(hgobj gobj)`
 
-190. [**`gobj_save_resource`**](gobj/resource.md#gobj_save_resource) — `PUBLIC int gobj_save_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
+190. [**`gobj_create_resource`**](gobj/resource.md#gobj_create_resource) — `PUBLIC json_t *gobj_create_resource( hgobj gobj, const char *resource, json_t *kw, json_t *jn_options )`
 
-191. [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) — `PUBLIC int gobj_delete_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
+191. [**`gobj_save_resource`**](gobj/resource.md#gobj_save_resource) — `PUBLIC int gobj_save_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
 
-192. [**`gobj_list_resource`**](gobj/resource.md#gobj_list_resource) — `PUBLIC json_t *gobj_list_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
+192. [**`gobj_delete_resource`**](gobj/resource.md#gobj_delete_resource) — `PUBLIC int gobj_delete_resource( hgobj gobj, const char *resource, json_t *record, json_t *jn_options )`
 
-193. [**`gobj_get_resource`**](gobj/resource.md#gobj_get_resource) — `PUBLIC json_t *gobj_get_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
+193. [**`gobj_list_resource`**](gobj/resource.md#gobj_list_resource) — `PUBLIC json_t *gobj_list_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
 
-194. [**`gobj_treedbs`**](gobj/node.md#gobj_treedbs) — `PUBLIC json_t *gobj_treedbs( hgobj gobj, json_t *kw, hgobj src )`
+194. [**`gobj_get_resource`**](gobj/resource.md#gobj_get_resource) — `PUBLIC json_t *gobj_get_resource( hgobj gobj, const char *resource, json_t *jn_filter, json_t *jn_options )`
 
-195. [**`gobj_treedb_topics`**](gobj/node.md#gobj_treedb_topics) — `PUBLIC json_t *gobj_treedb_topics( hgobj gobj, const char *treedb_name, json_t *options, hgobj src )`
+195. [**`gobj_treedbs`**](gobj/node.md#gobj_treedbs) — `PUBLIC json_t *gobj_treedbs( hgobj gobj, json_t *kw, hgobj src )`
 
-196. [**`gobj_topic_desc`**](gobj/node.md#gobj_topic_desc) — `PUBLIC json_t *gobj_topic_desc( hgobj gobj, const char *topic_name )`
+196. [**`gobj_treedb_topics`**](gobj/node.md#gobj_treedb_topics) — `PUBLIC json_t *gobj_treedb_topics( hgobj gobj, const char *treedb_name, json_t *options, hgobj src )`
 
-197. [**`gobj_topic_links`**](gobj/node.md#gobj_topic_links) — `PUBLIC json_t *gobj_topic_links( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
+197. [**`gobj_topic_desc`**](gobj/node.md#gobj_topic_desc) — `PUBLIC json_t *gobj_topic_desc( hgobj gobj, const char *topic_name )`
 
-198. [**`gobj_topic_hooks`**](gobj/node.md#gobj_topic_hooks) — `PUBLIC json_t *gobj_topic_hooks( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
+198. [**`gobj_topic_links`**](gobj/node.md#gobj_topic_links) — `PUBLIC json_t *gobj_topic_links( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
 
-199. [**`gobj_topic_size`**](gobj/node.md#gobj_topic_size) — `PUBLIC size_t gobj_topic_size( hgobj gobj, const char *topic_name, const char *key )`
+199. [**`gobj_topic_hooks`**](gobj/node.md#gobj_topic_hooks) — `PUBLIC json_t *gobj_topic_hooks( hgobj gobj, const char *treedb_name, const char *topic_name, json_t *kw, hgobj src )`
 
-200. [**`gobj_create_node`**](gobj/node.md#gobj_create_node) — `PUBLIC json_t *gobj_create_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+200. [**`gobj_topic_size`**](gobj/node.md#gobj_topic_size) — `PUBLIC size_t gobj_topic_size( hgobj gobj, const char *topic_name, const char *key )`
 
-201. [**`gobj_update_node`**](gobj/node.md#gobj_update_node) — `PUBLIC json_t *gobj_update_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+201. [**`gobj_create_node`**](gobj/node.md#gobj_create_node) — `PUBLIC json_t *gobj_create_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-202. [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) — `PUBLIC int gobj_delete_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+202. [**`gobj_update_node`**](gobj/node.md#gobj_update_node) — `PUBLIC json_t *gobj_update_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-203. [**`gobj_link_nodes`**](gobj/node.md#gobj_link_nodes) — `PUBLIC int gobj_link_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
+203. [**`gobj_delete_node`**](gobj/node.md#gobj_delete_node) — `PUBLIC int gobj_delete_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-204. [**`gobj_unlink_nodes`**](gobj/node.md#gobj_unlink_nodes) — `PUBLIC int gobj_unlink_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
+204. [**`gobj_link_nodes`**](gobj/node.md#gobj_link_nodes) — `PUBLIC int gobj_link_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
 
-205. [**`gobj_get_node`**](gobj/node.md#gobj_get_node) — `PUBLIC json_t *gobj_get_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+205. [**`gobj_unlink_nodes`**](gobj/node.md#gobj_unlink_nodes) — `PUBLIC int gobj_unlink_nodes( hgobj gobj, const char *hook, const char *parent_topic_name, json_t *parent_record, const char *child_topic_name, json_t *child_record, hgobj src )`
 
-206. [**`gobj_list_nodes`**](gobj/node.md#gobj_list_nodes) — `PUBLIC json_t *gobj_list_nodes( hgobj gobj, const char *topic_name, json_t *jn_filter, json_t *jn_options, hgobj src )`
+206. [**`gobj_get_node`**](gobj/node.md#gobj_get_node) — `PUBLIC json_t *gobj_get_node( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-207. [**`gobj_list_instances`**](gobj/node.md#gobj_list_instances) — `PUBLIC json_t *gobj_list_instances( hgobj gobj, const char *topic_name, const char *pkey2_field, json_t *jn_filter, json_t *jn_options, hgobj src )`
+207. [**`gobj_list_nodes`**](gobj/node.md#gobj_list_nodes) — `PUBLIC json_t *gobj_list_nodes( hgobj gobj, const char *topic_name, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-208. [**`gobj_node_parents`**](gobj/node.md#gobj_node_parents) — `PUBLIC json_t *gobj_node_parents( hgobj gobj, const char *topic_name, json_t *kw, const char *link, json_t *jn_options, hgobj src )`
+208. [**`gobj_list_instances`**](gobj/node.md#gobj_list_instances) — `PUBLIC json_t *gobj_list_instances( hgobj gobj, const char *topic_name, const char *pkey2_field, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-209. [**`gobj_node_children`**](gobj/node.md#gobj_node_children) — `PUBLIC json_t *gobj_node_children( hgobj gobj, const char *topic_name, json_t *kw, const char *hook, json_t *jn_filter, json_t *jn_options, hgobj src )`
+209. [**`gobj_node_parents`**](gobj/node.md#gobj_node_parents) — `PUBLIC json_t *gobj_node_parents( hgobj gobj, const char *topic_name, json_t *kw, const char *link, json_t *jn_options, hgobj src )`
 
-210. [**`gobj_topic_jtree`**](gobj/node.md#gobj_topic_jtree) — `PUBLIC json_t *gobj_topic_jtree( hgobj gobj, const char *topic_name, const char *hook, const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src )`
+210. [**`gobj_node_children`**](gobj/node.md#gobj_node_children) — `PUBLIC json_t *gobj_node_children( hgobj gobj, const char *topic_name, json_t *kw, const char *hook, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-211. [**`gobj_node_tree`**](gobj/node.md#gobj_node_tree) — `PUBLIC json_t *gobj_node_tree( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
+211. [**`gobj_topic_jtree`**](gobj/node.md#gobj_topic_jtree) — `PUBLIC json_t *gobj_topic_jtree( hgobj gobj, const char *topic_name, const char *hook, const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src )`
 
-212. [**`gobj_shoot_snap`**](gobj/node.md#gobj_shoot_snap) — `PUBLIC int gobj_shoot_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
+212. [**`gobj_node_tree`**](gobj/node.md#gobj_node_tree) — `PUBLIC json_t *gobj_node_tree( hgobj gobj, const char *topic_name, json_t *kw, json_t *jn_options, hgobj src )`
 
-213. [**`gobj_activate_snap`**](gobj/node.md#gobj_activate_snap) — `PUBLIC int gobj_activate_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
+213. [**`gobj_shoot_snap`**](gobj/node.md#gobj_shoot_snap) — `PUBLIC int gobj_shoot_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
 
-214. [**`gobj_list_snaps`**](gobj/node.md#gobj_list_snaps) — `PUBLIC json_t *gobj_list_snaps( hgobj gobj, json_t *filter, hgobj src )`
+214. [**`gobj_activate_snap`**](gobj/node.md#gobj_activate_snap) — `PUBLIC int gobj_activate_snap( hgobj gobj, const char *tag, json_t *kw, hgobj src )`
 
-215. [**`gobj_repr_global_trace_levels`**](logging/trace.md#gobj_repr_global_trace_levels) — `PUBLIC json_t * gobj_repr_global_trace_levels(void)`
+215. [**`gobj_list_snaps`**](gobj/node.md#gobj_list_snaps) — `PUBLIC json_t *gobj_list_snaps( hgobj gobj, json_t *filter, hgobj src )`
 
-216. [**`gobj_repr_gclass_trace_levels`**](logging/trace.md#gobj_repr_gclass_trace_levels) — `PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)`
+216. [**`gobj_repr_global_trace_levels`**](logging/trace.md#gobj_repr_global_trace_levels) — `PUBLIC json_t * gobj_repr_global_trace_levels(void)`
 
-217. [**`gobj_trace_level_list`**](logging/trace.md#gobj_trace_level_list) — `PUBLIC json_t *gobj_trace_level_list(hgclass gclass)`
+217. [**`gobj_repr_gclass_trace_levels`**](logging/trace.md#gobj_repr_gclass_trace_levels) — `PUBLIC json_t * gobj_repr_gclass_trace_levels(const char *gclass_name)`
 
-218. [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) — `PUBLIC json_t *gobj_get_global_trace_level(void)`
+218. [**`gobj_trace_level_list`**](logging/trace.md#gobj_trace_level_list) — `PUBLIC json_t *gobj_trace_level_list(hgclass gclass)`
 
-219. [**`gobj_get_global_trace_no_level`**](logging/trace.md#gobj_get_global_trace_no_level) — `PUBLIC json_t *gobj_get_global_trace_no_level(void)`
+219. [**`gobj_get_global_trace_level`**](logging/trace.md#gobj_get_global_trace_level) — `PUBLIC json_t *gobj_get_global_trace_level(void)`
 
-220. [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) — `PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass)`
+220. [**`gobj_get_global_trace_no_level`**](logging/trace.md#gobj_get_global_trace_no_level) — `PUBLIC json_t *gobj_get_global_trace_no_level(void)`
 
-221. [**`gobj_get_gclass_trace_level2`**](logging/trace.md#gobj_get_gclass_trace_level2) — `PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass)`
+221. [**`gobj_get_gclass_trace_level`**](logging/trace.md#gobj_get_gclass_trace_level) — `PUBLIC json_t *gobj_get_gclass_trace_level(hgclass gclass)`
 
-222. [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) — `PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass)`
+222. [**`gobj_get_gclass_trace_level2`**](logging/trace.md#gobj_get_gclass_trace_level2) — `PUBLIC json_t *gobj_get_gclass_trace_level2(hgclass gclass)`
 
-223. [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) — `PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj)`
+223. [**`gobj_get_gclass_trace_no_level`**](logging/trace.md#gobj_get_gclass_trace_no_level) — `PUBLIC json_t *gobj_get_gclass_trace_no_level(hgclass gclass)`
 
-224. [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) — `PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj)`
+224. [**`gobj_get_gobj_trace_level`**](logging/trace.md#gobj_get_gobj_trace_level) — `PUBLIC json_t *gobj_get_gobj_trace_level(hgobj gobj)`
 
-225. [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass)`
+225. [**`gobj_get_gobj_trace_no_level`**](logging/trace.md#gobj_get_gobj_trace_no_level) — `PUBLIC json_t *gobj_get_gobj_trace_no_level(hgobj gobj)`
 
-226. [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass)`
+226. [**`gobj_get_gclass_trace_level_list`**](logging/trace.md#gobj_get_gclass_trace_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_level_list(hgclass gclass)`
 
-227. [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)`
+227. [**`gobj_get_gclass_trace_no_level_list`**](logging/trace.md#gobj_get_gclass_trace_no_level_list) — `PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass)`
 
-228. [**`gobj_get_gobj_trace_no_level_tree`**](logging/trace.md#gobj_get_gobj_trace_no_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)`
+228. [**`gobj_get_gobj_trace_level_tree`**](logging/trace.md#gobj_get_gobj_trace_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)`
 
-229. [**`gobj_global_trace_level`**](logging/trace.md#gobj_global_trace_level) — `PUBLIC uint32_t gobj_global_trace_level(void)`
+229. [**`gobj_get_gobj_trace_no_level_tree`**](logging/trace.md#gobj_get_gobj_trace_no_level_tree) — `PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)`
 
-230. [**`gobj_global_trace_level2`**](logging/trace.md#gobj_global_trace_level2) — `PUBLIC uint32_t gobj_global_trace_level2(void)`
+230. [**`gobj_global_trace_level`**](logging/trace.md#gobj_global_trace_level) — `PUBLIC uint32_t gobj_global_trace_level(void)`
 
-231. [**`gobj_trace_level`**](logging/trace.md#gobj_trace_level) — `PUBLIC uint32_t gobj_trace_level(hgobj gobj)`
+231. [**`gobj_global_trace_level2`**](logging/trace.md#gobj_global_trace_level2) — `PUBLIC uint32_t gobj_global_trace_level2(void)`
 
-232. [**`gobj_trace_no_level`**](logging/trace.md#gobj_trace_no_level) — `PUBLIC uint32_t gobj_trace_no_level(hgobj gobj)`
+232. [**`gobj_trace_level`**](logging/trace.md#gobj_trace_level) — `PUBLIC uint32_t gobj_trace_level(hgobj gobj)`
 
-233. [**`gobj_is_level_tracing`**](logging/trace.md#gobj_is_level_tracing) — `PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level)`
+233. [**`gobj_trace_no_level`**](logging/trace.md#gobj_trace_no_level) — `PUBLIC uint32_t gobj_trace_no_level(hgobj gobj)`
 
-234. [**`gobj_is_level_not_tracing`**](logging/trace.md#gobj_is_level_not_tracing) — `PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj, uint32_t level)`
+234. [**`gobj_is_level_tracing`**](logging/trace.md#gobj_is_level_tracing) — `PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level)`
 
-235. [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) — `PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw)`
+235. [**`gobj_is_level_not_tracing`**](logging/trace.md#gobj_is_level_not_tracing) — `PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj, uint32_t level)`
 
-236. [**`gobj_set_gclass_trace`**](logging/trace.md#gobj_set_gclass_trace) — `PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`
+236. [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) — `PUBLIC int gobj_set_gobj_trace(hgobj gobj, const char* level, BOOL set, json_t* kw)`
 
-237. [**`gobj_set_deep_tracing`**](logging/trace.md#gobj_set_deep_tracing) — `PUBLIC int gobj_set_deep_tracing(int level)`
+237. [**`gobj_set_gclass_trace`**](logging/trace.md#gobj_set_gclass_trace) — `PUBLIC int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`
 
-238. [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) — `PUBLIC int gobj_get_deep_tracing(void)`
+238. [**`gobj_set_deep_tracing`**](logging/trace.md#gobj_set_deep_tracing) — `PUBLIC int gobj_set_deep_tracing(int level)`
 
-239. [**`gobj_set_global_trace`**](logging/trace.md#gobj_set_global_trace) — `PUBLIC int gobj_set_global_trace(const char *level, BOOL set)`
+239. [**`gobj_get_deep_tracing`**](logging/trace.md#gobj_get_deep_tracing) — `PUBLIC int gobj_get_deep_tracing(void)`
 
-240. [**`gobj_set_global_no_trace`**](logging/trace.md#gobj_set_global_no_trace) — `PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)`
+240. [**`gobj_set_global_trace`**](logging/trace.md#gobj_set_global_trace) — `PUBLIC int gobj_set_global_trace(const char *level, BOOL set)`
 
-241. [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) — `PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set)`
+241. [**`gobj_set_global_no_trace`**](logging/trace.md#gobj_set_global_no_trace) — `PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)`
 
-242. [**`gobj_set_global_no_trace2`**](logging/trace.md#gobj_set_global_no_trace2) — `PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set)`
+242. [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) — `PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set)`
 
-243. [**`gobj_load_trace_filter`**](logging/trace.md#gobj_load_trace_filter) — `PUBLIC int gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter)`
+243. [**`gobj_set_global_no_trace2`**](logging/trace.md#gobj_set_global_no_trace2) — `PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set)`
 
-244. [**`gobj_add_trace_filter`**](logging/trace.md#gobj_add_trace_filter) — `PUBLIC int gobj_add_trace_filter(hgclass gclass, const char *attr, const char *value)`
+244. [**`gobj_load_trace_filter`**](logging/trace.md#gobj_load_trace_filter) — `PUBLIC int gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter)`
 
-245. [**`gobj_remove_trace_filter`**](logging/trace.md#gobj_remove_trace_filter) — `PUBLIC int gobj_remove_trace_filter(hgclass gclass, const char *attr, const char *value)`
+245. [**`gobj_add_trace_filter`**](logging/trace.md#gobj_add_trace_filter) — `PUBLIC int gobj_add_trace_filter(hgclass gclass, const char *attr, const char *value)`
 
-246. [**`gobj_get_trace_filter`**](logging/trace.md#gobj_get_trace_filter) — `PUBLIC json_t *gobj_get_trace_filter(hgclass gclass)`
+246. [**`gobj_remove_trace_filter`**](logging/trace.md#gobj_remove_trace_filter) — `PUBLIC int gobj_remove_trace_filter(hgclass gclass, const char *attr, const char *value)`
 
-247. [**`gobj_set_gclass_no_trace`**](logging/trace.md#gobj_set_gclass_no_trace) — `PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set)`
+247. [**`gobj_get_trace_filter`**](logging/trace.md#gobj_get_trace_filter) — `PUBLIC json_t *gobj_get_trace_filter(hgclass gclass)`
 
-248. [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) — `PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set)`
+248. [**`gobj_set_gclass_no_trace`**](logging/trace.md#gobj_set_gclass_no_trace) — `PUBLIC int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set)`
 
-249. [**`trace_machine`**](logging/trace.md#trace_machine) — `PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
+249. [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) — `PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set)`
 
-250. [**`trace_machine2`**](logging/trace.md#trace_machine2) — `PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
+250. [**`trace_machine`**](logging/trace.md#trace_machine) — `PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-251. [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) — `PUBLIC void gobj_set_trace_machine_format(int format)`
+251. [**`trace_machine2`**](logging/trace.md#trace_machine2) — `PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)))`
 
-252. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
+252. [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) — `PUBLIC void gobj_set_trace_machine_format(int format)`
+
+253. [**`tab`**](logging/trace.md#tab) — `PUBLIC char *tab(char *bf, int bflen)`
 
 ### `helpers.h` — 185 functions
 
@@ -1337,7 +1339,7 @@ it by hand, run the script.
 
 11. [**`get_measure_times`**](yev_loop/yev_loop.md#get_measure_times) — `PUBLIC int get_measure_times(void)`
 
-**Total: 633 functions**
+**Total: 634 functions**
 
 ## libjwt (JWT Authentication)
 
@@ -2438,7 +2440,7 @@ it by hand, run the script.
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1061 functions** sorted alphabetically with their source header.
+All **1062 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -2676,6 +2678,7 @@ All **1061 functions** sorted alphabetically with their source header.
 | [**`gobj_find_gobj`**](gobj/op.md#gobj_find_gobj) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_find_service`**](gobj/op.md#gobj_find_service) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_find_service_by_gclass`**](gobj/op.md#gobj_find_service_by_gclass) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_find_subscriber_refusing_event`**](gobj/publish.md#gobj_find_subscriber_refusing_event) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_find_subscribings`**](gobj/publish.md#gobj_find_subscribings) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_find_subscriptions`**](gobj/publish.md#gobj_find_subscriptions) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_first_child`**](gobj/op.md#gobj_first_child) | `gobj.h` | gobj-c (Core Framework) |

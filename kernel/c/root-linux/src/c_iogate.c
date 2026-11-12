@@ -23,6 +23,7 @@
  *              Constants
  ***************************************************************************/
 #define NO_CHANNEL_LOG_EVERY    1000    // sends in a row with no channel, one said (refuse_without_channel())
+#define REFUSED_LOG_INTERVAL_MS (10*1000)   // per channel, see refuse_peer_event()
 
 /***************************************************************************
  *              Structures
@@ -46,11 +47,20 @@ PRIVATE json_t *kw_for_one_channel(hgobj gobj, json_t *kw);
 PRIVATE int write_channel_in_temp(hgobj gobj, gobj_event_t event, json_t *kw, hgobj channel);
 PRIVATE void refuse_without_channel(
     hgobj gobj,
+    uint32_t *run,
     gobj_event_t event,
     const char *channel,
     const char *msg
 );
-PRIVATE void end_without_channel(hgobj gobj, const char *why);
+PRIVATE void end_without_channel(hgobj gobj, uint32_t *run, const char *msg, const char *why);
+PRIVATE void refuse_peer_event(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj channel,
+    hgobj subscriber
+);
+PRIVATE void end_refused_peer_events(hgobj gobj, const char *channel, const char *why);
 
 /***************************************************************************
  *              Resources
@@ -148,7 +158,9 @@ typedef struct _PRIVATE_DATA {
 
     json_t *jn_destination_filter;  // the channels a message can go to, see get_next_destination()
     uint32_t no_channel_sends;      // sends in a row with no channel to go to, see refuse_without_channel()
+    uint32_t no_channel_drops;      // drops in a row of a channel not found: a run of their own
     json_int_t txMsgsNoChannel;     // messages not sent: no channel to go to
+    json_t *jn_refused;             // per channel, the brake of refuse_peer_event()
 
 } PRIVATE_DATA;
 
@@ -197,6 +209,7 @@ PRIVATE void mt_create(hgobj gobj)
         "opened", 1,
         "__disabled__", 0
     );
+    priv->jn_refused = json_object();
 }
 
 /***************************************************************************
@@ -207,6 +220,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->jn_destination_filter)
+    JSON_DECREF(priv->jn_refused)
 }
 
 /***************************************************************************
@@ -222,7 +236,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    end_without_channel(gobj, "the gate stops");
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    end_without_channel(gobj, &priv->no_channel_sends, "Sends with no channel ended", "the gate stops");
+    end_without_channel(gobj, &priv->no_channel_drops, "Drops of a channel not found ended", "the gate stops");
+    end_refused_peer_events(gobj, NULL, "the gate stops");
     gobj_stop_children(gobj);
     return 0;
 }
@@ -841,31 +859,32 @@ PRIVATE int write_channel_in_temp(hgobj gobj, gobj_event_t event, json_t *kw, hg
 
 /***************************************************************************
  *  A send (or a drop) with no channel to go to. Said once every
- *  NO_CHANNEL_LOG_EVERY in a row, per gate: `repeated` is how many were not
- *  said since the last one. Up to 7.30.26 the count never moved, and every
- *  send said it (send_all() and a drop with a stack).
+ *  NO_CHANNEL_LOG_EVERY in a row of its `run`, per gate: `repeated` is how
+ *  many were not said since the last one. Sends and drops count in runs of
+ *  their own: a drop of a channel that is not there must not hide the first
+ *  send of an outage, nor be counted as one. Up to 7.30.26 the count never
+ *  moved, and every send said it (send_all() and a drop with a stack).
  ***************************************************************************/
 PRIVATE void refuse_without_channel(
     hgobj gobj,
+    uint32_t *run,
     gobj_event_t event,
     const char *channel,
     const char *msg
 )
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->no_channel_sends % NO_CHANNEL_LOG_EVERY == 0) {
+    if(*run % NO_CHANNEL_LOG_EVERY == 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", msg,
             "channel",      "%s", channel?channel:"???",
             "event",        "%s", event,
-            "repeated",     "%u", priv->no_channel_sends? (unsigned)(NO_CHANNEL_LOG_EVERY-1) : 0u,
+            "repeated",     "%u", *run? (unsigned)(NO_CHANNEL_LOG_EVERY-1) : 0u,
             NULL
         );
     }
-    priv->no_channel_sends++;
+    (*run)++;
 }
 
 /***************************************************************************
@@ -874,23 +893,103 @@ PRIVATE void refuse_without_channel(
  *  count starts again, so a new outage is said at once. Up to 7.30.26
  *  the last ones (up to NO_CHANNEL_LOG_EVERY-1) were said nowhere.
  ***************************************************************************/
-PRIVATE void end_without_channel(hgobj gobj, const char *why)
+PRIVATE void end_without_channel(hgobj gobj, uint32_t *run, const char *msg, const char *why)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!priv->no_channel_sends) {
+    if(!*run) {
         return;
     }
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_OPERATIONAL,
-        "msg",          "%s", "Sends with no channel ended",
+        "msg",          "%s", msg,
         "why",          "%s", why,
-        "without_channel", "%u", (unsigned)priv->no_channel_sends,
-        "not_said",     "%u", (unsigned)((priv->no_channel_sends - 1) % NO_CHANNEL_LOG_EVERY),
+        "without_channel", "%u", (unsigned)*run,
+        "not_said",     "%u", (unsigned)((*run - 1) % NO_CHANNEL_LOG_EVERY),
         NULL
     );
-    priv->no_channel_sends = 0;
+    *run = 0;
+}
+
+/***************************************************************************
+ *  An event of a peer that a subscriber of the gate does not take in its
+ *  current state: the frame is dropped, the channel stays. Said at most
+ *  once per REFUSED_LOG_INTERVAL_MS per channel, `suppressed` the ones not
+ *  said since; the rest are said when the channel closes or the gate stops
+ *  (end_refused_peer_events()). Up to 7.30.26 each frame was an "Event NOT
+ *  DEFINED in state", an ERROR with a stack, in the subscriber: the fault
+ *  of a peer read as a bug of the yuno, and a flood of logs.
+ ***************************************************************************/
+PRIVATE void refuse_peer_event(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj channel,
+    hgobj subscriber
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *channel_name = gobj_name(channel);
+    json_t *jn_brake = json_object_get(priv->jn_refused, channel_name);
+    if(!jn_brake) {
+        jn_brake = json_pack("{s:I, s:I}", "t_next", (json_int_t)0, "suppressed", (json_int_t)0);
+        json_object_set_new(priv->jn_refused, channel_name, jn_brake);
+    }
+    uint64_t t_next = (uint64_t)json_integer_value(json_object_get(jn_brake, "t_next"));
+    json_int_t suppressed = json_integer_value(json_object_get(jn_brake, "suppressed"));
+    if(t_next && !test_msectimer(t_next)) {
+        json_object_set_new(jn_brake, "suppressed", json_integer(suppressed + 1));
+        return;
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "event of a peer the yuno does not take now, refused",
+        "event",        "%s", event,
+        "subscriber",   "%s", gobj_short_name(subscriber),
+        "state",        "%s", gobj_current_state(subscriber),
+        "channel",      "%s", channel_name,
+        "peername",     "%s", gobj_has_bottom_attr(channel, "peername")?gobj_read_str_attr(channel, "peername"):"",
+        "username",     "%s", kw_get_str(gobj, kw, "__username__", "", 0),
+        "suppressed",   "%ld", (long)suppressed,
+        NULL
+    );
+    json_object_set_new(jn_brake, "t_next",
+        json_integer((json_int_t)start_msectimer(REFUSED_LOG_INTERVAL_MS)));
+    json_object_set_new(jn_brake, "suppressed", json_integer(0));
+}
+
+/***************************************************************************
+ *  The end of the refusals of a channel (it closed: the next session on
+ *  it starts again), or of every channel (`channel` NULL, the gate stops):
+ *  the ones the brake did not say are said, once.
+ ***************************************************************************/
+PRIVATE void end_refused_peer_events(hgobj gobj, const char *channel, const char *why)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *key;
+    json_t *jn_brake;
+    void *tmp;
+    json_object_foreach_safe(priv->jn_refused, tmp, key, jn_brake) {
+        if(channel && strcmp(key, channel)!=0) {
+            continue;
+        }
+        json_int_t suppressed = json_integer_value(json_object_get(jn_brake, "suppressed"));
+        if(suppressed > 0) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "Events of a peer refused, not said",
+                "why",          "%s", why,
+                "channel",      "%s", key,
+                "not_said",     "%ld", (long)suppressed,
+                NULL
+            );
+        }
+        json_object_del(priv->jn_refused, key);
+    }
 }
 
 /***************************************************************************
@@ -942,12 +1041,12 @@ PRIVATE int send_one_rotate(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         }
         if(!channel_gobj) {
             priv->txMsgsNoChannel++;
-            refuse_without_channel(gobj, event, channel, "No channel FOUND to send");
+            refuse_without_channel(gobj, &priv->no_channel_sends, event, channel, "No channel FOUND to send");
             KW_DECREF(kw)
             return -1;
         }
     }
-    end_without_channel(gobj, "a channel found to send");
+    end_without_channel(gobj, &priv->no_channel_sends, "Sends with no channel ended", "a channel found to send");
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -1107,9 +1206,9 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(!some) {
         priv->txMsgsNoChannel++;
-        refuse_without_channel(gobj, event, "", "No channel FOUND to send");
+        refuse_without_channel(gobj, &priv->no_channel_sends, event, "", "No channel FOUND to send");
     } else {
-        end_without_channel(gobj, "a channel found to send");
+        end_without_channel(gobj, &priv->no_channel_sends, "Sends with no channel ended", "a channel found to send");
     }
 
     if(!kw_handed) {
@@ -1192,6 +1291,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
     }
+
+    end_refused_peer_events(gobj, gobj_name(src), "the channel closed");
 
     if(!kw) {
         kw = json_object();
@@ -1282,6 +1383,18 @@ PRIVATE int ac_on_iev_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     priv->rxMsgs++;
 
+    /*
+     *  The event is the peer's: one a subscriber does not take now is the
+     *  peer's fault, not the yuno's (the subscriber is often the yuno's
+     *  main gclass, subscribed to every event of the gate)
+     */
+    hgobj subscriber = gobj_find_subscriber_refusing_event(gobj, iev_event);
+    if(subscriber) {
+        refuse_peer_event(gobj, iev_event, kw, src, subscriber);
+        KW_DECREF(kw)
+        return 0;   // the frame dropped, the channel stays
+    }
+
     write_channel_in_temp(gobj, iev_event, kw, src);
 
     return gobj_publish_event(gobj, iev_event, kw);
@@ -1338,6 +1451,8 @@ PRIVATE int ac_send_iev(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     hgobj channel_gobj = gobj_bottom_gobj(gobj); // See firstly if it's a tube
     if(!channel_gobj) {
         channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
@@ -1347,7 +1462,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!empty_string(channel)) {
             channel_gobj = gobj_child_by_name(gobj, channel);
             if(!channel_gobj) {
-                refuse_without_channel(gobj, event, channel, "channel NOT FOUND");
+                refuse_without_channel(gobj, &priv->no_channel_drops, event, channel, "channel NOT FOUND");
                 KW_DECREF(kw)
                 return -1;
             }
@@ -1358,6 +1473,8 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Only drop one
      */
     if(channel_gobj) {
+        end_without_channel(gobj, &priv->no_channel_drops,
+            "Drops of a channel not found ended", "a channel found to drop");
         if(gobj_read_bool_attr(channel_gobj, "opened")) {
             gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
         }

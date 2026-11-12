@@ -22,19 +22,29 @@ The client sends a good identity card (the session opens: the gate's one
    `_DELETED`, `_LINKED`, `_UNLINKED`, each with a `users` node `admin`
    (`tester` has them as actions, as a yuno subscribed to its own treedb
    does);
-3. `EV_TEST_LEGIT`, an event `tester` has as public.
+3. 50 frames of `EV_TRANGER_RECORD_ADDED`, public in `C_TRANGER` and not an
+   event of `tester`;
+4. `EV_TEST_LEGIT`, an event `tester` has as public.
 
 The six are refused with ONE warning (*"event of the transport itself sent by
 a peer, refused"*, `MSGSET_PROTOCOL`), the five with another (*"event of a
 treedb sent by a peer, refused"*, `MSGSET_AUTH`), each with the `peername`, at
-most once per 10 s per channel, and the gate publishes none of them; the last
-is published and ends the test, which checks then that the gate published one
-open (the session's) and none of the eleven.
+most once per 10 s per channel, and the gate publishes none of them. The 50
+frames `tester` does not take are refused by the gate (`C_IOGATE`) with ONE
+warning (*"event of a peer the yuno does not take now, refused"*,
+`MSGSET_PROTOCOL`, the subscriber, its state, the channel, the `peername`),
+and the 49 not said are said once when the gate stops (*"Events of a peer
+refused, not said"*, `"not_said": 49`); no *"Event NOT DEFINED in state"*.
+The last is published and ends the test, which checks then that the gate
+published one open (the session's) and none of the eleven.
 
 Up to 7.30.26 the gate published all of them as its own, with the kw the peer
-wrote.
+wrote, and each of the 50 was an *"Event NOT DEFINED in state"* in `tester`,
+an ERROR with a stack.
 
 Mutants killed: either check removed; any one name taken out of either list
 (`EV_ON_CLOSE`, `EV_ON_IEV_MESSAGE`, `EV_ON_ID`, `EV_ON_ID_NAK`,
 `EV_TREEDB_NODE_UPDATED`, `_DELETED`, `_LINKED` tried); the per-channel brake
-of the warning removed.
+of the warning removed; the gate's check of what its subscriber takes
+removed (50 ERRORs); its per-channel brake removed (50 warnings); the end
+of the refusals at the gate's stop removed.
