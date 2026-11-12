@@ -89,6 +89,27 @@ gui/
   }
   ```
 
+- **Maps: point maplibre-gl at the worker the build emits.**  maplibre-gl
+  6 loads its Web Worker from a file name it computes at run time, which
+  the bundler cannot see, so `vite.config.js` emits the worker itself
+  (`assets/maplibre-gl-worker-<version>.js`) whenever the bundle carries
+  maplibre-gl. The app tells maplibre where it is, in `main()`, before
+  the first map, in production only (the dev server serves maplibre's
+  own):
+
+  ```javascript
+  import * as maplibregl from "maplibre-gl";
+
+  if(import.meta.env.PROD) {
+      maplibregl.setWorkerUrl(
+          new URL(/* @vite-ignore */ __MAPLIBRE_WORKER_FILE__, import.meta.url).href
+      );
+  }
+  ```
+
+  Without it a production map stays blank and the console shows the
+  failed load of `maplibre-gl-worker.mjs`.
+
 - **Don't restyle gobj-ui internals.**  The shell owns its own DOM
   and CSS (toolbar, drawers, dropdowns, navs).  Before adding a
   selector that targets a framework hook in app CSS, see whether

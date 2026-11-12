@@ -1,8 +1,80 @@
 import { defineConfig } from "vite";
 import { yunetaHtmlPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-html.js";
 import { yunetaLicensesPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-licenses.js";
+import { readFileSync } from "node:fs";
+
+/*
+ *  maplibre-gl 6 loads its Web Worker at run time with
+ *  `new Worker(new URL(`./${workerFile}`, import.meta.url), {type:'module'})`,
+ *  where `workerFile` is a VARIABLE. Vite only emits a worker whose first
+ *  argument is a static literal, so the worker is NOT in the production
+ *  bundle and a built app with a map asks for a file that is not there.
+ *  It is emitted here, read from the INSTALLED maplibre-gl, and only when
+ *  the bundle carries maplibre-gl (an app without a map gets nothing):
+ *
+ *    - `.mjs` -> `.js`: nginx serves .mjs as application/octet-stream, and
+ *      a browser refuses a module worker without a JS MIME type.
+ *    - The name carries the VERSION: /assets/ is cached for a long time,
+ *      and a worker of another maplibre talks another protocol.
+ *    - maplibre asks for its own .mjs name: the app points it at this file
+ *      in main(), in production only (see "Maps" in the README):
+ *          maplibregl.setWorkerUrl(
+ *              new URL(__MAPLIBRE_WORKER_FILE__, import.meta.url).href);
+ */
+function pkg_version(spec)
+{
+    try {
+        return JSON.parse(
+            readFileSync(new URL(`./node_modules/${spec}/package.json`, import.meta.url))
+        ).version;
+    } catch(e) {
+        return "";
+    }
+}
+
+const MAPLIBRE_VERSION = pkg_version("maplibre-gl");
+const MAPLIBRE_WORKER_FILE = `maplibre-gl-worker-${MAPLIBRE_VERSION}.js`;
+const MAPLIBRE_SHARED_FILE = `maplibre-gl-shared-${MAPLIBRE_VERSION}.js`;
+
+const maplibre_worker_assets = () => {
+    const dist = new URL("./node_modules/maplibre-gl/dist/", import.meta.url);
+    return {
+        name: "app-maplibre-worker-assets",
+        apply: "build",
+        generateBundle(options, bundle) {
+            const has_maplibre = Object.values(bundle).some((chunk) => {
+                const ids = chunk.moduleIds || Object.keys(chunk.modules || {});
+                return ids.some((id) => id.includes("/node_modules/maplibre-gl/"));
+            });
+            if(!has_maplibre) {
+                return;
+            }
+            if(!MAPLIBRE_VERSION) {
+                this.error("maplibre-gl is not installed: its worker cannot be emitted");
+            }
+            const read = (name) => readFileSync(new URL(name, dist), "utf8")
+                .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
+            const worker = read("maplibre-gl-worker.mjs");
+            this.emitFile({
+                type: "asset",
+                fileName: `assets/${MAPLIBRE_WORKER_FILE}`,
+                source: worker.replaceAll("maplibre-gl-shared.mjs", MAPLIBRE_SHARED_FILE),
+            });
+            if(worker.includes("maplibre-gl-shared.mjs")) {
+                this.emitFile({
+                    type: "asset",
+                    fileName: `assets/${MAPLIBRE_SHARED_FILE}`,
+                    source: read("maplibre-gl-shared.mjs"),
+                });
+            }
+        },
+    };
+};
 
 export default defineConfig({
+    define: {
+        __MAPLIBRE_WORKER_FILE__: JSON.stringify(MAPLIBRE_WORKER_FILE),
+    },
     resolve: {
         /*  @yuneta/gobj-ui declares these as peerDependencies and imports
          *  them itself; one shared copy of each, or a module-level
@@ -19,6 +91,12 @@ export default defineConfig({
             "vanilla-jsoneditor",
         ],
     },
+    /*  The dev server serves maplibre-gl from node_modules, not
+     *  pre-bundled: its worker is asked for as a sibling of the module
+     *  that loads it, and a pre-bundled copy has no sibling.  */
+    optimizeDeps: {
+        exclude: ["maplibre-gl"],
+    },
     build: {
         /*  The maps stay in dist/ (to decode a stack sent by the remote
          *  log) but carry no sourceMappingURL and are not deployed.  */
@@ -34,6 +112,7 @@ export default defineConfig({
     },
     plugins: [
         yunetaHtmlPlugin({ defaultTitle: "{{Project}} GUI" }),
-        yunetaLicensesPlugin()
+        yunetaLicensesPlugin(),
+        maplibre_worker_assets()
     ]
 });
