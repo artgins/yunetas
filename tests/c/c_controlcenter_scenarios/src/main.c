@@ -359,7 +359,7 @@ PRIVATE const char *expected_msgs[] = {
     "Not in session||||WARNING",                            // 47: the stop's first step
     "Not in session||||WARNING",                            // 47: the stop's second step
     "Not in session||||WARNING",                            // 47: write-tty
-    "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
+    "event of an agent not from the agents' side, dropped",   // once a minute: the other seven counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "stream for a web client that is gone, dropped",          // the first of two frames
@@ -399,7 +399,7 @@ PRIVATE const char *expected_msgs[] = {
      *  timeout_periodic above). "msg|when|dropped": fields checked too  */
     "stream for a web client that is gone, dropped|its window ended|1",
     "PTY output of an agent for no requester of this control center, dropped|its window ended|1",
-    "event of an agent not from the agents' side, dropped|its window ended|11",
+    "event of an agent not from the agents' side, dropped|its window ended|12",
     "yuno stats for a web client that is gone, dropped (the agent's watch expires)||1",
     "yuno stats for a web client that is gone, dropped (the agent's watch expires)|its window ended|3",
     "All controlcenter scenarios tests PASSED",

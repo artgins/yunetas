@@ -528,6 +528,23 @@ if it arrives in that time. Give it room, or stay interactive (`-i`):
 ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host-or-uuid> cmd2agent="list-yunos"'
 ```
 
+The agent answers its own requests with an event of its own, not with
+`EV_MT_COMMAND_ANSWER`: `read-file`, `running-keys` and `running-bin` with
+`EV_READ_FILE`, `read-json` with `EV_READ_JSON`, `read-binary-file` with
+`EV_READ_BINARY_FILE`, `edit-config`, `view-config`, `edit-yuno-config` and
+`view-yuno-config` with the event of the same name (`EV_EDIT_CONFIG`, ...).
+The control center relays them to the client that asked, as it relays an
+answer (`ycommand` takes the seven):
+
+```bash
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=node-a cmd2agent="read-file filename=/yuneta/agent/yuneta_agent.json"'
+# -> 0 "Command sent to 1 nodes", then the file (EV_READ_FILE)
+```
+
+Up to 7.30.26 none of those events was public in the control center: the
+agent's channel refused the frame (*"Frame of an event that is not public,
+refused"*, a WARNING), and the client had only *"Command sent to 1 nodes"*.
+
 ### Events pushed by a node, relayed to the web client
 
 Some of what a node's agent sends is not an answer but a stream, pushed along

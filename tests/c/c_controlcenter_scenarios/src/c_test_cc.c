@@ -91,7 +91,9 @@
  *                stop is tried again in a minute;
  *              - an agent whose link is closing refuses an order at once:
  *                command-agent, stats-agent and write-tty are answered with
- *                that refusal, and a step of a run fails at once.
+ *                that refusal, and a step of a run fails at once;
+ *              - what the agent answers to its own requests (read-file,
+ *                view-config...) reaches the client that asked them.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -936,6 +938,7 @@ PRIVATE int test_injected_agent_events(hgobj gobj, hgobj victim, hgobj attacker)
         EV_TTY_DATA,
         EV_TTY_CLOSE,
         EV_YUNO_STATS,
+        EV_READ_FILE,
         0
     };
     json_int_t victim_connection = json_integer_value(
@@ -1104,6 +1107,59 @@ PRIVATE int test_relays_only_for_who_asks(hgobj gobj, hgobj client)
     }
     JSON_DECREF(expected)
     JSON_DECREF(jn_relays)
+    return ret;
+}
+
+/***************************************************************************
+ *  48. What the agent answers to its own requests (read-file, edit-config,
+ *      view-yuno-config...) reaches the client that asked by command-agent,
+ *      each with its own event. The agent's channel decodes a frame only
+ *      if its event is public in this yuno: up to 7.30.26 none of the seven
+ *      was ("Frame of an event that is not public, refused"), the client
+ *      was told "Command sent to 1 nodes" and nothing more.
+ ***************************************************************************/
+PRIVATE int test_agent_request_answers(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    struct {
+        const char *cmd2agent;
+        gobj_event_t event;
+    } requests[] = {
+        {"read-file filename=/yuneta/agent/yuneta_agent.json",  EV_READ_FILE},
+        {"read-json filename=/yuneta/agent/yuneta_agent.json",  EV_READ_JSON},
+        {"read-binary-file filename=/yuneta/agent/yuneta_agent",EV_READ_BINARY_FILE},
+        {"edit-config id=x",                                    EV_EDIT_CONFIG},
+        {"view-config id=x",                                    EV_VIEW_CONFIG},
+        {"edit-yuno-config id=1234",                            EV_EDIT_YUNO_CONFIG},
+        {"view-yuno-config id=1234",                            EV_VIEW_YUNO_CONFIG},
+        {0, 0}
+    };
+
+    for(int i=0; requests[i].cmd2agent; i++) {
+        const char *event = requests[i].event;
+        if(!gclass_find_public_event(event, FALSE)) {
+            ret += fail(gobj, "the agent's channel refuses the frame of an answer of the agent", event);
+        }
+
+        json_t *kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+        json_object_set_new(kw, "cmd2agent", json_string(requests[i].cmd2agent));
+        ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+            0, "Command sent to 1 nodes", requests[i].cmd2agent);
+        json_t *request = agent_request(gobj, requests[i].cmd2agent);
+        if(!request) {
+            ret += -1;
+            continue;
+        }
+        agent_sends_data(gobj, event, request, 0, "the agent's answer",
+            json_pack("{s:s}", "name", "yuneta_agent.json"));
+        JSON_DECREF(request)
+        if(count_received(client, event, "the agent's answer") != 1) {
+            ret += fail(gobj, "the answer of the agent's request reaches the client that asked", event);
+        }
+    }
     return ret;
 }
 
@@ -5437,6 +5493,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_late_answers_to_another_client(gobj, client3);
     result += test_several_mirrors(gobj, client1, client2);
     result += test_relays_only_for_who_asks(gobj, client1);
+    result += test_agent_request_answers(gobj, client1);
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
@@ -5458,7 +5515,7 @@ PRIVATE int run_tests(hgobj gobj)
  *
  *  Phase 1, every window opened by the cases above over 400 ms old:
  *  drops_warning_window = 300 ms. Their counts (case 5's frame, case 9's
- *  PTY frame, the 11 injected of cases 6 and 10) are due now.
+ *  PTY frame, the 12 injected of cases 6 and 10) are due now.
  ***************************************************************************/
 PRIVATE int test_drops_window_shortened(hgobj gobj)
 {

@@ -60,14 +60,16 @@ still reported and fails the test.
    reached the new client.
 6. A web client sends, from `__top_side__`, each event only an agent sends
    (`EV_MT_COMMAND_ANSWER`, `EV_MT_STATS_ANSWER`, `EV_TTY_OPEN`/`DATA`/`CLOSE`,
-   `EV_YUNO_STATS`), routed to another client's channel with that client's
-   connection: nothing reaches it, one warning each, and the sender's channel
-   takes no mirror. Up to 7.25.20 all six were delivered. The warning is
+   `EV_YUNO_STATS`, and `EV_READ_FILE` for the answers of the agent's own
+   requests of case 48), routed to another client's channel with that
+   client's connection: nothing reaches it, one warning each, and the
+   sender's channel takes no mirror. Up to 7.25.20 the first six were
+   delivered. The warning is
    said once a minute, with `dropped=` counting the others: the one injected
-   in case 4 is said, these six are counted (one warning per injected frame
-   let an authenticated client flood the log). The six counted are said
+   in case 4 is said, these seven are counted (one warning per injected frame
+   let an authenticated client flood the log). The seven counted are said
    when their window ends (case 11), with the five of case 10
-   (`dropped=11`); likewise the second late `EV_TTY_DATA` of case 5 and the
+   (`dropped=12`); likewise the second late `EV_TTY_DATA` of case 5 and the
    second PTY frame routed to nobody of case 9. Before, a count with no later
    event was never said.
 7. Several consoles mirrored through one agent's channel. Two clients, two
@@ -97,12 +99,12 @@ still reported and fails the test.
 
 10. A client connects, sends one event only an agent sends, and leaves, five
     times: no warning per loop (the cap held), the five are counted with the
-    six of case 6 and said once by the drops timer in case 11 (`dropped=11`). A flush on every connection's
+    seven of case 6 and said once by the drops timer in case 11 (`dropped=12`). A flush on every connection's
     close bounded the warnings only by the client's reconnect rate.
 11. The drops timer, with a short window. Once every window the cases above
     opened is over 400 ms old, `drops_warning_window` is set to 300 ms: the
     timer says the counts left (`when="its window ended"`: case 5's frame,
-    case 9's PTY frame, the 11 injected), before the PASSED and not at the
+    case 9's PTY frame, the 12 injected), before the PASSED and not at the
     stop, and then `drops_timer_armed` is false. Four readings for a client
     that is gone: the first is said at once (`dropped=1`), 3 are counted,
     the timer is armed, and after the window it says `dropped=3` and is not
@@ -479,6 +481,16 @@ still reported and fails the test.
     answer: *"Command sent to 1 nodes"*, a run that waited for its whole
     `run_step_timeout` (and every later run refused, *"a run is in flight"*),
     and keystrokes lost with no answer. In case 0, after case 45.
+48. What the agent answers to its own requests reaches the client that asked
+    them by `command-agent`, each with its own event: `read-file`,
+    `read-json`, `read-binary-file`, `edit-config`, `view-config`,
+    `edit-yuno-config` and `view-yuno-config` (the agent answers them with
+    `EV_READ_FILE`, `EV_READ_JSON`, `EV_READ_BINARY_FILE`, `EV_EDIT_CONFIG`,
+    `EV_VIEW_CONFIG`, `EV_EDIT_YUNO_CONFIG` and `EV_VIEW_YUNO_CONFIG`). Each
+    event is public in this yuno, so the agent's channel decodes its frame,
+    and the client gets the agent's answer once. Up to 7.30.26 none was
+    public: the channel refused the frame (*"Frame of an event that is not
+    public, refused"*), and the client had only *"Command sent to 1 nodes"*.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

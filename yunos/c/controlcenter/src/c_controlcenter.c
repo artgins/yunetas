@@ -7,8 +7,10 @@
  *  The agents of the nodes dial out to it (`__input_side__`), the web
  *  consoles and `ycommand` connect to it (`__top_side__`), and it carries
  *  one to the other: `command-agent` / `stats-agent` forward a command to
- *  a node's agent and relay its answer, the PTY mirror and the pushed
- *  `EV_YUNO_STATS` travel back to the client that asked.
+ *  a node's agent and relay its answer, the PTY mirror, the pushed
+ *  `EV_YUNO_STATS` and the answers of the agent's own requests (read-file,
+ *  view-config, ...: EV_READ_FILE, EV_VIEW_CONFIG, ...) travel back to the
+ *  client that asked.
  *
  *  Its treedb, `treedb_controlcenter` (treedb_schema_controlcenter.c),
  *  keeps the SCENARIOS: a set of yunos on one or several nodes, how the
@@ -6350,6 +6352,33 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 
 /***************************************************************************
  *  HACK intermediate node
+ *  As ac_stats_yuno_answer(): what the agent answers to its own requests
+ *  (read-file, view-config, edit-yuno-config...), each with its own event,
+ *  to a client that asked them by command-agent. Up to 7.30.26 none of
+ *  those events was public here: the agent's channel refused the frame
+ *  ("Frame of an event that is not public, refused") and the client had
+ *  only "Command sent to 1 nodes".
+ ***************************************************************************/
+PRIVATE int ac_agent_request_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(!is_from_agent_side(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    char dst_service[NAME_MAX];
+    hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
+    if(!gobj_requester) {
+        // Error already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    return relay_to_requester(gobj, event, kw, gobj_requester);
+}
+
+/***************************************************************************
+ *  HACK intermediate node
  *  As ac_stats_yuno_answer(), and the answers of the steps of a run.
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -6768,6 +6797,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_OPEN,               ac_tty_mirror_open,      0},
         {EV_TTY_CLOSE,              ac_tty_mirror_close,     0},
 
+        {EV_EDIT_CONFIG,            ac_agent_request_answer, 0},
+        {EV_VIEW_CONFIG,            ac_agent_request_answer, 0},
+        {EV_EDIT_YUNO_CONFIG,       ac_agent_request_answer, 0},
+        {EV_VIEW_YUNO_CONFIG,       ac_agent_request_answer, 0},
+        {EV_READ_JSON,              ac_agent_request_answer, 0},
+        {EV_READ_FILE,              ac_agent_request_answer, 0},
+        {EV_READ_BINARY_FILE,       ac_agent_request_answer, 0},
+
         {EV_TIMEOUT,                ac_timeout,              0},
         {EV_TIMEOUT_PERIODIC,       ac_timeout,              0},
         {EV_STOPPED,                0,                       0},
@@ -6797,6 +6834,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         {EV_TTY_OPEN,               EVF_PUBLIC_EVENT},
         {EV_TTY_CLOSE,              EVF_PUBLIC_EVENT},
+
+        /*  What the agent answers to its own requests, relayed to who asked  */
+        {EV_EDIT_CONFIG,            EVF_PUBLIC_EVENT},
+        {EV_VIEW_CONFIG,            EVF_PUBLIC_EVENT},
+        {EV_EDIT_YUNO_CONFIG,       EVF_PUBLIC_EVENT},
+        {EV_VIEW_YUNO_CONFIG,       EVF_PUBLIC_EVENT},
+        {EV_READ_JSON,              EVF_PUBLIC_EVENT},
+        {EV_READ_FILE,              EVF_PUBLIC_EVENT},
+        {EV_READ_BINARY_FILE,       EVF_PUBLIC_EVENT},
 
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
