@@ -587,10 +587,56 @@
   loop goes on running until the stop. The link to the control center stayed
   in session, and an order in that window (`list-yunos`) read the treedb
   just freed: SIGSEGV instead of an orderly end (7.30.26). The pause now
-  stops the link before it closes the treedbs (a play after a pause starts
-  it again). Test: `c_agent_controlcenter_link`.
+  stops the link before it closes the treedbs. Only a stop pauses the agent
+  (see the next bullet). Test: `c_agent_controlcenter_link`.
+- **The control center can no longer pause or play the agent.**
+  `EV_PLAY_YUNO` / `EV_PAUSE_YUNO` on the agent's link to the control center
+  reached the agent's pause, which stops that same link inside its own
+  action and closes the treedbs. The agent died (SIGSEGV in `C_PROT_TCP4H`)
+  when more bytes came in the same read, or it lived with its `1991` and its
+  link closed, and nobody could reach it until it was restarted on the node
+  (7.30.26 with the bullet above). With the `C_IEVENT_CLI` rule of the
+  kernel (only a link configured to reach a `yuneta_agent` plays or pauses
+  its yuno), that link answers both with result -1 and the agent goes on.
+  The agent needs no change: the link it writes for each yuno it launches is
+  configured to reach `yuneta_agent`. Test: `c_agent_controlcenter_link`.
+- **A stop of the agent with a watch tells the yunos to stop publishing, with
+  no ERROR.** A stop pauses the agent first, and the pause closes its
+  channels and its treedbs. The watches were ended later, in the stop:
+  ending the last one asks each publishing yuno to stop (`publish-stats`
+  with `stop`), and that looked the yuno up in the treedb already closed.
+  Every stop with a watch logged an ERROR *"hgobj NULL or DESTROYED"* with a
+  stack, and the yunos were told nothing (7.30.26). The pause now ends the
+  watches first, while the channels and the treedb are open. Test:
+  `c_agent_answer_routing`.
 
 ### Kernel
+
+- **BREAKING** (for anything that played or paused a yuno through a link not
+  configured to reach a `yuneta_agent`; none in the SDK or its known
+  consumers): **only the link to the yuno's agent plays or pauses the yuno.**
+  `EV_PLAY_YUNO` / `EV_PAUSE_YUNO` are public events of every `C_IEVENT_CLI`;
+  now they play or pause the yuno only when that client's CONFIGURED remote
+  role (`wanted_yuno_role`, from the config's `remote_yuno_role`) is
+  `yuneta_agent` -- what the agent writes into the link of every yuno it
+  launches. The role the server says is never read. Any other client answers
+  the ack with `result` -1 and a comment, keeps the channel, and logs ONE
+  WARNING per session (*"play/pause of the yuno refused: only the link to
+  its agent plays or pauses it"*, `MSGSET_AUTH`). Up to 7.30.26 the server of
+  any link (a central a gate links to, the control center over the agent's
+  link) could pause the yuno. Test: new `c_ievent_cli_play_pause`.
+- **BREAKING** (for a peer that sent such an event on purpose; none known):
+  **a peer cannot send the events of the transport itself.** A frame that
+  names `EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, `EV_ON_IEV_MESSAGE`,
+  `EV_ON_ID` or `EV_ON_ID_NAK` (public in other gclasses, so it decodes) is
+  dropped by `C_IEVENT_SRV`, the channel kept, with a WARNING (*"event of the
+  transport itself sent by a peer, refused"*, `MSGSET_PROTOCOL`, the
+  `peername`) at most once per 10 s per channel. Up to 7.30.26 `C_IOGATE`
+  published it as its own with the kw the peer wrote: in the agent each
+  `EV_ON_OPEN {}` was 16 ERRORs with a stack; in the control center an agent
+  could take a forged `EV_ON_OPEN` to the check of its node key, and an
+  `EV_ON_CLOSE` wiped its channel's state. Test: new
+  `c_ievent_srv_transport_events`.
 
 - **BREAKING (for a peer or yuno that relied on it, none in the SDK):
   `__temp__` never crosses a yuno boundary, in either direction.** It is
@@ -623,9 +669,17 @@
   channel. Test: new `c_iogate_channel`.
 - `C_IOGATE`: *"No channel FOUND to send"* is said once per 1000 sends in a
   row with no channel, per gate, with `repeated` the ones not said since the
-  last one; a send that finds a channel starts the count again. Up to
-  7.30.26 its counter never moved (and was shared by every gate of the
-  yuno): one ERROR per send. Test: new `c_iogate_channel`.
+  last one. The end of the run (a send that finds a channel, or the gate's
+  stop) is said once, an INFO *"Sends with no channel ended"* with
+  `without_channel` and `not_said`, and the count starts again. A send to
+  all channels that finds none and a drop of a channel the gate does not
+  have (*"channel NOT FOUND"*) go through the same brake. The gate's stats
+  count what it could not send: `txMsgsNoChannel`. Up to 7.30.26 the counter
+  never moved (and was shared by every gate of the yuno): one ERROR per
+  send, the send to all with a stack. Test: new `c_iogate_channel`.
+- `__send_type__` (the `C_IOGATE` send-to-all switch) is documented as a key
+  of the yuno, like `__temp__`: the kw of a send is built by the yuno's own
+  code.
 - **BREAKING (a caller of `gobj_command()` / `gobj_stats()`, a log watcher): a
   command or a stats to a `C_IEVENT_CLI` or a `C_IEVENT_SRV` that is not in
   session is answered at once.** They returned NULL -- for a command or a stats,
