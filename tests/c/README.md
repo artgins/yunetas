@@ -58,7 +58,7 @@ Every sub-directory that `tests/c/CMakeLists.txt` builds:
 | `c_timer0`, `c_timer` | `C_TIMER0` / `C_TIMER` scheduling |
 | `c_yuno_cpu_core` | A yuno with `cpu_core` runs on that cpu alone and logs one INFO with what it got, without the real-time priority or the memory lock it has no capability for (`test1`); a `cpu_core` that is not a cpu of the machine is an ERROR and pins nothing (`test2`) |
 | `c_counter` | `C_COUNTER`: an expiration publishes the final count on the next turn, late counts do not count |
-| `c_tcp`, `c_tcp2` | `C_TCP` client GClass (connect, I/O, timeouts); a write that does not start drops the connection (`test5`); the stop of a client already disconnected publishes `EV_STOPPED` and it starts again (`test6`); a local stop says the writes it drops (`test9`) |
+| `c_tcp`, `c_tcp2` | `C_TCP` client GClass (connect, I/O, timeouts); a write that does not start drops the connection (`test5`); the stop of a client already disconnected publishes `EV_STOPPED` and it starts again (`test6`); a local stop says the writes it drops and counts them (`test9`), and with TLS the encrypted output it drops (`test12`) |
 | `c_tcps`, `c_tcps2` | `C_TCP_S` TLS client (handshake, OpenSSL + mbedTLS) |
 | `c_tcp_inactivity` | `C_TCP` `timeout_inactivity` |
 | `c_prot_modbus_m` | `C_PROT_MODBUS_M` over TCP against a raw slave: a cycle publishes only what it read, an exception ends its block at once and is logged once (and again when the block answers), a queued write is sent once and the polling goes on (`c_prot_modbus_m/test1`; built with `CONFIG_MODULE_MODBUS`) |

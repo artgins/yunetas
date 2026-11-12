@@ -24,11 +24,22 @@
  *          fixes after 7.29.3 it was closed with no shutdown(SHUT_WR), and
  *          the unread data made it a RST.
  *
+ *          The stop drops what was queued behind the write in flight and
+ *          says it: ONE INFO per stop, and the stat txMsgsDroppedAtStop.
+ *          The client is stopped TWICE: its first stop has no destroy, it
+ *          is started again, connects again, and the second stop adds its
+ *          drop to the first (2); `stats __reset__` puts the count back to
+ *          0. Only then is it destroyed.
+ *
  *              1. EV_CONNECTED of both (the clisrv's comes inside its
  *                 start, the client's when its connect completes) -> 100
- *                 ms later the write, the stop and the destroy, of both;
- *                 not connected in 2 s: the test fails
- *              2. 500 ms later: the peer of the clisrv must read the end of
+ *                 ms later: the client, two writes and the stop; the
+ *                 clisrv, two writes, the stop and the destroy; not
+ *                 connected in 2 s: the test fails
+ *              2. EV_STOPPED of the client -> started again; it connects
+ *                 -> 100 ms later two writes, the stop (the count is 2),
+ *                 `stats __reset__` (0) and the destroy
+ *              3. 500 ms later: the peer of the clisrv must read the end of
  *                 the connection, a FIN; the yuno dies; the memory check at
  *                 the end catches a leaked event or gbuffer
  *
@@ -47,6 +58,16 @@
  *              Constants
  ***************************************************************************/
 #define QUEUED_TEXT "queued, dropped by the stop"    // 27 bytes
+
+enum {
+    PHASE_CONNECT = 0,      // waiting the connections
+    PHASE_FIRST_STOP,       // both connected: the first stops
+    PHASE_WAIT_STOPPED,     // the first stop of the client ends
+    PHASE_RESTART,          // the client is started again
+    PHASE_RECONNECT,        // waiting its second connection
+    PHASE_SECOND_STOP,      // the second stop of the client, and its destroy
+    PHASE_END
+};
 
 /***************************************************************************
  *              Structures
@@ -270,13 +291,11 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 }
 
 /***************************************************************************
- *  A write, a second one (queued behind the first, in flight), the stop
- *  and the destroy, in one turn. The stop drops the queued one and says
- *  it: ONE warning, and txMsgsDroppedAtStop 1. fd_peer >= 0: between the
- *  stop and the destroy, the peer sends data that nobody reads (the stop
- *  canceled the read)
+ *  A write, a second one (queued behind the first, in flight) and the
+ *  stop, in one turn. The stop drops the queued one and says it: ONE INFO,
+ *  and txMsgsDroppedAtStop grows by one, to `dropped_at_stop`.
  ***************************************************************************/
-PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp, int fd_peer)
+PRIVATE void write_and_stop(hgobj gobj, hgobj gobj_tcp, json_int_t dropped_at_stop)
 {
     const char *texts[] = {"written while it is destroyed", QUEUED_TEXT, 0};
     for(int i=0; texts[i]; i++) {
@@ -290,12 +309,15 @@ PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp, int fd_peer)
         );
     }
     gobj_stop(gobj_tcp);
-    if(gobj_read_integer_attr(gobj_tcp, "txMsgsDroppedAtStop") != 1) {
+    json_int_t counted = gobj_read_integer_attr(gobj_tcp, "txMsgsDroppedAtStop");
+    if(counted != dropped_at_stop) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "TEST: the frame queued at the stop is not counted",
             "tcp",          "%s", gobj_short_name(gobj_tcp),
+            "expected",     "%ld", (long)dropped_at_stop,
+            "counted",      "%ld", (long)counted,
             NULL
         );
     }
@@ -309,6 +331,34 @@ PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp, int fd_peer)
             NULL
         );
     }
+}
+
+/***************************************************************************
+ *  `stats __reset__` puts txMsgsDroppedAtStop back to 0
+ ***************************************************************************/
+PRIVATE void reset_the_count(hgobj gobj, hgobj gobj_tcp)
+{
+    json_t *jn_stats = gobj_stats(gobj_tcp, "__reset__", 0, gobj);
+    JSON_DECREF(jn_stats)
+    json_int_t counted = gobj_read_integer_attr(gobj_tcp, "txMsgsDroppedAtStop");
+    if(counted != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: stats __reset__ does not put txMsgsDroppedAtStop to 0",
+            "tcp",          "%s", gobj_short_name(gobj_tcp),
+            "counted",      "%ld", (long)counted,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  fd_peer >= 0: between the stop and the destroy, the peer sends data
+ *  that nobody reads (the stop canceled the read)
+ ***************************************************************************/
+PRIVATE void destroy_while_stopping(hgobj gobj, hgobj gobj_tcp, int fd_peer)
+{
     if(fd_peer >= 0) {
         const char unread[] = "sent by the peer, never read";
         if(send(fd_peer, unread, sizeof(unread), 0) != (ssize_t)sizeof(unread)) {
@@ -373,9 +423,28 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(src == priv->gobj_clisrv) {
         priv->clisrv_connected = TRUE;
     }
-    if(priv->phase == 0 && priv->tcp_connected && priv->clisrv_connected) {
-        priv->phase = 1;
+    if(priv->phase == PHASE_CONNECT && priv->tcp_connected && priv->clisrv_connected) {
+        priv->phase = PHASE_FIRST_STOP;
         set_timeout(priv->timer, 100);
+    } else if(priv->phase == PHASE_RECONNECT && src == priv->gobj_tcp) {
+        priv->phase = PHASE_SECOND_STOP;
+        set_timeout(priv->timer, 100);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The first stop of the client ended: started again a turn later
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->phase == PHASE_WAIT_STOPPED && src == priv->gobj_tcp) {
+        priv->phase = PHASE_RESTART;
+        set_timeout(priv->timer, 10);
     }
 
     KW_DECREF(kw)
@@ -399,7 +468,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     switch(priv->phase) {
-        case 0:
+        case PHASE_CONNECT:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL,
@@ -411,12 +480,37 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             set_yuno_must_die();
             break;
 
-        case 1:
-            write_stop_and_destroy(gobj, priv->gobj_tcp, -1);
-            priv->gobj_tcp = 0;
-            write_stop_and_destroy(gobj, priv->gobj_clisrv, priv->fd_peer);
+        case PHASE_FIRST_STOP:
+            write_and_stop(gobj, priv->gobj_tcp, 1);
+            write_and_stop(gobj, priv->gobj_clisrv, 1);
+            destroy_while_stopping(gobj, priv->gobj_clisrv, priv->fd_peer);
             priv->gobj_clisrv = 0;
-            priv->phase = 2;
+            priv->phase = PHASE_WAIT_STOPPED;
+            set_timeout(priv->timer, 2000);     // the stop must not take this long
+            break;
+
+        case PHASE_WAIT_STOPPED:
+            test_fail(gobj, "TEST: the first stop of the client did not end");
+            set_yuno_must_die();
+            break;
+
+        case PHASE_RESTART:
+            priv->phase = PHASE_RECONNECT;
+            set_timeout(priv->timer, 2000);     // the connect must not take this long
+            gobj_start(priv->gobj_tcp);
+            break;
+
+        case PHASE_RECONNECT:
+            test_fail(gobj, "TEST: the client started again did not connect");
+            set_yuno_must_die();
+            break;
+
+        case PHASE_SECOND_STOP:
+            write_and_stop(gobj, priv->gobj_tcp, 2);    // the second drop is added to the first
+            reset_the_count(gobj, priv->gobj_tcp);
+            destroy_while_stopping(gobj, priv->gobj_tcp, -1);
+            priv->gobj_tcp = 0;
+            priv->phase = PHASE_END;
             set_timeout(priv->timer, 500);
             break;
 
@@ -502,7 +596,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT,            ac_timeout,         0},
         {EV_CONNECTED,          ac_connected,       0},
         {EV_DISCONNECTED,       ac_transport_event, 0},
-        {EV_STOPPED,            ac_transport_event, 0},
+        {EV_STOPPED,            ac_stopped,         0},
         {EV_RX_DATA,            ac_transport_event, 0},
         {EV_TX_READY,           ac_transport_event, 0},
         {0, 0, 0}

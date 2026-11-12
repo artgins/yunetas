@@ -461,16 +461,41 @@ A local stop (`gobj_stop()` of the `C_TCP`, or of a tree that holds it) ends
 the connection: the write in flight goes on to its end, and what is queued
 behind it is dropped. That is said, once per stop, an INFO (the stop is the
 yuno's own, not a fault of the peer), with what went (7.30.27+; up to
-7.30.26 it went in silence), and counted in the stat `txMsgsDroppedAtStop`:
+7.30.26 it went in silence):
+
+- `dropped_msgs`, `dropped_bytes`: the messages of the host that wait their
+  turn (in clear). They are also counted in the stat `txMsgsDroppedAtStop`,
+  which adds every stop of the gobj and goes back to 0 with
+  `stats __reset__`.
+- `dropped_tls_bytes`: with TLS, the encrypted output that waits behind the
+  write in flight -- the rest of the message being written, or records of
+  the TLS session itself. It is not a message of the host, so it is said in
+  bytes and not counted in `txMsgsDroppedAtStop`.
 
 ```text
 INFO: {"msg": "tcp data queued at a local stop, dropped", "url": "tcp://127.0.0.1:56745",
-          "peername": "127.0.0.1:56745", "dropped_msgs": 1, "dropped_bytes": 27, ...}
+          "peername": "127.0.0.1:56745", "dropped_msgs": 1, "dropped_bytes": 27,
+          "dropped_tls_bytes": 0, ...}
+INFO: {"msg": "tcp data queued at a local stop, dropped", "url": "tcps://127.0.0.1:38653",
+          "peername": "127.0.0.1:38653", "dropped_msgs": 0, "dropped_bytes": 0,
+          "dropped_tls_bytes": 48, ...}
 ```
 
-`tests/c/c_tcp` (`test_tcp_test9`: two writes, a stop and the destroy in one
-turn, on a client and on a clisrv: one INFO each, `txMsgsDroppedAtStop`
-1).
+Read the count, and put it back to 0, with the stats of a service whose
+bottom chain holds the `C_TCP` (the stats of a service include those of its
+bottom gobjs):
+
+```bash
+ycommand -c 'stats-yuno id=<id> service=<service> stats=txMsgsDroppedAtStop'
+ycommand -c 'stats-yuno id=<id> service=<service> stats=__reset__'
+```
+
+`tests/c/c_tcp` (`test_tcp_test9`: two writes and a stop, on a client and on
+a clisrv, in one turn: one INFO per stop, `txMsgsDroppedAtStop` 1; the client
+is started again and stopped again, the count is 2, and `stats __reset__`
+puts it back to 0. `test_tcp_test12`: a TLS client stopped while the record
+of its message waits behind the Finished of its handshake: one INFO,
+`dropped_tls_bytes` more than the text, `txMsgsDroppedAtStop` 0).
 
 ---
 

@@ -628,16 +628,26 @@ PRIVATE int mt_stop(hgobj gobj)
 
     /*
      *  What was queued and never written goes with the stop: said, once,
-     *  an INFO (the stop is ours, not a fault of the peer). Up to 7.30.26
-     *  it went in silence.
+     *  an INFO (the stop is ours, not a fault of the peer). The messages of
+     *  the host (dl_tx) are counted, also in txMsgsDroppedAtStop. The TLS
+     *  output waiting behind the write in flight (dl_tx_encrypted: the rest
+     *  of the message being written, or records of the TLS session) is not
+     *  a message of the host: it is said in bytes, dropped_tls_bytes, and
+     *  not counted as messages. Up to 7.30.26 both went in silence.
      */
-    if(dl_size(&priv->dl_tx) > 0) {
+    if(dl_size(&priv->dl_tx) > 0 || dl_size(&priv->dl_tx_encrypted) > 0) {
         json_int_t dropped_msgs = 0;
         json_int_t dropped_bytes = 0;
+        json_int_t dropped_tls_bytes = 0;
         gbuffer_t *gbuf = dl_first(&priv->dl_tx);
         while(gbuf) {
             dropped_msgs++;
             dropped_bytes += (json_int_t)gbuffer_leftbytes(gbuf);
+            gbuf = dl_next(gbuf);
+        }
+        gbuf = dl_first(&priv->dl_tx_encrypted);
+        while(gbuf) {
+            dropped_tls_bytes += (json_int_t)gbuffer_leftbytes(gbuf);
             gbuf = dl_next(gbuf);
         }
         priv->txMsgsDroppedAtStop += dropped_msgs;
@@ -649,6 +659,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "peername",         "%s", gobj_read_str_attr(gobj, "peername"),
             "dropped_msgs",     "%ld", (long)dropped_msgs,
             "dropped_bytes",    "%ld", (long)dropped_bytes,
+            "dropped_tls_bytes", "%ld", (long)dropped_tls_bytes,
             NULL
         );
     }

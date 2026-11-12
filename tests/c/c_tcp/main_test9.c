@@ -2,7 +2,8 @@
  *          MAIN.C
  *
  *          Test: C_TCP destroyed in the turn of its stop, with a write in
- *          flight: nothing of it is used after. See c_test9.c.
+ *          flight: nothing of it is used after; what a stop drops is said
+ *          and counted. See c_test9.c.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -118,12 +119,15 @@ static int register_yuno_and_more(void)
 }
 
 /***************************************************************************
- *  What a stop drops: ONE INFO per C_TCP, the write queued behind the one
- *  in flight (c_test9.c)
+ *  What a stop drops: ONE INFO per stop, the write queued behind the one
+ *  in flight, and no TLS output (plain TCP): the client stops twice, the
+ *  clisrv once (c_test9.c)
  ***************************************************************************/
 #define STOP_DROP_MARK  "tcp data queued at a local stop, dropped"
 #define STOP_DROP_MSGS  "\"dropped_msgs\": 1,"
-#define STOP_DROP_BYTES "\"dropped_bytes\": 27 "
+#define STOP_DROP_BYTES "\"dropped_bytes\": 27,"
+#define STOP_DROP_TLS   "\"dropped_tls_bytes\": 0 "
+#define STOP_DROP_STOPS 3
 int stop_drop_lines = 0;
 int stop_drop_right = 0;
 
@@ -135,7 +139,8 @@ static int stop_drop_log_write(void *v, int priority, const char *bf, size_t len
     stop_drop_lines++;
     if(priority == LOG_INFO &&
             memmem(bf, len, STOP_DROP_MSGS, strlen(STOP_DROP_MSGS)) &&
-            memmem(bf, len, STOP_DROP_BYTES, strlen(STOP_DROP_BYTES))) {
+            memmem(bf, len, STOP_DROP_BYTES, strlen(STOP_DROP_BYTES)) &&
+            memmem(bf, len, STOP_DROP_TLS, strlen(STOP_DROP_TLS))) {
         stop_drop_right++;
     }
     return 0;
@@ -152,11 +157,12 @@ static void cleaning(void)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
 
-    if(stop_drop_lines != 2 || stop_drop_right != 2) {
-        printf("%sERROR --> %s: lines %d (expected 2), INFO with 1 message of 27 bytes: %d%s\n",
+    if(stop_drop_lines != STOP_DROP_STOPS || stop_drop_right != STOP_DROP_STOPS) {
+        printf("%sERROR --> %s: lines %d (expected %d), INFO with 1 message of 27 bytes, no TLS bytes: %d%s\n",
             On_Red BWhite,
-            "the stops do not say the write they drop, once per C_TCP",
+            "the stops do not say the write they drop, once per stop",
             stop_drop_lines,
+            STOP_DROP_STOPS,
             stop_drop_right,
             Color_Off
         );
