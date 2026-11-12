@@ -436,11 +436,14 @@ event not published by the treedb of the broker, refused"* for the four (the
 brake, `suppressed` 0), and authz unchanged. Then the same changes made in
 the broker's treedb reach authz: `bob` created (enabled), `enabled` false
 (disabled), true (enabled), deleted (disabled). 11 s later, past the 10 s
-window of the brake, one more forged event: its WARNING says the three not
-said, `suppressed` 3. No port. Red on 7.30.26: `admin` disabled, `carol`
+window of the brake, two more forged events: the WARNING of the first says
+the three not said, `suppressed` 3, and the second is held back. 11 s later,
+one more: its WARNING says only that one, `suppressed` 1 (the count goes back
+to 0 at each WARNING). About 24 s. No port. Red on 7.30.26: `admin` disabled, `carol`
 enabled, `mallory` created, no WARNING. Mutants killed: the guard also
 accepting the broker's `__top_side__` (or any `C_IOGATE`), any `C_NODE`, or
-any `C_IEVENT_SRV`; the suppressed ones not counted; every event refused (the
+any `C_IEVENT_SRV`; the suppressed ones not counted; the count never put
+back to 0 (`suppressed` 4 in the third WARNING); every event refused (the
 treedb's own too).
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it

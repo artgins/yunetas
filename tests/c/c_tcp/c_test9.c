@@ -24,20 +24,21 @@
  *          fixes after 7.29.3 it was closed with no shutdown(SHUT_WR), and
  *          the unread data made it a RST.
  *
- *          The stop drops what was queued behind the write in flight and
- *          says it: ONE INFO per stop, and the stat txMsgsDroppedAtStop.
- *          The client is stopped TWICE: its first stop has no destroy, it
- *          is started again, connects again, and the second stop adds its
- *          drop to the first (2); `stats __reset__` puts the count back to
- *          0. Only then is it destroyed.
+ *          The stop drops what was queued behind the write in flight (two
+ *          writes, so every queued one must be counted, not only the first)
+ *          and says it: ONE INFO per stop, and the stat
+ *          txMsgsDroppedAtStop. The client is stopped TWICE: its first stop
+ *          has no destroy, it is started again, connects again, and the
+ *          second stop adds its drop to the first (4); `stats __reset__`
+ *          puts the count back to 0. Only then is it destroyed.
  *
  *              1. EV_CONNECTED of both (the clisrv's comes inside its
  *                 start, the client's when its connect completes) -> 100
- *                 ms later: the client, two writes and the stop; the
- *                 clisrv, two writes, the stop and the destroy; not
+ *                 ms later: the client, three writes and the stop; the
+ *                 clisrv, three writes, the stop and the destroy; not
  *                 connected in 2 s: the test fails
  *              2. EV_STOPPED of the client -> started again; it connects
- *                 -> 100 ms later two writes, the stop (the count is 2),
+ *                 -> 100 ms later three writes, the stop (the count is 4),
  *                 `stats __reset__` (0) and the destroy
  *              3. 500 ms later: the peer of the clisrv must read the end of
  *                 the connection, a FIN; the yuno dies; the memory check at
@@ -291,13 +292,13 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 }
 
 /***************************************************************************
- *  A write, a second one (queued behind the first, in flight) and the
- *  stop, in one turn. The stop drops the queued one and says it: ONE INFO,
- *  and txMsgsDroppedAtStop grows by one, to `dropped_at_stop`.
+ *  A write, two more (queued behind the first, in flight) and the stop,
+ *  in one turn. The stop drops the two queued and says it: ONE INFO, and
+ *  txMsgsDroppedAtStop grows by two, to `dropped_at_stop`.
  ***************************************************************************/
 PRIVATE void write_and_stop(hgobj gobj, hgobj gobj_tcp, json_int_t dropped_at_stop)
 {
-    const char *texts[] = {"written while it is destroyed", QUEUED_TEXT, 0};
+    const char *texts[] = {"written while it is destroyed", QUEUED_TEXT, QUEUED_TEXT, 0};
     for(int i=0; texts[i]; i++) {
         gbuffer_t *gbuf = gbuffer_create(64, 64);
         gbuffer_append_string(gbuf, texts[i]);
@@ -481,8 +482,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case PHASE_FIRST_STOP:
-            write_and_stop(gobj, priv->gobj_tcp, 1);
-            write_and_stop(gobj, priv->gobj_clisrv, 1);
+            write_and_stop(gobj, priv->gobj_tcp, 2);
+            write_and_stop(gobj, priv->gobj_clisrv, 2);
             destroy_while_stopping(gobj, priv->gobj_clisrv, priv->fd_peer);
             priv->gobj_clisrv = 0;
             priv->phase = PHASE_WAIT_STOPPED;
@@ -506,7 +507,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case PHASE_SECOND_STOP:
-            write_and_stop(gobj, priv->gobj_tcp, 2);    // the second drop is added to the first
+            write_and_stop(gobj, priv->gobj_tcp, 4);    // the second drop is added to the first
             reset_the_count(gobj, priv->gobj_tcp);
             destroy_while_stopping(gobj, priv->gobj_tcp, -1);
             priv->gobj_tcp = 0;

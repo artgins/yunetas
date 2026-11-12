@@ -119,13 +119,13 @@ static int register_yuno_and_more(void)
 }
 
 /***************************************************************************
- *  What a stop drops: ONE INFO per stop, the write queued behind the one
- *  in flight, and no TLS output (plain TCP): the client stops twice, the
+ *  What a stop drops: ONE INFO per stop, the two writes queued behind the
+ *  one in flight, and no TLS output (plain TCP): the client stops twice, the
  *  clisrv once (c_test9.c)
  ***************************************************************************/
 #define STOP_DROP_MARK  "tcp data queued at a local stop, dropped"
-#define STOP_DROP_MSGS  "\"dropped_msgs\": 1,"
-#define STOP_DROP_BYTES "\"dropped_bytes\": 27,"
+#define STOP_DROP_MSGS  "\"dropped_msgs\": 2,"
+#define STOP_DROP_BYTES "\"dropped_bytes\": 54,"
 #define STOP_DROP_TLS   "\"dropped_tls_bytes\": 0 "
 #define STOP_DROP_STOPS 3
 int stop_drop_lines = 0;
@@ -158,7 +158,7 @@ static void cleaning(void)
     result += test_json(NULL);  // NULL: we want to check only the logs
 
     if(stop_drop_lines != STOP_DROP_STOPS || stop_drop_right != STOP_DROP_STOPS) {
-        printf("%sERROR --> %s: lines %d (expected %d), INFO with 1 message of 27 bytes, no TLS bytes: %d%s\n",
+        printf("%sERROR --> %s: lines %d (expected %d), INFO with 2 messages of 54 bytes, no TLS bytes: %d%s\n",
             On_Red BWhite,
             "the stops do not say the write they drop, once per stop",
             stop_drop_lines,

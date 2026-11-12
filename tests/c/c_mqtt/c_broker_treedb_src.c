@@ -29,8 +29,11 @@
  *          broker (the events published by the treedb itself) must reach
  *          authz: `bob` created, disabled, enabled again, deleted
  *          (disabled). 11 s later, past the window of the brake (10 s),
- *          one more forged event: its WARNING says the three not said in
- *          the first window, `suppressed` 3.
+ *          two more forged events: the WARNING of the first says the three
+ *          not said in the first window, `suppressed` 3, and the second is
+ *          held back. 11 s later, one more: its WARNING says only the one
+ *          of the second window, `suppressed` 1 -- the count goes back to
+ *          0 at each WARNING (a count never reset says 4).
  *
  *          Up to 7.30.26 the broker obeyed the forged events: admin
  *          disabled, carol enabled, mallory created.
@@ -53,7 +56,8 @@
 
 enum {
     PHASE_FORGE = 0,        // the forged events and the real ones
-    PHASE_AFTER_WINDOW,     // the next forged event, past the brake's window
+    PHASE_AFTER_WINDOW,     // the next forged events, past the brake's window
+    PHASE_AFTER_SECOND_WINDOW, // one more, past the second window
 };
 
 /***************************************************************************
@@ -427,20 +431,43 @@ PRIVATE void run_forged_and_real(hgobj gobj)
 
 /***************************************************************************
  *  Past the window of the brake: the next forged event says the ones of
- *  the first window not said
+ *  the first window not said; the one after it is held back
  ***************************************************************************/
 PRIVATE void run_forged_after_window(hgobj gobj)
 {
     hgobj broker = gobj_find_service(BROKER_SERVICE, TRUE);
 
-    expect_one_warning("forged treedb event after the window", 3);
+    expect_one_warning("forged treedb events after the window", 3);
     send_forged(gobj, broker, EV_TREEDB_NODE_DELETED,
         json_pack("{s:s}", "id", "admin"),
         gobj
     );
-    end_forged_phase(gobj, "forged treedb event after the window");
+    send_forged(gobj, broker, EV_TREEDB_NODE_UPDATED,
+        json_pack("{s:s, s:b}", "id", "carol", "enabled", 1),
+        gobj
+    );
+    end_forged_phase(gobj, "forged treedb events after the window");
 
     check_user(gobj, "forged DELETED after the window: admin still enabled", "admin", 1);
+    check_user(gobj, "forged UPDATED after the window: carol still disabled", "carol", 0);
+}
+
+/***************************************************************************
+ *  Past the second window: the count went back to 0 at the WARNING before,
+ *  so this one says only the event held back in the second window
+ ***************************************************************************/
+PRIVATE void run_forged_after_second_window(hgobj gobj)
+{
+    hgobj broker = gobj_find_service(BROKER_SERVICE, TRUE);
+
+    expect_one_warning("forged treedb event after the second window", 1);
+    send_forged(gobj, broker, EV_TREEDB_NODE_DELETED,
+        json_pack("{s:s}", "id", "admin"),
+        gobj
+    );
+    end_forged_phase(gobj, "forged treedb event after the second window");
+
+    check_user(gobj, "forged DELETED after the second window: admin still enabled", "admin", 1);
 }
 
 
@@ -468,8 +495,14 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
 
         case PHASE_AFTER_WINDOW:
-        default:
             run_forged_after_window(gobj);
+            priv->phase = PHASE_AFTER_SECOND_WINDOW;
+            set_timeout(priv->timer, BRAKE_WINDOW_MS);
+            break;
+
+        case PHASE_AFTER_SECOND_WINDOW:
+        default:
+            run_forged_after_second_window(gobj);
             set_yuno_must_die();
             break;
     }
