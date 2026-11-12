@@ -287,6 +287,16 @@ PUBLIC json_t *iev_create_from_gbuffer(
     json_incref(kw);
     json_t *new_kw = kw_deserialize(gobj, kw);
 
+    /*
+     *  "__temp__" is local: the channel a message came in by, a pointer of
+     *  this process (C_IOGATE), read and dereferenced by whoever takes the
+     *  kw. A peer's one is dropped, silently: a yuno of the SDK sends its
+     *  own back in some answers (C_TRANGER's to EV_TRANGER_ADD_RECORD),
+     *  and nothing on the way out removes it from a kw that is published
+     *  or forwarded, so it is no fault of the peer.
+     */
+    json_object_del(new_kw, "__temp__");
+
     if(event) {
         *event = gclass_find_public_event(event_, FALSE);
         if(!*event) {

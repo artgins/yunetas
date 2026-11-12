@@ -754,10 +754,25 @@ PRIVATE int test_forged_step_answers(hgobj gobj, hgobj requester, hgobj other)
     }
 
     /*
-     *  A client injects the answer
+     *  A client injects the answer, a frame with a "__temp__" of its own
+     *  whose channel is an address it chose: decoded as __top_side__'s
+     *  C_IEVENT_SRV decodes it, and given its channel as C_IOGATE gives it.
+     *  It is the first of the drops window, so its channel is read for the
+     *  warning: up to 7.30.26 the peer's list was left in place (C_IOGATE
+     *  could not write into it) and the address was read, a SIGSEGV.
      */
     json_t *forged = msg_iev_build_response(gobj, 0, json_string("forged by a client"), 0, 0,
         json_deep_copy(step));
+    json_object_set_new(forged, "__temp__", json_pack("[I]", (json_int_t)0x41414141));
+    gbuffer_t *frame = iev_create_to_gbuffer(gobj, EV_MT_COMMAND_ANSWER, forged);
+    gobj_event_t frame_event = NULL;
+    forged = frame? iev_create_from_gbuffer(gobj, &frame_event, frame, 1) : NULL;
+    if(!forged || frame_event != EV_MT_COMMAND_ANSWER) {
+        KW_DECREF(forged)
+        return ret + fail(gobj, "the frame of a client is decoded", "");
+    }
+    kw_set_subdict_value(gobj, forged, "__temp__", "channel",
+        json_string(gobj_name(other)));
     kw_set_subdict_value(gobj, forged, "__temp__", "channel_gobj",
         json_integer((json_int_t)(uintptr_t)other));
     gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, forged, priv->top_side);

@@ -144,6 +144,23 @@ What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
   7.26.9; capped first, a token the cap cut showed its first bytes), the kw
   in `kw` masked and capped to 256 bytes, and `frame_size`.
 
+The kw handed back carries **no `__temp__`** (7.30.27+): it is local
+metadata -- C_IOGATE writes there the channel a message came in by, and
+`channel_gobj` is a pointer of this process that the receiver dereferences --
+so a peer's one is deleted from the top level of the kw, after
+`kw_deserialize()`, with no log. A yuno of the SDK can send its own back
+(`C_TRANGER`'s answer to `EV_TRANGER_ADD_RECORD` serializes it, and nothing on
+the way out removes it from a kw that is published or forwarded), so it is no
+fault of the peer. Up to 7.30.26 it was handed on: a frame of a web client of
+the control center, or of a session of the agent, with
+
+```json
+{"event": "EV_MT_COMMAND_ANSWER", "kw": {"__temp__": [1094795585]}}
+```
+
+left the list where C_IOGATE could not write its own channel, and the reader
+took `1094795585` for the channel: a SIGSEGV.
+
 `frame_size` is the bytes of the frame RECEIVED. Up to 7.26.9 the WARNING of an
 event that is not public said a `kw_size` that was the size of the masked,
 capped copy (a kw of 900 KB said 101). `C_IEVENT_SRV` and `C_IEVENT_CLI` pass

@@ -19,7 +19,10 @@
  *          And the frontier: gbuf2json_from_peer() and
  *          anystring2json_from_peer() drop every "gbuffer" key of a json a
  *          peer wrote, at any depth, with one warning, however the name is
- *          spelled with \u escapes (each of the 127 ways).
+ *          spelled with \u escapes (each of the 127 ways). And
+ *          iev_create_from_gbuffer() hands on the kw of an inter-event
+ *          without the peer's "__temp__" (local metadata: C_IOGATE writes
+ *          a pointer of this process there), silently.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -305,6 +308,48 @@ static void test_peer_json_frontier(void)
 }
 
 /***************************************************************************
+ *  The frontier of an inter-event: its kw carries no "__temp__" of the
+ *  peer. "__temp__" is LOCAL metadata (C_IOGATE writes there the channel a
+ *  message came in by, `channel_gobj` a pointer of this process), and up to
+ *  7.30.26 a peer's one was handed on: in a list, C_IOGATE could not write
+ *  its own and a reader took the peer's integer for the channel (a SIGSEGV
+ *  of the agent, the control center); in a dict, a gate that is no C_IOGATE
+ *  (C_IEVENT_CLI) handed on the peer's pointer as it was. Dropped without
+ *  a log: a yuno of the SDK sends its own back in some answers.
+ ***************************************************************************/
+static void test_peer_temp_frontier(void)
+{
+    printf("\n--- an inter-event of a peer has no __temp__ ---\n");
+
+    const char *frames[] = {
+        "{\"event\": \"EV_X\", \"kw\": {\"a\": 1, \"__temp__\": [1094795585]}}",
+        "{\"event\": \"EV_X\", \"kw\": {\"a\": 1, \"__temp__\": {\"channel_gobj\": 1094795585, "
+            "\"channel\": \"input-1\"}}}",
+        "{\"event\": \"EV_X\", \"kw\": {\"a\": 1, \"__temp__\": 1094795585}}",
+        0
+    };
+    const char *titles[] = {
+        "a __temp__ list",
+        "a __temp__ dict with a channel_gobj",
+        "a __temp__ integer",
+    };
+    error_logged();
+    for(int i=0; frames[i]; i++) {
+        for(int verbose=0; verbose<2; verbose++) {
+            char title[128];
+            snprintf(title, sizeof(title), "%s, verbose %d: dropped, the rest kept", titles[i], verbose);
+            gbuffer_t *gbuf = gbuffer_create(strlen(frames[i])+1, strlen(frames[i])+1);
+            gbuffer_append_string(gbuf, frames[i]);
+            json_t *kw = iev_create_from_gbuffer(0, NULL, gbuf, verbose);    // gbuf owned
+            check(title, kw && !json_object_get(kw, "__temp__") &&
+                json_integer_value(json_object_get(kw, "a")) == 1, NULL);
+            KW_DECREF(kw)
+        }
+    }
+    check("no log", !error_logged(), NULL);
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -326,6 +371,7 @@ int main(int argc, char *argv[])
     test_top_level_real_gbuffer();
     test_nested_peer_integer();
     test_peer_json_frontier();
+    test_peer_temp_frontier();
 
     gobj_end();
 

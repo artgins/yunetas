@@ -22,7 +22,11 @@ in `gbuffer_incref()`), and still take one of the top-level one. It also
 checks the frontier: `gbuf2json_from_peer()`, `anystring2json_from_peer()`
 and `iev_create_from_gbuffer()` leave no `"gbuffer"` key at any depth in a
 peer's json (spelled with `\u` escapes too: each of the 127 ways, beside a
-`\u00e9` that is no letter of it), with ONE warning:
+`\u00e9` that is no letter of it), with ONE warning. And
+`iev_create_from_gbuffer()` hands on the kw of an inter-event without the
+peer's `__temp__` (a list, a dict with a `channel_gobj`, an integer; with
+`verbose` 0 and 1), and logs nothing for it: `__temp__` is local, C_IOGATE
+writes a pointer of this process there (up to 7.30.26 a peer's was handed on):
 
 ```
 --- a nested gbuffer is data, not the kw's binary field ---
