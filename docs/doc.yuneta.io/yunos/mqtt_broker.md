@@ -513,6 +513,43 @@ the exact path the protocol gate uses — across matching/non-matching publish a
 subscribe, `#` wildcard (incl. the parent level), the two allow-all fallbacks,
 and the unknown-client deny.
 
+(mqtt-broker-users-sync)=
+### The users of the treedb and the users of authz
+
+The topic `users` of the broker's treedb (`treedb_mqtt_broker`) is kept in
+step with the users of [`C_AUTHZ`](#gclass-c-authz). The broker subscribes to
+`EV_TREEDB_NODE_CREATED` / `_UPDATED` / `_DELETED` of its treedb, and a change
+of `users` becomes the administration of an authz user:
+
+| Change in `treedb_mqtt_broker.users` | What the broker asks authz |
+|---|---|
+| a user created | `EV_ADD_USER`, role `roles^user-<mqtt_service>^users` (when the user has no role yet) |
+| `enabled` written | `EV_ADD_USER` with `disabled` = `!enabled` |
+| a user deleted | `EV_REJECT_USER` with `disabled` true: the user is disabled and its sessions are dropped |
+
+```bash
+# Disable a user of the broker: authz disables it and drops its sessions
+ycommand -c 'command-yuno id=<yuno> service=<mqtt_service> command=update-node \
+    topic_name=users record={"id":"dev1","enabled":false}'
+```
+
+**Only the events published by the broker's own treedb are obeyed.** The three
+names are public (they are output events of `C_NODE`), so a peer of a gate of
+the broker (an ievent session of its `__top_side__`, with any role) can send
+them, and `C_IOGATE` publishes them again as its own. Such an event is refused
+(the action answers `-1`, authz is not asked) with a WARNING (`msgset`
+`Auth`) that names the `src` and the channel, said once every 10 seconds; the
+next one carries `suppressed`, the count of the ones not said:
+
+```json
+{"msgset": "Auth", "msg": "treedb event not published by the treedb of the broker, refused",
+ "event": "EV_TREEDB_NODE_DELETED", "src": "C_IOGATE^__top_side__", "channel": "input-2", "suppressed": 0}
+```
+
+Up to 7.30.26 they were obeyed: one frame disabled any user of authz
+(`admin` too, persistent, its sessions dropped), re-enabled a disabled one, or
+created a user. Regression test: `tests/c/c_mqtt` `broker_treedb_src`.
+
 ## Commands
 
 | Command | Description |

@@ -422,6 +422,19 @@ seconds (up to 7.30.26 it played without a treedb, refused every CONNECT and
 logged two ERRORs per tick; its commands logged about 25 ERRORs and answered
 as an empty broker). No port, no store.
 
+`test_mqtt_broker_treedb_src` (`main_broker_treedb_src.c` +
+`c_broker_treedb_src.c`) runs the broker with `mqtt_service` `mqtt` and a
+`C_AUTHZ` master with a store (`admin` enabled, `carol` disabled, the role
+`user-mqtt`). The driver sends the broker, from itself (a gobj that is not
+the treedb of the broker), `EV_TREEDB_NODE_DELETED` of `admin`,
+`EV_TREEDB_NODE_UPDATED` of `carol` with `enabled` true and
+`EV_TREEDB_NODE_CREATED` of `mallory`: each one answered `-1`, ONE WARNING
+*"treedb event not published by the treedb of the broker, refused"* for the
+three (the brake), and authz unchanged. Then the same changes made in the
+broker's treedb reach authz: `bob` created (enabled), `enabled` false
+(disabled), true (enabled), deleted (disabled). No port. Red on 7.30.26:
+`admin` disabled, `carol` enabled, `mallory` created, no WARNING.
+
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
 after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.
 
@@ -439,7 +452,8 @@ The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
 `client_noqueue`, `gate_cut`, `gate_flood`, `gate_answers`,
 `broker_takeover`, `broker_no_play`, `broker_answers`, `broker_stop_drain`,
-`gate_reader`, `broker_sessions`, `broker_stop_dropped`)
+`gate_reader`, `broker_sessions`, `broker_stop_dropped`,
+`broker_treedb_src`)
 work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end; each binary has a port of its own.

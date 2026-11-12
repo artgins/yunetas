@@ -24,6 +24,7 @@
  *              Constants
  ***************************************************************************/
 #define SUBS_KEY    "@subs"     /* Key for subscribers array in tree nodes */
+#define FOREIGN_TREEDB_LOG_INTERVAL_MS  (10*1000)   // one WARNING per interval, see treedb_event_is_mine()
 
 /***************************************************************************
  *              Structures
@@ -40,6 +41,7 @@ PRIVATE int sub__remove_client(hgobj gobj, const char *client_id);
 PRIVATE int will__send(hgobj gobj, json_t *session);
 PRIVATE BOOL mqtt_acl_check(hgobj gobj, const char *client_id, const char *topic, const char *access);
 PRIVATE int will__clear(hgobj gobj, json_t *session);
+PRIVATE BOOL treedb_event_is_mine(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -196,6 +198,9 @@ typedef struct _PRIVATE_DATA {
     char msg2db_alarms_name[80]; // TODO review, is used?
 
     char treedb_name[NAME_MAX];
+
+    uint64_t foreign_treedb_t_next;     // brake of the WARNING of treedb_event_is_mine()
+    uint32_t foreign_treedb_suppressed;
 
 } PRIVATE_DATA;
 
@@ -3662,6 +3667,43 @@ PRIVATE size_t sub__messages_queue(
     return total_sent;
 }
 
+/***************************************************************************
+ *  Is this EV_TREEDB_NODE_* of the treedb this broker subscribed to?
+ *  The three names are public (C_NODE), so a peer of a gate of the broker
+ *  (an ievent session of __top_side__, whatever its role) can send them
+ *  and C_IOGATE publishes them again as its own. Up to 7.30.26 they were
+ *  obeyed: one frame disabled any user of authz (`admin` too, persistent,
+ *  its sessions cut), re-enabled one, or created one. Refused with a
+ *  WARNING said once every FOREIGN_TREEDB_LOG_INTERVAL_MS, with the count
+ *  of the ones not said.
+ ***************************************************************************/
+PRIVATE BOOL treedb_event_is_mine(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src && src == priv->gobj_treedb_mqtt_broker) {
+        return TRUE;
+    }
+
+    if(priv->foreign_treedb_t_next && !test_msectimer(priv->foreign_treedb_t_next)) {
+        priv->foreign_treedb_suppressed++;
+        return FALSE;
+    }
+    priv->foreign_treedb_t_next = start_msectimer(FOREIGN_TREEDB_LOG_INTERVAL_MS);
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "treedb event not published by the treedb of the broker, refused",
+        "event",        "%s", event,
+        "src",          "%s", src? gobj_short_name(src) : "",
+        "channel",      "%s", kw_get_str(gobj, kw, "__temp__`channel", "", 0),
+        "suppressed",   "%u", (unsigned)priv->foreign_treedb_suppressed,
+        NULL
+    );
+    priv->foreign_treedb_suppressed = 0;
+    return FALSE;
+}
+
 
 
 
@@ -4817,6 +4859,11 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, gobj_event_t event, json_t *kw, hg
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!treedb_event_is_mine(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return -1;  // Error already logged (or braked)
+    }
+
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
@@ -4866,6 +4913,11 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, gobj_event_t event, json_t *kw, hg
 PRIVATE int ac_treedb_node_updated(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!treedb_event_is_mine(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return -1;  // Error already logged (or braked)
+    }
 
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
@@ -4929,6 +4981,11 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, gobj_event_t event, json_t *kw, h
 PRIVATE int ac_treedb_node_deleted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!treedb_event_is_mine(gobj, event, kw, src)) {
+        KW_DECREF(kw);
+        return -1;  // Error already logged (or braked)
+    }
 
     // TODO search sessions of a client deleted, disconnect and delete session, client and queues?
     // TODO and avoid delete a client if it has a session active?

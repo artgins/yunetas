@@ -646,6 +646,14 @@ logged two ERRORs per tick. The user is not put in the kw of those commands: a k
 with `__username__` is a peer's command for `C_TREEDB` (see
 [the broker's treedb](#mqtt-broker-treedb-user)).
 
+**The topic `users` of its treedb administers the users of authz**
+(`EV_ADD_USER`, `EV_REJECT_USER`), and only from the events its own treedb
+publishes: an `EV_TREEDB_NODE_CREATED` / `_UPDATED` / `_DELETED` from any other
+`src` (a peer of a gate sends them by name, they are public in `C_NODE`) is
+refused with a braked WARNING, *"treedb event not published by the treedb of
+the broker, refused"*. Up to 7.30.26 it was obeyed. See
+[the users of the treedb](#mqtt-broker-users-sync).
+
 Driven by the [`mqtt_broker`](../yunos/mqtt_broker.md) yuno — see that page for
 the protocol/persistence/configuration details.
 

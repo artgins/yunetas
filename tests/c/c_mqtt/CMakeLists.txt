@@ -74,6 +74,7 @@ SET(SRCS
     gate_reader
     broker_sessions
     broker_stop_dropped
+    broker_treedb_src
 )
 
 ##############################################
