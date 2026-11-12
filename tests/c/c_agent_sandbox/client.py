@@ -63,6 +63,18 @@
 #      after a crash, answer nothing more to the session that ran it, nor to
 #      one that took its channel. Up to 7.30.26 the relaunch answered that
 #      run-yuno again, to whoever held the channel.
+#  12. a run-yuno of a yuno that plays by itself (must_play true): the
+#      session that ran it gets the answer of the run and the one of the
+#      play, once (a relaunch by the watcher answers nothing more); a
+#      session that leaves before the yuno reaches the agent (the yuno held
+#      with SIGSTOP) gets nothing, and neither does the session that takes
+#      its channel.
+#
+#   kill-yuno answers when the yuno left the agent, and its watcher ends
+#   right after: until then a run-yuno is refused ("alive but not
+#   connected"), so a kill waits for both. trace-on-yuno answers once it
+#   sent the order, and the yuno saves its trace when it takes it: the file
+#   is waited for.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -207,16 +219,146 @@ async def run_and_wait(ws, yid):
     return None
 
 
-async def kill_and_wait(ws, yid, pid):
+async def kill_and_wait(ws, yid, row):
+    """kill-yuno of the yuno of `row` (list-yunos), and wait until it and
+    its watcher are gone. kill-yuno answers when the yuno left the agent;
+    its watcher ends right after (its child ended with 0), and until then a
+    run-yuno is refused ("alive but not connected"), as it must be while a
+    process of the yuno lives"""
+    pid = row.get("yuno_pid") or 0
+    watcher_pid = row.get("watcher_pid") or 0
     r = await ask(ws, "kill-yuno", {"id": yid}, secs=30)
     check("kill-yuno %s: %s" % (yid, r.get("comment")), r.get("result") == 0)
     for i in range(100):
         r = await ask(ws, "list-yunos", {"id": yid})
         rows = r.get("data") or []
-        if not alive(pid) and rows and not rows[0].get("yuno_running"):
+        if not alive(pid) and (watcher_pid <= 1 or not alive(watcher_pid)) and \
+                rows and not rows[0].get("yuno_running"):
             return
         await asyncio.sleep(0.1)
-    check("kill-yuno %s: it ended" % yid, False)
+    check("kill-yuno %s: it and its watcher ended" % yid, False)
+
+
+async def saved(path):
+    """trace-on-yuno answers once it sent the order to the yuno, which
+    saves its trace when it takes it: wait for the file, up to 10 s"""
+    for i in range(100):
+        if os.path.exists(path):
+            return True
+        await asyncio.sleep(0.1)
+    return False
+
+
+async def must_play_true(ws, yid):
+    """Run the yuno, play it (must_play true now), and kill it"""
+    running = await run_and_wait(ws, yid)
+    check("must_play: the yuno runs", running is not None)
+    if running is None:
+        return
+    r = await ask(ws, "play-yuno", {"id": yid}, secs=30)
+    check("must_play: play-yuno: %s" % r.get("comment"), r.get("result") == 0)
+    r = await ask(ws, "list-yunos", {"id": yid})
+    rows = r.get("data") or []
+    check("must_play: true", bool(rows) and rows[0].get("must_play") is True)
+    await kill_and_wait(ws, yid, running)
+
+
+async def playing_again(ws, yid, old_pid, secs=15):
+    """The row of the yuno when it plays with a pid that is not `old_pid`"""
+    for i in range(secs * 10):
+        r = await ask(ws, "list-yunos", {"id": yid})
+        rows = r.get("data") or []
+        if rows and rows[0].get("yuno_playing") and rows[0].get("yuno_pid") not in (0, old_pid):
+            return rows[0]
+        await asyncio.sleep(0.1)
+    return None
+
+
+def command_answers(got):
+    return [g["kw"].get("comment") or "" for g in got if g.get("event") == "EV_MT_COMMAND_ANSWER"]
+
+
+async def play_answer_once(ws, yid):
+    """The session that ran it gets the answer of the run and the one of the
+    play; the relaunch by its watcher answers nothing more"""
+    a, ack = await session()
+    check("play answer: a session", ack.get("result") == 0)
+    await a.send(command("run-yuno", {"id": yid}))
+    got = await answers(a, 30, lambda g: any("to play" in c for c in command_answers(g)))
+    comments = command_answers(got)
+    check("play answer: the session that ran it gets the answer of the run: %s" % comments,
+        len([c for c in comments if "to run" in c]) == 1)
+    check("play answer: and the answer of the play, once: %s" % comments,
+        len([c for c in comments if "to play" in c]) == 1)
+    played = await playing_again(ws, yid, 0)
+    check("play answer: the yuno plays", played is not None)
+    if played is None:
+        await a.close()
+        return
+    os.kill(played["yuno_pid"], signal.SIGSEGV)
+    again = await playing_again(ws, yid, played["yuno_pid"])
+    check("play answer: relaunched by its watcher, and played", again is not None)
+    got = await answers(a, 3)
+    check("play answer: nothing more to the session that ran it: %s" % command_answers(got),
+        not command_answers(got))
+    await kill_and_wait(ws, yid, again or played)
+    await a.close()
+
+
+def parent_name(pid):
+    """The name of the parent of `pid`, "" when gone"""
+    try:
+        with open("/proc/%d/stat" % pid) as f:
+            ppid = int(f.read().split(") ")[1].split()[1])
+        with open("/proc/%d/comm" % ppid) as f:
+            return f.read().strip()
+    except (OSError, ValueError, IndexError):
+        return ""
+
+
+async def stop_processes_of(name, secs):
+    """SIGSTOP every process named `name` as it appears, within `secs`
+    (until 0.5 s after the first one): its pids. Not the one the agent
+    launches: the agent waits for it to put the watcher in the background
+    and end, and a stopped one would hold the agent"""
+    stopped = []
+    end = time.monotonic() + secs
+    while time.monotonic() < end:
+        for pid in processes_named(name):
+            if pid not in stopped and parent_name(pid) != "yuneta_agent":
+                os.kill(pid, signal.SIGSTOP)
+                stopped.append(pid)
+                end = min(end, time.monotonic() + 0.5)
+        await asyncio.sleep(0.002)
+    return stopped
+
+
+async def play_answer_not_to_another_session(ws, yid):
+    """The session that ran it leaves before the yuno reaches the agent, and
+    another session takes its channel: the play answers nobody"""
+    a, ack = await session()
+    check("play answer, session gone: a session", ack.get("result") == 0)
+    await a.send(command("run-yuno", {"id": yid}))
+    stopped = await stop_processes_of("logcenter", 5)
+    r = await ask(ws, "list-yunos", {"id": yid})
+    rows = r.get("data") or []
+    check("play answer, session gone: the yuno stopped before it reached the agent: %s" % stopped,
+        bool(stopped) and bool(rows) and not rows[0].get("yuno_running"))
+    await a.close()
+    await asyncio.sleep(0.5)
+    b, ack = await session()     # it takes the channel of the one that left
+    check("play answer, session gone: another session", ack.get("result") == 0)
+    for pid in stopped:
+        os.kill(pid, signal.SIGCONT)
+    played = await playing_again(ws, yid, 0)
+    check("play answer, session gone: the yuno plays", played is not None)
+    got = await answers(b, 3)
+    plays = [c for c in command_answers(got) if "to play" in c]
+    check("play answer, session gone: no answer of the play to the session that took the channel: %s" % plays,
+        not plays)
+    if played:
+        await kill_and_wait(ws, yid, played)
+    await b.close()
 
 
 async def refused_card(role, pid, **kw):
@@ -383,13 +525,7 @@ async def main():
             check("one instance: its watcher and its child",
                 sorted(processes_named("logcenter")) ==
                     sorted([relaunched["watcher_pid"], relaunched["yuno_pid"]]))
-        r = await ask(ws, "kill-yuno", {"id": relaunched["id"]}, secs=30)
-        check("kill-yuno of the running logcenter", r.get("result") == 0)
-        for i in range(100):
-            if not alive(relaunched["yuno_pid"]):
-                break
-            await asyncio.sleep(0.1)
-        check("kill-yuno of the running logcenter: it ended", not alive(relaunched["yuno_pid"]))
+        await kill_and_wait(ws, yid, relaunched)
 
         #   8. trace-on-yuno and trace-off-yuno of a yuno not connected to
         #      the agent: nothing reaches it, the answer says so, and
@@ -403,7 +539,7 @@ async def main():
             r = await ask(ws, "trace-on-yuno", {"id": yid, "level": "machine,ev_kw"})
             check("trace-on-yuno level=machine,ev_kw: %s" % r.get("comment"), r.get("result") == 0)
             check("traced is true", await traced() is True)
-            await kill_and_wait(ws, yid, running["yuno_pid"])
+            await kill_and_wait(ws, yid, running)
             r = await ask(ws, "trace-off-yuno", {"id": yid})
             comment = r.get("comment") or ""
             check("trace-off-yuno of the stopped yuno: not reached: %s" % comment,
@@ -424,7 +560,7 @@ async def main():
                 check("traced is false", await traced() is False)
                 off = await global_traces()
                 check("the yuno traces nothing: %s" % off, off == [])
-                await kill_and_wait(ws, yid, running["yuno_pid"])
+                await kill_and_wait(ws, yid, running)
 
         #   11. A run-yuno that plays (play=1, the default) keeps its
         #       requester for the answer of the play: it goes with the first
@@ -477,8 +613,22 @@ async def main():
             r = await ask(ws, "pause-yuno", {"id": yid}, secs=30)
             check("%s: pause-yuno (must_play false again): %s" % (how, r.get("comment")), r.get("result") == 0)
             if again:
-                await kill_and_wait(ws, yid, again["yuno_pid"])
+                await kill_and_wait(ws, yid, again)
             await listener.close()
+
+        #   12. A run-yuno of a yuno that plays by itself (must_play true):
+        #       the answer of its play goes to the session that ran it, once,
+        #       and only while that session holds its channel. A session
+        #       that leaves before the yuno reaches the agent (the yuno
+        #       stopped meanwhile, SIGSTOP) gets nothing, nor does the one
+        #       that takes its channel.
+        await must_play_true(ws, yid)
+        await play_answer_once(ws, yid)
+        await play_answer_not_to_another_session(ws, yid)
+        r = await ask(ws, "list-yunos", {"id": yid})
+        rows = r.get("data") or []
+        check("must_play is still true: %s" % (rows[0].get("must_play") if rows else None),
+            bool(rows) and rows[0].get("must_play") is True)
 
     #   9. delete-yuno whole=1 removes the trace the yuno saved: a yuno
     #      created again with the same id starts with none. Up to 7.30.22
@@ -497,17 +647,17 @@ async def main():
         ):
             r = await ask(ws, cmd, kw, secs=30)
             check(cmd + " " + orole + ": %s" % r.get("comment"), r.get("result") == 0)
-        saved = "/yuneta/realms/t/w.prod.test/%s^%s/data/C_YUNO-z-persistent-attrs.json" % (orole, oid)
+        saved_trace = "/yuneta/realms/t/w.prod.test/%s^%s/data/C_YUNO-z-persistent-attrs.json" % (orole, oid)
         running = await run_and_wait(ws, oid)
         check(orole + " runs, connected", running is not None)
         if running:
             r = await ask(ws, "trace-on-yuno", {"id": oid, "level": "machine"})
             check("trace-on-yuno of " + orole + ": %s" % r.get("comment"), r.get("result") == 0)
-            check("its trace is saved in " + saved, os.path.exists(saved))
-            await kill_and_wait(ws, oid, running["yuno_pid"])
+            check("its trace is saved in " + saved_trace, await saved(saved_trace))
+            await kill_and_wait(ws, oid, running)
             r = await ask(ws, "delete-yuno", {"id": oid, "whole": True})
             check("delete-yuno whole=1: %s" % r.get("comment"), r.get("result") == 0)
-            check("its saved trace is removed", not os.path.exists(saved))
+            check("its saved trace is removed", not os.path.exists(saved_trace))
             r = await ask(ws, "create-yuno",
                 {"id": oid, "realm_id": "w.prod.test", "yuno_role": orole, "yuno_name": "z"})
             check("create-yuno again, the same id: %s" % r.get("comment"), r.get("result") == 0)
@@ -519,7 +669,7 @@ async def main():
                 r = await ask(ws, "list-yunos", {"id": oid})
                 rows = r.get("data") or []
                 check("and traced is false", bool(rows) and rows[0].get("traced") is False)
-                await kill_and_wait(ws, oid, running["yuno_pid"])
+                await kill_and_wait(ws, oid, running)
 
         #   10. delete-yuno yuno_release=<its only release> takes the whole
         #       yuno, so it removes the trace the yuno saved too. Up to
@@ -530,8 +680,8 @@ async def main():
         if running:
             r = await ask(ws, "trace-on-yuno", {"id": oid, "level": "machine"})
             check("trace-on-yuno of " + orole + " again: %s" % r.get("comment"), r.get("result") == 0)
-            check("its trace is saved again in " + saved, os.path.exists(saved))
-            await kill_and_wait(ws, oid, running["yuno_pid"])
+            check("its trace is saved again in " + saved_trace, await saved(saved_trace))
+            await kill_and_wait(ws, oid, running)
             release = running.get("yuno_release") or ""
             r = await ask(ws, "list-yunos", {"id": oid})
             check("it has one release only: %s" % release,
@@ -541,7 +691,7 @@ async def main():
                 r.get("result") == 0)
             r = await ask(ws, "list-yunos", {"id": oid})
             check("the yuno is gone", not (r.get("data") or []))
-            check("its saved trace is removed, deleted by its only release", not os.path.exists(saved))
+            check("its saved trace is removed, deleted by its only release", not os.path.exists(saved_trace))
             r = await ask(ws, "create-yuno",
                 {"id": oid, "realm_id": "w.prod.test", "yuno_role": orole, "yuno_name": "z"})
             check("create-yuno again after the delete by release: %s" % r.get("comment"), r.get("result") == 0)
@@ -551,7 +701,7 @@ async def main():
                 r = await ask(ws, "command-yuno id=%s service=__root__ command=get-global-trace" % oid, {})
                 check("the yuno created again after the delete by release traces nothing: %s" % r.get("data"),
                     r.get("data") == [])
-                await kill_and_wait(ws, oid, running["yuno_pid"])
+                await kill_and_wait(ws, oid, running)
 
     #   5. a card the agent accepts, of a yuno registered and not running,
     #      that says pid -1: the pid is not recorded, and the kill-yuno that

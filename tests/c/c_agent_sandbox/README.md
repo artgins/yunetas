@@ -110,6 +110,22 @@ has no `websockets`.
     stays, then it leaves. Up to 7.30.26 the relaunch answered that
     `run-yuno` again, to whoever held the channel then (with nobody, the
     yuno itself, whose link to the agent was cut by it).
+12. A `run-yuno` of a yuno that plays by itself (`must_play` true, set by a
+    `play-yuno`): the session that ran it gets the answer of the run and
+    the answer of the play, once each; the watcher's relaunch after a
+    SIGSEGV plays it again and answers nothing more. Then a session runs it
+    and leaves before the yuno reaches the agent (the test holds the yuno's
+    processes with SIGSTOP as they appear), another session takes its
+    channel, and the yuno goes on (SIGCONT): the play is answered to nobody
+    (the agent checks the session that holds the channel).
+
+Two waits are the design's, not a clock: `kill-yuno` answers once the yuno
+left the agent, and its watcher ends right after it (its child ended with
+0); until then a `run-yuno` is refused (*"alive but not connected to the
+agent: not launched again"*), as it must be while a process of the yuno
+lives. So every kill waits until the yuno and its watcher are gone.
+`trace-on-yuno` answers once it sent the order, and the yuno saves its trace
+when it takes it: the test waits for the file (up to 10 s).
 
 The test does not have a process of another user (the sandbox maps one uid
 only), so it cannot show that `find_living_yuno_pids()` skips one: it shows
