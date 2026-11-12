@@ -242,8 +242,9 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        /*  Strict FIFO of the warnings and errors: one refusal for the session  */
-        json_pack("[{s:s}]",
+        /*  Strict FIFO of the warnings and errors: one refusal per session  */
+        json_pack("[{s:s}, {s:s}]",
+            "msg", "play/pause of the yuno refused: only the link to its agent plays or pauses it",
             "msg", "play/pause of the yuno refused: only the link to its agent plays or pauses it"
         ),
         NULL,   // expected
@@ -267,10 +268,10 @@ static void cleaning(void)
 
     result += test_json(NULL);
 
-    if(refusal_lines != 1 || refusal_priority != LOG_WARNING) {
-        printf("%sERROR --> %s: lines %d (expected 1), priority %d (expected %d)%s\n",
+    if(refusal_lines != 2 || refusal_priority != LOG_WARNING) {
+        printf("%sERROR --> %s: lines %d (expected 2), priority %d (expected %d)%s\n",
             On_Red BWhite,
-            "the refusal is not ONE warning",
+            "the refusal is not ONE warning per session",
             refusal_lines,
             refusal_priority,
             LOG_WARNING,

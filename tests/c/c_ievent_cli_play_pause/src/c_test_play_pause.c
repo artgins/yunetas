@@ -76,6 +76,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_cli_agent;   // the link to the agent
     hgobj channel_other;    // the server's channel of each client
     hgobj channel_agent;
+    int other_sessions;     // sessions of cli_other (its server drops the first)
     int other_acks;         // acks of cli_other
     int agent_acks;         // acks of cli_agent
     int pauses;             // mt_pause of this gobj (the yuno paused)
@@ -263,9 +264,18 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         if(strcmp(wanted_role, "central")==0) {
             priv->channel_other = channel;
-            send_frame(gobj, channel, EV_PAUSE_YUNO, frame_kw("__message__", "yuneta_agent"));
-            send_frame(gobj, channel, EV_PAUSE_YUNO, frame_kw("__message__", "yuneta_agent"));
-            send_frame(gobj, channel, EV_PLAY_YUNO, frame_kw("__message__", "yuneta_agent"));
+            priv->other_sessions++;
+            if(priv->other_sessions == 1) {
+                send_frame(gobj, channel, EV_PAUSE_YUNO, frame_kw("__message__", "yuneta_agent"));
+                send_frame(gobj, channel, EV_PAUSE_YUNO, frame_kw("__message__", "yuneta_agent"));
+                send_frame(gobj, channel, EV_PLAY_YUNO, frame_kw("__message__", "yuneta_agent"));
+            } else {
+                /*
+                 *  A new session of the same link: its refusal is said
+                 *  again (the mark goes with the session)
+                 */
+                send_frame(gobj, channel, EV_PAUSE_YUNO, frame_kw("__message__", "yuneta_agent"));
+            }
         } else if(strcmp(wanted_role, "yuneta_agent")==0) {
             priv->channel_agent = channel;
             send_frame(gobj, channel, EV_PAUSE_YUNO, frame_kw("__message__", "yuneta_agent"));
@@ -286,17 +296,28 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, "the yuno was never paused", priv->pauses == 0);
             if(priv->other_acks == 3) {
                 check(gobj, "the last of the three acks is the play's", iev_event == EV_PLAY_YUNO_ACK);
+                gobj_send_event(channel, EV_DROP, 0, gobj);     // the session ends, the link comes back
+            } else if(priv->other_acks == 4) {
+                check(gobj, "the fourth ack is of the second session", priv->other_sessions == 2);
+                check(gobj, "the ack of the second session's pause", iev_event == EV_PAUSE_YUNO_ACK);
                 gobj_start_tree(priv->gobj_cli_agent);
             }
 
         } else if(channel == priv->channel_agent) {
             priv->agent_acks++;
-            check(gobj, "the agent's link pauses the yuno (ack 0)", ack_result == 0);
-            check(gobj, "the ack of the agent's pause", iev_event == EV_PAUSE_YUNO_ACK);
-            check(gobj, "the yuno is paused", !gobj_is_playing(gobj_yuno()));
-            check(gobj, "the yuno was paused once", priv->pauses == 1);
-            check(gobj, "the three refusals came first", priv->other_acks == 3);
-            set_yuno_must_die();
+            if(priv->agent_acks == 1) {
+                check(gobj, "the agent's link pauses the yuno (ack 0)", ack_result == 0);
+                check(gobj, "the ack of the agent's pause", iev_event == EV_PAUSE_YUNO_ACK);
+                check(gobj, "the yuno is paused", !gobj_is_playing(gobj_yuno()));
+                check(gobj, "the yuno was paused once", priv->pauses == 1);
+                check(gobj, "the four refusals came first", priv->other_acks == 4);
+                send_frame(gobj, channel, EV_PLAY_YUNO, frame_kw("__message__", "yuneta_agent"));
+            } else {
+                check(gobj, "the agent's link plays the yuno (ack 0)", ack_result == 0);
+                check(gobj, "the ack of the agent's play", iev_event == EV_PLAY_YUNO_ACK);
+                check(gobj, "the yuno plays again", gobj_is_playing(gobj_yuno()));
+                set_yuno_must_die();
+            }
 
         } else {
             check(gobj, "an ack of a known channel", FALSE);
