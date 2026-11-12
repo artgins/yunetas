@@ -135,6 +135,12 @@ one ERROR, *"__temp__ of a message is not a dict, replaced"* (7.30.27+; up to
 7.30.26 it was two ERRORs and the value stayed, and the subscriber read it as
 the channel).
 
+The event of an `EV_ON_IEV_MESSAGE` is one a peer sent, and the gate
+publishes it as its own. So a peer can never name an event the transport
+publishes itself (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, ...): the
+session refuses it before it gets here (7.30.27+, see
+[`C_IEVENT_SRV`](#gclass-c-ievent-srv), "A frame the gate cannot route").
+
 A send with no channel to go to (none named, none open) is refused with
 *"No channel FOUND to send"*, an ERROR said once every 1000 in a row, its
 `repeated` the ones not said since the last one; a send that finds a channel

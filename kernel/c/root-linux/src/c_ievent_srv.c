@@ -61,6 +61,7 @@ typedef enum {
     PEER_LOG_BAD_REQUEST,
     PEER_LOG_UNROUTED,
     PEER_LOG_CARD_IN_SESSION,
+    PEER_LOG_TRANSPORT_EVENT,
     PEER_LOG_KINDS
 } peer_log_kind_t;
 
@@ -164,6 +165,7 @@ PRIVATE int reject_unrouted_iev(
     const char *comment,
     hgobj src
 );
+PRIVATE BOOL is_transport_event(gobj_event_t event);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -2155,6 +2157,22 @@ PRIVATE json_t *find_peer_subscriptions(
 }
 
 /***************************************************************************
+ *  The events a transport publishes on its own (C_IOGATE, C_CHANNEL, this
+ *  session): a channel that opens, closes, identifies itself or receives.
+ *  Compared by pointer, events are interned. EV_ON_COMMAND is not one of
+ *  them: no transport emits it and the agent takes it as an answer.
+ ***************************************************************************/
+PRIVATE BOOL is_transport_event(gobj_event_t event)
+{
+    return (event == EV_ON_OPEN ||
+        event == EV_ON_CLOSE ||
+        event == EV_ON_MESSAGE ||
+        event == EV_ON_IEV_MESSAGE ||
+        event == EV_ON_ID ||
+        event == EV_ON_ID_NAK)? TRUE:FALSE;
+}
+
+/***************************************************************************
  *  Reject a per-message ievent that cannot be routed (unauthorized service,
  *  or service not found) WITHOUT leaving the channel in a zombie state.
  *
@@ -2802,6 +2820,34 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*----------------------*
          *      Inject event
          *----------------------*/
+        /*-------------------------------------------------------*
+         *  What the transport says ITSELF is never a peer's: its
+         *  subscriber (a C_IOGATE, which publishes it again as its
+         *  own) cannot tell it from the real one. Those names are
+         *  public in other gclasses (C_PROT_HTTP_SR, C_POSTGRES), so
+         *  the frame reads. Up to 7.30.26 an EV_ON_OPEN of a peer
+         *  reached the agent and the control center as a channel that
+         *  opened, an EV_ON_CLOSE as one that closed.
+         *-------------------------------------------------------*/
+        if(is_transport_event(iev_event)) {
+            json_int_t suppressed = 0;
+            if(peer_log_allowed(gobj, PEER_LOG_TRANSPORT_EVENT, &suppressed)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PROTOCOL,
+                    "msg",          "%s", "event of the transport itself sent by a peer, refused",
+                    "event",        "%s", iev_event,
+                    "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+                    "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                    "suppressed",   "%ld", (long)suppressed,
+                    NULL
+                );
+            }
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return 0;   // the frame dropped, the channel stays
+        }
+
         /*-------------------------------------------------------*
          *  Filter public events of this gobj
          *-------------------------------------------------------*/

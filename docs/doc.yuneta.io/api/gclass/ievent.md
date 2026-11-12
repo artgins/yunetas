@@ -449,6 +449,7 @@ and how:
 | A command or a stats request that names no command (neither `__command__` in the kw nor in its stack), or whose `service` is not a string | Answered with an error; the channel stays. | *"Request without the command or stats it asks, refused"*, WARNING, the kw capped, same pace. |
 | A command or a stats request whose `service` does not exist, or is one the channel may not reach | Answered with an error; the channel stays. | *"Service not found"* / *"Not authorized to request commands of a different service"* / *"Not authorized to request stats of a different service"*, WARNING, `MSGSET_AUTH`, same pace (one kind with the *"dst_service not authorized"* above). |
 | An event no gclass has as public (any state) | Closes the channel. | *"Frame of an event that is not public, refused"*, WARNING, `MSGSET_PROTOCOL`, the name masked and THEN capped to 64 bytes ([`mask_secrets_inline_capped()`](#mask_secrets_inline_capped): capped first, a token the cap cut showed its first bytes), the kw masked and capped to 256 bytes -- said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer), once per connection. Up to 7.26.9 it was silent there, and the gate traced the whole kw raw (*"iev_event NULL"*), credentials before the session among it. `C_IEVENT_CLI` the same. |
+| An event the transport publishes on its own (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, `EV_ON_IEV_MESSAGE`, `EV_ON_ID`, `EV_ON_ID_NAK`), in session. Other gclasses declare these names public (`C_PROT_HTTP_SR`, `C_POSTGRES`, the decoders of a gate), so the frame reads | Drops the frame; the channel stays. The gate's subscriber (a `C_IOGATE`, which publishes the event again as its own) hears nothing. Up to 7.30.26 it was published as if the transport had said it, with the kw the peer wrote: in the agent each `EV_ON_OPEN {}` was 16 ERRORs with a stack, and in the control center an agent could take a forged `EV_ON_OPEN` (its identity card and certificate) to the check of its node key, and an `EV_ON_CLOSE` wiped the state of its channel (7.30.27). `EV_ON_COMMAND` is not refused: no transport emits it, and the agent takes it as an answer. | *"event of the transport itself sent by a peer, refused"*, WARNING, `MSGSET_PROTOCOL`, the event, `peername` and `username`, at most once per 10 s (`suppressed` says how many were not written). |
 | `EV_REMOTE_LOG`: a log line of the peer's app (gobj-js `set_remote_log_functions()`), in session | Logged. | *"Remote Error"*, ERROR, `MSGSET_APP`, the `remote msg` capped to 1 KB and masked ([`mask_secrets_inline()`](#mask_secrets_inline)), its whole size and the `username`; the kw is not dumped. Up to 7.26.9 the text was written whole, and the kw traced raw. |
 
 Each of these is the peer's to repeat, frame after frame, so none writes a
@@ -475,7 +476,7 @@ Up to 7.30.14 the `service` of a command was not checked (only its routing
 was): that session reached every service of the yuno through it --
 `__yuno__` with its `write-attr`, `shutdown`, `add-denied-ip`.
 
-`tests/c/c_ievent_srv_peer_subs`.
+`tests/c/c_ievent_srv_peer_subs`, `tests/c/c_ievent_srv_transport_events`.
 
 ### What the client refuses from its server
 
