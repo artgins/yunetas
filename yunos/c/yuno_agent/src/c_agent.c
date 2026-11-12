@@ -1681,6 +1681,16 @@ PRIVATE int mt_pause(hgobj gobj)
      *      Stop services
      *-----------------------------*/
     /*
+     *  The watches go with the channels closed below: the yunos are told
+     *  to stop publishing now, while their channels are open and the
+     *  treedb says which process each one is. Up to 7.30.26 mt_stop did it
+     *  after the close: an ERROR "hgobj NULL or DESTROYED" with a stack,
+     *  and the yunos were told nothing.
+     */
+    json_object_clear(priv->watches);
+    watch_rearm_timer(gobj);
+
+    /*
      *  Nothing may bring an order once the treedbs are closed: the
      *  operators' side, and the link to the control center, whose orders
      *  run here (cmd_* on priv->resource). The loop goes on running between

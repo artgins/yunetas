@@ -47,9 +47,15 @@ of the agent. The agent takes one only from where it sent the order.
    requester: ONE WARNING *"requester of the answer not found: dropped"*.
    Up to 7.30.26 the answer was sent to that service.
 
-The log must hold no *"Event NOT DEFINED in state"*. The agent is then
-stopped in order (SIGINT): it must end with 0, with no *"system memory not
-free"*.
+Last, a session watches the yuno again and the agent asks it to publish;
+with the watch still armed the client sends the agent a SIGINT. The yuno
+must get its `publish-stats` with `stop`, and the log must hold no ERROR
+*"hgobj NULL or DESTROYED"*. Up to 7.30.26 the stop ended the watch after
+the pause had closed the treedb: that ERROR with a stack, and the yuno was
+told nothing.
+
+The log must hold no *"Event NOT DEFINED in state"*. The agent must end
+in order (exit 0), with no *"system memory not free"*.
 
 The agent's boot runs its enabled yunos some 3 s after it starts
 (`timerStBoot`, 0.1 s in `agent.json`): the yuno is created after that, so

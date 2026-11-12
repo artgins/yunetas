@@ -825,6 +825,18 @@ Otherwise it is refused (*"this client does not say it takes EV_YUNO_STATS
 client, or the control center in between, does not say it takes EV_YUNO_STATS
 (__relays__), ask stats-yuno instead"*) and the requester polls.
 
+When the agent stops, every watch ends with it. The pause of the stop ends
+the watches first, so each yuno that publishes gets its `publish-stats` with
+`stop` while its channel is still open:
+
+```json
+{"service": "__yuno__", "stats_service": "__yuno__", "period": 0, "ttl": 60000, "stop": true}
+```
+
+Up to 7.30.26 the stop ended the watches after the pause had closed the
+treedb: the yunos were told nothing, and the log held an ERROR *"hgobj NULL
+or DESTROYED"* with a stack.
+
 ## Redundancy
 
 Every node also runs [`yuneta_agent22`](yuneta_agent22.md), a minimal second

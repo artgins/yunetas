@@ -19,6 +19,10 @@
 #      one's (up to 7.30.26 it got both). The same with stats-yuno.
 #   3. The yuno answers to a service of the agent that is no requester (no
 #      channel, no link): dropped with a WARNING.
+#   5. The agent stops (SIGINT) with a watch armed and the yuno publishing:
+#      the yuno is told to stop publishing, with no ERROR (up to 7.30.26 the
+#      stop read the treedb its pause had closed: "hgobj NULL or DESTROYED"
+#      with a stack, and the yuno was told nothing).
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -27,6 +31,7 @@ import asyncio
 import base64
 import json
 import os
+import signal
 import struct
 import sys
 import time
@@ -221,6 +226,7 @@ class Yuno(Peer):
 
     def __init__(self):
         self.publish_asked = 0
+        self.publish_stopped = 0
         self.held = []
 
     async def serve(self):
@@ -236,6 +242,8 @@ class Yuno(Peer):
                     {"reading": YUNO_READING}))
             elif event == "EV_MT_COMMAND" and kw.get("__command__") == "publish-stats":
                 self.publish_asked += 1
+                if kw.get("stop") in (True, 1, "1", "true"):
+                    self.publish_stopped += 1
                 self.send(answer_of(iev, "EV_MT_COMMAND_ANSWER", 0, "publishing"))
             elif event in ("EV_MT_COMMAND", "EV_MT_STATS"):
                 self.held.append(iev)
@@ -302,6 +310,19 @@ async def left_before_its_answer(op_keep, yuno, yid, order, kw_order, answer_eve
     b.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
     check("%s: the agent ends the connection of the second session" % order, await b.closed(10))
     b.close()
+
+
+def agent_pid():
+    """The agent of the sandbox (a pid namespace of its own)"""
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                with open("/proc/%s/comm" % d) as f:
+                    if f.read().strip() == "yuneta_agent":
+                        return int(d)
+            except OSError:
+                pass
+    return 0
 
 
 async def main():
@@ -445,6 +466,28 @@ async def main():
 
     r = await op.ask("help", {"cmd": "stats-yuno"})
     check("the agent still answers", r.get("result") == 0)
+
+    #   5. The agent stops (SIGINT) with a watch still armed and the yuno
+    #   publishing: the yuno is told to stop publishing, and the log holds
+    #   no ERROR "hgobj NULL or DESTROYED" (up to 7.30.26 the stop asked for
+    #   the yuno in the treedb its pause had closed: an ERROR with a stack,
+    #   and the yuno was told nothing)
+    w2 = await session()
+    asked = yuno.publish_asked
+    r = await w2.ask("watch-yuno-stats", {"ids": yid, "period": 1000, "__relays__": ["EV_YUNO_STATS"]})
+    check("watch-yuno-stats before the stop: %s" % r.get("comment"), r.get("result") == 0)
+    check("the agent asks the yuno to publish its stats again",
+        await wait_for(lambda: yuno.publish_asked > asked, 10))
+    await asyncio.sleep(0.5)    # the agent took its answer: the publication is on
+    stopped = yuno.publish_stopped
+    pid = agent_pid()
+    check("the agent's pid: %d" % pid, pid > 0)
+    if pid > 0:
+        os.kill(pid, signal.SIGINT)
+    check("the yuno is told to stop publishing when the agent stops",
+        await wait_for(lambda: yuno.publish_stopped > stopped, 10))
+    await wait_for(lambda: pid <= 0 or not os.path.exists("/proc/%d" % pid), 15)
+
     serving.cancel()
     serving_other.cancel()
     for p in (op, f, g, w, yuno, other):

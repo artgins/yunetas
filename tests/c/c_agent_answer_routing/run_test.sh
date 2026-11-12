@@ -145,6 +145,12 @@ if [ "$nack" != "1" ] || [ "$nhs" != "0" ] || [ "$ngn" != "0" ]; then
     echo "TEST FAILED: $nack WARNING(s) for an ack not from a yuno (expected 1), $nhs \"hs_yuno NULL\" and $ngn \"gobj NULL\" (expected 0)"
     failed=1
 fi
+#   The stop with a watch armed: no ERROR of a treedb already closed
+nhn=$(grep -ac '"msg": "hgobj NULL or DESTROYED"' "$WORK/agent.log")
+if [ "$nhn" != "0" ]; then
+    echo "TEST FAILED: $nhn ERROR(s) \"hgobj NULL or DESTROYED\" (expected 0)"
+    failed=1
+fi
 if [ $failed -ne 0 ]; then
     echo "---- agent log (errors and warnings) ----"
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | grep -o "\"function\".*" | cut -c1-400 | tail -40
