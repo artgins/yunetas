@@ -634,7 +634,27 @@ the close of `C_PROT_TCP4H`; the channel leaves `ST_SESSION` only at its
 client waits for the server to end it, or for its `timeout_close`). In that
 window the channel is still in session, but its transport takes nothing.
 `C_IEVENT_SRV` and `C_IEVENT_CLI` ask their transport first (its state is
-`ST_DISCONNECTED`): a command or a stats is answered -1 *"`<yuno>`: service
+`ST_DISCONNECTED`). When the bottom of a `C_IEVENT_CLI` is a `C_IOGATE`, as in
+the agent's link to the control center, the iogate stays in `ST_IDLE` and the
+transport is the bottom of its opened `C_CHANNEL`: the client asks that one,
+and the link is closing when the transport of every opened channel is.
+
+```json
+{
+    "name": "controlcenter", "gclass": "C_IEVENT_CLI",
+    "children": [
+        {"name": "controlcenter_cli", "gclass": "C_IOGATE", "children": [
+            {"name": "controlcenter_cli", "gclass": "C_CHANNEL", "children": [
+                {"name": "controlcenter_cli", "gclass": "C_PROT_TCP4H", "children": [
+                    {"name": "controlcenter_cli", "gclass": "C_TCP"}
+                ]}
+            ]}
+        ]}
+    ]
+}
+```
+
+In that window a command or a stats is answered -1 *"`<yuno>`: service
 '`<name>`' not in session"* with one WARNING *"Not in session"*, as out of
 session; anything else that goes to the peer -- an answer, an event of a
 subscription, an injected event -- is dropped, and the channel logs one

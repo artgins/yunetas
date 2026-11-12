@@ -64,7 +64,10 @@
  *               peer leaves it before EV_ON_CLOSE): a command and a stats
  *               are answered -1 "not in session", an answer and an event
  *               to the peer return -1, with ONE WARNING "Transport
- *               closing, nothing sent" per channel and no ERROR. Up to
+ *               closing, nothing sent" per channel and no ERROR. The same
+ *               for a C_IEVENT_CLI above a C_IOGATE (the agent's link to
+ *               the control center), whose opened C_CHANNEL has its
+ *               C_PROT_TCP4H closing. Up to
  *               7.30.26 each was "Event NOT DEFINED in state" in the
  *               transport (an ERROR with a stack) and a command or a stats
  *               was never answered.
@@ -2260,6 +2263,44 @@ PRIVATE void check_secret_values(hgobj gobj)
     check_int("the transport closing (C_IEVENT_CLI): ONE warning", s_watch_msg_seen, 1);
     gobj_destroy(srv_closing);
     gobj_destroy(cli_closing);
+
+    /*
+     *  The same with a C_IOGATE in between, as the agent's link to the
+     *  control center is built: C_IEVENT_CLI -> C_IOGATE (always ST_IDLE)
+     *  -> C_CHANNEL (opened until EV_ON_CLOSE) -> C_PROT_TCP4H closing. Up
+     *  to 7.30.26 only the bottom gobj was asked, the iogate: an order went
+     *  down and was "Event NOT DEFINED in state" in the tcp4h.
+     */
+    hgobj cli_gate = gobj_create("ievent-cli-gate", C_IEVENT_CLI, 0, gobj);
+    hgobj gate = gobj_create("ievent-cli-gate", C_IOGATE, 0, cli_gate);
+    gobj_set_bottom_gobj(cli_gate, gate);
+    hgobj gate_channel = gobj_create("ievent-cli-gate", C_CHANNEL, 0, gate);
+    gobj_set_bottom_gobj(gate_channel, gobj_create(
+        "ievent-cli-gate", C_PROT_TCP4H, json_pack("{s:b}", "iamServer", 0), gate_channel
+    ));
+    gobj_write_bool_attr(gate_channel, "opened", TRUE);
+    gobj_change_state(gate_channel, ST_OPENED);
+    gobj_change_state(cli_gate, ST_SESSION);
+
+    watch("closing-not-written", "Not in session");
+    resp = gobj_command(cli_gate, "help", 0, gobj);
+    check_not_in_session("a command, its transport closing under an iogate", resp);
+    JSON_DECREF(resp)
+    resp = gobj_stats(cli_gate, "", 0, gobj);
+    check_not_in_session("a stats, its transport closing under an iogate", resp);
+    JSON_DECREF(resp)
+    unwatch_peer("a command and a stats, the transport closing under an iogate");
+
+    watch("closing-not-written", "Transport closing, nothing sent");
+    check_int("an event to the server, the transport closing under an iogate: -1",
+        gobj_send_event(cli_gate, EV_SEND_IEV,
+            iev_create(gobj, EV_MT_COMMAND_ANSWER, json_object()), gobj),
+        -1);
+    check_int("another event, the transport closing under an iogate: -1",
+        gobj_send_event(cli_gate, EV_TEST_SECRET_PUB, json_object(), gobj), -1);
+    unwatch_peer("two events, the transport closing under an iogate");
+    check_int("the transport closing under an iogate: ONE warning", s_watch_msg_seen, 1);
+    gobj_destroy(cli_gate);
 
     /*
      *  Masked BEFORE they are capped: capped first, the token that the cap

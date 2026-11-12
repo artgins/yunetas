@@ -23,6 +23,10 @@
 #include "c_authz.h"
 #include "msg_ievent.h"
 #include "c_ievent_cli.h"
+#ifdef __linux__
+#include "c_iogate.h"
+#include "c_channel.h"
+#endif
 
 /***************************************************************
  *              Constants
@@ -745,7 +749,34 @@ PRIVATE json_t *own_kw_to_send(hgobj gobj, json_t *kw)
 PRIVATE BOOL transport_closing(hgobj gobj)
 {
     hgobj below_gobj = gobj_bottom_gobj(gobj);
-    return below_gobj && gobj_in_this_state(below_gobj, ST_DISCONNECTED);
+    if(!below_gobj) {
+        return FALSE;
+    }
+#ifdef __linux__
+    if(gobj_typeof_gclass(below_gobj, C_IOGATE)) {
+        /*
+         *  A C_IOGATE stays in ST_IDLE: it sends through an opened channel,
+         *  and the transport is the bottom of that channel (the agent's link
+         *  to the control center). Closing when every opened channel's is.
+         */
+        BOOL closing = FALSE;
+        hgobj channel = gobj_first_child(below_gobj);
+        while(channel) {
+            if(gobj_typeof_gclass(channel, C_CHANNEL) &&
+                    !gobj_is_disabled(channel) &&
+                    gobj_read_bool_attr(channel, "opened")) {
+                hgobj transport = gobj_bottom_gobj(channel);
+                if(!transport || !gobj_in_this_state(transport, ST_DISCONNECTED)) {
+                    return FALSE;
+                }
+                closing = TRUE;
+            }
+            channel = gobj_next_child(channel);
+        }
+        return closing;
+    }
+#endif
+    return gobj_in_this_state(below_gobj, ST_DISCONNECTED);
 }
 
 /***************************************************************************
