@@ -22,12 +22,18 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NO_CHANNEL_LOG_EVERY    1000    // sends in a row with no channel, one said (send_one_rotate())
+#define NO_CHANNEL_LOG_EVERY    1000    // sends in a row with no channel, one said (refuse_without_channel())
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-typedef enum { // Can be used too in kw with "__send_type__" in EV_SEND_MESSAGE/EV_SEND_IEV events
+/*
+ *  Can be used too in kw with "__send_type__" in EV_SEND_MESSAGE/EV_SEND_IEV
+ *  events: a key of this yuno, like __temp__. The kw of a send is built by
+ *  the yuno's own code, never a peer's json, so the inter-event frontier
+ *  does not delete it (msg_ievent.md).
+ */
+typedef enum {
     TYPE_SEND_ONE_ROTATED = 0,  // send only one destination and rotated
     TYPE_SEND_ALL,              // send to all destinations
 } send_type_t;
@@ -38,6 +44,13 @@ typedef enum { // Can be used too in kw with "__send_type__" in EV_SEND_MESSAGE/
 PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 PRIVATE json_t *kw_for_one_channel(hgobj gobj, json_t *kw);
 PRIVATE int write_channel_in_temp(hgobj gobj, gobj_event_t event, json_t *kw, hgobj channel);
+PRIVATE void refuse_without_channel(
+    hgobj gobj,
+    gobj_event_t event,
+    const char *channel,
+    const char *msg
+);
+PRIVATE void end_without_channel(hgobj gobj, const char *why);
 
 /***************************************************************************
  *              Resources
@@ -134,7 +147,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t last_ms;
 
     json_t *jn_destination_filter;  // the channels a message can go to, see get_next_destination()
-    uint32_t no_channel_sends;      // sends in a row with no channel to go to, see send_one_rotate()
+    uint32_t no_channel_sends;      // sends in a row with no channel to go to, see refuse_without_channel()
+    json_int_t txMsgsNoChannel;     // messages not sent: no channel to go to
 
 } PRIVATE_DATA;
 
@@ -208,6 +222,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    end_without_channel(gobj, "the gate stops");
     gobj_stop_children(gobj);
     return 0;
 }
@@ -229,6 +244,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         priv->rxMsgsec = 0;
         priv->maxtxMsgsec = 0;
         priv->maxrxMsgsec = 0;
+        priv->txMsgsNoChannel = 0;
 
         priv->last_ms = 0;
     }
@@ -271,6 +287,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_object_set_new(jn_data, "rxMsgsec", json_integer(priv->rxMsgsec));
     json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
     json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
+    json_object_set_new(jn_data, "txMsgsNoChannel", json_integer(priv->txMsgsNoChannel));
 
     /*
      *  The response envelope, as every mt_stats (gobj.h): up to 7.25.21 the
@@ -823,6 +840,60 @@ PRIVATE int write_channel_in_temp(hgobj gobj, gobj_event_t event, json_t *kw, hg
 }
 
 /***************************************************************************
+ *  A send (or a drop) with no channel to go to. Said once every
+ *  NO_CHANNEL_LOG_EVERY in a row, per gate: `repeated` is how many were not
+ *  said since the last one. Up to 7.30.26 the count never moved, and every
+ *  send said it (send_all() and a drop with a stack).
+ ***************************************************************************/
+PRIVATE void refuse_without_channel(
+    hgobj gobj,
+    gobj_event_t event,
+    const char *channel,
+    const char *msg
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->no_channel_sends % NO_CHANNEL_LOG_EVERY == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", msg,
+            "channel",      "%s", channel?channel:"???",
+            "event",        "%s", event,
+            "repeated",     "%u", priv->no_channel_sends? (unsigned)(NO_CHANNEL_LOG_EVERY-1) : 0u,
+            NULL
+        );
+    }
+    priv->no_channel_sends++;
+}
+
+/***************************************************************************
+ *  The end of a run of sends with no channel (a send found one, or the
+ *  gate stops): said once, with the ones the brake did not say, and the
+ *  count starts again, so a new outage is said at once. Up to 7.30.26
+ *  the last ones (up to NO_CHANNEL_LOG_EVERY-1) were said nowhere.
+ ***************************************************************************/
+PRIVATE void end_without_channel(hgobj gobj, const char *why)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->no_channel_sends) {
+        return;
+    }
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_OPERATIONAL,
+        "msg",          "%s", "Sends with no channel ended",
+        "why",          "%s", why,
+        "without_channel", "%u", (unsigned)priv->no_channel_sends,
+        "not_said",     "%u", (unsigned)((priv->no_channel_sends - 1) % NO_CHANNEL_LOG_EVERY),
+        NULL
+    );
+    priv->no_channel_sends = 0;
+}
+
+/***************************************************************************
  *  Filter channels
  ***************************************************************************/
 PRIVATE hgobj get_next_destination(hgobj gobj)
@@ -870,28 +941,13 @@ PRIVATE int send_one_rotate(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             channel_gobj = get_next_destination(gobj);
         }
         if(!channel_gobj) {
-            /*
-             *  Said once every NO_CHANNEL_LOG_EVERY in a row: `repeated` is
-             *  how many were not said since the last one. Up to 7.30.26
-             *  the count never moved, and every send said it.
-             */
-            if(priv->no_channel_sends % NO_CHANNEL_LOG_EVERY == 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", "No channel FOUND to send",
-                    "channel",      "%s", channel?channel:"???",
-                    "event",        "%s", event,
-                    "repeated",     "%u", priv->no_channel_sends? (unsigned)(NO_CHANNEL_LOG_EVERY-1) : 0u,
-                    NULL
-                );
-            }
-            priv->no_channel_sends++;
+            priv->txMsgsNoChannel++;
+            refuse_without_channel(gobj, event, channel, "No channel FOUND to send");
             KW_DECREF(kw)
             return -1;
         }
     }
-    priv->no_channel_sends = 0;
+    end_without_channel(gobj, "a channel found to send");
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -1050,13 +1106,10 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     JSON_DECREF(jn_filter)
 
     if(!some) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "No channel FOUND to send",
-            "event",        "%s", event,
-            NULL
-        );
+        priv->txMsgsNoChannel++;
+        refuse_without_channel(gobj, event, "", "No channel FOUND to send");
+    } else {
+        end_without_channel(gobj, "a channel found to send");
     }
 
     if(!kw_handed) {
@@ -1294,14 +1347,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!empty_string(channel)) {
             channel_gobj = gobj_child_by_name(gobj, channel);
             if(!channel_gobj) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER,
-                    "msg",          "%s", "channel NOT FOUND",
-                    "channel",      "%s", channel,
-                    "event",        "%s", event,
-                    NULL
-                );
+                refuse_without_channel(gobj, event, channel, "channel NOT FOUND");
                 KW_DECREF(kw)
                 return -1;
             }

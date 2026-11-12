@@ -124,14 +124,23 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME, // test name
         json_pack("[{s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s},"
-                  " {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]", // errors_list
+                  " {s:s, s:s}, {s:s, s:s},"
+                  " {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s},"
+                  " {s:s, s:s}, {s:s, s:s}, {s:s, s:s}, {s:s, s:s}]", // errors_list
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_OPEN",
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_CLOSE",
             "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",
+            "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",  // a string
+            "msg", "__temp__ of a message is not a dict, replaced", "event", "EV_ON_MESSAGE",  // an integer
             "msg", "No channel FOUND to send", "repeated", "0",
             "msg", "No channel FOUND to send", "repeated", "999",
-            "msg", "No channel FOUND to send", "repeated", "999"
+            "msg", "No channel FOUND to send", "repeated", "999",
+            "msg", "No channel FOUND to send", "repeated", "0",     // a new run: said at once
+            "msg", "No channel FOUND to send", "repeated", "0",     // to all
+            "msg", "No channel FOUND to send", "repeated", "999",
+            "msg", "channel NOT FOUND", "repeated", "0",            // drops
+            "msg", "channel NOT FOUND", "repeated", "999"
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
@@ -142,12 +151,75 @@ static int register_yuno_and_more(void)
 }
 
 /***************************************************************************
+ *  The end of each run of sends with no channel: an INFO, in order, with
+ *  what the brake did not say
+ ***************************************************************************/
+typedef struct {
+    const char *why;
+    const char *without_channel;
+    const char *not_said;
+} run_end_t;
+PRIVATE const run_end_t run_ends[] = {
+    {"a channel found to send", "2500", "499"},
+    {"a channel found to send", "1",    "0"},
+    {"a channel found to send", "1500", "499"},
+    {"the gate stops",          "1200", "199"},
+    {0, 0, 0}
+};
+int run_ends_seen = 0;
+int run_ends_wrong = 0;
+
+static BOOL line_has(const char *bf, size_t len, const char *key, const char *value, BOOL quoted)
+{
+    char pair[128];
+    if(quoted) {
+        snprintf(pair, sizeof(pair), "\"%s\": \"%s\"", key, value);
+    } else {
+        snprintf(pair, sizeof(pair), "\"%s\": %s", key, value);   // the log writes a number as one
+    }
+    size_t plen = strlen(pair);
+    const char *p = memmem(bf, len, pair, plen);
+    if(!p) {
+        return FALSE;
+    }
+    size_t after = (size_t)(p - bf) + plen;
+    return (after < len && bf[after] >= '0' && bf[after] <= '9')? FALSE:TRUE;  // 499, not 4990
+}
+
+static int run_end_log_write(void *v, int priority, const char *bf, size_t len)
+{
+    const char *mark = "Sends with no channel ended";
+    if(!memmem(bf, len, mark, strlen(mark))) {
+        return 0;
+    }
+    int i = run_ends_seen++;
+    if(i >= (int)(sizeof(run_ends)/sizeof(run_ends[0])) - 1 ||
+            priority != LOG_INFO ||
+            !line_has(bf, len, "why", run_ends[i].why, TRUE) ||
+            !line_has(bf, len, "without_channel", run_ends[i].without_channel, FALSE) ||
+            !line_has(bf, len, "not_said", run_ends[i].not_said, FALSE)) {
+        printf("%sERROR --> %s: %.*s%s\n", On_Red BWhite,
+            "the end of a run with no channel is not the expected", (int)len, bf, Color_Off);
+        run_ends_wrong++;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE creating the yuno
  ***************************************************************************/
 static void cleaning(void)
 {
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    int expected = (int)(sizeof(run_ends)/sizeof(run_ends[0])) - 1;
+    if(run_ends_wrong || run_ends_seen != expected) {
+        printf("%sERROR --> %s: %d seen (expected %d), %d wrong%s\n", On_Red BWhite,
+            "the ends of the runs with no channel", run_ends_seen, expected, run_ends_wrong,
+            Color_Off);
+        result += -1;
+    }
 }
 
 /***************************************************************************
@@ -172,6 +244,14 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+
+    gobj_log_register_handler(
+        "run_end",          // handler_name
+        0,                  // close_fn
+        run_end_log_write,  // write_fn
+        0                   // fwrite_fn
+    );
+    gobj_log_add_handler("run_end", "run_end", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *      To check memory loss

@@ -176,6 +176,16 @@ the control center, or of a session of the agent, with
 left the list where C_IOGATE could not write its own channel, and the reader
 took `1094795585` for the channel: a SIGSEGV.
 
+`__send_type__` is the yuno's own key too, and it is NOT deleted here: a
+`C_IOGATE` reads it from the kw of a SEND (`EV_SEND_MESSAGE`, `EV_SEND_IEV`;
+`1` sends to every open channel), and that kw is always built by code of the
+yuno -- a gclass builds its `{"gbuffer": ...}`, an answer is built from the
+`__md_iev__` of its request, and an answer that goes back to a session is
+sent to its `C_CHANNEL`, not to the gate. No path of the SDK makes a peer's
+json the kw of a send. Keep it so: a gclass that forwards a peer's json puts
+it under a key of its own (or serializes it into the gbuffer), never as the
+kw of a send to a gate.
+
 `frame_size` is the bytes of the frame RECEIVED. Up to 7.26.9 the WARNING of an
 event that is not public said a `kw_size` that was the size of the masked,
 capped copy (a kw of 900 KB said 101). `C_IEVENT_SRV` and `C_IEVENT_CLI` pass

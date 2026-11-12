@@ -105,6 +105,11 @@ gobj_send_event(gate, EV_SEND_MESSAGE,
 
 `tests/c/c_tcp` (`test8`).
 
+`__send_type__` is a key of the yuno, like `__temp__`: the kw of a send is
+built by the yuno's own code, never taken from a peer (see
+[`iev_create_from_gbuffer()`](#iev_create_from_gbuffer)), so the frontier does
+not delete it.
+
 ### The channel of a message
 
 What the gate publishes (`EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE`, and
@@ -142,9 +147,24 @@ session refuses it before it gets here (7.30.27+, see
 [`C_IEVENT_SRV`](#gclass-c-ievent-srv), "A frame the gate cannot route").
 
 A send with no channel to go to (none named, none open) is refused with
-*"No channel FOUND to send"*, an ERROR said once every 1000 in a row, its
-`repeated` the ones not said since the last one; a send that finds a channel
-starts the count again (7.30.27+; up to 7.30.26 every send said it).
+*"No channel FOUND to send"*, an ERROR said once every 1000 in a row, per
+gate, its `repeated` the ones not said since the last one. A send to all
+channels (`__send_type__` 1) that finds none, and a drop (`EV_DROP`) of a
+channel name the gate does not have (*"channel NOT FOUND"*), go through the
+same brake. The run ends when a send finds a channel, or when the gate
+stops: then ONE INFO says it, with the whole run and the ones the brake did
+not say, and the count starts again, so a new outage is said at once
+(7.30.27+; up to 7.30.26 every send said it, the send to all with a stack,
+and nothing said the end of the run):
+
+```text
+ERROR: {"msg": "No channel FOUND to send", "event": "EV_SEND_MESSAGE", "repeated": 0, ...}
+ERROR: {"msg": "No channel FOUND to send", "event": "EV_SEND_MESSAGE", "repeated": 999, ...}
+INFO:  {"msg": "Sends with no channel ended", "why": "a channel found to send", "without_channel": 1500, "not_said": 499, ...}
+```
+
+The messages the gate could not send are counted in its stats,
+`txMsgsNoChannel` (a drop is not a message).
 
 `tests/c/c_iogate_channel`.
 
@@ -166,7 +186,7 @@ for `C_QIOGATE`).
 
 ```bash
 ycommand -c 'stats-yuno id=<id> service=__input_side__'
-# {"result": 0, "data": {"txMsgs": 1519, "rxMsgs": 1520, "txMsgsec": 12, "rxMsgsec": 12, ...}}
+# {"result": 0, "data": {"txMsgs": 1519, "rxMsgs": 1520, "txMsgsec": 12, "rxMsgsec": 12, ..., "txMsgsNoChannel": 0}}
 ```
 
 From C, a parent reads it the same way:

@@ -13,10 +13,25 @@
  *         each was two ERRORs ("path holds a value that is not a json
  *         dict") and the other value reached the subscriber.
  *
+ *         The same with a __temp__ that is a string or an integer (each
+ *         replaced, one ERROR); one that is a dict without the channel
+ *         gets the channel written in it, its other keys kept, no log.
  *      2) 2500 sends with no channel to go to: "No channel FOUND to send"
  *         is said for the 1st, the 1001st and the 2001st, with `repeated`
  *         the ones not said since (0, 999, 999). Up to 7.30.26 its brake
  *         never counted: 2500 ERRORs.
+ *      3) A send that finds a channel (this gobj, named in its __temp__)
+ *         ends the run: an INFO says it, with the 499 the brake did not
+ *         say, and the count starts again: the next send with no channel
+ *         is said at once (`repeated` 0).
+ *      4) The same brake for a send to all channels (1500 with no
+ *         channel: said at 1 and 1001) and for a drop of a channel that
+ *         does not exist (1200: said at 1 and 1001); the INFO of the end
+ *         of each run, the last one when the gate stops (199 not said).
+ *         Up to 7.30.26 both said every one, the send to all with a
+ *         stack.
+ *      5) The gate counts the messages it could not send
+ *         (txMsgsNoChannel: 2500 + 1 + 1500; a drop is not a message).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,6 +44,8 @@
  *              Constants
  ***************************************************************************/
 #define N_SENDS     2500    // with no channel: said at 1, 1001 and 2001
+#define N_SENDS_ALL 1500    // to all, with no channel: said at 1 and 1001
+#define N_DROPS     1200    // of a channel that does not exist: said at 1 and 1001
 
 /***************************************************************************
  *              Structures
@@ -38,6 +55,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int fail(hgobj gobj, const char *what, const char *detail);
+PRIVATE void send_to_me(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -72,6 +90,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj iogate;               // with no channel below it
     json_t *published;          // the __temp__ of each message it published, in order
+    int sent_to_me;             // EV_SEND_MESSAGE the gate sent to this gobj as its channel
 } PRIVATE_DATA;
 
 
@@ -183,6 +202,24 @@ PRIVATE int fail(hgobj gobj, const char *what, const char *detail)
 
 
 
+/***************************************************************************
+ *  A send to the gate whose channel is this gobj: it finds its channel
+ ***************************************************************************/
+PRIVATE void send_to_me(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw_send = json_pack("{s:{s:s, s:I}}",
+        "__temp__",
+            "channel", gobj_name(gobj),
+            "channel_gobj", (json_int_t)(uintptr_t)gobj
+    );
+    gobj_send_event(priv->iogate, EV_SEND_MESSAGE, kw_send, gobj);
+}
+
+
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -218,8 +255,22 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         gobj_send_event(priv->iogate, events[i], kw_msg, gobj);
     }
-    if(json_array_size(priv->published) != 4) {
-        fail(gobj, "the gate publishes the four messages", "");
+    json_t *temps[] = {
+        json_string("a string"),
+        json_integer(1094795585),
+        json_pack("{s:s}", "other", "kept"),
+        0
+    };
+    for(int i=0; temps[i]; i++) {
+        json_t *kw_msg = json_pack("{s:i}", "n", 4+i);
+        json_object_set_new(kw_msg, "__temp__", temps[i]);
+        gobj_send_event(priv->iogate, EV_ON_MESSAGE, kw_msg, gobj);
+    }
+    if(json_array_size(priv->published) != 7) {
+        fail(gobj, "the gate publishes the seven messages", "");
+    }
+    if(!json_is_string(json_object_get(json_array_get(priv->published, 6), "other"))) {
+        fail(gobj, "a __temp__ dict without the channel keeps its keys", "");
     }
     int idx; json_t *jn_temp;
     json_array_foreach(priv->published, idx, jn_temp) {
@@ -240,7 +291,57 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_send_event(priv->iogate, EV_SEND_MESSAGE, json_pack("{s:i}", "n", i), gobj);
     }
 
+    /*
+     *  3) A send that finds its channel (this gobj) ends the run, and the
+     *  count starts again
+     */
+    send_to_me(gobj);
+    gobj_send_event(priv->iogate, EV_SEND_MESSAGE, json_pack("{s:s}", "n", "after"), gobj);
+    send_to_me(gobj);
+
+    /*
+     *  4) The same brake for a send to all and a drop
+     */
+    for(int i=0; i<N_SENDS_ALL; i++) {
+        gobj_send_event(priv->iogate, EV_SEND_MESSAGE,
+            json_pack("{s:i, s:i}", "n", i, "__send_type__", 1), gobj);
+    }
+    send_to_me(gobj);
+    for(int i=0; i<N_DROPS; i++) {
+        gobj_send_event(priv->iogate, EV_DROP,
+            json_pack("{s:{s:s}}", "__temp__", "channel", "nobody"), gobj);
+    }
+    if(priv->sent_to_me != 3) {
+        fail(gobj, "the sends with a channel reach it", "");
+    }
+
+    /*
+     *  5) What the gate could not send, counted
+     */
+    json_t *jn_stats = gobj_stats(priv->iogate, NULL, 0, gobj);
+    json_t *jn_data = kw_get_dict(gobj, jn_stats, "data", 0, 0);
+    if(kw_get_int(gobj, jn_data, "txMsgsNoChannel", -1, 0) != N_SENDS + 1 + N_SENDS_ALL) {
+        fail(gobj, "txMsgsNoChannel counts the messages with no channel", "");
+    }
+    if(kw_get_int(gobj, jn_data, "txMsgs", -1, 0) != 3) {
+        fail(gobj, "txMsgs counts the messages sent", "");
+    }
+    JSON_DECREF(jn_stats)
+
     set_yuno_must_die();
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  What the gate sends to this gobj, its channel
+ ***************************************************************************/
+PRIVATE int ac_sent_to_me(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->sent_to_me++;
 
     KW_DECREF(kw)
     return 0;
@@ -314,6 +415,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,             ac_published,           0},
         {EV_ON_OPEN,                ac_published,           0},
         {EV_ON_CLOSE,               ac_published,           0},
+        {EV_SEND_MESSAGE,           ac_sent_to_me,          0},
         {0,0,0}
     };
 
@@ -330,6 +432,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,             0},
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
+        {EV_SEND_MESSAGE,           0},
         {NULL, 0}
     };
 
