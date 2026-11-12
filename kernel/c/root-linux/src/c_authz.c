@@ -1542,6 +1542,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*
      *  WARNING build the response BEFORE publishing: the publish steals the
      *  only reference of user/session/services_roles/jwt_payload.
+     *  A login without a token has no jwt_payload: the key is left out (`o*`),
+     *  a NULL `o` would fail the whole pack and publish an empty kw.
      */
     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O, s:b}",
         "result", 0,
@@ -1562,7 +1564,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     int ret = gobj_publish_event(
         gobj,
         EV_AUTHZ_USER_LOGIN,
-        json_pack("{s:s, s:s, s:o, s:o, s:o, s:o}",
+        json_pack("{s:s, s:s, s:o, s:o, s:o, s:o*}",
             "username", username,
             "dst_service", dst_service,
             "user", user,
@@ -1585,13 +1587,19 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "sockname",         "%s", sockname,
             NULL
         );
-        JSON_DECREF(jn_resp)
-        jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+        /*
+         *  The refusal is built before the response is released: with a
+         *  token, `username` is a string of the jwt_payload that the response
+         *  may hold the last reference of.
+         */
+        json_t *jn_refusal = json_pack("{s:i, s:s, s:s, s:s}",
             "result", -1,
             "comment", "Some subscriber refusing user",
             "username", username,
             "dst_service", dst_service
         );
+        JSON_DECREF(jn_resp)
+        jn_resp = jn_refusal;
     }
 
     KW_DECREF(kw)
@@ -4917,10 +4925,14 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
             add_user_logout(gobj, username);
 
+            /*
+             *  No session when it was dropped before its channel closed
+             *  (max_sessions, logout-user): the key is left out (`o*`).
+             */
             gobj_publish_event(
                 gobj,
                 EV_AUTHZ_USER_LOGOUT,
-                json_pack("{s:s, s:O, s:o}",
+                json_pack("{s:s, s:O, s:o*}",
                     "username", username,
                     "user", user,
                     "session", session

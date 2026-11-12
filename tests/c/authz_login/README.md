@@ -56,6 +56,18 @@ In both:
     in; `remove-jwk` of the kid answers `0`, *"(2 keys)"*, its `data` the two
     records, nothing logged; then a token of either key is refused (up to
     7.30.18 only the first key went, and the second went on validating).
+15. bob, created with `create-user` and a password, logs in by password from
+    `10.1.2.3`: `EV_AUTHZ_USER_LOGIN` (the driver subscribes to it) carries
+    `username`, `dst_service`, `user`, `session` (the id of the session of
+    the peer) and `services_roles`, and no `jwt_payload`; the login of case 4
+    (a token) carries its `jwt_payload`. The close publishes
+    `EV_AUTHZ_USER_LOGOUT` with the session. Up to 7.30.26 a login without a
+    token published an EMPTY kw;
+16. bob with `set-max-sessions` 1 logs in from a peer, then from a second
+    one: the first session is dropped (`EV_DROP` to the first peer, ONE
+    warning). The close of the dropped peer publishes `EV_AUTHZ_USER_LOGOUT`
+    with `username` and `user` and no `session` (up to 7.30.26 an EMPTY
+    kw), the close of the second peer with its session.
 
 And no log line carries a token of the test, nor the claims of the expired
 one, and no memory is left. Up to 7.30.14 there was no `trust_peer_ip`, the

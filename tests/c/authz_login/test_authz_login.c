@@ -49,6 +49,17 @@
  *               logs in; remove-jwk of the kid removes both, logs nothing,
  *               and the token is refused (up to 7.30.18 only the first key
  *               went, and the second went on validating until a restart)
+ *           15. bob, a password, from 10.1.2.3: in; EV_AUTHZ_USER_LOGIN
+ *               carries username, dst_service, user, session and
+ *               services_roles, and no jwt_payload (a login with a token,
+ *               case 4, carries its payload); EV_AUTHZ_USER_LOGOUT of the
+ *               close carries the session. Up to 7.30.26 a login without a
+ *               token published an EMPTY kw
+ *           16. bob with max_sessions 1 logs in from a second peer: the
+ *               first session is dropped (EV_DROP, ONE warning); the close
+ *               of the dropped peer publishes EV_AUTHZ_USER_LOGOUT with
+ *               username and user and no session (up to 7.30.26 an EMPTY
+ *               kw), the close of the second one with its session
  *          and no memory is left.
  *
  *          A real C_AUTHZ service over a temp tranger store, its roles and
@@ -92,6 +103,8 @@
 #define CLAIMS_MARKER   "claims-marker-of-the-test-0451"
 #define MAX_TOKENS      10
 
+#define BOB             "bob@example.com"
+#define BOB_PASSWORD    "bob-password-of-the-test"
 #define NOT_TRUSTED     "Without JWT/passw the peer address is not trusted"
 #define KID_STAR_REFUSED "A jwks key with kid '*' is not allowed"
 
@@ -119,6 +132,9 @@ PRIVATE int s_claims_named = 0; /* log lines that name the claims that failed */
 PRIVATE int s_claims_unnamed = 0;/* log lines with the old "What JWT_CLAIM_???" */
 PRIVATE int s_kid_star_refused = 0;/* log lines that refuse the key of kid '*' */
 PRIVATE char *s_tokens[MAX_TOKENS] = {0};
+PRIVATE json_t *s_login_kw = NULL;  /* the kw of the last EV_AUTHZ_USER_LOGIN */
+PRIVATE json_t *s_logout_kw = NULL; /* the kw of the last EV_AUTHZ_USER_LOGOUT */
+PRIVATE int s_drops = 0;            /* EV_DROP received by a peer */
 
 GOBJ_DEFINE_GCLASS(C_TEST_AUTHZ_LOGIN);
 
@@ -428,6 +444,144 @@ PRIVATE void check_login(
     gobj_destroy(peer);
 }
 
+/*
+ *  A peer of a login: a child of the driver, as C_IEVENT_SRV is for a
+ *  real session
+ */
+PRIVATE hgobj open_peer(hgobj gobj, const char *name, const char *peername)
+{
+    hgobj peer = gobj_create(name, C_TEST_AUTHZ_LOGIN, json_pack("{s:b, s:s}",
+        "is_peer", 1,
+        "peername", peername
+    ), gobj);
+    gobj_start(peer);
+    return peer;
+}
+
+PRIVATE int login_by_password(hgobj peer, const char *username, const char *password)
+{
+    hgobj authz = gobj_find_service("authz", TRUE);
+    json_t *response = gobj_authenticate(
+        authz,
+        json_pack("{s:s, s:s, s:s}",
+            "dst_service", "checked",
+            "username", username,
+            "password", password
+        ),
+        peer
+    );
+    int result = (int)kw_get_int(0, response, "result", -99, 0);
+    JSON_DECREF(response)
+    return result;
+}
+
+/*
+ *  The session of the peer ends (EV_ON_CLOSE) and the peer goes
+ */
+PRIVATE void close_peer(hgobj peer)
+{
+    if(!empty_string(gobj_read_str_attr(peer, "__session_id__"))) {
+        gobj_publish_event(peer, EV_ON_CLOSE, json_object());
+    }
+    gobj_stop(peer);
+    gobj_destroy(peer);
+}
+
+/*
+ *  15, 16. What EV_AUTHZ_USER_LOGIN and EV_AUTHZ_USER_LOGOUT carry for a
+ *  login without a token
+ */
+PRIVATE void check_password_login_events(hgobj gobj)
+{
+    hgobj authz = gobj_find_service("authz", TRUE);
+
+    json_t *r = gobj_command(authz, "create-user",
+        json_pack("{s:s, s:s, s:s}",
+            "username", BOB,
+            "role", "roles^operator^users",
+            "password", BOB_PASSWORD
+        ),
+        gobj
+    );
+    check_int("15. create-user bob with a password: result",
+        (int)kw_get_int(gobj, r, "result", -99, 0), 0);
+    JSON_DECREF(r)
+
+    /*
+     *  15. bob, by password
+     */
+    int warnings_before = s_warnings;
+    int errors_before = s_errors;
+    JSON_DECREF(s_login_kw)
+    hgobj peer = open_peer(gobj, "peer-bob", "10.1.2.3:40000");
+    check_int("15. bob, a password, from 10.1.2.3: result",
+        login_by_password(peer, BOB, BOB_PASSWORD), 0);
+    const char *session_id = gobj_read_str_attr(peer, "__session_id__");
+    check_int("15. bob: the session has an id", empty_string(session_id)? 0 : 1, 1);
+
+    check_int("15. EV_AUTHZ_USER_LOGIN published", s_login_kw? 1 : 0, 1);
+    check_str("15. EV_AUTHZ_USER_LOGIN: username",
+        kw_get_str(gobj, s_login_kw, "username", "", 0), BOB);
+    check_str("15. EV_AUTHZ_USER_LOGIN: dst_service",
+        kw_get_str(gobj, s_login_kw, "dst_service", "", 0), "checked");
+    check_str("15. EV_AUTHZ_USER_LOGIN: user`id",
+        kw_get_str(gobj, s_login_kw, "user`id", "", 0), BOB);
+    check_str("15. EV_AUTHZ_USER_LOGIN: session`id",
+        kw_get_str(gobj, s_login_kw, "session`id", "", 0), session_id);
+    check_int("15. EV_AUTHZ_USER_LOGIN: services_roles has checked",
+        kw_has_key(kw_get_dict(gobj, s_login_kw, "services_roles", 0, 0), "checked")? 1 : 0, 1);
+    check_int("15. EV_AUTHZ_USER_LOGIN: no jwt_payload",
+        kw_has_key(s_login_kw, "jwt_payload")? 1 : 0, 0);
+
+    JSON_DECREF(s_logout_kw)
+    close_peer(peer);
+    check_str("15. EV_AUTHZ_USER_LOGOUT: username",
+        kw_get_str(gobj, s_logout_kw, "username", "", 0), BOB);
+    check_int("15. EV_AUTHZ_USER_LOGOUT: its session", json_is_object(kw_get_dict(gobj, s_logout_kw, "session", 0, 0))? 1 : 0, 1);
+    check_int("15. warnings", s_warnings - warnings_before, 0);
+    check_int("15. errors", s_errors - errors_before, 0);
+
+    /*
+     *  16. bob with one session at most, from two peers
+     */
+    r = gobj_command(authz, "set-max-sessions",
+        json_pack("{s:s, s:i}", "username", BOB, "max_sessions", 1),
+        gobj
+    );
+    check_int("16. set-max-sessions bob 1: result",
+        (int)kw_get_int(gobj, r, "result", -99, 0), 0);
+    JSON_DECREF(r)
+
+    warnings_before = s_warnings;
+    errors_before = s_errors;
+    int drops_before = s_drops;
+    hgobj peer_a = open_peer(gobj, "peer-bob-a", "10.1.2.3:40001");
+    hgobj peer_b = open_peer(gobj, "peer-bob-b", "10.1.2.3:40002");
+    check_int("16. bob from peer a: result", login_by_password(peer_a, BOB, BOB_PASSWORD), 0);
+    check_int("16. bob from peer b: result", login_by_password(peer_b, BOB, BOB_PASSWORD), 0);
+    check_int("16. the session of peer a dropped", s_drops - drops_before, 1);
+    check_int("16. warnings (the drop)", s_warnings - warnings_before, 1);
+
+    JSON_DECREF(s_logout_kw)
+    close_peer(peer_a);
+    check_int("16. the close of the dropped peer: EV_AUTHZ_USER_LOGOUT published",
+        s_logout_kw? 1 : 0, 1);
+    check_str("16. the close of the dropped peer: username",
+        kw_get_str(gobj, s_logout_kw, "username", "", 0), BOB);
+    check_str("16. the close of the dropped peer: user`id",
+        kw_get_str(gobj, s_logout_kw, "user`id", "", 0), BOB);
+    check_int("16. the close of the dropped peer: no session",
+        kw_has_key(s_logout_kw, "session")? 1 : 0, 0);
+
+    JSON_DECREF(s_logout_kw)
+    close_peer(peer_b);
+    check_str("16. the close of peer b: username",
+        kw_get_str(gobj, s_logout_kw, "username", "", 0), BOB);
+    check_int("16. the close of peer b: its session",
+        json_is_object(kw_get_dict(gobj, s_logout_kw, "session", 0, 0))? 1 : 0, 1);
+    check_int("16. errors", s_errors - errors_before, 0);
+}
+
 PRIVATE void run_checks(hgobj gobj)
 {
 #ifdef NO_PEER_IP
@@ -436,6 +590,10 @@ PRIVATE void run_checks(hgobj gobj)
     const int trusted = 1;
 #endif
     time_t now = time(NULL);
+
+    hgobj authz_ = gobj_find_service("authz", TRUE);
+    gobj_subscribe_event(authz_, EV_AUTHZ_USER_LOGIN, 0, gobj);
+    gobj_subscribe_event(authz_, EV_AUTHZ_USER_LOGOUT, 0, gobj);
 
     /*
      *  11. Start up is over: the key of kid '*' was refused, once, and that
@@ -463,9 +621,14 @@ PRIVATE void run_checks(hgobj gobj)
 
     json_object_del(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), "10.1.2.4");
 
+    JSON_DECREF(s_login_kw)
     check_login(gobj, "4. alice, a good token, from 127.0.0.1", "127.0.0.1:40000",
         "", make_token(0, LOGIN_JWK, alice_claims()),
         0, "", 0, 0);
+    check_str("4. EV_AUTHZ_USER_LOGIN: username",
+        kw_get_str(gobj, s_login_kw, "username", "", 0), ALICE);
+    check_str("4. EV_AUTHZ_USER_LOGIN: jwt_payload`email",
+        kw_get_str(gobj, s_login_kw, "jwt_payload`email", "", 0), ALICE);
 
     check_login(gobj, "5. alice, a token of another key", "127.0.0.1:40000",
         "", make_token(1, OTHER_JWK, alice_claims()),
@@ -563,6 +726,13 @@ PRIVATE void run_checks(hgobj gobj)
     check_login(gobj, "14. a token of the first key, after remove-jwk", "127.0.0.1:40000",
         "", token_a,
         -1, "Authentication failed: Invalid token", 1, -1);
+
+    check_password_login_events(gobj);
+
+    gobj_unsubscribe_event(authz_, EV_AUTHZ_USER_LOGIN, 0, gobj);
+    gobj_unsubscribe_event(authz_, EV_AUTHZ_USER_LOGOUT, 0, gobj);
+    JSON_DECREF(s_login_kw)
+    JSON_DECREF(s_logout_kw)
 }
 
 /***************************************************************
@@ -640,6 +810,34 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     return 0;
 }
 
+/*
+ *  The kw of the last login and logout of C_AUTHZ, kept for the checks
+ */
+PRIVATE int ac_authz_user_login(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    JSON_DECREF(s_login_kw)
+    s_login_kw = kw;
+    return 0;
+}
+
+PRIVATE int ac_authz_user_logout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    JSON_DECREF(s_logout_kw)
+    s_logout_kw = kw;
+    return 0;
+}
+
+/*
+ *  A peer whose session C_AUTHZ drops (max_sessions): a real channel would
+ *  close, the check closes it
+ */
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    s_drops++;
+    JSON_DECREF(kw)
+    return 0;
+}
+
 /***************************************************************
  *              GClass registration
  ***************************************************************/
@@ -670,7 +868,10 @@ PRIVATE const GMETHODS gmt = {
 PRIVATE int register_c_test_authz_login(void)
 {
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT, ac_timer, 0},
+        {EV_TIMEOUT,            ac_timer,               0},
+        {EV_AUTHZ_USER_LOGIN,   ac_authz_user_login,    0},
+        {EV_AUTHZ_USER_LOGOUT,  ac_authz_user_logout,   0},
+        {EV_DROP,               ac_drop,                0},
         {0, 0, 0}
     };
     states_t states[] = {
@@ -678,8 +879,11 @@ PRIVATE int register_c_test_authz_login(void)
         {0, 0}
     };
     event_type_t event_types[] = {
-        {EV_TIMEOUT,    0},
-        {EV_ON_CLOSE,   EVF_OUTPUT_EVENT},
+        {EV_TIMEOUT,            0},
+        {EV_AUTHZ_USER_LOGIN,   0},
+        {EV_AUTHZ_USER_LOGOUT,  0},
+        {EV_DROP,               0},
+        {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
         {0, 0}
     };
     hgclass gc = gclass_create(

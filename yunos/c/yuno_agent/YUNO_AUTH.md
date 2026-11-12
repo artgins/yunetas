@@ -1067,6 +1067,33 @@ users reaching it, and they are the **only** hook it gets on the login path:
 | `EV_AUTHZ_USER_LOGIN`  | `mt_authenticate()`, authenticated| `username`, `dst_service`, `user`, `session`, `services_roles`, `jwt_payload` |
 | `EV_AUTHZ_USER_LOGOUT` | the session's `EV_ON_CLOSE`       | `username`, `user`, `session`                                   |
 
+Two keys are not always there:
+
+- **`jwt_payload`** is present only when the login came with a token. A login
+  by password, or by the peer address alone (`allowed_ips`), has no payload,
+  and the key is left out (it is not `null`). Up to 7.30.26 such a login
+  published an EMPTY kw, so a subscriber read no `username`.
+- **`session`** of `EV_AUTHZ_USER_LOGOUT` is left out when the session was
+  dropped before its channel closed (`max_sessions` reached, `logout-user`).
+  Up to 7.30.26 that close also published an EMPTY kw.
+
+So read `username` (always there) and test the optional ones:
+
+```c
+PRIVATE int ac_user_login(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    json_t *jwt_payload = json_object_get(kw, "jwt_payload");  // NULL without a token
+    if(jwt_payload) {
+        // a login with a token: its claims are here
+    }
+    KW_DECREF(kw)
+    return 0;
+}
+```
+
+The test is `tests/c/authz_login/test_authz_login.c` (cases 4, 15 and 16).
+
 **`EV_AUTHZ_USER_LOGIN` is not a notification — it is a veto point.**
 `mt_authenticate()` checks what `gobj_publish_event()` returns, and answers
 `result: -1` ("Some subscriber refusing user") when the return is negative. A
