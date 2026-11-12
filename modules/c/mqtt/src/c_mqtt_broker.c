@@ -3697,6 +3697,7 @@ PRIVATE BOOL treedb_event_is_mine(hgobj gobj, gobj_event_t event, json_t *kw, hg
         "event",        "%s", event,
         "src",          "%s", src? gobj_short_name(src) : "",
         "channel",      "%s", kw_get_str(gobj, kw, "__temp__`channel", "", 0),
+        "username",     "%s", kw_get_str(gobj, kw, "__username__", "", 0),
         "suppressed",   "%u", (unsigned)priv->foreign_treedb_suppressed,
         NULL
     );

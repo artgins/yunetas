@@ -538,12 +538,14 @@ names are public (they are output events of `C_NODE`), so a peer of a gate of
 the broker (an ievent session of its `__top_side__`, with any role) can send
 them, and `C_IOGATE` publishes them again as its own. Such an event is refused
 (the action answers `-1`, authz is not asked) with a WARNING (`msgset`
-`Auth`) that names the `src` and the channel, said once every 10 seconds; the
+`Auth`) that names the `src`, the channel and the user of the session, said
+once every 10 seconds; the
 next one carries `suppressed`, the count of the ones not said:
 
 ```json
 {"msgset": "Auth", "msg": "treedb event not published by the treedb of the broker, refused",
- "event": "EV_TREEDB_NODE_DELETED", "src": "C_IOGATE^__top_side__", "channel": "input-2", "suppressed": 0}
+ "event": "EV_TREEDB_NODE_DELETED", "src": "C_IOGATE^__top_side__", "channel": "input-2",
+ "username": "dev1", "suppressed": 0}
 ```
 
 Up to 7.30.26 they were obeyed: one frame disabled any user of authz
