@@ -569,11 +569,63 @@
   `command-yuno`, `stats-yuno`, `authzs` and `command-agent` / `stats-agent`
   to the control center. Each session now has an id, carried by its orders
   in `__md_iev__.agent_session`, and an answer for one that left is dropped
-  as *"requester gone before its answer, answer dropped"* (INFO). Tests:
-  `c_agent_controlcenter_link`, new `c_agent_answer_routing`.
+  as *"requester gone before its answer, answer dropped"* (INFO).
+  The same holds for the acks of play and pause: an `EV_PLAY_YUNO_ACK` /
+  `EV_PAUSE_YUNO_ACK` is taken only from a yuno's channel. Any session could
+  send one, and so could the control center, whose link has no channel: the
+  agent read it as a yuno's, up to four ERRORs with a stack per ack ("path
+  NOT FOUND", "gobj NULL", "hs_yuno NULL"); now *"ack not from a yuno:
+  dropped"*, with the same brake. An answer with an empty `dst_service`
+  was an ERROR "name NULL" with a stack per answer; now *"requester of the
+  answer not found: dropped"*. And an answer with no hop under the agent's
+  own (a session answering its own channel with a single hop) was sent on
+  with no route after a WARNING and six ERRORs: now *"answer with no route
+  back to its requester: dropped"*. Tests: `c_agent_controlcenter_link`,
+  new `c_agent_answer_routing`.
+- **The agent no longer dies when the control center sends orders while it
+  stops.** A stop pauses the agent first: it closes its treedbs, and the
+  loop goes on running until the stop. The link to the control center stayed
+  in session, and an order in that window (`list-yunos`) read the treedb
+  just freed: SIGSEGV instead of an orderly end (7.30.26). The pause now
+  stops the link before it closes the treedbs (a play after a pause starts
+  it again). Test: `c_agent_controlcenter_link`.
 
 ### Kernel
 
+- **BREAKING (for a peer or yuno that relied on it, none in the SDK):
+  `__temp__` never crosses a yuno boundary, in either direction.** It is
+  local metadata -- `C_IOGATE` writes there the channel a message came in
+  by, `channel_gobj` being a pointer of this process -- and the agent, the
+  control center and the gates read it and dereference it.
+    - On the way in, `iev_create_from_gbuffer()` deletes the `__temp__` of
+      every inter-event it decodes (`C_IEVENT_SRV` and `C_IEVENT_CLI`),
+      silently: an SDK yuno up to 7.30.26 sends its own back in some frames.
+      Up to 7.30.26 a peer's was handed on: with `"__temp__": [1094795585]`
+      `C_IOGATE` could not write its channel into the list and the reader
+      took the peer's integer for the channel -- a web client of the
+      control center, a session of the agent (its answers, and the acks of
+      play and pause), or the control center over the agent's link made
+      them die with SIGSEGV.
+    - On the way out, `iev_create_to_gbuffer()` leaves it out of every frame
+      (from a twin when the kw is shared, so its other holders keep theirs).
+      Up to 7.30.26 a kw received through a `C_IOGATE` and published or
+      forwarded over a link sent the peer the value of a pointer of this
+      process. `C_QIOGATE` with `with_metadata` no longer queues it either
+      (its queue is sent to the peer).
+    - Tests: `kw` (`test_kw_binary_depth`), `c_controlcenter_scenarios`,
+      `c_qiogate_stats`, `c_agent_answer_routing`,
+      `c_agent_controlcenter_link`.
+- `C_IOGATE`: a `__temp__` that is not a dict in a message it receives is
+  replaced by the channel the message came in by, with ONE ERROR (*"__temp__
+  of a message is not a dict, replaced"*, naming the event). Up to 7.30.26
+  it was two ERRORs per message (*"path holds a value that is not a json
+  dict, cannot create"*) and the other value reached the subscriber as the
+  channel. Test: new `c_iogate_channel`.
+- `C_IOGATE`: *"No channel FOUND to send"* is said once per 1000 sends in a
+  row with no channel, per gate, with `repeated` the ones not said since the
+  last one; a send that finds a channel starts the count again. Up to
+  7.30.26 its counter never moved (and was shared by every gate of the
+  yuno): one ERROR per send. Test: new `c_iogate_channel`.
 - **BREAKING (a caller of `gobj_command()` / `gobj_stats()`, a log watcher): a
   command or a stats to a `C_IEVENT_CLI` or a `C_IEVENT_SRV` that is not in
   session is answered at once.** They returned NULL -- for a command or a stats,
@@ -638,6 +690,14 @@
   nobody would send, a run step waiting its whole `run_step_timeout` (and
   every run asked meanwhile refused, *"a run is in flight"*), keystrokes
   lost with no answer. Test: `c_controlcenter_scenarios` (case 47).
+- A web client of the control center can no longer make it die with an
+  `EV_MT_COMMAND_ANSWER` (or any event only an agent sends) carrying
+  `"__temp__": [0x41414141]` through `__top_side__`: the frontier of the
+  kernel drops it (above), and the answer is refused as any answer not from
+  an agent (*"event of an agent not from the agents' side, dropped"*). Up to
+  7.30.26 it was a SIGSEGV in `is_from_agent_side()`. `requester_of_route()`
+  read an agent's `__temp__` the same way: closed by the same frontier.
+  Test: `c_controlcenter_scenarios` (case 4).
 
 ### Packaging
 

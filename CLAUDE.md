@@ -628,6 +628,16 @@ Corollaries:
   (`drop_binary_keys` in `gbuffer.c`). An application that builds a kw from
   a peer's json (an MQTT payload) puts it as a VALUE under a key of its own,
   never as the kw itself.
+  **Nor a `__temp__`, in either direction.** `__temp__` is the yuno's own:
+  `C_IOGATE` writes there the channel a message came in by (`channel`, and
+  `channel_gobj`, a POINTER of this process that its readers dereference).
+  `iev_create_from_gbuffer()` deletes a peer's from every inter-event it
+  decodes, and `iev_create_to_gbuffer()` leaves it out of every frame it
+  writes (from a twin when the kw is shared), both silently (7.30.27+). Up to
+  7.30.26 a frame with `"__temp__": [1094795585]` killed the agent and the
+  control center with SIGSEGV. A gclass that builds a kw from a peer's json
+  by any other road (a queue record, an HTTP body) must not let the peer's
+  json be the top level of a kw that reaches a `__temp__` reader.
 
 - **A proxy on the same host makes every client `yuneta`.** `C_AUTHZ` lets a
   peer of `127.0.0.*` (or of `allowed_ips`) with no token and no password log
