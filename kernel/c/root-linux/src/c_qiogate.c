@@ -937,6 +937,7 @@ PRIVATE q_msg_t *enqueue_message(
         kw_clean_clone = kw_filter_metadata(gobj, kw_incref(kw));
     } else {
         kw_clean_clone = kw_duplicate(gobj, kw);
+        json_object_del(kw_clean_clone, "__temp__");    // local: a pointer of this process
     }
     kw_serialize(gobj, kw_clean_clone);
 

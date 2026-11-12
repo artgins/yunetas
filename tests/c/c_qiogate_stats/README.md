@@ -67,6 +67,14 @@ queue increfed it and nobody gave it back, because the queue frees its json
 with `json_decref()` (red: `refcount` 2, and *"system memory not free"* at
 the end).
 
+`output-q3` keeps the metadata of its messages (`with_metadata`). A message
+with `"__md_test__": "kept"` and a `__temp__` (`{"channel": "input-1",
+"channel_gobj": 1094795585}`) is queued; once the gate is stopped the test
+reads its queue: the message keeps `__md_test__` and has no `__temp__` -- it
+is local, the channel a message came in by and a pointer of this process, and
+the queue sends what it keeps to the peer. Up to 7.30.26 it was queued (red:
+*"the queue with_metadata keeps no __temp__"*).
+
 ## Run
 
 ```bash

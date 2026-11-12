@@ -392,9 +392,9 @@ Other top-level keys in `kw` outside `__md_iev__`:
 - `__md_yuno__` — set by the responder via [`msg_iev_set_back_metadata()`](#msg_iev_set_back_metadata)
   ([`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/root-linux/src/msg_ievent.c)). Survives the round-trip.
 - `__temp__` — **local to the process**: C_IOGATE writes the channel there
-  (`channel`, and `channel_gobj`, a pointer). The one a peer sends is
-  dropped when the frame is decoded ([`iev_create_from_gbuffer()`](#iev_create_from_gbuffer),
-  7.30.27+). Use it freely for transport-local bookkeeping.
+  (`channel`, and `channel_gobj`, a pointer). It is left out of every frame
+  sent and dropped from every frame received (7.30.27+, see §8.6). Use it
+  freely for transport-local bookkeeping.
 - `__top_side__`, `__bottom_side__` — see §6.5.
 
 The stack is pushed on outbound, popped+reversed on the response, so the
@@ -963,12 +963,12 @@ need on the far side of an ievent — that gets discarded by
 [`msg_ievent.c`](https://github.com/artgins/yunetas/blob/7.30.26/kernel/c/root-linux/src/msg_ievent.c). If you need persistent metadata across hops,
 put it under `__md_iev__` or use the stack.
 
-It is discarded on the RECEIVING side: [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer)
-deletes the `__temp__` of every inter-event it decodes, with no log
-(7.30.27+). On the way out only an answer built by
-`msg_iev_set_back_metadata()` / `msg_iev_build_response()` loses it; a kw that
-is published or forwarded as it came carries it, and a yuno that receives it
-must not read the sender's pointers. Up to 7.30.26 the receiver kept it: a
+It crosses a yuno boundary in neither direction (7.30.27+), with no log:
+[`iev_create_to_gbuffer()`](#iev_create_to_gbuffer) leaves it out of every
+frame it writes (a kw published or forwarded as it came carried it to the
+peer, the value of a pointer of this process), and
+[`iev_create_from_gbuffer()`](#iev_create_from_gbuffer) deletes the one of
+every inter-event it decodes. Up to 7.30.26 the receiver kept it: a
 frame with `"__temp__": [1094795585]` left a list where C_IOGATE could not
 write its channel, and the agent and the control center took the peer's
 integer for the channel and died with SIGSEGV.

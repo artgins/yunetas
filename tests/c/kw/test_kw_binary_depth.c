@@ -22,7 +22,9 @@
  *          spelled with \u escapes (each of the 127 ways). And
  *          iev_create_from_gbuffer() hands on the kw of an inter-event
  *          without the peer's "__temp__" (local metadata: C_IOGATE writes
- *          a pointer of this process there), silently.
+ *          a pointer of this process there), silently; and
+ *          iev_create_to_gbuffer() sends none (from a twin when the kw is
+ *          shared, so its holders keep theirs).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -350,6 +352,55 @@ static void test_peer_temp_frontier(void)
 }
 
 /***************************************************************************
+ *  And the way out: iev_create_to_gbuffer() writes no "__temp__" in the
+ *  frame (a pointer of this process, nothing to the peer). A kw somebody
+ *  else holds too (published to several subscribers) keeps its own.
+ ***************************************************************************/
+static json_t *frame_kw(gbuffer_t *gbuf)
+{
+    json_t *jn = gbuf2json(gbuf, 0);    // gbuf owned; the raw frame, no frontier
+    json_t *kw = json_incref(json_object_get(jn, "kw"));
+    JSON_DECREF(jn)
+    return kw;
+}
+
+static void test_temp_does_not_leave(void)
+{
+    printf("\n--- an inter-event sent carries no __temp__ ---\n");
+
+    error_logged();
+    json_t *kw = json_pack("{s:i, s:{s:s, s:I}}",
+        "a", 1,
+        "__temp__", "channel", "input-1", "channel_gobj", (json_int_t)1094795585
+    );
+    json_t *sent = frame_kw(iev_create_to_gbuffer(0, "EV_X", kw));  // kw owned
+    check("a kw of its own: no __temp__ in the frame, the rest sent",
+        sent && !json_object_get(sent, "__temp__") &&
+        json_integer_value(json_object_get(sent, "a")) == 1, NULL);
+    JSON_DECREF(sent)
+
+    gbuffer_t *gbuf = new_gbuf();
+    kw = json_pack("{s:i, s:{s:I}, s:I}",
+        "a", 1,
+        "__temp__", "channel_gobj", (json_int_t)1094795585,
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
+    );
+    kw_incref(kw);  // held by another subscriber
+    sent = frame_kw(iev_create_to_gbuffer(0, "EV_X", kw));  // a reference owned
+    check("a shared kw: no __temp__ in the frame, its gbuffer sent",
+        sent && !json_object_get(sent, "__temp__") &&
+        json_object_get(sent, "__gbuffer___") &&
+        json_integer_value(json_object_get(sent, "a")) == 1, NULL);
+    check("a shared kw: its holder keeps its __temp__ and its gbuffer",
+        json_object_get(kw, "__temp__") &&
+        json_integer_value(json_object_get(kw, "gbuffer")) == (json_int_t)(uintptr_t)gbuf &&
+        gbuf->refcount == 1, NULL);
+    JSON_DECREF(sent)
+    KW_DECREF(kw)
+    check("no log", !error_logged(), NULL);
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -372,6 +423,7 @@ int main(int argc, char *argv[])
     test_nested_peer_integer();
     test_peer_json_frontier();
     test_peer_temp_frontier();
+    test_temp_does_not_leave();
 
     gobj_end();
 

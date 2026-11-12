@@ -26,7 +26,10 @@ peer's json (spelled with `\u` escapes too: each of the 127 ways, beside a
 `iev_create_from_gbuffer()` hands on the kw of an inter-event without the
 peer's `__temp__` (a list, a dict with a `channel_gobj`, an integer; with
 `verbose` 0 and 1), and logs nothing for it: `__temp__` is local, C_IOGATE
-writes a pointer of this process there (up to 7.30.26 a peer's was handed on):
+writes a pointer of this process there (up to 7.30.26 a peer's was handed
+on). And `iev_create_to_gbuffer()` writes no `__temp__` in a frame, from a
+twin of the kw when it is shared: its holder keeps its `__temp__` and its
+gbuffer (up to 7.30.26 it was sent):
 
 ```
 --- a nested gbuffer is data, not the kw's binary field ---

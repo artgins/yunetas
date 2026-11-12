@@ -49,6 +49,10 @@
  *            json_decref(). Up to 7.30.17 the copy for the queue increfed
  *            the gbuffer and nobody gave it back: one gbuffer leaked per
  *            message
+ *          - output-q3 queues with_metadata: a message's __temp__ (the
+ *            channel it came in by, a pointer of this process) is not
+ *            queued, its other metadata is. Up to 7.30.26 it was queued and
+ *            sent to the peer
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -75,6 +79,7 @@
  ***************************************************************************/
 PRIVATE void check(hgobj gobj, const char *what, BOOL ok);
 PRIVATE int mark_queue(hgobj gobj, hgobj qiogate, const char *command, const char *expected);
+PRIVATE BOOL queued_without_temp(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -224,6 +229,44 @@ PRIVATE int mark_queue(hgobj gobj, hgobj qiogate, const char *command, const cha
     }
     JSON_DECREF(jn_resp)
     return result;
+}
+
+/***************************************************************************
+ *  The queue of output-q3 (with_metadata), read once the gate closed it:
+ *  the message with a __temp__ keeps its other metadata and not that one
+ *  (a pointer of this process, sent to the peer with the message)
+ ***************************************************************************/
+PRIVATE BOOL queued_without_temp(hgobj gobj)
+{
+    json_t *tranger = tranger2_startup(0, json_pack("{s:s, s:s, s:b}",
+        "path", QUEUES_PATH "/blocked/q3",
+        "database", "q3",
+        "master", 1
+    ), 0);
+    if(!tranger) {
+        return FALSE;   // Error already logged
+    }
+    tr_queue_t *trq = trq_open(tranger, "msgs", "tm", sf_string_key, 0);
+    BOOL found = FALSE;
+    BOOL with_temp = FALSE;
+    if(trq) {
+        trq_load(trq);
+        q_msg_t *msg;
+        qmsg_foreach_forward(trq, msg) {
+            json_t *jn = trq_msg_json(msg);
+            if(json_object_get(jn, "__temp__")) {
+                with_temp = TRUE;
+            }
+            if(kw_get_int(gobj, jn, "n", 0, 0) == N_HELD + 3 &&
+                    strcmp(kw_get_str(gobj, jn, "__md_test__", "", 0), "kept")==0) {
+                found = TRUE;
+            }
+            JSON_DECREF(jn)
+        }
+        trq_close(trq);
+    }
+    tranger2_shutdown(tranger);
+    return found && !with_temp;
 }
 
 /***************************************************************************
@@ -416,13 +459,14 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 priv->gobj_q3 = gobj_create_service(
                     "output-q3",
                     C_QIOGATE,
-                    json_pack("{s:s, s:s, s:s, s:s, s:s, s:i}",
+                    json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:b}",
                         "tranger_path", QUEUES_PATH "/blocked/q3",
                         "tranger_database", "q3",
                         "topic_name", "msgs",
                         "tkey", "tm",
                         "system_flag", "sf_string_key",
-                        "exitOnError", 0
+                        "exitOnError", 0,
+                        "with_metadata", 1
                     ),
                     gobj
                 );
@@ -518,7 +562,20 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj_read_bool_attr(priv->gobj_q3, "queue_ready") &&
                     gobj_read_integer_attr(priv->gobj_q3, "msgs_in_queue") == 3
                 );
+                ret = gobj_send_event(
+                    priv->gobj_q3,
+                    EV_SEND_MESSAGE,
+                    json_pack("{s:s, s:i, s:s, s:{s:s, s:I}}",
+                        "id", "1",
+                        "n", N_HELD + 3,
+                        "__md_test__", "kept",
+                        "__temp__", "channel", "input-1", "channel_gobj", (json_int_t)1094795585
+                    ),
+                    gobj
+                );
+                check(gobj, "a message with a __temp__ is queued", ret == 0);
                 gobj_stop(priv->gobj_q3);
+                check(gobj, "the queue with_metadata keeps no __temp__", queued_without_temp(gobj));
                 set_yuno_must_die();
             }
             break;

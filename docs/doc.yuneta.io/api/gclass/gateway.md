@@ -271,6 +271,17 @@ json_t *kw = json_pack("{s:s, s:I}", "id", "1", "gbuffer", (json_int_t)(uintptr_
 gobj_send_event(qiogate, EV_SEND_MESSAGE, kw, gobj);   // queued as {"id": "1", "__gbuffer___": ...}
 ```
 
+With `with_metadata` the `__*__` keys are kept, all but `__temp__` (7.30.27+):
+it is local, the channel a message came in by and a pointer of this process
+(C_IOGATE), and the queue sends what it keeps to the peer. Up to 7.30.26 it
+was queued and sent.
+
+```C
+json_t *kw = json_pack("{s:s, s:s, s:{s:I}}",
+    "id", "1", "__md_x__", "kept", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel);
+gobj_send_event(qiogate, EV_SEND_MESSAGE, kw, gobj);   // queued as {"id": "1", "__md_x__": "kept"}
+```
+
 ### Commands
 
 | Command | Description |

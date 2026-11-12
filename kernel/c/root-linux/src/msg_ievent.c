@@ -111,6 +111,12 @@ PUBLIC json_t *iev_create2( // For use within Yuno
 
 /***************************************************************************
  *  Useful to send event's messages TO outside world.
+ *
+ *  "__temp__" does not leave the yuno: the channel a message came in by,
+ *  a pointer of this process (C_IOGATE), is nothing to a peer. A kw that
+ *  is published or forwarded as it came carries it, so it is deleted here,
+ *  silently (it is our own metadata): from a twin when somebody else holds
+ *  the kw too, so the holders keep theirs. Up to 7.30.26 it was sent.
  ***************************************************************************/
 PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
     hgobj gobj,
@@ -130,6 +136,18 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
 
     if(!kw) {
         kw = json_object();
+    }
+    if(json_object_get(kw, "__temp__")) {
+        if(kw->refcount > 1) {
+            json_t *kw_own = kw_twin(gobj, kw);
+            KW_DECREF(kw)
+            if(!kw_own) {
+                // Error already logged
+                return 0;
+            }
+            kw = kw_own;
+        }
+        json_object_del(kw, "__temp__");
     }
     kw = kw_serialize(
         gobj,

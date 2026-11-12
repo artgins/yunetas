@@ -91,6 +91,21 @@ gbuffer_t *iev_create_to_gbuffer(
 
 `gbuffer_t` pointer with the serialized JSON, or `NULL` on error.
 
+The frame carries **no `__temp__`** (7.30.27+): it is local to the yuno (the
+channel a message came in by, a pointer of this process), and a kw that is
+published or forwarded as it came carries it. It is deleted with no log; from
+a twin of the kw (`kw_twin()`) when somebody else holds it too, so they keep
+theirs. Up to 7.30.26 it was sent: a kw received through a C_IOGATE and
+published to a subscriber over a link told the peer a pointer of this process.
+
+```C
+json_t *kw = json_pack("{s:i, s:{s:I}}", "a", 1, "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel);
+gbuffer_t *gbuf = iev_create_to_gbuffer(gobj, EV_X, kw);  // {"event": "EV_X", "kw": {"a": 1}}
+```
+
+With the drop of [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer),
+`__temp__` crosses the frontier of a yuno in neither direction.
+
 ---
 
 (iev_create_from_gbuffer)=
