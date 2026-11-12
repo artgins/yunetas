@@ -8,6 +8,12 @@
   layer-blend properties and the maplibre-native rotation inertia, and fixes a
   map that jumped when dragged or zoomed past the identity projection and
   `setMaxBounds` that fired no move or zoom events.
+  The `gui/` of the project templates also emits maplibre-gl's worker
+  (`assets/maplibre-gl-worker-<version>.js`) when the bundle carries a map,
+  and its README says the `setWorkerUrl()` call that points maplibre at it:
+  it depended on maplibre-gl and carried nothing for its worker, so a map
+  added to a generated app stayed blank in production.
+  `check_project_gui.sh` checks both cases.
 
 ### MQTT
 
@@ -467,6 +473,14 @@
   that is no secret's (`a'b'=c`) or in a value is kept; the cost: a quoted
   secret's key (`'password'=x`) makes the rest of its line `<...>`.
   `DEBUGGING.md` §5.5 shows it.
+  A key with quotes longer than 128 bytes is not read again without them:
+  it fails closed, judged a secret's (a key=value word with it makes the
+  rest of its line `<...>`, a json member with it has its value
+  `<redacted>`). A secret's name is found anywhere in a key, so no shorter
+  part of it could be judged; and copying the whole key to judge it again
+  made a crafted line slower to audit, before the command is authorized
+  (`x '<4 MB>=1`: 0.29 s against 0.12 s; 120 MB: 9.0 s against 3.9 s; now
+  0.09 s and 2.8 s). Test: `test_audit_record` (d9).
 - **BREAKING (a log watcher): a `content64` that is not base64 is a WARNING, not
   an ERROR.** `create-config`, `update-config`, `install-binary`,
   `update-binary` and `write-tty` of the agent, `write-tty` of agent22, and
@@ -487,8 +501,21 @@
   refused"* or *"content64 of a config is not json, refused"*
   (`MSGSET_PARAMETER`, the error's position and the length, NO dump of the
   content); the answer is -1 *"Bad json in content64"* as before, and the
-  config is still read with its `#^^` comments removed. Tests:
-  `c_agent_command_loop`, `c_node_commands`.
+  config is still read with its `#^^` comments removed.
+  A config that is json, and is not once its comments are cut (a `#^^` in a
+  string), said *"not json"* with an empty error and no position: now
+  *"content64 of a config is not json once its comments are removed,
+  refused"*, with the line and column of that mark. A config that is json
+  but not an object, or whose `__version__` / `__description__` is not a
+  string, logged *"path MUST BE a json str"*, an ERROR with a stack, up to
+  two per order: now ONE WARNING (*"content64 of a config is not a json
+  object, refused"*, *"... with a key of its own that is not a string,
+  refused"*), and the answer is -1 *"Bad json in content64"* (it was
+  *"Configuration __version__ is required, as a string"* or *"Configuration
+  not found"*). And the `gbuffer` keys are dropped from the config as
+  parsed: the comment cut joins lines, and `"gbu` + newline + `ffer"` (or
+  with a `#^^` comment between) was stored as a `gbuffer` key (7.30.26).
+  Tests: `c_agent_command_loop`, `c_node_commands`.
 - **BREAKING (a log watcher, a GUI): a `write-tty` that cannot be written is a
   WARNING, answered `EV_TTY_CLOSE`, and no longer drops agent22's link to the
   control center.** agent22 answered a write-tty for a console that is not
@@ -517,7 +544,33 @@
   operator waited for its own timeout (7.30.26 and before). Now the request
   goes from the agent, with the operator's channel in
   `__md_iev__.agent_requester`, which the answer echoes, and the agent sends
-  the answer on. Test: `c_agent_controlcenter_link`.
+  the answer on. The agent takes `agent_requester` only from an answer that
+  came from the link, and it names only a channel of the agent: as first
+  shipped, any session with a role for the service `agent` only could send
+  an answer to `agent` naming the link (`__md_iev__.agent_requester:
+  controlcenter`), and the agent sent it to the control center with its own
+  identity. Test: `c_agent_controlcenter_link`.
+- **BREAKING (a log watcher): an answer that comes to the agent is taken
+  only from where its order went.** Any session of the agent can send an
+  `EV_MT_COMMAND_ANSWER` / `EV_MT_STATS_ANSWER`. Up to 7.30.26 a reading of
+  a watched yuno (`__md_iev__.agent_watch`) or the answer to a
+  `publish-stats` (`agent_publish`) from any session was taken: the watchers
+  got its reading, or the agent took the yuno as refusing to publish. Now
+  they are taken only from the channel of the yuno they name. An answer to a
+  requester that is no channel of the agent and no link (an unknown
+  `dst_service`, or a service such as `authz`) was *"child not found"*, an
+  ERROR (`MSGSET_INTERNAL`) per answer, and a service that is no link was
+  sent the answer. What goes nowhere is now a WARNING (`MSGSET_PROTOCOL`, no
+  stack), ONE per kind per 10 s with the count dropped: *"answer naming a
+  requester of a link, not from a link: dropped"*, *"answer for the agent,
+  not from the yuno it names: dropped"*, *"requester of the answer not
+  found: dropped"*. And the channels of the agent are a pool: a session that
+  takes the `input-N` another one left got the answers to that one's
+  `command-yuno`, `stats-yuno`, `authzs` and `command-agent` / `stats-agent`
+  to the control center. Each session now has an id, carried by its orders
+  in `__md_iev__.agent_session`, and an answer for one that left is dropped
+  as *"requester gone before its answer, answer dropped"* (INFO). Tests:
+  `c_agent_controlcenter_link`, new `c_agent_answer_routing`.
 
 ### Kernel
 
@@ -537,7 +590,11 @@
   the peer (or a protocol error of its frames) puts `C_WEBSOCKET` in
   `ST_DISCONNECTED` at once, and so does the close of `C_PROT_TCP4H`, while
   the link leaves its session only at `EV_ON_CLOSE`, when the connection
-  ends. A command or a stats in that window is answered the same way, and
+  ends. A `C_IEVENT_CLI` whose bottom is a `C_IOGATE` (the agent's link to
+  the control center; agent22's and emailsender's links are built the same
+  way) asks the transport of the iogate's opened channels, since the iogate
+  itself stays in `ST_IDLE`: the link is closing when every opened channel's
+  transport is. A command or a stats in that window is answered the same way, and
   anything else sent to the peer (an answer, an event of a subscription, an
   injected event) is dropped with one WARNING *"Transport closing, nothing
   sent"* per session. Up to 7.30.26 each of them was *"Event NOT DEFINED in
@@ -565,6 +622,22 @@
   many; the caller logs. For a decoder that says a peer's bad data once per connection:
   `drop_peer_binary_keys()` logs one WARNING per json, so a device putting the key in every
   payload flooded the log of its gate.
+
+### Control center
+
+- **BREAKING (operators, scripts): an order the agent's link refuses at
+  once is answered.** When an agent's link is closing (its peer closed,
+  and `C_IEVENT_SRV` refuses an order at once, -1 *"… not in session"*),
+  `command-agent` and `stats-agent` answer -1 *"<yuno>: service '<channel>'
+  not in session: Command sent to 0 nodes"* (*"Stats …"*); a step of a
+  scenario run fails at once with that reason (in a run in order the run
+  ends there, in a run at once the others still go); a `write-tty` is
+  answered `EV_MT_COMMAND_ANSWER` -1 with it. `txMsgs` counts only what was
+  sent. Up to 7.30.26 the control center dropped that answer, as the agent
+  did: *"Command sent to 1 nodes"* and an operator waiting for an answer
+  nobody would send, a run step waiting its whole `run_step_timeout` (and
+  every run asked meanwhile refused, *"a run is in flight"*), keystrokes
+  lost with no answer. Test: `c_controlcenter_scenarios` (case 47).
 
 ### Packaging
 
