@@ -183,9 +183,9 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     /*------------------------------------------------*
-     *  Safety: kill the yuno after 10 s if stuck
+     *  Safety: kill the yuno after 30 s if stuck (the test waits 11 s)
      *------------------------------------------------*/
-    set_auto_kill_time(10);
+    set_auto_kill_time(30);
 
     /*------------------------------*
      *  Capture warnings and errors

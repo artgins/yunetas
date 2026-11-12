@@ -425,15 +425,23 @@ as an empty broker). No port, no store.
 `test_mqtt_broker_treedb_src` (`main_broker_treedb_src.c` +
 `c_broker_treedb_src.c`) runs the broker with `mqtt_service` `mqtt` and a
 `C_AUTHZ` master with a store (`admin` enabled, `carol` disabled, the role
-`user-mqtt`). The driver sends the broker, from itself (a gobj that is not
-the treedb of the broker), `EV_TREEDB_NODE_DELETED` of `admin`,
-`EV_TREEDB_NODE_UPDATED` of `carol` with `enabled` true and
-`EV_TREEDB_NODE_CREATED` of `mallory`: each one answered `-1`, ONE WARNING
-*"treedb event not published by the treedb of the broker, refused"* for the
-three (the brake), and authz unchanged. Then the same changes made in the
-broker's treedb reach authz: `bob` created (enabled), `enabled` false
-(disabled), true (enabled), deleted (disabled). No port. Red on 7.30.26:
-`admin` disabled, `carol` enabled, `mallory` created, no WARNING.
+`user-mqtt`). The driver forges the treedb events, each one from a `src` that
+is not the treedb of the broker and that a looser guard could let through:
+`EV_TREEDB_NODE_DELETED` of `admin` from itself, `EV_TREEDB_NODE_UPDATED` of
+`carol` with `enabled` true from the broker's `__top_side__` (a `C_IOGATE`),
+`EV_TREEDB_NODE_CREATED` of `mallory` from another `C_NODE` (the treedb of
+authz), and `EV_TREEDB_NODE_CREATED` of `trudy` from a `C_IEVENT_SRV` (a child
+of the driver, never started): each one answered `-1`, ONE WARNING *"treedb
+event not published by the treedb of the broker, refused"* for the four (the
+brake, `suppressed` 0), and authz unchanged. Then the same changes made in
+the broker's treedb reach authz: `bob` created (enabled), `enabled` false
+(disabled), true (enabled), deleted (disabled). 11 s later, past the 10 s
+window of the brake, one more forged event: its WARNING says the three not
+said, `suppressed` 3. No port. Red on 7.30.26: `admin` disabled, `carol`
+enabled, `mallory` created, no WARNING. Mutants killed: the guard also
+accepting the broker's `__top_side__` (or any `C_IOGATE`), any `C_NODE`, or
+any `C_IEVENT_SRV`; the suppressed ones not counted; every event refused (the
+treedb's own too).
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
 after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.

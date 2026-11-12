@@ -8,17 +8,29 @@
  *          `users` into the administration of the users of authz. Those
  *          three names are public (C_NODE), so a peer of a gate of the
  *          broker can send them, and C_IOGATE publishes them again as its
- *          own. This driver sends them to the broker in-process, from
- *          itself (a gobj that is not the treedb of the broker):
+ *          own. This driver sends them to the broker in-process, each one
+ *          from a `src` that is not the treedb of the broker, and that a
+ *          guard looser than "the treedb of the broker" could let through:
  *
- *              - DELETED `admin`               -> admin stays enabled
- *              - UPDATED `carol` enabled:true  -> carol stays disabled
- *              - CREATED `mallory`             -> no authz user mallory
+ *              - from itself:          DELETED `admin`
+ *                                      -> admin stays enabled
+ *              - from the `__top_side__` of the broker (its gate):
+ *                                      UPDATED `carol` enabled:true
+ *                                      -> carol stays disabled
+ *              - from a C_NODE that is not the treedb of the broker (the
+ *                treedb of authz):     CREATED `mallory`
+ *                                      -> no authz user mallory
+ *              - from a C_IEVENT_SRV (a child of this driver, never
+ *                started):             CREATED `trudy`
+ *                                      -> no authz user trudy
  *
- *          each one answered -1, and ONE WARNING for the three (the brake).
- *          Then the same changes made in the treedb of the broker (the
- *          events published by the treedb itself) must reach authz: `bob`
- *          created, disabled, enabled again, deleted (disabled).
+ *          each one answered -1, and ONE WARNING for the four (the brake),
+ *          `suppressed` 0. Then the same changes made in the treedb of the
+ *          broker (the events published by the treedb itself) must reach
+ *          authz: `bob` created, disabled, enabled again, deleted
+ *          (disabled). 11 s later, past the window of the brake (10 s),
+ *          one more forged event: its WARNING says the three not said in
+ *          the first window, `suppressed` 3.
  *
  *          Up to 7.30.26 the broker obeyed the forged events: admin
  *          disabled, carol enabled, mallory created.
@@ -37,6 +49,12 @@
 #define BROKER_TREEDB_SERVICE   "treedb_mqtt_broker"
 #define AUTHZ_TREEDB_SERVICE    "treedb_authzs"
 #define REFUSED_MSG             "treedb event not published by the treedb of the broker, refused"
+#define BRAKE_WINDOW_MS         11000   // past the 10 s of the broker's brake
+
+enum {
+    PHASE_FORGE = 0,        // the forged events and the real ones
+    PHASE_AFTER_WINDOW,     // the next forged event, past the brake's window
+};
 
 /***************************************************************************
  *              Prototypes
@@ -64,6 +82,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;
+    hgobj gobj_ievent_srv;  // a C_IEVENT_SRV, a src of forged events
+    int phase;
 } PRIVATE_DATA;
 
 
@@ -84,6 +104,12 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+    /*
+     *  Never started: it publishes nothing to this driver, it is only the
+     *  `src` of a forged event
+     */
+    priv->gobj_ievent_srv = gobj_create("forger", C_IEVENT_SRV, 0, gobj);
 }
 
 /***************************************************************************
@@ -198,10 +224,22 @@ PRIVATE int check_user(hgobj gobj, const char *casename, const char *username, i
 }
 
 /***************************************************************************
- *  A treedb event of the topic `users` of the broker, sent by this gobj
+ *  A treedb event of the topic `users` of the broker, sent with `src` as
+ *  its source: a gobj that is not the treedb of the broker
  ***************************************************************************/
-PRIVATE int send_forged(hgobj gobj, hgobj broker, gobj_event_t event, json_t *node)
+PRIVATE int send_forged(hgobj gobj, hgobj broker, gobj_event_t event, json_t *node, hgobj src)
 {
+    if(!src) {
+        JSON_DECREF(node)
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "TEST: no gobj to forge the event from",
+            "event",        "%s", event,
+            NULL
+        );
+        return -1;
+    }
     int ret = gobj_send_event(
         broker,
         event,
@@ -210,7 +248,7 @@ PRIVATE int send_forged(hgobj gobj, hgobj broker, gobj_event_t event, json_t *no
             "topic_name",   "users",
             "node",         node
         ),
-        gobj
+        src
     );
     if(ret != -1) {
         gobj_log_error(gobj, 0,
@@ -218,12 +256,54 @@ PRIVATE int send_forged(hgobj gobj, hgobj broker, gobj_event_t event, json_t *no
             "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "TEST: a forged treedb event was not refused",
             "event",        "%s", event,
+            "src",          "%s", gobj_short_name(src),
             "ret",          "%d", ret,
             NULL
         );
         return -1;
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Expect the forged events of a phase: ONE WARNING, with `suppressed`
+ *  the ones of the window before it not said. Checked by the caller with
+ *  end_forged_phase()
+ ***************************************************************************/
+PRIVATE void expect_one_warning(const char *phasename, int suppressed)
+{
+    set_expected_results(
+        phasename,
+        json_pack("[{s:s, s:i}]",
+            "msg", REFUSED_MSG,
+            "suppressed", suppressed
+        ),
+        NULL, NULL, 1
+    );
+}
+
+/***************************************************************************
+ *  The logs of a phase of forged events checked; what comes after must
+ *  log nothing. A failure is said after the expected results of the rest,
+ *  so it fails the test
+ ***************************************************************************/
+PRIVATE void end_forged_phase(hgobj gobj, const char *phasename)
+{
+    int forged_logs = test_json(NULL);
+    set_expected_results(
+        "test_mqtt_broker_treedb_src",
+        json_array(),   // nothing else
+        NULL, NULL, 1
+    );
+    if(forged_logs < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", "TEST: not one WARNING with its suppressed count for the forged treedb events",
+            "phase",        "%s", phasename,
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -252,67 +332,59 @@ PRIVATE int set_broker_user_enabled(hgobj gobj, hgobj treedb, const char *userna
     return 0;
 }
 
-
-
-
-                    /***************************
-                     *      Actions
-                     ***************************/
-
-
-
-
 /***************************************************************************
- *  The broker and authz are up: run the cases, then the end
+ *  The forged events, from four sources, and the real ones
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE void run_forged_and_real(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     hgobj broker = gobj_find_service(BROKER_SERVICE, TRUE);
     hgobj treedb = gobj_find_service(BROKER_TREEDB_SERVICE, TRUE);
+    hgobj top_side = gobj_find_service("__top_side__", TRUE);
+    hgobj other_treedb = gobj_find_service(AUTHZ_TREEDB_SERVICE, TRUE);
 
-    check_user(gobj, "seeded: admin enabled", "admin", 1);
-    check_user(gobj, "seeded: carol disabled", "carol", 0);
-    check_user(gobj, "seeded: no mallory", "mallory", -1);
-
-    /*-----------------------------------------------------------*
-     *  Forged: the events sent by a gobj that is not the treedb
-     *  of the broker. One WARNING for the three (the brake).
-     *-----------------------------------------------------------*/
-    set_expected_results(
-        "forged treedb events",
-        json_pack("[{s:s}]",
-            "msg", REFUSED_MSG
-        ),
-        NULL, NULL, 1
-    );
-    send_forged(gobj, broker, EV_TREEDB_NODE_DELETED,
-        json_pack("{s:s}", "id", "admin")
-    );
-    send_forged(gobj, broker, EV_TREEDB_NODE_UPDATED,
-        json_pack("{s:s, s:b}", "id", "carol", "enabled", 1)
-    );
-    send_forged(gobj, broker, EV_TREEDB_NODE_CREATED,
-        json_pack("{s:s}", "id", "mallory")
-    );
-    int forged_logs = test_json(NULL);
-    set_expected_results(
-        "test_mqtt_broker_treedb_src",
-        json_array(),   // nothing else
-        NULL, NULL, 1
-    );
-    if(forged_logs < 0) {
-        // Said after the expected results of the rest: so it fails the test
+    if(!gobj_typeof_gclass(other_treedb, C_NODE)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP,
-            "msg",          "%s", "TEST: not one WARNING for the forged treedb events",
+            "msg",          "%s", "TEST: the treedb of authz is not a C_NODE",
             NULL
         );
     }
 
-    check_user(gobj, "forged DELETED: admin still enabled", "admin", 1);
-    check_user(gobj, "forged UPDATED: carol still disabled", "carol", 0);
-    check_user(gobj, "forged CREATED: no mallory", "mallory", -1);
+    check_user(gobj, "seeded: admin enabled", "admin", 1);
+    check_user(gobj, "seeded: carol disabled", "carol", 0);
+    check_user(gobj, "seeded: no mallory", "mallory", -1);
+    check_user(gobj, "seeded: no trudy", "trudy", -1);
+
+    /*-----------------------------------------------------------*
+     *  Forged: the events sent by gobjs that are not the treedb
+     *  of the broker. One WARNING for the four (the brake).
+     *-----------------------------------------------------------*/
+    expect_one_warning("forged treedb events", 0);
+    send_forged(gobj, broker, EV_TREEDB_NODE_DELETED,
+        json_pack("{s:s}", "id", "admin"),
+        gobj
+    );
+    send_forged(gobj, broker, EV_TREEDB_NODE_UPDATED,
+        json_pack("{s:s, s:b}", "id", "carol", "enabled", 1),
+        top_side
+    );
+    send_forged(gobj, broker, EV_TREEDB_NODE_CREATED,
+        json_pack("{s:s}", "id", "mallory"),
+        other_treedb
+    );
+    send_forged(gobj, broker, EV_TREEDB_NODE_CREATED,
+        json_pack("{s:s}", "id", "trudy"),
+        priv->gobj_ievent_srv
+    );
+    end_forged_phase(gobj, "forged treedb events");
+
+    check_user(gobj, "forged DELETED (from the driver): admin still enabled", "admin", 1);
+    check_user(gobj, "forged UPDATED (from __top_side__): carol still disabled", "carol", 0);
+    check_user(gobj, "forged CREATED (from another C_NODE): no mallory", "mallory", -1);
+    check_user(gobj, "forged CREATED (from a C_IEVENT_SRV): no trudy", "trudy", -1);
 
     /*-----------------------------------------------------------*
      *  The real ones: the same changes made in the treedb of
@@ -351,8 +423,56 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
     check_user(gobj, "treedb DELETED: bob disabled", "bob", 0);
+}
 
-    set_yuno_must_die();
+/***************************************************************************
+ *  Past the window of the brake: the next forged event says the ones of
+ *  the first window not said
+ ***************************************************************************/
+PRIVATE void run_forged_after_window(hgobj gobj)
+{
+    hgobj broker = gobj_find_service(BROKER_SERVICE, TRUE);
+
+    expect_one_warning("forged treedb event after the window", 3);
+    send_forged(gobj, broker, EV_TREEDB_NODE_DELETED,
+        json_pack("{s:s}", "id", "admin"),
+        gobj
+    );
+    end_forged_phase(gobj, "forged treedb event after the window");
+
+    check_user(gobj, "forged DELETED after the window: admin still enabled", "admin", 1);
+}
+
+
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *  The broker and authz are up: run the cases, then the end
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    switch(priv->phase) {
+        case PHASE_FORGE:
+            run_forged_and_real(gobj);
+            priv->phase = PHASE_AFTER_WINDOW;
+            set_timeout(priv->timer, BRAKE_WINDOW_MS);
+            break;
+
+        case PHASE_AFTER_WINDOW:
+        default:
+            run_forged_after_window(gobj);
+            set_yuno_must_die();
+            break;
+    }
 
     KW_DECREF(kw)
     return 0;
