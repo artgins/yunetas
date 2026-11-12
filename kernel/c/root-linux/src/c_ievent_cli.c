@@ -32,6 +32,7 @@
  *              Constants
  ***************************************************************/
 #define PEER_NAME_SHOWN     129     // a name the server wrote, as a log shows it: masked, capped
+#define ROLE_OF_THE_AGENT   "yuneta_agent"  // the role of the agent that launches and plays the yunos
 
 /***************************************************************
  *              Prototypes
@@ -64,6 +65,14 @@ PRIVATE int refuse_request(
     gobj_event_t iev_event,
     json_t *iev_kw,
     const char *refusal
+);
+PRIVATE BOOL is_link_to_my_agent(hgobj gobj);
+PRIVATE int refuse_play_pause(
+    hgobj gobj,
+    gobj_event_t event,
+    gobj_event_t ack_event,
+    json_t *kw,
+    hgobj src
 );
 
 /***************************************************************
@@ -123,6 +132,7 @@ typedef struct _PRIVATE_DATA {
                             // avoid duplicates, no subscriptions while in on_open,
                             // they will send in resend_subscriptions
     BOOL closing_logged;    // "Transport closing" was logged in this session
+    BOOL play_pause_refusal_logged; // a play/pause of the yuno was refused in this session
 
 } PRIVATE_DATA;
 
@@ -1024,6 +1034,75 @@ PRIVATE int set_operator_of_request(
 }
 
 /***************************************************************************
+ *  Only the link to the yuno's own agent plays and pauses the yuno.
+ *  It is told apart by the role it was CONFIGURED to reach
+ *  (wanted_yuno_role, taken from the config's remote_yuno_role at create),
+ *  never by the peer's: the identity card ack overwrites remote_yuno_role
+ *  with what the server says. The agent writes this role in the link it
+ *  gives every yuno it launches. Any other link configured to reach a
+ *  yuneta_agent passes too (a tool that links to the agent of a node): it
+ *  is an agent all the same.
+ ***************************************************************************/
+PRIVATE BOOL is_link_to_my_agent(hgobj gobj)
+{
+    const char *wanted_role = gobj_read_str_attr(gobj, "wanted_yuno_role");
+    return (wanted_role && strcmp(wanted_role, ROLE_OF_THE_AGENT)==0)? TRUE:FALSE;
+}
+
+/***************************************************************************
+ *  A play/pause of the yuno by a link that is not the one to its agent:
+ *  refused, the ack answered with result -1, ONE warning per session
+ ***************************************************************************/
+PRIVATE int refuse_play_pause(
+    hgobj gobj,
+    gobj_event_t event,
+    gobj_event_t ack_event,
+    json_t *kw,
+    hgobj src
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->play_pause_refusal_logged) {
+        priv->play_pause_refusal_logged = TRUE;
+        const char *role = gobj_read_str_attr(gobj, "remote_yuno_role");
+        const char *name = gobj_read_str_attr(gobj, "remote_yuno_name");
+        role = role?role:"";
+        name = name?name:"";
+        char shown_role[PEER_NAME_SHOWN];
+        char shown_name[PEER_NAME_SHOWN];
+        mask_secrets_inline_capped(shown_role, sizeof(shown_role), role, strlen(role));
+        mask_secrets_inline_capped(shown_name, sizeof(shown_name), name, strlen(name));
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH,
+            "msg",              "%s", "play/pause of the yuno refused: only the link to its agent plays or pauses it",
+            "event",            "%s", event,
+            "remote_yuno_role", "%s", shown_role,
+            "remote_yuno_name", "%s", shown_name,
+            "url",              "%s", gobj_read_str_attr(gobj, "url"),
+            NULL
+        );
+    }
+
+    json_t *jn_result = json_pack("{s:i, s:o}",
+        "result", -1,
+        "comment", json_sprintf(
+            "%s: only the link to the yuno's agent plays or pauses the yuno",
+            gobj_yuno_role_plus_name()
+        )
+    );
+    json_t *kw2resp = msg_iev_set_back_metadata(
+        gobj,
+        kw,             // owned, kw request, used to extract ONLY __md_iev__
+        jn_result,      // like owned, is returned!
+        TRUE            // reverse_dst
+    );
+    send_static_iev(gobj, ack_event, kw2resp, src);
+    return -1;
+}
+
+/***************************************************************************
  *  A request whose operator is refused: a command or a stats is answered
  *  with the refusal (the operator reads it), anything else is dropped (the
  *  WARNING is already said). iev_kw owned.
@@ -1110,6 +1189,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->closing_logged = FALSE;
+    priv->play_pause_refusal_logged = FALSE;
 
     /*
      *  Route (channel) close.
@@ -1818,6 +1898,10 @@ PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*
      *      __RESPONSE__ __MESSAGE__
      */
+    if(!is_link_to_my_agent(gobj)) {
+        return refuse_play_pause(gobj, event, EV_PLAY_YUNO_ACK, kw, src);
+    }
+
     int ret = gobj_play(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",
         "result",
@@ -1845,6 +1929,9 @@ PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*
      *      __RESPONSE__ __MESSAGE__
      */
+    if(!is_link_to_my_agent(gobj)) {
+        return refuse_play_pause(gobj, event, EV_PAUSE_YUNO_ACK, kw, src);
+    }
 
     int ret = gobj_pause(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",

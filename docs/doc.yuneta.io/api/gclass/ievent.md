@@ -497,6 +497,47 @@ masked and capped).
 
 `tests/c/c_ievent_cli_peer_faults`.
 
+### Who may play and pause the yuno
+
+`EV_PLAY_YUNO` and `EV_PAUSE_YUNO` are public events of every
+`C_IEVENT_CLI`: they call `gobj_play()` / `gobj_pause()` of the YUNO and
+answer with `EV_PLAY_YUNO_ACK` / `EV_PAUSE_YUNO_ACK`. Their one legitimate
+sender is the yuno's agent, over the link the agent gives every yuno it
+launches. Since 7.30.27 only a client whose CONFIGURED remote role is
+`yuneta_agent` takes them:
+
+```c
+/* The link the agent writes into every yuno's config: plays and pauses it */
+{
+    "name": "agent_client",
+    "gclass": "C_IEVENT_CLI",
+    "kw": {
+        "remote_yuno_role": "yuneta_agent",
+        "remote_yuno_service": "agent"
+    }
+}
+```
+
+The role compared is `wanted_yuno_role`, copied from the config's
+`remote_yuno_role` when the client is created. It is never the role the
+server SAYS: the identity-card ack overwrites `remote_yuno_role` with what
+the server writes, so a server that claims to be an agent changes nothing.
+Any other client configured to reach a `yuneta_agent` passes too (a tool that
+links to the agent of a node): its server is an agent all the same.
+
+Any other client (a gate's link to a central, the agent's own link to its
+control center) refuses both events:
+
+| What it does | Log |
+|--------------|-----|
+| The yuno is not played or paused. The ack is answered with `"result": -1` and a `comment` (*"`<role>^<name>`: only the link to the yuno's agent plays or pauses the yuno"*). The channel stays. | ONE WARNING per session, `MSGSET_AUTH`, no stack, the server's role and name masked: *"play/pause of the yuno refused: only the link to its agent plays or pauses it"* |
+
+Up to 7.30.26 every client played and paused the yuno: the server of any link
+(a central, a control center) could pause the yuno. In the agent the pause by
+its control-center link stopped that same link inside its own action.
+
+`tests/c/c_ievent_cli_play_pause`.
+
 ### The C client and the gobj-js client refuse differently
 
 The gobj-js `C_IEVENT_CLI` (the browser's) reads its server with the same
