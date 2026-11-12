@@ -545,6 +545,26 @@ Up to 7.30.26 none of those events was public in the control center: the
 agent's channel refused the frame (*"Frame of an event that is not public,
 refused"*, a WARNING), and the client had only *"Command sent to 1 nodes"*.
 
+The agent writes the route of its answers, so the control center relays one
+only to a web client that **asked that agent**, in the connection it holds
+now: `command-agent` remembers, in the agent's channel, the client's channel
+and its connection, and stamps the connection on the request
+(`cc_connection`); the answer must come back from that agent with that stamp.
+An answer for a client that did not ask that agent, with another client's
+stamp or with none, is dropped with a WARNING that names the agent (one per
+`drops_warning_window`, the rest counted):
+
+```text
+"msg": "answer of an agent's request for a web client that did not ask that agent, dropped",
+"event": "EV_READ_FILE", "agent": "<node uuid>", "agent_host": "node-a",
+"client": "C_CHANNEL^input-3", "detail": "the client did not ask that agent"
+```
+
+Up to 7.30.26 an accepted agent could send the seven to any web client of
+the control center, naming its channel: two clients that had asked nothing got
+them. `ycommand` takes one only as the answer of a request it made (one
+answer per request, see the ycommand page) since then.
+
 ### Events pushed by a node, relayed to the web client
 
 Some of what a node's agent sends is not an answer but a stream, pushed along

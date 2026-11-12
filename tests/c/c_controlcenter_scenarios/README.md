@@ -491,6 +491,17 @@ still reported and fails the test.
     and the client gets the agent's answer once. Up to 7.30.26 none was
     public: the channel refused the frame (*"Frame of an event that is not
     public, refused"*), and the client had only *"Command sent to 1 nodes"*.
+49. And only to a client that asked THAT agent, in the connection it holds
+    now. A client asks `read-file` of the agent; another client connects
+    again (a connection that asked nothing). The agent sends each of the
+    seven events three times with a route it wrote: to the other client
+    with that client's own connection stamp, to it with no stamp, and to the
+    client that asked with no stamp. None reaches a client, and the log has
+    ONE WARNING *"answer of an agent's request for a web client that did not
+    ask that agent, dropped"* (the other 20 counted, said when the window of
+    case 11 ends). The agent's answer with the stamp of the client that asked
+    still reaches it. Up to 7.30.26 an accepted agent could send them to any
+    web client by the name of its channel.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

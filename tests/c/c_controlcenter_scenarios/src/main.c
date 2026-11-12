@@ -365,6 +365,7 @@ PRIVATE const char *expected_msgs[] = {
     "stream for a web client that is gone, dropped",          // the first of two frames
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer for a web client that is gone, dropped: its channel holds another connection now",
+    "answer of an agent's request for a web client that did not ask that agent, dropped",  // 49: 21 forged, said once
     "answer of an agent for no requester of this control center, dropped",
     "PTY output of an agent for no requester of this control center, dropped",  // two frames, said once
     "answer of an agent for no requester of this control center, dropped",
@@ -400,6 +401,7 @@ PRIVATE const char *expected_msgs[] = {
     "stream for a web client that is gone, dropped|its window ended|1",
     "PTY output of an agent for no requester of this control center, dropped|its window ended|1",
     "event of an agent not from the agents' side, dropped|its window ended|12",
+    "answer of an agent's request for a web client that did not ask that agent, dropped|its window ended|20",
     "yuno stats for a web client that is gone, dropped (the agent's watch expires)||1",
     "yuno stats for a web client that is gone, dropped (the agent's watch expires)|its window ended|3",
     "All controlcenter scenarios tests PASSED",

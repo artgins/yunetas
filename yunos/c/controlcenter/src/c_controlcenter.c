@@ -351,6 +351,8 @@ PRIVATE int load_assertion_key(hgobj gobj);
 PRIVATE int add_operator_assertion(hgobj gobj, json_t *kw_agent, const char *username, hgobj agent_channel);
 PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
 PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv);
+PRIVATE void record_client_request(hgobj gobj, hgobj src, hgobj agent_srv);
+PRIVATE BOOL client_asked_agent(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester);
 PRIVATE json_t *refused_by_agent_link(hgobj gobj, const char *what, json_t *webix, json_t *kw);
 PRIVATE hgobj requester_of_route(
     hgobj gobj,
@@ -620,6 +622,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t t_tty_unrouted_log;    // msectimer: start of its window (0: none)
     uint64_t injected;              // events of an agent sent from __top_side__
     uint64_t t_injected_log;        // msectimer: start of its window (0: none)
+    uint64_t unasked;               // answers of an agent's request for a client that did not ask it
+    uint64_t t_unasked_log;         // msectimer: start of its window (0: none)
     hgobj drops_timer;              // says the counts above when their window ends
     BOOL drops_timer_armed;
     uint64_t drops_timer_end;       // msectimer the drops timer is armed for
@@ -1523,6 +1527,7 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
     int some = 0;
     if(child) {
         record_link_request(gobj, src, child);
+        record_client_request(gobj, src, child);
         json_t *webix = gobj_command(
             child,
             cmd2agent,
@@ -5058,6 +5063,98 @@ PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv)
 }
 
 /***************************************************************************
+ *  A web client sends a command to the agent of `agent_srv`: the agent's
+ *  channel remembers that client (the name of its channel of __top_side__
+ *  and its connection), the only clients the answers of the agent's own
+ *  requests (read-file, edit-config...) are relayed to
+ *  (client_asked_agent()). One entry per channel of a client, the last
+ *  connection that asked; forgotten when the agent's channel closes.
+ ***************************************************************************/
+PRIVATE void record_client_request(hgobj gobj, hgobj src, hgobj agent_srv)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj client_channel = channel_of_side(priv->gobj_top_side, src);
+    if(!client_channel) {
+        return;     // not a web client: a link (record_link_request()) or a local service
+    }
+    hgobj agent_channel = channel_of_side(priv->gobj_input_side, agent_srv);
+    if(!agent_channel) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "agent not under __input_side__, the answers of its requests will be dropped",
+            "client",       "%s", gobj_short_name(client_channel),
+            NULL
+        );
+        return;
+    }
+    json_t *clients = gobj_read_user_data(agent_channel, "client_requests");
+    if(!json_is_object(clients)) {
+        clients = json_object();
+        gobj_write_user_data(agent_channel, "client_requests", clients);
+    }
+    json_object_set_new(clients, gobj_name(client_channel),
+        json_integer(connection_number(client_channel)));
+}
+
+/***************************************************************************
+ *  May the answer of an agent's own request (kw not owned, the CC's hop
+ *  popped) go to `requester`? A link: requester_of_route() checked that it
+ *  asked this agent. A web client: only if it asked THIS agent in the
+ *  connection it holds now (record_client_request()), and the answer
+ *  carries that connection (the stamp of command-agent). The agent writes
+ *  the route of its answers: up to 7.30.26 an agent could send them to any
+ *  web client of the control center by its channel's name, with no stamp
+ *  or with the stamp of another client. Dropped with a WARNING that names
+ *  the agent, one per window (drops_warning_window), the rest counted.
+ ***************************************************************************/
+PRIVATE BOOL client_asked_agent(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_typeof_gclass(requester, C_IEVENT_CLI)) {
+        return TRUE;
+    }
+    hgobj agent_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    json_int_t connection = connection_number(requester);
+    json_t *jn_client = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, 0);
+    json_t *jn_stamp = json_is_object(jn_client)? json_object_get(jn_client, "cc_connection") : NULL;
+    json_t *clients = agent_channel? gobj_read_user_data(agent_channel, "client_requests") : NULL;
+    if(connection && json_is_integer(jn_stamp) && json_integer_value(jn_stamp) == connection &&
+            json_integer_value(json_object_get(clients, gobj_name(requester))) == connection) {
+        return TRUE;
+    }
+
+    priv->unasked++;
+    if(drops_window_ended(gobj, priv->t_unasked_log)) {
+        hgobj agent_srv = agent_channel? gobj_find_child(agent_channel,
+            json_pack("{s:s}", "__gclass_name__", C_IEVENT_SRV)) : NULL;
+        json_t *card = agent_srv? gobj_read_json_attr(agent_srv, "identity_card") : NULL;
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "answer of an agent's request for a web client that did not ask that agent, dropped",
+            "event",        "%s", event,
+            "agent",        "%s", card_str(card, "id"),
+            "agent_host",   "%s", card_host(card),
+            "channel",      "%s", agent_channel? gobj_short_name(agent_channel) : "",
+            "client",       "%s", gobj_short_name(requester),
+            "detail",       "%s", !json_is_integer(jn_stamp)? "no connection stamp" :
+                                  json_integer_value(jn_stamp) != connection?
+                                      "the stamp of another connection" :
+                                      "the client did not ask that agent",
+            "dropped",      "%lu", (unsigned long)priv->unasked,
+            NULL
+        );
+        priv->unasked = 0;
+        priv->t_unasked_log = start_msectimer(0);
+    }
+    arm_drops_timer(gobj);
+    return FALSE;
+}
+
+/***************************************************************************
  *  Who gets what an agent sends back along the route of a request (kw not
  *  owned): pops this control center's hop off the stack, whose
  *  `dst_service` is who asked -- the channel of __top_side__ of a web
@@ -5315,7 +5412,7 @@ typedef struct {
     const char *msg;
 } drop_cap_t;
 
-#define DROP_CAPS 4
+#define DROP_CAPS 5
 
 PRIVATE void drop_caps(PRIVATE_DATA *priv, drop_cap_t caps[DROP_CAPS])
 {
@@ -5327,6 +5424,8 @@ PRIVATE void drop_caps(PRIVATE_DATA *priv, drop_cap_t caps[DROP_CAPS])
         "PTY output of an agent for no requester of this control center, dropped"};
     caps[3] = (drop_cap_t){&priv->injected, &priv->t_injected_log, MSGSET_PROTOCOL,
         "event of an agent not from the agents' side, dropped"};
+    caps[4] = (drop_cap_t){&priv->unasked, &priv->t_unasked_log, MSGSET_PROTOCOL,
+        "answer of an agent's request for a web client that did not ask that agent, dropped"};
 }
 
 /***************************************************************************
@@ -6293,6 +6392,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     if(src == priv->gobj_input_side && channel_gobj) {
         gobj_write_user_data(channel_gobj, "link_requesters", json_object());
+        gobj_write_user_data(channel_gobj, "client_requests", json_object());
         gobj_write_user_data(channel_gobj, "node_refused", json_false());
     }
 
@@ -6370,6 +6470,11 @@ PRIVATE int ac_agent_request_answer(hgobj gobj, gobj_event_t event, json_t *kw, 
     hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
         // Error already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
         KW_DECREF(kw);
         return 0;
     }

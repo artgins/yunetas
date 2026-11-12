@@ -1164,6 +1164,103 @@ PRIVATE int test_agent_request_answers(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  `request` (not owned, what the agent got) with its route rewritten to
+ *  the channel `to` (NULL: kept) and the connection stamp of the client
+ *  hop set to `connection` (-1: taken out). Yours.
+ ***************************************************************************/
+PRIVATE json_t *rerouted(json_t *request, const char *to, json_int_t connection)
+{
+    json_t *forged = json_deep_copy(request);
+    json_t *stack = json_object_get(json_object_get(forged, "__md_iev__"), "ievent_gate_stack");
+    json_t *top = json_array_get(stack, 0);
+    json_t *client = json_array_get(stack, json_array_size(stack) - 1);
+    if(to) {
+        json_object_set_new(top, "src_service", json_string(to));
+    }
+    if(connection < 0) {
+        json_object_del(client, "cc_connection");
+    } else {
+        json_object_set_new(client, "cc_connection", json_integer(connection));
+    }
+    return forged;
+}
+
+/***************************************************************************
+ *  49. What the agent answers to its own requests reaches only a client
+ *      that asked THAT agent, in the connection it holds now. The agent
+ *      writes the route of its answers: up to 7.30.26 an agent could send
+ *      them to any web client of the control center, naming its channel,
+ *      with the connection stamp of that client or with none. The answers
+ *      that do not go: ONE WARNING (a window), the rest counted.
+ ***************************************************************************/
+PRIVATE int test_agent_request_answers_unasked(hgobj gobj, hgobj client, hgobj other)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    /*  `other` connects again: this connection asked the agent nothing  */
+    client_closes(gobj, other);
+    client_opens(gobj, other);
+    json_decref(take_received(other));
+    json_int_t other_connection = json_integer_value(gobj_read_user_data(other, "cc_connection"));
+    json_int_t client_connection = json_integer_value(gobj_read_user_data(client, "cc_connection"));
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("read-file filename=/yuneta/agent/yuneta_agent.json"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, "Command sent to 1 nodes", "read-file of a client");
+    json_t *request = agent_request(gobj, "read-file of a client");
+    if(!request) {
+        return ret - 1;
+    }
+
+    gobj_event_t events[] = {
+        EV_READ_FILE, EV_READ_JSON, EV_READ_BINARY_FILE, EV_EDIT_CONFIG,
+        EV_VIEW_CONFIG, EV_EDIT_YUNO_CONFIG, EV_VIEW_YUNO_CONFIG, 0
+    };
+    for(int i=0; events[i]; i++) {
+        /*  To the client that asked nothing, with its own stamp  */
+        json_t *forged = rerouted(request, gobj_name(other), other_connection);
+        agent_sends_data(gobj, events[i], forged, 0, "forged for a client that did not ask",
+            json_pack("{s:s}", "name", "evil"));
+        JSON_DECREF(forged)
+        /*  To it with no stamp  */
+        forged = rerouted(request, gobj_name(other), -1);
+        agent_sends_data(gobj, events[i], forged, 0, "forged with no stamp",
+            json_pack("{s:s}", "name", "evil"));
+        JSON_DECREF(forged)
+        /*  To the client that asked, with no stamp  */
+        forged = rerouted(request, NULL, -1);
+        agent_sends_data(gobj, events[i], forged, 0, "forged with no stamp",
+            json_pack("{s:s}", "name", "evil"));
+        JSON_DECREF(forged)
+    }
+    json_t *received = take_received(other);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "an answer of an agent reached a client that did not ask it", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+    if(count_received(client, EV_READ_FILE, "forged") +
+            count_received(client, EV_READ_JSON, "forged") != 0) {
+        ret += fail(gobj, "an answer of an agent with no connection stamp reached the client", "");
+    }
+
+    /*  What must still go: the agent's answer, to the client that asked  */
+    json_t *legit = rerouted(request, NULL, client_connection);
+    agent_sends_data(gobj, EV_READ_FILE, legit, 0, "the agent's answer",
+        json_pack("{s:s}", "name", "yuneta_agent.json"));
+    JSON_DECREF(legit)
+    if(count_received(client, EV_READ_FILE, "the agent's answer") != 1) {
+        ret += fail(gobj, "the answer of the agent's request reaches the client that asked", "");
+    }
+    JSON_DECREF(request)
+    return ret;
+}
+
+/***************************************************************************
  *  A request of `client` as the user "viewer", who may read the scenario
  *  "scn" and nothing else (test_authz_checker() of main.c)
  ***************************************************************************/
@@ -5494,6 +5591,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_several_mirrors(gobj, client1, client2);
     result += test_relays_only_for_who_asks(gobj, client1);
     result += test_agent_request_answers(gobj, client1);
+    result += test_agent_request_answers_unasked(gobj, client1, client2);
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
