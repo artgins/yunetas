@@ -103,6 +103,21 @@ def forged(event, md_key, md_value, result, data):
         }}}
 
 
+PEER_POINTER = 1094795585     # 0x41414141: what a peer writes where the agent keeps a pointer
+
+
+def ack(event, result, temp=None):
+    """A play / pause ack, as a yuno sends it; `temp`: a `__temp__` of the peer"""
+    kw = {"result": result, "comment": "an ack of a session", "data": None,
+        "__md_iev__": {
+            "ievent_gate_stack": [routing("ycommand")],
+            "__msg_type__": "__answer__",
+        }}
+    if temp is not None:
+        kw["__temp__"] = temp
+    return {"event": event, "kw": kw}
+
+
 class Peer:
     """A websocket client written by hand: its frames go out as they are made"""
 
@@ -321,14 +336,37 @@ async def main():
     yid = rows[0]["id"]
     realm_id = rows[0]["realm_id"][0] if isinstance(rows[0]["realm_id"], list) else rows[0]["realm_id"]
 
+    #   Another yuno, whose link sends what only the first one may
+    config64_y = base64.b64encode(json.dumps(
+        {"__version__": "1", "__description__": "sandbox"}).encode()).decode()
+    for cmd, kw in (
+        ("create-config", {"id": "logcenter.y", "content64": config64_y}),
+        ("create-yuno", {"realm_id": "w.prod.test", "yuno_role": "logcenter", "yuno_name": "y"}),
+    ):
+        r = await op.ask(cmd, kw, secs=30)
+        check("%s of another yuno" % cmd, r.get("result") == 0)
+    r = await op.ask("list-yunos", {"yuno_role": "logcenter", "yuno_name": "y"})
+    rows_y = r.get("data") or []
+    check("another logcenter is registered", len(rows_y) == 1)
+    if len(rows_y) != 1:
+        return
+
     yuno = await Yuno().open()
     yuno.send(card("logcenter", -1, yuno_id=yid, yuno_name="x",
         yuno_release=rows[0]["yuno_release"], realm_id=realm_id, watcher_pid=-1))
-    ack = await yuno.until(("EV_IDENTITY_CARD_ACK",), 10)
-    check("the yuno in session", bool(ack) and ack["kw"].get("result") == 0)
-    if not ack:
+    card_ack = await yuno.until(("EV_IDENTITY_CARD_ACK",), 10)
+    check("the yuno in session", bool(card_ack) and card_ack["kw"].get("result") == 0)
+    if not card_ack:
+        return
+    other = await Yuno().open()
+    other.send(card("logcenter", -1, yuno_id=rows_y[0]["id"], yuno_name="y",
+        yuno_release=rows_y[0]["yuno_release"], realm_id=realm_id, watcher_pid=-1))
+    card_ack = await other.until(("EV_IDENTITY_CARD_ACK",), 10)
+    check("the other yuno in session", bool(card_ack) and card_ack["kw"].get("result") == 0)
+    if not card_ack:
         return
     serving = asyncio.ensure_future(yuno.serve())
+    serving_other = asyncio.ensure_future(other.serve())
     r = await op.ask("list-yunos", {"id": yid})
     pid = ((r.get("data") or [{}])[0]).get("yuno_pid", 0)
 
@@ -348,9 +386,40 @@ async def main():
         {"yuno_id": yid, "kind": "app", "service": "", "route": ""}, 0, {"forged": True}))
     f.send(forged("EV_MT_COMMAND_ANSWER", "agent_publish",
         {"yuno_id": yid, "service": "__yuno__", "pid": pid, "stop": False}, -1, None))
+    #   The link of ANOTHER yuno names the first one: not its channel either
+    other.send(forged("EV_MT_STATS_ANSWER", "agent_watch",
+        {"yuno_id": yid, "kind": "app", "service": "", "route": ""}, 0, {"forged": "by another yuno"}))
+    other.send(forged("EV_MT_COMMAND_ANSWER", "agent_publish",
+        {"yuno_id": yid, "service": "__yuno__", "pid": pid, "stop": False}, -1, None))
     got = await readings(w, 2)
     check("the watcher gets no reading forged by a session",
         not any((g.get("data") or {}).get("data", {}) == {"forged": True} for g in got))
+    check("the watcher gets no reading forged by another yuno",
+        not any((g.get("data") or {}).get("data", {}) == {"forged": "by another yuno"} for g in got))
+
+    #   4. A session sends where the agent keeps a pointer (`__temp__`, a
+    #   key of the agent's own, which a peer's frame never carries): a
+    #   reading, a publication and the acks of play / pause, with a
+    #   `__temp__` of its own; and acks with none, which came from no yuno
+    #   (up to 7.30.26 the agent took the peer's number for a gobj and died;
+    #   an ack read its channel as a yuno's, ERRORs with a stack)
+    g = await session()
+    g.send({"event": "EV_MT_STATS_ANSWER", "kw": dict(forged("EV_MT_STATS_ANSWER", "agent_watch",
+        {"yuno_id": yid, "kind": "app", "service": "", "route": ""}, 0, {"forged": True})["kw"],
+        __temp__=[PEER_POINTER])})
+    g.send({"event": "EV_MT_COMMAND_ANSWER", "kw": dict(forged("EV_MT_COMMAND_ANSWER", "agent_publish",
+        {"yuno_id": yid, "service": "__yuno__", "pid": pid, "stop": False}, -1, None)["kw"],
+        __temp__={"channel_gobj": PEER_POINTER})})
+    for event in ("EV_PLAY_YUNO_ACK", "EV_PAUSE_YUNO_ACK"):
+        g.send(ack(event, 0, temp=[PEER_POINTER]))
+        g.send(ack(event, 0, temp={"channel_gobj": PEER_POINTER}))
+        g.send(ack(event, 0))
+        g.send(ack(event, -1))
+    got = await readings(w, 1)
+    check("the watcher gets no reading a session sent with a __temp__",
+        not any((g_.get("data") or {}).get("data", {}) == {"forged": True} for g_ in got))
+    r = await g.ask("help", {"cmd": "stats-yuno"})
+    check("the agent lives after the frames with a __temp__ of a session", r.get("result") == 0)
     r = await w.ask("watch-yuno-stats", {"stop": 1})
     check("the watch stops", r.get("result") == 0)
 
@@ -359,6 +428,8 @@ async def main():
         "EV_MT_COMMAND_ANSWER")
     await left_before_its_answer(op, yuno, yid, "stats-yuno", {},
         "EV_MT_STATS_ANSWER")
+    await left_before_its_answer(op, yuno, yid, "authzs-yuno", {},
+        "EV_MT_COMMAND_ANSWER")
 
     #   3. An answer of the yuno to a service of the agent that is no
     #   requester (neither a channel nor a link): dropped with a WARNING (up
@@ -375,7 +446,8 @@ async def main():
     r = await op.ask("help", {"cmd": "stats-yuno"})
     check("the agent still answers", r.get("result") == 0)
     serving.cancel()
-    for p in (op, f, w, yuno):
+    serving_other.cancel()
+    for p in (op, f, g, w, yuno, other):
         p.close()
 
 

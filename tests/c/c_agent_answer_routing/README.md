@@ -5,9 +5,9 @@ sandbox of `c_agent_sandbox` (namespaces of its own: a tmpfs on `/yuneta`, a
 `/etc/passwd` where uid 0 is `yuneta`, a loopback nobody else sees), with its
 memory bounded (`ulimit -v 4000000`; none for an agent built with ASan, whose
 shadow memory fits no bound) and no core, and sends it answers on its `1991`.
-It takes `outputs/yunos/logcenter` as the binary of a yuno that is registered
-and never run: a websocket client written by hand (`client.py`) sends its
-card and answers what the agent asks it.
+It takes `outputs/yunos/logcenter` as the binary of two yunos that are
+registered and never run: a websocket client written by hand (`client.py`)
+sends the card of each and answers what the agent asks them.
 
 ## What it pins
 
@@ -23,15 +23,26 @@ of the agent. The agent takes one only from where it sent the order.
    (`__md_iev__.agent_publish`, result -1). The watcher must get no forged
    reading, the log must hold no *"publish-stats refused, the agent asks for
    these stats"*, and ONE WARNING *"answer for the agent, not from the yuno
-   it names: dropped"* (a brake: one per kind and 10 s). Up to 7.30.26 the
-   watcher got the reading, and the agent took the yuno as refusing.
+   it names: dropped"* (a brake: one per kind and 10 s). The link of the
+   OTHER yuno sends the same two, naming the first one: dropped too. Up to
+   7.30.26 the watcher got the reading, and the agent took the yuno as
+   refusing.
+
+   Then a session sends where the agent keeps a pointer: a reading and a
+   publication with a `__temp__` of its own (`[1094795585]`,
+   `{"channel_gobj": 1094795585}`), and `EV_PLAY_YUNO_ACK` /
+   `EV_PAUSE_YUNO_ACK` with those and with none. The agent must live (a
+   `help` is answered), and the acks are dropped with ONE WARNING *"ack not
+   from a yuno: dropped"*, no *"hs_yuno NULL"* and no *"gobj NULL"*. Up to
+   7.30.26 the agent took the number for a gobj and died (SIGSEGV), and an
+   ack from a session was read as a yuno's (ERRORs with a stack).
 2. A session sends `command-yuno id=<id> command=help` and closes before the
    yuno answers; another session takes its channel (the same `input-N`, as
    the yuno sees in the `src_service` of the two orders) and sends it too.
    The yuno answers both: the second session must get its own answer only,
    and the log holds *"requester gone before its answer, answer dropped"*.
-   The same with `stats-yuno id=<id>`. Up to 7.30.26 the second session got
-   both answers.
+   The same with `stats-yuno id=<id>` and `authzs-yuno id=<id>`. Up to
+   7.30.26 the second session got both answers.
 3. The yuno answers to `authz`, a service of the agent that is no
    requester: ONE WARNING *"requester of the answer not found: dropped"*.
    Up to 7.30.26 the answer was sent to that service.

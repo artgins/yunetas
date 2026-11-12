@@ -13,9 +13,11 @@
 #   passwd where uid 0 is `yuneta`, and a loopback nobody else sees, with its
 #   memory bounded (ulimit -v, not for an agent built with ASan, whose
 #   shadow memory does not fit in any bound) and no core. Up to 7.30.26 the
-#   watcher got the reading a session forged, the agent took the yuno as
-#   refusing its publication, and the session that took the channel got the
-#   answer of the one that left. Then the agent is stopped in order: it must
+#   watcher got the reading a session forged (or another yuno), the agent
+#   took the yuno as refusing its publication, the session that took the
+#   channel got the answer of the one that left, and a session that sent a
+#   `__temp__` of its own made the agent take its number for a pointer
+#   (SIGSEGV). Then the agent is stopped in order: it must
 #   end with 0 and with no "system memory not free".
 #
 #   Usage: run_test.sh <yuneta_agent binary> <logcenter binary>
@@ -127,11 +129,20 @@ if [ "$nnr" != "1" ]; then
     echo "TEST FAILED: $nnr WARNING(s) for an answer to a service that is no requester (expected 1)"
     failed=1
 fi
-#   The answers to the sessions that left (command-yuno, stats-yuno) are
-#   dropped as their leaving
+#   The answers to the sessions that left (command-yuno, stats-yuno,
+#   authzs-yuno) are dropped as their leaving
 ngone=$(grep -ac '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log")
-if [ "$ngone" -lt 2 ]; then
-    echo "TEST FAILED: $ngone answer(s) dropped as the leaving of their requester (expected 2)"
+if [ "$ngone" -lt 3 ]; then
+    echo "TEST FAILED: $ngone answer(s) dropped as the leaving of their requester (expected 3)"
+    failed=1
+fi
+#   The acks of play / pause a session sent: one WARNING (with a brake), no
+#   ERROR of a channel read as a yuno's
+nack=$(grep -a '"msg": "ack not from a yuno: dropped"' "$WORK/agent.log" | grep -ac "WARNING")
+nhs=$(grep -ac '"msg": "hs_yuno NULL"' "$WORK/agent.log")
+ngn=$(grep -ac '"msg": "gobj NULL"' "$WORK/agent.log")
+if [ "$nack" != "1" ] || [ "$nhs" != "0" ] || [ "$ngn" != "0" ]; then
+    echo "TEST FAILED: $nack WARNING(s) for an ack not from a yuno (expected 1), $nhs \"hs_yuno NULL\" and $ngn \"gobj NULL\" (expected 0)"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

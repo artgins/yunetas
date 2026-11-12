@@ -603,9 +603,22 @@ where it sent the order:
   to the control center with its own identity.
 - **To the agent itself.** A reading of a watch (`__md_iev__.agent_watch`)
   and the answer to a `publish-stats` (`__md_iev__.agent_publish`) are taken
-  only from the channel of the yuno they name. Up to 7.30.26 any session
-  could send the watchers a reading of a yuno, or make the agent take a yuno
-  as refusing to publish its stats.
+  only from the channel of the yuno they name: not from a session, and not
+  from the link of another yuno. Up to 7.30.26 any session could send the
+  watchers a reading of a yuno, or make the agent take a yuno as refusing to
+  publish its stats.
+- **The acks of play and pause.** An `EV_PLAY_YUNO_ACK` or
+  `EV_PAUSE_YUNO_ACK` is taken only from the channel of a yuno: the yuno it
+  acks is the one of that channel. Any session can send one, and so can the
+  control center, whose link has no channel. Up to 7.30.26 the agent read
+  such an ack as a yuno's, with up to four ERRORs with a stack per ack
+  (*"path NOT FOUND"*, *"gobj NULL"*, *"hs_yuno NULL"*).
+- **Back the way the order came.** The answer goes back by the hop under the
+  agent's own in `__md_iev__.ievent_gate_stack`, the one of the requester.
+  An answer with no such hop (a session sends one with a single hop, to its
+  own channel), or with a hop that is not a route (`src_yuno`, `src_role`,
+  `src_service` not strings), is dropped. Up to 7.30.26 it was sent on with
+  no route, after a WARNING and six ERRORs per answer.
 - **To the session that asked.** The channels of the agent are a pool: a
   session takes the first one free, so the next session takes the one that
   the last one left, and its name (`input-2`). Each session of a channel
@@ -627,13 +640,37 @@ WARNING {"msgset": "Protocol", "msg": "answer for the agent, not from the yuno i
          "event": "EV_MT_STATS_ANSWER", "yuno_id": "1", "channel": "C_CHANNEL^input-3", "dropped": 1}
 WARNING {"msgset": "Protocol", "msg": "requester of the answer not found: dropped",
          "event": "EV_MT_COMMAND_ANSWER", "requester": "nosuch", "channel": "C_CHANNEL^input-1", "dropped": 1}
+WARNING {"msgset": "Protocol", "msg": "answer with no route back to its requester: dropped",
+         "event": "EV_MT_COMMAND_ANSWER", "requester": "input-1", "channel": "C_CHANNEL^input-1", "dropped": 1}
+WARNING {"msgset": "Protocol", "msg": "ack not from a yuno: dropped",
+         "event": "EV_PLAY_YUNO_ACK", "yuno_id": "", "channel": "C_CHANNEL^input-2", "dropped": 1}
 ```
 
-The last one is an answer whose requester is no channel of the agent and no
-link (a `dst_service` or an `agent_requester` that names nothing, or a
-service of the agent that is not a link: `authz`). Up to 7.30.26 it was
-*"child not found"*, an ERROR (`MSGSET_INTERNAL`) for each answer, and an
-answer to a service that is no link was sent to it.
+The *"requester of the answer not found"* is an answer whose requester is
+no channel of the agent and no link (a `dst_service` or an
+`agent_requester` that names nothing, an empty `dst_service`, or a service
+of the agent that is not a link: `authz`). Up to 7.30.26 it was *"child not
+found"*, an ERROR (`MSGSET_INTERNAL`) for each answer (*"name NULL"*, with
+a stack, for an empty `dst_service`), and an answer to a service that is no
+link was sent to it. An ack from the control center's link names the
+link as its channel: `"channel": "C_IEVENT_CLI^controlcenter"`.
+
+A frame cannot choose what the agent reads as its own: `__temp__` (where
+`C_IOGATE` writes the channel a message came in by, a pointer of the
+process) is dropped from every inter-event that comes from outside. Up to
+7.30.26 a session or the control center that sent `"__temp__": [1094795585]`
+in one of the answers or acks above made the agent read that number as a
+gobj, and it died with SIGSEGV.
+
+### Orders while the agent stops
+
+On a stop the agent pauses first: it closes its treedbs, and the loop goes
+on running until it stops. The pause stops whatever brings an order before
+it closes them: the operators' side and the link to the control center (a
+play after a pause starts the link again). Up to 7.30.26 the link stayed in
+session, and an order of the control center in that window (`list-yunos`)
+read the treedb just freed: the agent died with SIGSEGV instead of ending in
+order.
 
 ## Tracing a yuno (`trace-on-yuno`, `trace-off-yuno`)
 

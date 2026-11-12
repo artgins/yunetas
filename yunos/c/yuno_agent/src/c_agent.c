@@ -66,6 +66,8 @@ typedef enum {
     ANSWER_DROP_NOT_FROM_LINK,  // names a requester of a link, and did not come from a link
     ANSWER_DROP_NOT_FROM_YUNO,  // a reading or a publication of a yuno, not from that yuno
     ANSWER_DROP_NO_REQUESTER,   // its requester is no channel of the agent, nor a link
+    ANSWER_DROP_NO_ROUTE_BACK,  // no hop under the agent's own: no route back to its requester
+    ANSWER_DROP_ACK_NOT_FROM_YUNO,  // an ack of play / pause, not from a yuno's channel
     ANSWER_DROP_KINDS
 } answer_drop_kind_t;
 
@@ -240,6 +242,7 @@ PRIVATE hgobj answer_requester(
     BOOL *for_agent
 );
 PRIVATE BOOL answer_is_of_its_yuno(hgobj gobj, gobj_event_t event, json_t *jn_md, json_t *kw);
+PRIVATE const char *ack_yuno_id(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE void log_answer_dropped(
     hgobj gobj,
     answer_drop_kind_t kind,
@@ -1651,6 +1654,17 @@ PRIVATE int mt_play(hgobj gobj)
     get_last_public_port(gobj);
     gobj_start_tree(priv->gobj_input_side);
 
+    /*
+     *  The link to the control center, stopped by a pause (mt_pause()):
+     *  started again. At the start of the agent mt_start() started it.
+     */
+    if(strcasecmp(gobj_yuno_node_owner(), "none")!=0) {
+        hgobj gobj_controlcenter = gobj_find_service("controlcenter", TRUE);
+        if(gobj_controlcenter && !gobj_is_running(gobj_controlcenter)) {
+            gobj_start_tree(gobj_controlcenter);
+        }
+    }
+
     set_timeout(priv->timer, 3000); // for util_yunos_running
 
     return 0;
@@ -1666,7 +1680,18 @@ PRIVATE int mt_pause(hgobj gobj)
     /*-----------------------------*
      *      Stop services
      *-----------------------------*/
+    /*
+     *  Nothing may bring an order once the treedbs are closed: the
+     *  operators' side, and the link to the control center, whose orders
+     *  run here (cmd_* on priv->resource). The loop goes on running between
+     *  the pause and the stop of a shutdown: up to 7.30.26 the link stayed
+     *  in session, and an order read the treedb freed below (SIGSEGV).
+     */
     gobj_stop_tree(priv->gobj_input_side);
+    hgobj gobj_controlcenter = gobj_find_service("controlcenter", FALSE);
+    if(gobj_controlcenter && gobj_is_running(gobj_controlcenter)) {
+        gobj_stop_tree(gobj_controlcenter);
+    }
 
     /*---------------------------------------*
      *      Close treedb airedb
@@ -1678,6 +1703,7 @@ PRIVATE int mt_pause(hgobj gobj)
         ),
         gobj
     ));
+    priv->resource = 0;     // closed: a late reader says it ("gobj NULL"), never reads freed memory
 
     /*-------------------------*
      *      Stop treedbs
@@ -13436,7 +13462,14 @@ PRIVATE json_int_t requester_session(hgobj gobj, hgobj src)
  *  - a `dst_service` names a channel of __input_side__, or a link (an order
  *    the control center cascaded): a requester that is neither is a peer's
  *    doing, a WARNING with a brake (up to 7.30.26 an ERROR "child not found"
- *    per answer, and a service that is no link was sent the answer);
+ *    per answer, and a service that is no link was sent the answer). An
+ *    empty `dst_service` names nobody (up to 7.30.26 an ERROR "name NULL"
+ *    with a stack per answer);
+ *  - the answer goes back by the hop under the agent's own (popped by the
+ *    caller): one with none, or one that cannot be reversed, has no route
+ *    back. A session sends one with a single hop to its own channel, and
+ *    up to 7.30.26 it was sent on with no route, a WARNING and six ERRORs
+ *    per answer;
  *  - `agent_session` (requester_session()) must be the session that holds
  *    the requester's channel now: one that left, its channel taken by the
  *    next session, has its answer dropped as gone.
@@ -13473,6 +13506,9 @@ PRIVATE hgobj answer_requester(
         }
         requester_name = agent_requester;
         requester = gobj_child_by_name(priv->gobj_input_side, requester_name);
+    } else if(empty_string(dst_service)) {
+        requester_name = "";
+        requester = NULL;
     } else {
         requester_name = dst_service;
         requester = gobj_child_by_name(priv->gobj_input_side, requester_name);
@@ -13501,6 +13537,16 @@ PRIVATE hgobj answer_requester(
         return NULL;
     }
     if(!requester_is_listening(gobj, requester, event)) {
+        return NULL;
+    }
+    json_t *jn_back = json_array_get(json_object_get(md_iev, IEVENT_STACK_ID), 0);
+    if(!json_is_string(json_object_get(jn_back, "src_yuno")) ||
+            !json_is_string(json_object_get(jn_back, "src_role")) ||
+            !json_is_string(json_object_get(jn_back, "src_service"))) {
+        log_answer_dropped(gobj, ANSWER_DROP_NO_ROUTE_BACK,
+            "answer with no route back to its requester: dropped",
+            event, "requester", requester_name, kw, src
+        );
         return NULL;
     }
     if(session && json_integer_value(gobj_read_user_data(requester, "__session__")) != session) {
@@ -13541,6 +13587,28 @@ PRIVATE BOOL answer_is_of_its_yuno(hgobj gobj, gobj_event_t event, json_t *jn_md
         event, "yuno_id", yuno_id? yuno_id : "", kw, NULL
     );
     return FALSE;
+}
+
+/***************************************************************************
+ *  The yuno of an ack of play / pause: the `__yuno__` of the channel it
+ *  came from, or NULL. Only a yuno acks, and only on its channel: any
+ *  session can send one (its channel has no `__yuno__`), and so can the
+ *  control center's link, which has no channel at all. Up to 7.30.26 the
+ *  agent read either as a yuno's, ERRORs with a stack per ack.
+ ***************************************************************************/
+PRIVATE const char *ack_yuno_id(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    const char *yuno_id = channel_gobj?
+        json_string_value(gobj_read_user_data(channel_gobj, "__yuno__")) : NULL;
+    if(empty_string(yuno_id)) {
+        log_answer_dropped(gobj, ANSWER_DROP_ACK_NOT_FROM_YUNO,
+            "ack not from a yuno: dropped",
+            event, "yuno_id", "", kw, src
+        );
+        return NULL;
+    }
+    return yuno_id;
 }
 
 /***************************************************************************
@@ -14599,8 +14667,12 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
      *  Los mensajes ON_OPEN y ON_CLOSE del iogate:route nos llegan porque estamos
      *  suscritos a all ellos.
      */
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    const char *__yuno__ = json_string_value(gobj_read_user_data(channel_gobj, "__yuno__"));
+    const char *__yuno__ = ack_yuno_id(gobj, event, kw, src);
+    if(!__yuno__) {
+        // Error already logged
+        KW_DECREF(kw);
+        return 0;
+    }
     json_t *yuno = gobj_get_node(
         priv->resource,
         "yunos",
@@ -14678,13 +14750,15 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    const char *__yuno__ = ack_yuno_id(gobj, event, kw, src);
+    if(!__yuno__) {
+        // Error already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     int action_return = kw_get_int(gobj, kw, "result", -1, 0);
     if(action_return == 0) {
-        /*
-         *  Saco al originante por el user_data del canal.
-         */
-        hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-        const char *__yuno__ = json_string_value(gobj_read_user_data(channel_gobj, "__yuno__"));
         json_t *yuno = gobj_get_node(
             priv->resource,
             "yunos",
@@ -14724,13 +14798,11 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
          *  Not published: the counter of pause-yuno counts every ACK as a
          *  yuno paused, so its requester gets the failure by timeout.
          */
-        hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
-        json_t *jn_yuno_id = channel_gobj? gobj_read_user_data(channel_gobj, "__yuno__") : NULL;
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SERVICE,
             "msg",          "%s", "The yuno refused to pause",
-            "yuno_id",      "%s", json_is_string(jn_yuno_id)? json_string_value(jn_yuno_id) : "",
+            "yuno_id",      "%s", __yuno__,
             "result",       "%d", action_return,
             "comment",      "%s", kw_get_str(gobj, kw, "comment", "", 0),
             NULL

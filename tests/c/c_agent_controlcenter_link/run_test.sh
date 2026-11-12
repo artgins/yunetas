@@ -148,6 +148,30 @@ if [ "$ngone" = "0" ]; then
     echo "TEST FAILED: the answer of the session that left was not dropped as its leaving"
     failed=1
 fi
+#   What only a yuno sends, from the control center and from bob: the
+#   acks dropped with one WARNING, no ERROR of a channel that is none; an
+#   empty dst_service no ERROR "name NULL"
+nack=$(grep -a '"msg": "ack not from a yuno: dropped"' "$WORK/agent.log" | grep -ac "WARNING")
+nhs=$(grep -ac '"msg": "hs_yuno NULL"' "$WORK/agent.log")
+ngn=$(grep -ac '"msg": "gobj NULL"' "$WORK/agent.log")
+nnn=$(grep -ac '"msg": "name NULL"' "$WORK/agent.log")
+if [ "$nack" != "1" ] || [ "$nhs" != "0" ] || [ "$ngn" != "0" ] || [ "$nnn" != "0" ]; then
+    echo "TEST FAILED: $nack WARNING(s) for an ack not from a yuno (expected 1), $nhs \"hs_yuno NULL\", $ngn \"gobj NULL\" and $nnn \"name NULL\" (expected 0)"
+    failed=1
+fi
+#   Bob's answers to its own channel with a single hop: one WARNING, none
+#   of the ERRORs of a route reversed that is not there
+nrb=$(grep -a '"msg": "answer with no route back to its requester: dropped"' "$WORK/agent.log" | grep -ac "WARNING")
+nsnf=$(grep -ac '"msg": "__md_iev__ stack NOT FOUND"' "$WORK/agent.log")
+if [ "$nrb" != "1" ] || [ "$nsnf" != "0" ]; then
+    echo "TEST FAILED: $nrb WARNING(s) for an answer with no route back (expected 1), $nsnf \"__md_iev__ stack NOT FOUND\" (expected 0)"
+    failed=1
+fi
+#   Both answers to the sessions that left (command-agent, stats-agent)
+if [ "$ngone" -lt 2 ]; then
+    echo "TEST FAILED: $ngone answer(s) dropped as the leaving of their requester (expected 2)"
+    failed=1
+fi
 if [ $failed -ne 0 ]; then
     echo "---- agent log (errors and warnings) ----"
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | grep -o '"function".*' | cut -c1-400 | tail -40

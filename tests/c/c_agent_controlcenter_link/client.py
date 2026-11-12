@@ -38,6 +38,7 @@ import asyncio
 import base64
 import json
 import os
+import signal
 import ssl
 import struct
 import sys
@@ -53,6 +54,9 @@ requests = []           # (event, src_service, agent_requester) the control cent
 answers_up = []         # answers that reached the control center from the agent
 held = []               # the routing of a request whose answer waits
 cc_writer = []
+flood_answers = {}      # cc_order -> result of the orders the control center sends
+FLOOD = 300             # orders the control center sends while the agent stops
+PEER_POINTER = 1094795585     # 0x41414141: what a peer writes where the agent keeps a pointer
 
 
 def check(what, ok):
@@ -100,13 +104,15 @@ async def control_center(r, w, in_session):
         elif event in ("EV_MT_COMMAND", "EV_MT_STATS"):
             top = md.get("ievent_gate_stack", [{}])[0]
             requests.append((event, top.get("src_service"), md.get("agent_requester")))
-            if "hold-me" in iev["kw"].get("__command__", ""):
+            if "hold-me" in (iev["kw"].get("__command__") or iev["kw"].get("__stats__") or ""):
                 held.append((event, md))
                 continue
             while held:
                 h_event, h_md = held.pop(0)
                 w.write(cc_answer(h_event, h_md, HELD_ANSWER))
             w.write(cc_answer(event, md, CC_ANSWER))
+        elif "cc_order" in md:
+            flood_answers[md["cc_order"]] = iev.get("kw", {}).get("result")
         else:
             answers_up.append((event, iev.get("kw", {}).get("comment")))
 
@@ -147,15 +153,60 @@ def command(line, dst_service="agent"):
     }}
 
 
-def forged_answer(event, dst_service, agent_requester=None):
+def forged_answer(event, dst_service, agent_requester=None, temp=None):
     md = {
         "ievent_gate_stack": [routing("ycommand", dst_service)],
         "__msg_type__": "__answer__",
     }
     if agent_requester is not None:
         md["agent_requester"] = agent_requester
-    return {"event": event, "kw": {"result": 0, "comment": FORGED,
-        "schema": None, "data": None, "__md_iev__": md}}
+    kw = {"result": 0, "comment": FORGED, "schema": None, "data": None, "__md_iev__": md}
+    if temp is not None:
+        kw["__temp__"] = temp
+    return {"event": event, "kw": kw}
+
+
+def cc_frame(event, md_extra=None, temp=None, result=0):
+    """What the control center sends to the agent (dst_service `agent`)"""
+    md = {
+        "ievent_gate_stack": [{
+            "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": "agent",
+            "src_yuno": "cc", "src_role": "controlcenter", "src_service": "controlcenter"}],
+        "__msg_type__": "__answer__",
+    }
+    md.update(md_extra or {})
+    kw = {"result": result, "comment": "of the control center", "schema": None, "data": None,
+        "__md_iev__": md}
+    if temp is not None:
+        kw["__temp__"] = temp
+    return tcp4h({"event": event, "kw": kw})
+
+
+def cc_order(n):
+    """An order of the control center to the agent"""
+    return tcp4h({"event": "EV_MT_COMMAND", "kw": {
+        "__command__": "list-yunos",
+        "__md_iev__": {
+            "ievent_gate_stack": [{
+                "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": "agent",
+                "src_yuno": "cc", "src_role": "controlcenter", "src_service": "controlcenter",
+                "user": "yuneta", "host": "cc"}],
+            "__msg_type__": "__command__",
+            "cc_order": n,
+        }}})
+
+
+def agent_pid():
+    """The agent of the sandbox (a pid namespace of its own)"""
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                with open("/proc/%s/comm" % d) as f:
+                    if f.read().strip() == "yuneta_agent":
+                        return int(d)
+            except OSError:
+                pass
+    return 0
 
 
 class Peer:
@@ -307,11 +358,18 @@ async def main():
     check("a session of bob (a password, a role for the service agent only)", bob is not None)
     if bob is None:
         return
-    bob.send(forged_answer("EV_MT_COMMAND_ANSWER", "agent", "controlcenter"))
+    #   The first of each kind carries a `__temp__` of bob's own, where the
+    #   agent keeps a pointer: the WARNING of the first reads it (up to
+    #   7.30.26 the agent took bob's number for a gobj and died)
+    bob.send(forged_answer("EV_MT_COMMAND_ANSWER", "agent", "controlcenter", temp=[PEER_POINTER]))
     bob.send(forged_answer("EV_MT_STATS_ANSWER", "agent", "controlcenter"))
-    bob.send(forged_answer("EV_MT_COMMAND_ANSWER", "nosuch"))
+    bob.send(forged_answer("EV_MT_COMMAND_ANSWER", "nosuch", temp=[PEER_POINTER]))
     bob.send(forged_answer("EV_MT_COMMAND_ANSWER", "nosuch"))
     bob.send(forged_answer("EV_MT_STATS_ANSWER", "nosuch"))
+    #   An empty dst_service names no requester either (up to 7.30.26 an
+    #   ERROR "name NULL" with a stack per answer)
+    bob.send(forged_answer("EV_MT_COMMAND_ANSWER", ""))
+    bob.send(forged_answer("EV_MT_STATS_ANSWER", ""))
     cc_writer[-1].write(tcp4h({"event": "EV_MT_COMMAND_ANSWER", "kw": {
         "result": 0, "comment": "to nobody", "schema": None, "data": None,
         "__md_iev__": {
@@ -327,36 +385,116 @@ async def main():
     check("the control center got none of bob's answers: %s" % answers_up,
         not any(c == FORGED for e, c in answers_up))
 
-    #   3. A session leaves before its answer; another takes its channel
-    a = await session()
-    check("a session that will leave", a is not None)
-    if a is None:
-        return
+    #   The control center sends what only a yuno sends (the acks of play /
+    #   pause: its link has no channel, so they came from no yuno), and
+    #   readings and publications with a `__temp__` of its own (up to
+    #   7.30.26 the agent took its number for a gobj and died; an ack with
+    #   no `__temp__` gave ERRORs with a stack)
+    for event in ("EV_PLAY_YUNO_ACK", "EV_PAUSE_YUNO_ACK"):
+        cc_writer[-1].write(cc_frame(event))
+        cc_writer[-1].write(cc_frame(event, result=-1))
+        cc_writer[-1].write(cc_frame(event, temp=[PEER_POINTER]))
+    cc_writer[-1].write(cc_frame("EV_MT_STATS_ANSWER",
+        {"agent_watch": {"yuno_id": "1", "kind": "app", "service": "", "route": ""}},
+        temp=[PEER_POINTER]))
+    cc_writer[-1].write(cc_frame("EV_MT_COMMAND_ANSWER",
+        {"agent_publish": {"yuno_id": "1", "service": "__yuno__", "pid": 1, "stop": False}},
+        temp={"channel_gobj": PEER_POINTER}))
+    r = await bob.ask("help cmd=list-yunos")
+    check("the agent lives after the frames with a __temp__ of the control center",
+        bool(r) and r.get("result") == 0)
+
+    #   Bob answers to its own channel with a single hop: the agent pops its
+    #   own, and has no route back (up to 7.30.26 a WARNING and six ERRORs
+    #   per answer, and the answer sent with no route)
     n = len(requests)
-    a.send(command("command-agent service=controlcenter command=hold-me"))
-    end = time.monotonic() + 5
-    while len(requests) == n and time.monotonic() < end:
-        await asyncio.sleep(0.05)
-    check("the control center holds the answer of the session that leaves", len(held) == 1)
-    a.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
-    check("the agent ends the connection of the session that left", await a.closed(10))
-    a.close()
-    b = await session()
-    check("a session after it", b is not None)
-    if b is None:
-        return
-    b.send(command("command-agent service=controlcenter command=list-yunos"))
-    got = await b.answers(2)
-    first, second = requests[-2][2], requests[-1][2]
-    check("the second session took the channel of the first: %s, %s" % (first, second),
-        bool(first) and first == second)
-    check("the second session gets its own answer, not the first one's: %s" % (
-            [g.get("comment") for g in got]),
-        len(got) == 1 and got[0].get("comment") == CC_ANSWER)
+    r = await bob.ask("command-agent service=controlcenter command=list-yunos")
+    check("command-agent of bob answered", bool(r) and r.get("result") == 0)
+    bob_channel = requests[-1][2] if len(requests) > n else None
+    check("the channel of bob: %s" % bob_channel, bool(bob_channel))
+    bob.send(forged_answer("EV_MT_COMMAND_ANSWER", bob_channel or "nosuch"))
+    bob.send(forged_answer("EV_MT_STATS_ANSWER", bob_channel or "nosuch"))
+    r = await bob.ask("help cmd=list-yunos")
+    check("the agent still answers bob after its one-hop answers", bool(r) and r.get("result") == 0)
+
+    #   3. A session leaves before its answer; another takes its channel:
+    #   command-agent, and stats-agent
+    for held_line, line in (
+        ("command-agent service=controlcenter command=hold-me",
+            "command-agent service=controlcenter command=list-yunos"),
+        ("stats-agent service=controlcenter stats=hold-me",
+            "stats-agent service=controlcenter"),
+    ):
+        a = await session()
+        check("%s: a session that will leave" % held_line, a is not None)
+        if a is None:
+            return
+        n = len(requests)
+        n_held = len(held)
+        a.send(command(held_line))
+        end = time.monotonic() + 5
+        while len(requests) == n and time.monotonic() < end:
+            await asyncio.sleep(0.05)
+        check("%s: the control center holds the answer of the session that leaves" % held_line,
+            len(held) == n_held + 1)
+        a.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
+        check("%s: the agent ends the connection of the session that left" % held_line,
+            await a.closed(10))
+        a.close()
+        b = await session()
+        check("%s: a session after it" % held_line, b is not None)
+        if b is None:
+            return
+        b.send(command(line))
+        got = await b.answers(2)
+        first, second = requests[-2][2], requests[-1][2]
+        check("%s: the second session took the channel of the first: %s, %s" % (
+                held_line, first, second),
+            bool(first) and first == second)
+        check("%s: the second session gets its own answer, not the first one's: %s" % (
+                held_line, [g.get("comment") for g in got]),
+            len(got) == 1 and got[0].get("comment") == CC_ANSWER)
+        b.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
+        check("%s: the agent ends the connection of the second session" % held_line,
+            await b.closed(10))
+        b.close()
 
     r = await op.ask("help cmd=command-agent")
     check("the agent still answers", bool(r) and r.get("result") == 0)
-    for p in (op, bob, b):
+
+    #   4. The control center sends orders while the agent stops: the first
+    #   half one by one, each answered; then a SIGINT to the agent, and the
+    #   rest at once. The agent pauses (its treedbs closed) before it stops,
+    #   and the loop goes on: up to 7.30.26 the link stayed in session, and
+    #   an order read the treedb freed (SIGSEGV).
+    w = cc_writer[-1]
+    for i in range(FLOOD // 2):
+        w.write(cc_order(i))
+        end = time.monotonic() + 5
+        while i not in flood_answers and time.monotonic() < end:
+            await asyncio.sleep(0.005)
+    check("the orders before the stop are answered: %d of %d" % (
+            len(flood_answers), FLOOD // 2),
+        len(flood_answers) == FLOOD // 2 and all(v == 0 for v in flood_answers.values()))
+    pid = agent_pid()
+    check("the agent's pid: %d" % pid, pid > 0)
+    if pid > 0:
+        os.kill(pid, signal.SIGINT)
+    for i in range(FLOOD // 2, FLOOD):
+        try:
+            w.write(cc_order(i))
+            await w.drain()
+        except (ConnectionError, ssl.SSLError):
+            break
+        await asyncio.sleep(0.001)
+    end = time.monotonic() + 15
+    while pid > 0 and time.monotonic() < end and os.path.exists("/proc/%d" % pid):
+        await asyncio.sleep(0.05)
+    print("orders answered: %d of %d" % (len(flood_answers), FLOOD), flush=True)
+    check("no answer to an order never sent",
+        all(0 <= k < FLOOD for k in flood_answers))
+
+    for p in (op, bob):
         p.close()
     server.close()
 

@@ -46,10 +46,24 @@ Then answers that a session sends to the agent:
   neither (up to 7.30.26 it got both, with the agent's identity), and the log
   holds ONE WARNING *"answer naming a requester of a link, not from a link:
   dropped"* (a brake: one per kind and 10 s).
-- `bob` sends three answers to `dst_service` `nosuch`, and the control center
-  one to `agent_requester` `nosuch`: ONE WARNING *"requester of the answer
-  not found: dropped"*, and no *"child not found"* (up to 7.30.26 an ERROR for
-  each).
+- `bob` sends three answers to `dst_service` `nosuch` and two to an empty
+  `dst_service`, and the control center one to `agent_requester` `nosuch`:
+  ONE WARNING *"requester of the answer not found: dropped"*, and no
+  *"child not found"* or *"name NULL"* (up to 7.30.26 an ERROR for each).
+- The first of each kind of bob's answers carries `"__temp__":
+  [1094795585]`, a number where the agent keeps a pointer; the control
+  center sends `EV_PLAY_YUNO_ACK` / `EV_PAUSE_YUNO_ACK` with no `__temp__`
+  (its link has no channel), with a failed result and with that `__temp__`,
+  and a reading (`agent_watch`) and a publication (`agent_publish`) with a
+  `__temp__` of its own. The agent must live (a `help` is answered), with
+  ONE WARNING *"ack not from a yuno: dropped"* and no *"gobj NULL"* or
+  *"hs_yuno NULL"*. Up to 7.30.26 the agent took the number for a gobj and
+  died (SIGSEGV), and an ack of the control center gave ERRORs with a stack.
+- `bob` answers to its own channel (its `input-N`, seen by the control center
+  in `agent_requester`) with a single hop in `ievent_gate_stack`: the agent
+  pops its own and has no route back. ONE WARNING *"answer with no route back
+  to its requester: dropped"*, and no *"__md_iev__ stack NOT FOUND"* (up to
+  7.30.26 a WARNING and six ERRORs per answer).
 
 And an answer to a session that left: an operator sends `command-agent
 service=controlcenter command=hold-me`, and the control center holds its
@@ -57,10 +71,16 @@ answer; the operator closes, and another session takes its channel (the same
 `input-N`, which the control center sees in `agent_requester`) and asks too.
 The control center then sends both answers: the second session must get its
 own, not the first one's (up to 7.30.26 it got both), and the log holds
-*"requester gone before its answer, answer dropped"*.
+*"requester gone before its answer, answer dropped"*. The same with
+`stats-agent service=controlcenter stats=hold-me`.
 
-Then a `help` is still answered, and the agent is stopped in order (SIGINT):
-it must end with 0, with no *"system memory not free"*.
+Then a `help` is still answered. Last, the control center sends 300 orders
+(`list-yunos`) to the agent: the first 150 one by one, each answered with 0;
+then the client sends the agent a SIGINT and the other 150 at once. The agent
+must end in order, with 0 and no *"system memory not free"*, and no answer
+may name an order never sent. Up to 7.30.26 the pause of the stop closed the
+treedbs with the link still in session, and an order read the treedb freed
+(SIGSEGV).
 
 Skipped (exit 77) without the agent binary, `openssl`, `ip` or unprivileged
 namespaces.
