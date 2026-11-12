@@ -12,7 +12,9 @@
  *                it is connected), or the channel of an agent;
  *              - the TRANSPORT below an agent's C_IEVENT_SRV: what the
  *                control center sends to the agent arrives here as
- *                EV_SEND_MESSAGE, and is decoded.
+ *                EV_SEND_MESSAGE, and is decoded; put in ST_DISCONNECTED
+ *                it is a transport whose peer is closing, which takes
+ *                nothing.
  *
  *          Everything that reaches it is appended, as {event, kw}, to the
  *          list in its user data `received`, for the test to read.
@@ -245,8 +247,19 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0, 0}
     };
 
+    /*
+     *  The transport of an agent whose peer is closing: as C_WEBSOCKET and
+     *  C_PROT_TCP4H after a Close, it takes nothing more to send (case 47)
+     */
+    ev_action_t st_disconnected[] = {
+        {EV_DROP,                   ac_drop,            0},
+        {EV_STOPPED,                ac_stopped,         0},
+        {0, 0, 0}
+    };
+
     states_t states[] = {
-        {ST_IDLE, st_idle},
+        {ST_IDLE,           st_idle},
+        {ST_DISCONNECTED,   st_disconnected},
         {0, 0}
     };
 

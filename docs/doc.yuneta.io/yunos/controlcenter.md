@@ -503,7 +503,24 @@ itself target a specific yuno via its own `command-yuno` (`command=â€¦ service=â
 `command-agent` answers AT ONCE, before the node does: the first answer is
 the control center's own, *"Command sent to 1 nodes"* (or *"... to 0 nodes"*
 when no connected agent matches). The node's answer comes later, as a second
-answer along the same route. A non-interactive `ycommand` exits `--wait`
+answer along the same route.
+
+When the agent's link is closing (the agent sent its Close, and the link is
+still in session until the connection ends), the link refuses the request at
+once and nothing is sent. The first answer is then the only one: -1 with the
+link's reason, which names the agent's channel in the control center
+(`input-7` here). `stats-agent` answers the same way (*"Stats sent to 0
+nodes"*):
+
+```text
+-1 "controlcenter^cc1: service 'input-7' not in session: Command sent to 0 nodes"
+```
+
+Up to 7.30.26 the control center dropped that refusal and answered *"Command
+sent to 1 nodes"*: the operator waited for an answer nobody would send. A
+`write-tty` refused that way is answered with the link's reason too
+(`EV_MT_COMMAND_ANSWER`, -1); up to 7.30.26 the keystrokes were lost with no
+answer. A non-interactive `ycommand` exits `--wait`
 seconds after an answer (`-w`, default 1), so it shows the node's answer only
 if it arrives in that time. Give it room, or stay interactive (`-i`):
 
@@ -749,7 +766,9 @@ How the steps go depends on the action:
   did not succeed, and the comment names them (*"2 of 16 steps failed; step
   0 (gen1): ...; step 5 (gen6): not answered in 30000 ms"*). A step on a node
   whose agent is not connected fails at once; an agent that disconnects
-  fails only its own steps. Up to 7.28.3 these were serial too, so a stop
+  fails only its own steps. A step whose agent's link is closing fails at
+  once too, with the link's reason (*"... not in session"*), in a serial run
+  and in a run at once; up to 7.30.26 it waited for `run_step_timeout`. Up to 7.28.3 these were serial too, so a stop
   ended at the first yuno that did not answer, and the yunos after it never
   got the stop (the max_run stop of a scenario whose first simulator was
   already stopped failed every minute, and stopped nothing).
@@ -1153,8 +1172,8 @@ The messages it relays, counted once each way:
   `run-scenario`, and every answer or stream an agent sends (command and stats
   answers, the console PTY, `EV_YUNO_STATS`, a run step's answer);
 - `txMsgs`, out: each `command-agent`/`stats-agent`/`write-tty` request sent to
-  an agent and each step of a run, and each answer or stream relayed to a
-  client, the answer of a run included.
+  an agent and each step of a run (not one the agent's link refused at once),
+  and each answer or stream relayed to a client, the answer of a run included.
 
 `rxMsgsec`/`txMsgsec` are their rates in messages by second, computed on a
 tick every `timeout` ms (1000) over the EXACT interval since the previous

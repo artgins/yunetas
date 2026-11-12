@@ -345,6 +345,7 @@ PRIVATE int load_assertion_key(hgobj gobj);
 PRIVATE int add_operator_assertion(hgobj gobj, json_t *kw_agent, const char *username, hgobj agent_channel);
 PRIVATE BOOL client_relays(json_t *kw, gobj_event_t event);
 PRIVATE void record_link_request(hgobj gobj, hgobj src, hgobj agent_srv);
+PRIVATE json_t *refused_by_agent_link(hgobj gobj, const char *what, json_t *webix, json_t *kw);
 PRIVATE hgobj requester_of_route(
     hgobj gobj,
     json_t *kw,
@@ -1514,14 +1515,16 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
     int some = 0;
     if(child) {
         record_link_request(gobj, src, child);
-        priv->txMsgs++;
-        json_t *webix = gobj_command( // debe retornar siempre 0.
+        json_t *webix = gobj_command(
             child,
             cmd2agent,
             kw_to_agent(gobj, kw, src, child),
             src
         );
-        JSON_DECREF(webix);
+        if(webix) {
+            return refused_by_agent_link(gobj, "Command", webix, kw);
+        }
+        priv->txMsgs++;
         some++;
     }
 
@@ -1532,6 +1535,28 @@ PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src)
         0,
         kw  // owned
     );
+}
+
+/***************************************************************************
+ *  The answer when the agent's link answered a request at once (`webix`,
+ *  owned): nothing was sent. Its link is closing -- a C_IEVENT_SRV whose
+ *  transport took the peer's Close is still in session until EV_ON_CLOSE,
+ *  and refuses, -1 "not in session", its WARNING logged. Up to 7.30.26 that
+ *  answer was dropped and the requester told "sent to 1 nodes": it waited
+ *  for an answer nobody would send. `kw` owned.
+ ***************************************************************************/
+PRIVATE json_t *refused_by_agent_link(hgobj gobj, const char *what, json_t *webix, json_t *kw)
+{
+    json_t *jn_response = msg_iev_build_response(gobj,
+        -1,
+        json_sprintf("%s: %s sent to 0 nodes",
+            kw_get_str(gobj, webix, "comment", "", 0), what),
+        0,
+        0,
+        kw  // owned
+    );
+    JSON_DECREF(webix)
+    return jn_response;
 }
 
 /***************************************************************************
@@ -1605,14 +1630,16 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
     int some = 0;
     if(child) {
         record_link_request(gobj, src, child);
-        priv->txMsgs++;
-        json_t *webix = gobj_stats( // debe retornar siempre 0.
+        json_t *webix = gobj_stats(
             child,
             stats2agent,
             kw_to_agent(gobj, kw, src, child),
             src
         );
-        JSON_DECREF(webix);
+        if(webix) {
+            return refused_by_agent_link(gobj, "Stats", webix, kw);
+        }
+        priv->txMsgs++;
         some++;
     }
 
@@ -4401,9 +4428,19 @@ PRIVATE int run_send_step(hgobj gobj)
     kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer(idx));
     add_operator_assertion(gobj, kw_step, kw_get_str(gobj, priv->run, "username", "", 0), channel);
 
-    priv->txMsgs++;
     json_t *webix = gobj_command(channel, line, kw_step, gobj);
-    JSON_DECREF(webix)
+    if(webix) {
+        /*
+         *  Answered at once, not sent: the agent's link is closing (see
+         *  refused_by_agent_link()). Up to 7.30.26 the run waited for its
+         *  run_step_timeout.
+         */
+        json_object_set_new(step, "result", json_integer(-1));
+        json_object_set_new(step, "comment", json_string(kw_get_str(gobj, webix, "comment", "", 0)));
+        JSON_DECREF(webix)
+        return run_end(gobj, -1, "a step failed");
+    }
+    priv->txMsgs++;
 
     set_timeout(priv->run_timer, gobj_read_integer_attr(gobj, "run_step_timeout"));
     return 0;
@@ -4465,9 +4502,23 @@ PRIVATE int run_send_all_steps(hgobj gobj)
         kw_set_subdict_value(gobj, kw_step, "__md_iev__", "cc_step", json_integer((json_int_t)idx));
         add_operator_assertion(gobj, kw_step, kw_get_str(gobj, run, "username", "", 0), channel);
 
-        priv->txMsgs++;
         json_t *webix = gobj_command(channel, kw_get_str(gobj, step, "line", "", KW_REQUIRED), kw_step, gobj);
-        JSON_DECREF(webix)
+        if(webix) {
+            /*
+             *  Answered at once, not sent: the agent's link is closing (see
+             *  refused_by_agent_link()). The step fails now, the others
+             *  are still answered.
+             */
+            json_object_set_new(step, "result", json_integer(-1));
+            json_object_set_new(step, "comment", json_string(kw_get_str(gobj, webix, "comment", "", 0)));
+            JSON_DECREF(webix)
+            char key[32];
+            snprintf(key, sizeof(key), "%d", (int)idx);
+            json_object_del(priv->run_channels, key);
+            run_parallel_step_done(gobj);
+            continue;
+        }
+        priv->txMsgs++;
     }
     JSON_DECREF(run)
     return 0;
@@ -6522,14 +6573,36 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     BOOL ambiguous = FALSE;
     hgobj child = find_agent_channel(gobj, agent_id, &ambiguous);
     if(child) {
-        priv->txMsgs++;
-        json_t *webix = gobj_command( // debe retornar siempre 0.
+        json_t *webix = gobj_command(
             child,
             "write-tty",
             kw_duplicate(gobj, kw),     // a kw copy: the agent's gate serializes what it is given
             src
         );
-        JSON_DECREF(webix);
+        if(webix) {
+            /*
+             *  Answered at once, not written: the agent's link is closing
+             *  (see refused_by_agent_link()). Answered as a refusal is
+             *  (EV_MT_COMMAND_ANSWER, what a client takes); up to 7.30.26
+             *  the keystrokes were lost with no word.
+             */
+            gobj_send_event(
+                src,
+                EV_MT_COMMAND_ANSWER,
+                msg_iev_build_response(
+                    gobj,
+                    -1,
+                    json_string(kw_get_str(gobj, webix, "comment", "", 0)),
+                    0,
+                    0,
+                    kw  // owned
+                ),
+                gobj
+            );
+            JSON_DECREF(webix)
+            return 0;
+        }
+        priv->txMsgs++;
     } else if(ambiguous) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,

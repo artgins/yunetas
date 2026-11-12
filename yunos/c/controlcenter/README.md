@@ -188,6 +188,13 @@ seconds after an answer (`-w`, default 1), so it shows the node's answer only
 if it arrives in that time. Give it room (`-w 10`, as in the second line
 above), or stay interactive (`-i`).
 
+When the agent's link is closing, the link refuses the request at once and
+the first answer is the only one, -1 with its reason:
+*"controlcenter^cc1: service 'input-7' not in session: Command sent to 0
+nodes"*. The same for `stats-agent`, a `write-tty` and a step of a scenario
+run, which fails at once. Up to 7.30.26 the refusal was dropped and the
+operator, or the run, waited for an answer nobody would send.
+
 The control center finds the matching connected agent (a `C_IEVENT_SRV` child
 of its `__input_side__` gate in state `ST_SESSION`) and forwards the command;
 the node's agent then runs it (and can itself target a specific yuno via its own

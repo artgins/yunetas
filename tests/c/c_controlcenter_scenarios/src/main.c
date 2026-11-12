@@ -348,6 +348,12 @@ PRIVATE const char *expected_msgs[] = {
     "Agent refused: its identity card is not valid|||its id is not a string|WARNING",       // 34
     "Agent refused: its identity card is not valid|||its host is not a string|WARNING",     // 34
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING",   // 0: the copy, not the same host
+    "Not in session||||WARNING",                            // 47: command-agent, the agent's link closing
+    "Not in session||||WARNING",                            // 47: stats-agent
+    "Not in session||||WARNING",                            // 47: the start's first step
+    "Not in session||||WARNING",                            // 47: the stop's first step
+    "Not in session||||WARNING",                            // 47: the stop's second step
+    "Not in session||||WARNING",                            // 47: write-tty
     "event of an agent not from the agents' side, dropped",   // once a minute: the other six counted
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "answer for a web client that is gone, dropped: its channel holds another connection now",

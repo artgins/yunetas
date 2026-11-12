@@ -88,7 +88,10 @@
  *                goes to its uuid; the card of a session of a token is
  *                checked; a scenario on a name of more than one node does
  *                not start, its stop does what it reaches, and its max_run
- *                stop is tried again in a minute.
+ *                stop is tried again in a minute;
+ *              - an agent whose link is closing refuses an order at once:
+ *                command-agent, stats-agent and write-tty are answered with
+ *                that refusal, and a step of a run fails at once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -5215,6 +5218,134 @@ PRIVATE int test_gates_keep_a_shared_kw(hgobj gobj)
     return ret;
 }
 
+/***************************************************************************
+ *  47. The agent's link is closing (its transport in ST_DISCONNECTED, as a
+ *      peer's Close leaves it before EV_ON_CLOSE): C_IEVENT_SRV refuses an
+ *      order at once, -1 "not in session". command-agent and stats-agent
+ *      answer -1 with it; the start of a scenario (its steps in order)
+ *      fails at its first step at once, and its stop (every step at once)
+ *      fails at once, each step naming it; a write-tty is answered with
+ *      it. Up to 7.30.26 the control center dropped that answer: "Command
+ *      sent to 1 nodes", a run that waited its whole run_step_timeout, and
+ *      keystrokes lost with no word.
+ ***************************************************************************/
+#define CLS_SCENARIO    "cls"
+
+PRIVATE json_t *closing_link_scenario(void)
+{
+    return json_pack("{s:s, s:s, s:[{s:s}, {s:s}], s:{s:[{s:s, s:s}, {s:s, s:s}], s:[{s:s, s:s}, {s:s, s:s}]}}",
+        "id", CLS_SCENARIO,
+        "node", AGENT_HOST,
+        "yunos",
+            "id", "1301",
+            "id", "1302",
+        "actions",
+            "start",
+                "yuno", "1301", "command", "resume-load",
+                "yuno", "1302", "command", "resume-load",
+            "stop",
+                "yuno", "1301", "command", "pause-load",
+                "yuno", "1302", "command", "pause-load"
+    );
+}
+
+PRIVATE json_t *closing_link_newest_run(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(CLS_SCENARIO));
+    json_t *response = gobj_command(priv->cc, "scenario-runs", kw, client);
+    json_t *newest = json_incref(json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0));
+    JSON_DECREF(response)
+    return newest;
+}
+
+PRIVATE int closing_link_run(hgobj gobj, hgobj client, const char *action, const char *answer,
+    int steps_failed)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+    char what[128];
+    snprintf(what, sizeof(what), "the %s of a scenario, the agent's link closing", action);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario_id", json_string(CLS_SCENARIO));
+    json_object_set_new(kw, "action", json_string(action));
+    json_t *response = gobj_command(priv->cc, "run-scenario", kw, client);
+    if(response) {
+        ret += fail(gobj, what, kw_get_str(gobj, response, "comment", "", 0));
+        JSON_DECREF(response)
+    }
+    if(count_received(client, EV_MT_COMMAND_ANSWER, answer) != 1) {
+        ret += fail(gobj, what, "not answered at once, failed");
+    }
+    json_t *run = closing_link_newest_run(gobj, client);
+    json_t *steps = kw_get_list(gobj, run, "steps", 0, 0);
+    int failed = 0;
+    size_t idx; json_t *step;
+    json_array_foreach(steps, idx, step) {
+        if(kw_has_key(step, "result") && kw_get_int(gobj, step, "result", 0, KW_WILD_NUMBER) == -1 &&
+                strstr(kw_get_str(gobj, step, "comment", "", 0), "not in session")) {
+            failed++;
+        }
+    }
+    if(strcmp(kw_get_str(gobj, run, "action", "", 0), action)!=0 || failed != steps_failed) {
+        ret += fail(gobj, what, "its run is not written with its steps failed, naming the link");
+    }
+    JSON_DECREF(run)
+    return ret;
+}
+
+PRIVATE int test_agent_link_closing(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "scenario", closing_link_scenario());
+    ret += check_response(gobj, gobj_command(priv->cc, "save-scenario", kw, client),
+        0, "scenario created: " CLS_SCENARIO, "a scenario of two yunos (case 47)");
+    count_received(client, EV_MT_COMMAND_ANSWER, 0);
+    json_t *sent = take_received(priv->agent_wire);
+    JSON_DECREF(sent)
+
+    gobj_change_state(priv->agent_wire, ST_DISCONNECTED);
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, "not in session: Command sent to 0 nodes", "command-agent, the agent's link closing");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "stats2agent", json_string("stats-yuno"));
+    ret += check_response(gobj, gobj_command(priv->cc, "stats-agent", kw, client),
+        -1, "not in session: Stats sent to 0 nodes", "stats-agent, the agent's link closing");
+
+    ret += closing_link_run(gobj, client, "start", "start failed, 0 of 2 steps done: a step failed", 1);
+    ret += closing_link_run(gobj, client, "stop", "stop failed, 0 of 2 steps done: 2 of 2 steps failed", 2);
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "name", json_string("console-a"));
+    json_object_set_new(kw, "content64", json_string("bHM="));
+    gobj_send_event(priv->cc, EV_WRITE_TTY, kw, client);
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "not in session") != 1) {
+        ret += fail(gobj, "write-tty, the agent's link closing", "not answered at once");
+    }
+
+    sent = take_received(priv->agent_wire);
+    if(json_array_size(sent) != 0) {
+        ret += fail(gobj, "nothing reaches an agent whose link is closing", "");
+    }
+    JSON_DECREF(sent)
+
+    gobj_change_state(priv->agent_wire, ST_IDLE);
+    return ret;
+}
+
 PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -5256,6 +5387,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_commands_with_gbuffer(gobj, client1);
     result += test_write_tty_refused(gobj, client1);
     result += test_gates_keep_a_shared_kw(gobj);
+    result += test_agent_link_closing(gobj, client1);
     result += test_save_scenario_as_string(gobj, client1);
     result += test_save_refuses_framework_keys(gobj, client1);
     result += test_run_checks_old_scenarios(gobj, client1);

@@ -451,6 +451,21 @@ still reported and fails the test.
     stop: nothing reaches the agent, no stop is scheduled, and one warning
     (*"the stop of a scenario's max_run cannot run: not tried again"*). In
     7.30.17 it was tried every minute, for ever. In phases 12-13.
+47. The agent's link is closing: the transport below its `C_IEVENT_SRV` is
+    put in `ST_DISCONNECTED` (`C_TEST_CC_PEER`'s, as a peer's Close leaves
+    `C_WEBSOCKET` before `EV_ON_CLOSE`), and the link refuses every order at
+    once, -1 *"... not in session"*, with one WARNING *"Not in session"* each
+    (six, in the expected logs). `command-agent` and `stats-agent` answer -1
+    *"...: service 'agent-1' not in session: Command sent to 0 nodes"* (and
+    *"Stats ..."*); the start of the scenario "cls" (two yunos, its steps in
+    order) ends at once, *"start failed, 0 of 2 steps done: a step failed"*,
+    and its stop (both steps at once) too, *"stop failed, 0 of 2 steps done:
+    2 of 2 steps failed"*, each step written with -1 and the link's reason;
+    a `write-tty` is answered `EV_MT_COMMAND_ANSWER` -1 with it; nothing
+    reaches the agent. Up to 7.30.26 the control center dropped the link's
+    answer: *"Command sent to 1 nodes"*, a run that waited for its whole
+    `run_step_timeout` (and every later run refused, *"a run is in flight"*),
+    and keystrokes lost with no answer. In case 0, after case 45.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes
