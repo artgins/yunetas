@@ -17,13 +17,24 @@
 #      ways while two operators send stats-yuno and command-yuno to it: a
 #      Close, a Close and the end of the connection, a continuation frame
 #      with no message begun and a Ping of 126 bytes (both a protocol
-#      error, which the agent's websocket answers with its Close). The pair
-#      that reaches the yuno closing is answered at once (-1, "not
-#      connected to the agent"); the other went to the yuno, which never
-#      answers.
+#      error, which the agent's websocket answers with its Close). An order
+#      that reaches the yuno closing is answered at once (-1, "not connected
+#      to the agent", and a WARNING "Not in session"); one read after the
+#      yuno's connection ended is answered -1 too ("Yuno not found"); one
+#      read before the Close went to the yuno, which never answers it.
 #   2. Two operators close while the answers to their command-yuno come
-#      back from the yuno: the answer to the one that closed first has
-#      nobody to go to, and is dropped.
+#      back from the yuno: an answer that comes after the Close of its
+#      operator has nobody to go to, and is dropped; one before it reaches
+#      the operator.
+#
+#   The agent reads its sockets in an order of the kernel's, which can put
+#   both Closes before the answers, or an order after the end of the
+#   connection, so the counts are not fixed: each answer "not connected to
+#   the agent" an operator gets is counted (an order of help after them, on
+#   the same operator, is answered after them), and the count is written to
+#   COUNTS_FILE for run_test.sh, which finds as many WARNINGs "Not in
+#   session". What the yuno got cannot be counted: the end of its
+#   connection can take with it what it had not read yet.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -41,8 +52,11 @@ HOST = "127.0.0.1"
 PORT = 1991
 AGENT_PID = int(sys.argv[1])
 YUNO_BINARY = sys.argv[2]
+COUNTS_FILE = sys.argv[3]
 CYCLES = 3
 failures = []
+#   Answers "not connected to the agent" that the operators got
+not_connected = []
 
 
 def check(what, ok):
@@ -155,7 +169,11 @@ class Peer:
             return None
         if (b[0] & 0x0f) != 0x1:
             return None
-        return json.loads(payload)
+        iev = json.loads(payload)
+        comment = (iev.get("kw") or {}).get("comment") or ""
+        if iev.get("event") == "EV_MT_COMMAND_ANSWER" and "not connected to the agent" in comment:
+            not_connected.append(iev["kw"])
+        return iev
 
     async def until(self, event, secs):
         end = time.monotonic() + secs
@@ -224,15 +242,20 @@ async def operator():
     return o if ack and ack["kw"].get("result") == 0 else None
 
 
-async def answers_of(o, secs):
+async def answers_before(o):
+    """The answers `o` gets before the answer to a help it sends now: the
+    agent answers the orders of one operator in their order"""
     got = []
-    end = time.monotonic() + secs
+    o.send(command("help", {"cmd": "stats-yuno"}))
+    end = time.monotonic() + 30
     while time.monotonic() < end:
         iev = await o.until("EV_MT_COMMAND_ANSWER", end - time.monotonic())
         if iev is None:
-            break
+            return got, False
+        if iev["kw"].get("result") == 0:
+            return got, True    # the help: no order to the yuno is answered 0
         got.append(iev["kw"])
-    return got
+    return got, False
 
 
 async def not_running(op, yid, secs=10):
@@ -308,11 +331,11 @@ async def main():
                 lambda: op_after.send(command("stats-yuno", {"id": yid})),
                 lambda: op_after.send(command("command-yuno", {"id": yid, "command": "help"})),
             )
-            a, b = await asyncio.gather(answers_of(op, 1.5), answers_of(op_after, 1.5))
+            (a, a_ok), (b, b_ok) = await asyncio.gather(answers_before(op), answers_before(op_after))
             got = a + b
-            check("cycle %d, %s: the orders to the yuno closing answered: %s" % (
+            check("cycle %d, %s: the orders answered are answered -1: %s" % (
                     cycle, how, [(a.get("result"), a.get("comment")) for a in got]),
-                len(got) == 2 and all(a.get("result") == -1 for a in got))
+                a_ok and b_ok and len(got) <= 4 and all(a.get("result") == -1 for a in got))
             check("cycle %d, %s: the agent ends the connection" % (cycle, how), await p.closed(10))
             p.close()
             op_after.close()
@@ -354,6 +377,9 @@ async def main():
     r = await op.ask("help", {"cmd": "stats-yuno"})
     check("the agent still answers", r.get("result") == 0)
     op.close()
+    print("answers \"not connected to the agent\": %d" % len(not_connected))
+    with open(COUNTS_FILE, "w") as f:
+        f.write("%d\n" % len(not_connected))
 
 
 asyncio.run(main())

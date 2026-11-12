@@ -10,7 +10,8 @@
 #   The agent's 1991 and its pid file are fixed in the binary, so it runs in
 #   namespaces of its own (user, mount, network, pid): a tmpfs on /yuneta, a
 #   passwd where uid 0 is `yuneta`, and a loopback nobody else sees, with its
-#   memory bounded (ulimit -v) and no core. The peer stops the agent
+#   memory bounded (ulimit -v, not for an agent built with ASan, whose
+#   shadow memory does not fit in any bound) and no core. The peer stops the agent
 #   (SIGSTOP) while it writes, so that the agent reads the Close of a peer
 #   and the order to that peer in one turn of its loop. Up to 7.30.26 the
 #   order was "Event NOT DEFINED in state" (an ERROR with a stack) in the
@@ -42,6 +43,17 @@ unshare -rmn --pid --fork --mount-proc true 2>/dev/null || skip "unprivileged na
 [ -d /yuneta ] || skip "no /yuneta to mount the sandbox on"
 
 #
+#   An agent built with ASan reserves terabytes of address space for its
+#   shadow memory: under ulimit -v it cannot start, and the test would blame
+#   the agent
+#
+VMEM_LIMIT="ulimit -v 4000000;"
+if grep -aq "__asan_init" "$AGENT"; then
+    VMEM_LIMIT=""
+    echo "an agent built with ASan: no ulimit -v"
+fi
+
+#
 #   Sandbox
 #
 WORK=$(mktemp -d)
@@ -62,9 +74,9 @@ timeout 100 unshare -rmn --pid --fork --mount-proc bash -c "
     cp '$WORK/agent.json' /yuneta/agent/yuneta_agent.json
     cd /yuneta/agent
     ulimit -c 0
-    (ulimit -v 4000000; exec ./yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json) > '$WORK/agent.log' 2>&1 &
+    ($VMEM_LIMIT exec ./yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json) > '$WORK/agent.log' 2>&1 &
     APID=\$!
-    python3 -u -I '$WORK/client.py' \$APID '$WORK/logcenter'
+    python3 -u -I '$WORK/client.py' \$APID '$WORK/logcenter' '$WORK/counts'
     echo \"client exit code \$?\" > '$WORK/client.rc'
     kill -CONT \$APID 2>/dev/null
     kill -INT \$APID 2>/dev/null
@@ -105,14 +117,19 @@ if [ "$nd" != "0" ]; then
     echo "TEST FAILED: $nd x \"Event NOT DEFINED in state\" in the agent"
     failed=1
 fi
-#   Each order to the yuno closing (two in each of 4 x 3 cycles) is one
-#   WARNING "Not in session"; the answer to an operator closing (one in each
-#   of 3 cycles) is dropped with one WARNING "Transport closing, nothing
-#   sent" (one per session)
+#   The kernel chooses the order the agent reads its sockets in, so the
+#   counts are not fixed: each order answered "not connected to the agent"
+#   (counted by client.py) is one WARNING "Not in session", and some order
+#   must have hit the window; each answer to an operator closing, at most
+#   one per operator, is dropped with one WARNING "Transport closing,
+#   nothing sent" (one per session) or as "requester gone before its
+#   answer" when its connection had already ended, or reached it.
+read -r xnis < "$WORK/counts" 2>/dev/null
 nis=$(grep -a '"msg": "Not in session"' "$WORK/agent.log" | grep -ac "WARNING")
 nc=$(grep -a '"msg": "Transport closing, nothing sent"' "$WORK/agent.log" | grep -ac "WARNING")
-if [ "$nis" != "24" ] || [ "$nc" != "3" ]; then
-    echo "TEST FAILED: $nis WARNING(s) \"Not in session\" (expected 24) and $nc \"Transport closing, nothing sent\" (expected 3)"
+ngone=$(grep -ac '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log")
+if [ -z "$xnis" ] || [ "$nis" != "$xnis" ] || [ "$nis" = "0" ] || [ "$((nc + ngone))" -gt 6 ]; then
+    echo "TEST FAILED: $nis WARNING(s) \"Not in session\" (expected ${xnis:-?}, not 0), $nc \"Transport closing, nothing sent\" and $ngone \"requester gone\" (expected 6 at most together)"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

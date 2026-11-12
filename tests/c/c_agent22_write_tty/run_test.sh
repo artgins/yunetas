@@ -9,7 +9,9 @@
 #   certs/controlcenter.crt). So it runs in namespaces of its own (user,
 #   mount, network, pid): a tmpfs on /yuneta with throwaway certificates, a
 #   passwd where uid 0 is `yuneta`, an /etc/hosts that sends the control
-#   center's name to the loopback, its memory bounded (ulimit -v) and no core.
+#   center's name to the loopback, its memory bounded (ulimit -v, not for an
+#   agent22 built with ASan, whose shadow memory does not fit in any bound)
+#   and no core.
 #
 #   Up to 7.30.26 a write-tty for a console that is not there (a key typed
 #   right after the console closed) and one without content64 were an ERROR
@@ -41,6 +43,17 @@ command -v openssl >/dev/null || skip "no 'openssl' command to make the certific
 command -v ip >/dev/null || skip "no 'ip' command to bring up the loopback of the sandbox"
 unshare -rmn --pid --fork --mount-proc true 2>/dev/null || skip "unprivileged namespaces not allowed here"
 [ -d /yuneta ] || skip "no /yuneta to mount the sandbox on"
+
+#
+#   An agent22 built with ASan reserves terabytes of address space for its
+#   shadow memory: under ulimit -v it cannot start, and the test would blame
+#   agent22
+#
+VMEM_LIMIT="ulimit -v 4000000;"
+if grep -aq "__asan_init" "$AGENT"; then
+    VMEM_LIMIT=""
+    echo "an agent22 built with ASan: no ulimit -v"
+fi
 
 #
 #   Sandbox
@@ -96,7 +109,7 @@ timeout 100 unshare -rmn --pid --fork --mount-proc bash -c "
         'help' > '$WORK/cc.out' 2>&1 &
     CC=\$!
     sleep 0.5
-    (ulimit -v 4000000; exec ./yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json) > '$WORK/agent.log' 2>&1 &
+    ($VMEM_LIMIT exec ./yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json) > '$WORK/agent.log' 2>&1 &
     APID=\$!
     wait \$CC
     echo \"control center exit code \$?\" >> '$WORK/cc.out'

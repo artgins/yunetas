@@ -5,7 +5,8 @@ linked to a control center written in python (`control_center.py`), in
 namespaces of its own: a tmpfs on `/yuneta` with throwaway certificates, a
 `/etc/passwd` where uid 0 is `yuneta`, an `/etc/hosts` that sends the control
 center's name to a loopback nobody else sees. Its memory is bounded
-(`ulimit -v 4000000`) and it dumps no core.
+(`ulimit -v 4000000`; none for an agent22 built with ASan, whose shadow memory
+fits no bound) and it dumps no core.
 
 agent22 has no listener of its own. Everything reaches it through its link
 to the control center: a `C_IEVENT_CLI` over tcp4h and TLS, pinned to
