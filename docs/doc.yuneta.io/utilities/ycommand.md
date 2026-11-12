@@ -199,6 +199,22 @@ client does, and tells its host nothing until one opens.
   and path separators collapse to a single inert basename. This closes an RCE
   where a hostile name flowed into the `"<editor> <path>"` string handed to
   `/bin/sh -c`. (Same fix in `ycli`.)
+- **Only the answers it asked for** — the agent answers its own requests
+  (`read-file`, `read-json`, `read-binary-file`, `running-keys`,
+  `running-bin`, `edit-config`, `view-config`, `edit-yuno-config`,
+  `view-yuno-config`) with an event of its own (`EV_READ_FILE`,
+  `EV_EDIT_CONFIG`, ...), and ycommand writes it under `~/.yuneta/configs/`,
+  opens the editor on it, or leaves a `create-config` on the line. It takes
+  one only while a request of those is pending, one answer per request; a
+  line counts as a request when it names one of them as a word, so
+  `command-agent cmd2agent='read-file filename=/etc/hosts'` through a control
+  center counts too. Any other is ignored with a WARNING (shown with `-l 1`):
+
+  ```text
+  "msg": "answer of a request this ycommand did not make, ignored", "event": "EV_READ_BINARY_FILE"
+  ```
+
+  Up to 7.30.26 ycommand took any that came from its peer.
 
 ## See also
 

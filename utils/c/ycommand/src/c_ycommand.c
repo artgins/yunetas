@@ -116,6 +116,8 @@ PRIVATE void split_commands_into_array(const char *text, json_t *target);
 PRIVATE void split_commands_into_queue(hgobj gobj, const char *text);
 PRIVATE int exec_one_command(hgobj gobj, const char *cmdline);
 PRIVATE void run_next_pending(hgobj gobj);
+PRIVATE BOOL names_a_request(const char *command);
+PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event);
 PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -300,6 +302,7 @@ typedef struct _PRIVATE_DATA {
     BOOL stdin_pipe_mode;           /* set once in mt_create */
     BOOL stdin_closed;              /* EOF arrived on stdin */
     BOOL cmd_in_flight;             /* async cmd dispatched, waiting for answer */
+    int requests_pending;           /* answers still to come of the agent's own requests (read-file...) */
 } PRIVATE_DATA;
 
 
@@ -1644,6 +1647,64 @@ PRIVATE char *sanitize_config_name(char *dst, int dstsize, const char *name)
 }
 
 /***************************************************************************
+ *  Does `command` (a line as sent: maybe a command-agent whose cmd2agent
+ *  is one) name one of the agent's own requests, whose answer is an event
+ *  of its own (EV_READ_FILE, EV_EDIT_CONFIG...) and not the command's
+ *  answer? A name counts as a whole word.
+ ***************************************************************************/
+PRIVATE BOOL names_a_request(const char *command)
+{
+    static const char *requests[] = {
+        "read-file", "read-json", "read-binary-file", "running-keys", "running-bin",
+        "edit-config", "view-config", "edit-yuno-config", "view-yuno-config",
+        "EV_READ_FILE", "EV_READ_JSON", "EV_READ_BINARY_FILE", "EV_READ_RUNNING_KEYS",
+        "EV_READ_RUNNING_BIN", "EV_EDIT_CONFIG", "EV_VIEW_CONFIG", "EV_EDIT_YUNO_CONFIG",
+        "EV_VIEW_YUNO_CONFIG",
+        0
+    };
+    for(int i=0; requests[i]; i++) {
+        size_t len = strlen(requests[i]);
+        const char *p = command;
+        while((p = strstr(p, requests[i])) != NULL) {
+            BOOL starts = (p == command) ||
+                !(isalnum((unsigned char)p[-1]) || p[-1] == '-' || p[-1] == '_');
+            BOOL ends = !(isalnum((unsigned char)p[len]) || p[len] == '-' || p[len] == '_');
+            if(starts && ends) {
+                return TRUE;
+            }
+            p += len;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  An answer of the agent's own requests (EV_READ_FILE, EV_EDIT_CONFIG...)
+ *  is taken only while this ycommand has one of them pending: what it does
+ *  with one is write its content in ~/.yuneta/configs/, open the editor on
+ *  it, and leave a create-config on the command line. Up to 7.30.26 it
+ *  took any that came, from whatever the peer (an agent, or a control
+ *  center relaying an agent) chose to send.
+ ***************************************************************************/
+PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->requests_pending > 0) {
+        priv->requests_pending--;
+        return TRUE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "answer of a request this ycommand did not make, ignored",
+        "event",        "%s", event,
+        NULL
+    );
+    return FALSE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
@@ -2688,6 +2749,7 @@ PRIVATE int exec_one_command(hgobj gobj, const char *cmdline)
         priv->last_sent_command[cmd_len] = 0;
     }
 
+    BOOL is_request = !local_cmd && names_a_request(xcmd);
     json_t *webix = 0;
     if(local_cmd) {
         webix = gobj_command(gobj, xcmd, kw_command, gobj);
@@ -2712,6 +2774,9 @@ PRIVATE int exec_one_command(hgobj gobj, const char *cmdline)
     }
 
     /* Async: the response will arrive via EV_MT_COMMAND_ANSWER. */
+    if(is_request) {
+        priv->requests_pending++;   // and its own answer (EV_READ_FILE...): take_pending_request()
+    }
     priv->current_ignore_fail = ignore_fail;
     priv->cmd_in_flight = TRUE;
     printf("\n"); fflush(stdout);
@@ -2863,6 +2928,12 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!take_pending_request(gobj, event)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
@@ -2978,6 +3049,13 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!take_pending_request(gobj, event)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
@@ -3038,6 +3116,13 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!take_pending_request(gobj, event)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
@@ -3098,6 +3183,13 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!take_pending_request(gobj, event)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
@@ -3174,6 +3266,13 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!take_pending_request(gobj, event)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
