@@ -68,7 +68,7 @@ Supports one-at-a-time (rotated) or broadcast delivery.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_IDLE` |
-| **Input events** | `EV_ON_MESSAGE`, `EV_SEND_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_DROP`, `EV_STOPPED` |
+| **Input events** | `EV_ON_MESSAGE`, `EV_SEND_MESSAGE`, `EV_ON_IEV_MESSAGE`, `EV_SEND_IEV`, `EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_DROP`, `EV_STOPPED` |
 | **Output events** | `EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE` |
 
 ### Key attributes
@@ -104,6 +104,43 @@ gobj_send_event(gate, EV_SEND_MESSAGE,
 ```
 
 `tests/c/c_tcp` (`test8`).
+
+### The channel of a message
+
+What the gate publishes (`EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE`, and
+the event of an `EV_ON_IEV_MESSAGE`) carries the channel it came in by, in
+`__temp__`: `channel`, its name, and `channel_gobj`, its pointer. A send
+(`EV_SEND_MESSAGE`, `EV_SEND_IEV`) whose kw carries them goes to that
+channel, so an answer goes back by the channel of its request:
+
+```C
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    // kw: {"gbuffer": ..., "__temp__": {"channel": "input-1", "channel_gobj": ...}}
+    json_t *kw_answer = json_pack("{s:I, s:O}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_answer,
+        "__temp__", json_object_get(kw, "__temp__")
+    );
+    gobj_send_event(src, EV_SEND_MESSAGE, kw_answer, gobj);   // to input-1
+    KW_DECREF(kw)
+    return 0;
+}
+```
+
+`__temp__` is local to the yuno: a peer's is dropped when its frame is
+decoded, and it is left out of every frame sent (7.30.27+, see
+[`iev_create_from_gbuffer()`](#iev_create_from_gbuffer)). So a `__temp__`
+that is not a dict was put by code of this yuno: the gate replaces it, with
+one ERROR, *"__temp__ of a message is not a dict, replaced"* (7.30.27+; up to
+7.30.26 it was two ERRORs and the value stayed, and the subscriber read it as
+the channel).
+
+A send with no channel to go to (none named, none open) is refused with
+*"No channel FOUND to send"*, an ERROR said once every 1000 in a row, its
+`repeated` the ones not said since the last one; a send that finds a channel
+starts the count again (7.30.27+; up to 7.30.26 every send said it).
+
+`tests/c/c_iogate_channel`.
 
 ### Commands
 

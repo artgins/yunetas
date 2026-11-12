@@ -22,6 +22,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define NO_CHANNEL_LOG_EVERY    1000    // sends in a row with no channel, one said (send_one_rotate())
 
 /***************************************************************************
  *              Structures
@@ -36,6 +37,7 @@ typedef enum { // Can be used too in kw with "__send_type__" in EV_SEND_MESSAGE/
  ***************************************************************************/
 PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 PRIVATE json_t *kw_for_one_channel(hgobj gobj, json_t *kw);
+PRIVATE int write_channel_in_temp(hgobj gobj, gobj_event_t event, json_t *kw, hgobj channel);
 
 /***************************************************************************
  *              Resources
@@ -132,6 +134,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t last_ms;
 
     json_t *jn_destination_filter;  // the channels a message can go to, see get_next_destination()
+    uint32_t no_channel_sends;      // sends in a row with no channel to go to, see send_one_rotate()
 
 } PRIVATE_DATA;
 
@@ -780,6 +783,46 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
 
 
 /***************************************************************************
+ *  Write in the __temp__ of kw the channel a message came in by, for the
+ *  subscribers. __temp__ is local (a peer's is dropped when its frame is
+ *  decoded, iev_create_from_gbuffer()), so one that is not a dict was put
+ *  by code of this yuno: said, and replaced, so the channel the
+ *  subscribers read is this one. Up to 7.30.26 it was two ERRORs, and the
+ *  other value was left in place.
+ ***************************************************************************/
+PRIVATE int write_channel_in_temp(hgobj gobj, gobj_event_t event, json_t *kw, hgobj channel)
+{
+    if(!json_is_object(kw)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "kw of a message is not a dict, no channel written",
+            "event",        "%s", event,
+            NULL
+        );
+        return -1;
+    }
+    json_t *jn_temp = json_object_get(kw, "__temp__");
+    if(!json_is_object(jn_temp)) {
+        if(jn_temp) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "__temp__ of a message is not a dict, replaced",
+                "event",        "%s", event,
+                "channel",      "%s", gobj_short_name(channel),
+                NULL
+            );
+        }
+        jn_temp = json_object();
+        json_object_set_new(kw, "__temp__", jn_temp);
+    }
+    json_object_set_new(jn_temp, "channel", json_string(gobj_name(channel)));
+    json_object_set_new(jn_temp, "channel_gobj", json_integer((json_int_t)(uintptr_t)channel));
+    return 0;
+}
+
+/***************************************************************************
  *  Filter channels
  ***************************************************************************/
 PRIVATE hgobj get_next_destination(hgobj gobj)
@@ -827,23 +870,28 @@ PRIVATE int send_one_rotate(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             channel_gobj = get_next_destination(gobj);
         }
         if(!channel_gobj) {
-            static int repeated = 0;
-
-            if(repeated%1000 == 0) {
+            /*
+             *  Said once every NO_CHANNEL_LOG_EVERY in a row: `repeated` is
+             *  how many were not said since the last one. Up to 7.30.26
+             *  the count never moved, and every send said it.
+             */
+            if(priv->no_channel_sends % NO_CHANNEL_LOG_EVERY == 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "No channel FOUND to send",
                     "channel",      "%s", channel?channel:"???",
                     "event",        "%s", event,
-                    "repeated",     "%d", repeated*1000,
+                    "repeated",     "%u", priv->no_channel_sends? (unsigned)(NO_CHANNEL_LOG_EVERY-1) : 0u,
                     NULL
                 );
             }
+            priv->no_channel_sends++;
             KW_DECREF(kw)
             return -1;
         }
     }
+    priv->no_channel_sends = 0;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -1072,20 +1120,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!kw) {
         kw = json_object();
     }
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel",
-        json_string(gobj_name(src))
-    );
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel_gobj",
-        json_integer((json_int_t)(uintptr_t)src)
-    );
+    write_channel_in_temp(gobj, event, kw, src);
 
     return gobj_publish_event(gobj, event, kw); // reuse kw
 }
@@ -1108,20 +1143,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!kw) {
         kw = json_object();
     }
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel",
-        json_string(gobj_name(src))
-    );
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel_gobj",
-        json_integer((json_int_t)(uintptr_t)src)
-    );
+    write_channel_in_temp(gobj, event, kw, src);
 
     return gobj_publish_event(gobj, event, kw); // reuse kw
 }
@@ -1159,20 +1181,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!kw) {
         kw = json_object();
     }
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel",
-        json_string(gobj_name(src))
-    );
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel_gobj",
-        json_integer((json_int_t)(uintptr_t)src)
-    );
+    write_channel_in_temp(gobj, event, kw, src);
 
     return gobj_publish_event(gobj, event, kw); // reuse kw
 }
@@ -1220,20 +1229,7 @@ PRIVATE int ac_on_iev_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     priv->rxMsgs++;
 
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel",
-        json_string(gobj_name(src))
-    );
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channel_gobj",
-        json_integer((json_int_t)(uintptr_t)src)
-    );
+    write_channel_in_temp(gobj, iev_event, kw, src);
 
     return gobj_publish_event(gobj, iev_event, kw);
 }
