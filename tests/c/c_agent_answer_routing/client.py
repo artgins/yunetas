@@ -123,6 +123,13 @@ def ack(event, result, temp=None):
     return {"event": event, "kw": kw}
 
 
+def peer_event(event, kw):
+    """An event a session sends, with the kw it chooses"""
+    kw = dict(kw)
+    kw["__md_iev__"] = {"ievent_gate_stack": [routing("ycommand")]}
+    return {"event": event, "kw": kw}
+
+
 class Peer:
     """A websocket client written by hand: its frames go out as they are made"""
 
@@ -436,11 +443,29 @@ async def main():
         g.send(ack(event, 0, temp={"channel_gobj": PEER_POINTER}))
         g.send(ack(event, 0))
         g.send(ack(event, -1))
+    #   The events of a console (the agent takes them from its consoles)
+    #   sent by a session, with a kw of any shape: dropped with ONE WARNING
+    #   (a brake), no ERROR (up to 7.30.26 an ERROR "named dict not found"
+    #   per frame)
+    for i in range(10):
+        for event in ("EV_TTY_OPEN", "EV_TTY_DATA", "EV_TTY_CLOSE"):
+            g.send(peer_event(event, {"name": ["x"], "content64": 5}))
+            g.send(peer_event(event, {}))
+    #   And the requests of the agent that come by its commands (edit-config,
+    #   read-file...), sent as events: dropped with ONE WARNING, no ERROR (up
+    #   to 7.30.26 the agent answered them to the gate of its channels: an
+    #   ERROR "Event NOT DEFINED in state" with a stack per frame)
+    for event in ("EV_EDIT_CONFIG", "EV_VIEW_CONFIG", "EV_EDIT_YUNO_CONFIG", "EV_VIEW_YUNO_CONFIG",
+            "EV_READ_JSON", "EV_READ_FILE", "EV_READ_BINARY_FILE", "EV_READ_RUNNING_KEYS",
+            "EV_READ_RUNNING_BIN"):
+        g.send(peer_event(event, {"id": ["x"], "filename": 5}))
+        g.send(peer_event(event, {}))
     got = await readings(w, 1)
     check("the watcher gets no reading a session sent with a __temp__",
         not any((g_.get("data") or {}).get("data", {}) == {"forged": True} for g_ in got))
     r = await g.ask("help", {"cmd": "stats-yuno"})
-    check("the agent lives after the frames with a __temp__ of a session", r.get("result") == 0)
+    check("the agent lives after the frames with a __temp__ of a session, and the events of others",
+        r.get("result") == 0)
     r = await w.ask("watch-yuno-stats", {"stop": 1})
     check("the watch stops", r.get("result") == 0)
 

@@ -36,6 +36,18 @@ of the agent. The agent takes one only from where it sent the order.
    from a yuno: dropped"*, no *"hs_yuno NULL"* and no *"gobj NULL"*. Up to
    7.30.26 the agent took the number for a gobj and died (SIGSEGV), and an
    ack from a session was read as a yuno's (ERRORs with a stack).
+
+   The same session sends the events of a console (`EV_TTY_OPEN`,
+   `EV_TTY_DATA`, `EV_TTY_CLOSE`, 60 frames, with a kw of any shape) and
+   the agent's own requests as events (`EV_EDIT_CONFIG`, `EV_READ_FILE`
+   and the other seven that its commands `edit-config`, `read-file`...
+   send, 18 frames). They are dropped with ONE WARNING *"console event not
+   from a console: dropped"* and ONE *"request of the agent not by its
+   command: dropped"* (brakes), with no *"named dict not found"*, no
+   *"path MUST BE a json str"* and no *"Event NOT DEFINED in state"*. Up
+   to 7.30.26: an ERROR *"named dict not found"* per console frame, and the
+   agent answered each request to the gate of its channels, an ERROR
+   *"Event NOT DEFINED in state"* with a stack per frame.
 2. A session sends `command-yuno id=<id> command=help` and closes before the
    yuno answers; another session takes its channel (the same `input-N`, as
    the yuno sees in the `src_service` of the two orders) and sends it too.

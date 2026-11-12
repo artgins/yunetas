@@ -21,6 +21,8 @@
 #        - an unknown yuno, pid -1: nothing is killed. Up to 7.30.17 the
 #          agent sent SIGKILL to the pid of every card it refused, and -1 is
 #          every process of the user: this peer too (run_test.sh fails).
+#      The yuno killed with SIGKILL stays down (a watcher does not relaunch
+#      a yuno killed that way), and a run-yuno runs it again.
 #   5. a card the agent ACCEPTS, of a yuno registered and not running, with
 #      pid -1 and watcher_pid -1: neither is recorded (a WARNING), and a
 #      kill-yuno of it is refused (no pid). Up to 7.30.17 the agent recorded
@@ -56,6 +58,11 @@
 #  10. delete-yuno yuno_release=<its only release> takes the whole yuno:
 #      it removes the saved trace too. Up to 7.30.23 only whole=1 did, and
 #      the trace came back in the yuno created again.
+#  11. a run-yuno that plays keeps its requester for the answer of the play
+#      of that launch only: a play-yuno, then a relaunch by the watcher
+#      after a crash, answer nothing more to the session that ran it, nor to
+#      one that took its channel. Up to 7.30.26 the relaunch answered that
+#      run-yuno again, to whoever held the channel.
 #
 #   Copyright (c) 2026, ArtGins.
 #   All Rights Reserved.
@@ -223,6 +230,7 @@ async def refused_card(role, pid, **kw):
 async def main():
     ws, ack = await session()
     check("a session of ycommand on 1991", ack.get("result") == 0)
+    booted = time.monotonic() + 6
 
     #   1. write-tty of a console that is not there
     for i in range(3):
@@ -245,7 +253,10 @@ async def main():
         r = await ask(ws, "command-yuno", {"command": "help", "__gbuffer___": gbuffer(200*1024)})
         check("command-yuno with a gbuffer of 200 KB: no yuno", r.get("result") == -1)
 
-    #   4. a yuno of the agent
+    #   4. a yuno of the agent. The agent runs its enabled yunos once, some
+    #   3 s after it starts (timerStBoot is 0.1 s in agent.json): the yuno is
+    #   created after that, so that only this peer runs it
+    await asyncio.sleep(max(0, booted - time.monotonic()))
     with open(YUNO_BINARY, "rb") as f:
         content64 = base64.b64encode(f.read()).decode()
     config64 = base64.b64encode(json.dumps(
@@ -289,17 +300,25 @@ async def main():
     await refused_card("logcenter", yuno["yuno_pid"], **same_yuno)
     check("a second card of the running yuno, its own pid: killed", not alive(yuno["yuno_pid"]))
 
-    #   kill-yuno of the running one (relaunched by its watcher): its pid
-    #   is a process of it, signalled; the yuno ends
-    relaunched = None
-    for i in range(300):    # up to 30 s
+    #   The agent killed it with SIGKILL, and a watcher does not relaunch a
+    #   yuno killed that way (ydaemon.c): the yuno is down until it is run
+    #   again. Then run-yuno: its new pid is recorded
+    for i in range(100):    # up to 10 s
         r = await ask(ws, "list-yunos", {"yuno_role": "logcenter", "yuno_name": "x"})
         rows = r.get("data") or []
-        if rows and rows[0].get("yuno_running") and rows[0].get("yuno_pid") not in (0, yuno["yuno_pid"]):
-            relaunched = rows[0]
+        if rows and not rows[0].get("yuno_running"):
             break
         await asyncio.sleep(0.1)
-    check("logcenter relaunched by its watcher, its new pid recorded", relaunched is not None)
+    check("the killed logcenter is down", bool(rows) and not rows[0].get("yuno_running"))
+    await asyncio.sleep(3)  # a watcher relaunches a crashed yuno 2 s after its end
+    check("its watcher does not relaunch a yuno killed with SIGKILL",
+        not processes_named("logcenter"))
+    r = await ask(ws, "list-yunos", {"yuno_role": "logcenter", "yuno_name": "x"})
+    rows = r.get("data") or []
+    check("nor the agent", bool(rows) and not rows[0].get("yuno_running"))
+    relaunched = await run_and_wait(ws, yuno["id"])
+    check("logcenter run again, its new pid recorded",
+        relaunched is not None and relaunched.get("yuno_pid") not in (0, yuno["yuno_pid"]))
     if relaunched:
         #   6. trace-on-yuno and trace-off-yuno of the running logcenter
         yid = relaunched["id"]
@@ -406,6 +425,60 @@ async def main():
                 off = await global_traces()
                 check("the yuno traces nothing: %s" % off, off == [])
                 await kill_and_wait(ws, yid, running["yuno_pid"])
+
+        #   11. A run-yuno that plays (play=1, the default) keeps its
+        #       requester for the answer of the play: it goes with the first
+        #       open of that launch, and only then. The yuno does not play
+        #       by itself (must_play false), a play-yuno plays it, and its
+        #       watcher relaunches it after a crash: neither the session that
+        #       ran it, nor one that took its channel, gets an answer then.
+        #       Up to 7.30.26 the relaunch answered that run-yuno again, to
+        #       whoever held the channel.
+        for leaves in (False, True):
+            how = "the session that ran it leaves" if leaves else "the session that ran it stays"
+            a, ack = await session()
+            check("%s: a session" % how, ack.get("result") == 0)
+            r = await ask(a, "run-yuno", {"id": yid}, secs=30)
+            check("%s: run-yuno: %s" % (how, r.get("comment")), r.get("result") == 0)
+            played = None
+            for i in range(100):
+                r = await ask(ws, "list-yunos", {"id": yid})
+                rows = r.get("data") or []
+                if rows and rows[0].get("yuno_running") and rows[0].get("yuno_pid"):
+                    played = rows[0]
+                    break
+                await asyncio.sleep(0.1)
+            check("%s: the yuno runs, not playing (must_play false)" % how,
+                played is not None and not played.get("yuno_playing") and not played.get("must_play"))
+            if played is None:
+                await a.close()
+                continue
+            r = await ask(a, "play-yuno", {"id": yid}, secs=30)
+            check("%s: play-yuno: %s" % (how, r.get("comment")), r.get("result") == 0)
+            listener = a
+            if leaves:
+                await a.close()
+                await asyncio.sleep(0.5)
+                listener, ack = await session()     # it takes the channel of the one that left
+                check("%s: another session" % how, ack.get("result") == 0)
+            os.kill(played["yuno_pid"], signal.SIGSEGV)
+            again = None
+            for i in range(150):    # up to 15 s: its watcher waits 2 s
+                r = await ask(ws, "list-yunos", {"id": yid})
+                rows = r.get("data") or []
+                if rows and rows[0].get("yuno_playing") and rows[0].get("yuno_pid") not in (0, played["yuno_pid"]):
+                    again = rows[0]
+                    break
+                await asyncio.sleep(0.1)
+            check("%s: relaunched by its watcher, and played (must_play true now)" % how, again is not None)
+            got = await answers(listener, 3)
+            unasked = [g["kw"].get("comment") for g in got if g.get("event") == "EV_MT_COMMAND_ANSWER"]
+            check("%s: no answer to a session that asked nothing: %s" % (how, unasked), not unasked)
+            r = await ask(ws, "pause-yuno", {"id": yid}, secs=30)
+            check("%s: pause-yuno (must_play false again): %s" % (how, r.get("comment")), r.get("result") == 0)
+            if again:
+                await kill_and_wait(ws, yid, again["yuno_pid"])
+            await listener.close()
 
     #   9. delete-yuno whole=1 removes the trace the yuno saved: a yuno
     #      created again with the same id starts with none. Up to 7.30.22

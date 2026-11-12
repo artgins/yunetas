@@ -628,6 +628,26 @@ where it sent the order:
   before its answer, answer dropped"* (INFO, `"detail": "its channel is
   another session's now"`). Up to 7.30.26 the next session on that channel
   got it.
+- **The play of a `run-yuno`, once.** A `run-yuno` that plays (`play=1`,
+  the default) keeps its requester, with its session and the launch it
+  made, for the answer of the play of that launch. It is taken out at the
+  first open of the yuno, whatever comes next: the play of that open
+  answers it, if the session that asked still holds its channel; a yuno
+  that does not play by itself (`must_play` false) just drops it. No later
+  play answers it: a `play-yuno`, then a relaunch by the watcher after a
+  crash, answer nobody but the `play-yuno`'s requester. Up to 7.30.26 a
+  yuno with `must_play` false kept it, and the next relaunch answered that
+  `run-yuno` again to whoever held the channel then: the same session,
+  another one, or the yuno itself, whose link to the agent was cut by it.
+  The answer needs no deadline: it cannot outlive the first open.
+
+  ```bash
+  ycommand -c 'run-yuno id=7601'    # answered when it opens (must_play false: no play)
+  ycommand -c 'play-yuno id=7601'   # answered; must_play is true now
+  # the yuno crashes, its watcher relaunches it and the agent plays it:
+  # nobody is answered (up to 7.30.26 the session of the run-yuno, or
+  # whoever had its channel, got that run-yuno's answer again)
+  ```
 
 What goes nowhere is a peer's doing: a WARNING (`MSGSET_PROTOCOL`, no stack)
 with a brake, ONE of each kind per 10 s, with `dropped`, the answers of that
@@ -644,7 +664,26 @@ WARNING {"msgset": "Protocol", "msg": "answer with no route back to its requeste
          "event": "EV_MT_COMMAND_ANSWER", "requester": "input-1", "channel": "C_CHANNEL^input-1", "dropped": 1}
 WARNING {"msgset": "Protocol", "msg": "ack not from a yuno: dropped",
          "event": "EV_PLAY_YUNO_ACK", "yuno_id": "", "channel": "C_CHANNEL^input-2", "dropped": 1}
+WARNING {"msgset": "Protocol", "msg": "console event not from a console: dropped",
+         "event": "EV_TTY_DATA", "src": "__input_side__", "channel": "C_CHANNEL^input-2", "dropped": 20}
+WARNING {"msgset": "Protocol", "msg": "request of the agent not by its command: dropped",
+         "event": "EV_READ_FILE", "src": "__input_side__", "channel": "C_CHANNEL^input-2", "dropped": 2}
 ```
+
+Two more kinds are events, not answers, under the same brake:
+
+- **The events of a console** (`EV_TTY_OPEN`, `EV_TTY_DATA`,
+  `EV_TTY_CLOSE`) are taken only from a console of the agent (a `C_PTY`).
+  The names are public, so a session can send them too. Up to 7.30.26
+  each such frame was an ERROR *"named dict not found"*.
+- **The agent's own requests** (`EV_EDIT_CONFIG`, `EV_VIEW_CONFIG`,
+  `EV_EDIT_YUNO_CONFIG`, `EV_VIEW_YUNO_CONFIG`, `EV_READ_JSON`,
+  `EV_READ_FILE`, `EV_READ_BINARY_FILE`, `EV_READ_RUNNING_KEYS`,
+  `EV_READ_RUNNING_BIN`) come by their commands (`edit-config`,
+  `read-file`, ...), which are not changed. Sent as events by a session,
+  they are dropped. Up to 7.30.26 the agent answered them to the gate of
+  its channels, which takes no such event: an ERROR *"Event NOT DEFINED in
+  state"* with a stack per frame.
 
 The *"requester of the answer not found"* is an answer whose requester is
 no channel of the agent and no link (a `dst_service` or an

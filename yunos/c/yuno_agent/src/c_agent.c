@@ -68,6 +68,8 @@ typedef enum {
     ANSWER_DROP_NO_REQUESTER,   // its requester is no channel of the agent, nor a link
     ANSWER_DROP_NO_ROUTE_BACK,  // no hop under the agent's own: no route back to its requester
     ANSWER_DROP_ACK_NOT_FROM_YUNO,  // an ack of play / pause, not from a yuno's channel
+    ANSWER_DROP_TTY_NOT_FROM_CONSOLE,   // an event of a console (EV_TTY_*), not from a console
+    ANSWER_DROP_REQUEST_NOT_BY_COMMAND, // a request of the agent (EV_READ_FILE...) not by its command
     ANSWER_DROP_KINDS
 } answer_drop_kind_t;
 
@@ -233,6 +235,7 @@ PRIVATE int add_console_route(
 PRIVATE int delete_console(hgobj gobj, const char *name);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
 PRIVATE json_int_t requester_session(hgobj gobj, hgobj src);
+PRIVATE json_t *take_run_requester(hgobj gobj, json_t *yuno, json_int_t launch_id, BOOL for_play);
 PRIVATE hgobj answer_requester(
     hgobj gobj,
     gobj_event_t event,
@@ -243,6 +246,8 @@ PRIVATE hgobj answer_requester(
 );
 PRIVATE BOOL answer_is_of_its_yuno(hgobj gobj, gobj_event_t event, json_t *jn_md, json_t *kw);
 PRIVATE const char *ack_yuno_id(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+PRIVATE BOOL tty_event_from_console(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
+PRIVATE BOOL request_from_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE void log_answer_dropped(
     hgobj gobj,
     answer_drop_kind_t kind,
@@ -6231,13 +6236,25 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                     /*
                      *  Route the implicit play answer back to this requester:
                      *  ac_on_open's must_play reconcile will call play-yuno,
-                     *  and gives the ACK to the `_requester` kept here.
+                     *  and gives the ACK to the `_requester` kept here -- at
+                     *  the first open of this launch only, and only to this
+                     *  session (take_run_requester()).
                      */
                     json_object_set_new(yuno, "_requester", json_string(requester));
-                    json_t *kw_requester = kw_get_dict(
-                        gobj, kw, "__md_iev__", 0, KW_REQUIRED
+                    json_t *md_requester = json_deep_copy(
+                        kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED)
                     );
-                    json_object_set_new(yuno, "_requester_md_iev", kw_incref(kw_requester));
+                    if(!md_requester) {
+                        md_requester = json_object();   // Error already logged
+                    }
+                    // Whose and which launch: take_run_requester()
+                    hgobj requester_channel = gobj_child_by_name(priv->gobj_input_side, requester);
+                    json_object_set_new(md_requester, "agent_run", json_pack("{s:I, s:I}",
+                        "session", requester_channel?
+                            json_integer_value(gobj_read_user_data(requester_channel, "__session__")) : 0,
+                        "launch_id", kw_get_int(gobj, yuno, "launch_id", 0, KW_REQUIRED)
+                    ));
+                    json_object_set_new(yuno, "_requester_md_iev", md_requester);
                 } else {
                     /*
                      *  Launch-only: remember this launch_id so ac_on_open skips its
@@ -13435,6 +13452,65 @@ PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t ev
 }
 
 /***************************************************************************
+ *  The requester a run-yuno that plays keeps in the row of the yuno
+ *  (cmd_run_yuno()), for the answer of the play of that launch: taken out
+ *  of the row at the first open of the yuno, whatever comes next. Yours:
+ *  the routing of the play's answer, or NULL -- no play (`for_play`
+ *  FALSE), a requester kept for another launch, or one whose session is
+ *  gone (its channel closed and taken by another session, or by a yuno:
+ *  the channels are a pool). Up to 7.30.26 a yuno that did not play by
+ *  itself (must_play false) kept it, and the play of its next launch (a
+ *  relaunch by its watcher, after a play-yuno) answered that run-yuno
+ *  again, to whoever held the channel then: the same session, another
+ *  one, or the yuno itself, whose link to the agent was cut by it.
+ ***************************************************************************/
+PRIVATE json_t *take_run_requester(hgobj gobj, json_t *yuno, json_int_t launch_id, BOOL for_play)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *requester = kw_get_str(gobj, yuno, "_requester", "", 0);
+    json_t *md_iev = json_object_get(yuno, "_requester_md_iev");
+    if(empty_string(requester) || !json_is_object(md_iev)) {
+        return NULL;
+    }
+
+    json_t *md_play = NULL;
+    if(for_play) {
+        json_t *jn_run = json_object_get(md_iev, "agent_run");
+        json_int_t session = json_integer_value(json_object_get(jn_run, "session"));
+        hgobj channel = gobj_child_by_name(priv->gobj_input_side, requester);
+        const char *gone = NULL;
+        if(json_integer_value(json_object_get(jn_run, "launch_id")) != launch_id) {
+            gone = "it ran another launch of the yuno";
+        } else if(session) {
+            if(!channel || json_integer_value(gobj_read_user_data(channel, "__session__")) != session) {
+                gone = "its channel is another session's now";
+            }
+        } else if(channel) {
+            gone = "it was no channel, a channel has its name now";
+        }
+        if(gone) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "requester gone before its answer, answer dropped",
+                "requester",    "%s", requester,
+                "event",        "%s", "play-yuno",
+                "detail",       "%s", gone,
+                NULL
+            );
+        } else {
+            md_play = json_deep_copy(md_iev);
+            json_object_del(md_play, "agent_run");
+        }
+    }
+
+    json_object_set_new(yuno, "_requester", json_string(""));
+    json_object_set_new(yuno, "_requester_md_iev", json_object());
+    return md_play;
+}
+
+/***************************************************************************
  *  The session of `src`, the requester of an order, when it is a channel of
  *  __input_side__ (an operator): the id ac_on_open() gave the session that
  *  holds that channel now. 0 when it is none (the agent, a link).
@@ -13622,6 +13698,46 @@ PRIVATE const char *ack_yuno_id(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 }
 
 /***************************************************************************
+ *  An event of a console (EV_TTY_OPEN, EV_TTY_DATA, EV_TTY_CLOSE) comes
+ *  from a console of the agent (C_PTY), which the agent names after it.
+ *  The same names are public in C_PTY, so a session can send them too, and
+ *  the agent's channels publish them with their own name: up to 7.30.26 an
+ *  ERROR "named dict not found" per frame.
+ ***************************************************************************/
+PRIVATE BOOL tty_event_from_console(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(src && gobj_typeof_gclass(src, C_PTY)) {
+        return TRUE;
+    }
+    log_answer_dropped(gobj, ANSWER_DROP_TTY_NOT_FROM_CONSOLE,
+        "console event not from a console: dropped",
+        event, "src", src? gobj_short_name(src) : "", kw, src
+    );
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A request of the agent's own (EV_EDIT_CONFIG, EV_READ_FILE, ...) comes
+ *  by its command (edit-config, read-file, ...), from the C_IEVENT_SRV of a
+ *  channel or from a link, and goes back to it. The same names are public,
+ *  so a session can send one as an event of its own, which the gate of the
+ *  agent's channels publishes: the answer went to the gate, which takes no
+ *  such event (up to 7.30.26 an ERROR "Event NOT DEFINED in state" with a
+ *  stack per frame).
+ ***************************************************************************/
+PRIVATE BOOL request_from_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    if(src && !gobj_typeof_gclass(src, C_IOGATE)) {
+        return TRUE;
+    }
+    log_answer_dropped(gobj, ANSWER_DROP_REQUEST_NOT_BY_COMMAND,
+        "request of the agent not by its command: dropped",
+        event, "src", src? gobj_short_name(src) : "", kw, src
+    );
+    return FALSE;
+}
+
+/***************************************************************************
  *  An answer that goes nowhere is what a peer sent: one WARNING of each
  *  kind per ANSWER_DROP_LOG_INTERVAL_MS, with how many were dropped since
  *  the last one (a session can send them in a loop)
@@ -13682,6 +13798,12 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "configurations";
+
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
 
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(id==0) {
@@ -13761,6 +13883,12 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "configurations";
 
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     const char *id = kw_get_str(gobj, kw, "id", 0, 0);
     if(id==0) {
         return gobj_send_event(
@@ -13838,6 +13966,12 @@ PRIVATE int ac_edit_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
+
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
 
     /*------------------------------------------------*
      *      Get the yunos
@@ -13952,6 +14086,12 @@ PRIVATE int ac_view_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
+
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
 
     /*------------------------------------------------*
      *      Get the yunos
@@ -14106,6 +14246,12 @@ PRIVATE int safe_read_path(const char *filename, char *resolved, size_t resolved
  ***************************************************************************/
 PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     const char *filename = kw_get_str(gobj, kw, "filename", 0, 0);
     if(!filename) {
         return gobj_send_event(
@@ -14208,6 +14354,12 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     const char *filename = kw_get_str(gobj, kw, "filename", 0, 0);
     if(!filename) {
         return gobj_send_event(
@@ -14294,6 +14446,12 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     const char *filename = kw_get_str(gobj, kw, "filename", 0, 0);
     if(!filename) {
         return gobj_send_event(
@@ -14442,6 +14600,12 @@ PRIVATE int ac_read_running_keys(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
 
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     /*------------------------------------------------*
      *      Get the yunos
      *------------------------------------------------*/
@@ -14567,6 +14731,12 @@ PRIVATE int ac_read_running_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
+
+    if(!request_from_command(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
 
     /*------------------------------------------------*
      *      Get the yunos
@@ -15155,6 +15325,17 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    /*
+     *  The requester of the run-yuno that launched it, kept for the answer
+     *  of its play: taken out at this open, whatever comes next
+     */
+    json_t *run_md_iev = take_run_requester(
+        gobj,
+        yuno,
+        kw_get_int(gobj, kw, "identity_card`launch_id", 0, 0),
+        !playing && SDATA_GET_BOOL(yuno, "must_play")
+    );
+
     // volatil: memory only -- saved, a lifecycle write would put this release over a newer one
     json_decref(
         gobj_update_node(
@@ -15206,15 +15387,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "id", yuno_id
             );
 
-            // The requester run-yuno kept in the row (cmd_run_yuno, do_play): the ACK of this play goes back to it
-            const char *requester = kw_get_str(gobj, yuno, "_requester", "", 0);
-            if(!empty_string(requester)) {
-                json_t *requester_md_iev = kw_get_dict(gobj, yuno, "_requester_md_iev", 0, 0);
-                json_t *kw_ext = json_pack("{s:O}",
-                    "__md_iev__", requester_md_iev
-                );
-                json_object_update_new(kw_play, kw_ext);
-                json_object_set_new(yuno, "_requester", json_string(""));
+            // The requester of the run-yuno of this launch: the ACK of this play goes back to it
+            if(run_md_iev) {
+                json_object_set_new(kw_play, "__md_iev__", run_md_iev);
+                run_md_iev = NULL;
             }
             cmd_play_yuno(gobj, "play-yuno", kw_play, gobj);
         }
@@ -15231,6 +15407,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
+    JSON_DECREF(run_md_iev);
     JSON_DECREF(iter_yunos);
     KW_DECREF(kw);
     return 0;
@@ -15446,6 +15623,12 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!tty_event_from_console(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     json_t *jn_console = named_dict(gobj, priv->list_consoles, gobj_name(src), TRUE);
     if(jn_console) {
         json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
@@ -15498,6 +15681,11 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_is_shutdowning()) {
+        KW_DECREF(kw);
+        return 0;
+    }
+    if(!tty_event_from_console(gobj, event, kw, src)) {
+        // Warning already logged
         KW_DECREF(kw);
         return 0;
     }
@@ -15560,6 +15748,12 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!tty_event_from_console(gobj, event, kw, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
 
     json_t *jn_console = named_dict(gobj, priv->list_consoles, gobj_name(src), TRUE);
     if(jn_console) {

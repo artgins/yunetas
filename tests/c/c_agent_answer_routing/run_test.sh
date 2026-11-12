@@ -145,6 +145,23 @@ if [ "$nack" != "1" ] || [ "$nhs" != "0" ] || [ "$ngn" != "0" ]; then
     echo "TEST FAILED: $nack WARNING(s) for an ack not from a yuno (expected 1), $nhs \"hs_yuno NULL\" and $ngn \"gobj NULL\" (expected 0)"
     failed=1
 fi
+#   The events of a console a session sent: one WARNING (with a brake), no
+#   ERROR of a console not found
+ntty=$(grep -a '"msg": "console event not from a console: dropped"' "$WORK/agent.log" | grep -ac "WARNING")
+nnd=$(grep -ac '"msg": "named dict not found"' "$WORK/agent.log")
+if [ "$ntty" != "1" ] || [ "$nnd" != "0" ]; then
+    echo "TEST FAILED: $ntty WARNING(s) for a console event not from a console (expected 1), $nnd \"named dict not found\" (expected 0)"
+    failed=1
+fi
+#   The requests of the agent a session sent as events: one WARNING (with a
+#   brake), and no ERROR of a parameter of the wrong type ("Event NOT
+#   DEFINED in state" is counted above)
+nreq=$(grep -a '"msg": "request of the agent not by its command: dropped"' "$WORK/agent.log" | grep -ac "WARNING")
+npar=$(grep -ac '"msg": "path MUST BE a json str"' "$WORK/agent.log")
+if [ "$nreq" != "1" ] || [ "$npar" != "0" ]; then
+    echo "TEST FAILED: $nreq WARNING(s) for a request not by its command (expected 1), $npar \"path MUST BE a json str\" (expected 0)"
+    failed=1
+fi
 #   The stop with a watch armed: no ERROR of a treedb already closed
 nhn=$(grep -ac '"msg": "hgobj NULL or DESTROYED"' "$WORK/agent.log")
 if [ "$nhn" != "0" ]; then

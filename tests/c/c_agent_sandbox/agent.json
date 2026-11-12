@@ -17,7 +17,8 @@
             "users": [
                 {"id": "yuneta", "roles": ["roles^root^users"]}
             ]
-        }
+        },
+        "agent.timerStBoot": 100
     },
     "environment": {
         "node_owner": "none"

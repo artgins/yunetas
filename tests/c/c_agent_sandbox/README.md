@@ -38,8 +38,16 @@ has no `websockets`.
    Up to 7.30.17 the agent sent SIGKILL to the pid of every card it refused,
    whatever process that was. `-1` is every process of the user: the peer
    was killed too, and the test fails there.
-5. `kill-yuno` of the running `logcenter` (relaunched by its watcher, its
-   new pid recorded): it ends. Then a second `logcenter`, registered and not
+
+   The yuno killed with SIGKILL stays down: a watcher does not relaunch a
+   yuno killed that way (`ydaemon.c`), and the agent runs its enabled yunos
+   only once, some 3 s after it starts (`timerStBoot`, 0.1 s in
+   `agent.json`, and the test creates the yuno after that). A `run-yuno`
+   runs it again, with a new pid. (Up to 7.30.26 the test expected a
+   relaunch, and it passed only when that one run of the agent came after
+   the kill: an `install-binary` of some 5 s came too late for it.)
+5. `kill-yuno` of the running `logcenter` (run again, its new pid
+   recorded): it ends. Then a second `logcenter`, registered and not
    run, and a card the agent ACCEPTS for it with `pid: -1` and
    `watcher_pid: -1`: neither is recorded (`yuno_pid` and `watcher_pid` stay
    0, one WARNING), and a `kill-yuno` of it is refused (no pid). Up to
@@ -92,6 +100,16 @@ has no `websockets`.
     is 0 and `list-yunos` shows no row): the file is gone; created again
     with the same id and run, it traces nothing. Up to 7.30.23 only
     `whole=1` removed the file, and the new yuno traced `machine`.
+11. A `run-yuno` that plays (`play=1`, the default) keeps its requester for
+    the answer of the play, and that answer goes with the first open of
+    that launch only. The `logcenter` does not play by itself (`must_play`
+    false): a session runs it (answered), plays it with `play-yuno`
+    (answered), and its watcher relaunches it after a SIGSEGV, which plays
+    it (`must_play` is true now). The session gets no answer then; nor does
+    another session that took its channel when it left. Twice: the session
+    stays, then it leaves. Up to 7.30.26 the relaunch answered that
+    `run-yuno` again, to whoever held the channel then (with nobody, the
+    yuno itself, whose link to the agent was cut by it).
 
 The test does not have a process of another user (the sandbox maps one uid
 only), so it cannot show that `find_living_yuno_pids()` skips one: it shows
