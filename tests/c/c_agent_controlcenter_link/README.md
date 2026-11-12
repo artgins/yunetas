@@ -74,7 +74,16 @@ own, not the first one's (up to 7.30.26 it got both), and the log holds
 *"requester gone before its answer, answer dropped"*. The same with
 `stats-agent service=controlcenter stats=hold-me`.
 
-Then a `help` is still answered. The control center then plays and pauses
+Then a `help` is still answered. The control center opens a console through
+the link (`open-console name=t3 process=cat cwd=/yuneta`; the principal of a
+command of the link, `controlcenter`, is a user with the role `root` in
+`agent.json`), writes to it (`write-tty`) and closes it (`close-console`):
+its `EV_TTY_OPEN`, its output (`EV_TTY_DATA`) and its `EV_TTY_CLOSE` go up the
+link. A `read-file` by the link is answered up it with `EV_READ_FILE`. They
+did already up to 7.30.26: the agent now sends the events of a console with
+`EV_SEND_IEV`, as its answers, and this is the route that must stay.
+
+The control center then plays and pauses
 the agent through its link: it sends `EV_PLAY_YUNO`, and, in ONE write, an
 order (`list-yunos`), `EV_PAUSE_YUNO` and the first two bytes of the next
 order, then the rest of it and 40 orders more. Only a yuno's own agent may

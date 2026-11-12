@@ -8817,6 +8817,29 @@ PRIVATE int add_console_route(
     }
 
     /*
+     *  The gate of the route is where its consoles are kept: the one the
+     *  console's events and the close of its channel find by the route.
+     *  Up to 7.30.26 they were kept in `src`, the C_IEVENT_SRV of a
+     *  channel of __input_side__, and looked for in the channel: the
+     *  console of a session outlived it, and wrote to the next session of
+     *  its channel.
+     */
+    hgobj gobj_route_service = gobj_find_service(route_service, FALSE);
+    hgobj gobj_input_gate = gobj_route_service?
+        gobj_child_by_name(gobj_route_service, route_child) : 0;
+    if(!gobj_input_gate) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "no gate of the route of the console",
+            "route_service","%s", route_service,
+            "route_child",  "%s", route_child,
+            NULL
+        );
+        return -1;
+    }
+
+    /*
      *  add in local list
      */
     json_t *jn_route = json_pack("{s:s, s:s, s:O}",
@@ -8843,7 +8866,7 @@ PRIVATE int add_console_route(
     /*
      *  add in input gate
      */
-    return add_console_in_input_gate(gobj, name, src);
+    return add_console_in_input_gate(gobj, name, gobj_input_gate);
 }
 
 /***************************************************************************
@@ -15617,7 +15640,13 @@ PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 }
 
 /***************************************************************************
- *
+ *  The events of a console go to every route of it, as the answers of the
+ *  agent go (ac_final_count()): an inter-event (iev_create()) sent with
+ *  EV_SEND_IEV to the gate of the route, a channel of __input_side__ or a
+ *  link (C_IEVENT_CLI), while it is listening. Up to 7.30.26 the event was
+ *  sent as it was: the link passed it on, the channel of a session takes
+ *  no such event (an ERROR "Event NOT DEFINED in state" with a stack per
+ *  frame), and a console opened by a session never reached it.
  ***************************************************************************/
 PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -15654,8 +15683,11 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 continue;
             }
 
-            gobj_send_event(
-                gobj_input_gate,
+            if(!requester_is_listening(gobj, gobj_input_gate, event)) {
+                continue;
+            }
+            json_t *iev = iev_create(
+                gobj,
                 EV_TTY_OPEN,
                 msg_iev_build_response(gobj,
                     0,  // result
@@ -15663,9 +15695,9 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0,  // schema
                     json_incref(kw), // owned
                     kw_incref(jn_route)  // owned
-                ),
-                gobj
+                )
             );
+            gobj_send_event(gobj_input_gate, EV_SEND_IEV, iev, gobj);
         }
     }
 
@@ -15721,8 +15753,11 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 json_object_del(consoles, gobj_name(src));
             }
 
-            gobj_send_event(
-                gobj_input_gate,
+            if(!requester_is_listening(gobj, gobj_input_gate, event)) {
+                continue;
+            }
+            json_t *iev = iev_create(
+                gobj,
                 EV_TTY_CLOSE,
                 msg_iev_build_response(gobj,
                     0,  // result
@@ -15730,9 +15765,9 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0,  // schema
                     json_incref(kw), // owned
                     kw_incref(jn_route)  // owned
-                ),
-                gobj
+                )
             );
+            gobj_send_event(gobj_input_gate, EV_SEND_IEV, iev, gobj);
         }
 
         json_decref(jn_console);
@@ -15780,8 +15815,11 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 continue;
             }
 
-            gobj_send_event(
-                gobj_input_gate,
+            if(!requester_is_listening(gobj, gobj_input_gate, event)) {
+                continue;
+            }
+            json_t *iev = iev_create(
+                gobj,
                 EV_TTY_DATA,
                 msg_iev_build_response(gobj,
                     0,  // result
@@ -15789,9 +15827,9 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     0,  // schema
                     json_incref(kw), // owned
                     kw_incref(jn_route)  // owned
-                ),
-                gobj
+                )
             );
+            gobj_send_event(gobj_input_gate, EV_SEND_IEV, iev, gobj);
         }
     }
 

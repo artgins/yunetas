@@ -27,6 +27,10 @@
 #   3. An operator asks the control center and leaves before the answer;
 #      another session takes its channel of the agent (the same `input-N`)
 #      and asks too: it gets its own answer, never the first one's.
+#   A console the control center opens through the link (open-console,
+#   write-tty, close-console), and a read-file: their open, output, close
+#   and answer go up the link, as they did before the agent sent its
+#   console events with EV_SEND_IEV.
 #   4. The control center sends EV_PLAY_YUNO, then an order, EV_PAUSE_YUNO
 #      and two bytes of the next order in one write, then 40 orders more:
 #      both are refused (ack -1), every order is answered, the link and the
@@ -63,6 +67,7 @@ cc_writer = []
 flood_answers = {}      # cc_order -> result of the orders the control center sends
 pause_answers = {}      # cc_pause_order -> result of the orders sent around a pause
 play_pause_acks = []    # (event, result, comment) of the agent's acks of a play / pause
+link_frames = []        # (event, kw) of what comes back of a console or a request of the control center
 FLOOD = 300             # orders the control center sends while the agent stops
 PEER_POINTER = 1094795585     # 0x41414141: what a peer writes where the agent keeps a pointer
 
@@ -123,6 +128,8 @@ async def control_center(r, w, in_session):
             flood_answers[md["cc_order"]] = iev.get("kw", {}).get("result")
         elif "cc_pause_order" in md:
             pause_answers[md["cc_pause_order"]] = iev.get("kw", {}).get("result")
+        elif "cc_link_order" in md:
+            link_frames.append((event, iev.get("kw", {})))
         elif event in ("EV_PLAY_YUNO_ACK", "EV_PAUSE_YUNO_ACK"):
             kw = iev.get("kw", {})
             play_pause_acks.append((event, kw.get("result"), kw.get("comment")))
@@ -207,6 +214,34 @@ def cc_order(n, mark="cc_order"):
             "__msg_type__": "__command__",
             mark: n,
         }}})
+
+
+def cc_command(cmd, kw_cmd):
+    """A command of the control center to the agent, with its parameters
+    in the kw; what comes back of it carries `cc_link_order`"""
+    kw = {
+        "__command__": cmd,
+        "__md_iev__": {
+            "ievent_gate_stack": [{
+                "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": "agent",
+                "src_yuno": "cc", "src_role": "controlcenter", "src_service": "controlcenter",
+                "user": "yuneta", "host": "cc"}],
+            "__msg_type__": "__command__",
+            "cc_link_order": cmd,
+        }}
+    kw.update(kw_cmd)
+    return tcp4h({"event": "EV_MT_COMMAND", "kw": kw})
+
+
+async def link_frames_until(done, secs):
+    end = time.monotonic() + secs
+    while not done() and time.monotonic() < end:
+        await asyncio.sleep(0.02)
+    return done()
+
+
+def link_events(event):
+    return [kw for e, kw in link_frames if e == event]
 
 
 def cc_play_pause(event):
@@ -487,6 +522,32 @@ async def main():
 
     r = await op.ask("help cmd=command-agent")
     check("the agent still answers", bool(r) and r.get("result") == 0)
+
+    #   A console that the control center opens, and a request of the
+    #   agent's: what they send back goes up the link, as before
+    w = cc_writer[-1]
+    w.write(cc_command("open-console", {"name": "t3", "process": "cat", "cwd": "/yuneta"}))
+    check("console by the link: its open goes up the link",
+        await link_frames_until(lambda: link_events("EV_TTY_OPEN"), 5))
+    w.write(cc_command("write-tty", {"name": "t3",
+        "content64": base64.b64encode(b"hello link\n").decode()}))
+
+    def tty_text():
+        return b"".join(base64.b64decode((kw.get("data") or {}).get("content64") or "")
+            for kw in link_events("EV_TTY_DATA")).decode(errors="replace")
+
+    check("console by the link: what it writes goes up the link",
+        await link_frames_until(lambda: "hello link" in tty_text(), 5))
+    w.write(cc_command("close-console", {"name": "t3"}))
+    check("console by the link: its close goes up the link",
+        await link_frames_until(lambda: link_events("EV_TTY_CLOSE"), 5))
+    w.write(cc_command("read-file", {"filename": "/yuneta/agent/yuneta_agent.json"}))
+    check("read-file by the link: answered up the link with EV_READ_FILE",
+        await link_frames_until(lambda: [kw for kw in link_events("EV_READ_FILE")
+            if kw.get("result") == 0 and kw.get("data")], 5))
+    print("what came back of the control center's console and request: %s" % [
+        (e, kw.get("result"), kw.get("comment"), (kw.get("data") or {}).get("name") if isinstance(kw.get("data"), dict) else None)
+        for e, kw in link_frames], flush=True)
 
     #   4. The control center plays and pauses the agent through its link.
     #   Only a yuno's agent may play or pause it: the link to the control

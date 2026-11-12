@@ -59,6 +59,23 @@ of the agent. The agent takes one only from where it sent the order.
    requester: ONE WARNING *"requester of the answer not found: dropped"*.
    Up to 7.30.26 the answer was sent to that service.
 
+4. What those drops must let through. The agent's requests asked by their
+   commands are answered, each with its own event: `read-file` and
+   `read-json` of `/yuneta/agent/yuneta_agent.json`, `running-keys` and
+   `running-bin` of the yuno. A real console (`open-console name=t1
+   process=cat cwd=/yuneta`) opened by a session and joined by another
+   (`open-console name=t1`): both get its `EV_TTY_OPEN`, what it writes
+   after a `write-tty` of the second one (`EV_TTY_DATA`, the text written
+   echoed back), and its `EV_TTY_CLOSE` after a `close-console`. Up to
+   7.30.26 neither got any of them: the agent sent them to the session's
+   channel, which takes no such event (an ERROR *"Event NOT DEFINED in
+   state"* with a stack per frame), and the second one got only its own
+   `EV_TTY_OPEN` again. A console goes with the session that opened it:
+   `list-consoles` lists it while the session is there, and not after it
+   left. Up to 7.30.26 the agent kept the console of a session in the
+   session's `C_IEVENT_SRV` and looked for it in the channel: it was never
+   closed, and it wrote to the next session of that channel.
+
 Last, a session watches the yuno again and the agent asks it to publish;
 with the watch still armed the client sends the agent a SIGINT. The yuno
 must get its `publish-stats` with `stop`, and the log must hold no ERROR

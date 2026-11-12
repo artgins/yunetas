@@ -566,6 +566,30 @@ not a console (`__yuno__`, `agent`), logs one WARNING (*"console not found"*,
 `name=agent` made the agent send the write to itself, and a missing
 `content64` was an ERROR.
 
+## Consoles
+
+`open-console` opens a console (a pseudo terminal running `process`) and
+routes it to who asked: a session of the agent, or the control center's link.
+Another `open-console` of the same `name` adds a route, and every route gets
+the console's `EV_TTY_OPEN`, its output (`EV_TTY_DATA`) and its
+`EV_TTY_CLOSE`:
+
+```bash
+ycommand -c 'open-console name=c1 process=bash cwd=/yuneta'   # this session gets c1
+ycommand -c 'open-console name=c1'                            # another session joins it
+ycommand -c 'write-tty name=c1 content64=bHMK'                # both get the output of `ls`
+ycommand -c 'close-console name=c1'                           # both get EV_TTY_CLOSE
+```
+
+The agent sends them as it sends its answers: an inter-event, with
+`EV_SEND_IEV`, to the channel of the session or to the link, while it is
+listening. A console goes with the session that opened it: when that session
+closes, the console is closed. Through the control center a console stays
+while the link comes and goes. Up to 7.30.26 a console opened by a session
+never reached it: the agent sent the events to the session's channel, which
+takes no such event (an ERROR *"Event NOT DEFINED in state"* with a stack per
+frame), and the console outlived the session.
+
 ## A yuno that runs but is not connected
 
 `command-yuno`, `stats-yuno` and `authzs-yuno` go to every yuno that matches

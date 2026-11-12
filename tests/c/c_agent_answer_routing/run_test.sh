@@ -6,7 +6,9 @@
 #   of a yuno to a session that left before them, while another session
 #   took its channel. The forged answers must be dropped with a WARNING,
 #   and the answers to the session that left must not reach the one that
-#   took its channel.
+#   took its channel. What must still pass does: the agent's requests asked
+#   by their commands, and a real console opened by one session and joined
+#   by another (its open, its output and its close reach both).
 #
 #   The agent's 1991 and its pid file are fixed in the binary, so it runs in
 #   namespaces of its own (user, mount, network, pid): a tmpfs on /yuneta, a

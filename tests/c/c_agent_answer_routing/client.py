@@ -19,6 +19,13 @@
 #      one's (up to 7.30.26 it got both). The same with stats-yuno.
 #   3. The yuno answers to a service of the agent that is no requester (no
 #      channel, no link): dropped with a WARNING.
+#   6. What the drops of 4 must let through: the agent's requests asked by
+#      their commands (read-file, read-json, running-keys, running-bin) are
+#      answered, each with its own event; a real console opened by a
+#      session and joined by another: both get its open, what it writes and
+#      its close (up to 7.30.26 neither did: an ERROR "Event NOT DEFINED in
+#      state" per frame); and a console goes with the session that opened
+#      it (up to 7.30.26 it was never closed).
 #   5. The agent stops (SIGINT) with a watch armed and the yuno publishing:
 #      the yuno is told to stop publishing, with no ERROR (up to 7.30.26 the
 #      stop read the treedb its pause had closed: "hgobj NULL or DESTROYED"
@@ -199,6 +206,19 @@ class Peer:
         iev = await self.until(("EV_MT_COMMAND_ANSWER",), secs)
         return iev["kw"] if iev else {}
 
+    async def frames(self, secs, done=None):
+        """Every frame within `secs`, or until done(frames)"""
+        got = []
+        end = time.monotonic() + secs
+        while time.monotonic() < end:
+            iev = await self.recv(end - time.monotonic())
+            if iev is None:
+                break
+            got.append(iev)
+            if done and done(got):
+                break
+        return got
+
     async def answers(self, secs):
         got = []
         end = time.monotonic() + secs
@@ -317,6 +337,126 @@ async def left_before_its_answer(op_keep, yuno, yid, order, kw_order, answer_eve
     b.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
     check("%s: the agent ends the connection of the second session" % order, await b.closed(10))
     b.close()
+
+
+def events_of(frames, event):
+    return [f["kw"] for f in frames if f.get("event") == event]
+
+
+def tty_text(frames):
+    """What a console wrote, in the EV_TTY_DATA of `frames`"""
+    text = b""
+    for kw in events_of(frames, "EV_TTY_DATA"):
+        content64 = (kw.get("data") or {}).get("content64") or ""
+        text += base64.b64decode(content64)
+    return text.decode(errors="replace")
+
+
+async def requests_by_command(op, yid):
+    """The agent's requests asked by their commands are answered, each with
+    its own event (the WARNING of 4 is for the events a session sends)"""
+    for cmd, kw, event in (
+        ("read-file", {"filename": "/yuneta/agent/yuneta_agent.json"}, "EV_READ_FILE"),
+        ("read-json", {"filename": "/yuneta/agent/yuneta_agent.json"}, "EV_READ_JSON"),
+        ("running-keys", {"id": yid}, "EV_READ_FILE"),
+        ("running-bin", {"id": yid}, "EV_READ_FILE"),
+    ):
+        op.send(command(cmd, kw))
+        got = await op.frames(10, lambda g: g[-1].get("event") == event)
+        answers = events_of(got, event)
+        check("%s by its command: answered with %s: %s" % (cmd, event,
+                [a.get("comment") for a in answers] or [g.get("event") for g in got]),
+            len(answers) == 1 and answers[0].get("result") == 0 and answers[0].get("data"))
+
+
+async def open_console(peer, name):
+    """open-console of `name` (cat, so what is written comes back): its
+    answer and the frames that came with it"""
+    peer.send(command("open-console", {"name": name, "process": "cat", "cwd": "/yuneta"}))
+    got = await peer.frames(5, lambda g: events_of(g, "EV_MT_COMMAND_ANSWER") and
+        events_of(g, "EV_TTY_OPEN"))
+    answer = (events_of(got, "EV_MT_COMMAND_ANSWER") or [{}])[0]
+    return answer, got
+
+
+async def leave(peer):
+    peer.w.write(Peer.frame(0x8, struct.pack(">H", 1000)))
+    await peer.closed(10)
+    peer.close()
+
+
+async def console_of_two_sessions():
+    """A console opened by a session and joined by another: both get its
+    open, what it writes, and its close. Up to 7.30.26 neither got any of
+    them: the agent sent them to the channel, which takes no such event (an
+    ERROR "Event NOT DEFINED in state" with a stack per frame), and the
+    second one only got its own open again"""
+    a = await session()
+    b = await session()
+    if a is None or b is None:
+        check("console: two sessions", False)
+        return
+    answer, got_a = await open_console(a, "t1")
+    check("console: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    check("console: its open reaches the session that opened it",
+        [(k.get("data") or {}).get("name") for k in events_of(got_a, "EV_TTY_OPEN")] == ["t1"])
+    answer, got_b = await open_console(b, "t1")
+    check("console: open-console of it by another session: %s" % answer.get("comment"),
+        answer.get("result") == 0)
+    check("console: its open reaches the other session",
+        [(k.get("data") or {}).get("name") for k in events_of(got_b, "EV_TTY_OPEN")] == ["t1"])
+
+    b.send(command("write-tty", {"name": "t1",
+        "content64": base64.b64encode(b"hello console\n").decode()}))
+    got_a, got_b = await asyncio.gather(
+        a.frames(5, lambda g: "hello console" in tty_text(g)),
+        b.frames(5, lambda g: "hello console" in tty_text(g)),
+    )
+    check("console: what it writes reaches the session that opened it", "hello console" in tty_text(got_a))
+    check("console: what it writes reaches the other session", "hello console" in tty_text(got_b))
+
+    a.send(command("close-console", {"name": "t1"}))
+    got_a, got_b = await asyncio.gather(
+        a.frames(5, lambda g: events_of(g, "EV_TTY_CLOSE") and events_of(g, "EV_MT_COMMAND_ANSWER")),
+        b.frames(5, lambda g: events_of(g, "EV_TTY_CLOSE")),
+    )
+    check("console: close-console: %s" % [k.get("comment") for k in events_of(got_a, "EV_MT_COMMAND_ANSWER")],
+        [k.get("result") for k in events_of(got_a, "EV_MT_COMMAND_ANSWER")] == [0])
+    check("console: its close reaches the session that opened it",
+        [(k.get("data") or {}).get("name") for k in events_of(got_a, "EV_TTY_CLOSE")] == ["t1"])
+    check("console: its close reaches the other session",
+        [(k.get("data") or {}).get("name") for k in events_of(got_b, "EV_TTY_CLOSE")] == ["t1"])
+    await leave(a)
+    await leave(b)
+
+
+async def console_of_a_session_that_leaves():
+    """A console goes with the session that opened it: the channel is a
+    pool, and its next session must not get what the console writes. Up to
+    7.30.26 the agent kept the console of a session in the C_IEVENT_SRV of
+    its channel and looked for it in the channel: it was never closed"""
+    c = await session()
+    w = await session()
+    if c is None or w is None:
+        check("console of a session that leaves: two sessions", False)
+        return
+    answer, got = await open_console(c, "t2")
+    check("console of a session that leaves: open-console: %s" % answer.get("comment"),
+        answer.get("result") == 0)
+    r = await w.ask("list-consoles", {})
+    check("console of a session that leaves: listed while its session is there",
+        "t2" in (r.get("data") or {}))
+    await leave(c)
+    consoles = None
+    for i in range(50):
+        r = await w.ask("list-consoles", {})
+        consoles = r.get("data") or {}
+        if "t2" not in consoles:
+            break
+        await asyncio.sleep(0.1)
+    check("console of a session that leaves: closed with it: %s" % list(consoles),
+        "t2" not in consoles)
+    await leave(w)
 
 
 def agent_pid():
@@ -491,6 +631,12 @@ async def main():
 
     r = await op.ask("help", {"cmd": "stats-yuno"})
     check("the agent still answers", r.get("result") == 0)
+
+    #   6. What the guards of 4 must let through: the agent's requests by
+    #   their commands, and the events of a real console
+    await requests_by_command(op, yid)
+    await console_of_two_sessions()
+    await console_of_a_session_that_leaves()
 
     #   5. The agent stops (SIGINT) with a watch still armed and the yuno
     #   publishing: the yuno is told to stop publishing, and the log holds

@@ -29,6 +29,12 @@
                     "roles": [
                         "roles^root^users"
                     ]
+                },
+                {
+                    "id": "controlcenter",
+                    "roles": [
+                        "roles^root^users"
+                    ]
                 }
             ]
         },
