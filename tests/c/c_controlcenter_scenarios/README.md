@@ -38,10 +38,13 @@ still reported and fails the test.
    sends `command-agent` with the marks of the run's step in its `__md_iev__`
    (`cc_run`, `cc_step`): they do not reach the agent, and the agent's answer
    goes to that client, not to the run. A client injects the step's answer
-   itself: dropped with a warning. Its answer is a frame, decoded as
-   `__top_side__`'s `C_IEVENT_SRV` decodes it (`iev_create_from_gbuffer()`),
-   that carries a `__temp__` of its own, `[0x41414141]`: the warning names the
-   client's channel. The agent's answer ends the run. Up to 7.25.20 the answer
+   itself: dropped with a warning. Its answer is a frame whose bytes the test
+   writes by hand (`iev_create_to_gbuffer()` leaves `__temp__` out of every
+   frame, so it cannot write this one), decoded as `__top_side__`'s
+   `C_IEVENT_SRV` decodes it (`iev_create_from_gbuffer()`), that carries a
+   `__temp__` of its own, `[0x41414141]`: the warning names the client's
+   channel. Without the deletion of a peer's `__temp__` in
+   `iev_create_from_gbuffer()` the test dies here with SIGSEGV. The agent's answer ends the run. Up to 7.25.20 the answer
    through `command-agent` ended the run; up to 7.30.26 the peer's `__temp__`
    was kept, C_IOGATE could not write the channel into a list, and the warning
    read `0x41414141` as the channel: the control center died with SIGSEGV.

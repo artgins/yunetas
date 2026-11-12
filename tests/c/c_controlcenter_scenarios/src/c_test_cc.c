@@ -760,11 +760,23 @@ PRIVATE int test_forged_step_answers(hgobj gobj, hgobj requester, hgobj other)
      *  It is the first of the drops window, so its channel is read for the
      *  warning: up to 7.30.26 the peer's list was left in place (C_IOGATE
      *  could not write into it) and the address was read, a SIGSEGV.
+     *  The bytes are written by hand, as a peer writes them:
+     *  iev_create_to_gbuffer() leaves "__temp__" out of every frame.
      */
     json_t *forged = msg_iev_build_response(gobj, 0, json_string("forged by a client"), 0, 0,
         json_deep_copy(step));
-    json_object_set_new(forged, "__temp__", json_pack("[I]", (json_int_t)0x41414141));
-    gbuffer_t *frame = iev_create_to_gbuffer(gobj, EV_MT_COMMAND_ANSWER, forged);
+    char *forged_text = json2uglystr(forged);
+    KW_DECREF(forged)
+    gbuffer_t *frame = gbuffer_create(256, 256*1024);
+    if(frame && forged_text && forged_text[0] == '{') {
+        gbuffer_printf(frame,
+            "{\"event\": \"%s\", \"kw\": {\"__temp__\": [%lld], %s}",
+            EV_MT_COMMAND_ANSWER,
+            (long long)0x41414141,
+            forged_text + 1     // the members of the kw, after its '{'
+        );
+    }
+    GBMEM_FREE(forged_text)
     gobj_event_t frame_event = NULL;
     forged = frame? iev_create_from_gbuffer(gobj, &frame_event, frame, 1) : NULL;
     if(!forged || frame_event != EV_MT_COMMAND_ANSWER) {
