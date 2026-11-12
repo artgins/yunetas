@@ -142,8 +142,11 @@ the channel).
 
 The event of an `EV_ON_IEV_MESSAGE` is one a peer sent, and the gate
 publishes it as its own. So a peer can never name an event the transport
-publishes itself (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, ...): the
-session refuses it before it gets here (7.30.27+, see
+publishes itself (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, ...), nor
+an event a treedb publishes (`EV_TREEDB_NODE_CREATED`, `_UPDATED`,
+`_DELETED`, `_LINKED`, `_UNLINKED`: the gate's subscriber is often subscribed
+to its own treedb too, and cannot tell the two apart): the session refuses
+it before it gets here (7.30.27+, see
 [`C_IEVENT_SRV`](#gclass-c-ievent-srv), "A frame the gate cannot route").
 
 A send with no channel to go to (none named, none open) is refused with

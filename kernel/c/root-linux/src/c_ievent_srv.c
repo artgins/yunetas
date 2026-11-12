@@ -16,6 +16,7 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
+#include <tr_treedb.h>
 
 #include "c_timer.h"
 #include "msg_ievent.h"
@@ -62,6 +63,7 @@ typedef enum {
     PEER_LOG_UNROUTED,
     PEER_LOG_CARD_IN_SESSION,
     PEER_LOG_TRANSPORT_EVENT,
+    PEER_LOG_TREEDB_EVENT,
     PEER_LOG_KINDS
 } peer_log_kind_t;
 
@@ -166,6 +168,7 @@ PRIVATE int reject_unrouted_iev(
     hgobj src
 );
 PRIVATE BOOL is_transport_event(gobj_event_t event);
+PRIVATE BOOL is_treedb_event(gobj_event_t event);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -2173,6 +2176,22 @@ PRIVATE BOOL is_transport_event(gobj_event_t event)
 }
 
 /***************************************************************************
+ *  The events a treedb publishes (C_NODE) when one of its nodes changes.
+ *  Who has them as actions subscribed to its own treedb and takes them as
+ *  the truth of the store (a yuno's main gclass turns them into the
+ *  administration of its users). A remote subscription to them arrives at
+ *  the CLIENT (C_IEVENT_CLI), never here.
+ ***************************************************************************/
+PRIVATE BOOL is_treedb_event(gobj_event_t event)
+{
+    return (event == EV_TREEDB_NODE_CREATED ||
+        event == EV_TREEDB_NODE_UPDATED ||
+        event == EV_TREEDB_NODE_DELETED ||
+        event == EV_TREEDB_NODE_LINKED ||
+        event == EV_TREEDB_NODE_UNLINKED)? TRUE:FALSE;
+}
+
+/***************************************************************************
  *  Reject a per-message ievent that cannot be routed (unauthorized service,
  *  or service not found) WITHOUT leaving the channel in a zombie state.
  *
@@ -2836,6 +2855,33 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PROTOCOL,
                     "msg",          "%s", "event of the transport itself sent by a peer, refused",
+                    "event",        "%s", iev_event,
+                    "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
+                    "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                    "suppressed",   "%ld", (long)suppressed,
+                    NULL
+                );
+            }
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return 0;   // the frame dropped, the channel stays
+        }
+
+        /*-------------------------------------------------------*
+         *  Nor what a treedb says of its nodes: the subscriber of
+         *  the gate is often the yuno's main gclass, subscribed to
+         *  its own treedb too, and it cannot tell a peer's from its
+         *  store's. Up to 7.30.26 a session of the lowest privilege
+         *  disabled, enabled or created users of the yuno's C_AUTHZ
+         *  with a forged EV_TREEDB_NODE_DELETED / UPDATED / CREATED.
+         *-------------------------------------------------------*/
+        if(is_treedb_event(iev_event)) {
+            json_int_t suppressed = 0;
+            if(peer_log_allowed(gobj, PEER_LOG_TREEDB_EVENT, &suppressed)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "event of a treedb sent by a peer, refused",
                     "event",        "%s", iev_event,
                     "peername",     "%s", gobj_has_bottom_attr(gobj, "peername")?gobj_read_str_attr(gobj, "peername"):"",
                     "username",     "%s", gobj_read_str_attr(gobj, "__username__"),

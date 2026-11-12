@@ -2,21 +2,26 @@
  *          C_TEST_TRANSPORT_EVENTS.C
  *
  *          GClass to test that a peer of a C_IEVENT_SRV cannot send the
- *          events of the transport itself
+ *          events of the transport itself, nor the events a treedb publishes
  *
  *          The gate is a C_IOGATE whose channels are C_CHANNEL ->
  *          C_IEVENT_SRV -> C_WEBSOCKET -> C_TCP, subscribed by this gobj.
  *          A raw websocket client (C_IOGATE -> C_CHANNEL -> C_WEBSOCKET ->
  *          C_TCP, no C_IEVENT_CLI) writes its frames by hand. After a good
  *          identity card (the session opens: the gate's one EV_ON_OPEN), it
- *          sends, in the session, the events a transport publishes on its
- *          own: EV_ON_OPEN (with an identity card and a peer certificate of
- *          its own), EV_ON_CLOSE, EV_ON_MESSAGE, EV_ON_ID (which this gclass
- *          declares public, as the decoders of a gate do) -- and then
- *          EV_TEST_LEGIT, an event of this service. The four are refused
- *          with ONE warning and the gate publishes none of them; the legit
- *          one is published, and it ends the test. Up to 7.30.26 the gate
- *          published the four as its own, with the kw the peer wrote.
+ *          sends, in the session, the six events a transport publishes on
+ *          its own: EV_ON_OPEN (with an identity card and a peer certificate
+ *          of its own), EV_ON_CLOSE, EV_ON_MESSAGE, EV_ON_IEV_MESSAGE,
+ *          EV_ON_ID, EV_ON_ID_NAK (the last three declared public here, as
+ *          the decoders of a gate do with EV_ON_ID, so the frame reads);
+ *          then the five a treedb publishes (EV_TREEDB_NODE_CREATED,
+ *          _UPDATED, _DELETED, _LINKED, _UNLINKED), which this gclass has as
+ *          actions, as a yuno subscribed to its own treedb does -- and then
+ *          EV_TEST_LEGIT, an event of this service. The six are refused with
+ *          ONE warning, the five with another, and the gate publishes none of
+ *          them; the legit one is published, and it ends the test. Up to
+ *          7.30.26 the gate published all of them as its own, with the kw
+ *          the peer wrote.
  *
  *          A wrong result is logged as an error, which the expected-logs
  *          check of main.c does not expect.
@@ -76,6 +81,9 @@ typedef struct _PRIVATE_DATA {
     int server_closes;
     int server_messages;
     int server_ids;
+    int server_id_naks;
+    int server_iev_messages;
+    int server_treedb_events;
 } PRIVATE_DATA;
 
 
@@ -298,7 +306,28 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     send_frame(gobj, EV_ON_OPEN, kw_open);
     send_frame(gobj, EV_ON_CLOSE, frame_kw("__message__"));
     send_frame(gobj, EV_ON_MESSAGE, frame_kw("__message__"));
+    send_frame(gobj, EV_ON_IEV_MESSAGE, frame_kw("__message__"));
     send_frame(gobj, EV_ON_ID, frame_kw("__message__"));
+    send_frame(gobj, EV_ON_ID_NAK, frame_kw("__message__"));
+
+    gobj_event_t treedb_events[] = {
+        EV_TREEDB_NODE_CREATED,
+        EV_TREEDB_NODE_UPDATED,
+        EV_TREEDB_NODE_DELETED,
+        EV_TREEDB_NODE_LINKED,
+        EV_TREEDB_NODE_UNLINKED,
+        0
+    };
+    for(int i=0; treedb_events[i]; i++) {
+        json_t *kw_node = frame_kw("__message__");
+        json_object_set_new(kw_node, "treedb_name", json_string("treedb_authzs"));
+        json_object_set_new(kw_node, "topic_name", json_string("users"));
+        json_object_set_new(kw_node, "node", json_pack("{s:s, s:b}",
+            "id", "admin",
+            "enabled", 1
+        ));
+        send_frame(gobj, treedb_events[i], kw_node);
+    }
     json_t *kw_legit = frame_kw("__message__");
     json_object_set_new(kw_legit, "which", json_string("legit"));
     send_frame(gobj, EV_TEST_LEGIT, kw_legit);
@@ -324,6 +353,51 @@ PRIVATE int ac_on_id(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  A refusal of an identification, published by the gate
+ ***************************************************************************/
+PRIVATE int ac_on_id_nak(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_input_side) {
+        priv->server_id_naks++;
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  An inter-event, published by the gate as such
+ ***************************************************************************/
+PRIVATE int ac_on_iev_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_input_side) {
+        priv->server_iev_messages++;
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  What a treedb says of its nodes, published by the gate
+ ***************************************************************************/
+PRIVATE int ac_treedb_node(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_input_side) {
+        priv->server_treedb_events++;
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  The event of this service the peer may send: the last frame
  ***************************************************************************/
 PRIVATE int ac_test_legit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -337,6 +411,9 @@ PRIVATE int ac_test_legit(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check(gobj, "the gate published no close", priv->server_closes == 0);
     check(gobj, "the gate published no message", priv->server_messages == 0);
     check(gobj, "the gate published no identification", priv->server_ids == 0);
+    check(gobj, "the gate published no refused identification", priv->server_id_naks == 0);
+    check(gobj, "the gate published no inter-event as such", priv->server_iev_messages == 0);
+    check(gobj, "the gate published no event of a treedb", priv->server_treedb_events == 0);
     set_yuno_must_die();
 
     KW_DECREF(kw)
@@ -410,6 +487,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
         {EV_ON_ID,                  ac_on_id,                   0},
+        {EV_ON_ID_NAK,              ac_on_id_nak,               0},
+        {EV_ON_IEV_MESSAGE,         ac_on_iev_message,          0},
+        {EV_TREEDB_NODE_CREATED,    ac_treedb_node,             0},
+        {EV_TREEDB_NODE_UPDATED,    ac_treedb_node,             0},
+        {EV_TREEDB_NODE_DELETED,    ac_treedb_node,             0},
+        {EV_TREEDB_NODE_LINKED,     ac_treedb_node,             0},
+        {EV_TREEDB_NODE_UNLINKED,   ac_treedb_node,             0},
         {EV_TEST_LEGIT,             ac_test_legit,              0},
         {EV_STOPPED,                ac_stopped,                 0},
         {0,0,0}
@@ -422,13 +506,22 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     /*
      *  EV_ON_ID public, as the decoders of a gate declare it: a frame can
-     *  name it
+     *  name it. EV_ON_ID_NAK and EV_ON_IEV_MESSAGE too, public nowhere else,
+     *  so their frames read and reach the check. The events of a treedb
+     *  are public in C_NODE.
      */
     event_type_t event_types[] = {
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
         {EV_ON_MESSAGE,             0},
         {EV_ON_ID,                  EVF_PUBLIC_EVENT},
+        {EV_ON_ID_NAK,              EVF_PUBLIC_EVENT},
+        {EV_ON_IEV_MESSAGE,         EVF_PUBLIC_EVENT},
+        {EV_TREEDB_NODE_CREATED,    0},
+        {EV_TREEDB_NODE_UPDATED,    0},
+        {EV_TREEDB_NODE_DELETED,    0},
+        {EV_TREEDB_NODE_LINKED,     0},
+        {EV_TREEDB_NODE_UNLINKED,   0},
         {EV_TEST_LEGIT,             EVF_PUBLIC_EVENT},
         {EV_STOPPED,                0},
         {0, 0}

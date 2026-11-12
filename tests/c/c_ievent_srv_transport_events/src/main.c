@@ -3,9 +3,10 @@
  *
  *          Main of test_c_ievent_srv_transport_events
  *          Tests that a peer of a C_IEVENT_SRV cannot send the events of the
- *          transport itself (EV_ON_OPEN, EV_ON_CLOSE, EV_ON_MESSAGE, EV_ON_ID):
- *          the gate publishes none of them, one warning, and a legit event
- *          still goes
+ *          transport itself (EV_ON_OPEN, EV_ON_CLOSE, EV_ON_MESSAGE,
+ *          EV_ON_IEV_MESSAGE, EV_ON_ID, EV_ON_ID_NAK) nor the events a treedb
+ *          publishes (EV_TREEDB_NODE_*): the gate publishes none of them, one
+ *          warning for each family, and a legit event still goes
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -176,17 +177,25 @@ static json_t *test_authentication_parser(hgobj gobj_service, json_t *kw, hgobj 
 }
 
 /***************************************************************************
- *  The refusal: ONE line, a WARNING, for the four events of the transport
+ *  The refusals: ONE line, a WARNING, for the six events of the transport,
+ *  and ONE for the five of a treedb
  ***************************************************************************/
 #define REFUSAL_MARK "event of the transport itself sent by a peer, refused"
+#define TREEDB_REFUSAL_MARK "event of a treedb sent by a peer, refused"
 int refusal_lines = 0;
 int refusal_priority = -1;
+int treedb_refusal_lines = 0;
+int treedb_refusal_priority = -1;
 
 static int refusal_log_write(void *v, int priority, const char *bf, size_t len)
 {
     if(memmem(bf, len, REFUSAL_MARK, strlen(REFUSAL_MARK))) {
         refusal_lines++;
         refusal_priority = priority;
+    }
+    if(memmem(bf, len, TREEDB_REFUSAL_MARK, strlen(TREEDB_REFUSAL_MARK))) {
+        treedb_refusal_lines++;
+        treedb_refusal_priority = priority;
     }
     return 0;
 }
@@ -211,9 +220,11 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        /*  Strict FIFO of the warnings and errors: one refusal for the four  */
-        json_pack("[{s:s}]",
-            "msg", REFUSAL_MARK
+        /*  Strict FIFO of the warnings and errors: one refusal for the six,
+         *  one for the five  */
+        json_pack("[{s:s}, {s:s}]",
+            "msg", REFUSAL_MARK,
+            "msg", TREEDB_REFUSAL_MARK
         ),
         NULL,   // expected
         NULL,   // ignore_keys
@@ -242,6 +253,17 @@ static void cleaning(void)
             "the refusal is not ONE warning",
             refusal_lines,
             refusal_priority,
+            LOG_WARNING,
+            Color_Off
+        );
+        result += -1;
+    }
+    if(treedb_refusal_lines != 1 || treedb_refusal_priority != LOG_WARNING) {
+        printf("%sERROR --> %s: lines %d (expected 1), priority %d (expected %d)%s\n",
+            On_Red BWhite,
+            "the refusal of the treedb events is not ONE warning",
+            treedb_refusal_lines,
+            treedb_refusal_priority,
             LOG_WARNING,
             Color_Off
         );
