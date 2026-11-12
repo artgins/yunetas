@@ -118,6 +118,30 @@ static int register_yuno_and_more(void)
 }
 
 /***************************************************************************
+ *  What a stop drops: ONE INFO per C_TCP, the write queued behind the one
+ *  in flight (c_test9.c)
+ ***************************************************************************/
+#define STOP_DROP_MARK  "tcp data queued at a local stop, dropped"
+#define STOP_DROP_MSGS  "\"dropped_msgs\": 1,"
+#define STOP_DROP_BYTES "\"dropped_bytes\": 27 "
+int stop_drop_lines = 0;
+int stop_drop_right = 0;
+
+static int stop_drop_log_write(void *v, int priority, const char *bf, size_t len)
+{
+    if(!memmem(bf, len, STOP_DROP_MARK, strlen(STOP_DROP_MARK))) {
+        return 0;
+    }
+    stop_drop_lines++;
+    if(priority == LOG_INFO &&
+            memmem(bf, len, STOP_DROP_MSGS, strlen(STOP_DROP_MSGS)) &&
+            memmem(bf, len, STOP_DROP_BYTES, strlen(STOP_DROP_BYTES))) {
+        stop_drop_right++;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  HACK This function is executed on yunetas environment (mem, log, paths)
  *  BEFORE destroying the yuno
  ***************************************************************************/
@@ -127,7 +151,20 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     result += test_json(NULL);  // NULL: we want to check only the logs
+
+    if(stop_drop_lines != 2 || stop_drop_right != 2) {
+        printf("%sERROR --> %s: lines %d (expected 2), INFO with 1 message of 27 bytes: %d%s\n",
+            On_Red BWhite,
+            "the stops do not say the write they drop, once per C_TCP",
+            stop_drop_lines,
+            stop_drop_right,
+            Color_Off
+        );
+        result += -1;
+    }
 }
+
+
 
 /***************************************************************************
  *                      Main
@@ -147,7 +184,15 @@ int main(int argc, char *argv[])
         capture_log_write,  // write_fn
         0                   // fwrite_fn
     );
-    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_ERROR, 0);
+    gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
+
+    gobj_log_register_handler(
+        "stop_drop",            // handler_name
+        0,                      // close_fn
+        stop_drop_log_write,    // write_fn
+        0                       // fwrite_fn
+    );
+    gobj_log_add_handler("stop_drop", "stop_drop", LOG_OPT_ALL, 0);
 
     /*------------------------------------------------*
      *      To check memory loss

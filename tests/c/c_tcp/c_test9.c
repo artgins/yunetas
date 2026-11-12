@@ -46,6 +46,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define QUEUED_TEXT "queued, dropped by the stop"    // 27 bytes
 
 /***************************************************************************
  *              Structures
@@ -269,21 +270,35 @@ PRIVATE void test_fail(hgobj gobj, const char *what)
 }
 
 /***************************************************************************
- *  A write, the stop and the destroy, in one turn. fd_peer >= 0: between
- *  the stop and the destroy, the peer sends data that nobody reads (the
- *  stop canceled the read)
+ *  A write, a second one (queued behind the first, in flight), the stop
+ *  and the destroy, in one turn. The stop drops the queued one and says
+ *  it: ONE warning, and txMsgsDroppedAtStop 1. fd_peer >= 0: between the
+ *  stop and the destroy, the peer sends data that nobody reads (the stop
+ *  canceled the read)
  ***************************************************************************/
 PRIVATE void write_stop_and_destroy(hgobj gobj, hgobj gobj_tcp, int fd_peer)
 {
-    gbuffer_t *gbuf = gbuffer_create(64, 64);
-    gbuffer_append_string(gbuf, "written while it is destroyed");
-    gobj_send_event(
-        gobj_tcp,
-        EV_TX_DATA,
-        json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
-        gobj
-    );
+    const char *texts[] = {"written while it is destroyed", QUEUED_TEXT, 0};
+    for(int i=0; texts[i]; i++) {
+        gbuffer_t *gbuf = gbuffer_create(64, 64);
+        gbuffer_append_string(gbuf, texts[i]);
+        gobj_send_event(
+            gobj_tcp,
+            EV_TX_DATA,
+            json_pack("{s:I}", "gbuffer", (json_int_t)(uintptr_t)gbuf),    // the kw owns it
+            gobj
+        );
+    }
     gobj_stop(gobj_tcp);
+    if(gobj_read_integer_attr(gobj_tcp, "txMsgsDroppedAtStop") != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "TEST: the frame queued at the stop is not counted",
+            "tcp",          "%s", gobj_short_name(gobj_tcp),
+            NULL
+        );
+    }
     if(!gobj_in_this_state(gobj_tcp, ST_WAIT_STOPPED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

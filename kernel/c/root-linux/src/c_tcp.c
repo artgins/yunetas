@@ -238,6 +238,7 @@ SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"
 SDATA (DTP_INTEGER, "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER, "max_tx_in_progress",SDF_RSTATS,    "0", "Most writes ever in flight at once: 1 is the rule, more would let a short write's rest go out of order"),
+SDATA (DTP_INTEGER, "txMsgsDroppedAtStop",SDF_RSTATS,   "0", "Messages queued to send and dropped by a local stop (said with an INFO at the stop)"),
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
@@ -298,6 +299,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t rxMsgs;
     json_int_t txBytes;
     json_int_t rxBytes;
+    json_int_t txMsgsDroppedAtStop;
 
     BOOL use_ssl;
     hytls ytls;
@@ -416,6 +418,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         priv->rxMsgs = 0;
     } else if(path && strcmp(path, "max_tx_in_progress")==0) {
         priv->max_tx_in_progress = 0;
+    } else if(path && strcmp(path, "txMsgsDroppedAtStop")==0) {
+        priv->txMsgsDroppedAtStop = 0;
     }
 }
 
@@ -622,6 +626,33 @@ PRIVATE int mt_stop(hgobj gobj)
         EXEC_AND_RESET(ytls_cleanup, priv->ytls)
     }
 
+    /*
+     *  What was queued and never written goes with the stop: said, once,
+     *  an INFO (the stop is ours, not a fault of the peer). Up to 7.30.26
+     *  it went in silence.
+     */
+    if(dl_size(&priv->dl_tx) > 0) {
+        json_int_t dropped_msgs = 0;
+        json_int_t dropped_bytes = 0;
+        gbuffer_t *gbuf = dl_first(&priv->dl_tx);
+        while(gbuf) {
+            dropped_msgs++;
+            dropped_bytes += (json_int_t)gbuffer_leftbytes(gbuf);
+            gbuf = dl_next(gbuf);
+        }
+        priv->txMsgsDroppedAtStop += dropped_msgs;
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_CONNECT_DISCONNECT,
+            "msg",              "%s", "tcp data queued at a local stop, dropped",
+            "url",              "%s", gobj_read_str_attr(gobj, "url"),
+            "peername",         "%s", gobj_read_str_attr(gobj, "peername"),
+            "dropped_msgs",     "%ld", (long)dropped_msgs,
+            "dropped_bytes",    "%ld", (long)dropped_bytes,
+            NULL
+        );
+    }
+
     GBUFFER_DECREF(priv->gbuf_txing)
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
     dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
@@ -718,6 +749,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "max_tx_in_progress")==0) {
         v.found = 1;
         v.v.i = priv->max_tx_in_progress;
+    } else if(strcmp(name, "txMsgsDroppedAtStop")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgsDroppedAtStop;
     } else if(strcmp(name, "connxs")==0) {
         v.found = 1;
         v.v.i = priv->connxs;

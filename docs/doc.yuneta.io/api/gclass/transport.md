@@ -39,6 +39,7 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `txBytes` | `integer` | Total bytes written to the socket (stat): what the kernel took, not what the peer received (see *The close resets the connection*). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
 | `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
+| `txMsgsDroppedAtStop` | `integer` | Messages queued to send and dropped by a local stop (stat, since 7.30.27), see *What a stop drops*. |
 | `peername` | `string` | Remote peer address (read-only). |
 | `sockname` | `string` | Local socket address (read-only). |
 | `tcp_s` | `pointer` | A clisrv only: the `C_TCP_S` whose connection it holds, written by that server at the accept (legacy method) or at its start (new method). |
@@ -453,6 +454,23 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<full
 TLS against an echo server, every echo checked in order, and
 `max_tx_in_progress == 1` asserted -- it fails with `2` on the code before the
 fix, on every run, while the echoes alone come back intact on most kernels).
+
+### What a stop drops
+
+A local stop (`gobj_stop()` of the `C_TCP`, or of a tree that holds it) ends
+the connection: the write in flight goes on to its end, and what is queued
+behind it is dropped. That is said, once per stop, an INFO (the stop is the
+yuno's own, not a fault of the peer), with what went (7.30.27+; up to
+7.30.26 it went in silence), and counted in the stat `txMsgsDroppedAtStop`:
+
+```text
+INFO: {"msg": "tcp data queued at a local stop, dropped", "url": "tcp://127.0.0.1:56745",
+          "peername": "127.0.0.1:56745", "dropped_msgs": 1, "dropped_bytes": 27, ...}
+```
+
+`tests/c/c_tcp` (`test_tcp_test9`: two writes, a stop and the destroy in one
+turn, on a client and on a clisrv: one INFO each, `txMsgsDroppedAtStop`
+1).
 
 ---
 
