@@ -30,7 +30,9 @@
   asked, with a WARNING (*"treedb event not published by the treedb of the
   broker, refused"*, `MSGSET_AUTH`, with `src`, `channel`, `username` and
   `suppressed`) at most once per 10 s. This is the second layer, behind the
-  `C_IEVENT_SRV` frontier (### Kernel). Test: new `c_mqtt/broker_treedb_src`.
+  `C_IEVENT_SRV` frontier (### Kernel). Test: new `c_mqtt/broker_treedb_src`
+  (forged from the driver, the broker's `__top_side__`, another `C_NODE` and a
+  `C_IEVENT_SRV`; the suppressed count said after the window).
 - **BREAKING (a yuno that still creates `C_PROT_MQTT`): `C_PROT_MQTT` is removed**
   (`c_prot_mqtt.c`, `c_prot_mqtt.h`, `register_c_prot_mqtt()`), with its tests
   (`c_mqtt/legacy_prot`, `c_mqtt/legacy_sessions`). It was deprecated, and since 7.30.26
@@ -646,6 +648,24 @@
   kind per 10 s (*"console event not from a console: dropped"*, *"request of
   the agent not by its command: dropped"*). The commands are not changed;
   no client sends those events. Test: `c_agent_answer_routing`.
+- **A console opened by a session of the agent reaches it.** An operator
+  connected straight to the agent (a session on its 1991) that opened a
+  console got nothing of it: the agent sent the console's `EV_TTY_OPEN`,
+  `EV_TTY_DATA` and `EV_TTY_CLOSE` to the session's channel, which takes no
+  such event (an ERROR "Event NOT DEFINED in state" with a stack per frame),
+  and a second session that joined the console got only its own open again
+  (7.30.26). They go now as the agent's answers go: an inter-event sent with
+  `EV_SEND_IEV` to the channel, or to the link of the control center, while
+  it listens. And a console goes with the session that opened it: the agent
+  kept it in the session's `C_IEVENT_SRV` and looked for it in its channel,
+  so it was never closed, and it would have written to the next session of
+  that channel. BREAKING for an operator: a console opened by a session of
+  the agent is closed when that session closes (through the control center
+  nothing changes). For a log watcher: those ERRORs are gone, and the output
+  of a console for a link out of session is an INFO "requester gone before
+  its answer, answer dropped" in place of the link's WARNING "Not in
+  session". Tests: `c_agent_answer_routing`, `c_agent_controlcenter_link`.
+
 ### Kernel
 
 - **BREAKING** (for anything that played or paused a yuno through a link not
@@ -744,11 +764,15 @@
   count what it could not send: `txMsgsNoChannel`. Up to 7.30.26 the counter
   never moved (and was shared by every gate of the yuno): one ERROR per
   send, the send to all with a stack. Test: new `c_iogate_channel`.
-- `C_TCP`: a local stop says the writes queued behind the one in flight
-  that it drops, once, an INFO (*"tcp data queued at a local stop,
-  dropped"*, `dropped_msgs`, `dropped_bytes`), and counts them in the new
-  stat `txMsgsDroppedAtStop`. Up to 7.30.26 they went in silence. Test:
-  `c_tcp/test9`.
+- `C_TCP`: a local stop says what it drops, once, an INFO (*"tcp data
+  queued at a local stop, dropped"*): the writes of the host queued behind
+  the one in flight (`dropped_msgs`, `dropped_bytes`, also counted in the
+  new stat `txMsgsDroppedAtStop`, which adds every stop and goes back to 0
+  with `stats __reset__`), and with TLS the encrypted output waiting behind
+  the write in flight (`dropped_tls_bytes`: the rest of the message being
+  written or records of the TLS session; not a message of the host, so not
+  counted in `txMsgsDroppedAtStop`). Up to 7.30.26 both went in silence.
+  Tests: `c_tcp/test9`, new `c_tcp/test12`.
 - `__send_type__` (the `C_IOGATE` send-to-all switch) is documented as a key
   of the yuno, like `__temp__`: the kw of a send is built by the yuno's own
   code.
@@ -831,6 +855,19 @@
   agent's input or any operator) made every client ask `my-permissions`
   again; the kernel frontier now refuses it too. Test:
   `c_controlcenter_scenarios` (case 15).
+- **The answers of the agent's own requests reach the client.**
+  `command-agent cmd2agent='read-file ...'` (and `read-json`,
+  `read-binary-file`, `running-keys`, `running-bin`, `edit-config`,
+  `view-config`, `edit-yuno-config`, `view-yuno-config`): the agent answers
+  them with `EV_READ_FILE`, `EV_READ_JSON`, `EV_READ_BINARY_FILE`,
+  `EV_EDIT_CONFIG`, `EV_VIEW_CONFIG`, `EV_EDIT_YUNO_CONFIG` or
+  `EV_VIEW_YUNO_CONFIG`, none of them public in the control center: the
+  agent's channel refused the frame ("Frame of an event that is not public,
+  refused", a WARNING) and the client had only "Command sent to 1 nodes"
+  (7.30.26). The control center takes them from the agents' side now and
+  relays them to the client that asked, as an answer; one sent by a web
+  client is dropped as any event of an agent. Test:
+  `c_controlcenter_scenarios`.
 
 ### Packaging
 
