@@ -49,7 +49,10 @@
  *            backslash,
  *          - a secret's key split by quotes, which the shell reads without
  *            them (p'a'ssword=<s>, '{"p'a'ssword":"<s>"}'): the secret is
- *            not written (7.30.26 wrote it),
+ *            not written (7.30.26 wrote it); such a key longer than 128
+ *            bytes is not read again without its quotes, it fails closed
+ *            (7.30.26 copied it whole: a crafted line of 4 MB took 2.4
+ *            times as long),
  *          - what mask_secrets_inline() masks, the audit redacts (the same
  *            function, mark_secrets_inline()): a JWE, a JWT of two parts, a
  *            name: value, a password with blanks, and random texts,
@@ -67,6 +70,11 @@
 #include "audit_record.h"
 
 #define APP "test_audit_record"
+
+/*
+ *  QUOTED_KEY_MAX of audit_record.c
+ */
+#define QUOTED_KEY_MAX_TEST 128
 
 /***************************************************************************
  *      Data
@@ -1235,6 +1243,121 @@ PRIVATE void test_quote_in_key(void)
     check_command_is("update-node id=X record={\"id\":\"x\",\"note\":\"a=b\"} n=1", NULL,
         "update-node id=X record={\"id\":\"x\",\"note\":\"a=b\"} n=1",
         "(d8) a '=' after a quote in a value: written");
+}
+
+/***************************************************************************
+ *  (d9) a key with quotes is read again without them (d8) only up to
+ *  QUOTED_KEY_MAX (128) bytes: a longer one fails closed, judged a
+ *  secret's. A secret's name is found anywhere in a key, so no cap on the
+ *  bytes judged could be sound. 7.30.26 copied the whole key and judged it
+ *  twice: x '<4 MB>=1 took 2.4 times as long to audit as x <4 MB>=1. The
+ *  big blocks the audit asks for tell it without a clock.
+ ***************************************************************************/
+PRIVATE size_t s_big_size = 0;
+PRIVATE int s_big_allocs = 0;
+
+PRIVATE void *counting_malloc(size_t size)
+{
+    if(s_big_size && size >= s_big_size) {
+        s_big_allocs++;
+    }
+    return s_real_malloc(size);
+}
+
+PRIVATE void *counting_realloc(void *ptr, size_t size)
+{
+    if(s_big_size && size >= s_big_size) {
+        s_big_allocs++;
+    }
+    return s_real_realloc(ptr, size);
+}
+
+PRIVATE void *counting_calloc(size_t n, size_t size)
+{
+    if(s_big_size && n*size >= s_big_size) {
+        s_big_allocs++;
+    }
+    return s_real_calloc(n, size);
+}
+
+PRIVATE int big_allocs_of(const char *head, size_t n, const char *tail)
+{
+    size_t hl = strlen(head), tl = strlen(tail);
+    char *line = gbmem_malloc(hl + n + tl + 1);
+    if(!line) {
+        return -1;
+    }
+    memcpy(line, head, hl);
+    memset(line + hl, 'a', n);
+    memcpy(line + hl + n, tail, tl);
+    line[hl + n + tl] = 0;
+
+    gbmem_get_allocators(&s_real_malloc, &s_real_realloc, &s_real_calloc, &s_real_free);
+    gbmem_set_allocators(counting_malloc, counting_realloc, counting_calloc, s_real_free);
+    s_big_allocs = 0;
+    s_big_size = n;
+    json_t *jn_record = audit_record_build(line, NULL, DATE, command_table);
+    s_big_size = 0;
+    gbmem_set_allocators(s_real_malloc, s_real_realloc, s_real_calloc, s_real_free);
+
+    JSON_DECREF(jn_record)
+    gbmem_free(line);
+    return s_big_allocs;
+}
+
+PRIVATE void test_quoted_key_cap(void)
+{
+    size_t n = 1024*1024;
+    int plain = big_allocs_of("update-node x ", n, "=1");
+    int quoted = big_allocs_of("update-node x '", n, "=1");
+    int inner = big_allocs_of("update-node x a'", n, "'=1");
+    printf("     blocks of 1 MiB or more: %d plain key, %d quoted, %d with a quote inside\n",
+        plain, quoted, inner);
+    check(plain >= 0 && quoted == plain,
+        "(d9) x '<1 MiB>=1: no block of the size of the key more than x <1 MiB>=1");
+    check(plain >= 0 && inner == plain,
+        "(d9) x a'<1 MiB>'=1: no block of the size of the key more than x <1 MiB>=1");
+
+    /*
+     *  At the cap a plain key with quotes is judged and written; past it,
+     *  from it on <...>. A secret's name anywhere in a long key is never
+     *  written.
+     */
+    char key[QUOTED_KEY_MAX_TEST + 2];
+    char line[4*QUOTED_KEY_MAX_TEST];
+    memset(key, 'k', sizeof(key));
+    key[0] = '\'';
+    key[2] = '\'';
+    key[QUOTED_KEY_MAX_TEST] = 0;
+    snprintf(line, sizeof(line), "update-node id=X %s=c n=1", key);
+    check_command_is(line, NULL, line,
+        "(d9) a plain key with quotes, 128 bytes: written");
+    key[QUOTED_KEY_MAX_TEST] = 'k';
+    key[QUOTED_KEY_MAX_TEST + 1] = 0;
+    snprintf(line, sizeof(line), "update-node id=X %s=c n=1", key);
+    check_command_is(line, NULL, "update-node id=X <...>",
+        "(d9) a plain key with quotes, 129 bytes: from it on, <...>");
+
+    char pad[201];
+    memset(pad, 'a', sizeof(pad) - 1);
+    pad[sizeof(pad) - 1] = 0;
+    snprintf(line, sizeof(line), "create-realm %s_p'a'ssword=hunter2", pad);
+    check_nested(line, NULL, "hunter2", "",
+        "(d9) <200 a>_p'a'ssword=<s>: the secret not written");
+    snprintf(line, sizeof(line), "update-realm id=x record='{\"%s_p'a'ssword\":\"hunter2\"}'", pad);
+    check_nested(line, NULL, "hunter2", "",
+        "(d9) the json key \"<200 a>_p'a'ssword\": the secret not written");
+    snprintf(line, sizeof(line), "create-realm p'a'ssword_%s=hunter2", pad);
+    check_nested(line, NULL, "hunter2", "",
+        "(d9) p'a'ssword_<200 a>=<s>: the secret not written");
+    snprintf(line, sizeof(line), "update-realm id=x record='{\"p'a'ssword_%s\":\"hunter2\"}'", pad);
+    check_nested(line, NULL, "hunter2", "",
+        "(d9) the json key \"p'a'ssword_<200 a>\": the secret not written");
+    char expected[sizeof(line)];
+    snprintf(line, sizeof(line), "update-realm id=x record={\"%s'b'\":\"c\"} n=1", pad);
+    snprintf(expected, sizeof(expected), "update-realm id=x record={\"%s'b'\":\"<redacted>\"} n=1", pad);
+    check_command_is(line, NULL, expected,
+        "(d9) a plain json key with quotes, 203 bytes: its value redacted");
 }
 
 /***************************************************************************
@@ -3077,6 +3200,7 @@ int main(int argc, char *argv[])
     test_shell_quote();
     test_shell_quote_splice();
     test_quote_in_key();
+    test_quoted_key_cap();
     test_stats_reset();
     test_content64_blank_before_equal();
     test_short_content64_values();

@@ -1031,6 +1031,27 @@ nearest first:
 
   Up to 7.30.26 they were recorded as they came, with `hunter2`. A quote in
   a key that is not a secret's name (`a'b'=c`, `'{"a'b'":"c"}'`) is kept.
+
+  A key with quotes is read again without them up to 128 bytes. A longer one
+  fails closed, as if it were a secret's name: a secret's name can be
+  anywhere in a key (`p'a'ssword_<200 bytes>`), so no shorter part of it
+  can be judged. These commands, each with a key of 203 bytes:
+
+  ```text
+  update-node id=X <200 x>'b'=c n=1
+  update-realm id=x record={"<200 x>'b'":"c"} n=1
+  ```
+
+  are recorded as
+
+  ```text
+  update-node id=X <...>
+  update-realm id=x record={"<200 x>'b'":"<redacted>"} n=1
+  ```
+
+  Up to 7.30.26 the whole key was copied and judged twice: a crafted line of
+  4 MB (`x '<4 MB>=1`) took 2.4 times as long to audit, before the command
+  was authorized.
 - `__command__` is left out when it repeats the command text.
 - **The command word is taken as the command parser takes it**: the first
   word, without its quotes, looked up in the command table of the agent (any

@@ -261,6 +261,15 @@
 #define GLUED_KEY_MAX   128
 
 /*
+ *  A key with quotes in it longer than this is not read again without its
+ *  quotes (key_kind()): it is judged a secret's. No cap on the bytes judged
+ *  could be sound, a secret's name is found anywhere in a key
+ *  (<200 x>_password), and the copy and the second judgment made a crafted
+ *  line of 4 MB 2.4 times slower to audit (7.30.26).
+ */
+#define QUOTED_KEY_MAX  128
+
+/*
  *  A string of the routing of a peer (a field of a hop, the user, the
  *  console purpose, the console name) is written redacted, and up to this
  *  size: a longer one is not scanned and not written, its size and sha256
@@ -777,6 +786,9 @@ PRIVATE key_kind_t key_kind(const char *key, size_t len, const redact_ctx_t *ctx
     key_kind_t kind = key_kind_as_is(key, len, ctx);
     if(kind != KEY_PLAIN || (!memchr(key, '\'', len) && !memchr(key, '"', len))) {
         return kind;
+    }
+    if(len > QUOTED_KEY_MAX) {
+        return KEY_SECRET;  // Fails closed, see QUOTED_KEY_MAX
     }
     char *bf = gbmem_malloc(len + 1);
     if(!bf) {
