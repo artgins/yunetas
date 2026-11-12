@@ -27,6 +27,12 @@
 #   3. An operator asks the control center and leaves before the answer;
 #      another session takes its channel of the agent (the same `input-N`)
 #      and asks too: it gets its own answer, never the first one's.
+#   4. The control center sends EV_PLAY_YUNO, then an order, EV_PAUSE_YUNO
+#      and two bytes of the next order in one write, then 40 orders more:
+#      both are refused (ack -1), every order is answered, the link and the
+#      1991 stay. Up to 7.30.26 the pause stopped the link inside its own
+#      action: SIGSEGV, or an agent nobody could reach any more.
+#   5. The control center sends orders while the agent stops (SIGINT).
 #
 #   Usage: client.py <cert> <key> <port>
 #   Exit 0 when every check passed.
@@ -55,6 +61,8 @@ answers_up = []         # answers that reached the control center from the agent
 held = []               # the routing of a request whose answer waits
 cc_writer = []
 flood_answers = {}      # cc_order -> result of the orders the control center sends
+pause_answers = {}      # cc_pause_order -> result of the orders sent around a pause
+play_pause_acks = []    # (event, result, comment) of the agent's acks of a play / pause
 FLOOD = 300             # orders the control center sends while the agent stops
 PEER_POINTER = 1094795585     # 0x41414141: what a peer writes where the agent keeps a pointer
 
@@ -113,6 +121,11 @@ async def control_center(r, w, in_session):
             w.write(cc_answer(event, md, CC_ANSWER))
         elif "cc_order" in md:
             flood_answers[md["cc_order"]] = iev.get("kw", {}).get("result")
+        elif "cc_pause_order" in md:
+            pause_answers[md["cc_pause_order"]] = iev.get("kw", {}).get("result")
+        elif event in ("EV_PLAY_YUNO_ACK", "EV_PAUSE_YUNO_ACK"):
+            kw = iev.get("kw", {})
+            play_pause_acks.append((event, kw.get("result"), kw.get("comment")))
         else:
             answers_up.append((event, iev.get("kw", {}).get("comment")))
 
@@ -182,7 +195,7 @@ def cc_frame(event, md_extra=None, temp=None, result=0):
     return tcp4h({"event": event, "kw": kw})
 
 
-def cc_order(n):
+def cc_order(n, mark="cc_order"):
     """An order of the control center to the agent"""
     return tcp4h({"event": "EV_MT_COMMAND", "kw": {
         "__command__": "list-yunos",
@@ -192,7 +205,20 @@ def cc_order(n):
                 "src_yuno": "cc", "src_role": "controlcenter", "src_service": "controlcenter",
                 "user": "yuneta", "host": "cc"}],
             "__msg_type__": "__command__",
-            "cc_order": n,
+            mark: n,
+        }}})
+
+
+def cc_play_pause(event):
+    """EV_PLAY_YUNO / EV_PAUSE_YUNO of the control center: an event the
+    link takes itself (a public event of every C_IEVENT_CLI)"""
+    return tcp4h({"event": event, "kw": {
+        "__md_iev__": {
+            "ievent_gate_stack": [{
+                "dst_yuno": "", "dst_role": "yuneta_agent", "dst_service": "agent",
+                "src_yuno": "cc", "src_role": "controlcenter", "src_service": "controlcenter",
+                "user": "yuneta", "host": "cc"}],
+            "__msg_type__": "__message__",
         }}})
 
 
@@ -462,7 +488,48 @@ async def main():
     r = await op.ask("help cmd=command-agent")
     check("the agent still answers", bool(r) and r.get("result") == 0)
 
-    #   4. The control center sends orders while the agent stops: the first
+    #   4. The control center plays and pauses the agent through its link.
+    #   Only a yuno's agent may play or pause it: the link to the control
+    #   center refuses both (ack -1) and the agent goes on as it was. Up to
+    #   7.30.26 the pause reached the agent's mt_pause, which stops that same
+    #   link inside its own action and closes the treedbs: with an order, the
+    #   pause and two more bytes in one write the agent died (SIGSEGV in
+    #   C_PROT_TCP4H); otherwise its 1991 and the link were closed for good
+    w = cc_writer[-1]
+    n_links = len(cc_writer)
+    w.write(cc_play_pause("EV_PLAY_YUNO"))
+    end = time.monotonic() + 5
+    while not play_pause_acks and time.monotonic() < end:
+        await asyncio.sleep(0.01)
+    tail = cc_order(1, "cc_pause_order")
+    try:
+        w.write(cc_order(0, "cc_pause_order") + cc_play_pause("EV_PAUSE_YUNO") + tail[:2])
+        await w.drain()
+        await asyncio.sleep(0.2)
+        w.write(tail[2:] + b"".join(cc_order(i, "cc_pause_order") for i in range(2, 42)))
+        await w.drain()
+    except (ConnectionError, ssl.SSLError):
+        pass
+    end = time.monotonic() + 10
+    while (len(pause_answers) < 42 or len(play_pause_acks) < 2) and time.monotonic() < end:
+        await asyncio.sleep(0.01)
+    print("acks of play / pause: %s" % play_pause_acks, flush=True)
+    check("the play and the pause of the control center refused (ack -1): %s" % (
+            [(e, r_) for e, r_, c in play_pause_acks]),
+        [(e, r_) for e, r_, c in play_pause_acks] ==
+            [("EV_PLAY_YUNO_ACK", -1), ("EV_PAUSE_YUNO_ACK", -1)])
+    check("the orders around the pause are answered: %d of 42" % len(pause_answers),
+        len(pause_answers) == 42 and all(v == 0 for v in pause_answers.values()))
+    r = await op.ask("help cmd=list-yunos")
+    check("the agent still answers its operator after the pause", bool(r) and r.get("result") == 0)
+    o2 = await session()
+    check("the agent's 1991 still takes a session after the pause", o2 is not None)
+    if o2 is not None:
+        o2.close()
+    check("the link to the control center stays (no new connection): %d" % len(cc_writer),
+        len(cc_writer) == n_links)
+
+    #   5. The control center sends orders while the agent stops: the first
     #   half one by one, each answered; then a SIGINT to the agent, and the
     #   rest at once. The agent pauses (its treedbs closed) before it stops,
     #   and the loop goes on: up to 7.30.26 the link stayed in session, and

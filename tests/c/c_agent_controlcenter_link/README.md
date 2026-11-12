@@ -74,7 +74,19 @@ own, not the first one's (up to 7.30.26 it got both), and the log holds
 *"requester gone before its answer, answer dropped"*. The same with
 `stats-agent service=controlcenter stats=hold-me`.
 
-Then a `help` is still answered. Last, the control center sends 300 orders
+Then a `help` is still answered. The control center then plays and pauses
+the agent through its link: it sends `EV_PLAY_YUNO`, and, in ONE write, an
+order (`list-yunos`), `EV_PAUSE_YUNO` and the first two bytes of the next
+order, then the rest of it and 40 orders more. Only a yuno's own agent may
+play or pause it, so the link refuses both: each ack has result -1, every
+one of the 42 orders is answered with 0, the operator is still answered,
+the `1991` still takes a session, and the link stays (no new connection).
+Up to 7.30.26 the pause reached the agent's `mt_pause`, which stops that
+same link inside its own action and closes the treedbs: the agent died
+(SIGSEGV in `C_PROT_TCP4H`, which read on after its own stop), or, without
+the extra bytes, it lived with its `1991` and its link closed for good.
+
+Last, the control center sends 300 orders
 (`list-yunos`) to the agent: the first 150 one by one, each answered with 0;
 then the client sends the agent a SIGINT and the other 150 at once. The agent
 must end in order, with 0 and no *"system memory not free"*, and no answer

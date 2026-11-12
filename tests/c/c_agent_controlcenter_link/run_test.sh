@@ -16,6 +16,11 @@
 #   memory bounded (ulimit -v, not for an agent built with ASan, whose
 #   shadow memory does not fit in any bound) and no core.
 #
+#   The control center plays and pauses the agent through its link: both
+#   refused (ack -1), the orders around them answered, the link and the
+#   1991 kept. Up to 7.30.26 the pause stopped the link inside its own
+#   action: SIGSEGV, or an agent nobody could reach any more.
+#
 #   Up to 7.30.26 the request went up with the operator's channel of the
 #   agent as its `src_service`, which is no service: the link dropped the
 #   control center's answer ("service of the event not found, event
@@ -170,6 +175,17 @@ fi
 #   Both answers to the sessions that left (command-agent, stats-agent)
 if [ "$ngone" -lt 2 ]; then
     echo "TEST FAILED: $ngone answer(s) dropped as the leaving of their requester (expected 2)"
+    failed=1
+fi
+#   The play and the pause of the control center: refused by its link, one
+#   WARNING for the session; the agent is not paused (no "No channel FOUND
+#   to send" for an ack sent on a link it stopped, no ERROR of a treedb
+#   closed)
+npp=$(grep -a '"msg": "play/pause of the yuno refused: only the link to its agent plays or pauses it"' "$WORK/agent.log" | grep -ac "WARNING")
+nnc=$(grep -ac '"msg": "No channel FOUND to send"' "$WORK/agent.log")
+nhn=$(grep -ac '"msg": "hgobj NULL or DESTROYED"' "$WORK/agent.log")
+if [ "$npp" != "1" ] || [ "$nnc" != "0" ] || [ "$nhn" != "0" ]; then
+    echo "TEST FAILED: $npp WARNING(s) for a play/pause refused (expected 1), $nnc \"No channel FOUND to send\" and $nhn \"hgobj NULL or DESTROYED\" (expected 0)"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

@@ -672,6 +672,25 @@ session, and an order of the control center in that window (`list-yunos`)
 read the treedb just freed: the agent died with SIGSEGV instead of ending in
 order.
 
+Only a stop pauses the agent. The control center cannot play or pause it:
+its link is a `C_IEVENT_CLI` configured to reach `controlcenter`, and only a
+link configured to reach a `yuneta_agent` plays or pauses its yuno (see
+[`C_IEVENT_CLI`](#gclass-c-ievent-cli)). An `EV_PLAY_YUNO` or
+`EV_PAUSE_YUNO` that comes on that link is answered with result -1, and the
+agent goes on as it was:
+
+```json
+{"event": "EV_PAUSE_YUNO_ACK", "kw": {"result": -1,
+ "comment": "yuneta_agent^node-a: only the link to the yuno's agent plays or pauses the yuno"}}
+```
+
+The link logs ONE WARNING per session, *"play/pause of the yuno refused:
+only the link to its agent plays or pauses it"*. Up to 7.30.26 the pause
+reached the agent and stopped that same link inside its own action: the
+agent died with SIGSEGV when more bytes came in the same read, or it lived
+with its `1991` and its link closed, and nobody could reach it until it was
+restarted on the node.
+
 ## Tracing a yuno (`trace-on-yuno`, `trace-off-yuno`)
 
 `trace-on-yuno` sets GLOBAL trace levels in the yunos that match, and marks
