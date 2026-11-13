@@ -105,6 +105,14 @@ A release that moves a lot of code ships a performance report: charts of what
 the release does on one machine, the release before measured the same way, and every loss with its
 reason.
 
+- **7.31.0** (against 7.30.0, the last release with a study; 7.30.1 to
+  7.30.26 inside it): the agent, the control center, the MQTT broker and gates,
+  the transports and the inter-yuno events hardened against peers that lie,
+  flood or do not read, and consoles with flow control. All 66 figures inside
+  their noise: no price.
+  [Report](performance/reports/7.31.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html) ·
+  [raw figures](performance/reports/7.31.0.json)
 - **7.30.0** (against 7.29.3): an HTTP parser in linear time with limits, a
   server that holds a pipeline, a BFF that serves a session only to its
   `Origin`, and a rewritten date reader. One header of 7.8 MB holds the event

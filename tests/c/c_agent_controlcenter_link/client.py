@@ -102,7 +102,7 @@ link_frames = []        # (event, kw) of what comes back of a console or a reque
 FLOODING = ("t4", "tslow", "t6", "tj")    # consoles that flood: their output is counted, not kept
 flood_bytes = {}        # console -> bytes of its output that reached the control center
 FLOOD = 300             # orders the control center sends while the agent stops
-SLOW_RATE = 30000       # bytes/s the control center takes of a console, over TLS
+SLOW_RATE = 100000      # bytes/s the control center takes of a console, over TLS (yes writes far faster)
 PEER_POINTER = 1094795585     # 0x41414141: what a peer writes where the agent keeps a pointer
 
 
@@ -510,7 +510,11 @@ def slow_link(on):
     if on:
         cmds = (
             "tc qdisc add dev lo root handle 1: prio bands 4",
-            "tc qdisc add dev lo parent 1:4 handle 40: tbf rate %dbit burst 16kb latency 500ms" % (
+            # 100 KB/s and latency 1s: slow, but a socket write completes well
+            # within console_pause_timeout (3 s here). At 30 KB/s a drop of the
+            # bucket (latency 500ms) and TCP's retransmission backoff, or a deep
+            # bucket (10s), held the link still past the deadline on a loaded machine
+            "tc qdisc add dev lo parent 1:4 handle 40: tbf rate %dbit burst 16kb latency 1s" % (
                 SLOW_RATE * 8),
             "tc filter add dev lo protocol ip parent 1:0 prio 1 u32 match ip dport 19898 0xffff flowid 1:4",
         )

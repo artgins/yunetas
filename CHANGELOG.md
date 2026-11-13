@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## v7.31.0 (2026-11-13)
+
+7.31.0 closes the cycle of 7.30.1 to 7.30.26 and of 18 rounds of review:
+the agent, the control center, the MQTT broker and gates, the transports
+and the inter-yuno events hardened against peers that lie, flood or do not
+read; consoles with flow control; `C_PROT_MQTT` removed. The minor number
+moves because of how much changed, not because of one change: read the
+BREAKING items below before upgrading.
+
+- **Performance**, against 7.30.0 (the last release with a study; 7.30.1 to
+  7.30.26 are inside it): all 66 figures inside their noise, no price.
+  [Report](performance/reports/7.31.0.html) ·
+  [rendered](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html) ·
+  [raw figures](performance/reports/7.31.0.json).
+- **Test suite**, on the dev machine only (`ulimit -Sn 1024`, with `tc`):
+  two full runs of the tag, 464 of 465 each. The first failed
+  `c_agent_controlcenter_link` (its slow link, below), passed three times in
+  a row once fixed; the second `test_c_treedb_literal_wins/dcd`, an
+  `io_uring_queue_init()` ENOMEM of a child under the parallel suite (locked
+  memory), passed three times in a row alone. Runs of the previous head on
+  three nodes found two tests that depended on the load of the machine
+  (`c_agent_consoles` read a backlog with a gap of 2 s,
+  `c_agent_controlcenter_link` slowed its link to 30 KB/s through a token
+  bucket that dropped packets or queued too deep); both fixed: the backlog
+  is read for its whole window, the link runs at 100 KB/s with `latency 1s`.
+
 - **maplibre-gl 6.18.0** in the JS layer: gobj-ui's lockfile and its demo
   (no gobj-ui release, the peer floor stays `^6.14.0`), gui_treedb 1.2.8 and
   the `gui/` of the project templates. No breaking change for Yuneta: it adds
@@ -985,7 +1011,26 @@
   forge the open of a console nobody opened, whose mirror made that
   agent's close drop the client. A client is still dropped when the agent
   of a console it opened closes its link (gui_agent then reconnects and
-  re-attaches the console by its name), now only by that agent. Now `command-agent` and `stats-agent` remember which client
+  re-attaches the console by its name), now only by that agent. What the
+  control center remembers of a console asked lives only while it can be
+  used: it is forgotten when the agent refuses the `open-console` (the
+  control center stamps the name in the client's frame of the request,
+  `cc_console`, and the refusal carries it back), when the console's
+  `EV_TTY_CLOSE` passes, when the client leaves, and when the agent's
+  channel closes. A console name longer than `NAME_MAX`, and a 65th console
+  asked of one agent by one client and not closed, are refused by the
+  control center itself (-1 "...: console name too long" / "...: too many
+  consoles asked of that agent and not closed"), and nothing is sent. Every
+  name a client asked used to be kept until the agent's channel closed,
+  refused ones too, with no bound: 2000 names of 30 KB, each refused by the
+  agent, kept 57 MB after the client left. A reading (`EV_YUNO_STATS`)
+  reaches the client with the `monitor_node` the client wrote in its watch
+  of THAT agent (gui_agent reads it to know whose reading it is), not the
+  one the agent echoes. A link of the control center (its `C_IEVENT_CLI`)
+  gets no stream (`EV_TTY_*`, `EV_YUNO_STATS`): the same WARNING, `detail`
+  "a stream for a link of this control center: none is relayed to a link";
+  its peer, the node's agent, takes none from a yuno. Test:
+  `c_controlcenter_scenarios` (case 55). Now `command-agent` and `stats-agent` remember which client
   and connection asked, and an answer is relayed only to that client, in the
   connection it holds now, with that connection's stamp. Any other is
   dropped with a WARNING "answer of an agent for a web client that did not
@@ -1064,6 +1109,35 @@
   Now the file is opened with `O_NOFOLLOW` (0600), and a failure to open or
   to write it whole is an ERROR *"Cannot write the binary file"* naming the
   path (ycli's status line says it was not saved). Tests: the same.
+- **ycommand and ycli: text and json answers are written as the binary
+  file is, and a failure does not open the editor.** The answers of
+  `read-file` (text) and `read-json`, `view-config`, `edit-config`,
+  `view-yuno-config`, `edit-yuno-config` (json) are written in
+  `~/.yuneta/configs/` 0600 with `O_NOFOLLOW`, and a failure is an ERROR
+  *"Cannot write the file"* naming the path, answered "File NOT saved in
+  '<path>'", with no editor. Up to 7.30.26 they followed a link left there,
+  took their mode from the umask, nothing was checked, and a failed write
+  opened the editor on what the file held before (`edit-config` then
+  offered it as a `create-config`). A text that is not a string is a
+  WARNING. A `content64` that is not base64 is a WARNING "base64 of a peer
+  not decodable, refused" (an ERROR with a stack up to 7.30.26), one that
+  is not a string a WARNING "content64 of a binary file that is not a
+  string, not written" (nothing up to 7.30.26); neither is taken for saved.
+  Tests: `c_ycli_request_answers`, `c_ycommand_request_answers`.
+- **ycommand: the exit code says when a file was not written.** A
+  `read-binary-file` sent straight to the agent ends with what became of
+  the file: one that cannot be written ends ycommand with an exit code that
+  is not 0 and stops the rest of its line (`-c 'read-binary-file ...;
+  help'`). Up to 7.30.26 the request ended with the event's result, 0,
+  before the file was written. Through a control center, and for the text
+  and json answers, the exit code says it too. Test:
+  `c_ycommand_request_answers`.
+- **ycommand: a request the agent refuses after the control center sent it
+  leaves nothing pending**, as in ycli: the refusal carries its line in its
+  command stack. Up to 7.30.26 "Command sent to 1 nodes" ended the
+  request's count, the agent's later refusal did not, and the next answer
+  nobody asked (`EV_READ_*`, `EV_EDIT_CONFIG`) was written. Test:
+  `c_ycommand_request_answers`.
 
 ### ycli
 

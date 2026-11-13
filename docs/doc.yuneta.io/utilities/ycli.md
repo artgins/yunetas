@@ -132,4 +132,4 @@ gclasses driven by `C_CLI`:
 - [`ycommand`](ycommand.md) — the line-oriented control plane (single command,
   interactive shell, or stdin pipe).
 - Repository README (for code navigators):
-  [`utils/c/ycli/README.md`](https://github.com/artgins/yunetas/blob/7.30.26/utils/c/ycli/README.md).
+  [`utils/c/ycli/README.md`](https://github.com/artgins/yunetas/blob/7.31.0/utils/c/ycli/README.md).

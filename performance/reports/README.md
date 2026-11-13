@@ -16,6 +16,7 @@ The same figures, release after release, are charted on
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.31.0 | 7.30.0 | [7.31.0.html](7.31.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html) | [7.31.0.json](7.31.0.json) |
 | 7.30.0 | 7.29.3 | [7.30.0.html](7.30.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.30.0/performance/reports/7.30.0.html) | [7.30.0.json](7.30.0.json) |
 | 7.29.0 | 7.28.8 | [7.29.0.html](7.29.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.29.0/performance/reports/7.29.0.html) | [7.29.0.json](7.29.0.json) |
 | 7.28.0 | 7.27.11 | [7.28.0.html](7.28.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.28.0/performance/reports/7.28.0.html) | [7.28.0.json](7.28.0.json) |

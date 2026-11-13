@@ -324,7 +324,9 @@ async def drain(peer, secs):
     got = []
     end = time.monotonic() + secs
     while time.monotonic() < end:
-        iev = await peer.recv(min(2, end - time.monotonic()))
+        # The whole window, not a gap of 2 s: on a loaded machine the backlog
+        # can pause longer than that before its EV_TTY_CLOSE
+        iev = await peer.recv(max(0.1, end - time.monotonic()))
         if iev is None:
             break
         got.append(iev)

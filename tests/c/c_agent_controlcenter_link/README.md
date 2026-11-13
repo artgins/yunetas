@@ -102,7 +102,7 @@ growth.
 The control center opens `tslow` (`yes`), a session on `1991` joins it and
 reads at once, and the link to the control center becomes a slow link far
 away: `tc` puts what the agent sends to port 19898 through a token bucket
-of 30 KB/s (`run_test.sh` gives the loopback an mtu of 1500 and the sockets
+of 100 KB/s (`run_test.sh` gives the loopback an mtu of 1500 and the sockets
 small send buffers, `tcp_wmem` of the sandbox, so a write ends as the link
 takes bytes). For 12 s, four deadlines, the control center gets the
 console slowly but steadily over TLS (under 60 KB/s), and `tslow` keeps both
