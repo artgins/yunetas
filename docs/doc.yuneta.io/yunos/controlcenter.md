@@ -584,7 +584,10 @@ for a client that did not ask: the answer is dropped with the INFO
 WARNING above, and its count, are only for an agent that routes to a client
 that is there and did not ask it. Before the fix a closed channel had no
 connection, the stamp check ran first, and an honest agent was logged as a
-forger.
+forger. The `EV_TTY_OPEN` of a console for a client that left records no
+mirror either: up to the fix it recorded one with no connection, and when the
+agent's channel closed the control center dropped whoever held that client's
+channel then.
 
 What waits to be sent to a web client is bounded too, in messages and in
 bytes: when the control center relays an agent's answer or stream to a client

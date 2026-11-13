@@ -1453,6 +1453,51 @@ PRIVATE int test_answer_for_a_client_gone(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  53. An EV_TTY_OPEN for a client that left plants nothing: the next
+ *      client that takes its channel is not the mirror of that console.
+ *      The agent's close then drops nobody, and nothing of the console
+ *      reaches the new client. Up to the fix the open of a closed channel
+ *      recorded a mirror with no connection (0), and the agent's close
+ *      dropped whoever held that channel then.
+ ***************************************************************************/
+PRIVATE int test_tty_open_for_a_client_gone(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("open-console"));
+    json_object_set_new(kw, "name", json_string("gone"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "open-console of a client that leaves");
+    json_t *route = agent_request(gobj, "open-console of a client that leaves");
+    if(!route) {
+        return ret - 1;
+    }
+    client_closes(gobj, client);
+    agent_sends_data(gobj, EV_TTY_OPEN, route, 0, "tty open",
+        json_pack("{s:s}", "name", "gone"));
+    JSON_DECREF(route)
+    client_opens(gobj, client);     // the next client takes the channel
+    json_decref(take_received(client));
+    json_t *mirrors = gobj_read_user_data(priv->agent_channel, "tty_mirrors");
+    if(json_object_get(mirrors, "gone")) {
+        ret += fail(gobj, "an open for a client that left records a mirror", "");
+    }
+
+    agent_closes(gobj);
+    json_t *received = take_received(client);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "an open for a client that left made the next client of its channel a mirror", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+    return ret;
+}
+
+/***************************************************************************
  *  A request of `client` as the user "viewer", who may read the scenario
  *  "scn" and nothing else (test_authz_checker() of main.c)
  ***************************************************************************/
@@ -5784,6 +5829,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_relays_only_for_who_asks(gobj, client1);
     result += test_agent_request_answers(gobj, client1);
     result += test_answer_for_a_client_gone(gobj, client1);
+    result += test_tty_open_for_a_client_gone(gobj, client1);
     result += test_agent_request_answers_unasked(gobj, client1, client2);
     result += test_client_that_does_not_take(gobj, client2);
     result += test_client_that_holds_bytes(gobj, client2);

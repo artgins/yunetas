@@ -524,6 +524,12 @@ still reported and fails the test.
     *"requester gone before its answer, answer dropped"* and no WARNING of
     case 49 (whose count stays 38). Before the fix the closed channel had no
     connection: the answer of an honest agent was a WARNING of a forger.
+53. An `EV_TTY_OPEN` for a client that left (its channel closed): the INFO
+    *"requester gone"*, and no mirror is recorded in the agent's channel.
+    The next client takes the channel, the agent's channel closes: that
+    client gets nothing, no `EV_DROP`. Up to the fix (and in 7.30.26) the
+    open recorded a mirror with no connection (0), and the agent's close
+    dropped whoever held the channel then.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

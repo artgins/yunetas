@@ -6468,8 +6468,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_requester || json_object_get(dropped, dst_service)) {
                 continue;
             }
-            if(mirror_connection && mirror_connection != connection_number(gobj_requester)) {
-                continue;   // its channel is another client's now
+            if(!mirror_connection || mirror_connection != connection_number(gobj_requester)) {
+                continue;   // its channel is another client's now, or it is no client's
             }
             json_object_set_new(dropped, dst_service, json_true());
             gobj_send_event(gobj_requester, EV_DROP, 0, gobj);
@@ -6617,6 +6617,15 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     if(!gobj_requester) {
         // Error already logged
         KW_DECREF(kw);
+        return 0;
+    }
+    if(!requester_is_listening(gobj, gobj_requester, event)) {
+        /*
+         *  Its client left: no mirror is recorded. Up to the fix one was,
+         *  with no connection, and the agent's close dropped whoever held
+         *  the channel then.
+         */
+        KW_DECREF(kw);  // Info already logged
         return 0;
     }
     if(!client_asked_agent(gobj, event, kw, gobj_requester)) {

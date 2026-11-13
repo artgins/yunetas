@@ -367,6 +367,7 @@ PRIVATE const char *expected_msgs[] = {
     "answer for a web client that is gone, dropped: its channel holds another connection now",
     "requester gone before its answer, answer dropped",     // 52: an honest agent, its client gone (EV_READ_FILE)
     "requester gone before its answer, answer dropped",     // 52: (EV_MT_COMMAND_ANSWER)
+    "requester gone before its answer, answer dropped",     // 53: an EV_TTY_OPEN for a client that left
     "answer of an agent for a web client that did not ask that agent, dropped",  // 49: 39 forged, said once
     "web client that does not take what is relayed to it, dropped",            // 50
     "web client that does not take what is relayed to it, dropped",            // 51: in bytes
