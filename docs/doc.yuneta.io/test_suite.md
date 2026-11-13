@@ -32,10 +32,14 @@ ctest -j8 -R "c_tcp|c_mqtt|tcps" --test-dir build
 `ctest -j` runs test binaries at the same time, so no two of them may use
 one fixed port (the second fails with *"bind() FAILED"*) or one fixed
 directory. Every test binary under `tests/c` and `performance/c` listens on
-ports of its own, and a new test takes new ones:
+ports of its own, and a new test takes new ones, **below 32768**: Linux gives
+the ports of its ephemeral range (32768-60999) to any socket that does not
+bind one, so a fixed port there can be held by a client of another test, or
+by a yuno running beside the suite, and the test fails to bind it by chance
+(`test_c_udp_s_tx` did, on 34282). The UDP tests use 24281-24301.
 
 ```bash
-python3 scripts/check_test_ports.py          # exit 1 when two binaries share a port, or a file cannot be read
+python3 scripts/check_test_ports.py          # exit 1 when two binaries share a port, a port is in the ephemeral range, or a file cannot be read
 python3 scripts/check_test_ports.py --list   # every port and the binary of it
 python3 scripts/check_test_ports.py --build-dir=X   # another build tree (default: build)
 ```

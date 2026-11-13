@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Changed
+
+- **llhttp 9.4.4** (vendored, `kernel/c/gobj-c/src/llhttp*`). No security
+  fix. The four vendored files were pristine 9.4.3, so 9.4.4 is a verbatim
+  drop-in: `api.c` and `http.c` are byte-identical, `llhttp.h` changes only
+  its version constant, and `llhttp.c` (the generated state machine) carries
+  one upstream change, nodejs/llhttp#882: in lenient header mode, after a
+  byte that only the lenient mode accepts, a header value goes back to the
+  ordinary (vectorized) scanner instead of finishing in a slower loop of its
+  own. Same input accepted and refused, with upstream regression coverage
+  (nodejs/llhttp#898). It reaches every yuno that parses HTTP:
+  `ghttp_parser.c` turns `llhttp_set_lenient_headers()` on. Upstream
+  measured it with clang and calls gcc "layout-sensitive", so the effect on
+  our gcc build is for the next release's study to say. The reclassification
+  of `QUERY` as a standard method (RFC 10008) changes no generated C
+  (`HTTP_QUERY` is still 46). `THIRD-PARTY-NOTICES` and
+  `LICENSE-llhttp.txt` name 9.4.4; the license is the same.
+
+### Tests
+
+- **No test binds a fixed port inside the ephemeral range.** Seven test
+  binaries (`c_udp_s_tx`, `c_udp_s_rx`, `c_udp_s_echo`, `c_udp_s_restart`,
+  `c_udp_s_self_stop`, `c_gss_udp_s_self_stop`, `c_tcp_s_addr_in_use`) used
+  34281-34301, inside Linux's 32768-60999: the kernel gives those ports to
+  any socket that does not bind one, so a client of another test, or a yuno
+  running beside the suite, could hold one, and the test failed to bind it
+  by chance (`test_c_udp_s_tx` on 34282, in the suite of 7.28.8). They move
+  to 24281-24301, and `scripts/check_test_ports.py` refuses a fixed port in
+  the range (exit 1, marked `EPHEMERAL` in its list).
+- **`test_c_udp_tx_refused` is killed at 20 s, not 10.** It runs ~6.6 s, but
+  its `C_TIMER` ticks with the yuno's `timeout_periodic` (100 ms), so each of
+  its ~55 steps of 100 ms takes 100 or 200 ms depending on where the tick
+  falls: under the load of the parallel suite a run took over 10 s and was
+  killed with its `C_UDP` still running (*"Destroying a RUNNING gobj"*).
+  Reproduced with 16 copies at once on a busy machine (1 of 16 killed);
+  48 of 48 pass with the new limit, the slowest in 10.9 s.
+
 ## v7.31.0 (2026-11-13)
 
 7.31.0 closes the cycle of 7.30.1 to 7.30.26 and of 18 rounds of review:

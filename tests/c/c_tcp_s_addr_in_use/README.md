@@ -46,7 +46,7 @@ a child process, whose exit code and output the parent reads:
 | `C_TCP_S`, its port (7784) held, `listen_retry_msec` 0 | *"Exiting"*, code 255 (`-1`) |
 | `C_TCP_S`, a TLS url (7792) whose certificate is not there | *"TLS server without its TLS context: exiting"*, code 0 |
 | `C_TCP_S`, a url of port 0, `exitOnError` 7 | *"Cannot Listen on port 0"*, code 7 |
-| `C_UDP_S`, its port (34301) held | *"exiting with code 0 (exitOnError)"*, code 0 |
+| `C_UDP_S`, its port (24301) held | *"exiting with code 0 (exitOnError)"*, code 0 |
 | `C_QIOGATE`, its queue under a regular file | *"Queue cannot be opened: exiting"*, code 255 |
 
 7.30.18 degraded every yuno and ignored `exitOnError`: red, each yuno reached

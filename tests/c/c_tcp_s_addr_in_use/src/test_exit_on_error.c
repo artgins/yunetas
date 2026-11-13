@@ -58,7 +58,7 @@
 
 #define TCP_HELD_PORT   7784
 #define TLS_PORT        7792
-#define UDP_HELD_PORT   34301
+#define UDP_HELD_PORT   24301
 #define QUEUES_PATH     "/tmp/test_exit_on_error"
 
 #define NOT_EXITED      3       // the code of a yuno that reached its end: it did not exit
@@ -137,7 +137,7 @@ PRIVATE char config_tcp_port0[] = VARIABLE_CONFIG_HEAD "\
 PRIVATE char config_udp_held[] = VARIABLE_CONFIG_HEAD "\
             'gclass': 'C_UDP_S',                                    \n\
             'kw': {                                                 \n\
-                'url': 'udp://127.0.0.1:34301'                      \n\
+                'url': 'udp://127.0.0.1:24301'                      \n\
             }                                                       \n\
 " VARIABLE_CONFIG_TAIL;
 

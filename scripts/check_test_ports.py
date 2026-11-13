@@ -11,7 +11,12 @@ The files of ONE binary may share a port: `main_<name>.c` with its
 `c_<name>.c` / `c_<name>.h`, and the files under `<test>/src/`. Anything else
 sharing a port is a collision.
 
-    python3 scripts/check_test_ports.py            # exit 1 on a collision, or a file not read
+A fixed port inside Linux's ephemeral range (32768-60999) is refused too:
+the kernel gives those ports to any socket of the machine that does not bind
+one (a client of another test, a yuno running beside the suite), and the
+test then fails to bind it by chance.
+
+    python3 scripts/check_test_ports.py            # exit 1 on a collision, an ephemeral port, or a file not read
     python3 scripts/check_test_ports.py --list     # every port and its tests
 
 A port built at compile time is read from the `target_compile_definitions()`
@@ -51,6 +56,10 @@ UNSHARE_LONG_ARG_OPTS = {
     '--root', '--wd', '--load-interp', '--monotonic', '--boottime',
 }
 EXTENSIONS = ('.c', '.h', '.json', '.py', '.sh')
+# Linux's default ip_local_port_range: the kernel gives these ports to any
+# socket that does not bind one, so a fixed port in it can be taken
+EPHEMERAL_FIRST = 32768
+EPHEMERAL_LAST = 60999
 PATTERNS = [
     re.compile(r'[a-z]+s?://[^\s\'"/]*?:(\d{3,5})\b'),
     re.compile(r'#define\s+\w*PORT\w*\s+"?(\d{3,5})"?'),
@@ -250,21 +259,32 @@ def main():
                             ports[port][binary_of(rel)].add(rel)
 
     collisions = 0
+    ephemeral = 0
     for port in sorted(ports):
         binaries = ports[port]
-        if '--list' in sys.argv or len(binaries) > 1:
-            mark = 'COLLISION' if len(binaries) > 1 else ''
-            print(f'{port} {mark}'.rstrip())
+        in_range = EPHEMERAL_FIRST <= port <= EPHEMERAL_LAST
+        if '--list' in sys.argv or len(binaries) > 1 or in_range:
+            marks = []
+            if len(binaries) > 1:
+                marks.append('COLLISION')
+            if in_range:
+                marks.append('EPHEMERAL')
+            print(f'{port} {" ".join(marks)}'.rstrip())
             for b in sorted(binaries):
                 print(f'    {b}: {" ".join(sorted(binaries[b]))}')
         if len(binaries) > 1:
             collisions += 1
+        if in_range:
+            ephemeral += 1
 
     if collisions:
         print(f'{collisions} port(s) used by more than one test binary')
+    if ephemeral:
+        print(f'{ephemeral} port(s) inside the ephemeral range '
+              f'{EPHEMERAL_FIRST}-{EPHEMERAL_LAST}: move them below {EPHEMERAL_FIRST}')
     if unreadable:
         print(f'{unreadable} file(s) could not be read: their ports are not checked')
-    if collisions or unreadable:
+    if collisions or ephemeral or unreadable:
         return 1
     return 0
 

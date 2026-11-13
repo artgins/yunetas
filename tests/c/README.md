@@ -2,10 +2,10 @@
 
 Unit and integration tests for the C kernel. Each sub-directory tests a specific GClass or subsystem and is built as a standalone CTest target.
 
-**A new test is run in parallel with the others** (`yunetas test` runs `ctest -j<cores>`). It takes ports no other test uses, and a directory under `~/tests_yuneta` (or `/tmp`) of its own; when it shares one with another test, both declare the same `RESOURCE_LOCK` in their `CMakeLists.txt`. It links the SDK archives by full path (`${YUNETAS_KERNEL_LIBS}`, or `${LIB_DEST_DIR}/libfoo.a`), never a bare `libfoo.a`, or it is not relinked when the library changes. Three scripts check it:
+**A new test is run in parallel with the others** (`yunetas test` runs `ctest -j<cores>`). It takes ports no other test uses, below 32768 (the ephemeral range, 32768-60999, is the kernel's to give to any socket), and a directory under `~/tests_yuneta` (or `/tmp`) of its own; when it shares one with another test, both declare the same `RESOURCE_LOCK` in their `CMakeLists.txt`. It links the SDK archives by full path (`${YUNETAS_KERNEL_LIBS}`, or `${LIB_DEST_DIR}/libfoo.a`), never a bare `libfoo.a`, or it is not relinked when the library changes. Three scripts check it:
 
 ```bash
-python3 scripts/check_test_ports.py       # two tests on one port
+python3 scripts/check_test_ports.py       # two tests on one port, or a port in 32768-60999
 python3 scripts/check_test_databases.py   # two tests that can use one directory at once (needs a built build/)
 python3 scripts/check_test_links.py       # an archive named bare
 ```

@@ -4,7 +4,7 @@ Tests `C_GSS_UDP_S` (`kernel/c/root-linux/src/c_gss_udp_s.c`) when its
 `C_UDP_S` stops by itself.
 
 A driver gclass (`C_TEST_GSS_SELF_STOP`) creates a `C_GSS_UDP_S` child on
-`udp://127.0.0.1:34296` (`timeout_base` 1 s, `disable_end_of_frame`, so each
+`udp://127.0.0.1:24296` (`timeout_base` 1 s, `disable_end_of_frame`, so each
 datagram comes in the gbuffer `C_UDP_S` read it into, and `"exitOnError": 0`,
 passed to its `C_UDP_S`: a listen that fails does not end the yuno) and a
 plain UDP socket, the peer:

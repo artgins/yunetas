@@ -80,17 +80,17 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define GSS_PORT        34285
-#define GSS_URL         "udp://127.0.0.1:34285"
-#define ALLOW_PORT      34286
-#define ALLOW_URL       "udp://127.0.0.1:34286"
+#define GSS_PORT        24285
+#define GSS_URL         "udp://127.0.0.1:24285"
+#define ALLOW_PORT      24286
+#define ALLOW_URL       "udp://127.0.0.1:24286"
 
 #define IP_DENIED       "127.0.1.5"
 #define IP_ALLOWED      "127.0.1.6"
 #define IP_BOTH         "127.0.1.8"     // allowed and denied: denied wins
 
-#define CAPS_PORT       34290
-#define CAPS_URL        "udp://127.0.0.1:34290"
+#define CAPS_PORT       24290
+#define CAPS_URL        "udp://127.0.0.1:24290"
 #define CAPS_PEERS      5
 #define CAPS_FRAMES     "xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa B x aaaaaaaaa"
 

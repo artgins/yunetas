@@ -55,14 +55,14 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define UDP_S_PORT  34293
-#define UDP_S_URL   "udp://127.0.0.1:34293"
-#define UDPS_PORT   34294
-#define UDPS_URL    "udps://127.0.0.1:34294"
-#define PEER_PORT   34295
-#define HELD_PORT   34299
-#define HELD_URL    "udp://127.0.0.1:34299"
-#define DEAF_URL    "udp://127.0.0.1:34300"
+#define UDP_S_PORT  24293
+#define UDP_S_URL   "udp://127.0.0.1:24293"
+#define UDPS_PORT   24294
+#define UDPS_URL    "udps://127.0.0.1:24294"
+#define PEER_PORT   24295
+#define HELD_PORT   24299
+#define HELD_URL    "udp://127.0.0.1:24299"
+#define DEAF_URL    "udp://127.0.0.1:24300"
 
 /***************************************************************************
  *              Structures

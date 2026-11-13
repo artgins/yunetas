@@ -166,7 +166,12 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(10);    // a stop that waits for ever must not hang the suite
+    /*
+     *  A stop that waits for ever must not hang the suite. The run is
+     *  ~6.6 s, but its C_TIMER ticks with the yuno's timeout_periodic
+     *  (100 ms): each 100 ms step can take 200 ms, ~13 s at worst
+     */
+    set_auto_kill_time(20);
 
     /*------------------------------------------------*
      *          Start yuneta

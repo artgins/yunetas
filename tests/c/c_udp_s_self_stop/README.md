@@ -14,10 +14,10 @@ plain UDP socket, the peer:
    started again, the server stops listening"*), stop, and -- the answer still
    in flight -- reach `ST_STOPPED` and publish `EV_STOPPED` when the answer
    completes. The peer must get `deaf`.
-2. A `C_UDP_S` with `udps://127.0.0.1:34294` is started: the start must fail
+2. A `C_UDP_S` with `udps://127.0.0.1:24294` is started: the start must fail
    with *"A secure url (udps://) is not supported by C_UDP_S: there is no
    DTLS"*, and nothing may listen on the port.
-3. A `C_UDP_S` whose port (`127.0.0.1:34299`) is held by a socket with no
+3. A `C_UDP_S` whose port (`127.0.0.1:24299`) is held by a socket with no
    `SO_REUSEADDR` is started: ONE ERROR, *"yev_create_accept_event()
    FAILED"* (`errno` 98), `listening` false. Its first try (1 s later)
    fails too and says nothing more (only the `bind()` WARNING); the port is

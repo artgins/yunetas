@@ -478,7 +478,7 @@ listens by itself, and the count comes with the first send it takes then:
 {"msg": "yev_create_accept_event() FAILED"}
 {"msg": "Listening again after a failed listen"}
 {"msg": "UDP server listening again, sends refused while it was not",
- "url": "udp://127.0.0.1:34296", "tx_dropped": 2}
+ "url": "udp://127.0.0.1:24296", "tx_dropped": 2}
 ```
 
 Up to 7.30.19 that count was said by nobody: it went into the count of the
