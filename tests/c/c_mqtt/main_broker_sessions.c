@@ -212,14 +212,15 @@ static int register_yuno_and_more(void)
      *------------------------------*/
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "No authz db, authz only to local access",   // C_AUTHZ of the test, without a db
             "msg", "Command unknown or not implemented",        // 5. A's 0xF0
             "msg", "Mqtt: QoS 2 PUBLISH past max_inflight_messages (Receive Maximum), disconnecting", // 6.
             "msg", "Command unknown or not implemented",        // 7. A's 0xF0
             "msg", "Command unknown or not implemented",        // 8. A's 0xF0
             "msg", "Command unknown or not implemented",        // 12. A's 0xF0
-            "msg", "Client keepalive timeout, closing connection" // 14. A after its DISCONNECT
+            "msg", "Client did not close after its DISCONNECT, closed by the server", // 13.
+            "msg", "Client did not close after its DISCONNECT, closed by the server"  // 14.
         ),
         NULL,           // no JSON comparison
         NULL,           // no ignore_keys

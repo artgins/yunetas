@@ -31,9 +31,10 @@
  *                 after EV_ON_OPEN, and the message went to the NULL queue
  *                 (SIGSEGV).
  *              7. The "broker" announces a PUBLISH of 300000 bytes: refused
- *                 at its header (WARNING, DISCONNECT 0x82), before a byte
- *                 of it is kept. Up to 7.30.26 a client kept whatever its
- *                 broker announced, up to 256 MB.
+ *                 at its header (WARNING, DISCONNECT 0x95 Packet too
+ *                 large; 0x82 up to 7.31.1), before a byte of it is kept.
+ *                 Up to 7.30.26 a client kept whatever its broker
+ *                 announced, up to 256 MB.
  *          A hostile "broker", each step a connection of its own:
  *              8. With queues, a second CONNACK in session: a protocol
  *                 error (WARNING, DISCONNECT 0x82). Up to 7.30.26 the
@@ -635,7 +636,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 broker_sends(gobj, big_header, sizeof(big_header));
                 gobj_send_event(priv->prot, EV_DISCONNECTED, 0, priv->fake);   // the broker closes
                 expect(gobj, "7. a PUBLISH past max_packet_size", (const char *[]){
-                    "DISCONNECT 130",
+                    "DISCONNECT 149",   // 0x95 Packet too large; 0x82 up to 7.31.1
                     "CLOSE",
                     NULL
                 });

@@ -38,6 +38,8 @@ PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
 PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
 PRIVATE int sub__remove_client(hgobj gobj, const char *client_id);
+PRIVATE int subs__restore(hgobj gobj);
+PRIVATE BOOL session_subscription_set(json_t *session, const char *topic_filter, json_t *jn_entry);
 PRIVATE int will__send(hgobj gobj, json_t *session);
 PRIVATE BOOL mqtt_acl_check(hgobj gobj, const char *client_id, const char *topic, const char *access);
 PRIVATE int will__clear(hgobj gobj, json_t *session);
@@ -192,6 +194,7 @@ typedef struct _PRIVATE_DATA {
 
     json_t *normal_subs;
     json_t *shared_subs;
+    json_t *shared_rr;      // {<share name>: the turn of the group, round robin}
     json_t *deny_subscribes;
 
     char treedb_mqtt_broker_name[80];
@@ -236,6 +239,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->normal_subs = json_object();
     priv->shared_subs = json_object();
+    priv->shared_rr = json_object();
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -270,6 +274,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->normal_subs)
     JSON_DECREF(priv->shared_subs)
+    JSON_DECREF(priv->shared_rr)
 }
 
 /***************************************************************************
@@ -1214,6 +1219,12 @@ PRIVATE int open_database(hgobj gobj)
     // Get timeranger of treedb_mqtt_broker, it'll be used for alarms too
     priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
 
+    /*
+     *  The subscriptions of the persistent sessions: they live in the trees
+     *  only while the broker runs
+     */
+    subs__restore(gobj);
+
     /*---------------------------------------*
      *      Open Msg2db (ALARMS)
      *---------------------------------------*/
@@ -1790,6 +1801,34 @@ PRIVATE void search_recursive( // sub__search
 }
 
 /***************************************************************************
+ *  The topic tree of a shared subscription group: shared_subs is
+ *  {<share name>: <tree like normal_subs>}, so each group of a filter gets
+ *  its copy of a message [MQTT 5 4.8.2]. The share name comes from the
+ *  client: a key, never a path. Up to 7.31.1 the share name was not kept,
+ *  and every group of a filter was one: only one of them received
+ ***************************************************************************/
+PRIVATE json_t *shared_group_tree(hgobj gobj, const char *sharename, BOOL create)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *tree = json_object_get(priv->shared_subs, sharename);
+    if(!tree && create) {
+        tree = json_object();
+        if(!tree || json_object_set_new(priv->shared_subs, sharename, tree) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "Failed to create the tree of a share group",
+                "sharename",    "%s", sharename,
+                NULL
+            );
+            return NULL;
+        }
+    }
+    return tree;
+}
+
+/***************************************************************************
  *  sub__add - Add a subscription to the tree
  *  Parameters:
  *      gobj                    - GObj instance (for PRIVATE_DATA access)
@@ -1841,7 +1880,7 @@ PRIVATE void search_recursive( // sub__search
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                            MQTT BROKER                                  │
 │                                                                         │
-│  Subscription Tree (shared_subs):                                       │
+│  shared_subs: one tree per share group, the group first:                │
 │    "sensors" ──► "home" ──► "+" ──► "temperature"                       │
 │                                         │                               │
 │                                         └──► @subs: {client_A, client_B}│
@@ -1916,7 +1955,13 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
      *------------------------------------------*/
     json_t *root;
     if(sharename) {
-        root = priv->shared_subs;
+        root = shared_group_tree(gobj, sharename, TRUE);
+        if(!root) {
+            // Error already logged
+            GBMEM_FREE(local_topic)
+            GBMEM_FREE(levels)
+            return -1;
+        }
     } else {
         root = priv->normal_subs;
     }
@@ -2170,7 +2215,11 @@ PRIVATE int sub__remove(
      *  Select root based on subscription type
      *------------------------------------------*/
     if(sharename) {
-        root = priv->shared_subs;
+        root = shared_group_tree(gobj, sharename, FALSE);
+        if(!root) {
+            *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
+            goto cleanup;
+        }
     } else {
         root = priv->normal_subs;
     }
@@ -2215,11 +2264,125 @@ PRIVATE int sub__remove(
      *  Prune empty branches
      *-------------------------*/
     prune_empty_branches(root, levels);
+    if(sharename && json_object_size(root) == 0) {
+        json_object_del(priv->shared_subs, sharename);  // the group's last subscription
+        json_object_del(priv->shared_rr, sharename);
+    }
 
 cleanup:
     GBMEM_FREE(local_topic)
     GBMEM_FREE(levels)
     return 0;
+}
+
+/***************************************************************************
+ *  A temporary session (MQTT 5: Session Expiry 0; 3.1.1: clean session) is
+ *  deleted at its close: nothing of it outlives the connection
+ ***************************************************************************/
+PRIVATE BOOL session_is_temporary(hgobj gobj, json_t *session)
+{
+    int protocol_version = (int)kw_get_int(gobj, session, "protocol_version", 0, 0);
+    if(protocol_version == mqtt_p_mqtt5) {
+        return kw_get_int(gobj, session, "session_expiry_interval", 0, 0) == 0;
+    }
+    return kw_get_bool(gobj, session, "clean_start", TRUE, 0);
+}
+
+/***************************************************************************
+ *  The subscriptions of a session are kept in its record, `subscriptions`:
+ *  one entry per topic filter, {topic_filter, qos, identifier, options}.
+ *  A session present after a restart of the broker is its subscriptions
+ *  too [MQTT-3.2.2-2]: subs__restore() rebuilds the trees from them when the
+ *  database opens. Up to 7.31.1 the column existed and nothing wrote it.
+ *
+ *  Set (jn_entry given, owned) or remove (NULL) the entry of a topic filter
+ *  in the session (not owned). Return TRUE when the session changed.
+ ***************************************************************************/
+PRIVATE BOOL session_subscription_set(json_t *session, const char *topic_filter, json_t *jn_entry)
+{
+    json_t *subscriptions = json_object_get(session, "subscriptions");
+    if(!json_is_array(subscriptions)) {
+        if(!jn_entry) {
+            return FALSE;
+        }
+        subscriptions = json_array();
+        json_object_set_new(session, "subscriptions", subscriptions);
+    }
+
+    size_t idx; json_t *jn_sub;
+    json_array_foreach(subscriptions, idx, jn_sub) {
+        const char *tf = json_string_value(json_object_get(jn_sub, "topic_filter"));
+        if(tf && strcmp(tf, topic_filter) == 0) {
+            if(jn_entry) {
+                json_array_set_new(subscriptions, idx, jn_entry);
+            } else {
+                json_array_remove(subscriptions, idx);
+            }
+            return TRUE;
+        }
+    }
+    if(jn_entry) {
+        json_array_append_new(subscriptions, jn_entry);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Rebuild the subscription trees from the persistent sessions, when the
+ *  database opens. A temporary session (MQTT 5: Session Expiry 0; 3.1.1:
+ *  clean session) left by a crash gets none: it is not resumed.
+ ***************************************************************************/
+PRIVATE int subs__restore(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int restored = 0;
+
+    json_t *sessions = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        NULL,
+        NULL,
+        gobj
+    );
+
+    int idx; json_t *session;
+    json_array_foreach(sessions, idx, session) {
+        if(session_is_temporary(gobj, session)) {
+            continue;
+        }
+        const char *client_id = kw_get_str(gobj, session, "id", "", 0);
+        json_t *subscriptions = json_object_get(session, "subscriptions");
+        size_t i; json_t *jn_sub;
+        json_array_foreach(subscriptions, i, jn_sub) {
+            const char *topic_filter = json_string_value(json_object_get(jn_sub, "topic_filter"));
+            if(empty_string(topic_filter)) {
+                continue;
+            }
+            if(sub__add(
+                gobj,
+                topic_filter,
+                client_id,
+                (int)json_integer_value(json_object_get(jn_sub, "qos")),
+                (int)json_integer_value(json_object_get(jn_sub, "identifier")),
+                (int)json_integer_value(json_object_get(jn_sub, "options"))
+            ) >= 0) {
+                restored++;
+            }
+        }
+    }
+    JSON_DECREF(sessions)
+
+    if(restored) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Subscriptions of the persistent sessions restored",
+            "subscriptions","%d", restored,
+            NULL
+        );
+    }
+    return restored;
 }
 
 /***************************************************************************
@@ -2292,9 +2455,16 @@ PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
     sub__remove_client_recursive(priv->normal_subs, client_id, &count);
 
     /*
-     *  Remove from shared_subs
+     *  Remove from the tree of each share group, and the groups left empty
      */
-    sub__remove_client_recursive(priv->shared_subs, client_id, &count);
+    const char *sharename; json_t *tree; void *tmp;
+    json_object_foreach_safe(priv->shared_subs, tmp, sharename, tree) {
+        sub__remove_client_recursive(tree, client_id, &count);
+        if(json_object_size(tree) == 0) {
+            json_object_del(priv->shared_subs, sharename);
+            json_object_del(priv->shared_rr, sharename);
+        }
+    }
 
     return count;
 }
@@ -2941,6 +3111,9 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
     int will_qos = (int)kw_get_int(gobj, session, "will_qos", 0, 0);
     BOOL will_retain = kw_get_bool(gobj, session, "will_retain", FALSE, 0);
     json_t *will_properties = kw_get_dict(gobj, session, "will_properties", 0, 0);
+    uint32_t will_expiry_interval = (uint32_t)kw_get_int(
+        gobj, session, "will_expiry_interval", 0, 0
+    );
 
     /*
      *  Deserialize the will payload
@@ -2977,7 +3150,7 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         will_retain,
         FALSE,                          // dup
         json_incref(will_properties),   // owned
-        0,                              // expiry_interval
+        will_expiry_interval,           // [MQTT 5 3.1.3.2.4] its Publication Expiry Interval
         mqtt_time()
     );
 
@@ -3029,6 +3202,7 @@ PRIVATE int will__clear(hgobj gobj, json_t *session)
     json_object_set_new(session, "will_qos", json_integer(0));
     json_object_set_new(session, "will_retain", json_false());
     json_object_set_new(session, "will_delay_interval", json_integer(0));
+    json_object_set_new(session, "will_expiry_interval", json_integer(0));
     json_object_set_new(session, "will_properties", json_object());
     json_object_set_new(session, "will_delay_time", json_integer(0));
 
@@ -3634,29 +3808,61 @@ PRIVATE size_t sub__messages_queue(
     }
 
     /*----------------------------------------------------------------------*
-     *  Search in shared_subs (shared subscriptions)
-     *  Note: For shared subs, only one client per group receives the message
+     *  Search in shared_subs (shared subscriptions): each share group of a
+     *  matching filter gets the message, delivered to ONE of its members
+     *  [MQTT 5 4.8.2], in turn (round robin, as Mosquitto): the member whose
+     *  turn it is, or the next one that takes it
      *----------------------------------------------------------------------*/
-    json_t *shared_subscribers = json_object();
-
-    if(topic[0] == '$') {
-        json_t *dollar_branch = json_object_get(priv->shared_subs, levels[0]);
-        if(dollar_branch) {
-            search_recursive(gobj, dollar_branch, levels, 1, shared_subscribers);
+    const char *group; json_t *group_tree;
+    json_object_foreach(priv->shared_subs, group, group_tree) {
+        json_t *shared_subscribers = json_object();
+        if(topic[0] == '$') {
+            json_t *dollar_branch = json_object_get(group_tree, levels[0]);
+            if(dollar_branch) {
+                search_recursive(gobj, dollar_branch, levels, 1, shared_subscribers);
+            }
+        } else {
+            search_recursive(gobj, group_tree, levels, 1, shared_subscribers);
         }
-    } else {
-        search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
-    }
 
-    json_object_foreach(shared_subscribers, client_id, sub) {
-        if(subs__send(gobj, client_id, sub, kw_mqtt_msg)==0) {
-            total_sent++;
-            break; // shared subs, only one sent (always the first, sorry)
+        size_t n = json_object_size(shared_subscribers);
+        if(n > 0) {
+            json_int_t turn = json_integer_value(json_object_get(priv->shared_rr, group));
+            size_t first = (size_t)(turn % (json_int_t)n);
+            for(size_t k = 0; k < n; k++) {
+                size_t pos = (first + k) % n;
+                const char *member = NULL;
+                json_t *member_sub = NULL;
+                size_t i = 0;
+                json_object_foreach(shared_subscribers, client_id, sub) {
+                    if(i++ == pos) {
+                        member = client_id;
+                        member_sub = sub;
+                        break;
+                    }
+                }
+                if(!member) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL,
+                        "msg",          "%s", "Shared subscriber not found at its turn",
+                        "group",        "%s", group,
+                        "pos",          "%d", (int)pos,
+                        NULL
+                    );
+                    continue;
+                }
+                if(subs__send(gobj, member, member_sub, kw_mqtt_msg)==0) {
+                    total_sent++;
+                    json_object_set_new(priv->shared_rr, group, json_integer((json_int_t)(pos + 1)));
+                    break; // one member of the group
+                }
+            }
         }
+        JSON_DECREF(shared_subscribers)
     }
 
     JSON_DECREF(normal_subscribers)
-    JSON_DECREF(shared_subscribers)
 
     if(retain) {
         retain__store(gobj, topic, kw_mqtt_msg);
@@ -4064,6 +4270,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         json_object_set_new(kw, "will_qos", json_integer(0));
         json_object_set_new(kw, "will_retain", json_false());
         json_object_set_new(kw, "will_delay_interval", json_integer(0));
+        json_object_set_new(kw, "will_expiry_interval", json_integer(0));
         json_object_set_new(kw, "will_properties", json_object());
     }
 
@@ -4099,6 +4306,25 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             0,
             KW_REQUIRED
         );
+
+        if(prev_gobj_channel) {
+            /*
+             *  The previous connection is still open, after its DISCONNECT
+             *  maybe: what that DISCONNECT said is in its channel, and reaches
+             *  the session record only at its close (ac_on_close()). A client
+             *  that reconnects at once finds it applied: its Session Expiry
+             *  (MQTT 5), and its will discarded when it was a normal one.
+             *  Up to 7.31.1 it found the session it had just expired
+             */
+            if(prev_protocol_version == mqtt_p_mqtt5) {
+                prev_session_expiry_interval = (uint32_t)gobj_read_integer_attr(
+                    prev_gobj_channel, "session_expiry_interval"
+                );
+            }
+            if(!gobj_read_bool_attr(prev_gobj_channel, "will")) {
+                will__clear(gobj, session);
+            }
+        }
 
         if((prev_protocol_version == mqtt_p_mqtt5 && prev_session_expiry_interval == 0) ||
             (prev_protocol_version != mqtt_p_mqtt5 && prev_clean_start == TRUE) ||
@@ -4428,6 +4654,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         session_is_temporary = clean_start;
     }
 
+    /*
+     *  A normal DISCONNECT discards the will [MQTT-3.1.2-10], [MQTT 5 3.14.4]: the
+     *  protocol cleared the `will` of the connection, the session keeps it until
+     *  here. Up to 7.31.1 the will of the session was published all the same
+     */
+    BOOL will_wanted = gobj_read_bool_attr(gobj_channel, "will");
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
         trace_machine2("🔴 session '%s', clean %d", client_id, session_is_temporary); // ♥🔵🔴💙🔷🔶🔀💾
     }
@@ -4440,10 +4673,11 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*
          *  Non-persistent session: send will before deleting session
          *
-         *  The will is sent on unexpected disconnect. For clean disconnect,
-         *  the protocol layer should have already cleared the will topic.
+         *  The will is sent on unexpected disconnect, and on DISCONNECT 0x04
          */
-        will__send(gobj, session);
+        if(will_wanted) {
+            will__send(gobj, session);
+        }
 
         /*
          *  Delete not persistent session
@@ -4495,12 +4729,14 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*
          *  Persistent session: process will based on will_delay_interval
          *
-         *  The will is sent on unexpected disconnect. For clean disconnect,
-         *  the protocol layer should have already cleared the will topic.
+         *  The will is sent on unexpected disconnect, and on DISCONNECT 0x04.
          *
          *  If will_delay_interval > 0 (MQTT 5.0), the will is delayed.
          *  will_delay__check() will send it later if the client doesn't reconnect.
          */
+        if(!will_wanted) {
+            will__clear(gobj, session);
+        }
         will__process_disconnect(gobj, session, TRUE);
 
         if(gobj_channel == prev_gobj_channel) {
@@ -4568,6 +4804,17 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw, "gbuffer", 0, KW_REQUIRED
     );
+    json_t *session = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(session && session_is_temporary(gobj, session)) {
+        JSON_DECREF(session)    // its subscriptions die with it: not saved
+    }
+    BOOL session_changed = FALSE;
 
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
@@ -4638,8 +4885,17 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
                 subscription_options
             );
             if(rc<0) {
+                JSON_DECREF(session)
                 KW_DECREF(kw);
                 return -1;
+            }
+            if(session && session_subscription_set(session, sub, json_pack("{s:s, s:i, s:i, s:i}",
+                    "topic_filter", sub,
+                    "qos", qos,
+                    "identifier", subscription_identifier,
+                    "options", subscription_options
+                ))) {
+                session_changed = TRUE;
             }
 
             if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
@@ -4662,6 +4918,17 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
          */
         gbuffer_append_char(gbuf_payload, reason);
     }
+
+    if(session_changed) {
+        json_decref(gobj_update_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_incref(session),  // owned
+            json_pack("{}"),
+            gobj
+        ));
+    }
+    JSON_DECREF(session)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, priv->normal_subs, "subs-normal");
@@ -4714,6 +4981,17 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     json_t *jn_list = kw_get_list(gobj, kw, "subs", NULL, KW_REQUIRED);
     gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+    json_t *session = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(session && session_is_temporary(gobj, session)) {
+        JSON_DECREF(session)    // its subscriptions die with it: not saved
+    }
+    BOOL session_changed = FALSE;
 
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
@@ -4733,8 +5011,12 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
             if(sub__remove(gobj, sub, client_id, &reason)<0) {
                 // Error already logged
+                JSON_DECREF(session)
                 KW_DECREF(kw);
                 return -1;
+            }
+            if(session && session_subscription_set(session, sub, NULL)) {
+                session_changed = TRUE;
             }
         }
 
@@ -4743,6 +5025,17 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgob
          */
         gbuffer_append_char(gbuf_payload, reason);
     }
+
+    if(session_changed) {
+        json_decref(gobj_update_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_incref(session),  // owned
+            json_pack("{}"),
+            gobj
+        ));
+    }
+    JSON_DECREF(session)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, priv->normal_subs, "subs-normal");

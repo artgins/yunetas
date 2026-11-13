@@ -3,7 +3,7 @@
     This file holds this comment and the literal, nothing else: replace
     it whole with an export of the schema editor.
 
-    treedb_mqtt_broker  (schema_version 26)
+    treedb_mqtt_broker  (schema_version 27)
 
     {}  dict hook   (N unique children)
     []  list hook   (n not-unique children)
@@ -88,6 +88,7 @@
             │  will_qos                 │       │
             │  will_retain              │       │
             │  will_delay_interval      │       │
+            │  will_expiry_interval     │       │
             │  will_properties          │       │
             │  will_delay_time          │       │
             │  _geometry                │       │
@@ -121,7 +122,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '26',                                         \n\
+    'schema_version': '27',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -536,7 +537,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'sessions',                                       \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '8',                                   \n\
+            'topic_version': '9',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -626,7 +627,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ],                                              \n\
-                    'description': 'Array of subscription objects: {topic_filter, qos, no_local, retain_as_published, retain_handling, identifier}' \n\
+                    'description': 'Subscriptions of a persistent session, one per topic filter: {topic_filter, qos, identifier, options}' \n\
                 },                                                  \n\
                 'last_mid': {                                       \n\
                     'header': 'Last Mid',                           \n\
@@ -675,6 +676,15 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'will_delay_interval': {                            \n\
                     'header': 'Will Delay',                         \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'will_expiry_interval': {                           \n\
+                    'header': 'Will Expiry',                        \n\
                     'fillspace': 10,                                \n\
                     'type': 'integer',                              \n\
                     'default': 0,                                   \n\

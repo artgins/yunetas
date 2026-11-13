@@ -54,6 +54,9 @@
 
 #define MQTT_MAX_PAYLOAD 268435455U
 
+#define FRAMEHEAD_PACKET_TOO_LARGE (-2)  // framehead_consume(): over max_packet_size, DISCONNECT 0x95
+#define MAX_CONNECT_SIZE (64*1024)  // a CONNECT (not yet authenticated) when max_packet_size is 0
+
 /* Error values */
 typedef enum mqtt_err_s {
     MQTT_ERR_SUCCESS = 0,
@@ -256,7 +259,7 @@ SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR,       "1000",   "The maxim
 
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads. A client refuses a larger packet of its broker too, before its bytes are kept, and announces the limit in its MQTT 5 CONNECT."),
+SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads. A client refuses a larger packet of its broker too, before its bytes are kept, and announces the limit in its MQTT 5 CONNECT. The size is the whole packet (fixed header, Remaining Length field and the rest); over it an MQTT 5 peer gets DISCONNECT 0x95. With no limit (0) a CONNECT is still refused over 64 KB: it comes before the peer is authenticated."),
 
 SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
 
@@ -968,6 +971,21 @@ PRIVATE int message__out_update(
 }
 
 /***************************************************************************
+ *  The packet id of an output message: taken from its rowid in the queue of
+ *  the client, so it is the same at every send, after a reconnect and after a
+ *  restart of the broker [MQTT-4.4.0-1] (resend "using their original Packet
+ *  Identifiers"), with nothing to save. Unique while fewer than 65535 messages
+ *  are in flight; the outgoing packet ids of a server number only its QoS 1/2
+ *  PUBLISHes. Up to 7.31.1 a new one was generated at each send, and a
+ *  redelivery after a reconnect came with another id
+ ***************************************************************************/
+PRIVATE uint16_t out_msg_mid(q2_msg_t *qmsg)
+{
+    qmsg->mid = (uint16_t)(((uint64_t)(qmsg->rowid - 1) % 65535) + 1);
+    return qmsg->mid;
+}
+
+/***************************************************************************
  *  Send the output messages in flight that were not sent (and, with
  *  `redeliver`, send again the unacknowledged ones). Return how many were
  *  discarded because they expired before they were sent.
@@ -987,8 +1005,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
             /*
              *  Assign mid and update state
              */
-            uint16_t mid = mqtt_mid_generate(gobj);
-            qmsg->mid = mid;
+            uint16_t mid = out_msg_mid(qmsg);
 
             /*
              *  Get message content and send PUBLISH
@@ -1037,7 +1054,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
             /*
              *  What is first? send the message or save his state in disk
              */
-            if(send__publish(
+            int ret = send__publish(
                 gobj,
                 mid,
                 topic,
@@ -1047,7 +1064,13 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
                 dup,
                 properties, // not owned
                 expiry_interval
-            ) == 0) {
+            );
+            if(ret == MQTT_ERR_OVERSIZE_PACKET) {
+                // Error already logged. Out of the queue: tried again it took a new mid each time
+                tr2q_unload_msg(qmsg, 0);
+                continue;
+            }
+            if(ret == 0) {
                 // Message sent, save state
                 mqtt_msg_state_t new_state;
                 if(qos == 1) {
@@ -1061,11 +1084,10 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
 
         } else if(redeliver && (state == mqtt_ms_wait_for_puback || state == mqtt_ms_wait_for_pubrec)) {
             /*
-             *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect
-             *  Assign new mid (original was not persisted) and resend with DUP=1
+             *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect,
+             *  with its original packet id and DUP=1
              */
-            uint16_t mid = mqtt_mid_generate(gobj);
-            qmsg->mid = mid;
+            uint16_t mid = out_msg_mid(qmsg);
 
             json_t *kw_msg = tr2q_msg_json(qmsg);
             if(!kw_msg) {
@@ -1104,7 +1126,7 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
                 expiry_interval = expiry_interval - (uint32_t)elapsed;
             }
 
-            send__publish(
+            if(send__publish(
                 gobj,
                 mid,
                 topic,
@@ -1114,17 +1136,18 @@ PRIVATE int send_out_inflight(hgobj gobj, BOOL redeliver)
                 TRUE,       // DUP=1 for redelivery
                 properties, // not owned
                 expiry_interval
-            );
+            ) == MQTT_ERR_OVERSIZE_PACKET) {
+                // Error already logged. The peer of this connection announced a smaller maximum
+                tr2q_unload_msg(qmsg, 0);
+                continue;
+            }
             tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
 
         } else if(redeliver && state == mqtt_ms_wait_for_pubcomp) {
             /*
              *  [MQTT-4.4.0-1] Redeliver PUBREL on reconnect
              */
-            if(qmsg->mid == 0) {
-                qmsg->mid = mqtt_mid_generate(gobj);
-            }
-            send__pubrel(gobj, qmsg->mid, NULL);
+            send__pubrel(gobj, out_msg_mid(qmsg), NULL);
             tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         }
     }
@@ -3674,7 +3697,8 @@ PRIVATE int packet__check_oversize(hgobj gobj, uint32_t remaining_length)
         return 0;
     }
 
-    len = remaining_length + packet__varint_bytes(remaining_length);
+    // The whole packet: fixed header byte + Remaining Length field + remaining length
+    len = 1 + remaining_length + packet__varint_bytes(remaining_length);
     if(len > priv->maximum_packet_size) {
         return -1;
     } else {
@@ -4466,11 +4490,18 @@ PRIVATE int send__publish(
         }
     }
     if(packet__check_oversize(gobj, packetlen)<0) {
-        gobj_log_error(gobj, 0,
+        /*
+         *  Over the Maximum Packet Size the peer announced: not sent [MQTT-3.1.2-25].
+         *  The caller drops it from the queue
+         */
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL,
+            "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Dropping too large outgoing PUBLISH",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "topic",        "%s", SAFE_PRINT(topic),
             "packetlen",    "%d", packetlen,
+            "maximum_packet_size", "%d", (int)priv->maximum_packet_size,
             NULL
         );
         return MQTT_ERR_OVERSIZE_PACKET;
@@ -6066,29 +6097,32 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
     if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
         /*
-         *  Client requested disconnect but wants the will message sent.
-         *  The will is sent on close in ac_drop() when will_topic is set.
-         *  Nothing extra needed here: the will payload/topic remain set.
+         *  Client requested disconnect but wants the will message sent:
+         *  the broker publishes it at the close (EV_ON_CLOSE)
          */
     } else {
         /*
-         *  Normal disconnect: clear the will so it is NOT sent on close.
-         *  The will is only sent on unexpected disconnects.
+         *  Normal disconnect: the broker reads `will` at the close and
+         *  discards the will of the session [MQTT-3.1.2-10]
          */
         gobj_write_bool_attr(gobj, "will", FALSE);
     }
 
     /*
-     *  Don't call send_drop() immediately.  On localhost the server's close()
-     *  arrives at the client before the client has finished its own graceful
-     *  shutdown (shutdownOutput), causing ENOTCONN on the HiveMQ side.
-     *  Instead, let the read continue: the client will send FIN and the next
-     *  recv returns EOF/EPIPE, which triggers try_to_stop_yevents() naturally.
-     *  The keepalive timer provides a safety net for misbehaving clients.
-     *  But a DISCONNECT is the last packet of the client (MQTT 5 3.14.4):
-     *  nothing after it is read. Up to 7.30.26 the server went on reading
+     *  A DISCONNECT is the last packet of the client (MQTT 5 3.14.4): nothing
+     *  after it is read, and the client MUST close the connection
+     *  [MQTT-3.14.4-1]. The server lets it close first: every TCP socket of
+     *  Yuneta closes with SO_LINGER 0, a RST, and a client that half-closes
+     *  after its DISCONNECT (HiveMQ's shutdownOutput()) gets ENOTCONN when the
+     *  server closed before. One that has not closed after timeout_close is
+     *  closed by the server, with no DISCONNECT of its own
+     *  (ac_timeout_waiting_frame_header()); the broker applies the Session
+     *  Expiry and the will of this DISCONNECT at that close. Up to 7.31.1 the
+     *  server waited for ever: a DISCONNECT 0x04 with the socket still open
+     *  never had its will published
      */
     priv->disconnect_received = TRUE;
+    set_timeout(priv->gobj_timer, priv->timeout_close);
     return 0;
 }
 
@@ -8260,14 +8294,15 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t comma
         return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
+    // What is LEFT after the mid: the reason code and the properties may each be omitted
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc<0) {
             // Error already logged
             return rc;
         }
 
-        if(gbuffer_leftbytes(gbuf) > 3) {
+        if(gbuffer_leftbytes(gbuf) > 0) {
             properties = property_read_all(gobj, gbuf, CMD_PUBACK, &rc);
             if(rc<0) {
                 // Error already logged
@@ -8455,7 +8490,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc<0) {
             // Error already logged
@@ -8483,7 +8518,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             return MQTT_ERR_PROTOCOL;
         }
 
-        if(gbuffer_leftbytes(gbuf) > 3) {
+        if(gbuffer_leftbytes(gbuf) > 0) {
             properties = property_read_all(gobj, gbuf, CMD_PUBREC, &rc);
             if(rc<0) {
                 // Error already logged
@@ -8640,7 +8675,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         return MQTT_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
+    if(priv->protocol_version == mqtt_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc) {
             // Error already logged
@@ -8660,7 +8695,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             return MQTT_ERR_PROTOCOL;
         }
 
-        if(gbuffer_leftbytes(gbuf) > 3) {
+        if(gbuffer_leftbytes(gbuf) > 0) {
             properties = property_read_all(gobj, gbuf, CMD_PUBREL, &rc);
             if(rc<0) {
                 // Error already logged
@@ -9091,18 +9126,22 @@ PRIVATE int framehead_consume(
      *  v3.1.x clients have not been notified of the limit, but we still enforce it.
      */
     if(priv->max_packet_size > 0) {    // the client's too: up to 7.30.26 only the server's
-        if((int)frame->frame_length > priv->max_packet_size) {
+        // The whole packet, as the limit is announced: fixed header + Remaining Length field + rl
+        uint64_t packet_length = 1 + (uint64_t)packet__varint_bytes((uint32_t)frame->frame_length) +
+            (uint64_t)frame->frame_length;
+        if(packet_length > (uint64_t)priv->max_packet_size) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Incoming packet exceeds max_packet_size",
                 "command",      "%s", mqtt_command_string(frame->command),
                 "frame_length", "%d", (int)frame->frame_length,
+                "packet_length","%lu", (unsigned long)packet_length,
                 "max_packet_size", "%d", priv->max_packet_size,
                 "peername",     "%s", peer_of(gobj),
                 NULL
             );
-            return -1;
+            return FRAMEHEAD_PACKET_TOO_LARGE;
         }
     }
 
@@ -9701,9 +9740,10 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = framehead_consume(gobj, frame, istream, bf, ln);
         if (n <= 0) {
-            // Some error in parsing
-            // on error do break the connection
-            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+            // Error already logged
+            ws_close(gobj, (n == FRAMEHEAD_PACKET_TOO_LARGE)?
+                MQTT_RC_PACKET_TOO_LARGE : MQTT_RC_PROTOCOL_ERROR
+            );
             break;
         } else if (n > 0) {
             gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -9768,12 +9808,20 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                     );
                 }
 
-                if(frame->frame_length > 1000) {
+                /*
+                 *  With a max_packet_size, framehead_consume() already bounded it. Without
+                 *  one, a CONNECT of a peer not yet authenticated is still bounded: its
+                 *  buffer is allocated now, at its header. Up to 7.31.1 it was 1000 bytes
+                 *  in every case, which refused an MQTT 5 CONNECT with properties or a
+                 *  token as password
+                 */
+                if(priv->max_packet_size == 0 && frame->frame_length > MAX_CONNECT_SIZE) {
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,
                         "msg",          "%s", "CONNECT command too large",
                         "frame_length", "%d", (int)frame->frame_length,
+                        "max_connect_size", "%d", (int)MAX_CONNECT_SIZE,
                         "peername",     "%s", peer_of(gobj),
                         NULL
                     );
@@ -9888,9 +9936,10 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = framehead_consume(gobj, frame, istream, bf, ln);
         if (n <= 0) {
-            // Some error in parsing
-            // on error do break the connection
-            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+            // Error already logged
+            ws_close(gobj, (n == FRAMEHEAD_PACKET_TOO_LARGE)?
+                MQTT_RC_PACKET_TOO_LARGE : MQTT_RC_PROTOCOL_ERROR
+            );
             break;
         } else if (n > 0) {
             gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -9980,6 +10029,22 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
 PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->disconnect_received) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT,
+            "msg",          "%s", "Client did not close after its DISCONNECT, closed by the server",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "timeout_close","%d", (int)priv->timeout_close,
+            "peername",     "%s", peer_of(gobj),
+            NULL
+        );
+        gobj_write_bool_attr(gobj, "send_disconnect", FALSE);   // the client said goodbye
+        ws_close(gobj, MQTT_RC_SUCCESS);
+        KW_DECREF(kw)
+        return 0;
+    }
 
     // We wait forever, if it has done the login.
     if(priv->rx_hold) {
@@ -10668,7 +10733,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     /*
      *  Check keepalive/ping timer
      */
-    if(priv->timer_ping > 0) {
+    if(priv->timer_ping > 0 && !priv->disconnect_received) {   // after it, timeout_close closes
         if(test_sectimer(priv->timer_ping)) {
             if(priv->iamServer) {
                 /*

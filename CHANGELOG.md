@@ -2,6 +2,82 @@
 
 ## Unreleased
 
+### Fixed
+
+- **MQTT: nine defects found by Mosquitto's own broker test suite** (2.1.2, run
+  against `mqtt_broker` with a stand-in for its binary). Of its 270 tests, 68
+  passed with 7.31.1 and 83 pass now; none that passed fails. The two that are
+  still red pin a choice the spec leaves to the server (retained messages sent
+  before the SUBACK; a client id of 65 000 characters, over this broker's
+  `NAME_MAX - 4`: the id is a directory of its store).
+    - **The will is no longer published after a normal DISCONNECT**
+      [MQTT-3.1.2-10]: the broker reads the connection's `will` at the close
+      (and at a take-over), which the protocol already cleared; it published
+      the will of the session all the same. `will__clear()` was documented for
+      this case and never called for it.
+    - **An MQTT 5 PUBACK, PUBREC, PUBREL or PUBCOMP of 3 or 4 bytes is
+      accepted** (§3.4.2.1: the reason code and the properties may be
+      omitted). It was refused, *"packet too long"* and DISCONNECT `0x81`:
+      Mosquitto's checks of the whole Remaining Length (`> 2`, `> 3`) were
+      applied to what was left after the packet id.
+    - **A QoS 1/2 PUBLISH sent again after a reconnect (or a restart) keeps its
+      packet id** [MQTT-4.4.0-1], and so does its PUBREL: the id of a message
+      to a client is now its place in the client's queue (`((rowid - 1) mod
+      65535) + 1`), stable with nothing saved. Each send took a new one.
+    - **Shared subscriptions: each share group gets its copy** [MQTT 5 4.8.2],
+      to one of its members in turn (round robin, as Mosquitto). The share
+      name was not kept: every group of a filter was one tree, and only its
+      first member got each message. BREAKING (an operator): the commands
+      `shared-subs` and `flatten-subs shared=1` show the group first,
+      `{"<group>": {<tree>}}`.
+    - **A CONNECT over 1000 bytes is no longer refused.** With a
+      `max_packet_size` the CONNECT has that limit, as any packet; without one
+      (`0`, the default) it is still bounded, at 64 KB, because it comes before
+      the peer is authenticated and its buffer is allocated at its header. The
+      1000 refused an MQTT 5 CONNECT with properties or a token as password.
+    - **The DISCONNECT of a client takes effect within `timeout_close`.** The
+      server waited for the client to close for ever: a DISCONNECT `0x04` with
+      the socket still open never had its will published. A client that has
+      not closed after `timeout_close` is now closed by the server, with no
+      DISCONNECT of its own and ONE WARNING *"Client did not close after its
+      DISCONNECT, closed by the server"* [MQTT-3.14.4-1]; its keepalive is no
+      longer checked after the DISCONNECT. The server does not close first:
+      every TCP socket of Yuneta closes with `SO_LINGER` 0 (a RST), and a
+      client that half-closes after its DISCONNECT (HiveMQ) got ENOTCONN, which
+      is why it waited. And a client that reconnects at once, before its old
+      connection closed, finds that DISCONNECT applied: the take-over reads the
+      Session Expiry and the will of the open connection, not of the session
+      record (it found the session it had just expired, session present 1).
+      BREAKING (a log watcher): the new WARNING; the keepalive WARNING and the
+      server's DISCONNECT `0x8D` no longer follow a client's DISCONNECT.
+    - **The will is published with its Message Expiry Interval** (MQTT 5
+      §3.1.3.2.4), kept in the session: new column `will_expiry_interval` of
+      the topic `sessions` (`topic_version` 9, `schema_version` 27 of
+      `treedb_mqtt_broker`). It went out with none.
+    - **The subscriptions of a persistent session survive a restart of the
+      broker** [MQTT-3.2.2-2]: each SUBSCRIBE and UNSUBSCRIBE saves them in the
+      session (the column `subscriptions` existed and nothing wrote it; one
+      write per packet, none for a temporary session), and the broker rebuilds
+      its trees from them when its treedb opens, with one INFO *"Subscriptions
+      of the persistent sessions restored"*. A session came back with session
+      present 1 and no subscription.
+    - **The Maximum Packet Size is the whole packet**, as MQTT 5 counts it
+      (fixed header + Remaining Length field + the rest), both ways: an
+      incoming packet over `max_packet_size` gets DISCONNECT `0x95` Packet too
+      large (it got `0x82`, and 2 to 5 bytes more got in), and an outgoing
+      PUBLISH over what the client announced is not sent (one byte more was
+      sent). That PUBLISH now leaves the queue, with a WARNING *"Dropping too
+      large outgoing PUBLISH"*: it was an ERROR, and the message stayed queued
+      and was tried again with a new packet id each time. BREAKING (a client
+      of `C_PROT_MQTT2`, a log watcher): the client's DISCONNECT is `0x95` too.
+
+### Tests
+
+- `c_mqtt/client_noqueue` step 7 expects DISCONNECT `0x95`; `c_mqtt/broker_sessions`
+  cases 13 and 14 expect the server to close A at `timeout_close` after its
+  DISCONNECT with Session Expiry 0 (one WARNING each), and B to find no session:
+  they pinned the old behaviour (B resumed the session A had expired).
+
 ### Changed
 
 - **JS: gobj-ui 7.31.0 and its consumers on i18next 27.** The `kernel/js/gobj-ui`

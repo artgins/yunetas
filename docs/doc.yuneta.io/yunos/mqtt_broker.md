@@ -47,8 +47,9 @@ queues:
 - **retained messages** — TreeDB topic `retained_msgs`.
 - **inflight / queued messages** — TimeRanger2 queues (per client).
 
-Persistent sessions survive broker restarts. `clean_session` clients are
-transient.
+Persistent sessions survive broker restarts, with their subscriptions (saved
+in the session at each SUBSCRIBE and UNSUBSCRIBE and rebuilt when the treedb
+opens; up to 7.31.1 they were lost). `clean_session` clients are transient.
 
 **There is no in-memory broker.** `mqtt_persistent_db` must be true (the
 default). The clients, sessions and retained messages live only in the

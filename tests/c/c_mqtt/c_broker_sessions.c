@@ -51,13 +51,19 @@
  *                 [MQTT-4.4.0-1].
  *              12. A has 30 messages and STALLS as in 7 (MQTT 5 SUBSCRIBEs
  *                 and 0xF0): B keeps the session while A is closing: the 30.
- *              13. A sends DISCONNECT with Session Expiry 0 and stays: B,
- *                 keeping the session (the broker's record says 300), takes
- *                 it over: session present 1, the 5, and no ERROR.
- *              14. The same, A closing: its keepalive (1 s) ends it after
- *                 its DISCONNECT, with ONE WARNING "Client keepalive timeout,
- *                 closing connection" and the broker's DISCONNECT; B comes
- *                 when A has read it.
+ *              13. A sends DISCONNECT with Session Expiry 0 and stays:
+ *                 the server closes it after timeout_close, with ONE
+ *                 WARNING "Client did not close after its DISCONNECT,
+ *                 closed by the server", and the session ends with that
+ *                 close [MQTT-3.14.2.2.2]; B, keeping a session, gets
+ *                 session present 0 and nothing, as in 17.
+ *              14. The same with a keepalive of 1 s: closed at
+ *                 timeout_close too, not at the keepalive (no keepalive
+ *                 WARNING, no DISCONNECT of the server); B: session present
+ *                 0, nothing. Up to 7.31.1 the server waited for the client
+ *                 to close: B got the session A had expired (13), and A was
+ *                 closed by its keepalive with a WARNING and a DISCONNECT
+ *                 0x8D of the server (14).
  *              15 to 18. What is not kept is still deleted at the close: A
  *                 with MQTT 3.1.1 and a clean session (15), MQTT 5 with no
  *                 Session Expiry (16), Session Expiry 300 and a DISCONNECT
@@ -124,8 +130,8 @@ enum {
  */
 typedef enum {
     A_LIVE = 0,             // stays connected until B's CONNACK
-    A_LIVE_DISC0,           // DISCONNECT with Session Expiry 0, and stays
-    A_KEEPALIVE_DISC0,      // the same, and the broker closes it at its keepalive
+    A_LIVE_DISC0,           // DISCONNECT with Session Expiry 0, and stays: the server closes it at timeout_close
+    A_KEEPALIVE_DISC0,      // the same with a keepalive of 1 s: closed at timeout_close, not at the keepalive
     A_DISC,                 // DISCONNECT, and closes
     A_DISC0,                // DISCONNECT with Session Expiry 0, and closes
     A_STALLED_F0,           // stalls (40 KB of SUBACKs never read) and 0xF0
@@ -153,8 +159,8 @@ PRIVATE const takeover_case_t takeover_cases[] = {
     {    5, 1,    300,   0,  5,    A_LIVE,          0,    0,       4,  0,    -1,     1,  5},     // 10
     {    5, 1,    300,   0,  25,   A_DISC,          300,  5,       5,  0,    300,    1,  30},    // 11
     {    5, 1,    300,   0,  30,   A_STALLED_F0,    500,  0,       5,  0,    300,    1,  30},    // 12
-    {    5, 1,    300,   0,  5,    A_LIVE_DISC0,    300,  0,       5,  0,    300,    1,  5},     // 13
-    {    5, 1,    300,   1,  5,    A_KEEPALIVE_DISC0, 0,  0,       5,  0,    300,    1,  5},     // 14
+    {    5, 1,    300,   0,  5,    A_LIVE_DISC0,    300,  0,       5,  0,    300,    0,  0},     // 13
+    {    5, 1,    300,   1,  5,    A_KEEPALIVE_DISC0, 0,  0,       5,  0,    300,    0,  0},     // 14
     {    4, 1,    -1,    0,  5,    A_DISC,          300,  0,       4,  0,    -1,     0,  0},     // 15
     {    5, 1,    -1,    0,  5,    A_DISC,          300,  0,       5,  0,    300,    0,  0},     // 16
     {    5, 1,    300,   0,  5,    A_DISC0,         300,  0,       5,  0,    300,    0,  0},     // 17
@@ -770,8 +776,8 @@ PRIVATE void run_takeover_step(hgobj gobj)
             if(!test_msectimer(priv->t_settle)) {
                 break;
             }
-            if(tc->a_end == A_KEEPALIVE_DISC0 && priv->a.disconnect != 1) {
-                break;      // B comes while A is closing: the broker said its DISCONNECT
+            if((tc->a_end == A_LIVE_DISC0 || tc->a_end == A_KEEPALIVE_DISC0) && !priv->a.closed) {
+                break;      // the server closes A at timeout_close after its DISCONNECT: B comes after it
             }
             if(tc->n_extra > 0) {
                 if(!priv->extra_sent) {
