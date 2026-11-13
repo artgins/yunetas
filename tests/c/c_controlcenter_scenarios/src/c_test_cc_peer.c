@@ -50,6 +50,8 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             "1",        "The client of this channel is connected"),
 SDATA (DTP_STRING,      "peername",         0,                  "",         "The address:port of the peer of an agent's channel (C_TCP's attribute)"),
 SDATA (DTP_INTEGER,     "cur_tx_queue",     0,                  "0",        "Messages waiting to be sent to the peer (C_TCP's attribute), written by the test"),
+SDATA (DTP_INTEGER,     "cur_tx_bytes",     0,                  "0",        "Bytes waiting to be sent to the peer (C_TCP's attribute): grows with what is sent while `holding`"),
+SDATA (DTP_BOOLEAN,     "holding",          0,                  "0",        "The client takes nothing: what is sent to it stays in cur_tx_bytes"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
@@ -140,6 +142,11 @@ PRIVATE int ac_send_iev(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
         gobj, kw, "__iev_event__", 0, KW_REQUIRED|KW_EXTRACT
     );
+    if(gobj_read_bool_attr(gobj, "holding")) {
+        gobj_write_integer_attr(gobj, "cur_tx_bytes",
+            gobj_read_integer_attr(gobj, "cur_tx_bytes") +
+            (json_int_t)json_dumpb(kw, NULL, 0, JSON_COMPACT));
+    }
     record(gobj, iev_event? iev_event : "", kw);
     return 0;
 }

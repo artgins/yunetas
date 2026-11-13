@@ -567,25 +567,56 @@ the control center, naming its channel: two clients that had asked nothing got
 them. `ycommand` takes one only as the answer of a request it made (one
 answer per request, see the ycommand page) since then.
 
-What waits to be sent to a web client is bounded too: when the control center
-relays an agent's answer or stream to a client (a console's output above all)
-whose transport holds `client_max_tx_queue` messages or more (default `8192`,
-`0` for no bound), the client is dropped, with ONE WARNING, and nothing more is
-relayed to that connection:
+The same rule holds for what an agent streams: the events of a console
+(`EV_TTY_OPEN`, `EV_TTY_DATA`, `EV_TTY_CLOSE`, asked by an `open-console`)
+and the readings of a watch (`EV_YUNO_STATS`, asked by a `watch-yuno-stats`),
+both sent through `command-agent`. Up to 7.30.26 they were relayed to any web
+client the agent named, with no stamp: a forged console, forged stats and a
+close reached clients that had asked nothing. When an agent's channel closes
+the control center forgets what its clients asked it; a client that keeps a
+watch renews it (gui_agent does every `watch_ttl`/3), and a client with a
+console of that agent is dropped with it, so both ask the new connection of
+the agent again.
+
+A client that **left** before the answer (its channel closed) is not taken
+for a client that did not ask: the answer is dropped with the INFO
+*"requester gone before its answer, answer dropped"*, as in 7.30.26, and the
+WARNING above, and its count, are only for an agent that routes to a client
+that is there and did not ask it. Before the fix a closed channel had no
+connection, the stamp check ran first, and an honest agent was logged as a
+forger.
+
+What waits to be sent to a web client is bounded too, in messages and in
+bytes: when the control center relays an agent's answer or stream to a client
+whose transport holds `client_max_tx_queue` messages or more (default `8192`;
+a console's output is many small messages) or `client_max_tx_bytes` bytes or
+more (default 32 MB; an answer of an agent is one message of any size, up to
+the 200 MB of `max_pkt_size`), the client is dropped, with ONE WARNING, and
+nothing more is relayed to that connection. `0` turns either bound off. The
+bytes are what the client's `C_TCP` holds to send (`cur_tx_bytes`). With the
+default, a client that does not read holds at most 32 MB plus the answer that
+crossed the bound, a few slow clients fit in the 2 GB of the control center,
+and the usual answers (a list, a log of some MB) are far below it:
 
 ```text
 "msg": "web client that does not take what is relayed to it, dropped",
-"client": "C_CHANNEL^input-4", "peername": "10.0.0.9:50122", "event": "EV_TTY_DATA",
-"tx_queue": 8192, "client_max_tx_queue": 8192
+"client": "C_CHANNEL^input-4", "peername": "10.0.0.9:50122", "event": "EV_READ_FILE",
+"tx_queue": 1, "client_max_tx_queue": 8192,
+"tx_bytes": 50331920, "client_max_tx_bytes": 33554432
 ```
 
 ```json
 {
     "global": {
-        "controlcenter.client_max_tx_queue": 16384
+        "controlcenter.client_max_tx_queue": 16384,
+        "controlcenter.client_max_tx_bytes": 67108864
     }
 }
 ```
+
+Before the fix the bound counted messages only: sixteen answers of 24 MB to a
+client that read slower than the agent wrote took the control center from 15
+to 408 MB, with no warning.
 
 Up to 7.30.26 a browser that did not take its console's output grew the
 control center with all of it. The agent's own flow control (see the agent's

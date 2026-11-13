@@ -537,6 +537,7 @@ SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
 SDATA (DTP_INTEGER,     "operator_assertion_lifetime",SDF_RD,"60",      "Seconds an operator assertion lives (the agents refuse one of more than their max_assertion_lifetime)"),
 SDATA (DTP_INTEGER,     "client_max_tx_queue",SDF_WR,           "8192",     "Most messages a web client may have waiting to be sent when this yuno relays an agent's answer or stream to it (a console's output above all): over it the client is dropped, with a warning. 0: no bound"),
+SDATA (DTP_INTEGER,     "client_max_tx_bytes",SDF_WR,           "33554432", "Most bytes a web client may have waiting to be sent when this yuno relays an agent's answer or stream to it: over it the client is dropped, with a warning (the one of client_max_tx_queue). A message is a frame of any size: an answer of an agent can be up to 200 MB (the max_pkt_size of this yuno), so the messages alone do not bound the memory. 32 MB, many times the usual answer, and with one answer of the most on top a client that does not read holds some 232 MB of the 2 GB of this yuno. 0: no bound"),
 SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
 SDATA (DTP_BOOLEAN,     "drops_timer_armed",SDF_RD,             "0",        "A capped warning has a count to say when its window ends"),
 
@@ -5112,6 +5113,12 @@ PRIVATE void record_client_request(hgobj gobj, hgobj src, hgobj agent_srv)
  *  web client of the control center by its channel's name, with no stamp
  *  or with the stamp of another client. Dropped with a WARNING that names
  *  the agent, one per window (drops_warning_window), the rest counted.
+ *  The same for what the agent sends of a console (EV_TTY_*, asked by an
+ *  open-console) and of a watch (EV_YUNO_STATS, asked by a
+ *  watch-yuno-stats): up to 7.30.26 relayed to any web client.
+ *  A client that is gone (its channel closed: no connection) is not asked
+ *  here: relay_to_requester() drops the answer as "requester gone", an
+ *  INFO, and an honest agent is not counted with the forgers.
  ***************************************************************************/
 PRIVATE BOOL client_asked_agent(hgobj gobj, gobj_event_t event, json_t *kw, hgobj requester)
 {
@@ -5119,6 +5126,9 @@ PRIVATE BOOL client_asked_agent(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     if(gobj_typeof_gclass(requester, C_IEVENT_CLI)) {
         return TRUE;
+    }
+    if(!requester_listens(requester)) {
+        return TRUE;    // nothing reaches it: relay_to_requester() says "requester gone"
     }
     hgobj agent_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
     json_int_t connection = connection_number(requester);
@@ -5302,19 +5312,26 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     }
 
     /*
-     *  What waits for a web client is bounded: one that does not take what
-     *  the agents send it (a console's output above all) is dropped, ONE
-     *  WARNING. Up to 7.30.26 its queue grew with all of it, in this yuno.
+     *  What waits for a web client is bounded, in messages and in bytes:
+     *  one that does not take what the agents send it (a console's output,
+     *  the answers of an agent) is dropped, ONE WARNING. Up to 7.30.26 its
+     *  queue grew with all of it, in this yuno; and a bound in messages
+     *  alone let a client hold sixteen answers of 24 MB (C_TCP's
+     *  cur_tx_bytes: what it holds to send).
      */
     if(json_is_true(gobj_read_user_data(requester, "cc_dropping"))) {
         KW_DECREF(kw);      // dropped already, said once
         return 0;
     }
     json_int_t max_tx_queue = gobj_read_integer_attr(gobj, "client_max_tx_queue");
-    if(max_tx_queue > 0 && gobj_parent(requester) == priv->gobj_top_side &&
-            gobj_has_bottom_attr(requester, "cur_tx_queue")) {
-        json_int_t tx_queue = gobj_read_integer_attr(requester, "cur_tx_queue");
-        if(tx_queue >= max_tx_queue) {
+    json_int_t max_tx_bytes = gobj_read_integer_attr(gobj, "client_max_tx_bytes");
+    if(gobj_parent(requester) == priv->gobj_top_side) {
+        json_int_t tx_queue = (max_tx_queue > 0 && gobj_has_bottom_attr(requester, "cur_tx_queue"))?
+            gobj_read_integer_attr(requester, "cur_tx_queue") : 0;
+        json_int_t tx_bytes = (max_tx_bytes > 0 && gobj_has_bottom_attr(requester, "cur_tx_bytes"))?
+            gobj_read_integer_attr(requester, "cur_tx_bytes") : 0;
+        if((max_tx_queue > 0 && tx_queue >= max_tx_queue) ||
+                (max_tx_bytes > 0 && tx_bytes >= max_tx_bytes)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL,
@@ -5324,6 +5341,8 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
                 "event",        "%s", event,
                 "tx_queue",     "%ld", (long)tx_queue,
                 "client_max_tx_queue", "%ld", (long)max_tx_queue,
+                "tx_bytes",     "%ld", (long)tx_bytes,
+                "client_max_tx_bytes", "%ld", (long)max_tx_bytes,
                 NULL
             );
             gobj_write_user_data(requester, "cc_dropping", json_true());
@@ -6600,6 +6619,11 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         KW_DECREF(kw);
         return 0;
     }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
+        KW_DECREF(kw);
+        return 0;
+    }
 
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     json_t *mirrors = gobj_read_user_data(channel_gobj, "tty_mirrors");
@@ -6638,6 +6662,11 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
         // Error already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
         KW_DECREF(kw);
         return 0;
     }
@@ -6692,6 +6721,11 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         KW_DECREF(kw);
         return 0;
     }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
+        KW_DECREF(kw);
+        return 0;
+    }
     return relay_to_requester(gobj, event, kw, gobj_requester);
 }
 
@@ -6721,6 +6755,11 @@ PRIVATE int ac_yuno_stats_relay(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(!gobj_requester || !requester_listens(gobj_requester)) {
         count_dropped_stream(gobj, event, dst_service, reconnected,
             &priv->stats_dropped, &priv->t_stats_dropped_log);
+        KW_DECREF(kw);
+        return 0;
+    }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
         KW_DECREF(kw);
         return 0;
     }

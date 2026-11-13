@@ -494,20 +494,36 @@ still reported and fails the test.
 49. And only to a client that asked THAT agent, in the connection it holds
     now. A client asks `read-file` of the agent; another client connects
     again (a connection that asked nothing). The agent sends each of the
-    seven events, and an `EV_MT_COMMAND_ANSWER` and an `EV_MT_STATS_ANSWER`,
-    three times with a route it wrote: to the other client with that
-    client's own connection stamp, to it with no stamp, and to the client
-    that asked with no stamp. None reaches a client, and the log has ONE
-    WARNING *"answer of an agent for a web client that did not ask that
-    agent, dropped"* (the other 26 counted, said when the window of case 11
-    ends). The agent's answer with the stamp of the client that asked
-    still reaches it. Up to 7.30.26 an accepted agent could send them to any
-    web client by the name of its channel.
+    seven events, an `EV_MT_COMMAND_ANSWER` and an `EV_MT_STATS_ANSWER`,
+    and what it streams of a console and a watch (`EV_TTY_OPEN`,
+    `EV_TTY_DATA`, `EV_TTY_CLOSE`, `EV_YUNO_STATS`), three times with a
+    route it wrote: to the other client with that client's own connection
+    stamp, to it with no stamp, and to the client that asked with no stamp.
+    None reaches a client, and the log has ONE WARNING *"answer of an agent
+    for a web client that did not ask that agent, dropped"* (the other 38
+    counted, said when the window of case 11 ends). The agent's answer with
+    the stamp of the client that asked still reaches it. Up to 7.30.26 an
+    accepted agent could send them to any web client by the name of its
+    channel (the four stream events until the fix). Case 5 opens its
+    console again after the agent's close by asking the agent again, as a
+    client does.
 50. A web client whose queue holds `client_max_tx_queue` messages (the test
     writes `cur_tx_queue` of its channel, as `C_TCP`'s): a console's output
     for it drops it (`EV_DROP` once, no output), ONE WARNING *"web client
     that does not take what is relayed to it, dropped"*. Connected again,
     it gets the output. Up to 7.30.26 its queue grew with all of it.
+51. A web client that holds the bytes it is sent (its channel counts them in
+    `cur_tx_bytes`, as `C_TCP`'s, while `holding`): `client_max_tx_bytes` is
+    32 MB by default, and the test sets 4 MB. The agent sends sixteen
+    answers of 1 MB: the client gets the first ones, then `EV_DROP` once and
+    nothing more, holding between 4 and 6 MB, and the log has the WARNING of
+    case 50. Before the fix the bound counted messages only, and sixteen
+    answers of 24 MB took the control center from 15 to 408 MB.
+52. A client asks `read-file` and leaves before the answer: the agent's
+    `EV_READ_FILE` and `EV_MT_COMMAND_ANSWER` reach nobody, with two INFO
+    *"requester gone before its answer, answer dropped"* and no WARNING of
+    case 49 (whose count stays 38). Before the fix the closed channel had no
+    connection: the answer of an honest agent was a WARNING of a forger.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

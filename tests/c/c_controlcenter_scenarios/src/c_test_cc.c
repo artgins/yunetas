@@ -856,6 +856,16 @@ PRIVATE int test_late_answers_to_another_client(hgobj gobj, hgobj client)
     if(count_received(client, EV_DROP, 0) != 1) {
         ret += fail(gobj, "the agent's close drops the client of its mirror", "");
     }
+    /*
+     *  The client opens it again (the agent's new channel relays only to
+     *  a client that asked it, case 49): the agent opens it again
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("open-console"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, 0, "command-agent open-console again");
+    json_decref(agent_request(gobj, "open-console again reaches the agent"));
     agent_sends(gobj, EV_TTY_OPEN, console, 0, "tty open again");
     if(count_received(client, EV_TTY_OPEN, "tty open again") != 1) {
         ret += fail(gobj, "the mirror opens again on the client that asked", "");
@@ -1186,9 +1196,9 @@ PRIVATE json_t *rerouted(json_t *request, const char *to, json_int_t connection)
 }
 
 /***************************************************************************
- *  49. What an agent answers (a command, a stats, its own requests)
- *      reaches only a client that asked THAT agent, in the connection it
- *      holds now. The agent writes the route of its answers: up to 7.30.26
+ *  49. What an agent answers (a command, a stats, its own requests) and
+ *      streams (a console, the readings of a watch) reaches only a client
+ *      that asked THAT agent, in the connection it holds now. The agent writes the route of its answers: up to 7.30.26
  *      an agent could send them to any web client of the control center,
  *      naming its channel, with the connection stamp of that client or
  *      with none. The answers that do not go: ONE WARNING (a window), the
@@ -1219,7 +1229,9 @@ PRIVATE int test_agent_request_answers_unasked(hgobj gobj, hgobj client, hgobj o
     gobj_event_t events[] = {
         EV_READ_FILE, EV_READ_JSON, EV_READ_BINARY_FILE, EV_EDIT_CONFIG,
         EV_VIEW_CONFIG, EV_EDIT_YUNO_CONFIG, EV_VIEW_YUNO_CONFIG,
-        EV_MT_COMMAND_ANSWER, EV_MT_STATS_ANSWER, 0
+        EV_MT_COMMAND_ANSWER, EV_MT_STATS_ANSWER,
+        /*  A console and a watch: up to 7.30.26 relayed to any client  */
+        EV_TTY_OPEN, EV_TTY_DATA, EV_TTY_CLOSE, EV_YUNO_STATS, 0
     };
     for(int i=0; events[i]; i++) {
         /*  To the client that asked nothing, with its own stamp  */
@@ -1320,6 +1332,123 @@ PRIVATE int test_client_that_does_not_take(hgobj gobj, hgobj client)
         json_decref(take_received(client));
     }
     JSON_DECREF(route)
+    return ret;
+}
+
+/***************************************************************************
+ *  51. A web client that does not take the answers of an agent: a message
+ *      is a frame of any size (an answer can be 200 MB), so what it holds
+ *      is bounded in bytes too, client_max_tx_bytes (the client's channel
+ *      counts, as C_TCP's cur_tx_bytes, what is sent to it while it holds).
+ *      Sixteen answers of 1 MB with a bound of 4 MB: the client gets what
+ *      fits, is dropped ONCE (the WARNING of case 50), and nothing more is
+ *      relayed to that connection. Up to the fix the bound counted
+ *      messages only, and sixteen answers of 24 MB took the control center
+ *      from 15 to 408 MB with no warning.
+ ***************************************************************************/
+PRIVATE int test_client_that_holds_bytes(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_int_t bound0 = gobj_read_integer_attr(priv->cc, "client_max_tx_bytes");
+    if(bound0 != 32*1024*1024) {
+        char d[64];
+        snprintf(d, sizeof(d), "%ld", (long)bound0);
+        ret += fail(gobj, "client_max_tx_bytes is 32 MB by default", d);
+    }
+    const json_int_t bound = 4*1024*1024;
+    gobj_write_integer_attr(priv->cc, "client_max_tx_bytes", bound);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("read-file filename=/yuneta/agent/big"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, "Command sent to 1 nodes", "read-file of a client that holds");
+    json_t *request = agent_request(gobj, "read-file of a client that holds");
+    if(!request) {
+        gobj_write_integer_attr(priv->cc, "client_max_tx_bytes", bound0);
+        return ret - 1;
+    }
+
+    size_t big = 1024*1024;
+    char *content = gbmem_malloc(big + 1);
+    memset(content, 'A', big);
+    content[big] = 0;
+    gobj_write_bool_attr(client, "holding", TRUE);
+    for(int i=0; i<16; i++) {
+        agent_sends_data(gobj, EV_READ_FILE, request, 0, "a big answer",
+            json_pack("{s:s, s:s}", "name", "big", "content64", content));
+    }
+    gbmem_free(content);
+    JSON_DECREF(request)
+
+    json_int_t held = gobj_read_integer_attr(client, "cur_tx_bytes");
+    json_t *received = take_received(client);
+    int drops = 0, answers = 0, after_drop = 0;
+    size_t idx; json_t *jn;
+    json_array_foreach(received, idx, jn) {
+        const char *ev = json_string_value(json_object_get(jn, "event"));
+        if(ev && strcmp(ev, EV_DROP)==0) {
+            drops++;
+        } else if(ev && strcmp(ev, EV_READ_FILE)==0) {
+            answers++;
+            if(drops) {
+                after_drop++;
+            }
+        }
+    }
+    JSON_DECREF(received)
+    if(drops != 1 || answers < 4 || after_drop != 0 ||
+            held < bound || held > bound + (json_int_t)(2*big)) {
+        char d[128];
+        snprintf(d, sizeof(d), "drops %d, answers %d (%d after the drop), held %ld bytes",
+            drops, answers, after_drop, (long)held);
+        ret += fail(gobj, "a client that holds what it is sent is dropped once at the bound in bytes", d);
+    }
+
+    gobj_write_bool_attr(client, "holding", FALSE);
+    gobj_write_integer_attr(client, "cur_tx_bytes", 0);
+    client_closes(gobj, client);
+    client_opens(gobj, client);
+    json_decref(take_received(client));
+    gobj_write_integer_attr(priv->cc, "client_max_tx_bytes", bound0);
+    return ret;
+}
+
+/***************************************************************************
+ *  52. A client asks an agent and leaves before the answer: the answer is
+ *      dropped as "requester gone" (an INFO), not as an answer for a client
+ *      that did not ask (the WARNING of case 49, which names the agent as a
+ *      forger, and whose count it joined). Up to the fix the closed channel
+ *      had no connection, so the check of the stamp ran first and failed.
+ ***************************************************************************/
+PRIVATE int test_answer_for_a_client_gone(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("read-file filename=/yuneta/agent/yuneta_agent.json"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, "Command sent to 1 nodes", "read-file of a client that leaves");
+    json_t *request = agent_request(gobj, "read-file of a client that leaves");
+    if(!request) {
+        return ret - 1;
+    }
+    client_closes(gobj, client);
+    agent_sends_data(gobj, EV_READ_FILE, request, 0, "the agent's answer",
+        json_pack("{s:s}", "name", "yuneta_agent.json"));
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "the agent's answer");
+    JSON_DECREF(request)
+    json_t *received = take_received(client);
+    if(json_array_size(received) != 0) {
+        ret += fail(gobj, "an answer reached a client that is gone", "");
+    }
+    JSON_DECREF(received)
+    client_opens(gobj, client);
+    json_decref(take_received(client));
     return ret;
 }
 
@@ -5654,8 +5783,10 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_several_mirrors(gobj, client1, client2);
     result += test_relays_only_for_who_asks(gobj, client1);
     result += test_agent_request_answers(gobj, client1);
+    result += test_answer_for_a_client_gone(gobj, client1);
     result += test_agent_request_answers_unasked(gobj, client1, client2);
     result += test_client_that_does_not_take(gobj, client2);
+    result += test_client_that_holds_bytes(gobj, client2);
     result += test_answer_to_local_requesters(gobj, client1);
     result += test_inject_in_a_loop(gobj, client2);
     result += test_scoped_viewer(gobj, client1);
