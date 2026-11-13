@@ -50,12 +50,26 @@ that connection. One ycli session:
    (`good.bin` -> a file outside, holding `ORIG`): `read-binary-file` does
    not write through it, and logs *"Cannot write the binary file"*. Up to
    7.30.26 the file outside was overwritten.
+9. A `content64` that is not base64 (`@@@@`), or not a string (`1234`):
+   nothing written, a WARNING (*"base64 of a peer not decodable, refused"*,
+   *"content64 of a binary file that is not a string, not written"*; not
+   the ERROR *"b64_decode() FAILED"* with a stack). Up to 7.30.26: an ERROR
+   with a stack, or nothing, and *"Binary file save in"*.
+10. `read-file` and `edit-config`, with an editor that notes what it is
+    given (`editor.sh`): a text is written `0600` and the editor opened on
+    it; a link in `~/.yuneta/configs/` (`link.txt`, `evil7.json`) is not
+    written through, *"Cannot write the file"* is logged, and the editor is
+    not opened; a text that is not a string is a WARNING, nothing written.
+    Up to 7.30.26 both followed the link, took the umask, and opened the
+    editor on what they wrote through it.
 
 Mutants killed: no guard in one answer's action (1), no decrement at a
 refusal (4), the pending count kept at a disconnection (5), the file written
 `0700` (2), an answer taken without spending its request (2, 4); the
 `command-agent` branch of the request rule (3), no `O_NOFOLLOW` (8), a
-failed open taken for a success (8).
+failed open taken for a success (8); the peer's base64 read with the
+ERROR decoder (9), no `O_NOFOLLOW` for a text and a json (10), the editor
+opened after a failed write (10).
 
 Skipped (exit 77) without the ycli binary, unprivileged namespaces or `ip`.
 

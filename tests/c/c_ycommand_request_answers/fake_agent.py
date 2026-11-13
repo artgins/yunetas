@@ -40,6 +40,23 @@
 #      an answer that has no "data": it is not the warm-up's answer (its
 #      command stack says so), so the request leaves nothing pending and an
 #      EV_READ_BINARY_FILE that comes with the next `help` is not written.
+#   9. A binary file that cannot be written (the link of 7) ends ycommand
+#      with an exit code that says it, and stops the rest of its line (up
+#      to 7.30.26 the request ended with the event's result, 0, before the
+#      file was written).
+#  10. Through a control center, a request the agent refuses AFTER the
+#      "Command sent to 1 nodes" leaves nothing pending: the refusal carries
+#      the line of its request in its command stack, as ycli reads it (up
+#      to 7.30.26 the next answer nobody asked was taken).
+#  11. A content64 the peer sends that is not base64, or not a string, is
+#      a WARNING (not an ERROR with a stack, nor nothing), nothing is
+#      written, and the exit code says it.
+#  12. A text (read-file) and a json (edit-config) are written as the
+#      binary file is: 0600, never through a link, a failure said; and a
+#      write that failed does not open the editor on what the file held
+#      before (up to 7.30.26 both followed a link, took the umask, and a
+#      failure was taken for a success). A text that is not a string is a
+#      WARNING, and nothing written.
 #
 #   Usage: fake_agent.py <ycommand binary> <work dir>
 #   Exit 0 when every check passed.
@@ -167,6 +184,31 @@ async def agent(r, w):
                     "comment": "Command sent to 0 nodes", "schema": None, "data": None,
                     "__md_iev__": reverse(md)}}))
                 continue
+            elif "refuse_later" in command:
+                # through a control center: sent, and then the agent refuses it
+                w.write(answer("EV_MT_COMMAND_ANSWER", md, None, "Command sent to 1 nodes"))
+                w.write(frame({"event": "EV_MT_COMMAND_ANSWER", "kw": {"result": -1,
+                    "comment": "User not found", "schema": None, "data": None,
+                    "__md_iev__": reverse(md)}}))
+                continue
+            elif scenario["name"] == "after-refused-later" and command == "help":
+                w.write(answer("EV_READ_BINARY_FILE", md,
+                    {"name": "evil9.bin", "content64": base64.b64encode(b"EVIL").decode()}))
+            elif "badb64" in command:
+                w.write(answer("EV_READ_BINARY_FILE", md, {"name": "bad64.bin", "content64": "@@@@"}))
+                continue
+            elif "num64" in command:
+                w.write(answer("EV_READ_BINARY_FILE", md, {"name": "num64.bin", "content64": 1234}))
+                continue
+            elif command.startswith("read-file"):
+                fname = command.split("filename=/x/", 1)[-1].split()[0]
+                content = 123 if fname == "numtext.txt" else "NEWTEXT"
+                w.write(answer("EV_READ_FILE", md, {"name": fname, "zcontent": content}))
+                continue
+            elif command.startswith("edit-config"):
+                w.write(answer("EV_EDIT_CONFIG", md,
+                    [{"id": "evil7", "zcontent": {"marker": "NEWJSON"}}]))
+                continue
             elif scenario["name"] == "after-refused":
                 w.write(answer("EV_READ_BINARY_FILE", md,
                     {"name": "evil3.bin", "content64": base64.b64encode(b"EVIL").decode()}))
@@ -204,6 +246,7 @@ async def ycommand(command, verbose="0"):
         ended["by_itself"] = False
         p.kill()
         out, _ = await p.communicate()
+    ended["rc"] = p.returncode
     return out.decode(errors="replace")
 
 
@@ -284,7 +327,74 @@ async def main():
         kept = f.read()
     check("a link: the file it points to is not written: %r" % kept, kept == b"ORIG")
     check("a link: and it says so", "Cannot write the binary file" in out)
+
+    #   9. ... and the exit code says it, and the rest of the line stops
+    check("a link: the exit code says the file was not written: %r" % ended["rc"],
+        ended["rc"] != 0)
+    seen["commands"].clear()
+    out = await ycommand("read-binary-file filename=/x/good.bin; help", "1")
+    check("a link, then help: help does not run: %r" % seen["commands"],
+        "help" not in seen["commands"])
+    check("a link, then help: the exit code says the file was not written: %r" % ended["rc"],
+        ended["rc"] != 0 and ended["by_itself"])
     os.unlink(os.path.join(CONFIGS, "good.bin"))
+
+    #   10. Refused by the agent after the control center sent it
+    scenario["name"] = "after-refused-later"
+    out = await ycommand(
+        "-command-agent agent_id=n cmd2agent='read-binary-file filename=/x/refuse_later'; help")
+    check("refused later: a request the agent refuses after it was sent leaves nothing "
+        "pending: %r" % written("evil9.bin"), written("evil9.bin") is None)
+
+    #   11. A content64 that is not base64, or not a string
+    scenario["name"] = "asked"
+    out = await ycommand("read-binary-file filename=/x/badb64", "1")
+    check("bad base64: not written: %r" % written("bad64.bin"), written("bad64.bin") is None)
+    check("bad base64: a WARNING, not an ERROR",
+        "base64 of a peer not decodable" in out and "b64_decode() FAILED" not in out)
+    check("bad base64: the exit code says it: %r" % ended["rc"], ended["rc"] != 0)
+    out = await ycommand("read-binary-file filename=/x/num64", "1")
+    check("content64 not a string: not written: %r" % written("num64.bin"),
+        written("num64.bin") is None)
+    check("content64 not a string: said", "content64 of a binary file that is not a string" in out)
+    check("content64 not a string: the exit code says it: %r" % ended["rc"], ended["rc"] != 0)
+
+    #   12. A text and a json: 0600, never through a link, no editor after a failure
+    out = await ycommand("read-file filename=/x/plain.txt")
+    mode = os.stat(os.path.join(CONFIGS, "plain.txt")).st_mode & 0o777 \
+        if written("plain.txt") is not None else 0
+    check("a text: written 0600: %o" % mode, written("plain.txt") == b"NEWTEXT" and mode == 0o600)
+    outside_txt = os.path.join(WORK, "outside.txt")
+    with open(outside_txt, "wb") as f:
+        f.write(b"ORIG")
+    os.symlink(outside_txt, os.path.join(CONFIGS, "link.txt"))
+    out = await ycommand("read-file filename=/x/link.txt", "1")
+    with open(outside_txt, "rb") as f:
+        kept = f.read()
+    check("a text, a link: the file it points to is not written: %r" % kept, kept == b"ORIG")
+    check("a text, a link: said", "Cannot write the file" in out)
+    check("a text, a link: the exit code says it: %r" % ended["rc"], ended["rc"] != 0)
+    out = await ycommand("read-file filename=/x/link.txt")     # without the log, which dumps the kw
+    check("a text, a link: the editor not opened on the file",
+        "File NOT saved" in out and "NEWTEXT" not in out and "ORIG" not in out)
+    os.unlink(os.path.join(CONFIGS, "link.txt"))
+    out = await ycommand("read-file filename=/x/numtext.txt", "1")
+    check("a text that is not a string: said, nothing written",
+        "content of a file that is not a string" in out and written("numtext.txt") is None)
+    outside_json = os.path.join(WORK, "outside.json")
+    with open(outside_json, "wb") as f:
+        f.write(b"ORIGJSON")
+    os.symlink(outside_json, os.path.join(CONFIGS, "evil7.json"))
+    out = await ycommand("edit-config id=evil7", "1")
+    with open(outside_json, "rb") as f:
+        kept = f.read()
+    check("a json, a link: the file it points to is not written: %r" % kept, kept == b"ORIGJSON")
+    check("a json, a link: said", "Cannot write the file" in out)
+    check("a json, a link: the exit code says it: %r" % ended["rc"], ended["rc"] != 0)
+    out = await ycommand("edit-config id=evil7")
+    check("a json, a link: the editor not opened on what the file held",
+        "File NOT saved" in out and "NEWJSON" not in out and "ORIGJSON" not in out)
+    os.unlink(os.path.join(CONFIGS, "evil7.json"))
 
     #   8. Interactive: a refusal while the warm-up is pending
     scenario["name"] = "interactive"

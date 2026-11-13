@@ -225,6 +225,11 @@ client does, and tells its host nothing until one opens.
   A request refused at once (an `EV_MT_COMMAND_ANSWER` with an error, such as
   *"Command sent to 0 nodes"*) leaves nothing pending, and a disconnection
   clears what was. Up to 7.30.26 ycommand took any that came from its peer.
+  A request a control center sent (*"Command sent to 1 nodes"*) and the
+  agent then refuses leaves nothing pending either: the refusal carries the
+  line of its request in its command stack, and ycommand reads it there, as
+  ycli does (up to 7.30.26 the request stayed pending, and the next answer
+  nobody asked was taken).
 
   Straight to the agent, that event is the request's ONLY answer (the agent
   sends no `EV_MT_COMMAND_ANSWER` for it), so it ends the command: the next
@@ -242,13 +247,37 @@ client does, and tells its host nothing until one opens.
   read or to upload again, not a program to run.
   A link left in `~/.yuneta/configs/` under the file's name is not followed:
   the write fails, with an ERROR *"Cannot write the binary file"* naming the
-  path (up to 7.30.26 it wrote through the link, and a file it could not open
-  was taken for written, with nothing said):
+  path, and the exit code is not 0 (up to 7.30.26 it wrote through the link,
+  and a file it could not open was taken for written, with nothing said and
+  exit code 0):
 
   ```bash
   ln -s ~/.bashrc ~/.yuneta/configs/yuneta_agent
-  ycommand -c 'read-binary-file filename=/yuneta/bin/yuneta_agent'
-  # -> ERROR "Cannot write the binary file", ~/.bashrc untouched
+  ycommand -c 'read-binary-file filename=/yuneta/bin/yuneta_agent; help'
+  # -> ERROR "Cannot write the binary file", ~/.bashrc untouched,
+  #    help does not run, exit code not 0
+  ```
+
+  A `content64` that is not base64, or not a string, writes nothing, and is a
+  WARNING (*"base64 of a peer not decodable, refused"*, *"content64 of a
+  binary file that is not a string, not written"*) with an exit code that is
+  not 0. Up to 7.30.26 the first was an ERROR with a stack, the second said
+  nothing, and both ended with exit code 0.
+- **Text and json answers are written the same way** — `read-file` (text)
+  and `read-json`, `view-config`, `edit-config`, `view-yuno-config`,
+  `edit-yuno-config` (json) are written
+  `0600`, never through a link, and a failure is an ERROR *"Cannot write the
+  file"* naming the path, with an exit code that is not 0. A failed write
+  does NOT open the editor: up to 7.30.26 the file followed a link, took its
+  mode from the umask, and a failed write opened the editor on what the file
+  held before (`edit-config` then offered it as a `create-config`). A text
+  that is not a string is a WARNING, and nothing is written:
+
+  ```bash
+  ln -s ~/notes.json ~/.yuneta/configs/my_yuno.json
+  ycommand -c 'edit-config id=my_yuno'
+  # -> ERROR "Cannot write the file", ~/notes.json untouched, no editor,
+  #    "ERROR -1: File NOT saved in '.../my_yuno.json'"
   ```
 
 ## See also

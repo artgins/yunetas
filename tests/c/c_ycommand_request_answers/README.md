@@ -53,6 +53,33 @@ a `create-config` on its line). It must do so only for a request it made:
    `EV_READ_BINARY_FILE` (`evil6.bin`) with the next `help`: not written.
    Up to 7.30.26 the refusal was taken for the warm-up's answer and the
    request stayed pending.
+9. The link of 7 again: ycommand's exit code is not 0; and with
+   `read-binary-file ...; help` the `help` does not run (the command ends
+   with what became of the file). Up to 7.30.26 the request ended with the
+   event's result (0) before the file was written.
+10. Through a control center, `command-agent ...
+    cmd2agent='read-binary-file filename=/x/refuse_later'; help`: the peer
+    answers *"Command sent to 1 nodes"* and then refuses it (-1, its line in
+    the command stack), and sends an `EV_READ_BINARY_FILE` (`evil9.bin`)
+    with `help`: not written. Up to 7.30.26 the request stayed pending.
+11. A `content64` that is not base64 (`@@@@`), or not a string (`1234`):
+    nothing written, a WARNING (*"base64 of a peer not decodable,
+    refused"*, *"content64 of a binary file that is not a string, not
+    written"*; not the ERROR *"b64_decode() FAILED"* with a stack), exit
+    code not 0. Up to 7.30.26: an ERROR with a stack, or nothing, and exit
+    code 0.
+12. `read-file` and `edit-config`: a text is written `0600`; a link in
+    `~/.yuneta/configs/` (`link.txt`, `evil7.json`) is not written through,
+    *"Cannot write the file"* is logged, the editor is not opened on the
+    file (its content is not printed), and the exit code is not 0; a text
+    that is not a string is a WARNING, nothing written. Up to 7.30.26 both
+    followed the link, took the umask, and printed what they wrote through
+    it.
+
+Mutants killed: no undo of a request refused after "Command sent to 1
+nodes" (10), the command ended before the file was written (9), the peer's
+base64 read with the ERROR decoder (11), no `O_NOFOLLOW` (7, 9, 12), the
+editor opened after a failed write (12).
 
 Skipped (exit 77) without the ycommand binary, unprivileged namespaces or
 `ip`.

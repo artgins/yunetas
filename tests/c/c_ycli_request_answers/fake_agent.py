@@ -38,6 +38,15 @@
 #      followed: the file it points to keeps its content, and ycli says it
 #      (up to 7.30.26 it was written through the link, and a failure to
 #      open was taken for a success).
+#   9. A content64 the peer sends that is not base64, or not a string, is
+#      a WARNING (not an ERROR with a stack, nor nothing), and nothing is
+#      written.
+#  10. A text (read-file) and a json (edit-config) are written as the
+#      binary file is: 0600, never through a link, a failure said; and a
+#      write that failed does not open the editor (here a script that
+#      notes what it was given) on what the file held before (up to
+#      7.30.26 both followed a link, took the umask, and a failure was
+#      taken for a success). A text that is not a string is a WARNING.
 #
 #   Usage: fake_agent.py <ycli binary> <work dir>
 #   Exit 0 when every check passed.
@@ -68,6 +77,14 @@ scenario = {"name": ""}
 seen = {"commands": [], "connections": 0}
 held = {}   # the warm-up of the second connection, answered when the test says
 output = []
+EDITOR_LOG = os.path.join(WORK, "editor.log")
+
+
+def editor_opened(name):
+    if not os.path.exists(EDITOR_LOG):
+        return False
+    with open(EDITOR_LOG) as f:
+        return name in f.read()
 
 
 def check(what, ok):
@@ -183,6 +200,16 @@ async def agent(r, w):
             w.write(evil_binary(md, "evil5.bin"))
         elif scenario["name"] == "after-named" and command == "help":
             w.write(evil_binary(md, "evil6.bin"))
+        elif "badb64" in command:
+            w.write(answer("EV_READ_BINARY_FILE", md, {"name": "bad64.bin", "content64": "@@@@"}))
+        elif "num64" in command:
+            w.write(answer("EV_READ_BINARY_FILE", md, {"name": "num64.bin", "content64": 1234}))
+        elif command.startswith("read-file"):
+            fname = command.split("filename=/x/", 1)[-1].split()[0]
+            content = 123 if fname == "numtext.txt" else "NEWTEXT"
+            w.write(answer("EV_READ_FILE", md, {"name": fname, "zcontent": content}))
+        elif command.startswith("edit-config"):
+            w.write(answer("EV_EDIT_CONFIG", md, [{"id": "evil7", "zcontent": {"marker": "NEWJSON"}}]))
         elif "read-binary-file" in command:
             w.write(answer("EV_READ_BINARY_FILE", md,
                 {"name": "good.bin", "content64": base64.b64encode(b"GOOD").decode()}))
@@ -218,8 +245,11 @@ async def main():
         os.setsid()
         fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
+    editor = os.path.join(WORK, "editor.sh")
+    with open(editor, "w") as f:
+        f.write('echo "$1" >> "%s"\ncat "$1"\n' % EDITOR_LOG)
     config = {
-        "global": {"ycli.use_ncurses": 0, "ycli.editor": "cat"},
+        "global": {"ycli.use_ncurses": 0, "ycli.editor": "sh " + editor},
         "environment": {"work_dir": WORK, "console_log_handlers": {
             "to_file": {"handler_type": "stdout"}}}     # its logs in the pty, once
     }
@@ -329,6 +359,50 @@ async def main():
         check("a link: the file it points to is not written: %r" % kept, kept == b"ORIG")
         check("a link: and it says so", "Cannot write the binary file" in "".join(output))
         os.unlink(os.path.join(CONFIGS, "good.bin"))
+
+        #   9. A content64 that is not base64, or not a string
+        await type_line("read-binary-file filename=/x/badb64")
+        check("bad base64: not written: %r" % written("bad64.bin"), written("bad64.bin") is None)
+        check("bad base64: a WARNING, not an ERROR",
+            "base64 of a peer not decodable" in "".join(output) and
+            "b64_decode() FAILED" not in "".join(output))
+        await type_line("read-binary-file filename=/x/num64")
+        check("content64 not a string: not written, and said",
+            written("num64.bin") is None and
+            "content64 of a binary file that is not a string" in "".join(output))
+
+        #   10. A text and a json: 0600, never through a link, no editor after a failure
+        await type_line("read-file filename=/x/plain.txt")
+        mode = os.stat(os.path.join(CONFIGS, "plain.txt")).st_mode & 0o777 \
+            if written("plain.txt") is not None else 0
+        check("a text: written 0600: %o" % mode, written("plain.txt") == b"NEWTEXT" and mode == 0o600)
+        check("a text: the editor opened on it", editor_opened("plain.txt"))
+        outside_txt = os.path.join(WORK, "outside.txt")
+        with open(outside_txt, "wb") as f:
+            f.write(b"ORIG")
+        os.symlink(outside_txt, os.path.join(CONFIGS, "link.txt"))
+        await type_line("read-file filename=/x/link.txt")
+        with open(outside_txt, "rb") as f:
+            kept = f.read()
+        check("a text, a link: the file it points to is not written: %r" % kept, kept == b"ORIG")
+        check("a text, a link: said", "Cannot write the file" in "".join(output))
+        check("a text, a link: the editor not opened", not editor_opened("link.txt"))
+        os.unlink(os.path.join(CONFIGS, "link.txt"))
+        await type_line("read-file filename=/x/numtext.txt")
+        check("a text that is not a string: said, nothing written",
+            "content of a file that is not a string" in "".join(output) and
+            written("numtext.txt") is None)
+        outside_json = os.path.join(WORK, "outside.json")
+        with open(outside_json, "wb") as f:
+            f.write(b"ORIGJSON")
+        os.symlink(outside_json, os.path.join(CONFIGS, "evil7.json"))
+        await type_line("edit-config id=evil7")
+        with open(outside_json, "rb") as f:
+            kept = f.read()
+        check("a json, a link: the file it points to is not written: %r" % kept, kept == b"ORIGJSON")
+        check("a json, a link: said", "Cannot write the file" in "".join(output))
+        check("a json, a link: the editor not opened on what it held", not editor_opened("evil7.json"))
+        os.unlink(os.path.join(CONFIGS, "evil7.json"))
     finally:
         p.kill()
         await p.wait()

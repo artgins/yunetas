@@ -77,6 +77,27 @@ and authentication options match [`ycommand`](ycommand.md) (default
   # -> ERROR "Cannot write the binary file", ~/.bashrc untouched
   ```
 
+  A `content64` that is not base64, or not a string, writes nothing, and is a
+  WARNING (*"base64 of a peer not decodable, refused"*, *"content64 of a
+  binary file that is not a string, not written"*); the status line says
+  *"Binary file NOT saved"*. Up to 7.30.26 the first was an ERROR with a
+  stack, the second said nothing, and both said *"Binary file save in"*.
+- **Text and json answers are written the same way** — `read-file` (text)
+  and `read-json`, `view-config`, `edit-config`, `view-yuno-config`,
+  `edit-yuno-config` (json) are written
+  `0600`, never through a link, and a failure is an ERROR *"Cannot write the
+  file"* naming the path, answered *"File NOT saved in '<path>'"*. A failed
+  write does NOT open the editor: up to 7.30.26 the file followed a link,
+  took its mode from the umask, and a failed write opened the editor on what
+  the file held before (`edit-config` then offered it as a `create-config`).
+  A text that is not a string is a WARNING, and nothing is written:
+
+  ```bash
+  ln -s ~/notes.json ~/.yuneta/configs/my_yuno.json
+  # then, typed in ycli: edit-config id=my_yuno
+  # -> ERROR "Cannot write the file", ~/notes.json untouched, no editor
+  ```
+
 ## Key bindings
 
 In addition to the [shared editline shortcuts](#ycommand-shortcuts):

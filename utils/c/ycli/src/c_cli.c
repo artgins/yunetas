@@ -3177,7 +3177,48 @@ PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  Write `len` bytes of `data` in `path` (a file of ~/.yuneta/configs/,
+ *  named by the peer): a copy of data (0600), never through a link left in
+ *  the directory. An ERROR naming the path, and -1, when it cannot be
+ *  written whole. Up to 7.30.26 the text and json files followed a link,
+ *  took their mode from the umask, and a failure was taken for a success.
+ ***************************************************************************/
+PRIVATE int write_local_file(hgobj gobj, const char *path, const char *data, size_t len, BOOL binary)
+{
+    int fd = open(path, O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC, 0600);
+    if(fd < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", binary? "Cannot write the binary file" : "Cannot write the file",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+    int ret = 0;
+    ssize_t x = write(fd, data, len);
+    if(x < 0 || (size_t)x != len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", binary? "Cannot write the whole binary file" : "Cannot write the whole file",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        ret = -1;
+    }
+    close(fd);
+    return ret;
+}
+
+/***************************************************************************
+ *  Save the json `jn_content` (owned) of the peer in ~/.yuneta/configs/:
+ *  -1 when it is not written (said)
  ***************************************************************************/
 PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
 {
@@ -3193,20 +3234,37 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
+    const char *built;
     if(strlen(safe) > 5 && strstr(safe + strlen(safe) - strlen(".json"), ".json")) {
-        build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
+        built = build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
     } else {
         char fname[NAME_MAX + 8];
         snprintf(fname, sizeof(fname), "%s.json", safe);
-        build_path(path, pathsize, homedir, ".yuneta", "configs", fname, NULL);
+        built = build_path(path, pathsize, homedir, ".yuneta", "configs", fname, NULL);
     }
-    json_dump_file(jn_content, path, JSON_ENCODE_ANY | JSON_INDENT(4));
+    char *s = built? json_dumps(jn_content, JSON_ENCODE_ANY | JSON_INDENT(4)) : NULL;
     JSON_DECREF(jn_content);
-    return 0;
+    if(!built) {
+        return -1;  // Error already logged
+    }
+    if(!s) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "Cannot encode the json to write",
+            "path",         "%s", path,
+            NULL
+        );
+        return -1;
+    }
+    int ret = write_local_file(gobj, path, s, strlen(s), FALSE);
+    GBMEM_FREE(s)
+    return ret;
 }
 
 /***************************************************************************
- *
+ *  Save the text `jn_content` (owned) of the peer in ~/.yuneta/configs/:
+ *  -1 when it is not written (said)
  ***************************************************************************/
 PRIVATE int save_local_string(
     hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content
@@ -3223,21 +3281,30 @@ PRIVATE int save_local_string(
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
+    if(!build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL)) {
+        JSON_DECREF(jn_content);
+        return -1;  // Error already logged
+    }
+    int ret = -1;
     const char *s = json_string_value(jn_content);
-    if(s) {
-        FILE *file = fopen(path, "w");
-        if(file) {
-            fwrite(s, strlen(s), 1, file);
-            fclose(file);
-        }
+    if(!s) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "content of a file that is not a string, not written",
+            "path",         "%s", path,
+            NULL
+        );
+    } else {
+        ret = write_local_file(gobj, path, s, strlen(s), FALSE);
     }
     JSON_DECREF(jn_content);
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
- *
+ *  Save the base64 `jn_content` (owned) of the peer, decoded, in
+ *  ~/.yuneta/configs/: -1 when it is not written (said)
  ***************************************************************************/
 PRIVATE int save_local_base64(
     hgobj gobj,
@@ -3258,47 +3325,34 @@ PRIVATE int save_local_base64(
     if(access(path, 0)!=0) {
         mkrdir(path, 0700);
     }
-    build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
+    if(!build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL)) {
+        JSON_DECREF(jn_content);
+        return -1;  // Error already logged
+    }
 
-    int ret = 0;
+    /*
+     *  The base64 is the peer's: a bad one is a WARNING, as is a content
+     *  that is not a string. Up to 7.30.26 the first was an ERROR with a
+     *  stack, the second left no trace, and both were taken for a success
+     */
+    int ret = -1;
     const char *s = json_string_value(jn_content);
-    gbuffer_t *gbuf_bin = s? gbuffer_base64_to_binary(s, strlen(s)) : NULL;
-    if(gbuf_bin) {
-        /*
-         *  A copy of data, never a program to run (0700 up to 7.30.26), and
-         *  never through a link left in the directory: up to 7.30.26 a link
-         *  was followed, and a failure to open was taken for a success
-         */
-        int fd = open(path, O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC, 0600);
-        if(fd < 0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM,
-                "msg",          "%s", "Cannot write the binary file",
-                "path",         "%s", path,
-                "errno",        "%d", errno,
-                "serrno",       "%s", strerror(errno),
-                NULL
-            );
-            ret = -1;
-        } else {
-            size_t len = gbuffer_leftbytes(gbuf_bin);
-            ssize_t x = write(fd, gbuffer_cur_rd_pointer(gbuf_bin), len);
-            if(x < 0 || (size_t)x != len) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM,
-                    "msg",          "%s", "Cannot write the whole binary file",
-                    "path",         "%s", path,
-                    "errno",        "%d", errno,
-                    "serrno",       "%s", strerror(errno),
-                    NULL
-                );
-                ret = -1;
-            }
-            close(fd);
+    if(!s) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "content64 of a binary file that is not a string, not written",
+            "path",         "%s", path,
+            NULL
+        );
+    } else {
+        gbuffer_t *gbuf_bin = gbuffer_base64_to_binary_from_peer(gobj, s, strlen(s));
+        if(gbuf_bin) {
+            ret = write_local_file(gobj, path,
+                gbuffer_cur_rd_pointer(gbuf_bin), gbuffer_leftbytes(gbuf_bin), TRUE);
+            GBUFFER_DECREF(gbuf_bin)
         }
-        GBUFFER_DECREF(gbuf_bin)
+        // else Warning already logged
     }
     JSON_DECREF(jn_content);
     return ret;
@@ -3901,7 +3955,20 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     JSON_INCREF(jn_content);
     char path[PATH_MAX];
 
-    save_local_json(gobj, path, sizeof(path), id, jn_content);
+    if(save_local_json(gobj, path, sizeof(path), id, jn_content) < 0) {
+        return display_webix_result(   // no editor on what the file held before
+            gobj,
+            wn_display,
+            msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("File NOT saved in '%s'", path),     // Error already logged
+                0,
+                0,
+                kw  // owned
+            )
+        );
+    }
     //log_debug_printf("save_local_json %s", path);
     edit_json(gobj, path);
 
@@ -4012,7 +4079,20 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     JSON_INCREF(jn_content);
     char path[PATH_MAX];
 
-    save_local_json(gobj, path, sizeof(path), name, jn_content);
+    if(save_local_json(gobj, path, sizeof(path), name, jn_content) < 0) {
+        return display_webix_result(   // no editor on what the file held before
+            gobj,
+            wn_display,
+            msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("File NOT saved in '%s'", path),     // Error already logged
+                0,
+                0,
+                kw  // owned
+            )
+        );
+    }
     //log_debug_printf("save_local_json %s", path);
     edit_json(gobj, path);
 
@@ -4079,7 +4159,20 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     JSON_INCREF(jn_content);
     char path[PATH_MAX];
 
-    save_local_json(gobj, path, sizeof(path), name, jn_content);
+    if(save_local_json(gobj, path, sizeof(path), name, jn_content) < 0) {
+        return display_webix_result(   // no editor on what the file held before
+            gobj,
+            wn_display,
+            msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("File NOT saved in '%s'", path),     // Error already logged
+                0,
+                0,
+                kw  // owned
+            )
+        );
+    }
     //log_debug_printf("save_local_json %s", path);
     edit_json(gobj, path);
 
@@ -4146,7 +4239,20 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     JSON_INCREF(jn_content);
     char path[PATH_MAX];
 
-    save_local_string(gobj, path, sizeof(path), name, jn_content);
+    if(save_local_string(gobj, path, sizeof(path), name, jn_content) < 0) {
+        return display_webix_result(   // no editor on what the file held before
+            gobj,
+            wn_display,
+            msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("File NOT saved in '%s'", path),     // Error already logged
+                0,
+                0,
+                kw  // owned
+            )
+        );
+    }
     //log_debug_printf("save_local_json %s", path);
     edit_json(gobj, path);
 
