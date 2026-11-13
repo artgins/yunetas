@@ -572,11 +572,53 @@ The same rule holds for what an agent streams: the events of a console
 and the readings of a watch (`EV_YUNO_STATS`, asked by a `watch-yuno-stats`),
 both sent through `command-agent`. Up to 7.30.26 they were relayed to any web
 client the agent named, with no stamp: a forged console, forged stats and a
-close reached clients that had asked nothing. When an agent's channel closes
-the control center forgets what its clients asked it; a client that keeps a
-watch renews it (gui_agent does every `watch_ttl`/3), and a client with a
-console of that agent is dropped with it, so both ask the new connection of
-the agent again.
+close reached clients that had asked nothing.
+
+And a stream goes only for what the client asked **that** agent, not for
+anything it asked it. `command-agent` remembers, in the agent's channel and
+before the agent answers, the console a client asks to open there (its name:
+the `name=` of the line, else the `name` of the kw, as the agent's parser
+reads it) and a `watch-yuno-stats` it asks there:
+
+- an `EV_TTY_OPEN` goes only for a console of that name the client asked that
+  agent to open, and only then is its mirror recorded;
+- an `EV_TTY_DATA` or `EV_TTY_CLOSE` goes only for a console of that name
+  that this agent opened for the client (its mirror);
+- an `EV_YUNO_STATS` goes only to a client that asked that agent for a watch.
+
+The rest is dropped with the WARNING above, its `detail` saying which:
+
+```text
+"msg": "answer of an agent for a web client that did not ask that agent, dropped",
+"event": "EV_TTY_DATA", "agent": "<uuid of node-b>", "agent_host": "node-b",
+"client": "C_CHANNEL^input-3",
+"detail": "no console of that name opened through that agent for the client"
+```
+
+A console is named by the client, not by the node (gui_agent names it
+`tty_<node>_<tab>`), so up to 7.30.26 -- and with the stamp rule alone --
+an agent the client had sent any command to (`help`, which gui_agent sends to
+every node it shows) could write in another agent's console and close it, and
+plant the mirror of a console nobody opened, whose close dropped the client.
+The legitimate ones are as before, from one tab:
+
+```bash
+command-agent agent_id=node-a cmd2agent="open-console name=tty_node-a_t1 cx=80 cy=24"
+command-agent agent_id=node-b cmd2agent="open-console name=tty_node-b_t1 cx=80 cy=24"
+# -> each console's output comes from its own agent; node-b's frames named
+#    tty_node-a_t1 are dropped
+```
+
+When an agent's channel closes the control center forgets what its clients
+asked it; a client that keeps a watch renews it (gui_agent does every
+`watch_ttl`/3), and a client with a console of that agent is dropped with it,
+so both ask the new connection of the agent again. The drop is kept on
+purpose: gui_agent reads an `EV_TTY_CLOSE` as *the shell ended* and closes
+the terminal's tab, while a drop makes it connect again and open each console
+again by its name, which re-attaches to a console the agent kept. Since the
+mirror is only of a console the client asked that agent to open, only an
+agent the client opened a console on can end its connection that way, as its
+restart does.
 
 A client that **left** before the answer (its channel closed) is not taken
 for a client that did not ask: the answer is dropped with the INFO

@@ -128,6 +128,16 @@ GOBJ_DECLARE_EVENT(EV_SCENARIO_RUN_ENDED);      // c_controlcenter.c
  ***************************************************************************/
 PRIVATE int write_failed_tries(hgobj gobj, const char *scenario_id);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE hgobj open_keyed_session(
+    hgobj gobj,
+    const char *name,
+    const char *uuid,
+    const char *host,
+    const char *spki
+);
+PRIVATE int drops_of(hgobj peer);
+PRIVATE void close_session(hgobj channel);
+PRIVATE hgobj wire_of(hgobj channel);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -1494,6 +1504,245 @@ PRIVATE int test_tty_open_for_a_client_gone(hgobj gobj, hgobj client)
         gbmem_free(s);
     }
     JSON_DECREF(received)
+    return ret;
+}
+
+/***************************************************************************
+ *  The agent of `channel` sends `event` with `jn_data` (owned) back along
+ *  the route of `request` (not owned)
+ ***************************************************************************/
+PRIVATE void agent_of_sends_data(
+    hgobj gobj,
+    hgobj channel,
+    gobj_event_t event,
+    json_t *request,
+    const char *comment,
+    json_t *jn_data
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = msg_iev_build_response(
+        gobj,
+        0,
+        json_string(comment),
+        0,
+        jn_data,
+        json_deep_copy(request)
+    );
+    kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)channel));
+    gobj_send_event(priv->cc, event, kw, priv->input_side);
+}
+
+/***************************************************************************
+ *  `client` sends `cmd2agent` to `agent_id` (`channel`) by command-agent:
+ *  the request its agent got (yours), or NULL (a fail)
+ ***************************************************************************/
+PRIVATE json_t *ask_agent_of(
+    hgobj gobj,
+    hgobj client,
+    hgobj channel,
+    const char *agent_id,
+    const char *cmd2agent,
+    BOOL relays_yuno_stats
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(agent_id));
+    json_object_set_new(kw, "cmd2agent", json_string(cmd2agent));
+    if(relays_yuno_stats) {
+        json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+    }
+    if(check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+            0, "Command sent to 1 nodes", cmd2agent) < 0) {
+        return NULL;
+    }
+    json_t *received = take_received(wire_of(channel));
+    size_t n = json_array_size(received);
+    json_t *request = n? json_incref(json_object_get(json_array_get(received, n-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(!request) {
+        fail(gobj, "the agent got no request", cmd2agent);
+    }
+    return request;
+}
+
+/***************************************************************************
+ *  The channel of an agent closes, as __input_side__ says it
+ ***************************************************************************/
+PRIVATE void agent_channel_closes(hgobj gobj, hgobj channel)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_send_event(priv->cc, EV_ON_CLOSE,
+        json_pack("{s:{s:I}}", "__temp__", "channel_gobj", (json_int_t)(uintptr_t)channel),
+        priv->input_side
+    );
+}
+
+/***************************************************************************
+ *  54. What an agent streams reaches a client only for what that client
+ *      asked THAT agent: a console it asked that agent to open, a watch it
+ *      asked of that agent. The client opens a console on node1 (A) and
+ *      sends `help` to another node (B). With the route and the stamp of
+ *      that `help`, B sends the output and the close of A's console, the
+ *      open of a console nobody opened and a reading of no watch: none
+ *      reaches the client, B's channel records no mirror, and B's close
+ *      does not drop the client. Then what must still work, from one tab:
+ *      A's console; a console opened on B (its name in the line), whose
+ *      route still does not carry A's console; a watch asked of B; and,
+ *      after the client connects again, A's console opened again.
+ *      Up to 7.30.26 (and with the stamp rule of case 49 alone) B's
+ *      output and close reached A's console, its open planted a mirror,
+ *      and its close dropped the client.
+ ***************************************************************************/
+PRIVATE int test_streams_of_another_agent(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+    const char *tty_a = "tty_node1_tab1";
+    const char *tty_b = "tty_host-sb_tab1";
+
+    hgobj b = open_keyed_session(gobj, "sb-1", "uuid-sb", "host-sb", NULL);
+    if(!b) {
+        return -1;  // Error already logged
+    }
+    json_decref(take_received(client));
+
+    json_t *route_a = open_console(gobj, client, tty_a);
+    json_t *help_b = ask_agent_of(gobj, client, b, "host-sb", "help", FALSE);
+    if(!route_a || !help_b) {
+        JSON_DECREF(route_a)
+        JSON_DECREF(help_b)
+        close_session(b);
+        return ret - 1;
+    }
+
+    /*
+     *  B forges, with the route and the stamp of the help it was asked
+     */
+    agent_of_sends_data(gobj, b, EV_TTY_DATA, help_b, "forged by B",
+        json_pack("{s:s, s:s}", "name", tty_a, "content64", "Rk9SR0VE"));
+    agent_of_sends_data(gobj, b, EV_TTY_CLOSE, help_b, "forged by B",
+        json_pack("{s:s}", "name", tty_a));
+    agent_of_sends_data(gobj, b, EV_TTY_OPEN, help_b, "forged by B",
+        json_pack("{s:s}", "name", "tty_nobody_opened"));
+    agent_of_sends_data(gobj, b, EV_YUNO_STATS, help_b, "forged by B",
+        json_pack("{s:s}", "yuno_id", "1234"));
+    json_t *received = take_received(client);
+    if(json_array_size(received) != 0) {
+        char *s = json_dumps(received, JSON_COMPACT);
+        ret += fail(gobj, "an agent's stream reached a client for what it did not ask that agent", s);
+        gbmem_free(s);
+    }
+    JSON_DECREF(received)
+    if(!json_object_get(gobj_read_user_data(priv->agent_channel, "tty_mirrors"), tty_a)) {
+        ret += fail(gobj, "another agent's close took the mirror of a console", "");
+    }
+    if(json_object_size(gobj_read_user_data(b, "tty_mirrors")) != 0) {
+        ret += fail(gobj, "an open of a console nobody asked recorded a mirror", "");
+    }
+    agent_channel_closes(gobj, b);
+    if(drops_of(client) != 0) {
+        ret += fail(gobj, "an agent's close dropped a client that opened no console on it", "");
+    }
+
+    /*
+     *  What must still work: A's console, and a console and a watch of B
+     */
+    agent_sends_data(gobj, EV_TTY_DATA, route_a, 0, "output of A",
+        json_pack("{s:s}", "name", tty_a));
+    if(count_received(client, EV_TTY_DATA, "output of A") != 1) {
+        ret += fail(gobj, "the output of a console reaches the client that opened it", "");
+    }
+    char line[NAME_MAX];
+    snprintf(line, sizeof(line), "open-console name=%s cx=80 cy=24", tty_b);
+    json_t *route_b = ask_agent_of(gobj, client, b, "host-sb", line, FALSE);
+    if(route_b) {
+        agent_of_sends_data(gobj, b, EV_TTY_OPEN, route_b, "tty open of B",
+            json_pack("{s:s}", "name", tty_b));
+        agent_of_sends_data(gobj, b, EV_TTY_DATA, route_b, "output of B",
+            json_pack("{s:s}", "name", tty_b));
+        agent_sends_data(gobj, EV_TTY_DATA, route_a, 0, "output of A",
+            json_pack("{s:s}", "name", tty_a));
+        agent_of_sends_data(gobj, b, EV_TTY_DATA, route_b, "forged by B",
+            json_pack("{s:s}", "name", tty_a));
+        received = take_received(client);
+        int opens = 0, outputs_b = 0, outputs_a = 0, forged = 0;
+        size_t idx; json_t *jn;
+        json_array_foreach(received, idx, jn) {
+            const char *ev = kw_get_str(gobj, jn, "event", "", 0);
+            const char *comment = kw_get_str(gobj, jn, "kw`comment", "", 0);
+            if(strcmp(ev, EV_TTY_OPEN)==0 && strcmp(comment, "tty open of B")==0) {
+                opens++;
+            } else if(strcmp(ev, EV_TTY_DATA)==0 && strcmp(comment, "output of B")==0) {
+                outputs_b++;
+            } else if(strcmp(ev, EV_TTY_DATA)==0 && strcmp(comment, "output of A")==0) {
+                outputs_a++;
+            } else {
+                forged++;
+            }
+        }
+        JSON_DECREF(received)
+        if(opens != 1 || outputs_b != 1 || outputs_a != 1) {
+            ret += fail(gobj, "consoles on two nodes from one client both work", "");
+        }
+        if(forged != 0) {
+            ret += fail(gobj, "an agent sent output of another agent's console with the route of its own", "");
+        }
+        JSON_DECREF(route_b)
+    } else {
+        ret--;
+    }
+    json_t *watch_b = ask_agent_of(gobj, client, b, "host-sb", "watch-yuno-stats ids=1234", TRUE);
+    if(watch_b) {
+        agent_of_sends_data(gobj, b, EV_YUNO_STATS, watch_b, "reading of B",
+            json_pack("{s:s}", "yuno_id", "1234"));
+        if(count_received(client, EV_YUNO_STATS, "reading of B") != 1) {
+            ret += fail(gobj, "a reading of a watch asked of an agent reaches the client", "");
+        }
+        JSON_DECREF(watch_b)
+    } else {
+        ret--;
+    }
+
+    /*
+     *  The client connects again and opens A's console again
+     */
+    client_closes(gobj, client);
+    client_opens(gobj, client);
+    json_decref(take_received(client));
+    json_t *reopen_a = open_console(gobj, client, tty_a);
+    if(reopen_a) {
+        agent_sends_data(gobj, EV_TTY_DATA, reopen_a, 0, "output after reconnecting",
+            json_pack("{s:s}", "name", tty_a));
+        if(count_received(client, EV_TTY_DATA, "output after reconnecting") != 1) {
+            ret += fail(gobj, "a console opened again after reconnecting works", "");
+        }
+        agent_sends_data(gobj, EV_TTY_CLOSE, reopen_a, 0, "tty close",
+            json_pack("{s:s}", "name", tty_a));
+        if(count_received(client, EV_TTY_CLOSE, "tty close") != 1) {
+            ret += fail(gobj, "a console closes on its client", "");
+        }
+        JSON_DECREF(reopen_a)
+    } else {
+        ret--;
+    }
+
+    agent_channel_closes(gobj, b);
+    if(json_object_size(gobj_read_user_data(b, "console_requests")) != 0 ||
+            json_object_size(gobj_read_user_data(b, "watch_requests")) != 0) {
+        ret += fail(gobj, "an agent's channel keeps what was asked of it after it closes", "");
+    }
+    close_session(b);
+    if(drops_of(client) != 0) {
+        ret += fail(gobj, "the close of an agent dropped a client whose console there is of an old connection", "");
+    }
+    JSON_DECREF(route_a)
+    JSON_DECREF(help_b)
     return ret;
 }
 
@@ -5831,6 +6080,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_answer_for_a_client_gone(gobj, client1);
     result += test_tty_open_for_a_client_gone(gobj, client1);
     result += test_agent_request_answers_unasked(gobj, client1, client2);
+    result += test_streams_of_another_agent(gobj, client1);
     result += test_client_that_does_not_take(gobj, client2);
     result += test_client_that_holds_bytes(gobj, client2);
     result += test_answer_to_local_requesters(gobj, client1);

@@ -501,7 +501,8 @@ still reported and fails the test.
     stamp, to it with no stamp, and to the client that asked with no stamp.
     None reaches a client, and the log has ONE WARNING *"answer of an agent
     for a web client that did not ask that agent, dropped"* (the other 38
-    counted, said when the window of case 11 ends). The agent's answer with
+    counted, said with the 5 of case 54 when the window of case 11 ends:
+    43). The agent's answer with
     the stamp of the client that asked still reaches it. Up to 7.30.26 an
     accepted agent could send them to any web client by the name of its
     channel (the four stream events until the fix). Case 5 opens its
@@ -522,7 +523,7 @@ still reported and fails the test.
 52. A client asks `read-file` and leaves before the answer: the agent's
     `EV_READ_FILE` and `EV_MT_COMMAND_ANSWER` reach nobody, with two INFO
     *"requester gone before its answer, answer dropped"* and no WARNING of
-    case 49 (whose count stays 38). Before the fix the closed channel had no
+    case 49 (nothing is added to its count). Before the fix the closed channel had no
     connection: the answer of an honest agent was a WARNING of a forger.
 53. An `EV_TTY_OPEN` for a client that left (its channel closed): the INFO
     *"requester gone"*, and no mirror is recorded in the agent's channel.
@@ -530,6 +531,20 @@ still reported and fails the test.
     client gets nothing, no `EV_DROP`. Up to the fix (and in 7.30.26) the
     open recorded a mirror with no connection (0), and the agent's close
     dropped whoever held the channel then.
+54. What an agent streams reaches a client only for what it asked THAT
+    agent. A second node (B) connects; the client opens a console on node1
+    (A) and sends `help` to B. With the route and the connection stamp of
+    that `help`, B sends `EV_TTY_DATA` and `EV_TTY_CLOSE` naming A's console,
+    an `EV_TTY_OPEN` of a console nobody opened and an `EV_YUNO_STATS` of no
+    watch: none reaches the client (5 more in the count of case 49), A's
+    mirror stays, B's channel records none, and B's close does not drop the
+    client. What must still work, from one client: A's console; a console
+    opened on B with its name in the line (`open-console name=... cx=80
+    cy=24`), whose route still does not carry A's console name; a watch
+    asked of B; and, after the client connects again, A's console opened
+    again. B's close forgets what was asked of it. Up to 7.30.26 (and with
+    the stamp rule of case 49 alone) B's output and close reached A's
+    console, its open planted a mirror, and its close dropped the client.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes
