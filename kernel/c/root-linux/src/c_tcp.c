@@ -143,6 +143,19 @@
         ...
         gobj_write_bool_attr(tcp_in, "rx_paused", FALSE);   // EV_TX_READY of the other side
 
+    What is held to be sent. One message of the host is written at a time;
+    the rest wait in the tx queue. `txMsgs` counts a message when it is
+    taken to be written, in clear and over TLS alike (up to 7.30.26 only in
+    clear): it moves as the peer takes what was written. `cur_tx_queue` is
+    the messages waiting, and `cur_tx_bytes` the bytes of those and of the
+    one being written, until its write ends: the memory a peer that does not
+    read makes this yuno hold, whatever the size of each message. A host
+    bounds a peer by it (through the bottom chain of a channel too):
+
+        if(gobj_read_integer_attr(gobj_channel, "cur_tx_bytes") >= max_bytes) {
+            gobj_send_event(gobj_channel, EV_DROP, 0, gobj);
+        }
+
     The write in flight is kept (yev_tx, one at a time). A host that
     destroys its C_TCP before EV_STOPPED (in the turn of its stop, with a
     write in flight) gets it canceled at the destroy, and the loop frees it
@@ -183,6 +196,9 @@ PRIVATE void say_suppressed_handshakes(hgobj gobj);
 PRIVATE int start_pending_writes(hgobj gobj);
 PRIVATE int start_write_event(hgobj gobj, yev_event_h yev_write_event);
 PRIVATE void release_the_write(hgobj gobj, yev_event_h yev_write_event);
+PRIVATE void take_the_message_to_write(hgobj gobj, gbuffer_t *gbuf);
+PRIVATE void release_the_message_written(hgobj gobj);
+PRIVATE void flush_the_tx_queue(hgobj gobj);
 PRIVATE BOOL takes_writes(hgobj gobj);
 PRIVATE BOOL tx_ready_is_coming(hgobj gobj);
 PRIVATE int yev_callback(yev_event_h yev_event);
@@ -222,6 +238,7 @@ SDATA (DTP_BOOLEAN, "no_tx_ready_event",SDF_RD,         0,          "Set TRUE if
 
 SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         0,          "Maximum messages in tx queue. Default is 0: no limit."),
 SDATA (DTP_INTEGER, "cur_tx_queue",     SDF_RD,         0,          "Current messages in tx queue"),
+SDATA (DTP_INTEGER, "cur_tx_bytes",     SDF_RD,         0,          "Bytes of the messages of the host held to be sent: the ones waiting in the tx queue and the one being written, until its write ends. What a slow peer makes this yuno hold, whatever the size of each message"),
 SDATA (DTP_BOOLEAN, "rx_paused",        SDF_WR,         "FALSE",    "Flow control of the host. TRUE: no more reads of data are started (the read in flight still ends and publishes its data; the reads of a TLS handshake go on). FALSE: the read held by the pause starts again. A relay pauses the side it reads while the other side has data to write, and resumes it at the EV_TX_READY of that side"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_PERSIST,    "4096", "Rx buffer size"),
@@ -235,7 +252,7 @@ SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the las
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
-SDATA (DTP_INTEGER, "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
+SDATA (DTP_INTEGER, "txMsgs",           SDF_RSTATS,     "0", "Messages of the host taken to be written (out of the tx queue), in clear and over TLS alike"),
 SDATA (DTP_INTEGER, "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER, "max_tx_in_progress",SDF_RSTATS,    "0", "Most writes ever in flight at once: 1 is the rule, more would let a short write's rest go out of order"),
 SDATA (DTP_INTEGER, "txMsgsDroppedAtStop",SDF_RSTATS,   "0", "Messages queued to send and dropped by a local stop (said with an INFO at the stop)"),
@@ -307,6 +324,8 @@ typedef struct _PRIVATE_DATA {
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
+    json_int_t txing_bytes;         // the bytes gbuf_txing had when it was taken
+    json_int_t cur_tx_bytes;        // dl_tx and gbuf_txing, kept as they change (cur_tx_bytes)
     json_int_t max_tx_queue;
     json_int_t tx_queue_dropped;    // writes dropped by a full queue, said 1 of max_tx_queue
     dl_list_t dl_tx_encrypted;      // TLS output waiting for the write in flight
@@ -664,8 +683,8 @@ PRIVATE int mt_stop(hgobj gobj)
         );
     }
 
-    GBUFFER_DECREF(priv->gbuf_txing)
-    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+    release_the_message_written(gobj);
+    flush_the_tx_queue(gobj);
     dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
 
     try_to_stop_yevents(gobj);
@@ -757,6 +776,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "cur_tx_queue")==0) {
         v.found = 1;
         v.v.i = (json_int_t)dl_size(&priv->dl_tx);
+    } else if(strcmp(name, "cur_tx_bytes")==0) {
+        v.found = 1;
+        v.v.i = priv->cur_tx_bytes;
     } else if(strcmp(name, "max_tx_in_progress")==0) {
         v.found = 1;
         v.v.i = priv->max_tx_in_progress;
@@ -1259,14 +1281,14 @@ PRIVATE void set_disconnected(hgobj gobj)
     gobj_write_bool_attr(gobj, "secure_connected", FALSE);
 
     // dl_tx is kept only when its bytes never reached the wire (see the header)
-    GBUFFER_DECREF(priv->gbuf_txing)
+    release_the_message_written(gobj);
     dl_flush(&priv->dl_tx_encrypted, (fnfree)gbuffer_decref);
     BOOL keep_pending_tx =
         priv->timeout_inactivity > 0 &&
         !priv->inform_disconnection &&
         gobj_is_running(gobj);
     if(!keep_pending_tx) {
-        dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+        flush_the_tx_queue(gobj);
     }
 
     /*
@@ -1469,6 +1491,44 @@ PRIVATE void mark_secret_gbuffer(hgobj gobj, json_t *kw, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
+ *  The message to write, its bytes kept: its write consumes them, and they
+ *  are taken off cur_tx_bytes when it is released
+ ***************************************************************************/
+PRIVATE void take_the_message_to_write(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->gbuf_txing = gbuf;
+    priv->txing_bytes = (json_int_t)gbuffer_leftbytes(gbuf);
+}
+
+/***************************************************************************
+ *  The message being written is released: written, or gone with the
+ *  connection
+ ***************************************************************************/
+PRIVATE void release_the_message_written(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gbuf_txing) {
+        priv->cur_tx_bytes -= priv->txing_bytes;
+        priv->txing_bytes = 0;
+        GBUFFER_DECREF(priv->gbuf_txing)
+    }
+}
+
+/***************************************************************************
+ *  The messages waiting in the tx queue are dropped
+ ***************************************************************************/
+PRIVATE void flush_the_tx_queue(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+    priv->cur_tx_bytes = priv->txing_bytes;    // what is left: the message being written, if any
+}
+
+/***************************************************************************
  *  Write the current gbuffer
  ***************************************************************************/
 PRIVATE int write_data(hgobj gobj)
@@ -1476,6 +1536,13 @@ PRIVATE int write_data(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf = priv->gbuf_txing;
+
+    /*
+     *  A message is counted when it is taken to be written, in clear and
+     *  over TLS alike. Up to 7.30.26 only the clear path counted it, and
+     *  the txMsgs of a TLS connection stayed 0
+     */
+    priv->txMsgs++;
 
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_TRAFFIC) {
@@ -1520,8 +1587,6 @@ PRIVATE int write_data(hgobj gobj)
             );
         }
     } else {
-        priv->txMsgs++;
-
         /*
          *  Transmit
          */
@@ -1594,7 +1659,7 @@ PRIVATE void try_more_writes(hgobj gobj)
     /*
      *  Clear the current tx msg
      */
-    GBUFFER_DECREF(priv->gbuf_txing)
+    release_the_message_written(gobj);
 
     /*
      *  Get the next tx msg
@@ -1609,8 +1674,8 @@ PRIVATE void try_more_writes(hgobj gobj)
             gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
         }
     } else {
-        priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
+        take_the_message_to_write(gobj, gbuf_txing);
         write_data(gobj);
     }
 }
@@ -1750,10 +1815,12 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
          priv->tx_queue_dropped++;
          gbuffer_t *gbuf_first = dl_first(&priv->dl_tx);
          dl_delete(&priv->dl_tx, gbuf_first, 0);
+         priv->cur_tx_bytes -= (json_int_t)gbuffer_leftbytes(gbuf_first);
          gbuffer_decref(gbuf_first);
      }
 
     dl_add(&priv->dl_tx, gbuf);
+    priv->cur_tx_bytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
     return 0;
 }
@@ -1773,8 +1840,8 @@ PRIVATE int start_pending_writes(hgobj gobj)
     }
     gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
     if(gbuf_txing) {
-        priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
+        take_the_message_to_write(gobj, gbuf_txing);
         return write_data(gobj);    // -1: the connection ended, maybe the gobj: not touched
     }
     return 0;
@@ -2713,7 +2780,8 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     mark_secret_gbuffer(gobj, kw, gbuf);
 
     if(!priv->gbuf_txing) {
-        priv->gbuf_txing = gbuffer_incref(gbuf);
+        priv->cur_tx_bytes += (json_int_t)gbuffer_leftbytes(gbuf);
+        take_the_message_to_write(gobj, gbuffer_incref(gbuf));
         write_data(gobj);
     } else {
         enqueue_write(gobj, gbuffer_incref(gbuf));
