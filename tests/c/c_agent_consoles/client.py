@@ -50,6 +50,15 @@
 #      read. Before the fix the join closed the console, and killed its
 #      process, at the deadline the first one had.
 #
+#   8. A session opens a console of `yes` with its request padded with
+#      1 MB (a key of its own in __md_iev__, then the `host` of its hop),
+#      and does not read: the agent's memory stays bounded (+25 MB), the
+#      padding of its own is not in the frames of the output (each under
+#      16 KB), and a padded hop pauses the console on the bytes waiting
+#      (console_pause_tx_bytes). Before the fix the agent kept the whole
+#      __md_iev__, copied it into every chunk of 1 KB, and paused at 256
+#      messages whatever their size: +160 MB or more.
+#
 #   Usage: client.py <logcenter binary>
 #   Exit 0 when every check passed.
 #
@@ -465,6 +474,73 @@ async def joiner_near_the_deadline(op):
     await leave(j)
 
 
+PAD = 1000000           # bytes a peer pads its request with
+PAD_BOUND_MB = 25       # what the agent may grow while a padded session does not read (the hard bound alone, console_max_tx_bytes, lets it hold 32 MB)
+SMALL_FRAME = 16384     # a frame of a console's output is about 2 KB
+
+
+def padded_command(cmd, kw_cmd, where):
+    """A request padded with PAD bytes: a key of its own in __md_iev__
+    ("md"), or the `host` of its hop ("hop")"""
+    iev = command(cmd, kw_cmd)
+    md = iev["kw"]["__md_iev__"]
+    if where == "md":
+        md["padding"] = "x" * PAD
+    else:
+        md["ievent_gate_stack"][0]["host"] = "x" * PAD
+    return iev
+
+
+async def padded_request(op, pid):
+    """8. A session opens a console of `yes` with its request padded with
+    1 MB, and does not read: the agent's memory stays bounded. A key of
+    the peer's own in __md_iev__ is not kept by the route, so the output
+    comes in small frames; a hop padded (what routes the answer back) makes
+    every frame 1 MB, and the console pauses on the bytes waiting
+    (console_pause_tx_bytes), not on 256 messages of 1 MB. Before the fix
+    the agent kept the whole __md_iev__ and copied it into every chunk, and
+    paused at 256 messages whatever their size"""
+    for name, where in (("padmd", "md"), ("padhop", "hop")):
+        p = await session()
+        if p is None:
+            check("padded %s: a session" % where, False)
+            return
+        rss0 = rss_mb(pid)
+        p.send(padded_command("open-console", {"name": name, "process": "yes", "cwd": "/yuneta"}, where))
+        peak = rss0
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 6:
+            await asyncio.sleep(0.25)
+            rss = rss_mb(pid)
+            if rss < 0:
+                break
+            peak = max(peak, rss)
+            if peak - rss0 > RSS_CAP_MB:
+                break
+        print("padded %s: the agent from %d to %d MB (peak)" % (where, rss0, peak), flush=True)
+        check("padded %s: the agent's memory stays bounded: +%d MB (bound %d MB)" % (
+                where, peak - rss0, PAD_BOUND_MB),
+            rss_mb(pid) > 0 and peak - rss0 < PAD_BOUND_MB)
+        sizes = []
+        end = time.monotonic() + 20
+        while time.monotonic() < end and len(sizes) < 50:
+            iev = await p.recv(end - time.monotonic())
+            if iev is None:
+                break
+            if iev.get("event") == "EV_TTY_DATA" and data_name_of(iev) == name:
+                sizes.append(len(json.dumps(iev)))
+        print("padded %s: %d frames of output, the biggest %d bytes" % (
+            where, len(sizes), max(sizes or [0])), flush=True)
+        check("padded %s: when the session reads, the console goes on: %d frames" % (where, len(sizes)),
+            len(sizes) == 50)
+        if where == "md":
+            check("padded md: its output comes in small frames: the biggest %d bytes" % max(sizes or [0]),
+                bool(sizes) and max(sizes) < SMALL_FRAME)
+        p.close()
+        check("padded %s: the console goes with the session" % where, await wait_for(
+            lambda: _absent(op, name), 10))
+
+
 def data_name_of(iev):
     data = (iev.get("kw") or {}).get("data")
     return data.get("name") if isinstance(data, dict) else None
@@ -690,6 +766,7 @@ async def main():
     await slow_reader()
     await opener_not_read(op)
     await joiner_near_the_deadline(op)
+    await padded_request(op, pid)
     if row:
         await console_of_a_yuno_card(op, row)
 

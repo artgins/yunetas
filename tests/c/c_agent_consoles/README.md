@@ -71,6 +71,14 @@ with no flow control would be taken off soon.
    process killed, at the deadline the opener had before the join; a period
    restarted at that deadline instead of at the join ends 7.5 s after it or
    later.
+8. **A request padded with 1 MB.** A session opens `padmd` (`yes`) with a
+   key of its own of 1 MB in `__md_iev__`, and reads nothing for 6 s: the
+   agent grows less than 25 MB, and when it reads, the console goes on in
+   frames under 16 KB (about 2 KB: the route keeps only the stack of hops and
+   the `__msg_type__`). Then `padhop`, with the `host` of its hop padded: its
+   frames are 1 MB, and the agent grows less than 25 MB too, the console
+   paused on `console_pause_tx_bytes`. Before the fix both grew the agent
+   120 MB or more and every frame carried the padding.
 
 `run_test.sh` checks the agent's log: ONE WARNING *"console output not taken
 by its session, console closed for it"* per session that did not read and

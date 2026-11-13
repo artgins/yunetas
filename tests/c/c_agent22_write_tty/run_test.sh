@@ -28,7 +28,11 @@
 #   has console_pause_tx_queue messages waiting, and waits for it, the link
 #   being its only route), and when the link is read again the console goes
 #   on; close-console closes it. Up to 7.30.26 agent22 grew until it
-#   aborted. The run stops at 300 MB of growth.
+#   aborted. The run stops at 300 MB of growth. The same with the request
+#   padded with 1 MB, in a key of its own of __md_iev__ and in the host of
+#   its hop: agent22 grows less than 25 MB, and the padding of its own is
+#   not in the frames of output (before the fix: +150 MB or more, and every
+#   chunk carried the padding).
 #
 #   Usage: run_test.sh <yuneta_agent22 binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
@@ -116,7 +120,7 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
 }
 EOF
 
-timeout 160 unshare -rmn --pid --fork --mount-proc bash -c "
+timeout 200 unshare -rmn --pid --fork --mount-proc bash -c "
     ip link set lo up || exit 1
     mount -t tmpfs none /yuneta || exit 1
     mount --bind '$WORK/passwd' /etc/passwd || exit 1
@@ -137,6 +141,8 @@ timeout 160 unshare -rmn --pid --fork --mount-proc bash -c "
         'write-tty name=nosuch' \
         'help' \
         'FLOOD' \
+        'FLOODPAD md' \
+        'FLOODPAD hop' \
         'help' > '$WORK/cc.out' 2>&1 &
     CC=\$!
     sleep 0.5
@@ -182,6 +188,14 @@ if ! grep -q "^FLOOD OK$" "$WORK/cc.out"; then
     echo "TEST FAILED: a console that floods while the link is not read (see FLOOD above)"
     failed=1
 fi
+#   The same with the request padded with 1 MB: memory bounded by the bytes
+#   waiting, and the padding of the control center's own not in the output
+for where in md hop; do
+    if ! grep -q "^FLOODPAD $where OK$" "$WORK/cc.out"; then
+        echo "TEST FAILED: a console opened by a request padded with 1 MB ($where, see FLOODPAD above)"
+        failed=1
+    fi
+done
 if ! grep -q "^agent exit code 0$" "$WORK/cc.out" 2>/dev/null; then
     echo "TEST FAILED: the agent did not end in order (it died?)"
     failed=1

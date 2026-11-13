@@ -206,12 +206,14 @@ fi
 #   not per chunk, and nothing is sent to the link out of session (its
 #   WARNING "Not in session"). The one paused for the link when it dropped
 #   is released then (the queue is gone with the connection), so it writes
-#   too and is said once
+#   too and is said once. The one joined by the link (`tj`) may write while
+#   the link is down too, when the session that opened it drains a little:
+#   said once as well
 ntty=$(grep -a '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log" | grep -ac "EV_TTY_DATA")
 nnis=$(grep -ac '"msg": "Not in session"' "$WORK/agent.log")
 nt6=$(grep -a '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log" | grep -a "EV_TTY_DATA" | grep -ac '"console": "t6"')
-if [ "$ntty" -gt 2 ] || [ "$nnis" != "0" ] || [ "$nt6" != "1" ]; then
-    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected at most 2), $nnis \"Not in session\" (expected 0), $nt6 for the console paused when the link dropped (expected 1: released at the drop)"
+if [ "$ntty" -gt 3 ] || [ "$nnis" != "0" ] || [ "$nt6" != "1" ]; then
+    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected at most 3, one per console), $nnis \"Not in session\" (expected 0), $nt6 for the console paused when the link dropped (expected 1: released at the drop)"
     failed=1
 fi
 if [ -n "$KEEP_AGENT_LOG" ]; then

@@ -168,7 +168,9 @@ async def control_center(r, w, in_session):
             flood_answers[md["cc_order"]] = iev.get("kw", {}).get("result")
         elif "cc_pause_order" in md:
             pause_answers[md["cc_pause_order"]] = iev.get("kw", {}).get("result")
-        elif "cc_link_order" in md:
+        elif "cc_link_order" in md or event in ("EV_TTY_OPEN", "EV_TTY_DATA", "EV_TTY_CLOSE"):
+            #   The events of a console carry only the routing of the
+            #   request that opened it, not the marker of the control center
             link_frames.append((event, iev.get("kw", {})))
         elif event in ("EV_PLAY_YUNO_ACK", "EV_PAUSE_YUNO_ACK"):
             kw = iev.get("kw", {})

@@ -624,8 +624,10 @@ chunk of output as up to 7.30.26.
 
 A console has **flow control**. When a route of it (a session, or the link to
 the control center) has `console_pause_tx_queue` messages or more waiting in
-its transport (default `256`; a message carries up to 1 KB of output), the
-console stops reading its terminal: the process behind it waits on its write,
+its transport (default `256`; a message carries up to 1 KB of output, about
+2 KB on the wire), or `console_pause_tx_bytes` bytes or more (default
+`1048576`; the transport's `cur_tx_bytes`), the console stops reading its
+terminal: the process behind it waits on its write,
 as behind an ssh that does not read, and nothing is lost. The console reads
 again when that transport has sent everything (its `EV_TX_READY`). So a
 session that reads slowly gets ALL the output, at its pace; while one route
@@ -698,21 +700,37 @@ away some 30 s, or when its link stayed down that long.
 "console_pause_timeout": 30000, "tx_queue": 257
 ```
 
-`console_max_tx_queue` (default `8192`) stays as a hard bound, whatever paused
-the console: a route over it is taken off the same way (same WARNING, with
-`tx_queue_bytes_about`). With flow control a route never gets near it; it is
-there for a route with no flow control (a transport that is not a `C_TCP`).
-`0` turns either bound off. Set them in the agent's config, under `global`:
+`console_max_tx_queue` (default `8192`) and `console_max_tx_bytes` (default
+`33554432`, 32 MB) stay as a hard bound, whatever paused the console: a route
+over either is taken off the same way (same WARNING, with `tx_queue` and
+`tx_bytes`). With flow control a route never gets near them; they are there
+for a route with no flow control (a transport that is not a `C_TCP`). `0`
+turns any bound off. Set them in the agent's config, under `global`:
 
 ```json
 {
     "global": {
         "agent.console_pause_tx_queue": 256,
+        "agent.console_pause_tx_bytes": 1048576,
         "agent.console_pause_timeout": 30000,
-        "agent.console_max_tx_queue": 8192
+        "agent.console_max_tx_queue": 8192,
+        "agent.console_max_tx_bytes": 33554432
     }
 }
 ```
+
+A route keeps only what routes the console's events back of the request
+that opened or joined the console: the stack of its hops
+(`ievent_gate_stack`, where the control center stamps its client's
+connection) and its `__msg_type__`. Any other key of the request's
+`__md_iev__` (a marker of a client) does not come back with the console's
+events; the answer of `open-console` itself still echoes it. Before the fix
+the whole `__md_iev__` was kept and copied into every chunk of output, and
+both bounds counted messages only: a session whose request was padded with
+1 MB made every chunk of 1 KB a message of 1 MB, and held 256 of them (the
+agent grew 120 MB or more) while it did not read. A hop padded with 1 MB
+still makes each message 1 MB: the bound in bytes pauses the console after
+one of them.
 
 Up to 7.30.26 there was neither: a session that flooded its console and did
 not read grew the agent some 50 MB/s until it aborted (*"REACHED
@@ -722,7 +740,8 @@ window gets all of 11 MB; a session alone on its console that does not read
 keeps it, paused; a joined session that does not read is taken off, and so is
 an opener that does not read while a joined session does; a session that
 joins 2.5 s before the deadline of a reader away gets a whole period from the
-join), `tests/c/c_agent_controlcenter_link` (the control center away 9 s
+join; a request padded with 1 MB keeps the agent under +25 MB),
+`tests/c/c_agent_controlcenter_link` (the control center away 9 s
 keeps its console; a slow TLS link at 30 KB/s keeps it for four deadlines; a
 console paused when the link drops is released and lives; the console of a
 session that does not read, joined by the control center just before its

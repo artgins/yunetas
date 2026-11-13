@@ -42,7 +42,14 @@ read again the console must go on (5 MB more) and `close-console` close it.
 The console pauses while the link has `console_pause_tx_queue` messages
 waiting, and waits for it (the link is its only route). Up to 7.30.26
 `agent22` grew some 50 MB/s until it aborted; the run stops at 300 MB of
-growth. Another `help` after it is answered.
+growth. Then the same twice with the request padded with 1 MB (`FLOODPAD
+md`: a key of the control center's own in `__md_iev__`; `FLOODPAD hop`: the
+`host` of its hop), the link not read for 6 s: `agent22` must grow less than
+25 MB, and with the key of its own every frame of output must be under 16 KB
+(the route keeps only the stack of hops and the `__msg_type__`; a padded hop
+pauses the console on `console_pause_tx_bytes`). Before the fix both grew
+`agent22` some 250 MB and every frame carried the padding. Another `help`
+after them is answered.
 
 Up to 7.30.26 a write-tty for a console that is not there (a key typed right
 after the console closed) and one without `content64` logged an ERROR and

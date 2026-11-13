@@ -65,33 +65,48 @@ the same since this version (see [`yuneta_agent`](yuneta_agent.md)).
 A console has **flow control**, as the primary agent's (see
 [`yuneta_agent`](yuneta_agent.md), *Consoles*). When the link to the control
 center has `console_pause_tx_queue` messages or more waiting (default `256`;
-a message carries up to 1 KB of output), the console stops reading its
-terminal: its process waits on its write, and nothing is lost. It reads
+a message carries up to 1 KB of output, about 2 KB on the wire), or
+`console_pause_tx_bytes` bytes or more (default `1048576`, the link's
+`cur_tx_bytes`), the console stops reading its terminal: its process waits on its write, and nothing is lost. It reads
 again when the link has sent everything, or when the link drops its
 connection (what it had waiting goes with it). The link is the only route of
 `agent22`'s consoles, and the one that opened them, so it freezes nobody
 else: a console waits for it as long as the control center is away, with no
 deadline.
 
-`console_max_tx_queue` (default `8192`) stays as a hard bound whatever paused
-the console (it matters only with flow control off): over it the console is
-closed, with ONE WARNING *"console output not taken by its session, console
-closed for it"*. `0` turns either attribute off:
+`console_max_tx_queue` (default `8192`) and `console_max_tx_bytes` (default
+`33554432`, 32 MB) stay as a hard bound whatever paused the console (they
+matter only with flow control off): over either the console is closed, with
+ONE WARNING *"console output not taken by its session, console closed for
+it"* (with `tx_queue` and `tx_bytes`). `0` turns any of the four attributes
+off:
 
 ```json
 {
     "global": {
         "agent22.console_pause_tx_queue": 256,
-        "agent22.console_max_tx_queue": 8192
+        "agent22.console_pause_tx_bytes": 1048576,
+        "agent22.console_max_tx_queue": 8192,
+        "agent22.console_max_tx_bytes": 33554432
     }
 }
 ```
+
+The route of a console keeps only what routes its events back of the
+request that opened it: the stack of its hops (`ievent_gate_stack`) and its
+`__msg_type__`. Any other key of the request's `__md_iev__` (a marker of the
+control center) does not come back with the console's events. Before the fix
+the whole `__md_iev__` was kept and copied into every chunk of output, and
+the bounds counted messages only: a request padded with 1 MB made every
+chunk of 1 KB a message of 1 MB, and 256 of them took `agent22` from 11 to
+264 MB.
 
 Up to 7.30.26 there was neither: a control center that did not read its link
 grew `agent22` with all the output of its consoles (some 50 MB/s with `yes`)
 until it aborted. Test: `tests/c/c_agent22_write_tty` (8 s of `yes` with the
 link not read: `agent22` stays flat, and the console goes on when the link is
-read again).
+read again; the same with the request padded with 1 MB: under +25 MB, and
+frames of output of 2 KB when the padding is not in a hop).
 
 ```{danger}
 `write-tty` / consoles are a real backdoor (an interactive shell on the node).

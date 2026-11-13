@@ -1116,6 +1116,8 @@ SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           
 SDATA (DTP_INTEGER,     "console_pause_tx_queue",SDF_WR,        "256",          "Flow control of a console: when a route of it (a session, or the link to the control center) has this many messages or more waiting to be sent, the console stops reading its terminal (its process waits) until that transport has sent them all. 0: no flow control"),
 SDATA (DTP_INTEGER,     "console_pause_timeout",SDF_WR,         "30000",        "Milliseconds a route may hold a console paused with its transport sending nothing while it stops others: then it is taken off the console (closed for it, with a warning), so a session that does not read never stops the console of the others for ever. A transport that sent something in the period (its socket took bytes, txBytes) gets another one, and so does the route that opened the console when no other route of it would read (it freezes only itself: its process waits). A route that starts to stop others (a session joins) starts a new period then"),
 SDATA (DTP_INTEGER,     "console_max_tx_queue",SDF_WR,          "8192",         "Most messages a route of a console may have waiting to be sent when the console writes, whatever paused it: over it the console is closed for that route, with a warning, and closed for everybody when that route opened it. A message carries up to 1 KB of console output. 0: no bound"),
+SDATA (DTP_INTEGER,     "console_pause_tx_bytes",SDF_WR,        "1048576",      "Flow control of a console, in bytes: when a route of it has this many bytes or more waiting to be sent (its transport's cur_tx_bytes), the console pauses as with console_pause_tx_queue. A message of a console is about 2 KB, so 256 of them (console_pause_tx_queue) come first. 0: none"),
+SDATA (DTP_INTEGER,     "console_max_tx_bytes",SDF_WR,          "33554432",     "Most bytes a route of a console may have waiting to be sent when the console writes, whatever paused it: over it the route is taken off the console as with console_max_tx_queue. 0: no bound"),
 SDATA (DTP_INTEGER,     "max_watches",      SDF_WR,             "30",           "Maximum requesters with a watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "max_watch_ids",    SDF_WR,             "256",          "Maximum yuno ids (id or id:service) in one watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "watch_min_period", SDF_WR,             "1000",         "Minimum milliseconds between two readings of a watch-yuno-stats"),
@@ -9056,8 +9058,9 @@ PRIVATE hgobj console_route_transport(hgobj gate)
 
 /***************************************************************************
  *  The route has console_pause_tx_queue messages or more waiting in its
- *  transport: the console stops reading its terminal (its process waits
- *  on its write) until the transport has sent them all (its EV_TX_READY,
+ *  transport, or console_pause_tx_bytes bytes or more: the console stops
+ *  reading its terminal (its process waits on its write) until the
+ *  transport has sent them all (its EV_TX_READY,
  *  ac_console_tx_ready()). The route holds the pause for at most
  *  console_pause_timeout with its transport sending nothing
  *  (console_pause_deadline()). The agent takes the EV_TX_READY and the
@@ -9307,6 +9310,7 @@ PRIVATE int console_pause_deadline(hgobj gobj)
                 "detail",       "%s", "it held the console paused and took nothing",
                 "console_pause_timeout", "%ld", (long)timeout,
                 "tx_queue",     "%ld", (long)(transport? gobj_read_integer_attr(transport, "cur_tx_queue") : 0),
+                "tx_bytes",     "%ld", (long)(transport? gobj_read_integer_attr(transport, "cur_tx_bytes") : 0),
                 NULL
             );
             if(is_opener) {
@@ -9324,6 +9328,30 @@ PRIVATE int console_pause_deadline(hgobj gobj)
 
     console_arm_pause_timer(gobj);
     return 0;
+}
+
+/***************************************************************************
+ *  What a route of a console keeps of the `__md_iev__` of the request
+ *  that opened or joined it: what routes its events back, the stack of
+ *  the hops (`ievent_gate_stack`) and the `__msg_type__`, and nothing
+ *  else. Every event of the console to the route carries it, copied, so
+ *  a key of the peer's own would travel with every chunk of output: up to
+ *  7.30.26 the whole `__md_iev__` was kept, and a request padded with
+ *  1 MB made each chunk of 1 KB a message of 1 MB. Return yours.
+ ***************************************************************************/
+PRIVATE json_t *console_route_md(json_t *kw)
+{
+    json_t *md_iev = json_object_get(kw, "__md_iev__");
+    json_t *md_route = json_object();
+    json_t *jn_stack = json_object_get(md_iev, "ievent_gate_stack");
+    if(jn_stack) {
+        json_object_set_new(md_route, "ievent_gate_stack", json_deep_copy(jn_stack));
+    }
+    json_t *jn_msg_type = json_object_get(md_iev, "__msg_type__");
+    if(json_is_string(jn_msg_type)) {
+        json_object_set(md_route, "__msg_type__", jn_msg_type);
+    }
+    return md_route;
 }
 
 /***************************************************************************
@@ -9376,11 +9404,7 @@ PRIVATE int add_console_route(
          *  requester, refresh it so replies route to the new one.
          */
         json_t *jn_route = json_object_get(jn_routes, route_name);
-        json_object_set(
-            jn_route,
-            "__md_iev__",
-            kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED)
-        );
+        json_object_set_new(jn_route, "__md_iev__", console_route_md(kw));
         if(session) {
             json_object_set_new(jn_route, "session", json_integer(session));
         }
@@ -9390,10 +9414,10 @@ PRIVATE int add_console_route(
     /*
      *  add in local list
      */
-    json_t *jn_route = json_pack("{s:s, s:s, s:O}",
+    json_t *jn_route = json_pack("{s:s, s:s, s:o}",
         "route_service", route_service,
         "route_child", route_child,
-        "__md_iev__", kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED)
+        "__md_iev__", console_route_md(kw)
     );
     if(!jn_route) {
         gobj_log_error(gobj, 0,
@@ -16340,19 +16364,25 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  The output of a console, with flow control. A route whose transport
- *  holds `console_pause_tx_queue` messages or more pauses the reading of
+ *  holds `console_pause_tx_queue` messages or more, or
+ *  `console_pause_tx_bytes` bytes or more (its `cur_tx_bytes`: a message
+ *  is of any size), pauses the reading of
  *  the console's terminal (console_hold_pause()) until the transport has
  *  sent them all: a slow reader gets everything, as behind an ssh. A
  *  route that holds the pause `console_pause_timeout` with its transport
  *  sending nothing is taken off (console_pause_deadline()). And a hard
  *  bound whatever paused it: a route whose transport holds
- *  `console_max_tx_queue` messages or more is taken off the console, ONE
+ *  `console_max_tx_queue` messages or more, or `console_max_tx_bytes`
+ *  bytes or more, is taken off the console, ONE
  *  WARNING, and is sent its EV_TTY_CLOSE after what it has waiting; the
  *  console goes on for the others. When it is the route that opened the
  *  console, the console is closed for everybody (posted:
  *  EV_CLOSE_CONSOLE). Up to 7.30.26 there was neither: a session that
  *  flooded its console and did not read grew the agent some 50 MB/s until
- *  it aborted ("REACHED MAX_SYSTEM_MEMORY").
+ *  it aborted ("REACHED MAX_SYSTEM_MEMORY"). Before the fix both bounds
+ *  counted messages only, and a message carried the whole `__md_iev__` of
+ *  the request (console_route_md()): a request padded with 1 MB held 256
+ *  MB waiting for a session that did not read.
  ***************************************************************************/
 PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -16374,6 +16404,8 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     json_int_t max_tx_queue = gobj_read_integer_attr(gobj, "console_max_tx_queue");
     json_int_t pause_tx_queue = gobj_read_integer_attr(gobj, "console_pause_tx_queue");
+    json_int_t max_tx_bytes = gobj_read_integer_attr(gobj, "console_max_tx_bytes");
+    json_int_t pause_tx_bytes = gobj_read_integer_attr(gobj, "console_pause_tx_bytes");
     const char *opener = kw_get_str(gobj, jn_console, "opener", "", 0);
     BOOL opener_off = FALSE;
     json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
@@ -16401,16 +16433,22 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!console_route_listening(gobj, name, jn_route, gobj_input_gate, event)) {
             continue;
         }
-        if((max_tx_queue > 0 || pause_tx_queue > 0) &&
+        if((max_tx_queue > 0 || pause_tx_queue > 0 || max_tx_bytes > 0 || pause_tx_bytes > 0) &&
                 gobj_has_bottom_attr(gobj_input_gate, "cur_tx_queue")) {
             json_int_t tx_queue = gobj_read_integer_attr(gobj_input_gate, "cur_tx_queue");
-            if(pause_tx_queue > 0 && tx_queue >= pause_tx_queue && !json_object_get(jn_route, "pause")) {
+            json_int_t tx_bytes = gobj_has_bottom_attr(gobj_input_gate, "cur_tx_bytes")?
+                gobj_read_integer_attr(gobj_input_gate, "cur_tx_bytes") : 0;
+            BOOL to_pause = (pause_tx_queue > 0 && tx_queue >= pause_tx_queue) ||
+                (pause_tx_bytes > 0 && tx_bytes >= pause_tx_bytes);
+            BOOL over = (max_tx_queue > 0 && tx_queue >= max_tx_queue) ||
+                (max_tx_bytes > 0 && tx_bytes >= max_tx_bytes);
+            if(to_pause && !json_object_get(jn_route, "pause")) {
                 hgobj transport = console_route_transport(gobj_input_gate);
                 if(transport) {
                     console_hold_pause(gobj, name, jn_route, transport, src);
                 }
             }
-            if(max_tx_queue > 0 && tx_queue >= max_tx_queue) {
+            if(over) {
                 BOOL is_opener = strcmp(route_name, opener)==0;
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -16422,8 +16460,8 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "opener",       "%s", is_opener? "yes, the console is closed" : "no",
                     "tx_queue",     "%ld", (long)tx_queue,
                     "console_max_tx_queue", "%ld", (long)max_tx_queue,
-                    "tx_queue_bytes_about", "%ld",
-                        (long)(tx_queue * (json_int_t)strlen(kw_get_str(gobj, kw, "content64", "", 0))),
+                    "tx_bytes",     "%ld", (long)tx_bytes,
+                    "console_max_tx_bytes", "%ld", (long)max_tx_bytes,
                     NULL
                 );
                 if(is_opener) {

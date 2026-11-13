@@ -121,14 +121,17 @@ that floods (`t6`, `yes`) is paused for the link when the link drops: the
 pause is released at the drop (`list-consoles` shows it; the link's queue
 is gone with the connection, so no drain of it will come), `t6` lives the
 10 s the link is down, writes up the new connection, and `close-console`
-finds it. The log holds at most 2 INFO *"requester gone"* for `EV_TTY_DATA`
-(`t5`, `t6`), one of them for `t6`. And a session of 1991 opens `tj`
+finds it. The log holds at most 3 INFO *"requester gone"* for `EV_TTY_DATA`
+(`t5`, `t6`, `tj`: one per console), one of them for `t6`. And a session of 1991 opens `tj`
 (`yes`) and does not read; the control center joins it 1 s before its link
 drops. `tj` must live the 10 s the link is down with both routes (a link
 that is down is no route the session freezes), and, once the session reads,
 write up the new connection; `close-console` finds it. Before the fix the
 session was taken off, and `tj` closed with its process, within
-`console_pause_timeout` of the join.
+`console_pause_timeout` of the join. The events of a console carry only the
+routing of the request that opened it (its stack of hops), not the marker the
+control center put in its `__md_iev__`: the control center takes them by
+event name.
 
 Last, the control center sends 300 orders
 (`list-yunos`) to the agent: the first 150 one by one, each answered with 0;

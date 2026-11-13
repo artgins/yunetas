@@ -6,7 +6,10 @@
 #   to agent22, and prints what came back for each, and whether the link
 #   stayed up. The line FLOOD is a console that floods (`yes`) while the
 #   control center does not read its link for 8 s (flood()): "FLOOD OK"
-#   when agent22's memory stayed bounded and the console went on.
+#   when agent22's memory stayed bounded and the console went on. The lines
+#   FLOODPAD md / FLOODPAD hop open one with the request padded with 1 MB
+#   (flood_pad()): "FLOODPAD <where> OK" when agent22's memory stayed
+#   bounded, and the padding of its own was not in the frames of output.
 #
 #   Usage: control_center.py <cert> <key> <port> <line>...
 #   Exit 0 when the link lived through every line, 2 when the agent closed
@@ -155,6 +158,74 @@ def flood(s):
         print("FLOOD OK")
 
 
+PAD = 1000000       # bytes the control center pads its request with
+
+
+def flood_pad(s, where):
+    """The control center opens a console that floods (`yes`) with its
+    request padded with 1 MB -- a key of its own in __md_iev__ ("md"), or
+    the `host` of its hop ("hop") -- and does not read its link for 6 s:
+    agent22's memory stays bounded. The key of its own is not kept by the
+    console's route, so the output comes in small frames; a padded hop
+    makes every frame 1 MB, and the console pauses on the bytes waiting
+    (console_pause_tx_bytes). Before the fix agent22 kept the whole
+    __md_iev__, copied it into every chunk, and paused at 256 messages
+    whatever their size."""
+    name = "pad" + where
+    kw = command("open-console name=%s process=yes cwd=/yuneta" % name)
+    if where == "md":
+        kw["__md_iev__"]["padding"] = "x" * PAD
+    else:
+        kw["__md_iev__"]["ievent_gate_stack"][0]["host"] = "x" * PAD
+    pid = agent_pid()
+    rss0 = rss_mb(pid)
+    send(s, "EV_MT_COMMAND", kw)
+    peak = rss0
+    t0 = time.time()
+    while time.time() - t0 < 6:
+        time.sleep(0.25)
+        rss = rss_mb(pid)
+        if rss < 0:
+            break
+        peak = max(peak, rss)
+        if peak - rss0 > 300:
+            break
+    print("FLOODPAD %s: agent22 from %d to %d MB (peak)" % (where, rss0, peak))
+    if rss_mb(pid) < 0:
+        print("FLOODPAD %s FAIL: agent22 died" % where)
+        return
+    ok = True
+    if peak - rss0 >= 25:
+        print("FLOODPAD %s FAIL: agent22 grew %d MB while the link was not read" % (where, peak - rss0))
+        ok = False
+    sizes = []
+    end = time.time() + 20
+    try:
+        while time.time() < end and len(sizes) < 30:
+            s.settimeout(max(0.1, end - time.time()))
+            n = struct.unpack("!I", recv_exact(s, 4))[0] - 4
+            g = json.loads(recv_exact(s, n))
+            data = g.get("kw", {}).get("data") or {}
+            if g.get("event") == "EV_TTY_DATA" and isinstance(data, dict) and data.get("name") == name:
+                sizes.append(n)
+    except socket.timeout:
+        pass
+    print("FLOODPAD %s: %d frames of output, the biggest %d bytes" % (where, len(sizes), max(sizes or [0])))
+    if len(sizes) < 30:
+        print("FLOODPAD %s FAIL: when the link is read the console does not go on" % where)
+        ok = False
+    if where == "md" and max(sizes or [0]) >= 16384:
+        print("FLOODPAD md FAIL: the padding of the request travels in every frame")
+        ok = False
+    send(s, "EV_MT_COMMAND", command("close-console name=%s" % name))
+    n, closed = tty_bytes(s, 15, name)
+    if not closed:
+        print("FLOODPAD %s FAIL: close-console did not close it" % where)
+        return
+    if ok:
+        print("FLOODPAD %s OK" % where)
+
+
 def main():
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(sys.argv[1], sys.argv[2])
@@ -183,6 +254,9 @@ def main():
     for line in sys.argv[4:]:
         if line == "FLOOD":
             flood(s)
+            continue
+        if line.startswith("FLOODPAD "):
+            flood_pad(s, line.split()[1])
             continue
         send(s, "EV_MT_COMMAND", command(line))
         got = []
