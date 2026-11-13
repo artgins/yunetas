@@ -34,6 +34,12 @@ that connection. One ycli session:
    answering; ycli connects again by itself, and an `EV_READ_BINARY_FILE` that
    comes with `help` is not written: the end of the connection cleared what
    was pending on it.
+6. On that second connection the peer holds the answer of ycli's warm-up
+   (`list-gobj-commands`) and refuses a request meanwhile with an answer that
+   has no `data`: the refusal must still spend its pending slot (an
+   `EV_READ_BINARY_FILE` with the next `help` is not written). The warm-up's
+   intercept took such an answer for its own; it now asks the answer's command
+   stack (red before: `evil5.bin` written).
 
 Mutants killed: no guard in one answer's action (1), no decrement at a
 refusal (4), the pending count kept at a disconnection (5), the file written

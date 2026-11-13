@@ -25,6 +25,11 @@
 #   5. A request whose connection ends before its answer leaves nothing
 #      pending: the peer closes the connection at `read-file`, ycli connects
 #      again, and an EV_READ_BINARY_FILE that comes with `help` is not written.
+#   6. On that second connection the peer holds the answer of ycli's warm-up
+#      (`list-gobj-commands`): a request refused meanwhile, with an answer
+#      that has no "data", must still leave nothing pending -- it is not the
+#      warm-up's answer, its command stack says so -- so an
+#      EV_READ_BINARY_FILE that comes with the next `help` is not written.
 #
 #   Usage: fake_agent.py <ycli binary> <work dir>
 #   Exit 0 when every check passed.
@@ -53,6 +58,7 @@ WARNING = "answer of a request this ycli did not make, ignored"
 failures = []
 scenario = {"name": ""}
 seen = {"commands": [], "connections": 0}
+held = {}   # the warm-up of the second connection, answered when the test says
 output = []
 
 
@@ -135,12 +141,22 @@ async def agent(r, w):
             continue
         command = kw.get("__command__", "")
         if command == "list-gobj-commands":
-            w.write(answer("EV_MT_COMMAND_ANSWER", md, None, "answered"))
+            if seen["connections"] == 2:
+                held["warmup"] = (w, md)
+            else:
+                w.write(answer("EV_MT_COMMAND_ANSWER", md, None, "answered"))
             continue
         if scenario["name"] == "unasked":
             w.write(evil_binary(md, "evil.bin"))
             w.write(answer("EV_READ_FILE", md, {"name": "evil.txt", "zcontent": "EVIL"}))
             w.write(answer("EV_EDIT_CONFIG", md, [{"id": "evil", "zcontent": {"evil": True}}]))
+        elif "nodata" in command:
+            # a refusal with no "data": the shape the warm-up's intercept took for its own
+            w.write(frame({"event": "EV_MT_COMMAND_ANSWER", "kw": {"result": -1,
+                "comment": "Command sent to 0 nodes", "schema": None,
+                "__md_iev__": reverse(md)}}))
+            seen["commands"].append(command)
+            continue
         elif "nope" in command:
             w.write(frame({"event": "EV_MT_COMMAND_ANSWER", "kw": {"result": -1,
                 "comment": "Command sent to 0 nodes", "schema": None, "data": None,
@@ -155,6 +171,8 @@ async def agent(r, w):
             w.write(evil_binary(md, "evil3.bin"))
         elif scenario["name"] == "after-close":
             w.write(evil_binary(md, "evil4.bin"))
+        elif scenario["name"] == "after-warmup":
+            w.write(evil_binary(md, "evil5.bin"))
         elif "read-binary-file" in command:
             w.write(answer("EV_READ_BINARY_FILE", md,
                 {"name": "good.bin", "content64": base64.b64encode(b"GOOD").decode()}))
@@ -269,6 +287,18 @@ async def main():
         await type_line("help")
         check("closed: a request whose connection ended leaves nothing pending: %r" %
             written("evil4.bin"), written("evil4.bin") is None)
+
+        scenario["name"] = "in-warmup"
+        await type_line("command-agent agent_id=n cmd2agent='read-binary-file filename=/x/nodata'")
+        check("in warm-up: the warm-up of the connection is still pending", "warmup" in held)
+        if "warmup" in held:
+            w, md = held.pop("warmup")
+            w.write(answer("EV_MT_COMMAND_ANSWER", md, [{"gclass": "C_AGENT", "commands": []}]))
+            await asyncio.sleep(0.5)
+        scenario["name"] = "after-warmup"
+        await type_line("help")
+        check("in warm-up: a request refused while the warm-up was pending leaves nothing pending: %r" %
+            written("evil5.bin"), written("evil5.bin") is None)
     finally:
         p.kill()
         await p.wait()

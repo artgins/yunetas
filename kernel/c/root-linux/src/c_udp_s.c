@@ -111,8 +111,8 @@ SDATA (DTP_BOOLEAN,     "set_broadcast",    SDF_WR|SDF_PERSIST, 0, "Set udp broa
 SDATA (DTP_BOOLEAN,     "shared",           SDF_WR|SDF_PERSIST, 0, "Share the port"),
 SDATA (DTP_INTEGER,     "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 
-SDATA (DTP_INTEGER,     "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_INTEGER,     "txBytes",          SDF_RSTATS,     "0", "Bytes transmitted"),
+SDATA (DTP_INTEGER,     "rxBytes",          SDF_RSTATS,     "0", "Bytes received"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER,     "rxRefusedMsgs",    SDF_RSTATS,     "0", "Datagrams dropped: their peer is in denied_ips, or not in allowed_ips with only_allowed_ips"),

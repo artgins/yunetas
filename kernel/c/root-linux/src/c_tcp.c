@@ -250,8 +250,8 @@ SDATA (DTP_INTEGER, "timeout_tls_handshake", SDF_RD,    "10000", "A TLS handshak
 SDATA (DTP_BOOLEAN, "connect_on_start", SDF_RD,         "TRUE",     "Client: connect when started. FALSE: stay in ST_DISCONNECTED until the owner sends EV_CONNECT (connections on demand)"),
 SDATA (DTP_STRING,  "disconnect_cause", SDF_RD|SDF_STATS, "",       "Why the last connection, or the last attempt to connect, ended: the error of the socket, a TLS failure with its reason, 'Local dropping', 'Inactivity timeout', 'Local stop'. The first cause of an end is kept. Emptied when a connection attempt starts (EV_CONNECT or the reconnect timer) and when a connection begins"),
 
-SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
-SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Bytes written to the socket (what the kernel took)"),
+SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Bytes received"),
 SDATA (DTP_INTEGER, "txMsgs",           SDF_RSTATS,     "0", "Messages of the host taken to be written (out of the tx queue), in clear and over TLS alike"),
 SDATA (DTP_INTEGER, "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER, "max_tx_in_progress",SDF_RSTATS,    "0", "Most writes ever in flight at once: 1 is the rule, more would let a short write's rest go out of order"),

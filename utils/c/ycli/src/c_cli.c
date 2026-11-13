@@ -3736,7 +3736,13 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /* Intercept the silent list-gobj-commands responses used to warm the
-     * per-connection completion cache. Unrelated answers fall through. */
+     * per-connection completion cache. Unrelated answers fall through.
+     * An answer says its command in its command stack: only the warm-up's
+     * is taken for it. Without a stack, the shape decides, as up to
+     * 7.30.26 -- and that took a refused request with no "data" for the
+     * warm-up's answer, leaving the request pending */
+    json_t *jn_command = msg_iev_get_stack(gobj, kw, COMMAND_STACK_ID, FALSE);
+    const char *command = kw_get_str(gobj, jn_command, "command", 0, 0);
     char ckey[32];
     conn_key(src, ckey, sizeof(ckey));
     int pending = (int)kw_get_int(gobj, priv->pending_cache_fetches, ckey, 0, 0);
@@ -3744,7 +3750,10 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
         BOOL is_cache = is_commands_list_response(jn_data);
         int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
-        if(is_cache || (result != 0 && jn_data == NULL)) {
+        BOOL is_warmup = command?
+            (strcmp(command, "list-gobj-commands")==0) :
+            (is_cache || (result != 0 && jn_data == NULL));
+        if(is_warmup) {
             if(is_cache) {
                 merge_commands_into_remote_cache(gobj, src, jn_data);
             }
@@ -3762,12 +3771,8 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
      *  the line of its request in its command stack.
      */
     if(kw_get_int(gobj, kw, "result", 0, 0) < 0) {
-        json_t *jn_command = msg_iev_get_stack(gobj, kw, COMMAND_STACK_ID, FALSE);
-        const char *command = kw_get_str(gobj, jn_command, "command", "", 0);
-        char key[32];
-        conn_key(src, key, sizeof(key));
         if(names_a_request(command) &&
-                json_integer_value(json_object_get(priv->requests_pending, key)) > 0) {
+                json_integer_value(json_object_get(priv->requests_pending, ckey)) > 0) {
             count_pending_request(gobj, src, -1);
         }
     }
