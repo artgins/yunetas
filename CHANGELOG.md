@@ -682,15 +682,37 @@
   transport has sent everything. A slow reader gets all the output, at its
   pace; the other routes wait with it. A route that holds the pause
   `console_pause_timeout` ms (a new attribute, 30000) with its transport
-  taking nothing in the period is taken off: it gets the console's
-  `EV_TTY_CLOSE` after what it has waiting, ONE WARNING "console output not
-  taken by its session, console closed for it", and the console goes on for
-  the others, or is closed when that route opened it -- so a session that
-  does not read cannot freeze the console of the others for ever. A reader
-  must take about half of its socket's send buffer per period (tens of KB/s
-  with the default). `console_max_tx_queue` (a new attribute, 8192) stays as
+  taking nothing in the period, while it stops another route of the
+  console, is taken off: it gets the console's `EV_TTY_CLOSE` after what it
+  has waiting, ONE WARNING "console output not taken by its session,
+  console closed for it", and the console goes on for the others, or is
+  closed when that route opened it -- so a session that joined and does not
+  read cannot freeze the console of the others for ever. A route that
+  joined always stops the one that opened it; the route that opened it
+  stops the others only when another route holds no pause. Alone on its
+  console (a session, or the link to the control center that all its
+  operators share) it freezes only itself: the console stays paused and its
+  process waits while the reader is away, and goes on when it reads. What
+  the agent measures is the transport's `txBytes`, the bytes its socket
+  took, in clear and over TLS. And when the transport of a route drops its
+  connection, the pause of that route is released at once (its queue went
+  with the connection); the console's output for a link that is down is
+  dropped, said once, and goes up the next connection. `console_max_tx_queue` (a new attribute, 8192) stays as
   a hard bound whatever paused the console (same WARNING). Tests:
   `c_agent_consoles`, `c_agent_controlcenter_link`.
+- **BREAKING (an operator): agent22's consoles have flow control and a
+  bound.** They sent all the output of a console to the link to the control
+  center: a control center that did not read its link grew agent22 some
+  50 MB/s until it aborted (7.30.26). Now, as the agent's, the console
+  pauses (its process waits) while the link has `console_pause_tx_queue`
+  messages or more waiting (a new attribute, 256; 0 turns it off), and
+  reads again when the link has sent them, or drops its connection. The
+  link is the only route of agent22's consoles and the one that opened
+  them, so there is no deadline: a console waits for the control center as
+  long as it is away. `console_max_tx_queue` (a new attribute, 8192) is a
+  hard bound whatever paused it: over it the console is closed, ONE WARNING
+  "console output not taken by its session, console closed for it". Test:
+  `c_agent22_write_tty`.
 
 ### Kernel
 
@@ -790,6 +812,18 @@
   count what it could not send: `txMsgsNoChannel`. Up to 7.30.26 the counter
   never moved (and was shared by every gate of the yuno): one ERROR per
   send, the send to all with a stack. Test: new `c_iogate_channel`.
+- **`C_TCP` counts `txMsgs` over TLS too.** A message of the host is
+  counted when it is taken to be written (out of the tx queue), in clear and
+  over TLS alike. Up to 7.30.26 only the clear path counted it, and the
+  `txMsgs` of every TLS connection stayed 0. The descriptions of `txBytes` /
+  `rxBytes` of `C_TCP` and `C_UDP_S` say bytes (they said "Messages").
+  Test: `c_tcp/test13`.
+- **`C_TCP`: new read-only `cur_tx_bytes`**, the bytes of the messages of
+  the host held to be sent (the ones waiting in the tx queue and the one
+  being written, until its write ends). `cur_tx_queue` counts messages, and
+  a message can be 1 KB or 200 MB: a host that bounds a peer that does not
+  read bounds it by this. Kept as a counter, so a read costs nothing. Test:
+  `c_tcp/test13`.
 - **`C_PTY` has flow control: `rx_paused`.** It read its terminal as fast as
   the process wrote, and a host that could not send the output on as fast
   had to keep it all (7.30.26). Written TRUE, no more reads are started (the
@@ -909,21 +943,40 @@
   control center relayed the answers of `command-agent` and `stats-agent`
   (`EV_MT_COMMAND_ANSWER`, `EV_MT_STATS_ANSWER`) to any web client named by
   its channel when the agent wrote no stamp (7.30.26); the seven answers
-  above, too. Now `command-agent` and `stats-agent` remember which client
+  above, too. And what it streams: the events of a console (`EV_TTY_OPEN`,
+  `EV_TTY_DATA`, `EV_TTY_CLOSE`) and the readings of a watch
+  (`EV_YUNO_STATS`), relayed with no stamp to any web client the agent
+  named (7.30.26: a forged console, forged stats and a close reached
+  clients that asked nothing). Now `command-agent` and `stats-agent` remember which client
   and connection asked, and an answer is relayed only to that client, in the
   connection it holds now, with that connection's stamp. Any other is
   dropped with a WARNING "answer of an agent for a web client that did not
   ask that agent, dropped" that names the agent (one per
-  `drops_warning_window`, the rest counted). Test:
-  `c_controlcenter_scenarios`.
+  `drops_warning_window`, the rest counted). A client that left before the
+  answer is not one that did not ask: the answer is dropped with the INFO
+  "requester gone before its answer, answer dropped", as in 7.30.26, and
+  the WARNING and its count are only for a client that is there. When an
+  agent's channel closes the control center forgets what was asked of it:
+  a client renews its watch (gui_agent does every `watch_ttl`/3) or opens
+  its console again. Test: `c_controlcenter_scenarios`.
 - **What waits for a web client is bounded.** A browser that did not take
   what the control center relayed to it (a console's output above all) grew
   the control center with all of it (7.30.26). Now, when the control center
   relays an answer or a stream to a client whose transport holds
-  `client_max_tx_queue` messages or more (a new attribute, 8192, 0 for no
-  bound), the client is dropped with ONE WARNING "web client that does not
-  take what is relayed to it, dropped", and nothing more is relayed to that
-  connection. Test: `c_controlcenter_scenarios`.
+  `client_max_tx_queue` messages or more (a new attribute, 8192) or
+  `client_max_tx_bytes` bytes or more (a new attribute, 32 MB: an agent's
+  answer is one message of any size, up to the 200 MB of `max_pkt_size`),
+  the client is dropped with ONE WARNING "web client that does not take
+  what is relayed to it, dropped" (with `tx_queue` and `tx_bytes`), and
+  nothing more is relayed to that connection. 0 turns either bound off.
+  Test: `c_controlcenter_scenarios`.
+- **An `EV_TTY_OPEN` for a web client that left no longer drops the next
+  client of its channel.** The control center recorded the console's mirror
+  for the closed channel with no connection, and when the agent's channel
+  closed it dropped whoever held that channel then (7.30.26). Now the open
+  of a client that is not listening is dropped as "requester gone" (an
+  INFO) before anything is recorded, and a mirror with no connection
+  matches nobody. Test: `c_controlcenter_scenarios`.
 
 ### ycommand
 
@@ -943,6 +996,33 @@
 - **ycommand writes the file of `read-binary-file` 0600**, not 0700: a copy
   of data, to read or to upload again, not a program (7.30.26: executable).
   Test: `c_ycommand_request_answers`.
+- **A request straight to the agent ends ycommand's command.** `read-file`,
+  `read-binary-file`, `edit-config`... are answered by the agent only with
+  their own event (`EV_READ_BINARY_FILE`...), never with an
+  `EV_MT_COMMAND_ANSWER`, and ycommand waited for one: `-c
+  "read-binary-file ...; help"` never ran `help` nor ended, and the request
+  alone did not end either (7.30.26). Now the request's event ends the
+  command when no `EV_MT_COMMAND_ANSWER` came before it (through a control
+  center its "Command sent to 1 nodes" comes first, as before). Test:
+  `c_ycommand_request_answers`.
+
+### ycli
+
+- **BREAKING (a peer that pushed those events unasked): ycli takes the
+  answers of the agent's own requests only for a request it made**, as
+  ycommand does since this cycle: `read-file`, `read-json`,
+  `read-binary-file`, `running-keys`, `running-bin`, `edit-config`,
+  `view-config`, `edit-yuno-config`, `view-yuno-config` (also inside a
+  `command-agent`'s `cmd2agent`). One answer per request, per connection;
+  any other is ignored with a WARNING *"answer of a request this ycli did
+  not make, ignored"*. A request refused at once and the end of the
+  connection leave nothing pending. Up to 7.30.26 it wrote any such answer
+  its peers sent under `~/.yuneta/configs/`, opened the editor on it and
+  left a `create-config` on its line. Its `read-binary-file` writes the
+  file `0600`, not `0700`. And its warm-up of the command cache
+  (`list-gobj-commands` at a connection) takes only its own answer, by the
+  answer's command stack (an error answer without `data` that came while it
+  was pending was taken for it). Test: `c_ycli_request_answers`.
 
 ### Authz
 

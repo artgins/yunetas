@@ -31,4 +31,7 @@ add_test(
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_test.sh
         ${YUNETAS_BASE}/yunos/c/yuno_agent/build/yuneta_agent
 )
-set_tests_properties(${PROJECT_NAME} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+# Alone under ctest -j: its slow link (tc, ~30 KB/s) must keep a pace the
+# console's deadline accepts, and the load of the tests running at once
+# slows it below that (11 KB/s seen under -j8)
+set_tests_properties(${PROJECT_NAME} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
