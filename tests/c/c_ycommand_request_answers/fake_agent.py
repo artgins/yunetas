@@ -14,9 +14,13 @@
 #      opened the editor and left a create-config on its line).
 #   2. ycommand sends `read-binary-file filename=/x/good.bin`: the peer
 #      answers it with an EV_READ_BINARY_FILE, written as before, and then
-#      with an EV_READ_FILE more: one answer per request, not written.
+#      with an EV_READ_FILE more: one answer per request, not written. The
+#      file is written 0600, data (0700 up to 7.30.26).
 #   3. ycommand sends it through a control center (`command-agent
 #      cmd2agent='read-binary-file ...'`): the same.
+#   4. A request refused at once (EV_MT_COMMAND_ANSWER -1, "Command sent to
+#      0 nodes") leaves nothing pending: an EV_READ_BINARY_FILE that comes
+#      with the next command (`help`) is not written.
 #
 #   Usage: fake_agent.py <ycommand binary> <work dir>
 #   Exit 0 when every check passed.
@@ -118,6 +122,14 @@ async def agent(r, w):
                 w.write(answer("EV_READ_FILE", md, {"name": "evil.txt", "zcontent": "EVIL"}))
                 w.write(answer("EV_EDIT_CONFIG", md,
                     [{"id": "evil", "zcontent": {"evil": True}}]))
+            elif "nope" in command:
+                w.write(frame({"event": "EV_MT_COMMAND_ANSWER", "kw": {"result": -1,
+                    "comment": "Command sent to 0 nodes", "schema": None, "data": None,
+                    "__md_iev__": reverse(md)}}))
+                continue
+            elif scenario["name"] == "after-refused":
+                w.write(answer("EV_READ_BINARY_FILE", md,
+                    {"name": "evil3.bin", "content64": base64.b64encode(b"EVIL").decode()}))
             elif "read-binary-file" in command:
                 w.write(answer("EV_READ_BINARY_FILE", md,
                     {"name": "good.bin", "content64": base64.b64encode(b"GOOD").decode()}))
@@ -167,6 +179,8 @@ async def main():
     out = await ycommand("read-binary-file filename=/x/good.bin")
     check("asked: the answer of read-binary-file is written: %r" % written("good.bin"),
         written("good.bin") == b"GOOD")
+    mode = os.stat(os.path.join(CONFIGS, "good.bin")).st_mode & 0o777 if written("good.bin") else 0
+    check("asked: written as data, not executable: %o" % mode, mode == 0o600)
     if written("good.bin") is not None:
         os.unlink(os.path.join(CONFIGS, "good.bin"))
     out = await ycommand("command-agent agent_id=n cmd2agent='read-binary-file filename=/x/good.bin'")
@@ -174,6 +188,11 @@ async def main():
         written("good.bin") == b"GOOD")
     check("asked: one answer per request: a second one is not written: %r" % written("evil2.txt"),
         written("evil2.txt") is None)
+
+    scenario["name"] = "after-refused"
+    out = await ycommand("-command-agent agent_id=n cmd2agent='read-binary-file filename=/x/nope'; help")
+    check("refused: the request refused at once leaves nothing pending: %r" % written("evil3.bin"),
+        written("evil3.bin") is None)
 
     server.close()
 

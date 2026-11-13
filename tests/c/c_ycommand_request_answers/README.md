@@ -21,9 +21,13 @@ a `create-config` on its line). It must do so only for a request it made:
    written.
 2. `ycommand -c 'read-binary-file filename=/x/good.bin'`: the peer answers
    it (`good.bin`, written) and sends an `EV_READ_FILE` more (`evil2.txt`):
-   one answer per request, not written.
+   one answer per request, not written. `good.bin` is written `0600` (data,
+   not a program; `0700` up to 7.30.26).
 3. `ycommand -c "command-agent agent_id=n cmd2agent='read-binary-file ...'"`,
    as through a control center: the answer is written.
+4. A request refused at once (`EV_MT_COMMAND_ANSWER` -1, *"Command sent to 0
+   nodes"*), then `help`, with which the peer sends an `EV_READ_BINARY_FILE`:
+   not written, nothing was left pending.
 
 Skipped (exit 77) without the ycommand binary, unprivileged namespaces or
 `ip`.

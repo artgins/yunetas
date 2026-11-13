@@ -303,6 +303,7 @@ typedef struct _PRIVATE_DATA {
     BOOL stdin_closed;              /* EOF arrived on stdin */
     BOOL cmd_in_flight;             /* async cmd dispatched, waiting for answer */
     int requests_pending;           /* answers still to come of the agent's own requests (read-file...) */
+    BOOL request_in_flight;         /* the command in flight is one of them: an error answer ends it */
 } PRIVATE_DATA;
 
 
@@ -1692,6 +1693,7 @@ PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event)
 
     if(priv->requests_pending > 0) {
         priv->requests_pending--;
+        priv->request_in_flight = FALSE;
         return TRUE;
     }
     gobj_log_warning(gobj, 0,
@@ -1830,7 +1832,7 @@ PRIVATE int save_local_base64(
     if(s) {
         gbuffer_t *gbuf_bin = gbuffer_base64_to_binary(s, strlen(s));
         if(gbuf_bin) {
-            int fp = newfile(path, 0700, TRUE);
+            int fp = newfile(path, 0600, TRUE);  // a copy of data, never a program to run (0700 up to 7.30.26)
             if(fp) {
                 ssize_t x = write(
                     fp,
@@ -2506,6 +2508,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_write_pointer_attr(gobj, "gobj_connector", 0);
+    priv->requests_pending = 0;     // nothing comes of a peer that is gone
+    priv->request_in_flight = FALSE;
     if(priv->verbose || priv->interactive) {
         const char *comment = kw_get_str(gobj, kw, "comment", 0, 0);
         if(comment) {
@@ -2776,6 +2780,7 @@ PRIVATE int exec_one_command(hgobj gobj, const char *cmdline)
     /* Async: the response will arrive via EV_MT_COMMAND_ANSWER. */
     if(is_request) {
         priv->requests_pending++;   // and its own answer (EV_READ_FILE...): take_pending_request()
+        priv->request_in_flight = TRUE;
     }
     priv->current_ignore_fail = ignore_fail;
     priv->cmd_in_flight = TRUE;
@@ -2862,6 +2867,17 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
      *  ownership of `kw` is passed to display_webix_result.
      */
     int __answer_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+    if(priv->request_in_flight) {
+        /*
+         *  A request refused before its own answer (the control center sent
+         *  it to no node, the agent's parser refused it): none will come,
+         *  and the count must not take the next answer nobody asked.
+         */
+        priv->request_in_flight = FALSE;
+        if(__answer_result < 0 && priv->requests_pending > 0) {
+            priv->requests_pending--;
+        }
+    }
     BOOL __ignore_fail = priv->current_ignore_fail;
     priv->current_ignore_fail = FALSE;
     /* The async dispatched by exec_one_command has just returned. Clear the

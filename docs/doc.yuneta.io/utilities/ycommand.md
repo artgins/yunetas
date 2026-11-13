@@ -214,7 +214,12 @@ client does, and tells its host nothing until one opens.
   "msg": "answer of a request this ycommand did not make, ignored", "event": "EV_READ_BINARY_FILE"
   ```
 
-  Up to 7.30.26 ycommand took any that came from its peer.
+  A request refused at once (an `EV_MT_COMMAND_ANSWER` with an error, such as
+  *"Command sent to 0 nodes"*) leaves nothing pending, and a disconnection
+  clears what was. Up to 7.30.26 ycommand took any that came from its peer.
+- **`read-binary-file` writes data** — the file is written `0600`, not
+  executable (`0700` up to 7.30.26): it is a copy of what the node holds, to
+  read or to upload again, not a program to run.
 
 ## See also
 
