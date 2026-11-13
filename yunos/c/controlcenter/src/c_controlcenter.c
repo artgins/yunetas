@@ -536,6 +536,7 @@ SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in 
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
 SDATA (DTP_INTEGER,     "operator_assertion_lifetime",SDF_RD,"60",      "Seconds an operator assertion lives (the agents refuse one of more than their max_assertion_lifetime)"),
+SDATA (DTP_INTEGER,     "client_max_tx_queue",SDF_WR,           "8192",     "Most messages a web client may have waiting to be sent when this yuno relays an agent's answer or stream to it (a console's output above all): over it the client is dropped, with a warning. 0: no bound"),
 SDATA (DTP_INTEGER,     "drops_warning_window",SDF_WR,          "60000",    "Milliseconds of a capped warning's window (dropped streams, unrouted PTY, injected agent events): one warning per window, the rest counted and said when it ends"),
 SDATA (DTP_BOOLEAN,     "drops_timer_armed",SDF_RD,             "0",        "A capped warning has a count to say when its window ends"),
 
@@ -1643,6 +1644,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
     int some = 0;
     if(child) {
         record_link_request(gobj, src, child);
+        record_client_request(gobj, src, child);
         json_t *webix = gobj_stats(
             child,
             stats2agent,
@@ -5099,8 +5101,10 @@ PRIVATE void record_client_request(hgobj gobj, hgobj src, hgobj agent_srv)
 }
 
 /***************************************************************************
- *  May the answer of an agent's own request (kw not owned, the CC's hop
- *  popped) go to `requester`? A link: requester_of_route() checked that it
+ *  May an answer of an agent (kw not owned, the CC's hop popped) go to
+ *  `requester`? The answer of a command or of a stats sent by
+ *  command-agent / stats-agent, and of the agent's own requests
+ *  (read-file, edit-config...). A link: requester_of_route() checked that it
  *  asked this agent. A web client: only if it asked THIS agent in the
  *  connection it holds now (record_client_request()), and the answer
  *  carries that connection (the stamp of command-agent). The agent writes
@@ -5134,7 +5138,7 @@ PRIVATE BOOL client_asked_agent(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "answer of an agent's request for a web client that did not ask that agent, dropped",
+            "msg",          "%s", "answer of an agent for a web client that did not ask that agent, dropped",
             "event",        "%s", event,
             "agent",        "%s", card_str(card, "id"),
             "agent_host",   "%s", card_host(card),
@@ -5297,6 +5301,38 @@ PRIVATE int relay_to_requester(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
         return 0;
     }
 
+    /*
+     *  What waits for a web client is bounded: one that does not take what
+     *  the agents send it (a console's output above all) is dropped, ONE
+     *  WARNING. Up to 7.30.26 its queue grew with all of it, in this yuno.
+     */
+    if(json_is_true(gobj_read_user_data(requester, "cc_dropping"))) {
+        KW_DECREF(kw);      // dropped already, said once
+        return 0;
+    }
+    json_int_t max_tx_queue = gobj_read_integer_attr(gobj, "client_max_tx_queue");
+    if(max_tx_queue > 0 && gobj_parent(requester) == priv->gobj_top_side &&
+            gobj_has_bottom_attr(requester, "cur_tx_queue")) {
+        json_int_t tx_queue = gobj_read_integer_attr(requester, "cur_tx_queue");
+        if(tx_queue >= max_tx_queue) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "web client that does not take what is relayed to it, dropped",
+                "client",       "%s", gobj_short_name(requester),
+                "peername",     "%s", gobj_read_str_attr(requester, "peername"),
+                "event",        "%s", event,
+                "tx_queue",     "%ld", (long)tx_queue,
+                "client_max_tx_queue", "%ld", (long)max_tx_queue,
+                NULL
+            );
+            gobj_write_user_data(requester, "cc_dropping", json_true());
+            gobj_send_event(requester, EV_DROP, 0, gobj);
+            KW_DECREF(kw);
+            return 0;
+        }
+    }
+
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
 
@@ -5425,7 +5461,7 @@ PRIVATE void drop_caps(PRIVATE_DATA *priv, drop_cap_t caps[DROP_CAPS])
     caps[3] = (drop_cap_t){&priv->injected, &priv->t_injected_log, MSGSET_PROTOCOL,
         "event of an agent not from the agents' side, dropped"};
     caps[4] = (drop_cap_t){&priv->unasked, &priv->t_unasked_log, MSGSET_PROTOCOL,
-        "answer of an agent's request for a web client that did not ask that agent, dropped"};
+        "answer of an agent for a web client that did not ask that agent, dropped"};
 }
 
 /***************************************************************************
@@ -6312,6 +6348,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
         if(channel_gobj) {
             gobj_write_user_data(channel_gobj, "cc_connection", json_integer(++priv->connections));
+            gobj_write_user_data(channel_gobj, "cc_dropping", json_false());
         }
     }
     if(src == priv->gobj_input_side) {
@@ -6446,6 +6483,11 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         KW_DECREF(kw);
         return 0;
     }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
+        KW_DECREF(kw);
+        return 0;
+    }
 
     return relay_to_requester(gobj, event, kw, gobj_requester);
 }
@@ -6522,6 +6564,11 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     hgobj gobj_requester = requester_of_answer(gobj, event, kw, dst_service, sizeof(dst_service));
     if(!gobj_requester) {
         // Error already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+    if(!client_asked_agent(gobj, event, kw, gobj_requester)) {
+        // Warning already logged, or counted
         KW_DECREF(kw);
         return 0;
     }

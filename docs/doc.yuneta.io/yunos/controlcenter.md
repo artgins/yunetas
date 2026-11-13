@@ -546,16 +546,18 @@ agent's channel refused the frame (*"Frame of an event that is not public,
 refused"*, a WARNING), and the client had only *"Command sent to 1 nodes"*.
 
 The agent writes the route of its answers, so the control center relays one
-only to a web client that **asked that agent**, in the connection it holds
-now: `command-agent` remembers, in the agent's channel, the client's channel
-and its connection, and stamps the connection on the request
-(`cc_connection`); the answer must come back from that agent with that stamp.
+(those seven, and the `EV_MT_COMMAND_ANSWER` / `EV_MT_STATS_ANSWER` of a
+`command-agent` / `stats-agent`) only to a web client that **asked that
+agent**, in the connection it holds now: `command-agent` and `stats-agent`
+remember, in the agent's channel, the client's channel and its connection,
+and stamp the connection on the request (`cc_connection`); the answer must
+come back from that agent with that stamp.
 An answer for a client that did not ask that agent, with another client's
 stamp or with none, is dropped with a WARNING that names the agent (one per
 `drops_warning_window`, the rest counted):
 
 ```text
-"msg": "answer of an agent's request for a web client that did not ask that agent, dropped",
+"msg": "answer of an agent for a web client that did not ask that agent, dropped",
 "event": "EV_READ_FILE", "agent": "<node uuid>", "agent_host": "node-a",
 "client": "C_CHANNEL^input-3", "detail": "the client did not ask that agent"
 ```
@@ -564,6 +566,30 @@ Up to 7.30.26 an accepted agent could send the seven to any web client of
 the control center, naming its channel: two clients that had asked nothing got
 them. `ycommand` takes one only as the answer of a request it made (one
 answer per request, see the ycommand page) since then.
+
+What waits to be sent to a web client is bounded too: when the control center
+relays an agent's answer or stream to a client (a console's output above all)
+whose transport holds `client_max_tx_queue` messages or more (default `8192`,
+`0` for no bound), the client is dropped, with ONE WARNING, and nothing more is
+relayed to that connection:
+
+```text
+"msg": "web client that does not take what is relayed to it, dropped",
+"client": "C_CHANNEL^input-4", "peername": "10.0.0.9:50122", "event": "EV_TTY_DATA",
+"tx_queue": 8192, "client_max_tx_queue": 8192
+```
+
+```json
+{
+    "global": {
+        "controlcenter.client_max_tx_queue": 16384
+    }
+}
+```
+
+Up to 7.30.26 a browser that did not take its console's output grew the
+control center with all of it. The agent's own flow control (see the agent's
+page, *Consoles*) paces a console to the link, not to each browser behind it.
 
 ### Events pushed by a node, relayed to the web client
 

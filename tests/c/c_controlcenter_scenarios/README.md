@@ -494,14 +494,20 @@ still reported and fails the test.
 49. And only to a client that asked THAT agent, in the connection it holds
     now. A client asks `read-file` of the agent; another client connects
     again (a connection that asked nothing). The agent sends each of the
-    seven events three times with a route it wrote: to the other client
-    with that client's own connection stamp, to it with no stamp, and to the
-    client that asked with no stamp. None reaches a client, and the log has
-    ONE WARNING *"answer of an agent's request for a web client that did not
-    ask that agent, dropped"* (the other 20 counted, said when the window of
-    case 11 ends). The agent's answer with the stamp of the client that asked
+    seven events, and an `EV_MT_COMMAND_ANSWER` and an `EV_MT_STATS_ANSWER`,
+    three times with a route it wrote: to the other client with that
+    client's own connection stamp, to it with no stamp, and to the client
+    that asked with no stamp. None reaches a client, and the log has ONE
+    WARNING *"answer of an agent for a web client that did not ask that
+    agent, dropped"* (the other 26 counted, said when the window of case 11
+    ends). The agent's answer with the stamp of the client that asked
     still reaches it. Up to 7.30.26 an accepted agent could send them to any
     web client by the name of its channel.
+50. A web client whose queue holds `client_max_tx_queue` messages (the test
+    writes `cur_tx_queue` of its channel, as `C_TCP`'s): a console's output
+    for it drops it (`EV_DROP` once, no output), ONE WARNING *"web client
+    that does not take what is relayed to it, dropped"*. Connected again,
+    it gets the output. Up to 7.30.26 its queue grew with all of it.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes
