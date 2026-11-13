@@ -1,5 +1,5 @@
 llhttp.h, llhttp.c, llhttp_api.c and llhttp_http.c in this directory are
-llhttp 9.4.3 (https://github.com/nodejs/llhttp, tag release/v9.4.3: its
+llhttp 9.4.4 (https://github.com/nodejs/llhttp, tag release/v9.4.4: its
 include/llhttp.h, src/llhttp.c, src/api.c and src/http.c), unmodified, under
 this license:
 
