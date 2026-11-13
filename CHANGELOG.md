@@ -656,15 +656,41 @@
   and a second session that joined the console got only its own open again
   (7.30.26). They go now as the agent's answers go: an inter-event sent with
   `EV_SEND_IEV` to the channel, or to the link of the control center, while
-  it listens. And a console goes with the session that opened it: the agent
-  kept it in the session's `C_IEVENT_SRV` and looked for it in its channel,
-  so it was never closed, and it would have written to the next session of
-  that channel. BREAKING for an operator: a console opened by a session of
-  the agent is closed when that session closes (through the control center
-  nothing changes). For a log watcher: those ERRORs are gone, and the output
-  of a console for a link out of session is an INFO "requester gone before
-  its answer, answer dropped" in place of the link's WARNING "Not in
-  session". Tests: `c_agent_answer_routing`, `c_agent_controlcenter_link`.
+  it listens. A console belongs to the route that opened it: a session
+  that only joined it takes its route off when it leaves, and when the
+  session that opened it leaves the console is closed and every session
+  still joined gets its `EV_TTY_CLOSE` (up to 7.30.26 the agent kept a
+  session's console in its `C_IEVENT_SRV` and never closed it). A route is
+  tied to the session, not to the name of its channel: the consoles of a
+  session go with it whatever card it presented, and the next session of its
+  channel never gets their output. The same for a `watch-yuno-stats`: it
+  goes with the session that asked it. BREAKING for an operator: a console
+  opened by a session of the agent is closed when that session closes
+  (through the control center nothing changes). For a log watcher: those
+  ERRORs are gone, and the output of a console for a route that is not
+  listening is ONE INFO "requester gone before its answer, answer dropped"
+  until it listens again. Tests: `c_agent_answer_routing`,
+  `c_agent_controlcenter_link`, `c_agent_consoles`.
+- **BREAKING (an operator, a log watcher): a console has flow control, and
+  what it has waiting for one route is bounded.** A session that flooded its
+  console and did not read grew the agent some 50 MB/s until it aborted
+  ("REACHED MAX_SYSTEM_MEMORY"), and so did a control center that did not
+  read its link (7.30.26). Now a route (a session, or the link) with
+  `console_pause_tx_queue` messages or more waiting in its transport (a new
+  attribute, 256; 0 turns flow control off) pauses the console: it stops
+  reading its terminal, its process waits, and it reads again when that
+  transport has sent everything. A slow reader gets all the output, at its
+  pace; the other routes wait with it. A route that holds the pause
+  `console_pause_timeout` ms (a new attribute, 30000) with its transport
+  taking nothing in the period is taken off: it gets the console's
+  `EV_TTY_CLOSE` after what it has waiting, ONE WARNING "console output not
+  taken by its session, console closed for it", and the console goes on for
+  the others, or is closed when that route opened it -- so a session that
+  does not read cannot freeze the console of the others for ever. A reader
+  must take about half of its socket's send buffer per period (tens of KB/s
+  with the default). `console_max_tx_queue` (a new attribute, 8192) stays as
+  a hard bound whatever paused the console (same WARNING). Tests:
+  `c_agent_consoles`, `c_agent_controlcenter_link`.
 
 ### Kernel
 
@@ -764,6 +790,16 @@
   count what it could not send: `txMsgsNoChannel`. Up to 7.30.26 the counter
   never moved (and was shared by every gate of the yuno): one ERROR per
   send, the send to all with a stack. Test: new `c_iogate_channel`.
+- **`C_PTY` has flow control: `rx_paused`.** It read its terminal as fast as
+  the process wrote, and a host that could not send the output on as fast
+  had to keep it all (7.30.26). Written TRUE, no more reads are started (the
+  read in flight ends and publishes), so the terminal's buffer fills and the
+  process waits on its write; written FALSE, the read held by the pause
+  starts again (a resume while a read is in flight starts nothing). A stop
+  while paused ends at once, and a `C_PTY` created paused reads nothing until
+  resumed. And a `C_PTY` that is not volatile published `EV_STOPPED` at its
+  stop without declaring it (an ERROR "event NOT in output event list").
+  Test: `c_pty_flow_control`.
 - `C_TCP`: a local stop says what it drops, once, an INFO (*"tcp data
   queued at a local stop, dropped"*): the writes of the host queued behind
   the one in flight (`dropped_msgs`, `dropped_bytes`, also counted in the
@@ -868,6 +904,61 @@
   relays them to the client that asked, as an answer; one sent by a web
   client is dropped as any event of an agent. Test:
   `c_controlcenter_scenarios`.
+- **BREAKING (a log watcher): an agent's answer goes only to a web client
+  that asked THAT agent.** An agent writes the route of its answers, and the
+  control center relayed the answers of `command-agent` and `stats-agent`
+  (`EV_MT_COMMAND_ANSWER`, `EV_MT_STATS_ANSWER`) to any web client named by
+  its channel when the agent wrote no stamp (7.30.26); the seven answers
+  above, too. Now `command-agent` and `stats-agent` remember which client
+  and connection asked, and an answer is relayed only to that client, in the
+  connection it holds now, with that connection's stamp. Any other is
+  dropped with a WARNING "answer of an agent for a web client that did not
+  ask that agent, dropped" that names the agent (one per
+  `drops_warning_window`, the rest counted). Test:
+  `c_controlcenter_scenarios`.
+- **What waits for a web client is bounded.** A browser that did not take
+  what the control center relayed to it (a console's output above all) grew
+  the control center with all of it (7.30.26). Now, when the control center
+  relays an answer or a stream to a client whose transport holds
+  `client_max_tx_queue` messages or more (a new attribute, 8192, 0 for no
+  bound), the client is dropped with ONE WARNING "web client that does not
+  take what is relayed to it, dropped", and nothing more is relayed to that
+  connection. Test: `c_controlcenter_scenarios`.
+
+### ycommand
+
+- **ycommand takes the answers of the agent's own requests only for a
+  request it made.** `read-file`, `read-json`, `read-binary-file`,
+  `running-keys`, `running-bin`, `edit-config`, `view-config`,
+  `edit-yuno-config`, `view-yuno-config` are answered with an event of their
+  own, which ycommand writes in `~/.yuneta/configs/` (and, for an
+  `EV_EDIT_CONFIG`, opens the editor on and leaves a `create-config` on the
+  line). It took any its peer sent (7.30.26). Now a line that names one of
+  those requests (as a word; a `command-agent` whose `cmd2agent` is one
+  counts) makes one answer pending, one answer per request; any other is
+  ignored with a WARNING "answer of a request this ycommand did not make,
+  ignored" (shown with `-l 1`). A request refused at once (an error answer,
+  such as "Command sent to 0 nodes") leaves nothing pending, nor does a
+  disconnection. Test: `c_ycommand_request_answers`.
+- **ycommand writes the file of `read-binary-file` 0600**, not 0700: a copy
+  of data, to read or to upload again, not a program (7.30.26: executable).
+  Test: `c_ycommand_request_answers`.
+
+### Authz
+
+- `C_AUTHZ`: a login without a token (a password, or an address of
+  `allowed_ips`) published `EV_AUTHZ_USER_LOGIN` with an EMPTY kw: the event
+  was packed with a NULL `jwt_payload`, which failed the whole pack. Every
+  subscriber read no `username`, and one that creates the user's node on a
+  login logged *"path NOT FOUND 'username'"* and *"Field 'id' required"* and
+  created nothing. Now the event always carries `username`, `dst_service`,
+  `user`, `session` and `services_roles`; `jwt_payload` only with a token
+  (the key is left out, not `null`). The same with `EV_AUTHZ_USER_LOGOUT`
+  when the session was dropped before its channel closed (`max_sessions`,
+  `logout-user`): it carries `username` and `user`, and no `session`. Up to
+  7.30.26 both were empty. (An application that creates its users on
+  `EV_AUTHZ_USER_LOGIN` starts creating the ones that log in by password.)
+  Test: `authz_login/test_authz_login` cases 15 and 16.
 
 ### Packaging
 
