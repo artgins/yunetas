@@ -56,7 +56,13 @@
 #   7.30.26, and the console writes up the link again when it reconnects.
 #   Another one, paused for the link when it drops, is released at the
 #   drop (the link's queue is gone with the connection), lives across the
-#   10 s the link is down, and writes up the new connection.
+#   10 s the link is down, and writes up the new connection. And the
+#   console of a session that does not read, joined by the control center
+#   just before its link drops, lives the 10 s the link is down: a link
+#   that is down is no route that session freezes (before the fix the
+#   session was taken off, and the console closed, within
+#   console_pause_timeout of the join); when the session reads it writes
+#   up the link too.
 #   5. The control center sends orders while the agent stops (SIGINT).
 #
 #   Usage: client.py <cert> <key> <port>
@@ -93,7 +99,7 @@ flood_answers = {}      # cc_order -> result of the orders the control center se
 pause_answers = {}      # cc_pause_order -> result of the orders sent around a pause
 play_pause_acks = []    # (event, result, comment) of the agent's acks of a play / pause
 link_frames = []        # (event, kw) of what comes back of a console or a request of the control center
-FLOODING = ("t4", "tslow", "t6")    # consoles that flood: their output is counted, not kept
+FLOODING = ("t4", "tslow", "t6", "tj")    # consoles that flood: their output is counted, not kept
 flood_bytes = {}        # console -> bytes of its output that reached the control center
 FLOOD = 300             # orders the control center sends while the agent stops
 SLOW_RATE = 30000       # bytes/s the control center takes of a console, over TLS
@@ -567,7 +573,25 @@ async def slow_reader_on_the_link(op):
 
 async def console_while_the_link_is_down(op, in_session):
     """A console of the control center writes while its link is down, and
-    another one floods and is paused for the link when it drops"""
+    another one floods and is paused for the link when it drops. And the
+    control center joins the console of a session that does not read just
+    before its link drops: a link that is down is no route frozen by that
+    session, so the console waits for it as long as the link is down
+    (before the fix the session was taken off, and its console and process
+    with it, within console_pause_timeout of the join)"""
+    owner = await session()
+    check("joined by the link: a session that opens a console and does not read", owner is not None)
+    if owner is None:
+        return
+    owner.send(command("open-console name=tj process=yes cwd=/yuneta"))
+    end = time.monotonic() + 10
+    owner_paused = False
+    while time.monotonic() < end and not owner_paused:
+        await asyncio.sleep(0.2)
+        r = (await op.ask("list-consoles")) or {}
+        owner_paused = any(rt.get("pause") for rt in
+            (((r.get("data") or {}).get("tj") or {}).get("routes") or {}).values())
+    check("joined by the link: the session holds its console paused", owner_paused)
     w = cc_writer[-1]
     w.write(cc_command("open-console", {"name": "t5", "process": "bash", "cwd": "/yuneta"}))
     w.write(cc_command("write-tty", {"name": "t5", "content64": base64.b64encode(
@@ -578,7 +602,9 @@ async def console_while_the_link_is_down(op, in_session):
     w.write(cc_command("open-console", {"name": "t6", "process": "yes", "cwd": "/yuneta"}))
     await link_frames_until(lambda: flood_bytes.get("t6"), 5)
     cc_reading.clear()
-    await asyncio.sleep(1)      # the link holds t6 paused
+    w.write(cc_command("open-console", {"name": "tj", "process": "yes", "cwd": "/yuneta"}))
+    await asyncio.sleep(1)      # the link holds t6 paused, and joined tj
+    tj_before = await console_routes(op, "tj")
     r = (await op.ask("list-consoles")) or {}
     paused_before = [n for n, rt in (((r.get("data") or {}).get("t6") or {}).get("routes") or {}).items()
         if rt.get("pause")]
@@ -603,9 +629,23 @@ async def console_while_the_link_is_down(op, in_session):
         pass
     check("console while the link is down: the link connects again",
         in_session.is_set() and len(cc_writer) == n_links + 1)
+    tj_after = await console_routes(op, "tj")
+    check("joined by the link: the link joined the console of the session: %s" % tj_before,
+        tj_before is not None and len(tj_before) == 2)
+    check("joined by the link: the console lives the 10 s the link is down, with both routes: %s" % (
+            tj_after),
+        tj_after is not None and len(tj_after) == 2)
     n_data = len(tty_events("EV_TTY_DATA", "t5"))
     check("console while the link is down: it writes up the link again",
         await link_frames_until(lambda: len(tty_events("EV_TTY_DATA", "t5")) > n_data, 5))
+
+    #   The link writes again (it is open): the session that opened tj reads
+    async def owner_reads():
+        while True:
+            if await owner.recv(30) is None:
+                return
+
+    owner_task = asyncio.ensure_future(owner_reads())
     w = cc_writer[-1]
     w.write(cc_command("close-console", {"name": "t5"}))
     check("console while the link is down: its close goes up the link",
@@ -621,6 +661,15 @@ async def console_while_the_link_is_down(op, in_session):
     w.write(cc_command("close-console", {"name": "t6"}))
     check("console paused when the link dropped: close-console finds it",
         await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "t6"), 10))
+    #   The session reads: the console goes on, and up the link that joined it
+    n_bytes = flood_bytes.get("tj", 0)
+    check("joined by the link: when the session reads, the console writes up the link too",
+        await link_frames_until(lambda: flood_bytes.get("tj", 0) > n_bytes + 100000, 15))
+    w.write(cc_command("close-console", {"name": "tj"}))
+    check("joined by the link: close-console finds it",
+        await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "tj"), 10))
+    owner_task.cancel()
+    owner.close()
 
 
 async def main():

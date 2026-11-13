@@ -60,11 +60,22 @@ with no flow control would be taken off soon.
    The opener stops the other one, so at its deadline it is taken off (ONE
    WARNING, `"opener": "yes, the console is closed"`) and the console is
    closed: the joined session gets the `EV_TTY_CLOSE` of `oflood`.
+7. **A session joins the console of a reader away, near its deadline.** A
+   session opens `near` (`yes`) and reads nothing: it waits alone, its
+   pause renewed each period. Another session joins it 2.5 to 3 s before
+   the deadline of that pause (read from `list-consoles`). 4.3 s after the
+   join the console must still be there with both routes, and the opener is
+   taken off (ONE WARNING, the console closed) 4.6 to 7.2 s after the join:
+   a whole `console_pause_timeout` (5 s) from the join, with the 1 s grain
+   of the agent's timer. Before the fix the console was closed, and its
+   process killed, at the deadline the opener had before the join; a period
+   restarted at that deadline instead of at the join ends 7.5 s after it or
+   later.
 
 `run_test.sh` checks the agent's log: ONE WARNING *"console output not taken
 by its session, console closed for it"* per session that did not read and
-stopped another one (2: the joiner of case 2, the opener of case 6, and
-only one of them says `"opener": "yes, the console is closed"`), at
+stopped another one (3: the joiner of case 2, the openers of cases 6 and
+7, and two of them say `"opener": "yes, the console is closed"`), at
 most 2 INFO *"requester gone before its answer"* for `EV_TTY_DATA`, no
 *"Event NOT DEFINED in state"*, and the agent ends in order (exit 0) with no
 *"system memory not free"*.

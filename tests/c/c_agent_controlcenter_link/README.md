@@ -122,7 +122,13 @@ pause is released at the drop (`list-consoles` shows it; the link's queue
 is gone with the connection, so no drain of it will come), `t6` lives the
 10 s the link is down, writes up the new connection, and `close-console`
 finds it. The log holds at most 2 INFO *"requester gone"* for `EV_TTY_DATA`
-(`t5`, `t6`), one of them for `t6`.
+(`t5`, `t6`), one of them for `t6`. And a session of 1991 opens `tj`
+(`yes`) and does not read; the control center joins it 1 s before its link
+drops. `tj` must live the 10 s the link is down with both routes (a link
+that is down is no route the session freezes), and, once the session reads,
+write up the new connection; `close-console` finds it. Before the fix the
+session was taken off, and `tj` closed with its process, within
+`console_pause_timeout` of the join.
 
 Last, the control center sends 300 orders
 (`list-yunos`) to the agent: the first 150 one by one, each answered with 0;

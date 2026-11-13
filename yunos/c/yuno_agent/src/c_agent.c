@@ -237,6 +237,7 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, hgobj gobj_channel);
 PRIVATE const char *console_route_name(hgobj src, char *bf, size_t bfsize);
 PRIVATE hgobj console_route_gate(hgobj gobj, json_t *jn_route);
 PRIVATE BOOL console_route_of_its_session(json_t *jn_route, hgobj gate);
+PRIVATE BOOL console_gate_listening(hgobj gate);
 PRIVATE BOOL console_route_listening(
     hgobj gobj,
     const char *name,
@@ -271,6 +272,12 @@ PRIVATE void console_release_pause(hgobj gobj, json_t *jn_route, hgobj transport
 PRIVATE void console_update_pause(hgobj gobj, const char *name, json_t *jn_console);
 PRIVATE void console_arm_pause_timer(hgobj gobj);
 PRIVATE int console_pause_deadline(hgobj gobj);
+PRIVATE BOOL console_route_freezes_others(
+    hgobj gobj,
+    json_t *jn_console,
+    const char *route_name
+);
+PRIVATE void console_review_freezes(hgobj gobj, json_t *jn_console);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
 PRIVATE json_int_t requester_session(hgobj gobj, hgobj src);
 PRIVATE json_t *take_run_requester(hgobj gobj, json_t *yuno, json_int_t launch_id, BOOL for_play);
@@ -1107,7 +1114,7 @@ SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "console_pause_tx_queue",SDF_WR,        "256",          "Flow control of a console: when a route of it (a session, or the link to the control center) has this many messages or more waiting to be sent, the console stops reading its terminal (its process waits) until that transport has sent them all. 0: no flow control"),
-SDATA (DTP_INTEGER,     "console_pause_timeout",SDF_WR,         "30000",        "Milliseconds a route may hold a console paused with its transport sending nothing while it stops others: then it is taken off the console (closed for it, with a warning), so a session that does not read never stops the console of the others for ever. A transport that sent something in the period (its socket took bytes, txBytes) gets another one, and so does the route that opened the console when no other route of it would read (it freezes only itself: its process waits)"),
+SDATA (DTP_INTEGER,     "console_pause_timeout",SDF_WR,         "30000",        "Milliseconds a route may hold a console paused with its transport sending nothing while it stops others: then it is taken off the console (closed for it, with a warning), so a session that does not read never stops the console of the others for ever. A transport that sent something in the period (its socket took bytes, txBytes) gets another one, and so does the route that opened the console when no other route of it would read (it freezes only itself: its process waits). A route that starts to stop others (a session joins) starts a new period then"),
 SDATA (DTP_INTEGER,     "console_max_tx_queue",SDF_WR,          "8192",         "Most messages a route of a console may have waiting to be sent when the console writes, whatever paused it: over it the console is closed for that route, with a warning, and closed for everybody when that route opened it. A message carries up to 1 KB of console output. 0: no bound"),
 SDATA (DTP_INTEGER,     "max_watches",      SDF_WR,             "30",           "Maximum requesters with a watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "max_watch_ids",    SDF_WR,             "256",          "Maximum yuno ids (id or id:service) in one watch-yuno-stats"),
@@ -8899,6 +8906,19 @@ PRIVATE BOOL console_route_of_its_session(json_t *jn_route, hgobj gate)
 }
 
 /***************************************************************************
+ *  Whether the gate of a route of a console takes its events now: the
+ *  link to the control center while it is open, a session while it is in
+ *  session. Said by nobody: see console_route_listening().
+ ***************************************************************************/
+PRIVATE BOOL console_gate_listening(hgobj gate)
+{
+    if(gobj_has_attr(gate, "opened")) {
+        return gobj_read_bool_attr(gate, "opened");
+    }
+    return gobj_in_this_state(gate, ST_SESSION);
+}
+
+/***************************************************************************
  *  Whether the gate of a route of a console takes its events now. A route
  *  that does not is said ONCE (an INFO), and again only after it listened:
  *  up to 7.30.26 an INFO per chunk of output (the link to the control
@@ -8912,12 +8932,7 @@ PRIVATE BOOL console_route_listening(
     gobj_event_t event
 )
 {
-    BOOL listening;
-    if(gobj_has_attr(gate, "opened")) {
-        listening = gobj_read_bool_attr(gate, "opened");
-    } else {
-        listening = gobj_in_this_state(gate, ST_SESSION);
-    }
+    BOOL listening = console_gate_listening(gate);
     json_t *jn_said = json_object_get(jn_route, "gone_said");
     if(listening) {
         if(jn_said) {
@@ -9019,8 +9034,9 @@ PRIVATE int remove_console_route(
     json_object_del(jn_routes, route_name);
     if(held) {
         console_update_pause(gobj, name, jn_console);
-        console_arm_pause_timer(gobj);
     }
+    console_review_freezes(gobj, jn_console);
+    console_arm_pause_timer(gobj);
     return 0;
 }
 
@@ -9076,6 +9092,10 @@ PRIVATE void console_hold_pause(
     if(!gobj_read_bool_attr(gobj_console, "rx_paused")) {
         gobj_write_bool_attr(gobj_console, "rx_paused", TRUE);
     }
+    json_t *jn_console = json_object_get(priv->list_consoles, name);
+    if(jn_console) {
+        console_review_freezes(gobj, jn_console);
+    }
     console_arm_pause_timer(gobj);
 }
 
@@ -9093,6 +9113,7 @@ PRIVATE void console_release_pause(hgobj gobj, json_t *jn_route, hgobj transport
     json_object_del(jn_route, "pause");
     json_object_del(jn_route, "pause_tx_bytes");
     json_object_del(jn_route, "pause_deadline");
+    json_object_del(jn_route, "pause_freezes");
     if(priv->console_pauses > 0) {
         priv->console_pauses--;
     }
@@ -9153,12 +9174,13 @@ PRIVATE void console_arm_pause_timer(hgobj gobj)
  *  Whether the route `route_name` of a console, which holds it paused,
  *  stops OTHERS reading it: a route that only joined the console always
  *  does (the session that opened it waits for it); the route that opened
- *  it, when another route of the console holds no pause (it would read).
- *  The route that opened a console and is alone on it, or with routes that
- *  hold a pause too, freezes only itself: a reader that is slow or away
- *  (the link to the control center, shared by all its operators, while
- *  the control center does not read) waits with its process, as behind an
- *  ssh.
+ *  it, when another route of the console holds no pause and listens (it
+ *  would read). The route that opened a console and is alone on it, or
+ *  with routes that hold a pause too, or that take nothing now (the link
+ *  to the control center while it is down, a session gone), freezes only
+ *  itself: a reader that is slow or away (the link to the control center,
+ *  shared by all its operators, while the control center does not read)
+ *  waits with its process, as behind an ssh.
  ***************************************************************************/
 PRIVATE BOOL console_route_freezes_others(
     hgobj gobj,
@@ -9172,7 +9194,11 @@ PRIVATE BOOL console_route_freezes_others(
     json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
     const char *other; json_t *jn_other;
     json_object_foreach(jn_routes, other, jn_other) {
-        if(strcmp(other, route_name)!=0 && !json_object_get(jn_other, "pause")) {
+        if(strcmp(other, route_name)==0 || json_object_get(jn_other, "pause")) {
+            continue;
+        }
+        hgobj gate = console_route_gate(gobj, jn_other);
+        if(gate && console_route_of_its_session(jn_other, gate) && console_gate_listening(gate)) {
             return TRUE;
         }
     }
@@ -9180,10 +9206,54 @@ PRIVATE BOOL console_route_freezes_others(
 }
 
 /***************************************************************************
+ *  A new period of the pause of a route: its deadline from now, and the
+ *  progress of its transport measured from now.
+ ***************************************************************************/
+PRIVATE void console_restart_pause_period(hgobj gobj, json_t *jn_route)
+{
+    hgobj gate = console_route_gate(gobj, jn_route);
+    hgobj transport = gate? console_route_transport(gate) : NULL;
+    json_object_set_new(jn_route, "pause_tx_bytes",
+        json_integer(transport? gobj_read_integer_attr(transport, "txBytes") : 0));
+    json_object_set_new(jn_route, "pause_deadline", json_integer((json_int_t)start_msectimer(
+        gobj_read_integer_attr(gobj, "console_pause_timeout"))));
+}
+
+/***************************************************************************
+ *  Whether each route that holds the console paused stops others NOW
+ *  (`pause_freezes`, console_route_freezes_others()). A route that starts
+ *  to stop others then -- a session joins the console of a reader away, a
+ *  route released its pause, the link to the control center came back --
+ *  starts a new period: it is judged only for a whole period in which it
+ *  stopped another route, never for the time it waited alone. Called
+ *  whenever the routes of a console or their pauses change, and at each
+ *  deadline (the link coming back is seen there: nothing tells the agent).
+ *  Before the fix a session that joined the console of a reader that waited
+ *  alone had it closed, and its process killed, at that reader's next
+ *  deadline: anywhere from at once to console_pause_timeout after the join.
+ ***************************************************************************/
+PRIVATE void console_review_freezes(hgobj gobj, json_t *jn_console)
+{
+    json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+    const char *route_name; json_t *jn_route;
+    json_object_foreach(jn_routes, route_name, jn_route) {
+        if(!json_object_get(jn_route, "pause")) {
+            continue;
+        }
+        BOOL freezes = console_route_freezes_others(gobj, jn_console, route_name);
+        if(freezes && !json_is_true(json_object_get(jn_route, "pause_freezes"))) {
+            console_restart_pause_period(gobj, jn_route);
+        }
+        json_object_set_new(jn_route, "pause_freezes", json_boolean(freezes));
+    }
+}
+
+/***************************************************************************
  *  A pause held past its deadline: a transport that sent something in the
  *  period (a slow reader: its socket took bytes, `txBytes`, which C_TCP
  *  counts on every write, in clear or TLS) gets another period, and so
- *  does a route that freezes nobody else (console_route_freezes_others());
+ *  does a route that freezes nobody else (console_route_freezes_others()),
+ *  or that did not stop others the whole period (console_review_freezes());
  *  one that sent nothing and stops the others (a session that joined and
  *  does not read, an opener that does not read while another session
  *  does) is taken off the console, ONE WARNING, and the console goes on
@@ -9214,12 +9284,15 @@ PRIVATE int console_pause_deadline(hgobj gobj)
             hgobj gate = console_route_gate(gobj, jn_route);
             hgobj transport = gate? console_route_transport(gate) : NULL;
             json_int_t tx_bytes = transport? gobj_read_integer_attr(transport, "txBytes") : 0;
+            BOOL freezes = console_route_freezes_others(gobj, jn_console, route_name);
+            BOOL froze = json_is_true(json_object_get(jn_route, "pause_freezes"));
             if((transport &&
                     tx_bytes != json_integer_value(json_object_get(jn_route, "pause_tx_bytes"))) ||
-                    !console_route_freezes_others(gobj, jn_console, route_name)) {
+                    !freezes || !froze) {
                 json_object_set_new(jn_route, "pause_tx_bytes", json_integer(tx_bytes));
                 json_object_set_new(jn_route, "pause_deadline",
                     json_integer((json_int_t)start_msectimer(timeout)));
+                json_object_set_new(jn_route, "pause_freezes", json_boolean(freezes));
                 continue;
             }
             BOOL is_opener = strcmp(route_name, kw_get_str(gobj, jn_console, "opener", "", 0))==0;
@@ -9339,6 +9412,13 @@ PRIVATE int add_console_route(
     }
 
     json_object_set_new(jn_routes, route_name, jn_route);
+
+    /*
+     *  A route that held the console paused alone stops this one now: its
+     *  period starts again (console_review_freezes())
+     */
+    console_review_freezes(gobj, jn_console_);
+    console_arm_pause_timer(gobj);
 
     /*
      *  add in input gate
@@ -16397,6 +16477,7 @@ PRIVATE int ac_console_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         }
         if(released) {
             console_update_pause(gobj, name, jn_console);
+            console_review_freezes(gobj, jn_console);
         }
     }
     console_arm_pause_timer(gobj);
@@ -16442,6 +16523,7 @@ PRIVATE int ac_console_transport_gone(hgobj gobj, gobj_event_t event, json_t *kw
         }
         if(released) {
             console_update_pause(gobj, name, jn_console);
+            console_review_freezes(gobj, jn_console);
         }
     }
     console_arm_pause_timer(gobj);

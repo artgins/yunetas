@@ -124,8 +124,8 @@ fi
 #   The two sessions that did not read: ONE WARNING each
 nslow=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "WARNING")
 nopen=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "yes, the console is closed")
-if [ "$nslow" != "2" ] || [ "$nopen" != "1" ]; then
-    echo "TEST FAILED: $nslow WARNING(s) for a session that does not take its console output (expected 2: the joiner of case 2, the opener of case 6), $nopen for a session that opened it (expected 1: case 6; the opener alone of case 1 is never taken off)"
+if [ "$nslow" != "3" ] || [ "$nopen" != "2" ]; then
+    echo "TEST FAILED: $nslow WARNING(s) for a session that does not take its console output (expected 3: the joiner of case 2, the openers of cases 6 and 7), $nopen for a session that opened it (expected 2: cases 6 and 7; the opener alone of case 1 is never taken off)"
     failed=1
 fi
 #   The output of a console for a route not listening: said once per route,

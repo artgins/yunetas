@@ -642,13 +642,32 @@ whom:
 - A route that only **joined** the console always stops the one that opened
   it: a spectator that does not read is taken off at its deadline.
 - The route that **opened** the console stops the others only when another
-  route of it holds no pause (it would read). Alone on its console, or with
-  joined routes that hold a pause too, it freezes only itself: the console
-  stays paused and its process waits, for as long as the reader is away. A
-  session that leaves takes its console with it; through the control center
-  the link (the route of all its operators) keeps its consoles while the
-  control center is away or does not read, and they go on when it reads
-  again.
+  route of it holds no pause and takes its events (it would read). Alone on
+  its console, or with joined routes that hold a pause too, or that take
+  nothing now (the link to the control center while it is down), it freezes
+  only itself: the console stays paused and its process waits, for as long
+  as the reader is away. A session that leaves takes its console with it;
+  through the control center the link (the route of all its operators) keeps
+  its consoles while the control center is away or does not read, and they
+  go on when it reads again.
+- A route is judged only for a **whole period in which it stopped another
+  route**. When it starts to stop one -- a session joins the console of a
+  reader that waits alone, another route releases its pause, the link to the
+  control center comes back -- its period starts again then. So a session
+  that joins the console of a reader that is away gives that reader a whole
+  `console_pause_timeout` from the join: if the reader still takes nothing,
+  it is taken off then (and the console closed, as it opened it), never at
+  the deadline it had before the join. Before the fix the join closed the
+  console, and killed its process, at that deadline: anywhere from at once
+  to `console_pause_timeout` after the join.
+
+```text
+t=0     A opens `top` and stops reading: the console pauses (A waits alone)
+t=28s   B joins: A stops B from now on, its period starts again
+t=58s   A took nothing since the join: A is taken off, the console closed,
+        B gets EV_TTY_CLOSE
+        (before the fix: at t=30s, 2 s after the join)
+```
 
 A transport that took something in the period gets another period, so a
 reader that is merely slow keeps the console. What the agent measures is the
@@ -701,10 +720,13 @@ MAX_SYSTEM_MEMORY"*), and so did a control center that did not read its link.
 Tests: `tests/c/c_agent_consoles` (a session at 1 MB/s with a small receive
 window gets all of 11 MB; a session alone on its console that does not read
 keeps it, paused; a joined session that does not read is taken off, and so is
-an opener that does not read while a joined session does),
-`tests/c/c_agent_controlcenter_link` (the control center away 9 s keeps its
-console; a slow TLS link at 30 KB/s keeps it for four deadlines; a console
-paused when the link drops is released and lives).
+an opener that does not read while a joined session does; a session that
+joins 2.5 s before the deadline of a reader away gets a whole period from the
+join), `tests/c/c_agent_controlcenter_link` (the control center away 9 s
+keeps its console; a slow TLS link at 30 KB/s keeps it for four deadlines; a
+console paused when the link drops is released and lives; the console of a
+session that does not read, joined by the control center just before its
+link drops, lives the 10 s the link is down).
 
 ### Watches
 

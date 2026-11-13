@@ -42,6 +42,14 @@
 #      its deadline it is taken off (ONE WARNING) and the console is closed
 #      for everybody; the joined session gets the EV_TTY_CLOSE.
 #
+#   7. The session that opened a console does not read and waits alone on
+#      it; another session joins it 2.5 to 3 s before the deadline of the
+#      first one's pause: the console lives past that deadline, and the
+#      first one is taken off (ONE WARNING, the console closed) a whole
+#      console_pause_timeout after the join, while the other one would
+#      read. Before the fix the join closed the console, and killed its
+#      process, at the deadline the first one had.
+#
 #   Usage: client.py <logcenter binary>
 #   Exit 0 when every check passed.
 #
@@ -387,6 +395,81 @@ async def opener_not_read(op):
     await leave(j)
 
 
+async def joiner_near_the_deadline(op):
+    """7. A session that opened a console of `yes` and does not read waits
+    alone on it; another session joins it 2.5 to 3 s before the deadline of
+    the first one's pause. The join is no reason to close the console at
+    that deadline: the first one stops the other only from the join on,
+    and is taken off a whole console_pause_timeout after it (5 s), not at
+    the deadline it had (before the fix the console was closed, and its
+    process killed, at that deadline). The agent's console timer has a
+    grain of 1 s: a deadline fires up to 1 s late, so the console is
+    looked for 4.3 s after the join (the old deadline fired by then), and
+    the close is expected from 5 s to 7.2 s after it (a period restarted at
+    the old deadline, not at the join, ends 7.5 s after it or later)"""
+    o = await session()
+    j = await session()
+    if o is None or j is None:
+        check("joiner near the deadline: two sessions", False)
+        return
+    o.send(command("open-console", {"name": "near", "process": "yes", "cwd": "/yuneta"}))
+    left = None
+    end = time.monotonic() + 20
+    while time.monotonic() < end:
+        routes = ((await consoles(op)).get("near") or {}).get("routes") or {}
+        deadlines = [r.get("pause_deadline") for r in routes.values() if r.get("pause")]
+        if len(routes) == 1 and deadlines and deadlines[0]:
+            left = deadlines[0] / 1000.0 - time.monotonic()
+            if 2.5 <= left <= 3.0:
+                break
+        left = None
+        await asyncio.sleep(0.05)
+    check("joiner near the deadline: the opener holds the console paused, %s s to its deadline" % (
+            "%.2f" % left if left is not None else "?"),
+        left is not None)
+    if left is None:
+        o.close()
+        await leave(j)
+        return
+    t_join = time.monotonic()
+    j.send(command("open-console", {"name": "near", "process": "yes", "cwd": "/yuneta"}))
+    t_close = []
+
+    async def joined():
+        while True:
+            iev = await j.recv(30)
+            if iev is None:
+                return
+            if iev.get("event") == "EV_TTY_CLOSE" and data_name_of(iev) == "near":
+                t_close.append(time.monotonic())
+                return
+
+    task = asyncio.ensure_future(joined())
+    await asyncio.sleep(4.3)
+    routes = ((await consoles(op)).get("near") or {}).get("routes") or {}
+    check("joiner near the deadline: %.1f s after the join (%.1f s past the deadline the opener had)"
+            " the console lives, with both sessions: %s" % (
+            time.monotonic() - t_join, time.monotonic() - t_join - left, list(routes)),
+        len(routes) == 2 and not t_close)
+    try:
+        await asyncio.wait_for(task, 10)
+    except asyncio.TimeoutError:
+        pass
+    after = t_close[0] - t_join if t_close else -1
+    check("joiner near the deadline: the opener that does not read is taken off a whole"
+            " console_pause_timeout (5 s) after the join: %.1f s" % after,
+        4.6 <= after <= 7.2)
+    check("joiner near the deadline: and the console is closed", await wait_for(
+        lambda: _absent(op, "near"), 5))
+    o.close()
+    await leave(j)
+
+
+def data_name_of(iev):
+    data = (iev.get("kw") or {}).get("data")
+    return data.get("name") if isinstance(data, dict) else None
+
+
 SEQ_LINES = 3000000
 SEQ_COMMAND = ("for i in $(seq 1 300); do seq -f %08.0f $((i*10000)) $((i*10000+9999)); "
     "sleep 0.02; done; echo END_OF_OUTPUT\n")
@@ -606,6 +689,7 @@ async def main():
     await joiner_leaves(op)
     await slow_reader()
     await opener_not_read(op)
+    await joiner_near_the_deadline(op)
     if row:
         await console_of_a_yuno_card(op, row)
 
