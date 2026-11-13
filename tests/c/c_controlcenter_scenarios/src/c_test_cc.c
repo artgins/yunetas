@@ -93,7 +93,12 @@
  *                command-agent, stats-agent and write-tty are answered with
  *                that refusal, and a step of a run fails at once;
  *              - what the agent answers to its own requests (read-file,
- *                view-config...) reaches the client that asked them.
+ *                view-config...) reaches the client that asked them;
+ *              - a console a client asks an agent to open is kept only
+ *                while it can be used (refused, closed, client gone: it
+ *                is forgotten), its name bounded, and so many of them per
+ *                client; a reading names the node the client watched; a
+ *                link gets no stream.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -1743,6 +1748,337 @@ PRIVATE int test_streams_of_another_agent(hgobj gobj, hgobj client)
     }
     JSON_DECREF(route_a)
     JSON_DECREF(help_b)
+    return ret;
+}
+
+/***************************************************************************
+ *  The agent of `channel` answers `request` (not owned) with `result`
+ ***************************************************************************/
+PRIVATE void agent_of_answers(
+    hgobj gobj,
+    hgobj channel,
+    json_t *request,
+    int result,
+    const char *comment
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = msg_iev_build_response(
+        gobj,
+        result,
+        json_string(comment),
+        0,
+        0,
+        json_deep_copy(request)
+    );
+    kw_set_subdict_value(gobj, kw, "__temp__", "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)channel));
+    gobj_send_event(priv->cc, EV_MT_COMMAND_ANSWER, kw, priv->input_side);
+}
+
+/***************************************************************************
+ *  `client` asks `agent_id` (`channel`) by command-agent to open the
+ *  console `name`: the result of the control center's answer, and in
+ *  `*request` the request the agent got (yours), NULL if none
+ ***************************************************************************/
+PRIVATE int ask_open_console(
+    hgobj gobj,
+    hgobj client,
+    hgobj channel,
+    const char *agent_id,
+    const char *name,
+    json_t **request
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(agent_id));
+    json_object_set_new(kw, "cmd2agent", json_string("open-console"));
+    json_object_set_new(kw, "name", json_string(name));
+    json_t *response = gobj_command(priv->cc, "command-agent", kw, client);
+    int result = response? (int)kw_get_int(gobj, response, "result", -99, KW_WILD_NUMBER) : -99;
+    JSON_DECREF(response)
+
+    json_t *received = take_received(wire_of(channel));
+    size_t n = json_array_size(received);
+    *request = n? json_incref(json_object_get(json_array_get(received, n-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    return result;
+}
+
+/*  How many consoles the agent of `channel` was asked to open and keeps  */
+PRIVATE size_t console_requests(hgobj channel)
+{
+    return json_object_size(gobj_read_user_data(channel, "console_requests"));
+}
+
+/***************************************************************************
+ *  55. What a client asks an agent to open lives only while it can be
+ *      used. On an agent C, a new client:
+ *      - 80 opens the agent does not answer yet: 64 go
+ *        (MAX_CONSOLE_REQUESTS), the rest are refused here, said to the
+ *        client; the agent refuses the 64, and none is kept;
+ *      - 2000 opens of names of 200 bytes, each refused by the agent:
+ *        none kept, and the memory of the control center flat;
+ *      - a name longer than NAME_MAX is refused here;
+ *      - a console opened and then closed is forgotten at its close;
+ *      - a reading of a watch asked of C that names another node
+ *        (`monitor_node`) reaches the client naming the node the client
+ *        wrote in its watch of C;
+ *      - an open not answered, and a watch: the client leaves, and neither
+ *        is kept;
+ *      - a link of this control center that asked C something gets C's
+ *        answer, never a console's event nor a reading.
+ *      Up to 7.30.26 every name was kept, refused ones too, with no bound,
+ *      until the agent's channel closed (2000 names of 30 KB: 57 MB kept
+ *      after the client left); a reading went with the node the agent
+ *      wrote; and a link got any stream.
+ ***************************************************************************/
+PRIVATE int test_console_requests_bounded(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+    char name[NAME_MAX + 2];
+    char detail[256];
+
+    hgobj c = open_keyed_session(gobj, "sc-1", "uuid-sc", "host-sc", NULL);
+    if(!c) {
+        return -1;  // Error already logged
+    }
+    hgobj client = create_peer("client-55", priv->top_side);
+    client_opens(gobj, client);
+
+    /*
+     *  Opens not answered yet: bounded, the rest refused to the client
+     */
+    json_t *pending = json_array();
+    int sent = 0, refused = 0, other = 0;
+    for(int i=0; i<80; i++) {
+        snprintf(name, sizeof(name), "tty_pending_%d", i);
+        json_t *request = NULL;
+        int result = ask_open_console(gobj, client, c, "host-sc", name, &request);
+        if(result == 0 && request) {
+            sent++;
+            json_array_append_new(pending, request);
+        } else if(result < 0 && !request) {
+            refused++;
+        } else {
+            other++;
+            JSON_DECREF(request)
+        }
+    }
+    if(sent != 64 || refused != 16 || other != 0) {
+        snprintf(detail, sizeof(detail), "%d sent, %d refused, %d other", sent, refused, other);
+        ret += fail(gobj, "the consoles a client asked an agent and not closed are bounded", detail);
+    }
+    size_t idx; json_t *jn_request;
+    json_array_foreach(pending, idx, jn_request) {
+        agent_of_answers(gobj, c, jn_request, -1, "User not found");
+    }
+    JSON_DECREF(pending)
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "User not found") != sent) {
+        ret += fail(gobj, "the agent's refusals of the opens reach the client", "");
+    }
+    if(console_requests(c) != 0) {
+        snprintf(detail, sizeof(detail), "%d kept", (int)console_requests(c));
+        ret += fail(gobj, "an open-console the agent refuses is forgotten", detail);
+    }
+
+    /*
+     *  Many opens, each refused by the agent: nothing kept
+     */
+    size_t mem_before = get_cur_system_memory();
+    char long_part[201];
+    memset(long_part, 'x', sizeof(long_part) - 1);
+    long_part[sizeof(long_part) - 1] = 0;
+    int lost = 0;
+    for(int i=0; i<2000; i++) {
+        snprintf(name, sizeof(name), "%s_%d", long_part, i);
+        json_t *request = NULL;
+        if(ask_open_console(gobj, client, c, "host-sc", name, &request) < 0 || !request) {
+            lost++;
+        }
+        if(request) {
+            agent_of_answers(gobj, c, request, -1, "User not found");
+            JSON_DECREF(request)
+        }
+    }
+    json_decref(take_received(client));
+    size_t mem_after = get_cur_system_memory();
+    if(lost != 0) {
+        snprintf(detail, sizeof(detail), "%d not sent", lost);
+        ret += fail(gobj, "opens the agent refuses one by one are all sent", detail);
+    }
+    if(console_requests(c) != 0) {
+        snprintf(detail, sizeof(detail), "%d kept", (int)console_requests(c));
+        ret += fail(gobj, "2000 opens the agent refused are forgotten", detail);
+    }
+    if(mem_after > mem_before + 64*1024) {
+        snprintf(detail, sizeof(detail), "%lu -> %lu bytes",
+            (unsigned long)mem_before, (unsigned long)mem_after);
+        ret += fail(gobj, "the memory of the control center stays flat", detail);
+    }
+
+    /*
+     *  A name no agent opens
+     */
+    memset(name, 'y', NAME_MAX + 1);
+    name[NAME_MAX + 1] = 0;
+    json_t *request = NULL;
+    int result = ask_open_console(gobj, client, c, "host-sc", name, &request);
+    if(result >= 0 || request) {
+        ret += fail(gobj, "a console name longer than NAME_MAX is refused here", "");
+    }
+    JSON_DECREF(request)
+
+    /*
+     *  A console opened, then closed
+     */
+    const char *tty_c = "tty_host-sc_tab1";
+    if(ask_open_console(gobj, client, c, "host-sc", tty_c, &request) < 0 || !request) {
+        ret += fail(gobj, "a console is asked of an agent", tty_c);
+    } else {
+        agent_of_sends_data(gobj, c, EV_TTY_OPEN, request, "tty open of C",
+            json_pack("{s:s}", "name", tty_c));
+        agent_of_sends_data(gobj, c, EV_TTY_DATA, request, "output of C",
+            json_pack("{s:s}", "name", tty_c));
+        if(count_received(client, EV_TTY_OPEN, "tty open of C") != 1) {
+            ret += fail(gobj, "a console asked of an agent opens", tty_c);
+        }
+        agent_of_sends_data(gobj, c, EV_TTY_CLOSE, request, "tty close of C",
+            json_pack("{s:s}", "name", tty_c));
+        if(count_received(client, EV_TTY_CLOSE, "tty close of C") != 1) {
+            ret += fail(gobj, "a console asked of an agent closes", tty_c);
+        }
+        if(console_requests(c) != 0) {
+            ret += fail(gobj, "a console closed is forgotten", tty_c);
+        }
+    }
+    JSON_DECREF(request)
+
+    /*
+     *  A watch of C: its readings name the node the client named C with
+     */
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("host-sc"));
+    json_object_set_new(kw, "cmd2agent", json_string("watch-yuno-stats ids=1234"));
+    json_object_set_new(kw, "__relays__", json_pack("[s]", EV_YUNO_STATS));
+    kw_set_subdict_value(gobj, kw, "__md_iev__", "monitor_node", json_string("host-sc"));
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        0, "Command sent to 1 nodes", "watch-yuno-stats of C");
+    json_t *received = take_received(wire_of(c));
+    size_t n = json_array_size(received);
+    json_t *watch_c = n? json_incref(json_object_get(json_array_get(received, n-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(!watch_c) {
+        ret += fail(gobj, "the watch reaches the agent", "");
+    } else {
+        kw_set_subdict_value(gobj, watch_c, "__md_iev__", "monitor_node", json_string("node1"));
+        agent_of_sends_data(gobj, c, EV_YUNO_STATS, watch_c, "reading of C",
+            json_pack("{s:s}", "yuno_id", "1234"));
+        received = take_received(client);
+        int readings = 0;
+        const char *node = "";
+        json_array_foreach(received, idx, jn_request) {
+            if(strcmp(kw_get_str(gobj, jn_request, "event", "", 0), EV_YUNO_STATS)==0) {
+                readings++;
+                node = kw_get_str(gobj, jn_request, "kw`__md_iev__`monitor_node", "", 0);
+                if(strcmp(node, "host-sc")!=0) {
+                    ret += fail(gobj, "a reading names the node the client watched, not the one the agent wrote", node);
+                }
+            }
+        }
+        JSON_DECREF(received)
+        if(readings != 1) {
+            ret += fail(gobj, "a reading of a watch asked of an agent reaches the client", "");
+        }
+        JSON_DECREF(watch_c)
+    }
+
+    /*
+     *  The client leaves with an open not answered and a watch
+     */
+    if(ask_open_console(gobj, client, c, "host-sc", "tty_left", &request) < 0 || !request) {
+        ret += fail(gobj, "a console is asked of an agent", "tty_left");
+    }
+    JSON_DECREF(request)
+    if(console_requests(c) != 1) {
+        ret += fail(gobj, "an open not answered is kept while its client is there", "");
+    }
+    client_closes(gobj, client);
+    if(console_requests(c) != 0 ||
+            json_object_size(gobj_read_user_data(c, "watch_requests")) != 0) {
+        ret += fail(gobj, "what a client asked an agent is forgotten when the client leaves", "");
+    }
+
+    /*
+     *  A link of this control center gets C's answer, never a stream
+     */
+    hgobj uplink = gobj_create_service("cc_uplink55", C_IEVENT_CLI, 0, gobj);
+    hgobj uplink_wire = create_peer("cc_uplink55_wire", uplink);
+    gobj_set_bottom_gobj(uplink, uplink_wire);
+    gobj_change_state(uplink, ST_SESSION);
+    kw = json_pack("{s:s, s:s, s:s, s:{s:[{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}]}}",
+        "__username__", "yuneta",
+        "agent_id", "host-sc",
+        "cmd2agent", "open-console name=tty_link",
+        "__md_iev__",
+            "ievent_gate_stack",
+                "dst_yuno", "",
+                "dst_role", "controlcenter",
+                "dst_service", "controlcenter",
+                "src_yuno", "",
+                "src_role", "yuneta_agent",
+                "src_service", "input-1",
+                "user", "yuneta",
+                "host", "cc-node"
+    );
+    check_response(gobj, gobj_command(priv->cc, "command-agent", kw, uplink),
+        0, 0, "command-agent by a link");
+    received = take_received(wire_of(c));
+    n = json_array_size(received);
+    json_t *link_request = n? json_incref(json_object_get(json_array_get(received, n-1), "kw")) : NULL;
+    JSON_DECREF(received)
+    if(!link_request) {
+        ret += fail(gobj, "a link's command-agent reaches the agent", "");
+    } else {
+        agent_of_sends_data(gobj, c, EV_TTY_OPEN, link_request, "tty open for a link",
+            json_pack("{s:s}", "name", "tty_link"));
+        agent_of_sends_data(gobj, c, EV_TTY_DATA, link_request, "output for a link",
+            json_pack("{s:s}", "name", "tty_link"));
+        agent_of_sends_data(gobj, c, EV_YUNO_STATS, link_request, "reading for a link",
+            json_pack("{s:s}", "yuno_id", "1234"));
+        agent_of_answers(gobj, c, link_request, 0, "answer for a link");
+        received = take_received(uplink_wire);
+        int answers = 0, streams = 0;
+        json_array_foreach(received, idx, jn_request) {
+            const char *ev = kw_get_str(gobj, jn_request, "event", "", 0);
+            if(strcmp(ev, EV_MT_COMMAND_ANSWER)==0) {
+                answers++;
+            } else {
+                streams++;
+            }
+        }
+        JSON_DECREF(received)
+        if(streams != 0) {
+            snprintf(detail, sizeof(detail), "%d", streams);
+            ret += fail(gobj, "a link of this control center got a stream of an agent", detail);
+        }
+        if(answers != 1) {
+            ret += fail(gobj, "a link still gets the answer of what it asked", "");
+        }
+        if(json_object_size(gobj_read_user_data(c, "tty_mirrors")) != 0) {
+            ret += fail(gobj, "a console's open for a link recorded a mirror", "");
+        }
+        JSON_DECREF(link_request)
+    }
+    gobj_stop(uplink_wire);
+    gobj_destroy(uplink);
+
+    agent_channel_closes(gobj, c);
+    close_session(c);
     return ret;
 }
 
@@ -6081,6 +6417,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_tty_open_for_a_client_gone(gobj, client1);
     result += test_agent_request_answers_unasked(gobj, client1, client2);
     result += test_streams_of_another_agent(gobj, client1);
+    result += test_console_requests_bounded(gobj);
     result += test_client_that_does_not_take(gobj, client2);
     result += test_client_that_holds_bytes(gobj, client2);
     result += test_answer_to_local_requesters(gobj, client1);

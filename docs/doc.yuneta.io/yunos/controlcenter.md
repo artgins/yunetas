@@ -620,6 +620,42 @@ mirror is only of a console the client asked that agent to open, only an
 agent the client opened a console on can end its connection that way, as its
 restart does.
 
+What the control center remembers of a console asked lives only while it can
+be used. It forgets it when the agent refuses the `open-console` (an answer
+with a negative `result`: the control center stamps the console's name in the
+client's frame of the request, `cc_console`, and the answer carries it back),
+when the console's `EV_TTY_CLOSE` passes, when the client leaves, and when the
+agent's channel closes. Two requests are refused by the control center itself,
+and nothing is sent to the agent:
+
+- a console name longer than `NAME_MAX` (255) bytes: no agent opens one, a
+  console is a gobj and its name a gobj name;
+- a console asked of an agent by a client that already has 64 asked there and
+  not closed (an agent opens 30 by default, its `max_consoles`).
+
+```text
+command-agent agent_id=node-b cmd2agent="open-console name=tty_node-b_t65"
+-> -1 "<role^name of the control center>: too many consoles asked of that agent and not closed"
+```
+
+Up to 7.30.26 each name a client asked was kept until the agent's channel
+closed, refused ones too, with no bound: 2000 names of 30 KB, each refused by
+the agent, kept 57 MB in the control center after the client left.
+
+A reading of a watch (`EV_YUNO_STATS`) reaches the client with the
+`monitor_node` of its `__md_iev__` that the client wrote in its watch of
+**that** agent, not the one the agent echoes: gui_agent reads that key to
+know whose reading it is, and up to 7.30.26 an agent the client watched could
+paint its readings on the cards of another node. A client that wrote no
+`monitor_node` gets none.
+
+A link of the control center (its `C_IEVENT_CLI` to the agent of its node)
+gets the answers of what it asked an agent, and never a stream: its peer, the
+agent of the node, takes no console's events nor readings from a yuno. Up to
+7.30.26 any agent the link had asked something could send it any; now each
+is dropped with the WARNING above and the `detail` *"a stream for a link of
+this control center: none is relayed to a link"*.
+
 A client that **left** before the answer (its channel closed) is not taken
 for a client that did not ask: the answer is dropped with the INFO
 *"requester gone before its answer, answer dropped"*, as in 7.30.26, and the

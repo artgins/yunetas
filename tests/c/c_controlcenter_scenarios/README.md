@@ -501,8 +501,8 @@ still reported and fails the test.
     stamp, to it with no stamp, and to the client that asked with no stamp.
     None reaches a client, and the log has ONE WARNING *"answer of an agent
     for a web client that did not ask that agent, dropped"* (the other 38
-    counted, said with the 5 of case 54 when the window of case 11 ends:
-    43). The agent's answer with
+    counted, said with the 5 of case 54 and the 3 of case 55 when the
+    window of case 11 ends: 46). The agent's answer with
     the stamp of the client that asked still reaches it. Up to 7.30.26 an
     accepted agent could send them to any web client by the name of its
     channel (the four stream events until the fix). Case 5 opens its
@@ -545,6 +545,24 @@ still reported and fails the test.
     again. B's close forgets what was asked of it. Up to 7.30.26 (and with
     the stamp rule of case 49 alone) B's output and close reached A's
     console, its open planted a mirror, and its close dropped the client.
+55. What a client asks an agent to open lives only while it can be used. On
+    a third node (C), a new client sends 80 `open-console` the agent does
+    not answer yet: 64 go (`MAX_CONSOLE_REQUESTS`), 16 are refused by the
+    control center, said to the client; the agent refuses the 64 (*"User
+    not found"*), the refusals reach the client, and C's channel keeps no
+    request. Then 2000 opens of names of 200 bytes, each refused by the
+    agent: none kept, and `get_cur_system_memory()` grows less than 64 KB.
+    A name longer than `NAME_MAX` is refused by the control center. A
+    console opened and closed (`EV_TTY_CLOSE`) is forgotten. A watch of C,
+    written with `monitor_node=host-sc`: C's reading, which says
+    `monitor_node=node1`, reaches the client saying `host-sc`. An open not
+    answered and the watch: the client leaves, and neither is kept. A link
+    of the control center (a `C_IEVENT_CLI` service) asks C to open a
+    console: C's answer reaches it, its `EV_TTY_OPEN`, `EV_TTY_DATA` and
+    `EV_YUNO_STATS` do not (3 more in the count of case 49), and no
+    mirror is recorded. Up to 7.30.26 every name was kept, refused ones
+    too, with no bound, until the agent's channel closed; a reading went
+    with the node the agent wrote; and a link got any stream.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes
