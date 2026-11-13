@@ -30,6 +30,14 @@
 #      that has no "data", must still leave nothing pending -- it is not the
 #      warm-up's answer, its command stack says so -- so an
 #      EV_READ_BINARY_FILE that comes with the next `help` is not written.
+#   7. A line that only NAMES a request is no request: `help cmd=read-file`
+#      is answered as a command, and an EV_READ_BINARY_FILE that comes with
+#      the next `help` is not written (up to 7.30.26 the name anywhere in
+#      the line counted, and its answer never spent it).
+#   8. A link left in ~/.yuneta/configs/ under the name of the file is not
+#      followed: the file it points to keeps its content, and ycli says it
+#      (up to 7.30.26 it was written through the link, and a failure to
+#      open was taken for a success).
 #
 #   Usage: fake_agent.py <ycli binary> <work dir>
 #   Exit 0 when every check passed.
@@ -173,6 +181,8 @@ async def agent(r, w):
             w.write(evil_binary(md, "evil4.bin"))
         elif scenario["name"] == "after-warmup":
             w.write(evil_binary(md, "evil5.bin"))
+        elif scenario["name"] == "after-named" and command == "help":
+            w.write(evil_binary(md, "evil6.bin"))
         elif "read-binary-file" in command:
             w.write(answer("EV_READ_BINARY_FILE", md,
                 {"name": "good.bin", "content64": base64.b64encode(b"GOOD").decode()}))
@@ -299,6 +309,26 @@ async def main():
         await type_line("help")
         check("in warm-up: a request refused while the warm-up was pending leaves nothing pending: %r" %
             written("evil5.bin"), written("evil5.bin") is None)
+
+        scenario["name"] = "after-named"
+        await type_line("help cmd=read-file")
+        await type_line("help")
+        check("named: a line that only names a request leaves nothing pending: %r" %
+            written("evil6.bin"), written("evil6.bin") is None)
+
+        scenario["name"] = "asked"
+        if written("good.bin") is not None:
+            os.unlink(os.path.join(CONFIGS, "good.bin"))
+        outside = os.path.join(WORK, "outside.bin")
+        with open(outside, "wb") as f:
+            f.write(b"ORIG")
+        os.symlink(outside, os.path.join(CONFIGS, "good.bin"))
+        await type_line("read-binary-file filename=/x/good.bin")
+        with open(outside, "rb") as f:
+            kept = f.read()
+        check("a link: the file it points to is not written: %r" % kept, kept == b"ORIG")
+        check("a link: and it says so", "Cannot write the binary file" in "".join(output))
+        os.unlink(os.path.join(CONFIGS, "good.bin"))
     finally:
         p.kill()
         await p.wait()

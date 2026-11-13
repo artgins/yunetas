@@ -35,6 +35,24 @@ a `create-config` on its line). It must do so only for a request it made:
    writes `good.bin`, runs `help` and ends by itself; so does the request
    alone. Up to the fix ycommand waited for an answer that never comes: it
    neither ran `help` nor ended (killed at 20 s here).
+6. `ycommand -c "help cmd=read-file; help"`: a line that only NAMES a
+   request is no request (the request must be the command: the first word,
+   or the first word of a `command-agent`'s `cmd2agent`). The peer sends an
+   `EV_READ_BINARY_FILE` (`evil6.bin`) with the second `help`: not written.
+   Up to 7.30.26 the first line counted as a request, its answer never spent
+   it, and `evil6.bin` was written.
+7. A link left in `~/.yuneta/configs/` under the name of the file
+   (`good.bin` -> a file outside, holding `ORIG`): `read-binary-file` does
+   not write through it, and logs *"Cannot write the binary file"*. Up to
+   7.30.26 the file outside was overwritten.
+8. Interactive (`-i`, in a pty; the Enter key is written alone, as a key is
+   matched at the start of what is read): the peer holds the answer of the
+   warm-up (`list-gobj-commands`) and refuses `command-agent ...
+   cmd2agent='read-binary-file filename=/x/nodata'` with an answer that has
+   no `data`; then it releases the warm-up, and sends an
+   `EV_READ_BINARY_FILE` (`evil6.bin`) with the next `help`: not written.
+   Up to 7.30.26 the refusal was taken for the warm-up's answer and the
+   request stayed pending.
 
 Skipped (exit 77) without the ycommand binary, unprivileged namespaces or
 `ip`.

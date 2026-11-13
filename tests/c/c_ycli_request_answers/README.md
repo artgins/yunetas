@@ -40,10 +40,22 @@ that connection. One ycli session:
    `EV_READ_BINARY_FILE` with the next `help` is not written). The warm-up's
    intercept took such an answer for its own; it now asks the answer's command
    stack (red before: `evil5.bin` written).
+7. `help cmd=read-file`, then `help`, with which the peer sends an
+   `EV_READ_BINARY_FILE` (`evil6.bin`): not written. A line that only NAMES
+   a request is no request: the request must be the command (the first
+   word, or the first word of a `command-agent`'s `cmd2agent`). Up to
+   7.30.26 the first line counted, its answer never spent it, and
+   `evil6.bin` was written.
+8. A link left in `~/.yuneta/configs/` under the name of the file
+   (`good.bin` -> a file outside, holding `ORIG`): `read-binary-file` does
+   not write through it, and logs *"Cannot write the binary file"*. Up to
+   7.30.26 the file outside was overwritten.
 
 Mutants killed: no guard in one answer's action (1), no decrement at a
 refusal (4), the pending count kept at a disconnection (5), the file written
-`0700` (2), an answer taken without spending its request (2, 4).
+`0700` (2), an answer taken without spending its request (2, 4); the
+`command-agent` branch of the request rule (3), no `O_NOFOLLOW` (8), a
+failed open taken for a success (8).
 
 Skipped (exit 77) without the ycli binary, unprivileged namespaces or `ip`.
 

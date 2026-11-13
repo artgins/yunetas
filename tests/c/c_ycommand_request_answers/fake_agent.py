@@ -28,6 +28,19 @@
 #      file, runs `help` and ends by itself (up to the fix it waited for
 #      ever), and so does the request alone.
 #
+#   6. A line that only NAMES a request is no request: `help cmd=read-file`
+#      is answered as a command, and an EV_READ_FILE that comes with the
+#      next `help` is not written (up to 7.30.26 the name anywhere in the
+#      line counted, and its answer never spent it).
+#   7. A link left in ~/.yuneta/configs/ under the name of the file is not
+#      followed: the file it points to keeps its content (up to 7.30.26 it
+#      was written through the link).
+#   8. Interactive (`-i`, in a pty): the peer holds the answer of ycommand's
+#      warm-up (`list-gobj-commands`) and refuses a request meanwhile, with
+#      an answer that has no "data": it is not the warm-up's answer (its
+#      command stack says so), so the request leaves nothing pending and an
+#      EV_READ_BINARY_FILE that comes with the next `help` is not written.
+#
 #   Usage: fake_agent.py <ycommand binary> <work dir>
 #   Exit 0 when every check passed.
 #
@@ -36,11 +49,14 @@
 #
 import asyncio
 import base64
+import fcntl
 import hashlib
 import json
 import os
+import pty
 import struct
 import sys
+import termios
 
 HOST = "127.0.0.1"
 PORT = 1991
@@ -50,6 +66,8 @@ HOME = os.path.join(WORK, "home")
 CONFIGS = os.path.join(HOME, ".yuneta", "configs")
 failures = []
 scenario = {"name": ""}
+held = {}       # the warm-up of an interactive ycommand, answered when the test says
+seen = {"commands": []}
 
 
 def check(what, ok):
@@ -122,6 +140,22 @@ async def agent(r, w):
                 "data": {}, "__md_iev__": reverse(md)}}))
         elif event == "EV_MT_COMMAND":
             command = kw.get("__command__", "")
+            seen["commands"].append(command)
+            if command == "list-gobj-commands":
+                if scenario["name"] == "interactive":
+                    held["warmup"] = (w, md)
+                else:
+                    w.write(answer("EV_MT_COMMAND_ANSWER", md, None, "answered"))
+                continue
+            if "nodata" in command:
+                # a refusal with no "data": the shape the warm-up's intercept took for its own
+                w.write(frame({"event": "EV_MT_COMMAND_ANSWER", "kw": {"result": -1,
+                    "comment": "Command sent to 0 nodes", "schema": None,
+                    "__md_iev__": reverse(md)}}))
+                continue
+            if scenario["name"] in ("after-named", "after-warmup") and command == "help":
+                w.write(answer("EV_READ_BINARY_FILE", md,
+                    {"name": "evil6.bin", "content64": base64.b64encode(b"EVIL").decode()}))
             if scenario["name"] == "unasked":
                 w.write(answer("EV_READ_BINARY_FILE", md,
                     {"name": "evil.bin", "content64": base64.b64encode(b"EVIL").decode()}))
@@ -227,7 +261,99 @@ async def main():
     check("refused: the request refused at once leaves nothing pending: %r" % written("evil3.bin"),
         written("evil3.bin") is None)
 
+    #   6. A line that only names a request
+    scenario["name"] = "after-named"
+    out = await ycommand("help cmd=read-file; help", "1")
+    check("named: a line that only names a request ran, and ycommand ended",
+        "answered" in out and ended["by_itself"])
+    check("named: it leaves nothing pending: %r" % written("evil6.bin"),
+        written("evil6.bin") is None)
+    if written("evil6.bin") is not None:
+        os.unlink(os.path.join(CONFIGS, "evil6.bin"))
+
+    #   7. A link in the directory is not followed
+    scenario["name"] = "asked"
+    if written("good.bin") is not None:
+        os.unlink(os.path.join(CONFIGS, "good.bin"))
+    outside = os.path.join(WORK, "outside.bin")
+    with open(outside, "wb") as f:
+        f.write(b"ORIG")
+    os.symlink(outside, os.path.join(CONFIGS, "good.bin"))
+    out = await ycommand("read-binary-file filename=/x/good.bin", "1")
+    with open(outside, "rb") as f:
+        kept = f.read()
+    check("a link: the file it points to is not written: %r" % kept, kept == b"ORIG")
+    check("a link: and it says so", "Cannot write the binary file" in out)
+    os.unlink(os.path.join(CONFIGS, "good.bin"))
+
+    #   8. Interactive: a refusal while the warm-up is pending
+    scenario["name"] = "interactive"
+    await interactive_warmup()
+
     server.close()
+
+
+async def interactive_warmup():
+    master, slave = pty.openpty()
+
+    def controlling_tty():
+        os.setsid()
+        fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+
+    p = await asyncio.create_subprocess_exec(
+        YCOMMAND, "-i", "-u", "ws://%s:%d" % (HOST, PORT), "-w", "1", "--editor=cat", "-l", "1",
+        stdin=slave, stdout=slave, stderr=slave,
+        env=dict(os.environ, HOME=HOME), preexec_fn=controlling_tty)
+    os.close(slave)
+    loop = asyncio.get_running_loop()
+    os.set_blocking(master, False)
+    output = []
+
+    def on_read():
+        try:
+            data = os.read(master, 65536)
+        except OSError:
+            data = b""
+        if not data:
+            loop.remove_reader(master)
+            return
+        output.append(data.decode(errors="replace"))
+
+    loop.add_reader(master, on_read)
+
+    async def wait_for(what, cond, timeout=10):
+        for _ in range(int(timeout * 20)):
+            if cond():
+                return True
+            await asyncio.sleep(0.05)
+        check("interactive: the wait for %s ended in time" % what, False)
+        return False
+
+    async def type_line(line):
+        n = len(seen["commands"])
+        os.write(master, line.encode())
+        await asyncio.sleep(0.3)
+        os.write(master, b"\r")     # alone: a key is matched at the start of what is read
+        await wait_for("the command '%s'" % line, lambda: len(seen["commands"]) > n)
+        await asyncio.sleep(0.5)    # its answers handled
+
+    try:
+        await wait_for("the warm-up", lambda: "warmup" in held)
+        await type_line("command-agent agent_id=n cmd2agent='read-binary-file filename=/x/nodata'")
+        if "warmup" in held:
+            w, md = held.pop("warmup")
+            w.write(answer("EV_MT_COMMAND_ANSWER", md, [{"gclass": "C_AGENT", "commands": []}]))
+            await asyncio.sleep(0.5)
+        scenario["name"] = "after-warmup"
+        await type_line("help")
+        check("interactive: a request refused while the warm-up was pending leaves nothing "
+            "pending: %r" % written("evil6.bin"), written("evil6.bin") is None)
+    finally:
+        p.kill()
+        await p.wait()
+        if failures:
+            print("---- ycommand -i said ----")
+            print("".join(output)[-4000:])
 
 
 asyncio.run(main())

@@ -48,9 +48,13 @@ and authentication options match [`ycommand`](ycommand.md) (default
   `EV_EDIT_CONFIG`, ...), and `ycli` writes it under `~/.yuneta/configs/`,
   opens the editor on it, or leaves a `create-config` on the line. It takes
   one only while a request of those is pending ON THAT CONNECTION, one answer
-  per request; a line counts as a request when it names one of them as a
-  word, so `command-agent cmd2agent='read-file filename=/etc/hosts'` through a
-  control center counts too. Any other is ignored with a WARNING in the log:
+  per request; a line counts as a request when the request is its COMMAND:
+  its first word, or, of a `command-agent`, the first word of its `cmd2agent`,
+  so `command-agent cmd2agent='read-file filename=/etc/hosts'` through a
+  control center counts too, and `help cmd=read-file` does not (up to 7.30.26
+  a name anywhere in the line counted: its answer never spent the request, and
+  the next answer nobody asked was taken). Any other is ignored with a
+  WARNING in the log:
 
   ```text
   "msg": "answer of a request this ycli did not make, ignored", "event": "EV_READ_BINARY_FILE", "connection": "C_IEVENT_CLI^ws://127.0.0.1:1991"
@@ -62,6 +66,16 @@ and authentication options match [`ycommand`](ycommand.md) (default
   that came from its peers.
 - **`read-binary-file` writes data** — the file is written `0600`, not
   executable (`0700` up to 7.30.26).
+  A link left in `~/.yuneta/configs/` under the file's name is not followed:
+  the write fails, with an ERROR *"Cannot write the binary file"* naming the
+  path (up to 7.30.26 it wrote through the link, and a file it could not open
+  was taken for written, with nothing said):
+
+  ```bash
+  ln -s ~/.bashrc ~/.yuneta/configs/yuneta_agent
+  # then, typed in ycli: read-binary-file filename=/yuneta/bin/yuneta_agent
+  # -> ERROR "Cannot write the binary file", ~/.bashrc untouched
+  ```
 
 ## Key bindings
 

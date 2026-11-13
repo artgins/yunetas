@@ -1649,10 +1649,14 @@ PRIVATE char *sanitize_config_name(char *dst, int dstsize, const char *name)
 }
 
 /***************************************************************************
- *  Does `command` (a line as sent: maybe a command-agent whose cmd2agent
- *  is one) name one of the agent's own requests, whose answer is an event
- *  of its own (EV_READ_FILE, EV_EDIT_CONFIG...) and not the command's
- *  answer? A name counts as a whole word.
+ *  Is `command` (a line as sent) one of the agent's own requests, whose
+ *  answer is an event of its own (EV_READ_FILE, EV_EDIT_CONFIG...) and not
+ *  the command's answer? Only when the request IS the command: its first
+ *  word, or, of a command-agent, the first word of its cmd2agent -- each
+ *  read as the command parser reads it. Up to 7.30.26 a name anywhere in
+ *  the line counted (`help cmd=read-file`): its answer, an
+ *  EV_MT_COMMAND_ANSWER, never spent the request, and the next answer of
+ *  a request that nobody made was taken.
  ***************************************************************************/
 PRIVATE BOOL names_a_request(const char *command)
 {
@@ -1664,20 +1668,35 @@ PRIVATE BOOL names_a_request(const char *command)
         "EV_VIEW_YUNO_CONFIG",
         0
     };
-    for(int i=0; requests[i]; i++) {
-        size_t len = strlen(requests[i]);
-        const char *p = command;
-        while((p = strstr(p, requests[i])) != NULL) {
-            BOOL starts = (p == command) ||
-                !(isalnum((unsigned char)p[-1]) || p[-1] == '-' || p[-1] == '_');
-            BOOL ends = !(isalnum((unsigned char)p[len]) || p[len] == '-' || p[len] == '_');
-            if(starts && ends) {
-                return TRUE;
+    if(!command) {
+        return FALSE;
+    }
+    char *line = gbmem_strdup(command);
+    if(!line) {
+        return FALSE;   // Error already logged
+    }
+    char *rest = line;
+    char *word = get_parameter(line, &rest);
+    if(word && strcasecmp(word, "command-agent")==0) {
+        char *cmd2agent = NULL;
+        char *key;
+        char *value;
+        while((value = get_key_value_parameter(rest, &key, &rest))) {
+            if(key && strcasecmp(key, "cmd2agent")==0) {
+                cmd2agent = value;
             }
-            p += len;
+        }
+        word = cmd2agent? get_parameter(cmd2agent, &rest) : NULL;
+    }
+    BOOL is_request = FALSE;
+    for(int i=0; word && requests[i]; i++) {
+        if(strcasecmp(word, requests[i])==0) {
+            is_request = TRUE;
+            break;
         }
     }
-    return FALSE;
+    GBMEM_FREE(line)
+    return is_request;
 }
 
 /***************************************************************************
@@ -1840,24 +1859,48 @@ PRIVATE int save_local_base64(
     }
     build_path(path, pathsize, homedir, ".yuneta", "configs", safe, NULL);
 
+    int ret = 0;
     const char *s = json_string_value(jn_content);
-    if(s) {
-        gbuffer_t *gbuf_bin = gbuffer_base64_to_binary(s, strlen(s));
-        if(gbuf_bin) {
-            int fp = newfile(path, 0600, TRUE);  // a copy of data, never a program to run (0700 up to 7.30.26)
-            if(fp) {
-                ssize_t x = write(
-                    fp,
-                    gbuffer_cur_rd_pointer(gbuf_bin),
-                    gbuffer_leftbytes(gbuf_bin)
+    gbuffer_t *gbuf_bin = s? gbuffer_base64_to_binary(s, strlen(s)) : NULL;
+    if(gbuf_bin) {
+        /*
+         *  A copy of data, never a program to run (0700 up to 7.30.26), and
+         *  never through a link left in the directory: up to 7.30.26 a link
+         *  was followed, and a failure to open was taken for a success
+         */
+        int fd = open(path, O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC, 0600);
+        if(fd < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot write the binary file",
+                "path",         "%s", path,
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+            ret = -1;
+        } else {
+            size_t len = gbuffer_leftbytes(gbuf_bin);
+            ssize_t x = write(fd, gbuffer_cur_rd_pointer(gbuf_bin), len);
+            if(x < 0 || (size_t)x != len) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM,
+                    "msg",          "%s", "Cannot write the whole binary file",
+                    "path",         "%s", path,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
                 );
-                if(x) {} // avoid warning
-                close(fp);
+                ret = -1;
             }
+            close(fd);
         }
+        GBUFFER_DECREF(gbuf_bin)
     }
     JSON_DECREF(jn_content);
-    return 0;
+    return ret;
 }
 
 
@@ -2850,17 +2893,24 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     /*
      *  Intercept the silent list-gobj-commands responses used to warm the cache.
-     *  While at least one warm-up is pending, swallow anything that looks like a
-     *  list-gobj-commands answer (success merges, error is ignored). Unrelated
-     *  answers — e.g. a user command's response racing the warm-up — still go
-     *  to the normal display path below.
+     *  While at least one warm-up is pending, swallow the warm-up's answer
+     *  (success merges, error is ignored). Unrelated answers — e.g. a user
+     *  command's response racing the warm-up — still go to the normal
+     *  display path below. An answer says its command in its command
+     *  stack: only the warm-up's is taken for it. Without a stack, the
+     *  shape decides, as up to 7.30.26 -- and that took a refused request
+     *  with no "data" for the warm-up's answer, leaving the request pending
      */
     if(priv->pending_cache_fetches > 0) {
+        json_t *jn_command = msg_iev_get_stack(gobj, kw, COMMAND_STACK_ID, FALSE);
+        const char *command = kw_get_str(gobj, jn_command, "command", 0, 0);
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
         BOOL is_cache = is_commands_list_response(jn_data);
         int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
-        /* A pure error response has no data but is still the warm-up's answer. */
-        if(is_cache || (result != 0 && jn_data == NULL)) {
+        BOOL is_warmup = command?
+            (strcmp(command, "list-gobj-commands")==0) :
+            (is_cache || (result != 0 && jn_data == NULL));
+        if(is_warmup) {
             if(is_cache) {
                 merge_commands_into_cache(gobj, jn_data);
             }

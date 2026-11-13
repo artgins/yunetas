@@ -181,7 +181,11 @@ client does, and tells its host nothing until one opens.
 - **did-you-mean** — on a `command not available` error, `ycommand` compares the
   typed command name against the in-memory cache (fetched via
   `list-gobj-commands` at connect) and suggests the closest match when it is
-  within an edit-distance threshold.
+  within an edit-distance threshold. That fetch (interactive mode only) takes
+  only its own answer, by the command its answer carries back
+  (`list-gobj-commands`): up to 7.30.26 any error answer without `data` that
+  came while it was pending was taken for it, so a request refused that way
+  stayed pending and the next answer nobody asked was taken.
 - **Informative prompt** — after connecting, the prompt reflects the remote yuno
   (`yuneta_agent^<name>> `).
 - **Inline parameter hints** — after typing `<cmd> `, the remaining parameters
@@ -206,9 +210,13 @@ client does, and tells its host nothing until one opens.
   `EV_EDIT_CONFIG`, ...), and ycommand writes it under `~/.yuneta/configs/`,
   opens the editor on it, or leaves a `create-config` on the line. It takes
   one only while a request of those is pending, one answer per request; a
-  line counts as a request when it names one of them as a word, so
+  line counts as a request when the request is its COMMAND: its first word,
+  or, of a `command-agent`, the first word of its `cmd2agent`, so
   `command-agent cmd2agent='read-file filename=/etc/hosts'` through a control
-  center counts too. Any other is ignored with a WARNING (shown with `-l 1`):
+  center counts too, and `help cmd=read-file` does not (up to 7.30.26 a name
+  anywhere in the line counted: its answer never spent the request, and the
+  next answer nobody asked was taken). Any other is ignored with a WARNING
+  (shown with `-l 1`):
 
   ```text
   "msg": "answer of a request this ycommand did not make, ignored", "event": "EV_READ_BINARY_FILE"
@@ -232,6 +240,16 @@ client does, and tells its host nothing until one opens.
 - **`read-binary-file` writes data** — the file is written `0600`, not
   executable (`0700` up to 7.30.26): it is a copy of what the node holds, to
   read or to upload again, not a program to run.
+  A link left in `~/.yuneta/configs/` under the file's name is not followed:
+  the write fails, with an ERROR *"Cannot write the binary file"* naming the
+  path (up to 7.30.26 it wrote through the link, and a file it could not open
+  was taken for written, with nothing said):
+
+  ```bash
+  ln -s ~/.bashrc ~/.yuneta/configs/yuneta_agent
+  ycommand -c 'read-binary-file filename=/yuneta/bin/yuneta_agent'
+  # -> ERROR "Cannot write the binary file", ~/.bashrc untouched
+  ```
 
 ## See also
 
