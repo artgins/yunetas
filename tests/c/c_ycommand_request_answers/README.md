@@ -28,6 +28,13 @@ a `create-config` on its line). It must do so only for a request it made:
 4. A request refused at once (`EV_MT_COMMAND_ANSWER` -1, *"Command sent to 0
    nodes"*), then `help`, with which the peer sends an `EV_READ_BINARY_FILE`:
    not written, nothing was left pending.
+5. Straight to the agent, a request is answered ONLY by its own event (the
+   command is an alias of an event: no `EV_MT_COMMAND_ANSWER`), and the peer
+   does so (through a control center, *"Command sent to 1 nodes"* comes
+   first). `ycommand -c "read-binary-file filename=/x/good.bin; help"`
+   writes `good.bin`, runs `help` and ends by itself; so does the request
+   alone. Up to the fix ycommand waited for an answer that never comes: it
+   neither ran `help` nor ended (killed at 20 s here).
 
 Skipped (exit 77) without the ycommand binary, unprivileged namespaces or
 `ip`.

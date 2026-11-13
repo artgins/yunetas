@@ -117,7 +117,8 @@ PRIVATE void split_commands_into_queue(hgobj gobj, const char *text);
 PRIVATE int exec_one_command(hgobj gobj, const char *cmdline);
 PRIVATE void run_next_pending(hgobj gobj);
 PRIVATE BOOL names_a_request(const char *command);
-PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event);
+PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event, json_t *kw);
+PRIVATE void command_done(hgobj gobj, int __answer_result);
 PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -1687,13 +1688,24 @@ PRIVATE BOOL names_a_request(const char *command)
  *  took any that came, from whatever the peer (an agent, or a control
  *  center relaying an agent) chose to send.
  ***************************************************************************/
-PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event)
+PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event, json_t *kw)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->requests_pending > 0) {
         priv->requests_pending--;
-        priv->request_in_flight = FALSE;
+        if(priv->request_in_flight) {
+            /*
+             *  No EV_MT_COMMAND_ANSWER came before it: the request went
+             *  straight to the agent, whose only answer is this event. It
+             *  ends the command. Up to 7.30.26 ycommand waited for an
+             *  answer that never came: `-c "read-binary-file ...; help"`
+             *  never ran `help`, nor ended. Through a control center its
+             *  "Command sent to 1 nodes" came first, and ended it.
+             */
+            priv->request_in_flight = FALSE;
+            command_done(gobj, (int)kw_get_int(gobj, kw, "result", -1, 0));
+        }
         return TRUE;
     }
     gobj_log_warning(gobj, 0,
@@ -2878,20 +2890,37 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             priv->requests_pending--;
         }
     }
-    BOOL __ignore_fail = priv->current_ignore_fail;
-    priv->current_ignore_fail = FALSE;
-    /* The async dispatched by exec_one_command has just returned. Clear the
-     * gate so a stdin line arriving DURING run_next_pending() below (or
-     * after, via yev_stdin_callback) can drive the next dispatch. */
-    priv->cmd_in_flight = FALSE;
-
     /*
      *  Unified rendering: use display_webix_result() in both modes so the
      *  non-interactive output also honours the schema → table pipeline
      *  (and the '*' prefix still forces raw-JSON form via
      *  __md_iev__.display_mode, set in exec_one_command).
      */
+    priv->cmd_in_flight = FALSE;    // a stdin line during the display may dispatch (see command_done())
     int r = display_webix_result(gobj, kw);  /* consumes kw */
+
+    command_done(gobj, __answer_result);
+    return r;
+}
+
+/***************************************************************************
+ *  The command in flight has its answer (`result`): the next of the queue
+ *  goes, or the queue is dropped (a failure), and a non-interactive
+ *  ycommand ends when there is nothing more. The answer of a command is
+ *  its EV_MT_COMMAND_ANSWER, or, for one of the agent's own requests sent
+ *  straight to the agent (read-binary-file...), the request's own event:
+ *  the agent sends no other (take_pending_request()).
+ ***************************************************************************/
+PRIVATE void command_done(hgobj gobj, int __answer_result)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL __ignore_fail = priv->current_ignore_fail;
+    priv->current_ignore_fail = FALSE;
+    /* The async dispatched by exec_one_command has just returned. Clear the
+     * gate so a stdin line arriving DURING run_next_pending() below (or
+     * after, via yev_stdin_callback) can drive the next dispatch. */
+    priv->cmd_in_flight = FALSE;
 
     if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
         /*
@@ -2933,8 +2962,6 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             }
         }
     }
-
-    return r;
 }
 
 /***************************************************************************
@@ -2944,7 +2971,7 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!take_pending_request(gobj, event)) {
+    if(!take_pending_request(gobj, event, kw)) {
         // Warning already logged
         KW_DECREF(kw);
         return 0;
@@ -3066,7 +3093,7 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!take_pending_request(gobj, event)) {
+    if(!take_pending_request(gobj, event, kw)) {
         // Warning already logged
         KW_DECREF(kw);
         return 0;
@@ -3133,7 +3160,7 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!take_pending_request(gobj, event)) {
+    if(!take_pending_request(gobj, event, kw)) {
         // Warning already logged
         KW_DECREF(kw);
         return 0;
@@ -3200,7 +3227,7 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!take_pending_request(gobj, event)) {
+    if(!take_pending_request(gobj, event, kw)) {
         // Warning already logged
         KW_DECREF(kw);
         return 0;
@@ -3283,7 +3310,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!take_pending_request(gobj, event)) {
+    if(!take_pending_request(gobj, event, kw)) {
         // Warning already logged
         KW_DECREF(kw);
         return 0;

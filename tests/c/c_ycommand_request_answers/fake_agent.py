@@ -21,6 +21,12 @@
 #   4. A request refused at once (EV_MT_COMMAND_ANSWER -1, "Command sent to
 #      0 nodes") leaves nothing pending: an EV_READ_BINARY_FILE that comes
 #      with the next command (`help`) is not written.
+#   5. Straight to the agent, `read-binary-file` is answered only by its
+#      EV_READ_BINARY_FILE (an alias of an event: no EV_MT_COMMAND_ANSWER),
+#      as the peer does here; through a control center "Command sent to 1
+#      nodes" comes first. `-c "read-binary-file ...; help"` writes the
+#      file, runs `help` and ends by itself (up to the fix it waited for
+#      ever), and so does the request alone.
 #
 #   Usage: fake_agent.py <ycommand binary> <work dir>
 #   Exit 0 when every check passed.
@@ -131,23 +137,37 @@ async def agent(r, w):
                 w.write(answer("EV_READ_BINARY_FILE", md,
                     {"name": "evil3.bin", "content64": base64.b64encode(b"EVIL").decode()}))
             elif "read-binary-file" in command:
+                #   Through a control center its "Command sent to 1 nodes"
+                #   comes first; straight to the agent the request's own
+                #   event is its only answer (a command that is an alias of
+                #   an event answers nothing else)
+                through_cc = command.startswith("command-agent")
+                if through_cc:
+                    w.write(answer("EV_MT_COMMAND_ANSWER", md, None, "Command sent to 1 nodes"))
                 w.write(answer("EV_READ_BINARY_FILE", md,
                     {"name": "good.bin", "content64": base64.b64encode(b"GOOD").decode()}))
                 w.write(answer("EV_READ_FILE", md, {"name": "evil2.txt", "zcontent": "EVIL"}))
+                continue
             w.write(answer("EV_MT_COMMAND_ANSWER", md, None, "answered"))
 
 
+ended = {"by_itself": True}
+
+
 async def ycommand(command, verbose="0"):
-    """ycommand -c `command`; with `verbose` 1 its warnings are printed too"""
+    """ycommand -c `command`; with `verbose` 1 its warnings are printed too.
+    ended["by_itself"]: it ended on its own, not killed at 20 s"""
     env = dict(os.environ, HOME=HOME)
     p = await asyncio.create_subprocess_exec(
         YCOMMAND, "-u", "ws://%s:%d" % (HOST, PORT), "-w", "1", "--editor=cat", "-l", verbose,
         "-c", command,
         stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT, env=env)
+    ended["by_itself"] = True
     try:
         out, _ = await asyncio.wait_for(p.communicate(), 20)
     except asyncio.TimeoutError:
+        ended["by_itself"] = False
         p.kill()
         out, _ = await p.communicate()
     return out.decode(errors="replace")
@@ -188,6 +208,19 @@ async def main():
         written("good.bin") == b"GOOD")
     check("asked: one answer per request: a second one is not written: %r" % written("evil2.txt"),
         written("evil2.txt") is None)
+
+    #   5. Straight to the agent, the request's own event is its answer:
+    #   the next command of the line runs, and ycommand ends. Up to the fix
+    #   it waited for an EV_MT_COMMAND_ANSWER that never comes
+    if written("good.bin") is not None:
+        os.unlink(os.path.join(CONFIGS, "good.bin"))
+    out = await ycommand("read-binary-file filename=/x/good.bin; help")
+    check("a line of a request and help: the request is written: %r" % written("good.bin"),
+        written("good.bin") == b"GOOD")
+    check("a line of a request and help: help runs after it", "answered" in out)
+    check("a line of a request and help: ycommand ends by itself", ended["by_itself"])
+    out = await ycommand("read-binary-file filename=/x/good.bin")
+    check("a request alone: ycommand ends by itself", ended["by_itself"])
 
     scenario["name"] = "after-refused"
     out = await ycommand("-command-agent agent_id=n cmd2agent='read-binary-file filename=/x/nope'; help")

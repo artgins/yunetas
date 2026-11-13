@@ -217,6 +217,18 @@ client does, and tells its host nothing until one opens.
   A request refused at once (an `EV_MT_COMMAND_ANSWER` with an error, such as
   *"Command sent to 0 nodes"*) leaves nothing pending, and a disconnection
   clears what was. Up to 7.30.26 ycommand took any that came from its peer.
+
+  Straight to the agent, that event is the request's ONLY answer (the agent
+  sends no `EV_MT_COMMAND_ANSWER` for it), so it ends the command: the next
+  one of the line runs, and ycommand ends. Through a control center its
+  *"Command sent to 1 nodes"* ends the command, and the event comes after
+  (give it time with `-w`):
+
+  ```bash
+  ycommand -c 'read-binary-file filename=/yuneta/agent/yuneta_agent; help'
+  ```
+
+  Up to the fix such a line never ran `help` and never ended.
 - **`read-binary-file` writes data** — the file is written `0600`, not
   executable (`0700` up to 7.30.26): it is a copy of what the node holds, to
   read or to upload again, not a program to run.
