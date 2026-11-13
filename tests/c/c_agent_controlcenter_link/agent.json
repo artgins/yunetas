@@ -38,6 +38,7 @@
                 }
             ]
         },
+        "agent.console_pause_timeout": 3000,
         "controlcenter.__json_config_variables__": {
             "__output_url__": "cc.test:19898"
         }

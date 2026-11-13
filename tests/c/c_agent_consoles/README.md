@@ -10,21 +10,28 @@ yuno that is registered and never run, whose card a session presents.
 
 ## What it pins
 
+`agent.json` sets `console_pause_timeout` to 3000 ms (the default is 30 s)
+and `console_max_tx_queue` to 2048 (8192), so the cases are quick and a route
+with no flow control would be taken off soon.
+
 1. **A session that floods its console and does not read.** The session
-   opens `open-console name=flood process=yes` and reads nothing. The agent's
-   memory (its `VmRSS`, read in `/proc`) must grow less than 160 MB, the agent
-   must live (`help` is answered), and the console must be closed: the
-   session is the one that opened it, and it fell behind by
-   `console_max_tx_queue` messages. Up to 7.30.26 the agent grew some
-   50 MB/s until it aborted (*"REACHED MAX_SYSTEM_MEMORY"*). The run stops
-   at 300 MB of growth, so a broken agent cannot eat the machine.
+   opens `open-console name=flood process=yes` and reads nothing. The
+   console pauses for it (`console_pause_tx_queue`), the agent's memory (its
+   `VmRSS`, read in `/proc`) must grow less than 160 MB, the agent must live
+   (`help` is answered), and the console must be closed: the session took
+   nothing within `console_pause_timeout`, and it is the one that opened
+   it. Up to 7.30.26 the agent grew some 50 MB/s until it aborted
+   (*"REACHED MAX_SYSTEM_MEMORY"*). The run stops at 300 MB of growth, so a
+   broken agent cannot eat the machine.
 2. **A joined session that does not read, beside one that reads.** A session
    opens `paced` (`bash`) and reads; another joins it and reads nothing. The
-   console prints 3,000,000 numbered lines (30 MB) at a pace a reader on the
-   same machine follows. The reading session must get ALL of them, in order.
-   The other one must be taken off the console (`list-consoles` shows one
-   route), and when it reads at last, what it had waiting must end with the
-   console's `EV_TTY_CLOSE`. The console goes on for the reading session.
+   console prints 3,000,000 numbered lines (30 MB) at a pace. The reading
+   session must get ALL of them, in order: the console pauses for the other
+   one, which is taken off within its deadline, so it does not freeze the
+   console of the opener for ever. `list-consoles` then shows one route,
+   and when the other one reads at last, what it had waiting must end with
+   the console's `EV_TTY_CLOSE`. The console goes on for the reading
+   session.
 3. **A session that only joins a console leaves.** A opens `j1`, B joins and
    leaves: `j1` lives, A still gets its output and no close. C joins, and A
    leaves: C gets the `EV_TTY_CLOSE` of `j1`, and `j1` is gone. Up to 7.30.26
@@ -34,9 +41,18 @@ yuno that is registered and never run, whose card a session presents.
    agent says so with a WARNING and accepts it) and opens `fy`, which writes
    `TICK` every 10 ms, and the session drops its connection. `fy` must be gone
    (`list-consoles`), and the next session, which takes the same channel,
-   must get none of its output. Up to 7.30.26 the console outlived the session,
-   the next session of the channel got its output, and an INFO *"requester
-   gone"* was logged per chunk in between.
+   must get none of its output. The session also watches the yuno
+   (`watch-yuno-stats`): the next session gets none of its readings. Up to
+   7.30.26 the console and the watch outlived the session, the next session
+   of the channel got their output, and an INFO *"requester gone"* was logged
+   per chunk in between.
+5. **A slow reader.** A session with a 64 KB receive window that reads at
+   about 1 MB/s opens a console that prints 11 MB at full speed (`seq`). It
+   must get ALL of it, in order, and not be taken off: the console waits for
+   it. With no flow control it was taken off once it fell
+   `console_max_tx_queue` messages behind.
+6. **A very slow reader.** A session with a 16 KB receive window reads a
+   `yes` console at about 100 KB/s for 10 s: it keeps the console.
 
 `run_test.sh` checks the agent's log: ONE WARNING *"console output not taken
 by its session, console closed for it"* per session that did not read (2), at

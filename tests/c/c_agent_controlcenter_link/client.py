@@ -32,10 +32,12 @@
 #   and answer go up the link, as they did before the agent sent its
 #   console events with EV_SEND_IEV.
 #   A console the control center opens that floods (`yes`) while the
-#   control center does not read: the agent's memory stays bounded, and the
-#   console is closed for the link, which opened it (ONE WARNING); when the
-#   control center reads again, what it had waiting ends with the console's
-#   EV_TTY_CLOSE. Up to 7.30.26 the agent grew until it aborted.
+#   control center does not read: the console pauses for the link, the
+#   agent's memory stays bounded, and the link, which takes nothing within
+#   `console_pause_timeout` (3 s in agent.json), is taken off: the console
+#   is closed, the link opened it (ONE WARNING). When the control center
+#   reads again, what it had waiting ends with the console's EV_TTY_CLOSE.
+#   Up to 7.30.26 the agent grew until it aborted.
 #   4. The control center sends EV_PLAY_YUNO, then an order, EV_PAUSE_YUNO
 #      and two bytes of the next order in one write, then 40 orders more:
 #      both are refused (ack -1), every order is answered, the link and the

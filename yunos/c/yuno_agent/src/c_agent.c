@@ -259,6 +259,18 @@ PRIVATE int remove_console_route(
     hgobj gate,
     BOOL tell
 );
+PRIVATE hgobj console_route_transport(hgobj gate);
+PRIVATE void console_hold_pause(
+    hgobj gobj,
+    const char *name,
+    json_t *jn_route,
+    hgobj transport,
+    hgobj gobj_console
+);
+PRIVATE void console_release_pause(hgobj gobj, json_t *jn_route, hgobj transport);
+PRIVATE void console_update_pause(hgobj gobj, const char *name, json_t *jn_console);
+PRIVATE void console_arm_pause_timer(hgobj gobj);
+PRIVATE int console_pause_deadline(hgobj gobj);
 PRIVATE BOOL requester_is_listening(hgobj gobj, hgobj requester, gobj_event_t event);
 PRIVATE json_int_t requester_session(hgobj gobj, hgobj src);
 PRIVATE json_t *take_run_requester(hgobj gobj, json_t *yuno, json_int_t launch_id, BOOL for_play);
@@ -1094,7 +1106,9 @@ SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
-SDATA (DTP_INTEGER,     "console_max_tx_queue",SDF_WR,          "8192",         "Most messages a route of a console (a session, or the link to the control center) may have waiting to be sent when the console writes: over it the console is closed for that route, with a warning, and closed for everybody when that route opened it. A message carries up to 1 KB of console output. 0: no bound"),
+SDATA (DTP_INTEGER,     "console_pause_tx_queue",SDF_WR,        "256",          "Flow control of a console: when a route of it (a session, or the link to the control center) has this many messages or more waiting to be sent, the console stops reading its terminal (its process waits) until that transport has sent them all. 0: no flow control"),
+SDATA (DTP_INTEGER,     "console_pause_timeout",SDF_WR,         "30000",        "Milliseconds a route may hold a console paused with its transport sending nothing: then it is taken off the console (closed for it, with a warning), so a session that does not read never stops the console of the others for ever. A transport that sent something in the period (its socket took a write) gets another one"),
+SDATA (DTP_INTEGER,     "console_max_tx_queue",SDF_WR,          "8192",         "Most messages a route of a console may have waiting to be sent when the console writes, whatever paused it: over it the console is closed for that route, with a warning, and closed for everybody when that route opened it. A message carries up to 1 KB of console output. 0: no bound"),
 SDATA (DTP_INTEGER,     "max_watches",      SDF_WR,             "30",           "Maximum requesters with a watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "max_watch_ids",    SDF_WR,             "256",          "Maximum yuno ids (id or id:service) in one watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "watch_min_period", SDF_WR,             "1000",         "Minimum milliseconds between two readings of a watch-yuno-stats"),
@@ -1164,6 +1178,9 @@ typedef struct _PRIVATE_DATA {
     char treedb_agentdb_name[80];
 
     json_t *list_consoles; // Dictionary of console names
+    hgobj console_timer;    // the deadline of the first pause of a console held by a route
+    json_t *console_transports; // the transports (C_TCP) the agent takes EV_TX_READY of: {"<pointer>": true}
+    json_int_t console_pauses;  // routes holding a console paused
 
     json_t *watches;        // watch-yuno-stats, by route: {route, yunos: {id: service}, period}
     json_t *publishing;     // publish-stats asked to the watched yunos: {id: {pid, period, renew, services: {service: state}}}
@@ -1423,6 +1440,8 @@ PRIVATE void mt_create(hgobj gobj)
      *      Consoles
      *-----------------------------*/
     priv->list_consoles = json_object();
+    priv->console_transports = json_object();
+    priv->console_timer = gobj_create_pure_child("console_pause", C_TIMER, 0, gobj);
 
     /*-----------------------------*
      *      run-yuno play=0
@@ -1474,6 +1493,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->list_consoles);
+    JSON_DECREF(priv->console_transports);
     JSON_DECREF(priv->watches);
     JSON_DECREF(priv->publishing);
     JSON_DECREF(priv->restart_wait);
@@ -1542,6 +1562,7 @@ PRIVATE int mt_stop(hgobj gobj)
      *  HACK copy the key: delete_console KW_EXTRACTs it from
      *  list_consoles and the original string dies mid-call.
      */
+    clear_timeout(priv->console_timer);
     const char *name; json_t *jn_console; void *n;
     json_object_foreach_safe(priv->list_consoles, n, name, jn_console) {
         char *name_ = gbmem_strdup(name);   // any length: a gobj name can exceed NAME_MAX - 1
@@ -7682,14 +7703,24 @@ PRIVATE json_t *cmd_watch_yuno_stats(hgobj gobj, const char *cmd, json_t *kw, hg
         JSON_DECREF(yuno)
     }
 
+    /*
+     *  The watch is the requester's SESSION, not its channel's name: the
+     *  channels are a pool (console_route_of_its_session())
+     */
+    hgobj watch_service = gobj_find_service(route_service, FALSE);
+    hgobj watch_gate = watch_service? gobj_child_by_name(watch_service, route_child) : 0;
+    json_int_t watch_session = watch_gate?
+        json_integer_value(gobj_read_user_data(watch_gate, "__session__")) : 0;
+
     json_int_t ttl = gobj_read_integer_attr(gobj, "watch_ttl");
-    json_t *jn_watch = json_pack("{s:s, s:s, s:O, s:O, s:I, s:I}",
+    json_t *jn_watch = json_pack("{s:s, s:s, s:O, s:O, s:I, s:I, s:I}",
         "route_service", route_service,
         "route_child", route_child,
         "__md_iev__", kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED),
         "yunos", jn_yunos,
         "period", period,
-        "expires", (json_int_t)(ttl > 0? start_msectimer((uint64_t)ttl) : 0)
+        "expires", (json_int_t)(ttl > 0? start_msectimer((uint64_t)ttl) : 0),
+        "session", watch_session
     );
     if(!jn_watch) {
         gobj_log_error(gobj, 0,
@@ -8983,7 +9014,201 @@ PRIVATE int remove_console_route(
             json_object_del(consoles, name);
         }
     }
+    BOOL held = json_object_get(jn_route, "pause")? TRUE : FALSE;
+    console_release_pause(gobj, jn_route, NULL);
     json_object_del(jn_routes, route_name);
+    if(held) {
+        console_update_pause(gobj, name, jn_console);
+        console_arm_pause_timer(gobj);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The transport (C_TCP) under the gate of a route: the queue the flow
+ *  control of a console looks at, and the EV_TX_READY it waits for. NULL:
+ *  no flow control for that route (only console_max_tx_queue).
+ ***************************************************************************/
+PRIVATE hgobj console_route_transport(hgobj gate)
+{
+    hgobj transport = gobj_last_bottom_gobj(gate);
+    if(!transport || !gobj_typeof_gclass(transport, C_TCP)) {
+        return NULL;
+    }
+    return transport;
+}
+
+/***************************************************************************
+ *  The route has console_pause_tx_queue messages or more waiting in its
+ *  transport: the console stops reading its terminal (its process waits
+ *  on its write) until the transport has sent them all (its EV_TX_READY,
+ *  ac_console_tx_ready()). The route holds the pause for at most
+ *  console_pause_timeout with its transport sending nothing
+ *  (console_pause_deadline()). The agent takes the EV_TX_READY of a
+ *  transport from its first pause on: a transport of the pool serves the
+ *  next sessions too.
+ ***************************************************************************/
+PRIVATE void console_hold_pause(
+    hgobj gobj,
+    const char *name,
+    json_t *jn_route,
+    hgobj transport,
+    hgobj gobj_console
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[32];
+    snprintf(key, sizeof(key), "%p", transport);
+    if(!json_object_get(priv->console_transports, key)) {
+        gobj_subscribe_event(transport, EV_TX_READY, NULL, gobj);
+        json_object_set_new(priv->console_transports, key, json_true());
+    }
+    json_object_set_new(jn_route, "pause", json_true());
+    json_object_set_new(jn_route, "pause_tx_msgs",
+        json_integer(gobj_read_integer_attr(transport, "txMsgs")));
+    json_object_set_new(jn_route, "pause_deadline", json_integer((json_int_t)start_msectimer(
+        gobj_read_integer_attr(gobj, "console_pause_timeout"))));
+    priv->console_pauses++;
+
+    if(!gobj_read_bool_attr(gobj_console, "rx_paused")) {
+        gobj_write_bool_attr(gobj_console, "rx_paused", TRUE);
+    }
+    console_arm_pause_timer(gobj);
+}
+
+/***************************************************************************
+ *  The route holds the pause of its console no more (its transport sent
+ *  all, it is taken off, its console closes)
+ ***************************************************************************/
+PRIVATE void console_release_pause(hgobj gobj, json_t *jn_route, hgobj transport)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!json_object_get(jn_route, "pause")) {
+        return;
+    }
+    json_object_del(jn_route, "pause");
+    json_object_del(jn_route, "pause_tx_msgs");
+    json_object_del(jn_route, "pause_deadline");
+    if(priv->console_pauses > 0) {
+        priv->console_pauses--;
+    }
+}
+
+/***************************************************************************
+ *  The console reads its terminal while no route of it holds a pause
+ ***************************************************************************/
+PRIVATE void console_update_pause(hgobj gobj, const char *name, json_t *jn_console)
+{
+    json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+    BOOL paused = FALSE;
+    const char *route_name; json_t *jn_route;
+    json_object_foreach(jn_routes, route_name, jn_route) {
+        if(json_object_get(jn_route, "pause")) {
+            paused = TRUE;
+            break;
+        }
+    }
+    hgobj gobj_console = gobj_find_service(name, FALSE);
+    if(gobj_console && gobj_typeof_gclass(gobj_console, C_PTY) &&
+            gobj_read_bool_attr(gobj_console, "rx_paused") != paused) {
+        gobj_write_bool_attr(gobj_console, "rx_paused", paused);
+    }
+}
+
+/***************************************************************************
+ *  The console timer fires at the first deadline of a pause held by a
+ *  route (a real time, not a poll), and is cleared when none is held.
+ ***************************************************************************/
+PRIVATE void console_arm_pause_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t first = 0;
+    if(priv->console_pauses > 0) {
+        const char *name; json_t *jn_console;
+        json_object_foreach(priv->list_consoles, name, jn_console) {
+            json_t *jn_routes = json_object_get(jn_console, "routes");
+            const char *route_name; json_t *jn_route;
+            json_object_foreach(jn_routes, route_name, jn_route) {
+                json_int_t deadline = json_integer_value(json_object_get(jn_route, "pause_deadline"));
+                if(deadline && (!first || deadline < first)) {
+                    first = deadline;
+                }
+            }
+        }
+    }
+    if(!first) {
+        clear_timeout(priv->console_timer);
+        return;
+    }
+    json_int_t now = (json_int_t)start_msectimer(0);
+    set_timeout(priv->console_timer, first > now? first - now : 1);
+}
+
+/***************************************************************************
+ *  A pause held past its deadline: a transport that sent something in the
+ *  period (a slow reader) gets another period; one that sent nothing (a
+ *  session that does not read, a link that does not take) is taken off
+ *  the console, ONE WARNING, and the console goes on for the others, or is
+ *  closed when that route opened it. Up to 7.30.26 there was no pause.
+ ***************************************************************************/
+PRIVATE int console_pause_deadline(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t now = (json_int_t)start_msectimer(0);
+    json_int_t timeout = gobj_read_integer_attr(gobj, "console_pause_timeout");
+
+    const char *name; json_t *jn_console; void *n;
+    json_object_foreach_safe(priv->list_consoles, n, name, jn_console) {
+        char *name_ = gbmem_strdup(name);   // the key goes if the console is closed
+        BOOL close_it = FALSE;
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+        const char *route_name; json_t *jn_route; void *nr;
+        json_object_foreach_safe(jn_routes, nr, route_name, jn_route) {
+            json_int_t deadline = json_integer_value(json_object_get(jn_route, "pause_deadline"));
+            if(!deadline || deadline > now) {
+                continue;
+            }
+            hgobj gate = console_route_gate(gobj, jn_route);
+            hgobj transport = gate? console_route_transport(gate) : NULL;
+            json_int_t tx_msgs = transport? gobj_read_integer_attr(transport, "txMsgs") : 0;
+            if(transport && tx_msgs != json_integer_value(json_object_get(jn_route, "pause_tx_msgs"))) {
+                json_object_set_new(jn_route, "pause_tx_msgs", json_integer(tx_msgs));
+                json_object_set_new(jn_route, "pause_deadline",
+                    json_integer((json_int_t)start_msectimer(timeout)));
+                continue;
+            }
+            BOOL is_opener = strcmp(route_name, kw_get_str(gobj, jn_console, "opener", "", 0))==0;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "console output not taken by its session, console closed for it",
+                "console",      "%s", name_,
+                "route",        "%s", route_name,
+                "peername",     "%s", transport? gobj_read_str_attr(transport, "peername") : "",
+                "opener",       "%s", is_opener? "yes, the console is closed" : "no",
+                "detail",       "%s", "it held the console paused and took nothing",
+                "console_pause_timeout", "%ld", (long)timeout,
+                "tx_queue",     "%ld", (long)(transport? gobj_read_integer_attr(transport, "cur_tx_queue") : 0),
+                NULL
+            );
+            if(is_opener) {
+                close_it = TRUE;
+            }
+            char *route_ = gbmem_strdup(route_name);
+            remove_console_route(gobj, name_, jn_console, route_, gate, TRUE);
+            GBMEM_FREE(route_);
+        }
+        if(close_it) {
+            delete_console(gobj, name_, NULL);
+        }
+        GBMEM_FREE(name_);
+    }
+
+    console_arm_pause_timer(gobj);
     return 0;
 }
 
@@ -9148,6 +9373,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name, hgobj gate_gone)
 
     const char *route; json_t *jn_route; void *n;
     json_object_foreach_safe(jn_routes, n, route, jn_route) {
+        console_release_pause(gobj, jn_route, NULL);
         hgobj gobj_input_gate = console_route_gate(gobj, jn_route);
         if(!gobj_input_gate) {
             continue;   // Error already logged, or its service is gone
@@ -9172,6 +9398,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name, hgobj gate_gone)
         gobj_stop(gobj_console); // volatil, auto-destroy
     }
     json_decref(jn_console);
+    console_arm_pause_timer(gobj);
 
     return 0;
 }
@@ -9309,7 +9536,10 @@ PRIVATE int watch_send(
         hgobj gobj_route_service = gobj_find_service(route_service, FALSE);
         hgobj gobj_input_gate = gobj_route_service?
             gobj_child_by_name(gobj_route_service, route_child) : 0;
-        if(!gobj_input_gate || !requester_is_listening(gobj, gobj_input_gate, EV_YUNO_STATS)) {
+        json_int_t session = json_integer_value(json_object_get(jn_watch, "session"));
+        if(!gobj_input_gate || !requester_is_listening(gobj, gobj_input_gate, EV_YUNO_STATS) ||
+                (session &&
+                json_integer_value(gobj_read_user_data(gobj_input_gate, "__session__")) != session)) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
@@ -15706,12 +15936,14 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  The consoles of the session go with it, whatever card it presented:
-     *  up to 7.30.26 a session with the card of a yuno (one that runs or
-     *  one that is only registered: its pid is not checked) kept its
-     *  consoles, and the next session of its channel got their output.
+     *  The consoles and the watches of the session go with it, whatever
+     *  card it presented: up to 7.30.26 a session with the card of a yuno
+     *  (one that runs or one that is only registered: its pid is not
+     *  checked) kept them, and the next session of its channel got their
+     *  output.
      */
     delete_consoles_on_disconnection(gobj, channel_gobj);
+    delete_watch_of_channel(gobj, channel_gobj);
 
     json_t *yuno = NULL;
     const char *__yuno__ = json_string_value(gobj_read_user_data(channel_gobj, "__yuno__"));
@@ -15727,7 +15959,6 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(!yuno) {
         // Must be yuneta_cli or a yuno refused!.
-        delete_watch_of_channel(gobj, channel_gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -15969,6 +16200,7 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(consoles) {
                 json_object_del(consoles, name);
             }
+            console_release_pause(gobj, jn_route, NULL);
 
             if(!console_route_of_its_session(jn_route, gobj_input_gate) ||
                     !console_route_listening(gobj, name, jn_route, gobj_input_gate, event)) {
@@ -15978,6 +16210,7 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
         json_decref(jn_console);
+        console_arm_pause_timer(gobj);
     }
 
     KW_DECREF(kw);
@@ -15985,18 +16218,20 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  The output of a console. What it may have waiting to be sent to ONE
- *  route is bounded: a route whose transport holds `console_max_tx_queue`
- *  messages or more (a session that does not read, a link to the control
- *  center that does not take them) is taken off the console, ONE WARNING,
- *  and is sent its EV_TTY_CLOSE after what it has waiting; the console
- *  goes on for the others. When it is the route that opened the console,
- *  the console is closed for everybody (posted: EV_CLOSE_CONSOLE). Up to
- *  7.30.26 there was no bound: a session that flooded its console and did
- *  not read grew the agent some 50 MB/s until it aborted ("REACHED
- *  MAX_SYSTEM_MEMORY"). The reading of the PTY is not paused (C_PTY has no
- *  flow control), so a session that reads slower than the console writes
- *  for long enough is taken off it too.
+ *  The output of a console, with flow control. A route whose transport
+ *  holds `console_pause_tx_queue` messages or more pauses the reading of
+ *  the console's terminal (console_hold_pause()) until the transport has
+ *  sent them all: a slow reader gets everything, as behind an ssh. A
+ *  route that holds the pause `console_pause_timeout` with its transport
+ *  sending nothing is taken off (console_pause_deadline()). And a hard
+ *  bound whatever paused it: a route whose transport holds
+ *  `console_max_tx_queue` messages or more is taken off the console, ONE
+ *  WARNING, and is sent its EV_TTY_CLOSE after what it has waiting; the
+ *  console goes on for the others. When it is the route that opened the
+ *  console, the console is closed for everybody (posted:
+ *  EV_CLOSE_CONSOLE). Up to 7.30.26 there was neither: a session that
+ *  flooded its console and did not read grew the agent some 50 MB/s until
+ *  it aborted ("REACHED MAX_SYSTEM_MEMORY").
  ***************************************************************************/
 PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -16017,6 +16252,7 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     json_int_t max_tx_queue = gobj_read_integer_attr(gobj, "console_max_tx_queue");
+    json_int_t pause_tx_queue = gobj_read_integer_attr(gobj, "console_pause_tx_queue");
     const char *opener = kw_get_str(gobj, jn_console, "opener", "", 0);
     BOOL opener_off = FALSE;
     json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
@@ -16044,9 +16280,16 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!console_route_listening(gobj, name, jn_route, gobj_input_gate, event)) {
             continue;
         }
-        if(max_tx_queue > 0 && gobj_has_bottom_attr(gobj_input_gate, "cur_tx_queue")) {
+        if((max_tx_queue > 0 || pause_tx_queue > 0) &&
+                gobj_has_bottom_attr(gobj_input_gate, "cur_tx_queue")) {
             json_int_t tx_queue = gobj_read_integer_attr(gobj_input_gate, "cur_tx_queue");
-            if(tx_queue >= max_tx_queue) {
+            if(pause_tx_queue > 0 && tx_queue >= pause_tx_queue && !json_object_get(jn_route, "pause")) {
+                hgobj transport = console_route_transport(gobj_input_gate);
+                if(transport) {
+                    console_hold_pause(gobj, name, jn_route, transport, src);
+                }
+            }
+            if(max_tx_queue > 0 && tx_queue >= max_tx_queue) {
                 BOOL is_opener = strcmp(route_name, opener)==0;
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -16077,6 +16320,45 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(opener_off) {
         gobj_post_event(gobj, EV_CLOSE_CONSOLE, json_pack("{s:s}", "name", name), gobj);
     }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  A transport whose EV_TX_READY the agent takes (console_hold_pause())
+ *  has sent all it had: the routes over it hold no pause now, and their
+ *  consoles read again unless another route holds one.
+ ***************************************************************************/
+PRIVATE int ac_console_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->console_pauses <= 0) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    const char *name; json_t *jn_console;
+    json_object_foreach(priv->list_consoles, name, jn_console) {
+        BOOL released = FALSE;
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+        const char *route_name; json_t *jn_route;
+        json_object_foreach(jn_routes, route_name, jn_route) {
+            if(!json_object_get(jn_route, "pause")) {
+                continue;
+            }
+            hgobj gate = console_route_gate(gobj, jn_route);
+            if(gate && console_route_transport(gate) == src) {
+                console_release_pause(gobj, jn_route, src);
+                released = TRUE;
+            }
+        }
+        if(released) {
+            console_update_pause(gobj, name, jn_console);
+        }
+    }
+    console_arm_pause_timer(gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -16197,6 +16479,12 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->console_timer) {
+        console_pause_deadline(gobj);
+        KW_DECREF(kw);
+        return 0;
+    }
 
     if(!priv->util_yunos_running) {
         priv->util_yunos_running = 1;
@@ -16355,6 +16643,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT_PERIODIC,     ac_timeout_periodic,    0},
         {EV_WATCH_READING,        ac_watch_reading,       0},
         {EV_CLOSE_CONSOLE,        ac_close_console,       0},
+        {EV_TX_READY,             ac_console_tx_ready,    0},
         {EV_STOPPED,              0,                      0},
         {0,0,0}
     };
@@ -16395,6 +16684,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TIMEOUT_PERIODIC,     0},
         {EV_WATCH_READING,        0},
         {EV_CLOSE_CONSOLE,        0},
+        {EV_TX_READY,             0},
         {EV_STOPPED,              0},
 
         /* Publications (outputs) */

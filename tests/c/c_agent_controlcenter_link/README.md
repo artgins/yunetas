@@ -84,10 +84,11 @@ did already up to 7.30.26: the agent now sends the events of a console with
 `EV_SEND_IEV`, as its answers, and this is the route that must stay.
 
 The control center opens a console that floods (`open-console name=t4
-process=yes`) and stops reading the link. The agent's memory (`VmRSS`) must
-grow less than 160 MB and the console must be closed: the link opened it, and
-it fell behind by `console_max_tx_queue` messages (ONE WARNING *"console
-output not taken by its session, console closed for it"*). When the control
+process=yes`) and stops reading the link. The console pauses for the link;
+the agent's memory (`VmRSS`) must grow less than 160 MB, and the console must
+be closed: the link took nothing within `console_pause_timeout` (3 s in
+`agent.json`), and it opened the console (ONE WARNING *"console output not
+taken by its session, console closed for it"*). When the control
 center reads again, what it had waiting ends with the `EV_TTY_CLOSE` of `t4`.
 Up to 7.30.26 the agent grew until it aborted. The run stops at 300 MB of
 growth.

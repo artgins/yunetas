@@ -620,44 +620,64 @@ listening (the link to the control center out of session) is said once, an
 INFO *"requester gone before its answer, answer dropped"*, not once per
 chunk of output as up to 7.30.26.
 
-### A session that does not read
+### A session that reads slowly, or not at all
 
-What a console has waiting to be sent to one route is bounded by the agent's
-attribute `console_max_tx_queue` (default `8192`): the messages waiting in the
-transport of the route (a session, or the link to the control center) when the
-console writes. A message carries up to 1 KB of output. Over the bound the
-console is closed for that route: it is sent the console's `EV_TTY_CLOSE`
-after what it has waiting, and the agent logs ONE WARNING:
+A console has **flow control**. When a route of it (a session, or the link to
+the control center) has `console_pause_tx_queue` messages or more waiting in
+its transport (default `256`; a message carries up to 1 KB of output), the
+console stops reading its terminal: the process behind it waits on its write,
+as behind an ssh that does not read, and nothing is lost. The console reads
+again when that transport has sent everything (its `EV_TX_READY`). So a
+session that reads slowly gets ALL the output, at its pace; while one route
+holds the console paused, the other routes wait too.
+
+A route that holds the console paused for `console_pause_timeout` (default
+`30000` ms) with its transport taking nothing in that period (a session that
+does not read, a link that does not take) is taken off the console: it gets
+the console's `EV_TTY_CLOSE` after what it has waiting, the agent logs ONE
+WARNING, and the console goes on for the other routes. When that route is the
+one that opened the console, the console is closed for everybody. A transport
+that took something in the period gets another period, so a reader that is
+merely slow keeps the console (the agent sees the progress of the socket, and
+the kernel's buffers make it coarse: a reader that takes some tens of KB/s
+keeps it with the default).
 
 ```text
 "msg": "console output not taken by its session, console closed for it",
 "console": "j1", "route": "__input_side__.input-2", "peername": "10.0.0.7:51234",
-"opener": "no", "tx_queue": 8192, "console_max_tx_queue": 8192, "tx_queue_bytes_about": 3473408
+"opener": "no", "detail": "it held the console paused and took nothing",
+"console_pause_timeout": 30000, "tx_queue": 257
 ```
 
-The console goes on for the other routes; when the route is the one that
-opened the console, the console is closed for everybody. `0` turns the bound
-off. Set it in the agent's config, under `global`:
+`console_max_tx_queue` (default `8192`) stays as a hard bound, whatever paused
+the console: a route over it is taken off the same way (same WARNING, with
+`tx_queue_bytes_about`). With flow control a route never gets near it; it is
+there for a route with no flow control (a transport that is not a `C_TCP`).
+`0` turns either bound off. Set them in the agent's config, under `global`:
 
 ```json
 {
     "global": {
-        "agent.console_max_tx_queue": 16384
+        "agent.console_pause_tx_queue": 256,
+        "agent.console_pause_timeout": 30000,
+        "agent.console_max_tx_queue": 8192
     }
 }
 ```
 
-Up to 7.30.26 there was no bound: a session that flooded its console and did
+Up to 7.30.26 there was neither: a session that flooded its console and did
 not read grew the agent some 50 MB/s until it aborted (*"REACHED
 MAX_SYSTEM_MEMORY"*), and so did a control center that did not read its link.
+Test: `tests/c/c_agent_consoles` (a session at 1 MB/s with a small receive
+window gets all of 11 MB; one that does not read is taken off and frees the
+console).
 
-The agent does not pause the reading of the console, so a session that reads
-SLOWER than the console writes is taken off it too, once it falls behind by
-the bound: a session on the same machine or a near one keeps up with a
-`journalctl` or an `ls -R /` (the test does 30 MB at a steady pace), a slow
-link far away may not with a very long output. Then raise
-`console_max_tx_queue`, or page the output (`| less`, `journalctl` without
-`--no-pager`).
+### Watches
+
+A `watch-yuno-stats` is tied to the session that asked it, as a console
+route: it goes with the session whatever card it presented, and the next
+session of its channel never gets its readings. Up to 7.30.26 the watch of a
+session that presented the card of a yuno outlived it.
 
 ## A yuno that runs but is not connected
 

@@ -5,16 +5,27 @@
 #   written by hand on the agent's 1991.
 #
 #   1. A session opens a console that floods (`yes`) and does not read: the
-#      agent's memory stays bounded and it lives. Over the bound of what may
-#      wait to be sent to that session (`console_max_tx_queue`) the console
-#      is closed for it, with ONE WARNING; it is the session that opened
-#      it, so the console is closed. Up to 7.30.26 the agent grew some
-#      50 MB/s until it aborted ("REACHED MAX_SYSTEM_MEMORY").
+#      agent's memory stays bounded and it lives. The console pauses its
+#      reading for that session (`console_pause_tx_queue`), and the
+#      session, which takes nothing within `console_pause_timeout` (3 s in
+#      agent.json), is taken off the console with ONE WARNING; it is the
+#      session that opened it, so the console is closed. Up to 7.30.26 the
+#      agent grew some 50 MB/s until it aborted ("REACHED
+#      MAX_SYSTEM_MEMORY").
 #   2. A session opens a console and reads; another joins it and does not
-#      read. The console prints 30 MB at a pace a reader follows: the
-#      reading session gets ALL of it, in order, and the one that does not
-#      read is taken off the console (ONE WARNING): when it reads at last,
-#      its backlog ends with the console's EV_TTY_CLOSE.
+#      read. The console prints 30 MB at a pace: the reading session gets
+#      ALL of it, in order (the console is paused for the other one, which
+#      is taken off within its deadline, ONE WARNING: it does not freeze
+#      the console for ever), and when the other one reads at last, its
+#      backlog ends with the console's EV_TTY_CLOSE.
+#   6. A session that reads at about 200 KB/s holds the console paused
+#      longer than its deadline: it takes something in each period, so it
+#      keeps the console.
+#   5. A session that reads at about 1 MB/s with a small receive window,
+#      slower than the console writes (`seq` of 11 MB at full speed), gets
+#      ALL of it, in order, and is not taken off: the console waits for it.
+#      With no flow control it was taken off once it fell
+#      console_max_tx_queue messages behind (2048 in agent.json).
 #   3. A session that only JOINS a console leaves: the console lives, and
 #      the one that opened it still gets its output. The session that
 #      opened it leaves: the console is closed, and the session still
@@ -25,7 +36,8 @@
 #      next session of that channel gets nothing of it. Up to 7.30.26 the
 #      console of such a session outlived it, the next session of the
 #      channel got its output, and an INFO "requester gone" was logged per
-#      chunk in between.
+#      chunk in between. The same with a watch-yuno-stats of that session:
+#      up to 7.30.26 the next session of the channel got its readings.
 #
 #   Usage: client.py <logcenter binary>
 #   Exit 0 when every check passed.
@@ -38,6 +50,7 @@ import base64
 import json
 import os
 import re
+import socket
 import struct
 import sys
 import time
@@ -47,6 +60,7 @@ PORT = 1991
 YUNO_BINARY = sys.argv[1]
 RSS_CAP_MB = 300        # a run that grows more is a failure, and stops there
 RSS_BOUND_MB = 160      # what the agent may grow while a session does not read
+THROTTLE = 1000000      # bytes of output per second the slow reader takes
 failures = []
 
 
@@ -95,12 +109,18 @@ def command(cmd, kw_cmd, role="ycommand"):
 class Peer:
     """A websocket client written by hand: its frames go out as they are made"""
 
-    async def open(self):
+    async def open(self, rcvbuf=0):
         for i in range(300):    # the agent is starting: up to 30 s
             try:
-                self.r, self.w = await asyncio.open_connection(HOST, PORT)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                if rcvbuf:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, rcvbuf)
+                sock.setblocking(False)
+                await asyncio.get_running_loop().sock_connect(sock, (HOST, PORT))
+                self.r, self.w = await asyncio.open_connection(sock=sock)
                 break
             except OSError:
+                sock.close()
                 await asyncio.sleep(0.1)
         else:
             raise SystemExit("the agent never listened on %s:%d" % (HOST, PORT))
@@ -192,8 +212,8 @@ class Peer:
         self.w.close()
 
 
-async def session(card_iev=None):
-    o = await Peer().open()
+async def session(card_iev=None, rcvbuf=0):
+    o = await Peer().open(rcvbuf)
     o.send(card_iev or card("ycommand", os.getpid()))
     ack = await o.until(("EV_IDENTITY_CARD_ACK",), 10)
     return o if ack and ack["kw"].get("result") == 0 else None
@@ -304,7 +324,7 @@ async def flood_not_read(op, pid):
     peak = rss0
     gone = False
     t0 = time.monotonic()
-    while time.monotonic() - t0 < 12:
+    while time.monotonic() - t0 < 20:
         await asyncio.sleep(0.25)
         rss = rss_mb(pid)
         if rss < 0:
@@ -312,9 +332,9 @@ async def flood_not_read(op, pid):
         peak = max(peak, rss)
         if peak - rss0 > RSS_CAP_MB:
             break
-        if time.monotonic() - t0 > 4 and not gone:
+        if time.monotonic() - t0 > 2 and not gone:
             gone = "flood" not in await consoles(op)
-        if gone and time.monotonic() - t0 > 6:
+        if gone:
             break
     print("flood: the agent from %d to %d MB (peak)" % (rss0, peak), flush=True)
     check("flood: the agent lives", rss_mb(pid) > 0 and (await op.ask("help", {})).get("result") == 0)
@@ -354,11 +374,7 @@ async def joiner_not_read(op):
             data += base64.b64decode((iev["kw"].get("data") or {}).get("content64") or "")
             if b"\nEND_OF_OUTPUT" in data[-1024:]:
                 break
-    numbers = []
-    for line in bytes(data).split(b"\n"):
-        line = line.rstrip(b"\r").split(b"\r")[-1]    # what the terminal printed before it, overwritten
-        if re.fullmatch(rb"\d{8}", line):
-            numbers.append(int(line))
+    numbers = seq_numbers(data)
     check("slow joiner: the reading session gets all the output, in order: %d of %d lines" % (
             len(numbers), SEQ_LINES),
         numbers == list(range(10000, 10000 + SEQ_LINES)))
@@ -377,6 +393,88 @@ async def joiner_not_read(op):
     await r.frames(5, lambda g: events_of(g, "EV_TTY_CLOSE"))
     await leave(r)
     await leave(n)
+
+
+def seq_numbers(data):
+    numbers = []
+    for line in bytes(data).split(b"\n"):
+        line = line.rstrip(b"\r").split(b"\r")[-1]    # what the terminal printed before it, overwritten
+        if re.fullmatch(rb"\d{8}", line):
+            numbers.append(int(line))
+    return numbers
+
+
+async def slow_reader():
+    """5. A session that reads at about 1 MB/s gets all of a fast output"""
+    r = await session(rcvbuf=65536)     # a small window, as a reader far away
+    if r is None:
+        check("slow reader: a session", False)
+        return
+    answer, got = await open_console(r, "slow", "bash")
+    check("slow reader: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    await asyncio.sleep(0.5)
+    await r.frames(1)
+    write_tty(r, "slow", "seq -f %08.0f 1 1100000; echo END_OF_OUTPUT\n")
+    data = bytearray()
+    t0 = time.monotonic()
+    closed = False
+    while time.monotonic() - t0 < 60:
+        iev = await r.recv(10)
+        if iev is None:
+            break
+        if iev.get("event") == "EV_TTY_CLOSE":
+            closed = True
+            break
+        if iev.get("event") == "EV_TTY_DATA":
+            data += base64.b64decode((iev["kw"].get("data") or {}).get("content64") or "")
+            if b"\nEND_OF_OUTPUT" in data[-1024:]:
+                break
+            ahead = len(data) / THROTTLE - (time.monotonic() - t0)
+            if ahead > 0:
+                await asyncio.sleep(ahead)
+    elapsed = time.monotonic() - t0
+    numbers = seq_numbers(data)
+    print("slow reader: %d bytes in %.1f s" % (len(data), elapsed), flush=True)
+    check("slow reader: it is not taken off the console", not closed)
+    check("slow reader: it gets ALL the output, in order: %d of 1100000 lines" % len(numbers),
+        numbers == list(range(1, 1100001)))
+    check("slow reader: it read slower than the console writes (%.1f s)" % elapsed, elapsed > 5)
+    r.send(command("close-console", {"name": "slow"}))
+    await r.frames(5, lambda g: events_of(g, "EV_TTY_CLOSE"))
+    await leave(r)
+
+
+async def very_slow_reader(op):
+    """6. A session that reads at about 200 KB/s holds the console paused
+    longer than console_pause_timeout: it takes something in each period,
+    so it keeps the console"""
+    r = await session(rcvbuf=16384)
+    if r is None:
+        check("very slow reader: a session", False)
+        return
+    answer, got = await open_console(r, "crawl", "yes")
+    check("very slow reader: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    got_bytes = 0
+    closed = False
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 10:
+        iev = await r.recv(5)
+        if iev is None:
+            break
+        if iev.get("event") == "EV_TTY_CLOSE":
+            closed = True
+            break
+        if iev.get("event") == "EV_TTY_DATA":
+            got_bytes += len(base64.b64decode((iev["kw"].get("data") or {}).get("content64") or ""))
+            ahead = got_bytes / 100000 - (time.monotonic() - t0)
+            if ahead > 0:
+                await asyncio.sleep(ahead)
+    print("very slow reader: %d bytes in 10 s" % got_bytes, flush=True)
+    check("very slow reader: it keeps the console past the deadline of a pause",
+        not closed and "crawl" in await consoles(op))
+    r.send(command("close-console", {"name": "crawl"}))
+    await asyncio.sleep(0.5)
+    r.close()
 
 
 async def joiner_leaves(op):
@@ -454,6 +552,10 @@ async def console_of_a_yuno_card(op, row):
         b"while true; do echo TICK; sleep 0.01; done\n").decode()}, role="logcenter"))
     got = await y.frames(3, lambda g: "TICK\r\n" in tty_text(g))
     check("yuno card: its console writes", "TICK\r\n" in tty_text(got))
+    y.send(command("watch-yuno-stats", {"ids": row["id"], "period": 1000,
+        "__relays__": ["EV_YUNO_STATS"]}, role="logcenter"))
+    got = await y.frames(3, lambda g: events_of(g, "EV_YUNO_STATS"))
+    check("yuno card: its watch reads", bool(events_of(got, "EV_YUNO_STATS")))
     y.close()      # abrupt, as a crash
     await asyncio.sleep(1)
     check("yuno card: the console goes with the session: %s" % list(await consoles(op)),
@@ -462,9 +564,11 @@ async def console_of_a_yuno_card(op, row):
     if z is None:
         check("yuno card: the next session", False)
         return
-    got = await z.frames(2)
+    got = await z.frames(2.5)
     check("yuno card: the next session gets nothing of the console: %d bytes" % len(tty_bytes(got)),
         tty_bytes(got) == b"")
+    check("yuno card: nor of its watch: %d readings" % len(events_of(got, "EV_YUNO_STATS")),
+        events_of(got, "EV_YUNO_STATS") == [])
     print("yuno card: its route was %s" % list(routes), flush=True)
     await leave(z)
 
@@ -485,6 +589,8 @@ async def main():
     await flood_not_read(op, pid)
     await joiner_not_read(op)
     await joiner_leaves(op)
+    await slow_reader()
+    await very_slow_reader(op)
     if row:
         await console_of_a_yuno_card(op, row)
 
