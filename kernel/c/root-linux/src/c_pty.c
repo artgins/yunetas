@@ -4,6 +4,16 @@
  *
  *          Pseudoterminal uv-mixin.
  *
+ *          Flow control of the host: `rx_paused`, as C_TCP's. Written
+ *          TRUE, no more reads of the terminal are started: the read in
+ *          flight still ends and publishes its EV_TTY_DATA, and then the
+ *          terminal's buffer fills and the process writing to it blocks
+ *          (as behind an ssh that does not read). Written FALSE, the read
+ *          held by the pause starts again; a resume while a read is in
+ *          flight starts nothing. A stop while paused ends at once. Up to
+ *          7.30.26 a C_PTY read as fast as its process wrote, and a host
+ *          that could not send the output on as fast had to keep it all.
+ *
  *          Code inspired in the project: https://github.com/tsl0922/ttyd
  *          Copyright (c) 2016 Shuanglei Tao <tsl0922@gmail.com>
  *          MIT License (see THIRD-PARTY-NOTICES)
@@ -61,6 +71,7 @@ SDATA (DTP_INTEGER,     "rows",                 SDF_RD,     "24",   "Rows"),
 SDATA (DTP_INTEGER,     "cols",                 SDF_RD,     "80",   "Columns"),
 SDATA (DTP_STRING,      "cwd",                  SDF_RD,     "",     "Current work directory"),
 SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     "0",    "Maximum messages in tx queue. Default is 0: no limit."),
+SDATA (DTP_BOOLEAN,     "rx_paused",            SDF_WR|SDF_STATS,"FALSE","Flow control of the host. TRUE: no more reads of the terminal are started (the read in flight still ends and publishes its data), so the process writing to it blocks when the terminal's buffer is full. FALSE: the read held by the pause starts again. A host that sends the output on pauses while its transport has too much to send, and resumes when it drains"),
 SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -93,6 +104,7 @@ typedef struct _PRIVATE_DATA {
     int uv_out;  // Duplicated fd of master_fd, use for get the output of the terminal
 
     yev_event_h yev_reading;
+    BOOL rx_paused;
 
     int master_fd;    // file descriptor of pseudoterminal
     int pid;    // child pid
@@ -211,6 +223,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(rows,          gobj_read_integer_attr)
     SET_PRIV(cols,          gobj_read_integer_attr)
     SET_PRIV(max_tx_queue,  gobj_read_integer_attr)
+    SET_PRIV(rx_paused,     gobj_read_bool_attr)
 
     /*
      *  CHILD subscription model
@@ -246,6 +259,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
      PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
      IF_EQ_SET_PRIV(max_tx_queue,   gobj_read_integer_attr)
+     ELIF_EQ_SET_PRIV(rx_paused,    gobj_read_bool_attr)
+        if(!priv->rx_paused && priv->yev_reading && priv->uv_out != -1 &&
+                yev_event_is_idle(priv->yev_reading)) {
+            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+            yev_start_event(priv->yev_reading);     // the read held by the pause
+        }
      END_EQ_SET_PRIV()
 }
 
@@ -388,7 +407,9 @@ PRIVATE int mt_start(hgobj gobj)
                 gbuffer_clear(yev_get_gbuf(priv->yev_reading));
             }
 
-            yev_start_event(priv->yev_reading);
+            if(!priv->rx_paused) {
+                yev_start_event(priv->yev_reading);   // paused: started by the resume (mt_writing)
+            }
         }
     }
 
@@ -486,7 +507,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *      this event will be in stopped state.
                      *  If it's in idle then re-arm
                      */
-                    if(ret == 0 && yev_event_is_idle(yev_event)) {
+                    if(ret == 0 && yev_event_is_idle(yev_event) && !priv->rx_paused) {
                         gbuffer_clear(yev_get_gbuf(yev_event));
                         yev_start_event(yev_event);
                     }
@@ -999,6 +1020,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_DATA,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
         {EV_TTY_OPEN,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
         {EV_TTY_CLOSE,  EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_STOPPED,    EVF_OUTPUT_EVENT},  // a C_PTY that is not volatile, at its stop
 
         /* Entradas */
         {EV_WRITE_TTY,  0},

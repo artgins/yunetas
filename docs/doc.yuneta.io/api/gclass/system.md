@@ -266,19 +266,47 @@ bidirectional I/O.
 
 | Property | Value |
 |----------|-------|
-| **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_CONNECTED` |
-| **Input events** | `EV_TX_DATA`, `EV_DROP` |
-| **Output events** | `EV_RX_DATA`, `EV_CONNECTED`, `EV_DISCONNECTED` |
+| **States** | `ST_IDLE`, `ST_WAIT_STOPPED`, `ST_STOPPED` |
+| **Input events** | `EV_WRITE_TTY` (`{"gbuffer": <the bytes to type>}`) |
+| **Output events** | `EV_TTY_OPEN`, `EV_TTY_DATA` (`content64`: what the terminal printed, base64), `EV_TTY_CLOSE`, `EV_STOPPED` (when it is not volatile) |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `process` | `string` | Command to execute (default: user's shell). |
+| `process` | `string` | Command to execute (default `bash`), no arguments. |
 | `rows` | `integer` | Terminal rows. |
 | `cols` | `integer` | Terminal columns. |
 | `cwd` | `string` | Working directory. |
 | `max_tx_queue` | `integer` | Maximum transmit queue size. |
+| `rx_paused` | `boolean` | Flow control of the host (writable, default `FALSE`). |
+
+### Flow control: `rx_paused`
+
+`C_PTY` reads its terminal as fast as the process writes, and publishes each
+read as an `EV_TTY_DATA`. A host that sends that output on (the agent sends
+it to the sessions of a console) can stop the reading while it has too much
+to send, with the same contract as `C_TCP`'s `rx_paused`:
+
+- written `TRUE`: no more reads are started. The read in flight still ends
+  and publishes its data (written inside an `EV_TTY_DATA`, nothing more
+  comes). The terminal's buffer then fills and the process blocks on its
+  write, as behind an ssh that does not read: nothing is lost;
+- written `FALSE`: the read held by the pause starts again. A resume while a
+  read is still in flight starts nothing;
+- a stop while paused ends at once (`EV_TTY_CLOSE`, the process killed);
+- created with `rx_paused` `TRUE`, it reads nothing until it is resumed.
+
+```c
+gobj_write_bool_attr(pty, "rx_paused", TRUE);   // the output has nowhere to go now
+...
+gobj_write_bool_attr(pty, "rx_paused", FALSE);  // it drained: read again
+```
+
+Up to 7.30.26 there was no way to stop the reading, and a host that could not
+send the output on as fast had to keep it all. A `C_PTY` that is not volatile
+published `EV_STOPPED` at its stop without declaring it (an ERROR *"event NOT
+in output event list"*). Test: `tests/c/c_pty_flow_control`.
 
 `process` is remote-settable (the agent's authz-gated `open-console` command),
 so since 7.6.0 it is resolved against a **fixed trusted-dir allowlist**, never
