@@ -18,6 +18,7 @@
 #include <signal.h>
 
 #include <c_pty.h>
+#include <c_tcp.h>
 #include "c_agent22.h"
 
 /***************************************************************************
@@ -46,6 +47,10 @@
  ***************************************************************************/
 PRIVATE int is_yuneta_agent22(pid_t pid);
 PRIVATE void remove_pid_file(void);
+PRIVATE hgobj console_route_gate(hgobj gobj, json_t *jn_route);
+PRIVATE void console_release_pauses_of(hgobj gobj, hgobj transport);
+
+GOBJ_DECLARE_EVENT(EV_CLOSE_CONSOLE);
 PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src);
 PRIVATE int add_console_route(
     hgobj gobj,
@@ -122,6 +127,8 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username 'yuneta', permission for all"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "console_pause_tx_queue",SDF_WR,        "256",          "Flow control of a console: when the link to the control center has this many messages or more waiting to be sent, the console stops reading its terminal (its process waits) until the link has sent them all, or drops its connection. 0: no flow control"),
+SDATA (DTP_INTEGER,     "console_max_tx_queue",SDF_WR,          "8192",         "Most messages the link may have waiting to be sent when a console writes, whatever paused it: over it the console is closed, with a warning. A message carries up to 1 KB of console output. 0: no bound"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "Subscriber of output-events. Not a child gobj"),
@@ -161,6 +168,7 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger;
 
     json_t *list_consoles; // Dictionary of console names
+    json_t *console_transports; // the transports (C_TCP) agent22 takes EV_TX_READY of: {"<pointer>": true}
 
     hgobj resource;
 } PRIVATE_DATA;
@@ -283,6 +291,7 @@ PRIVATE void mt_create(hgobj gobj)
      *      Consoles
      *-----------------------------*/
     priv->list_consoles = json_object();
+    priv->console_transports = json_object();
 
     /*
      *  SERVICE subscription model
@@ -316,6 +325,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->list_consoles);
+    JSON_DECREF(priv->console_transports);
 
     remove_pid_file();
 }
@@ -934,6 +944,78 @@ PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src)
 }
 
 /***************************************************************************
+ *  The gate of a route of a console: the link to the control center
+ *  (C_IEVENT_CLI), the only route of agent22's consoles. NULL when gone.
+ ***************************************************************************/
+PRIVATE hgobj console_route_gate(hgobj gobj, json_t *jn_route)
+{
+    const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
+    const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
+    hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
+    if(!gobj_route_service) {
+        return NULL;    // Error already logged
+    }
+    hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
+    if(!gobj_input_gate) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "no route child found",
+            "service",      "%s", route_service,
+            "child",        "%s", route_child,
+            NULL
+        );
+    }
+    return gobj_input_gate;
+}
+
+/***************************************************************************
+ *  The transport (C_TCP) under the gate of a route: the queue the flow
+ *  control of a console looks at. NULL: no flow control for that route.
+ ***************************************************************************/
+PRIVATE hgobj console_route_transport(hgobj gate)
+{
+    hgobj transport = gobj_last_bottom_gobj(gate);
+    if(!transport || !gobj_typeof_gclass(transport, C_TCP)) {
+        return NULL;
+    }
+    return transport;
+}
+
+/***************************************************************************
+ *  The routes over `transport` hold no pause now (it sent all it had, or
+ *  dropped its connection and what it had with it), and their consoles
+ *  read their terminal again.
+ ***************************************************************************/
+PRIVATE void console_release_pauses_of(hgobj gobj, hgobj transport)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *name; json_t *jn_console;
+    json_object_foreach(priv->list_consoles, name, jn_console) {
+        BOOL paused = FALSE;
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+        const char *route_name; json_t *jn_route;
+        json_object_foreach(jn_routes, route_name, jn_route) {
+            if(!json_object_get(jn_route, "pause")) {
+                continue;
+            }
+            hgobj gate = console_route_gate(gobj, jn_route);
+            if(!gate || console_route_transport(gate) == transport) {
+                json_object_del(jn_route, "pause");
+            } else {
+                paused = TRUE;
+            }
+        }
+        hgobj gobj_console = gobj_find_service(name, FALSE);
+        if(gobj_console && gobj_typeof_gclass(gobj_console, C_PTY) &&
+                gobj_read_bool_attr(gobj_console, "rx_paused") != paused) {
+            gobj_write_bool_attr(gobj_console, "rx_paused", paused);
+        }
+    }
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int delete_console(hgobj gobj, const char *name)
@@ -1173,49 +1255,136 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  The output of a console, with flow control, as the agent's: when the
+ *  link has `console_pause_tx_queue` messages or more waiting in its
+ *  transport, the console stops reading its terminal (C_PTY's rx_paused:
+ *  its process waits) until the transport has sent them all (its
+ *  EV_TX_READY), or dropped its connection (EV_DISCONNECTED). The link is
+ *  the only route of agent22's consoles and the one that opened them, so it
+ *  freezes nobody else: a console waits for it as long as the control
+ *  center is away, with no deadline. And a hard bound whatever paused it,
+ *  `console_max_tx_queue`: over it the console is closed, ONE WARNING
+ *  (posted: this runs inside the publication of the PTY). Up to 7.30.26
+ *  there was neither: a control center that did not read its link grew
+ *  agent22 until it aborted.
  ***************************************************************************/
 PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_console = named_dict(gobj, priv->list_consoles, gobj_name(src), TRUE);
-    if(jn_console) {
-        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+    const char *name = gobj_name(src);
+    json_t *jn_console = named_dict(gobj, priv->list_consoles, name, TRUE);
+    if(!jn_console) {
+        KW_DECREF(kw);  // Error already logged
+        return 0;
+    }
 
-        const char *route_name; json_t *jn_route;
-        json_object_foreach(jn_routes, route_name, jn_route) {
-            const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
-            const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
-            hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
-            if(!gobj_route_service) {
+    json_int_t max_tx_queue = gobj_read_integer_attr(gobj, "console_max_tx_queue");
+    json_int_t pause_tx_queue = gobj_read_integer_attr(gobj, "console_pause_tx_queue");
+    BOOL close_it = FALSE;
+    json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+
+    const char *route_name; json_t *jn_route;
+    json_object_foreach(jn_routes, route_name, jn_route) {
+        hgobj gobj_input_gate = console_route_gate(gobj, jn_route);
+        if(!gobj_input_gate) {
+            continue;   // Error already logged, or its service is gone
+        }
+        if((max_tx_queue > 0 || pause_tx_queue > 0) &&
+                gobj_has_bottom_attr(gobj_input_gate, "cur_tx_queue")) {
+            json_int_t tx_queue = gobj_read_integer_attr(gobj_input_gate, "cur_tx_queue");
+            if(pause_tx_queue > 0 && tx_queue >= pause_tx_queue && !json_object_get(jn_route, "pause")) {
+                hgobj transport = console_route_transport(gobj_input_gate);
+                if(transport) {
+                    char key[32];
+                    snprintf(key, sizeof(key), "%p", transport);
+                    if(!json_object_get(priv->console_transports, key)) {
+                        gobj_subscribe_event(transport, EV_TX_READY, NULL, gobj);
+                        gobj_subscribe_event(transport, EV_DISCONNECTED, NULL, gobj);
+                        json_object_set_new(priv->console_transports, key, json_true());
+                    }
+                    json_object_set_new(jn_route, "pause", json_true());
+                    if(!gobj_read_bool_attr(src, "rx_paused")) {
+                        gobj_write_bool_attr(src, "rx_paused", TRUE);
+                    }
+                }
+            }
+            if(max_tx_queue > 0 && tx_queue >= max_tx_queue) {
+                if(!json_object_get(jn_console, "closing")) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PROTOCOL,
+                        "msg",          "%s", "console output not taken by its session, console closed for it",
+                        "console",      "%s", name,
+                        "route",        "%s", route_name,
+                        "opener",       "%s", "yes, the console is closed",
+                        "tx_queue",     "%ld", (long)tx_queue,
+                        "console_max_tx_queue", "%ld", (long)max_tx_queue,
+                        NULL
+                    );
+                    json_object_set_new(jn_console, "closing", json_true());
+                    close_it = TRUE;
+                }
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
-            if(!gobj_input_gate) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "no route child found",
-                    "service",      "%s", route_service,
-                    "child",        "%s", route_child,
-                    NULL
-                );
-                continue;
-            }
+        }
 
-            gobj_send_event(
-                gobj_input_gate,
-                EV_TTY_DATA,
-                msg_iev_build_response(gobj,
-                    0,  // result
-                    0,  // comment
-                    0,  // schema
-                    json_incref(kw), // owned
-                    json_incref(jn_route)  // owned
-                ),
-                gobj
-            );
+        gobj_send_event(
+            gobj_input_gate,
+            EV_TTY_DATA,
+            msg_iev_build_response(gobj,
+                0,  // result
+                0,  // comment
+                0,  // schema
+                json_incref(kw), // owned
+                json_incref(jn_route)  // owned
+            ),
+            gobj
+        );
+    }
+
+    if(close_it) {
+        gobj_post_event(gobj, EV_CLOSE_CONSOLE, json_pack("{s:s}", "name", name), gobj);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  A transport agent22 waits on (ac_tty_data()) sent all it had, or
+ *  dropped its connection (its queue is gone with it): the consoles it
+ *  paused read again. While the link is down their output goes to it as
+ *  it did before.
+ ***************************************************************************/
+PRIVATE int ac_console_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    console_release_pauses_of(gobj, src);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  A console over the hard bound (ac_tty_data()): closed, telling the link
+ *  (the PTY's EV_TTY_CLOSE, ac_tty_close()). Posted, never done inside the
+ *  publication of the PTY. Nothing to do when the console is gone already,
+ *  or is another console of that name.
+ ***************************************************************************/
+PRIVATE int ac_close_console(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *name = kw_get_str(gobj, kw, "name", "", KW_REQUIRED);
+    json_t *jn_console = named_dict(gobj, priv->list_consoles, name, FALSE);
+    if(jn_console && json_object_get(jn_console, "closing")) {
+        hgobj gobj_console = gobj_find_service(name, FALSE);
+        if(gobj_console) {
+            gobj_stop(gobj_console); // volatil, auto-destroy: its EV_TTY_CLOSE tells the link
+        } else {
+            char *name_ = gbmem_strdup(name);
+            delete_console(gobj, name_);
+            GBMEM_FREE(name_);
         }
     }
 
@@ -1328,6 +1497,11 @@ PRIVATE const GMETHODS gmt = {
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_AGENT22);
 
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_CLOSE_CONSOLE);
+
 /***************************************************************************
  *          Create the GClass
  ***************************************************************************/
@@ -1355,6 +1529,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_OPEN,        ac_tty_open,    0},
         {EV_TTY_CLOSE,       ac_tty_close,   0},
         {EV_WRITE_TTY,       ac_write_tty,   0},
+        {EV_TX_READY,        ac_console_tx_ready, 0},
+        {EV_DISCONNECTED,    ac_console_tx_ready, 0},
+        {EV_CLOSE_CONSOLE,   ac_close_console, 0},
         {EV_TIMEOUT,         ac_timeout,     0},
         {EV_STOPPED,         0,              0},
         {0,0,0}
@@ -1380,6 +1557,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_OPEN,            0},
         {EV_TTY_CLOSE,           0},
         {EV_WRITE_TTY,           0},
+        {EV_TX_READY,            0},
+        {EV_DISCONNECTED,        0},
+        {EV_CLOSE_CONSOLE,       0},
         {EV_TIMEOUT,             0},
         {EV_STOPPED,             0},
         {NULL, 0}

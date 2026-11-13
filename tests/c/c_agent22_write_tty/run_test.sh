@@ -22,6 +22,14 @@
 #   no console, and the link stays (a help after them is answered). Then
 #   the agent is stopped in order: exit 0, no "system memory not free".
 #
+#   And a console of the control center that floods (`yes`) while the
+#   control center does not read its link for 8 s: agent22's memory stays
+#   bounded (its console flow control: the console pauses while the link
+#   has console_pause_tx_queue messages waiting, and waits for it, the link
+#   being its only route), and when the link is read again the console goes
+#   on; close-console closes it. Up to 7.30.26 agent22 grew until it
+#   aborted. The run stops at 300 MB of growth.
+#
 #   Usage: run_test.sh <yuneta_agent22 binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
 #
@@ -78,8 +86,29 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
         "controlcenter.__json_config_variables__": {
             "__output_url__": "cc.test:19899"
         },
-        "authz.master": false,
-        "authz.authz_service": "agent"
+        "authz.master": true,
+        "authz.authz_service": "agent",
+        "authz.initial_load": {
+            "roles": [
+                {
+                    "id": "root",
+                    "disabled": false,
+                    "description": "Super-Owner of system",
+                    "realm_id": "*",
+                    "parent_role_id": "",
+                    "service": "*",
+                    "permission": "*"
+                }
+            ],
+            "users": [
+                {
+                    "id": "controlcenter",
+                    "roles": [
+                        "roles^root^users"
+                    ]
+                }
+            ]
+        }
     },
     "environment": {
         "node_owner": "sandbox"
@@ -87,7 +116,7 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
 }
 EOF
 
-timeout 100 unshare -rmn --pid --fork --mount-proc bash -c "
+timeout 160 unshare -rmn --pid --fork --mount-proc bash -c "
     ip link set lo up || exit 1
     mount -t tmpfs none /yuneta || exit 1
     mount --bind '$WORK/passwd' /etc/passwd || exit 1
@@ -106,6 +135,8 @@ timeout 100 unshare -rmn --pid --fork --mount-proc bash -c "
         'write-tty name=__yuno__ content64=YQ==' \
         'write-tty name=agent22 content64=YQ==' \
         'write-tty name=nosuch' \
+        'help' \
+        'FLOOD' \
         'help' > '$WORK/cc.out' 2>&1 &
     CC=\$!
     sleep 0.5
@@ -145,6 +176,12 @@ if ! grep -q "^LINE 'help': \[\[\"EV_MT_COMMAND_ANSWER\", 0, null\]\]$" "$WORK/c
     echo "TEST FAILED: the help after them was not answered"
     failed=1
 fi
+#   A console that floods while the control center does not read its link:
+#   agent22's memory bounded, the console paused and then going on
+if ! grep -q "^FLOOD OK$" "$WORK/cc.out"; then
+    echo "TEST FAILED: a console that floods while the link is not read (see FLOOD above)"
+    failed=1
+fi
 if ! grep -q "^agent exit code 0$" "$WORK/cc.out" 2>/dev/null; then
     echo "TEST FAILED: the agent did not end in order (it died?)"
     failed=1
@@ -166,5 +203,5 @@ if [ $failed -ne 0 ]; then
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | cut -c1-600 | tail -40
     exit 1
 fi
-echo "TEST PASSED: a write-tty to no console, or without content64, was refused with a WARNING and the link to the control center stayed"
+echo "TEST PASSED: a write-tty to no console, or without content64, was refused with a WARNING and the link to the control center stayed; a console that floods while the link is not read kept agent22's memory bounded"
 exit 0

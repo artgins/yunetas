@@ -34,6 +34,16 @@ help
 - At the end the agent is stopped in order (SIGINT). It must end with 0, and
   its log must have no *"system memory not free"*.
 
+Then the control center opens a console that floods (`open-console name=f1
+process=yes`; the principal of the link, `controlcenter`, is given the role
+`root` in the agent22's json) and does not read its link for 8 s:
+`agent22`'s memory (`VmRSS`) must grow less than 160 MB, and when the link is
+read again the console must go on (5 MB more) and `close-console` close it.
+The console pauses while the link has `console_pause_tx_queue` messages
+waiting, and waits for it (the link is its only route). Up to 7.30.26
+`agent22` grew some 50 MB/s until it aborted; the run stops at 300 MB of
+growth. Another `help` after it is answered.
+
 Up to 7.30.26 a write-tty for a console that is not there (a key typed right
 after the console closed) and one without `content64` logged an ERROR and
 sent `EV_DROP` to the link. That took down the whole control channel of the

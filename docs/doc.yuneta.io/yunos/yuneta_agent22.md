@@ -60,6 +60,39 @@ console was sent the write: `__yuno__` answered *"Event NOT DEFINED in
 state"* with a stack, and `agent22` wrote to itself. The primary agent does
 the same since this version (see [`yuneta_agent`](yuneta_agent.md)).
 
+### A control center that does not read
+
+A console has **flow control**, as the primary agent's (see
+[`yuneta_agent`](yuneta_agent.md), *Consoles*). When the link to the control
+center has `console_pause_tx_queue` messages or more waiting (default `256`;
+a message carries up to 1 KB of output), the console stops reading its
+terminal: its process waits on its write, and nothing is lost. It reads
+again when the link has sent everything, or when the link drops its
+connection (what it had waiting goes with it). The link is the only route of
+`agent22`'s consoles, and the one that opened them, so it freezes nobody
+else: a console waits for it as long as the control center is away, with no
+deadline.
+
+`console_max_tx_queue` (default `8192`) stays as a hard bound whatever paused
+the console (it matters only with flow control off): over it the console is
+closed, with ONE WARNING *"console output not taken by its session, console
+closed for it"*. `0` turns either attribute off:
+
+```json
+{
+    "global": {
+        "agent22.console_pause_tx_queue": 256,
+        "agent22.console_max_tx_queue": 8192
+    }
+}
+```
+
+Up to 7.30.26 there was neither: a control center that did not read its link
+grew `agent22` with all the output of its consoles (some 50 MB/s with `yes`)
+until it aborted. Test: `tests/c/c_agent22_write_tty` (8 s of `yes` with the
+link not read: `agent22` stays flat, and the console goes on when the link is
+read again).
+
 ```{danger}
 `write-tty` / consoles are a real backdoor (an interactive shell on the node).
 Use Yuneta only on private networks, or over encrypted **and** authenticated
