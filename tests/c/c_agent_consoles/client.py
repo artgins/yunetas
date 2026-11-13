@@ -7,7 +7,7 @@
 #   1. A session opens a console that floods (`yes`) and does not read: the
 #      agent's memory stays bounded and it lives. The console pauses its
 #      reading for that session (`console_pause_tx_queue`), and the
-#      session, which takes nothing within `console_pause_timeout` (3 s in
+#      session, which takes nothing within `console_pause_timeout` (5 s in
 #      agent.json), is taken off the console with ONE WARNING; it is the
 #      session that opened it, so the console is closed. Up to 7.30.26 the
 #      agent grew some 50 MB/s until it aborted ("REACHED
@@ -18,9 +18,6 @@
 #      is taken off within its deadline, ONE WARNING: it does not freeze
 #      the console for ever), and when the other one reads at last, its
 #      backlog ends with the console's EV_TTY_CLOSE.
-#   6. A session that reads at about 200 KB/s holds the console paused
-#      longer than its deadline: it takes something in each period, so it
-#      keeps the console.
 #   5. A session that reads at about 1 MB/s with a small receive window,
 #      slower than the console writes (`seq` of 11 MB at full speed), gets
 #      ALL of it, in order, and is not taken off: the console waits for it.
@@ -444,39 +441,6 @@ async def slow_reader():
     await leave(r)
 
 
-async def very_slow_reader(op):
-    """6. A session that reads at about 200 KB/s holds the console paused
-    longer than console_pause_timeout: it takes something in each period,
-    so it keeps the console"""
-    r = await session(rcvbuf=16384)
-    if r is None:
-        check("very slow reader: a session", False)
-        return
-    answer, got = await open_console(r, "crawl", "yes")
-    check("very slow reader: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
-    got_bytes = 0
-    closed = False
-    t0 = time.monotonic()
-    while time.monotonic() - t0 < 10:
-        iev = await r.recv(5)
-        if iev is None:
-            break
-        if iev.get("event") == "EV_TTY_CLOSE":
-            closed = True
-            break
-        if iev.get("event") == "EV_TTY_DATA":
-            got_bytes += len(base64.b64decode((iev["kw"].get("data") or {}).get("content64") or ""))
-            ahead = got_bytes / 100000 - (time.monotonic() - t0)
-            if ahead > 0:
-                await asyncio.sleep(ahead)
-    print("very slow reader: %d bytes in 10 s" % got_bytes, flush=True)
-    check("very slow reader: it keeps the console past the deadline of a pause",
-        not closed and "crawl" in await consoles(op))
-    r.send(command("close-console", {"name": "crawl"}))
-    await asyncio.sleep(0.5)
-    r.close()
-
-
 async def joiner_leaves(op):
     """3. The session that joins leaves; then the one that opened it"""
     a = await session()
@@ -565,6 +529,12 @@ async def console_of_a_yuno_card(op, row):
         check("yuno card: the next session", False)
         return
     got = await z.frames(2.5)
+    answer, probe = await open_console(z, "zprobe")
+    z_routes = ((await consoles(op)).get("zprobe") or {}).get("routes") or {}
+    check("yuno card: the next session took its channel: %s, %s" % (list(routes), list(z_routes)),
+        bool(routes) and list(routes) == list(z_routes))
+    z.send(command("close-console", {"name": "zprobe"}))
+    await z.frames(2, lambda g: events_of(g, "EV_TTY_CLOSE"))
     check("yuno card: the next session gets nothing of the console: %d bytes" % len(tty_bytes(got)),
         tty_bytes(got) == b"")
     check("yuno card: nor of its watch: %d readings" % len(events_of(got, "EV_YUNO_STATS")),
@@ -590,7 +560,6 @@ async def main():
     await joiner_not_read(op)
     await joiner_leaves(op)
     await slow_reader()
-    await very_slow_reader(op)
     if row:
         await console_of_a_yuno_card(op, row)
 

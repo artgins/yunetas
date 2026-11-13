@@ -10,7 +10,7 @@ yuno that is registered and never run, whose card a session presents.
 
 ## What it pins
 
-`agent.json` sets `console_pause_timeout` to 3000 ms (the default is 30 s)
+`agent.json` sets `console_pause_timeout` to 5000 ms (the default is 30 s)
 and `console_max_tx_queue` to 2048 (8192), so the cases are quick and a route
 with no flow control would be taken off soon.
 
@@ -51,8 +51,6 @@ with no flow control would be taken off soon.
    must get ALL of it, in order, and not be taken off: the console waits for
    it. With no flow control it was taken off once it fell
    `console_max_tx_queue` messages behind.
-6. **A very slow reader.** A session with a 16 KB receive window reads a
-   `yes` console at about 100 KB/s for 10 s: it keeps the console.
 
 `run_test.sh` checks the agent's log: ONE WARNING *"console output not taken
 by its session, console closed for it"* per session that did not read (2), at

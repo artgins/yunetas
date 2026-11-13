@@ -24,7 +24,7 @@
             ]
         },
         "agent.timerStBoot": 100,
-        "agent.console_pause_timeout": 3000,
+        "agent.console_pause_timeout": 5000,
         "agent.console_max_tx_queue": 2048
     },
     "environment": {

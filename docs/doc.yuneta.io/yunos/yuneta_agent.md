@@ -638,9 +638,11 @@ the console's `EV_TTY_CLOSE` after what it has waiting, the agent logs ONE
 WARNING, and the console goes on for the other routes. When that route is the
 one that opened the console, the console is closed for everybody. A transport
 that took something in the period gets another period, so a reader that is
-merely slow keeps the console (the agent sees the progress of the socket, and
-the kernel's buffers make it coarse: a reader that takes some tens of KB/s
-keeps it with the default).
+merely slow keeps the console. What the agent sees is a write of the socket
+ending, and the kernel ends one only when about half of the socket's send
+buffer (it grows up to 4 MB) has been taken: a reader must take that much
+per period. With the default 30 s that is some tens of KB/s or more; raise
+`console_pause_timeout` for slower links.
 
 ```text
 "msg": "console output not taken by its session, console closed for it",
