@@ -195,10 +195,13 @@ if [ "$nslow" != "1" ]; then
     echo "TEST FAILED: $nslow WARNING(s) for a link that does not take its console output (expected 1)"
     failed=1
 fi
-#   The console that writes while the link is down: said once, not per chunk
+#   The console that writes while the link is down: said once, not per
+#   chunk, and nothing is sent to the link out of session (its WARNING "Not
+#   in session")
 ntty=$(grep -a '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log" | grep -ac "EV_TTY_DATA")
-if [ "$ntty" -gt 1 ]; then
-    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected 1)"
+nnis=$(grep -ac '"msg": "Not in session"' "$WORK/agent.log")
+if [ "$ntty" -gt 1 ] || [ "$nnis" != "0" ]; then
+    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected 1), $nnis \"Not in session\" (expected 0)"
     failed=1
 fi
 if [ -n "$KEEP_AGENT_LOG" ]; then
