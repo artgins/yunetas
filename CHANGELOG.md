@@ -692,13 +692,33 @@
   stops the others only when another route holds no pause. Alone on its
   console (a session, or the link to the control center that all its
   operators share) it freezes only itself: the console stays paused and its
-  process waits while the reader is away, and goes on when it reads. What
+  process waits while the reader is away, and goes on when it reads.
+  A route is judged only for a whole period in which it stopped another:
+  when it starts to stop one (a session joins the console of a reader that
+  waits alone, another route releases its pause, the link to the control
+  center comes back) its period starts again then, and a route that takes
+  nothing now (the link while it is down) is no route it stops. Without
+  this, a session that joined the console of a reader that waited alone
+  had it closed, and its process killed, at that reader's next deadline:
+  anywhere from at once to `console_pause_timeout` after the join. What
   the agent measures is the transport's `txBytes`, the bytes its socket
   took, in clear and over TLS. And when the transport of a route drops its
   connection, the pause of that route is released at once (its queue went
   with the connection); the console's output for a link that is down is
-  dropped, said once, and goes up the next connection. `console_max_tx_queue` (a new attribute, 8192) stays as
-  a hard bound whatever paused the console (same WARNING). Tests:
+  dropped, said once, and goes up the next connection. The console pauses
+  when a route has `console_pause_tx_queue` messages (256) or
+  `console_pause_tx_bytes` bytes (a new attribute, 1 MB, the transport's
+  `cur_tx_bytes`) or more waiting; `console_max_tx_queue` (a new attribute,
+  8192) and `console_max_tx_bytes` (a new attribute, 32 MB) are a hard
+  bound whatever paused it, ONE WARNING (with `tx_queue` and `tx_bytes`). A
+  route keeps only what routes the console's events back of the request
+  that opened or joined it: the stack of its hops (`ievent_gate_stack`) and
+  its `__msg_type__`. In 7.30.26 it kept the whole `__md_iev__`, copied into
+  every chunk of output, and the bounds counted messages only: a request
+  padded with 1 MB made every chunk of 1 KB a message of 1 MB (+120 MB for
+  a session that did not read). BREAKING for a client that put a marker of
+  its own in the `__md_iev__` of `open-console`: the console's events no
+  longer carry it (the answer of `open-console` still does). Tests:
   `c_agent_consoles`, `c_agent_controlcenter_link`.
 - **BREAKING (an operator): agent22's consoles have flow control and a
   bound.** They sent all the output of a console to the link to the control
@@ -709,7 +729,11 @@
   reads again when the link has sent them, or drops its connection. The
   link is the only route of agent22's consoles and the one that opened
   them, so there is no deadline: a console waits for the control center as
-  long as it is away. `console_max_tx_queue` (a new attribute, 8192) is a
+  long as it is away. It pauses on `console_pause_tx_bytes` (a new
+  attribute, 1 MB) too, and `console_max_tx_bytes` (a new attribute, 32 MB)
+  is a hard bound as `console_max_tx_queue`; a console's route keeps only
+  the stack of hops and the `__msg_type__` of the request (a request padded
+  with 1 MB grew agent22 some 250 MB). `console_max_tx_queue` (a new attribute, 8192) is a
   hard bound whatever paused it: over it the console is closed, ONE WARNING
   "console output not taken by its session, console closed for it". Test:
   `c_agent22_write_tty`.
@@ -947,7 +971,21 @@
   `EV_TTY_DATA`, `EV_TTY_CLOSE`) and the readings of a watch
   (`EV_YUNO_STATS`), relayed with no stamp to any web client the agent
   named (7.30.26: a forged console, forged stats and a close reached
-  clients that asked nothing). Now `command-agent` and `stats-agent` remember which client
+  clients that asked nothing). And a stream goes only for what the client
+  asked THAT agent: `command-agent` records, before the agent answers, the
+  console a client asks an agent to open (its name) and the watch it asks
+  of it. An `EV_TTY_OPEN` goes only for a console of that name the client
+  asked that agent to open (only then is its mirror recorded), an
+  `EV_TTY_DATA` / `EV_TTY_CLOSE` only for a console that agent opened for
+  the client, an `EV_YUNO_STATS` only to a client that asked that agent for
+  a watch; the rest is the same WARNING, its `detail` saying which. A
+  console is named by the client, not by the node: with the stamp alone
+  any agent a client had sent a command to (gui_agent sends `help` to every
+  node it shows) could write in, and close, another agent's console, and
+  forge the open of a console nobody opened, whose mirror made that
+  agent's close drop the client. A client is still dropped when the agent
+  of a console it opened closes its link (gui_agent then reconnects and
+  re-attaches the console by its name), now only by that agent. Now `command-agent` and `stats-agent` remember which client
   and connection asked, and an answer is relayed only to that client, in the
   connection it holds now, with that connection's stamp. Any other is
   dropped with a WARNING "answer of an agent for a web client that did not
@@ -1005,6 +1043,27 @@
   command when no `EV_MT_COMMAND_ANSWER` came before it (through a control
   center its "Command sent to 1 nodes" comes first, as before). Test:
   `c_ycommand_request_answers`.
+- **ycommand's warm-up takes only its own answer** (interactive mode), as
+  ycli's: by the command the answer carries back (`list-gobj-commands`).
+  Up to 7.30.26 an error answer without `data` that came while it was
+  pending was taken for it, so a request refused that way stayed pending
+  and the next answer nobody asked was taken. Test:
+  `c_ycommand_request_answers`.
+- **ycommand and ycli: a line that only names a request is no request.**
+  They take the answers of the agent's own requests only for a request
+  they made; a line counted as one when it named one anywhere (`help
+  cmd=read-file`), and its answer, an `EV_MT_COMMAND_ANSWER`, never spent
+  it, so the next answer nobody asked was taken (7.30.26). Now the request
+  must be the command: its first word, or the first word of a
+  `command-agent`'s `cmd2agent`. Tests: `c_ycli_request_answers`,
+  `c_ycommand_request_answers`.
+- **ycommand and ycli: `read-binary-file` does not follow a link, and says
+  when it cannot write.** They opened `~/.yuneta/configs/<name>` following
+  a link left there, took a failure to open for a success with nothing
+  said, and never released the decoded buffer (a leak per file; 7.30.26).
+  Now the file is opened with `O_NOFOLLOW` (0600), and a failure to open or
+  to write it whole is an ERROR *"Cannot write the binary file"* naming the
+  path (ycli's status line says it was not saved). Tests: the same.
 
 ### ycli
 
