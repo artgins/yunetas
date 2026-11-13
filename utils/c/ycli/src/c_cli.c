@@ -121,6 +121,9 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...) JANSSON
 PRIVATE char *get_primary_ip(hgobj gobj, char *bf, int bfsize);
 PRIVATE int ac_agent_response(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE char *get_history_file(char *bf, int bfsize);
+PRIVATE BOOL names_a_request(const char *command);
+PRIVATE void count_pending_request(hgobj gobj, hgobj conn, int delta);
+PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event, hgobj src);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -384,6 +387,10 @@ typedef struct _PRIVATE_DATA {
      * windows swaps the candidate set. */
     json_t *remote_caches;
     json_t *pending_cache_fetches;   /* hex-ptr -> int counter */
+
+    /* Answers still to come of the agent's own requests (read-file...),
+     * per connection: hex-ptr -> int counter (take_pending_request()) */
+    json_t *requests_pending;
 } PRIVATE_DATA;
 
 
@@ -909,6 +916,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->jn_window_counters = json_object();
     priv->remote_caches = json_object();
     priv->pending_cache_fetches = json_object();
+    priv->requests_pending = json_object();
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -945,6 +953,7 @@ PRIVATE void mt_destroy(hgobj gobj)
      */
     JSON_DECREF(priv->remote_caches);
     JSON_DECREF(priv->pending_cache_fetches);
+    JSON_DECREF(priv->requests_pending);
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
 }
 
@@ -3068,6 +3077,89 @@ PRIVATE char *sanitize_config_name(char *dst, int dstsize, const char *name)
 }
 
 /***************************************************************************
+ *  Does `command` (a line as sent: maybe a command-agent whose cmd2agent
+ *  is one) name one of the agent's own requests, whose answer is an event
+ *  of its own (EV_READ_FILE, EV_EDIT_CONFIG...) and not the command's
+ *  answer? A name counts as a whole word.
+ ***************************************************************************/
+PRIVATE BOOL names_a_request(const char *command)
+{
+    static const char *requests[] = {
+        "read-file", "read-json", "read-binary-file", "running-keys", "running-bin",
+        "edit-config", "view-config", "edit-yuno-config", "view-yuno-config",
+        "EV_READ_FILE", "EV_READ_JSON", "EV_READ_BINARY_FILE", "EV_READ_RUNNING_KEYS",
+        "EV_READ_RUNNING_BIN", "EV_EDIT_CONFIG", "EV_VIEW_CONFIG", "EV_EDIT_YUNO_CONFIG",
+        "EV_VIEW_YUNO_CONFIG",
+        0
+    };
+    if(!command) {
+        return FALSE;
+    }
+    for(int i=0; requests[i]; i++) {
+        size_t len = strlen(requests[i]);
+        const char *p = command;
+        while((p = strstr(p, requests[i])) != NULL) {
+            BOOL starts = (p == command) ||
+                !(isalnum((unsigned char)p[-1]) || p[-1] == '-' || p[-1] == '_');
+            BOOL ends = !(isalnum((unsigned char)p[len]) || p[len] == '-' || p[len] == '_');
+            if(starts && ends) {
+                return TRUE;
+            }
+            p += len;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The answers still to come of the agent's own requests by `conn`: one
+ *  more when one is sent, one less when its answer comes or it is refused
+ ***************************************************************************/
+PRIVATE void count_pending_request(hgobj gobj, hgobj conn, int delta)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[32];
+    conn_key(conn, key, sizeof(key));
+    json_int_t n = json_integer_value(json_object_get(priv->requests_pending, key)) + delta;
+    if(n > 0) {
+        json_object_set_new(priv->requests_pending, key, json_integer(n));
+    } else {
+        json_object_del(priv->requests_pending, key);
+    }
+}
+
+/***************************************************************************
+ *  An answer of the agent's own requests (EV_READ_FILE, EV_EDIT_CONFIG...)
+ *  is taken only while this ycli has one of them pending on that
+ *  connection: what it does with one is write its content in
+ *  ~/.yuneta/configs/, open the editor on it, and leave a create-config on
+ *  the command line. Up to 7.30.26 it took any that came, from whatever
+ *  the peer (an agent, or a control center relaying an agent) chose to
+ *  send.
+ ***************************************************************************/
+PRIVATE BOOL take_pending_request(hgobj gobj, gobj_event_t event, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char key[32];
+    conn_key(src, key, sizeof(key));
+    if(json_integer_value(json_object_get(priv->requests_pending, key)) > 0) {
+        count_pending_request(gobj, src, -1);
+        return TRUE;
+    }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL,
+        "msg",          "%s", "answer of a request this ycli did not make, ignored",
+        "event",        "%s", event,
+        "connection",   "%s", gobj_short_name(src),
+        NULL
+    );
+    return FALSE;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
@@ -3155,7 +3247,7 @@ PRIVATE int save_local_base64(
     if(s) {
         gbuffer_t *gbuf_bin = gbuffer_base64_to_binary(s, strlen(s));
         if(gbuf_bin) {
-            int fp = newfile(path, 0700, TRUE);
+            int fp = newfile(path, 0600, TRUE);  // a copy of data, never a program to run (0700 up to 7.30.26)
             if(fp) {
                 ssize_t x = write(
                     fp,
@@ -3366,6 +3458,7 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     hgobj gobj_cmd = NULL;
     char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
+    BOOL local_cmd = (*xcmd == '!')? TRUE : FALSE;
     json_t *kw_command = json_object();
     if(*xcmd == '!') {
         xcmd++;
@@ -3381,6 +3474,8 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
         }
     }
+    hgobj gobj_conn = local_cmd? NULL : (gobj_cmd? gobj_cmd : priv->last_connection);
+    BOOL is_request = gobj_conn && names_a_request(xcmd);
     json_t *webix;
     if(gobj_cmd) {
         webix = gobj_command(gobj_cmd, xcmd, kw_command, gobj);
@@ -3410,6 +3505,9 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     } else {
         /* asynchronous responses return 0 */
+        if(is_request) {
+            count_pending_request(gobj, gobj_conn, 1);  // its own answer: take_pending_request()
+        }
         msg2statusline(gobj, 0, "Waiting response...");
     }
 
@@ -3574,6 +3672,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     conn_key(src, ckey, sizeof(ckey));
     json_object_del(priv->remote_caches, ckey);
     json_object_del(priv->pending_cache_fetches, ckey);
+    json_object_del(priv->requests_pending, ckey);   // nothing comes of a peer that is gone
 
     destroy_static(gobj, agent_name);
     destroy_display_window(gobj, agent_name);
@@ -3656,6 +3755,23 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         }
     }
 
+    /*
+     *  A request refused before its own answer (the control center sent it
+     *  to no node, the agent's parser refused it): none will come, and the
+     *  count must not take the next answer nobody asked. The answer carries
+     *  the line of its request in its command stack.
+     */
+    if(kw_get_int(gobj, kw, "result", 0, 0) < 0) {
+        json_t *jn_command = msg_iev_get_stack(gobj, kw, COMMAND_STACK_ID, FALSE);
+        const char *command = kw_get_str(gobj, jn_command, "command", "", 0);
+        char key[32];
+        conn_key(src, key, sizeof(key));
+        if(names_a_request(command) &&
+                json_integer_value(json_object_get(priv->requests_pending, key)) > 0) {
+            count_pending_request(gobj, src, -1);
+        }
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
     display_webix_result(
         gobj,
@@ -3672,6 +3788,13 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!take_pending_request(gobj, event, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
 
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
@@ -3791,6 +3914,12 @@ PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!take_pending_request(gobj, event, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
 
     int result = kw_get_int(gobj, kw, "result", -1, 0);
@@ -3853,6 +3982,12 @@ PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!take_pending_request(gobj, event, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
 
     int result = kw_get_int(gobj, kw, "result", -1, 0);
@@ -3914,6 +4049,12 @@ PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!take_pending_request(gobj, event, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
 
     int result = kw_get_int(gobj, kw, "result", -1, 0);
@@ -3975,6 +4116,12 @@ PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(!take_pending_request(gobj, event, src)) {
+        // Warning already logged
+        KW_DECREF(kw);
+        return 0;
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
 
     int result = kw_get_int(gobj, kw, "result", -1, 0);

@@ -41,6 +41,27 @@ and authentication options match [`ycommand`](ycommand.md) (default
   `~/.yuneta/configs/` has its peer-supplied record name sanitized to a single
   inert basename (`[A-Za-z0-9._-]`, no leading dot, separators folded) before it
   reaches the editor command — closing an RCE via `/bin/sh -c`.
+- **Only the answers it asked for** — as in `ycommand`: the agent answers its
+  own requests (`read-file`, `read-json`, `read-binary-file`, `running-keys`,
+  `running-bin`, `edit-config`, `view-config`, `edit-yuno-config`,
+  `view-yuno-config`) with an event of its own (`EV_READ_FILE`,
+  `EV_EDIT_CONFIG`, ...), and `ycli` writes it under `~/.yuneta/configs/`,
+  opens the editor on it, or leaves a `create-config` on the line. It takes
+  one only while a request of those is pending ON THAT CONNECTION, one answer
+  per request; a line counts as a request when it names one of them as a
+  word, so `command-agent cmd2agent='read-file filename=/etc/hosts'` through a
+  control center counts too. Any other is ignored with a WARNING in the log:
+
+  ```text
+  "msg": "answer of a request this ycli did not make, ignored", "event": "EV_READ_BINARY_FILE", "connection": "C_IEVENT_CLI^ws://127.0.0.1:1991"
+  ```
+
+  A request refused at once (an `EV_MT_COMMAND_ANSWER` with an error, such as
+  *"Command sent to 0 nodes"*) leaves nothing pending, and the end of a
+  connection clears what was pending on it. Up to 7.30.26 `ycli` took any
+  that came from its peers.
+- **`read-binary-file` writes data** — the file is written `0600`, not
+  executable (`0700` up to 7.30.26).
 
 ## Key bindings
 
