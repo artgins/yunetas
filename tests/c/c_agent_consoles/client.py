@@ -6,12 +6,13 @@
 #
 #   1. A session opens a console that floods (`yes`) and does not read: the
 #      agent's memory stays bounded and it lives. The console pauses its
-#      reading for that session (`console_pause_tx_queue`), and the
-#      session, which takes nothing within `console_pause_timeout` (5 s in
-#      agent.json), is taken off the console with ONE WARNING; it is the
-#      session that opened it, so the console is closed. Up to 7.30.26 the
+#      reading for that session (`console_pause_tx_queue`), and waits for
+#      it past `console_pause_timeout` (5 s in agent.json): the session is
+#      alone on it and freezes nobody else. When it reads, the console goes
+#      on; when it leaves, the console goes with it. Up to 7.30.26 the
 #      agent grew some 50 MB/s until it aborted ("REACHED
-#      MAX_SYSTEM_MEMORY").
+#      MAX_SYSTEM_MEMORY"); before the fix the console was closed at the
+#      deadline.
 #   2. A session opens a console and reads; another joins it and does not
 #      read. The console prints 30 MB at a pace: the reading session gets
 #      ALL of it, in order (the console is paused for the other one, which
@@ -35,6 +36,11 @@
 #      channel got its output, and an INFO "requester gone" was logged per
 #      chunk in between. The same with a watch-yuno-stats of that session:
 #      up to 7.30.26 the next session of the channel got its readings.
+#
+#   6. The session that opened a console does not read, while a session
+#      that joined it does: the one that opened it stops the other, so at
+#      its deadline it is taken off (ONE WARNING) and the console is closed
+#      for everybody; the joined session gets the EV_TTY_CLOSE.
 #
 #   Usage: client.py <logcenter binary>
 #   Exit 0 when every check passed.
@@ -319,9 +325,8 @@ async def flood_not_read(op, pid):
     rss0 = rss_mb(pid)
     n.send(command("open-console", {"name": "flood", "process": "yes", "cwd": "/yuneta"}))
     peak = rss0
-    gone = False
     t0 = time.monotonic()
-    while time.monotonic() - t0 < 20:
+    while time.monotonic() - t0 < 12:   # past two console_pause_timeout
         await asyncio.sleep(0.25)
         rss = rss_mb(pid)
         if rss < 0:
@@ -329,17 +334,57 @@ async def flood_not_read(op, pid):
         peak = max(peak, rss)
         if peak - rss0 > RSS_CAP_MB:
             break
-        if time.monotonic() - t0 > 2 and not gone:
-            gone = "flood" not in await consoles(op)
-        if gone:
-            break
     print("flood: the agent from %d to %d MB (peak)" % (rss0, peak), flush=True)
     check("flood: the agent lives", rss_mb(pid) > 0 and (await op.ask("help", {})).get("result") == 0)
     check("flood: the agent's memory stays bounded: +%d MB (bound %d MB)" % (peak - rss0, RSS_BOUND_MB),
         peak - rss0 < RSS_BOUND_MB)
-    check("flood: the console of the session that does not read is closed",
-        "flood" not in await consoles(op))
+    check("flood: the console of the session alone on it waits for it, it is not closed",
+        "flood" in await consoles(op))
+    n_bytes = 0
+    closed = False
+    end = time.monotonic() + 20
+    while time.monotonic() < end and n_bytes <= 20000000 and not closed:
+        iev = await n.recv(end - time.monotonic())
+        if iev is None:
+            break
+        closed = iev.get("event") == "EV_TTY_CLOSE"
+        if iev.get("event") == "EV_TTY_DATA":
+            n_bytes += len((iev["kw"].get("data") or {}).get("content64") or "") * 3 // 4
+    check("flood: when the session reads, the console goes on: %d bytes" % n_bytes,
+        n_bytes > 20000000 and not closed)
     n.close()
+    check("flood: the console goes with the session", await wait_for(
+        lambda: _absent(op, "flood"), 5))
+
+
+async def opener_not_read(op):
+    """6. The session that opened a console does not read, while a session
+    that joined it does: the one that opened it stops the other, so it is
+    taken off, and the console is closed (it opened it)"""
+    o = await session()
+    j = await session()
+    if o is None or j is None:
+        check("opener does not read: two sessions", False)
+        return
+    answer, got = await open_console(o, "oflood", "yes")
+    check("opener does not read: open-console: %s" % answer.get("comment"), answer.get("result") == 0)
+    answer, got_j = await open_console(j, "oflood")
+    check("opener does not read: another session joins: %s" % answer.get("comment"),
+        answer.get("result") == 0)
+    closes = []
+    end = time.monotonic() + 20     # the console waits for the opener: nothing comes for a while
+    while time.monotonic() < end and not closes:
+        iev = await j.recv(end - time.monotonic())
+        if iev is None:
+            break
+        if iev.get("event") == "EV_TTY_CLOSE":
+            closes.append((iev["kw"].get("data") or {}).get("name"))
+    check("opener does not read: the session that joined and reads gets the close: %s" % closes,
+        closes == ["oflood"])
+    check("opener does not read: and the console is closed", await wait_for(
+        lambda: _absent(op, "oflood"), 5))
+    o.close()
+    await leave(j)
 
 
 SEQ_LINES = 3000000
@@ -560,6 +605,7 @@ async def main():
     await joiner_not_read(op)
     await joiner_leaves(op)
     await slow_reader()
+    await opener_not_read(op)
     if row:
         await console_of_a_yuno_card(op, row)
 

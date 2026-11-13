@@ -632,17 +632,45 @@ session that reads slowly gets ALL the output, at its pace; while one route
 holds the console paused, the other routes wait too.
 
 A route that holds the console paused for `console_pause_timeout` (default
-`30000` ms) with its transport taking nothing in that period (a session that
-does not read, a link that does not take) is taken off the console: it gets
-the console's `EV_TTY_CLOSE` after what it has waiting, the agent logs ONE
+`30000` ms) with its transport taking nothing in that period, **while it
+stops another route of the console**, is taken off the console: it gets the
+console's `EV_TTY_CLOSE` after what it has waiting, the agent logs ONE
 WARNING, and the console goes on for the other routes. When that route is the
-one that opened the console, the console is closed for everybody. A transport
-that took something in the period gets another period, so a reader that is
-merely slow keeps the console. What the agent sees is a write of the socket
-ending, and the kernel ends one only when about half of the socket's send
-buffer (it grows up to 4 MB) has been taken: a reader must take that much
-per period. With the default 30 s that is some tens of KB/s or more; raise
-`console_pause_timeout` for slower links.
+one that opened the console, the console is closed for everybody. Who stops
+whom:
+
+- A route that only **joined** the console always stops the one that opened
+  it: a spectator that does not read is taken off at its deadline.
+- The route that **opened** the console stops the others only when another
+  route of it holds no pause (it would read). Alone on its console, or with
+  joined routes that hold a pause too, it freezes only itself: the console
+  stays paused and its process waits, for as long as the reader is away. A
+  session that leaves takes its console with it; through the control center
+  the link (the route of all its operators) keeps its consoles while the
+  control center is away or does not read, and they go on when it reads
+  again.
+
+A transport that took something in the period gets another period, so a
+reader that is merely slow keeps the console. What the agent measures is the
+transport's `txBytes`, the bytes its socket took, counted on every write in
+clear and over TLS; a write ends as the socket's send buffer drains, and the
+kernel wakes it only when a good part of that buffer (it grows up to 4 MB) is
+free again: a reader must take that much per period. With the default 30 s
+that is some tens of KB/s or more; raise `console_pause_timeout` for slower
+links.
+
+When the transport of a route **drops its connection** (the link to the
+control center goes down), what it had waiting goes with it, and no drain of
+it will come: the pause of that route is released at once (`EV_DISCONNECTED`
+of the transport). The console runs again; its output for the link is
+dropped while the link is down (ONE INFO *"requester gone before its answer,
+answer dropped"*), and it goes up the next connection.
+
+Before the fix the progress was the transport's `txMsgs`, which `C_TCP` did
+not count over TLS: a reader over `wss` or the link to the control center
+was taken off at its first deadline, and a console opened through the
+control center was closed (its process killed) when the control center was
+away some 30 s, or when its link stayed down that long.
 
 ```text
 "msg": "console output not taken by its session, console closed for it",
@@ -670,9 +698,13 @@ there for a route with no flow control (a transport that is not a `C_TCP`).
 Up to 7.30.26 there was neither: a session that flooded its console and did
 not read grew the agent some 50 MB/s until it aborted (*"REACHED
 MAX_SYSTEM_MEMORY"*), and so did a control center that did not read its link.
-Test: `tests/c/c_agent_consoles` (a session at 1 MB/s with a small receive
-window gets all of 11 MB; one that does not read is taken off and frees the
-console).
+Tests: `tests/c/c_agent_consoles` (a session at 1 MB/s with a small receive
+window gets all of 11 MB; a session alone on its console that does not read
+keeps it, paused; a joined session that does not read is taken off, and so is
+an opener that does not read while a joined session does),
+`tests/c/c_agent_controlcenter_link` (the control center away 9 s keeps its
+console; a slow TLS link at 30 KB/s keeps it for four deadlines; a console
+paused when the link drops is released and lives).
 
 ### Watches
 

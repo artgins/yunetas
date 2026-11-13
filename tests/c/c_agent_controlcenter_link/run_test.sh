@@ -14,7 +14,10 @@
 #   certs/controlcenter.crt), a passwd where uid 0 is `yuneta`, an
 #   /etc/hosts that sends the control center's name to the loopback, its
 #   memory bounded (ulimit -v, not for an agent built with ASan, whose
-#   shadow memory does not fit in any bound) and no core.
+#   shadow memory does not fit in any bound) and no core. The loopback has
+#   an mtu of 1500 and the sockets small send buffers (tcp_wmem of the
+#   sandbox), so `tc` can make the link to the control center a slow link
+#   far away (client.py).
 #
 #   The control center plays and pauses the agent through its link: both
 #   refused (ack -1), the orders around them answered, the link and the
@@ -46,6 +49,7 @@ skip() {
 [ -x "$AGENT" ] || skip "no agent binary at '$AGENT' (built by yunetas build)"
 command -v openssl >/dev/null || skip "no 'openssl' command to make the certificates"
 command -v ip >/dev/null || skip "no 'ip' command to bring up the loopback of the sandbox"
+command -v tc >/dev/null || skip "no 'tc' command to slow down the link of the sandbox"
 unshare -rmn --pid --fork --mount-proc true 2>/dev/null || skip "unprivileged namespaces not allowed here"
 [ -d /yuneta ] || skip "no /yuneta to mount the sandbox on"
 
@@ -78,8 +82,9 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=yuneta_agent.yuneta
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=agent" \
     -keyout "$WORK/agent.key" -out "$WORK/agent.crt" 2>/dev/null || skip "openssl cannot make a certificate"
 
-timeout 150 unshare -rmn --pid --fork --mount-proc bash -c "
-    ip link set lo up || exit 1
+timeout 240 unshare -rmn --pid --fork --mount-proc bash -c "
+    ip link set lo mtu 1500 up || exit 1
+    echo '4096 16384 65536' > /proc/sys/net/ipv4/tcp_wmem || exit 1
     mount -t tmpfs none /yuneta || exit 1
     mount --bind '$WORK/passwd' /etc/passwd || exit 1
     mount --bind '$WORK/group' /etc/group || exit 1
@@ -188,20 +193,25 @@ if [ "$npp" != "1" ] || [ "$nnc" != "0" ] || [ "$nhn" != "0" ]; then
     echo "TEST FAILED: $npp WARNING(s) for a play/pause refused (expected 1), $nnc \"No channel FOUND to send\" and $nhn \"hgobj NULL or DESTROYED\" (expected 0)"
     failed=1
 fi
-#   The console of the control center that floods while it does not read:
-#   ONE WARNING, the console closed for the link
+#   The consoles of the control center: the link, away or slow, is never
+#   taken off them (it opened them and freezes only itself); the session
+#   that joined one and does not read is: ONE WARNING, for it
 nslow=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "WARNING")
-if [ "$nslow" != "1" ]; then
-    echo "TEST FAILED: $nslow WARNING(s) for a link that does not take its console output (expected 1)"
+nopen=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "yes, the console is closed")
+if [ "$nslow" != "1" ] || [ "$nopen" != "0" ]; then
+    echo "TEST FAILED: $nslow WARNING(s) for a route that does not take its console output (expected 1, the session that joined), $nopen for the link that opened the console (expected 0)"
     failed=1
 fi
-#   The console that writes while the link is down: said once, not per
-#   chunk, and nothing is sent to the link out of session (its WARNING "Not
-#   in session")
+#   The consoles that write while the link is down: said once per console,
+#   not per chunk, and nothing is sent to the link out of session (its
+#   WARNING "Not in session"). The one paused for the link when it dropped
+#   is released then (the queue is gone with the connection), so it writes
+#   too and is said once
 ntty=$(grep -a '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log" | grep -ac "EV_TTY_DATA")
 nnis=$(grep -ac '"msg": "Not in session"' "$WORK/agent.log")
-if [ "$ntty" -gt 1 ] || [ "$nnis" != "0" ]; then
-    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected 1), $nnis \"Not in session\" (expected 0)"
+nt6=$(grep -a '"msg": "requester gone before its answer, answer dropped"' "$WORK/agent.log" | grep -a "EV_TTY_DATA" | grep -ac '"console": "t6"')
+if [ "$ntty" -gt 2 ] || [ "$nnis" != "0" ] || [ "$nt6" != "1" ]; then
+    echo "TEST FAILED: $ntty INFO(s) \"requester gone\" for the output of a console while the link is down (expected at most 2), $nnis \"Not in session\" (expected 0), $nt6 for the console paused when the link dropped (expected 1: released at the drop)"
     failed=1
 fi
 if [ -n "$KEEP_AGENT_LOG" ]; then

@@ -1107,7 +1107,7 @@ SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "console_pause_tx_queue",SDF_WR,        "256",          "Flow control of a console: when a route of it (a session, or the link to the control center) has this many messages or more waiting to be sent, the console stops reading its terminal (its process waits) until that transport has sent them all. 0: no flow control"),
-SDATA (DTP_INTEGER,     "console_pause_timeout",SDF_WR,         "30000",        "Milliseconds a route may hold a console paused with its transport sending nothing: then it is taken off the console (closed for it, with a warning), so a session that does not read never stops the console of the others for ever. A transport that sent something in the period (its socket took a write) gets another one"),
+SDATA (DTP_INTEGER,     "console_pause_timeout",SDF_WR,         "30000",        "Milliseconds a route may hold a console paused with its transport sending nothing while it stops others: then it is taken off the console (closed for it, with a warning), so a session that does not read never stops the console of the others for ever. A transport that sent something in the period (its socket took bytes, txBytes) gets another one, and so does the route that opened the console when no other route of it would read (it freezes only itself: its process waits)"),
 SDATA (DTP_INTEGER,     "console_max_tx_queue",SDF_WR,          "8192",         "Most messages a route of a console may have waiting to be sent when the console writes, whatever paused it: over it the console is closed for that route, with a warning, and closed for everybody when that route opened it. A message carries up to 1 KB of console output. 0: no bound"),
 SDATA (DTP_INTEGER,     "max_watches",      SDF_WR,             "30",           "Maximum requesters with a watch-yuno-stats"),
 SDATA (DTP_INTEGER,     "max_watch_ids",    SDF_WR,             "256",          "Maximum yuno ids (id or id:service) in one watch-yuno-stats"),
@@ -9044,9 +9044,10 @@ PRIVATE hgobj console_route_transport(hgobj gate)
  *  on its write) until the transport has sent them all (its EV_TX_READY,
  *  ac_console_tx_ready()). The route holds the pause for at most
  *  console_pause_timeout with its transport sending nothing
- *  (console_pause_deadline()). The agent takes the EV_TX_READY of a
- *  transport from its first pause on: a transport of the pool serves the
- *  next sessions too.
+ *  (console_pause_deadline()). The agent takes the EV_TX_READY and the
+ *  EV_DISCONNECTED of a transport from its first pause on: a transport of
+ *  the pool serves the next sessions too, and the link to the control
+ *  center reconnects with the same one.
  ***************************************************************************/
 PRIVATE void console_hold_pause(
     hgobj gobj,
@@ -9062,11 +9063,12 @@ PRIVATE void console_hold_pause(
     snprintf(key, sizeof(key), "%p", transport);
     if(!json_object_get(priv->console_transports, key)) {
         gobj_subscribe_event(transport, EV_TX_READY, NULL, gobj);
+        gobj_subscribe_event(transport, EV_DISCONNECTED, NULL, gobj);
         json_object_set_new(priv->console_transports, key, json_true());
     }
     json_object_set_new(jn_route, "pause", json_true());
-    json_object_set_new(jn_route, "pause_tx_msgs",
-        json_integer(gobj_read_integer_attr(transport, "txMsgs")));
+    json_object_set_new(jn_route, "pause_tx_bytes",
+        json_integer(gobj_read_integer_attr(transport, "txBytes")));
     json_object_set_new(jn_route, "pause_deadline", json_integer((json_int_t)start_msectimer(
         gobj_read_integer_attr(gobj, "console_pause_timeout"))));
     priv->console_pauses++;
@@ -9089,7 +9091,7 @@ PRIVATE void console_release_pause(hgobj gobj, json_t *jn_route, hgobj transport
         return;
     }
     json_object_del(jn_route, "pause");
-    json_object_del(jn_route, "pause_tx_msgs");
+    json_object_del(jn_route, "pause_tx_bytes");
     json_object_del(jn_route, "pause_deadline");
     if(priv->console_pauses > 0) {
         priv->console_pauses--;
@@ -9148,11 +9150,48 @@ PRIVATE void console_arm_pause_timer(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Whether the route `route_name` of a console, which holds it paused,
+ *  stops OTHERS reading it: a route that only joined the console always
+ *  does (the session that opened it waits for it); the route that opened
+ *  it, when another route of the console holds no pause (it would read).
+ *  The route that opened a console and is alone on it, or with routes that
+ *  hold a pause too, freezes only itself: a reader that is slow or away
+ *  (the link to the control center, shared by all its operators, while
+ *  the control center does not read) waits with its process, as behind an
+ *  ssh.
+ ***************************************************************************/
+PRIVATE BOOL console_route_freezes_others(
+    hgobj gobj,
+    json_t *jn_console,
+    const char *route_name
+)
+{
+    if(strcmp(route_name, kw_get_str(gobj, jn_console, "opener", "", 0))!=0) {
+        return TRUE;
+    }
+    json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+    const char *other; json_t *jn_other;
+    json_object_foreach(jn_routes, other, jn_other) {
+        if(strcmp(other, route_name)!=0 && !json_object_get(jn_other, "pause")) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  A pause held past its deadline: a transport that sent something in the
- *  period (a slow reader) gets another period; one that sent nothing (a
- *  session that does not read, a link that does not take) is taken off
- *  the console, ONE WARNING, and the console goes on for the others, or is
- *  closed when that route opened it. Up to 7.30.26 there was no pause.
+ *  period (a slow reader: its socket took bytes, `txBytes`, which C_TCP
+ *  counts on every write, in clear or TLS) gets another period, and so
+ *  does a route that freezes nobody else (console_route_freezes_others());
+ *  one that sent nothing and stops the others (a session that joined and
+ *  does not read, an opener that does not read while another session
+ *  does) is taken off the console, ONE WARNING, and the console goes on
+ *  for the others, or is closed when that route opened it. Up to 7.30.26
+ *  there was no pause. Before the fix the progress was the transport's
+ *  `txMsgs`, which C_TCP never counted on TLS: a reader over wss or the
+ *  link to the control center was taken off at its first deadline, and a
+ *  console of the control center was closed when it was away some 30 s.
  ***************************************************************************/
 PRIVATE int console_pause_deadline(hgobj gobj)
 {
@@ -9174,9 +9213,11 @@ PRIVATE int console_pause_deadline(hgobj gobj)
             }
             hgobj gate = console_route_gate(gobj, jn_route);
             hgobj transport = gate? console_route_transport(gate) : NULL;
-            json_int_t tx_msgs = transport? gobj_read_integer_attr(transport, "txMsgs") : 0;
-            if(transport && tx_msgs != json_integer_value(json_object_get(jn_route, "pause_tx_msgs"))) {
-                json_object_set_new(jn_route, "pause_tx_msgs", json_integer(tx_msgs));
+            json_int_t tx_bytes = transport? gobj_read_integer_attr(transport, "txBytes") : 0;
+            if((transport &&
+                    tx_bytes != json_integer_value(json_object_get(jn_route, "pause_tx_bytes"))) ||
+                    !console_route_freezes_others(gobj, jn_console, route_name)) {
+                json_object_set_new(jn_route, "pause_tx_bytes", json_integer(tx_bytes));
                 json_object_set_new(jn_route, "pause_deadline",
                     json_integer((json_int_t)start_msectimer(timeout)));
                 continue;
@@ -16365,6 +16406,51 @@ PRIVATE int ac_console_tx_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 }
 
 /***************************************************************************
+ *  A transport whose EV_DISCONNECTED the agent takes (console_hold_pause())
+ *  lost its connection, and with it what it had waiting (C_TCP drops its
+ *  queue): no EV_TX_READY of that queue will come, so the routes over it
+ *  hold no pause now. The routes stay: a session that leaves takes its
+ *  route off with its close, and the link to the control center keeps its
+ *  consoles while it is down (their output is dropped, said once) and
+ *  sends it up the next connection. Before the fix the pause was held over
+ *  the dead connection until its deadline, and the console of the control
+ *  center was closed.
+ ***************************************************************************/
+PRIVATE int ac_console_transport_gone(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->console_pauses <= 0) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    const char *name; json_t *jn_console;
+    json_object_foreach(priv->list_consoles, name, jn_console) {
+        BOOL released = FALSE;
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
+        const char *route_name; json_t *jn_route;
+        json_object_foreach(jn_routes, route_name, jn_route) {
+            if(!json_object_get(jn_route, "pause")) {
+                continue;
+            }
+            hgobj gate = console_route_gate(gobj, jn_route);
+            if(gate && console_route_transport(gate) == src) {
+                console_release_pause(gobj, jn_route, src);
+                released = TRUE;
+            }
+        }
+        if(released) {
+            console_update_pause(gobj, name, jn_console);
+        }
+    }
+    console_arm_pause_timer(gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  The route that opened a console was taken off it (ac_tty_data()): the
  *  console is closed, telling the routes still on it. Posted, never done in
  *  ac_tty_data(), which runs inside the publication of the PTY: a stop
@@ -16644,6 +16730,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WATCH_READING,        ac_watch_reading,       0},
         {EV_CLOSE_CONSOLE,        ac_close_console,       0},
         {EV_TX_READY,             ac_console_tx_ready,    0},
+        {EV_DISCONNECTED,         ac_console_transport_gone, 0},
         {EV_STOPPED,              0,                      0},
         {0,0,0}
     };
@@ -16685,6 +16772,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_WATCH_READING,        0},
         {EV_CLOSE_CONSOLE,        0},
         {EV_TX_READY,             0},
+        {EV_DISCONNECTED,         0},
         {EV_STOPPED,              0},
 
         /* Publications (outputs) */

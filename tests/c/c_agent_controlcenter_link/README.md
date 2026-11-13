@@ -84,33 +84,45 @@ did already up to 7.30.26: the agent now sends the events of a console with
 `EV_SEND_IEV`, as its answers, and this is the route that must stay.
 
 The control center opens a console that floods (`open-console name=t4
-process=yes`) and stops reading the link. The console pauses for the link;
-the agent's memory (`VmRSS`) must grow less than 160 MB, and the console must
-be closed: the link took nothing within `console_pause_timeout` (3 s in
-`agent.json`), and it opened the console (ONE WARNING *"console output not
-taken by its session, console closed for it"*). When the control
-center reads again, what it had waiting ends with the `EV_TTY_CLOSE` of `t4`.
-Up to 7.30.26 the agent grew until it aborted. The run stops at 300 MB of
+process=yes`) and stops reading the link for 9 s, three times
+`console_pause_timeout` (3 s in `agent.json`). The console pauses for the
+link; the agent's memory (`VmRSS`) must grow less than 160 MB, and the
+console must still be there: the link opened it and is alone on it, so it
+freezes nobody else, and the console waits for it (its process waits). When
+the control center reads again, the console goes on (more than 1 MB more up
+the link). Then a session on `1991` joins `t4` and reads nothing: it would
+stop the control center, so at its deadline it is taken off (ONE WARNING
+*"console output not taken by its session, console closed for it"*,
+`"opener": "no"`), and `close-console` finds `t4`. Up to 7.30.26 the agent
+grew until it aborted; before the fix the link was taken off at the
+deadline and the console closed (the operators of the control center lost
+it if the control center was away some 30 s). The run stops at 300 MB of
 growth.
 
-The control center then plays and pauses
-the agent through its link: it sends `EV_PLAY_YUNO`, and, in ONE write, an
-order (`list-yunos`), `EV_PAUSE_YUNO` and the first two bytes of the next
-order, then the rest of it and 40 orders more. Only a yuno's own agent may
-play or pause it, so the link refuses both: each ack has result -1, every
-one of the 42 orders is answered with 0, the operator is still answered,
-the `1991` still takes a session, and the link stays (no new connection).
-Up to 7.30.26 the pause reached the agent's `mt_pause`, which stops that
-same link inside its own action and closes the treedbs: the agent died
-(SIGSEGV in `C_PROT_TCP4H`, which read on after its own stop), or, without
-the extra bytes, it lived with its `1991` and its link closed for good.
+The control center opens `tslow` (`yes`), a session on `1991` joins it and
+reads at once, and the link to the control center becomes a slow link far
+away: `tc` puts what the agent sends to port 19898 through a token bucket
+of 30 KB/s (`run_test.sh` gives the loopback an mtu of 1500 and the sockets
+small send buffers, `tcp_wmem` of the sandbox, so a write ends as the link
+takes bytes). For 12 s, four deadlines, the control center gets the
+console slowly but steadily over TLS (under 60 KB/s), and `tslow` keeps both
+routes. Before the fix the progress of a pause was C_TCP's `txMsgs`, which
+was never counted on TLS: the link was taken off at its first deadline and
+the console closed. The agent now measures it by `txBytes`, the bytes the
+socket took.
 
 The control center opens a console (`bash`) that writes `TICK` every 10 ms,
 and drops its connection: the link is out of session while the console
 writes. The agent says it ONCE, an INFO *"requester gone before its answer,
 answer dropped"* for `EV_TTY_DATA` (up to 7.30.26 one per chunk), the link
 connects again (its `timeout_between_connections`, 10 s) and the console
-writes up the new connection; `close-console` closes it.
+writes up the new connection; `close-console` closes it. With it, a console
+that floods (`t6`, `yes`) is paused for the link when the link drops: the
+pause is released at the drop (`list-consoles` shows it; the link's queue
+is gone with the connection, so no drain of it will come), `t6` lives the
+10 s the link is down, writes up the new connection, and `close-console`
+finds it. The log holds at most 2 INFO *"requester gone"* for `EV_TTY_DATA`
+(`t5`, `t6`), one of them for `t6`.
 
 Last, the control center sends 300 orders
 (`list-yunos`) to the agent: the first 150 one by one, each answered with 0;
@@ -120,8 +132,8 @@ may name an order never sent. Up to 7.30.26 the pause of the stop closed the
 treedbs with the link still in session, and an order read the treedb freed
 (SIGSEGV).
 
-Skipped (exit 77) without the agent binary, `openssl`, `ip` or unprivileged
-namespaces.
+Skipped (exit 77) without the agent binary, `openssl`, `ip`, `tc` or
+unprivileged namespaces.
 
 ## Run
 

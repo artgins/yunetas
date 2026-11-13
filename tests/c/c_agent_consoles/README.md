@@ -17,12 +17,16 @@ with no flow control would be taken off soon.
 1. **A session that floods its console and does not read.** The session
    opens `open-console name=flood process=yes` and reads nothing. The
    console pauses for it (`console_pause_tx_queue`), the agent's memory (its
-   `VmRSS`, read in `/proc`) must grow less than 160 MB, the agent must live
-   (`help` is answered), and the console must be closed: the session took
-   nothing within `console_pause_timeout`, and it is the one that opened
-   it. Up to 7.30.26 the agent grew some 50 MB/s until it aborted
-   (*"REACHED MAX_SYSTEM_MEMORY"*). The run stops at 300 MB of growth, so a
-   broken agent cannot eat the machine.
+   `VmRSS`, read in `/proc`) must grow less than 160 MB in 12 s, the agent
+   must live (`help` is answered), and the console must still be there:
+   the session opened it and is alone on it, so it freezes nobody else and
+   the console waits for it (its process waits), past two
+   `console_pause_timeout`. When the session reads, it gets more than 20 MB
+   and no close; when it leaves, the console goes with it. Up to 7.30.26 the
+   agent grew some 50 MB/s until it aborted (*"REACHED
+   MAX_SYSTEM_MEMORY"*); before the fix the console was closed at the
+   deadline. The run stops at 300 MB of growth, so a broken agent cannot
+   eat the machine.
 2. **A joined session that does not read, beside one that reads.** A session
    opens `paced` (`bash`) and reads; another joins it and reads nothing. The
    console prints 3,000,000 numbered lines (30 MB) at a pace. The reading
@@ -51,9 +55,16 @@ with no flow control would be taken off soon.
    must get ALL of it, in order, and not be taken off: the console waits for
    it. With no flow control it was taken off once it fell
    `console_max_tx_queue` messages behind.
+6. **An opener that does not read, beside a session that does.** A session
+   opens `oflood` (`yes`) and reads nothing; another joins it and reads.
+   The opener stops the other one, so at its deadline it is taken off (ONE
+   WARNING, `"opener": "yes, the console is closed"`) and the console is
+   closed: the joined session gets the `EV_TTY_CLOSE` of `oflood`.
 
 `run_test.sh` checks the agent's log: ONE WARNING *"console output not taken
-by its session, console closed for it"* per session that did not read (2), at
+by its session, console closed for it"* per session that did not read and
+stopped another one (2: the joiner of case 2, the opener of case 6, and
+only one of them says `"opener": "yes, the console is closed"`), at
 most 2 INFO *"requester gone before its answer"* for `EV_TTY_DATA`, no
 *"Event NOT DEFINED in state"*, and the agent ends in order (exit 0) with no
 *"system memory not free"*.

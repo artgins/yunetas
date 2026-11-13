@@ -4,8 +4,10 @@
 #   1991 (client.py): a session that floods its console and does not read,
 #   a joined session that does not read while the other one does, a
 #   joined session that leaves, and the console of a session that presents
-#   the card of a yuno. The agent's memory must stay bounded, a session
-#   that does not read is taken off the console with ONE WARNING, the
+#   the card of a yuno, and an opener that does not read with a joined
+#   session that does. The agent's memory must stay bounded, a session
+#   that does not read is taken off the console with ONE WARNING when it
+#   stops another one (an opener alone on its console is waited for), the
 #   console lives until the session that opened it leaves (and then every
 #   session still joined is told), and a console never reaches another
 #   session. Up to 7.30.26 the agent grew until it aborted, a joiner that
@@ -121,8 +123,9 @@ if [ "$nd" != "0" ]; then
 fi
 #   The two sessions that did not read: ONE WARNING each
 nslow=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "WARNING")
-if [ "$nslow" != "2" ]; then
-    echo "TEST FAILED: $nslow WARNING(s) for a session that does not take its console output (expected 2)"
+nopen=$(grep -a '"msg": "console output not taken by its session, console closed for it"' "$WORK/agent.log" | grep -ac "yes, the console is closed")
+if [ "$nslow" != "2" ] || [ "$nopen" != "1" ]; then
+    echo "TEST FAILED: $nslow WARNING(s) for a session that does not take its console output (expected 2: the joiner of case 2, the opener of case 6), $nopen for a session that opened it (expected 1: case 6; the opener alone of case 1 is never taken off)"
     failed=1
 fi
 #   The output of a console for a route not listening: said once per route,

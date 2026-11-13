@@ -32,12 +32,20 @@
 #   and answer go up the link, as they did before the agent sent its
 #   console events with EV_SEND_IEV.
 #   A console the control center opens that floods (`yes`) while the
-#   control center does not read: the console pauses for the link, the
-#   agent's memory stays bounded, and the link, which takes nothing within
-#   `console_pause_timeout` (3 s in agent.json), is taken off: the console
-#   is closed, the link opened it (ONE WARNING). When the control center
-#   reads again, what it had waiting ends with the console's EV_TTY_CLOSE.
-#   Up to 7.30.26 the agent grew until it aborted.
+#   control center is away (does not read) three times
+#   `console_pause_timeout` (3 s in agent.json): the console pauses for the
+#   link, the agent's memory stays bounded, and the console waits for it
+#   (the link opened it and is alone on it: it freezes only itself); when
+#   the control center reads again the console goes on. A session that
+#   joins it and does not read IS taken off (ONE WARNING): it would stop
+#   the control center. Up to 7.30.26 the agent grew until it aborted;
+#   before the fix the console was closed at the deadline.
+#   A console the control center reads slowly but steadily over its TLS
+#   link (the sandbox's loopback to the control center slowed down with
+#   `tc`, and small send buffers), with a session joined that reads at
+#   once: the link is not taken off, four deadlines long. Before the fix
+#   the progress of a pause was C_TCP's txMsgs, never counted on TLS: the
+#   link was taken off at its first deadline and the console closed.
 #   4. The control center sends EV_PLAY_YUNO, then an order, EV_PAUSE_YUNO
 #      and two bytes of the next order in one write, then 40 orders more:
 #      both are refused (ack -1), every order is answered, the link and the
@@ -46,6 +54,9 @@
 #   A console the control center opens writes while the link is down: the
 #   agent says it once (an INFO "requester gone"), not per chunk as up to
 #   7.30.26, and the console writes up the link again when it reconnects.
+#   Another one, paused for the link when it drops, is released at the
+#   drop (the link's queue is gone with the connection), lives across the
+#   10 s the link is down, and writes up the new connection.
 #   5. The control center sends orders while the agent stops (SIGINT).
 #
 #   Usage: client.py <cert> <key> <port>
@@ -61,6 +72,7 @@ import os
 import signal
 import ssl
 import struct
+import subprocess
 import sys
 import time
 
@@ -81,7 +93,10 @@ flood_answers = {}      # cc_order -> result of the orders the control center se
 pause_answers = {}      # cc_pause_order -> result of the orders sent around a pause
 play_pause_acks = []    # (event, result, comment) of the agent's acks of a play / pause
 link_frames = []        # (event, kw) of what comes back of a console or a request of the control center
+FLOODING = ("t4", "tslow", "t6")    # consoles that flood: their output is counted, not kept
+flood_bytes = {}        # console -> bytes of its output that reached the control center
 FLOOD = 300             # orders the control center sends while the agent stops
+SLOW_RATE = 30000       # bytes/s the control center takes of a console, over TLS
 PEER_POINTER = 1094795585     # 0x41414141: what a peer writes where the agent keeps a pointer
 
 
@@ -124,6 +139,11 @@ async def control_center(r, w, in_session):
             return
         event = iev.get("event")
         md = iev.get("kw", {}).get("__md_iev__", {})
+        if event == "EV_TTY_DATA" and data_name(iev.get("kw", {})) in FLOODING:
+            name = data_name(iev["kw"])
+            flood_bytes[name] = flood_bytes.get(name, 0) + len(
+                (iev["kw"].get("data") or {}).get("content64") or "") * 3 // 4
+            continue
         if event == "EV_IDENTITY_CARD":
             w.write(tcp4h({"event": "EV_IDENTITY_CARD_ACK",
                 "kw": {"result": 0, "comment": "", "data": {}, "__md_iev__": reverse(md)}}))
@@ -412,19 +432,25 @@ def tty_events(event, name):
     return [kw for kw in link_events(event) if data_name(kw) == name]
 
 
+async def console_routes(op, name):
+    r = (await op.ask("list-consoles")) or {}
+    console = (r.get("data") or {}).get(name)
+    return None if console is None else list((console.get("routes") or {}))
+
+
 async def flood_not_read_by_the_link(op):
     """A console of the control center floods (`yes`) and the control
-    center does not read"""
+    center is away (it does not read) longer than console_pause_timeout"""
     pid = agent_pid()
     w = cc_writer[-1]
     rss0 = rss_mb(pid)
     w.write(cc_command("open-console", {"name": "t4", "process": "yes", "cwd": "/yuneta"}))
     await w.drain()
+    await link_frames_until(lambda: flood_bytes.get("t4"), 5)
     cc_reading.clear()
     peak = rss0
-    gone = False
     t0 = time.monotonic()
-    while time.monotonic() - t0 < 12:
+    while time.monotonic() - t0 < 9:   # three times console_pause_timeout
         await asyncio.sleep(0.25)
         rss = rss_mb(pid)
         if rss < 0:
@@ -432,31 +458,116 @@ async def flood_not_read_by_the_link(op):
         peak = max(peak, rss)
         if peak - rss0 > RSS_CAP_MB:
             break
-        if time.monotonic() - t0 > 3 and not gone:
-            r = (await op.ask("list-consoles")) or {}
-            gone = "t4" not in (r.get("data") or {})
-        if gone and time.monotonic() - t0 > 5:
-            break
+    routes = await console_routes(op, "t4")
     print("flood by the link: the agent from %d to %d MB (peak)" % (rss0, peak), flush=True)
-    if not gone:
-        w.write(cc_command("close-console", {"name": "t4"}))     # the run must end
-        await w.drain()
-    cc_reading.set()
     check("flood by the link: the agent lives",
         rss_mb(pid) > 0 and ((await op.ask("help cmd=list-yunos")) or {}).get("result") == 0)
     check("flood by the link: the agent's memory stays bounded: +%d MB (bound %d MB)" % (
             peak - rss0, RSS_BOUND_MB),
         peak - rss0 < RSS_BOUND_MB)
-    check("flood by the link: the console is closed for the link that opened it", gone)
-    await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "t4"), 30)
-    t4 = [(e, kw) for e, kw in link_frames if data_name(kw) == "t4"]
-    check("flood by the link: what the link had waiting ends with the close of the console: %s" % (
-            [e for e, kw in t4[-1:]]),
-        bool(t4) and t4[-1][0] == "EV_TTY_CLOSE" and len(tty_events("EV_TTY_CLOSE", "t4")) == 1)
+    check("flood by the link: the console waits for the control center away 9 s: %s" % routes,
+        routes is not None and len(routes) == 1)
+    n_bytes = flood_bytes.get("t4", 0)
+    cc_reading.set()
+    check("flood by the link: it writes up the link again when the control center reads",
+        await link_frames_until(lambda: flood_bytes.get("t4", 0) > n_bytes + 1000000, 15))
+
+    #   A session that joins it and does not read is taken off: it would
+    #   stop the control center
+    s = await session()
+    check("flood by the link: a session to join it", s is not None)
+    if s is None:
+        return
+    s.send(command("open-console name=t4 process=yes cwd=/yuneta"))
+    end = time.monotonic() + 20
+    routes = None
+    while time.monotonic() < end:
+        await asyncio.sleep(0.5)
+        routes = await console_routes(op, "t4")
+        if routes is not None and len(routes) == 1:
+            break
+    check("flood by the link: the session that joined and does not read is taken off: %s" % routes,
+        routes is not None and len(routes) == 1)
+    s.close()
+    w = cc_writer[-1]
+    w.write(cc_command("close-console", {"name": "t4"}))
+    check("flood by the link: close-console finds it, and its close goes up the link",
+        await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "t4"), 10))
 
 
-async def console_while_the_link_is_down(in_session):
-    """A console of the control center writes while its link is down"""
+def slow_link(on):
+    """What the agent sends to the control center (the sandbox's loopback,
+    to port 19898) at SLOW_RATE, as a link far away: a token bucket on a
+    band of its own, so nothing else is slowed. "" when done."""
+    if on:
+        cmds = (
+            "tc qdisc add dev lo root handle 1: prio bands 4",
+            "tc qdisc add dev lo parent 1:4 handle 40: tbf rate %dbit burst 16kb latency 500ms" % (
+                SLOW_RATE * 8),
+            "tc filter add dev lo protocol ip parent 1:0 prio 1 u32 match ip dport 19898 0xffff flowid 1:4",
+        )
+    else:
+        cmds = ("tc qdisc del dev lo root",)
+    for c in cmds:
+        r = subprocess.run(c.split(), capture_output=True, text=True)
+        if r.returncode != 0:
+            return "%s: %s" % (c, r.stderr.strip())
+    return ""
+
+
+async def slow_reader_on_the_link(op):
+    """The control center reads its console slowly but steadily over TLS,
+    while a session that joined it reads at once: the link is not taken
+    off. Up to the fix the progress of a pause was the transport's
+    txMsgs, never counted on TLS: the link was taken off at its first
+    deadline and the console closed."""
+    w = cc_writer[-1]
+    w.write(cc_command("open-console", {"name": "tslow", "process": "yes", "cwd": "/yuneta"}))
+    await w.drain()
+    await link_frames_until(lambda: flood_bytes.get("tslow"), 5)
+    s = await session()
+    check("slow link: a session that joins and reads", s is not None)
+    if s is None:
+        return
+    s.send(command("open-console name=tslow process=yes cwd=/yuneta"))
+    got = [0]
+
+    async def spectator():
+        while True:
+            iev = await s.recv(30)
+            if iev is None:
+                return
+            if iev.get("event") == "EV_TTY_DATA":
+                got[0] += 1
+
+    task = asyncio.ensure_future(spectator())
+    slow = slow_link(True)
+    check("slow link: the link to the control center slowed down (tc): %s" % slow, slow == "")
+    n0 = flood_bytes.get("tslow", 0)
+    t0 = time.monotonic()
+    await asyncio.sleep(12)     # four times console_pause_timeout
+    elapsed = time.monotonic() - t0
+    n_bytes = flood_bytes.get("tslow", 0) - n0
+    routes = await console_routes(op, "tslow")
+    slow_link(False)
+    print("slow link: the control center took %d bytes in %.1f s, the session %d frames" % (
+        n_bytes, elapsed, got[0]), flush=True)
+    check("slow link: the control center got its output slowly but steadily (%d B/s)" % (
+            n_bytes / elapsed),
+        0 < n_bytes / elapsed < 2 * SLOW_RATE)
+    check("slow link: the console and both its routes stay: %s" % routes,
+        routes is not None and len(routes) == 2)
+    task.cancel()
+    s.close()
+    w = cc_writer[-1]
+    w.write(cc_command("close-console", {"name": "tslow"}))
+    check("slow link: its close goes up the link",
+        await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "tslow"), 30))
+
+
+async def console_while_the_link_is_down(op, in_session):
+    """A console of the control center writes while its link is down, and
+    another one floods and is paused for the link when it drops"""
     w = cc_writer[-1]
     w.write(cc_command("open-console", {"name": "t5", "process": "bash", "cwd": "/yuneta"}))
     w.write(cc_command("write-tty", {"name": "t5", "content64": base64.b64encode(
@@ -464,10 +575,27 @@ async def console_while_the_link_is_down(in_session):
     await link_frames_until(lambda: "TICK" in b"".join(
         base64.b64decode((kw.get("data") or {}).get("content64") or "")
         for kw in tty_events("EV_TTY_DATA", "t5")).decode(errors="replace"), 5)
+    w.write(cc_command("open-console", {"name": "t6", "process": "yes", "cwd": "/yuneta"}))
+    await link_frames_until(lambda: flood_bytes.get("t6"), 5)
+    cc_reading.clear()
+    await asyncio.sleep(1)      # the link holds t6 paused
+    r = (await op.ask("list-consoles")) or {}
+    paused_before = [n for n, rt in (((r.get("data") or {}).get("t6") or {}).get("routes") or {}).items()
+        if rt.get("pause")]
     in_session.clear()
     n_links = len(cc_writer)
     w.close()
+    cc_reading.set()
     await asyncio.sleep(1.5)
+    #   The link dropped, and its queue with it: the pause of t6 is released
+    #   (no drain of that queue will ever come)
+    r = (await op.ask("list-consoles")) or {}
+    paused_after = [n for n, rt in (((r.get("data") or {}).get("t6") or {}).get("routes") or {}).items()
+        if rt.get("pause")]
+    check("console paused when the link dropped: paused before the drop: %s" % paused_before,
+        len(paused_before) == 1)
+    check("console paused when the link dropped: released at the drop: %s" % paused_after,
+        paused_after == [])
     #   The link connects again after its timeout_between_connections (10 s)
     try:
         await asyncio.wait_for(in_session.wait(), 30)
@@ -482,6 +610,17 @@ async def console_while_the_link_is_down(in_session):
     w.write(cc_command("close-console", {"name": "t5"}))
     check("console while the link is down: its close goes up the link",
         await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "t5"), 5))
+    #   The console that was paused for the link when it dropped (longer
+    #   than console_pause_timeout): it lives, and writes up the new link
+    routes = await console_routes(op, "t6")
+    check("console paused when the link dropped: it lives: %s" % routes,
+        routes is not None and len(routes) == 1)
+    n_bytes = flood_bytes.get("t6", 0)
+    check("console paused when the link dropped: it writes up the link again",
+        await link_frames_until(lambda: flood_bytes.get("t6", 0) > n_bytes, 5))
+    w.write(cc_command("close-console", {"name": "t6"}))
+    check("console paused when the link dropped: close-console finds it",
+        await link_frames_until(lambda: tty_events("EV_TTY_CLOSE", "t6"), 10))
 
 
 async def main():
@@ -658,6 +797,8 @@ async def main():
 
     #   A console of the control center that floods while it does not read
     await flood_not_read_by_the_link(op)
+    #   A console the control center reads slowly over its TLS link
+    await slow_reader_on_the_link(op)
 
     #   4. The control center plays and pauses the agent through its link.
     #   Only a yuno's agent may play or pause it: the link to the control
@@ -701,7 +842,7 @@ async def main():
         len(cc_writer) == n_links)
 
     #   A console of the control center that writes while the link is down
-    await console_while_the_link_is_down(in_session)
+    await console_while_the_link_is_down(op, in_session)
 
     #   5. The control center sends orders while the agent stops: the first
     #   half one by one, each answered; then a SIGINT to the agent, and the
