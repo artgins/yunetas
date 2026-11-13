@@ -55,7 +55,7 @@
 #define MQTT_MAX_PAYLOAD 268435455U
 
 #define FRAMEHEAD_PACKET_TOO_LARGE (-2)  // framehead_consume(): over max_packet_size, DISCONNECT 0x95
-#define MAX_CONNECT_SIZE (64*1024)  // a CONNECT (not yet authenticated) when max_packet_size is 0
+#define MAX_CONNECT_SIZE (64*1024)  // a CONNECT: the peer is not yet authenticated
 
 /* Error values */
 typedef enum mqtt_err_s {
@@ -259,7 +259,7 @@ SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR,       "1000",   "The maxim
 
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads. A client refuses a larger packet of its broker too, before its bytes are kept, and announces the limit in its MQTT 5 CONNECT. The size is the whole packet (fixed header, Remaining Length field and the rest); over it an MQTT 5 peer gets DISCONNECT 0x95. With no limit (0) a CONNECT is still refused over 64 KB: it comes before the peer is authenticated."),
+SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads. A client refuses a larger packet of its broker too, before its bytes are kept, and announces the limit in its MQTT 5 CONNECT. The size is the whole packet (fixed header, Remaining Length field and the rest); over it an MQTT 5 peer gets DISCONNECT 0x95. A CONNECT is refused over 64 KB whatever this says (or over this, when smaller): it comes before the peer is authenticated."),
 
 SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
 
@@ -9809,13 +9809,13 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 }
 
                 /*
-                 *  With a max_packet_size, framehead_consume() already bounded it. Without
-                 *  one, a CONNECT of a peer not yet authenticated is still bounded: its
-                 *  buffer is allocated now, at its header. Up to 7.31.1 it was 1000 bytes
-                 *  in every case, which refused an MQTT 5 CONNECT with properties or a
-                 *  token as password
+                 *  A CONNECT comes from a peer not yet authenticated, and its buffer is
+                 *  allocated now, at its header: bounded always, whatever max_packet_size
+                 *  allows the packets of a session (a smaller max_packet_size was applied
+                 *  by framehead_consume()). Up to 7.31.1 the bound was 1000 bytes, which
+                 *  refused an MQTT 5 CONNECT with properties or a token as password
                  */
-                if(priv->max_packet_size == 0 && frame->frame_length > MAX_CONNECT_SIZE) {
+                if(frame->frame_length > MAX_CONNECT_SIZE) {
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT,

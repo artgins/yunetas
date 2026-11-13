@@ -2276,6 +2276,27 @@ cleanup:
 }
 
 /***************************************************************************
+ *  May this client hold this topic filter now: not in deny_subscribes, and
+ *  granted by the ACL (always, with enable_acl off). The SUBSCRIBE asks the
+ *  same, with its own SUBACK reason for each
+ ***************************************************************************/
+PRIVATE BOOL subscription_allowed(hgobj gobj, const char *client_id, const char *topic_filter)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(json_is_array(priv->deny_subscribes)) {
+        size_t idx; json_t *jn_deny;
+        json_array_foreach(priv->deny_subscribes, idx, jn_deny) {
+            const char *deny_topic = json_string_value(jn_deny);
+            if(!empty_string(deny_topic) && strcmp(topic_filter, deny_topic) == 0) {
+                return FALSE;
+            }
+        }
+    }
+    return mqtt_acl_check(gobj, client_id, topic_filter, "read");
+}
+
+/***************************************************************************
  *  A temporary session (MQTT 5: Session Expiry 0; 3.1.1: clean session) is
  *  deleted at its close: nothing of it outlives the connection
  ***************************************************************************/
@@ -2353,12 +2374,34 @@ PRIVATE int subs__restore(hgobj gobj)
         }
         const char *client_id = kw_get_str(gobj, session, "id", "", 0);
         json_t *subscriptions = json_object_get(session, "subscriptions");
+        BOOL session_changed = FALSE;
         size_t i; json_t *jn_sub;
         json_array_foreach(subscriptions, i, jn_sub) {
             const char *topic_filter = json_string_value(json_object_get(jn_sub, "topic_filter"));
             if(empty_string(topic_filter)) {
                 continue;
             }
+
+            /*
+             *  A restored subscription is a SUBSCRIBE again: it passes the
+             *  deny_subscribes and the ACL in force now, which may have
+             *  changed since it was saved. Refused, it leaves the session
+             */
+            if(!subscription_allowed(gobj, client_id, topic_filter)) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT,
+                    "msg",          "%s", "Saved subscription refused now (deny_subscribes or ACL), not restored",
+                    "client_id",    "%s", client_id,
+                    "topic",        "%s", topic_filter,
+                    NULL
+                );
+                json_array_remove(subscriptions, i);
+                i--;
+                session_changed = TRUE;
+                continue;
+            }
+
             if(sub__add(
                 gobj,
                 topic_filter,
@@ -2369,6 +2412,15 @@ PRIVATE int subs__restore(hgobj gobj)
             ) >= 0) {
                 restored++;
             }
+        }
+        if(session_changed) {
+            json_decref(gobj_update_node(
+                priv->gobj_treedb_mqtt_broker,
+                "sessions",
+                json_incref(session),  // owned
+                json_pack("{}"),
+                gobj
+            ));
         }
     }
     JSON_DECREF(sessions)

@@ -30,11 +30,11 @@
       first member got each message. BREAKING (an operator): the commands
       `shared-subs` and `flatten-subs shared=1` show the group first,
       `{"<group>": {<tree>}}`.
-    - **A CONNECT over 1000 bytes is no longer refused.** With a
-      `max_packet_size` the CONNECT has that limit, as any packet; without one
-      (`0`, the default) it is still bounded, at 64 KB, because it comes before
-      the peer is authenticated and its buffer is allocated at its header. The
-      1000 refused an MQTT 5 CONNECT with properties or a token as password.
+    - **A CONNECT over 1000 bytes is no longer refused**: the bound is 64 KB
+      (or `max_packet_size` when smaller), whatever `max_packet_size` allows
+      the packets of a session, because a CONNECT comes before the peer is
+      authenticated and its buffer is allocated at its header. The 1000 refused
+      an MQTT 5 CONNECT with properties or a token as password.
     - **The DISCONNECT of a client takes effect within `timeout_close`.** The
       server waited for the client to close for ever: a DISCONNECT `0x04` with
       the socket still open never had its will published. A client that has
@@ -59,8 +59,11 @@
       session (the column `subscriptions` existed and nothing wrote it; one
       write per packet, none for a temporary session), and the broker rebuilds
       its trees from them when its treedb opens, with one INFO *"Subscriptions
-      of the persistent sessions restored"*. A session came back with session
-      present 1 and no subscription.
+      of the persistent sessions restored"*. Each one passes `deny_subscribes`
+      and the ACL in force at that moment, as a SUBSCRIBE: one refused now is
+      not restored and leaves the session, with a WARNING *"Saved subscription
+      refused now (deny_subscribes or ACL), not restored"*. A session came back
+      with session present 1 and no subscription.
     - **The Maximum Packet Size is the whole packet**, as MQTT 5 counts it
       (fixed header + Remaining Length field + the rest), both ways: an
       incoming packet over `max_packet_size` gets DISCONNECT `0x95` Packet too
