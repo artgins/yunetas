@@ -28,6 +28,7 @@ decision.
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.31.1 | 7.31.0 | no page (a fix release) | - | [7.31.1.json](https://github.com/artgins/yunetas/blob/7.31.1/performance/reports/7.31.1.json) |
 | 7.31.0 | 7.30.0 | [7.31.0.html](https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html) | [7.31.0.json](https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.json) |
 | 7.30.0 | 7.29.3 | [7.30.0.html](https://github.com/artgins/yunetas/blob/7.30.0/performance/reports/7.30.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.30.0/performance/reports/7.30.0.html) | [7.30.0.json](https://github.com/artgins/yunetas/blob/7.30.0/performance/reports/7.30.0.json) |
 | 7.29.3 | 7.29.2 | no page (a fix release) | - | [7.29.3.json](https://github.com/artgins/yunetas/blob/7.29.3/performance/reports/7.29.3.json) |
@@ -53,12 +54,12 @@ decision.
 The report is one self-contained page (no script, no external file). GitHub
 shows it as source code; the "view" link renders it. How a report is made, and
 the schema of its `.json`, are in
-[`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/README.md).
+[`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.31.1/performance/reports/README.md).
 
 ## The trend
 
 ```{figure} ./_static/perf/perf_trend.svg
-:alt: Ten small charts, one per figure, each from 7.25.4 through 7.25.5, 7.25.20, 7.25.21, 7.25.22, 7.26.0, 7.26.9, 7.27.0, 7.27.5, 7.27.7, 7.27.10, 7.27.11, 7.28.0, 7.28.2 and 7.28.4: appends per second 220,120, 221,588, 226,720, 225,883, 224,185, 223,864, 223,770, 229,502, 226,311, 232,605, 225,186, 228,739, 422,850, 434,385, 422,318; open of a store as master 92.5, 80.8, 78.2, 81.9, 79.6, 81.9, 79.9, 82.2, 81.1, 78.8, 79.3, 79.0, 77.4, 76.5, 81.8 ms; a tm query of one minute 12.7, 7.4, 7.35, 7.66, 7.47, 12.8, 12.5, 12.8, 13.2, 12.9, 13.2, 12.9, 12.9, 13.0, 13.4 ms (from 7.26.0 every row is read: no tm markers); a treedb update in memory 3.92, 2.92, 2.32, 2.32, 2.41, 2.49, 2.29, 2.46, 2.36, 2.36, 2.37, 2.43, 1.14, 1.14, 1.22 us; a saved treedb update 11.75, 10.81, 7.66, 7.77, 7.75, 7.80, 7.48, 7.84, 7.62, 7.59, 7.70, 7.90, 4.05, 4.07, 4.25 us; link or unlink 11.27, 11.09, 8.65, 8.71, 8.63, 8.65, 7.54, 7.76, 7.48, 7.38, 7.58, 7.94, 4.59, 4.61, 4.81 us; the open of 40 treedbs with an unchanged schema 1.84, 0.649, 0.318, 0.340, 0.333, 0.335, 0.359, 0.383, 0.374, 0.331, 0.344, 0.357, 0.256, 0.253, 0.325 s; one agent audit record 6194, 554, 572, 593, 568, 570, 579, 578, 573, 572, 559, 564, 564, 558, 603 ns; the event loop echo 152.2, 150.5, 150.1, 147.1, 150.5, 149.0, 146.5, 144.9, 143.1, 148.3, 145.3, 147.1, 151.4, 147.6, 143.2 K messages per second; the gobj TCP echo 38,706, 39,344, 38,191, 39,715, 38,292, 39,511, 39,034, 38,744, 38,301, 39,107, 38,877, 39,035, 63,478, 62,915, 58,567 round trips per second. 7.28.5, a short study, adds a point only to the panels of the treedb: 1.16 us in memory, 4.10 us saved, 4.70 us link or unlink, and 0.266 s for the open of 40 treedbs. 7.29.0 adds a point to every panel but the event loop echo: 430,866 appends per second, 78.5 ms for the master open, 12.9 ms for the tm query, 1.18 us in memory, 4.19 us saved, 4.59 us link or unlink, 0.267 s for the open of 40 treedbs, 567 ns for the audit record and 61,798 TCP round trips per second. 7.29.2 adds a point to the same panels: 429,111 appends per second, 76.0 ms for the master open, 12.9 ms for the tm query, 1.17 us in memory, 4.27 us saved, 4.72 us link or unlink, 0.272 s for the open of 40 treedbs, 571 ns for the audit record and 60,964 TCP round trips per second. 7.29.3 adds a point to the same panels: 419,306 appends per second, 77.1 ms for the master open, 12.6 ms for the tm query, 1.18 us in memory, 4.36 us saved, 4.78 us link or unlink, 0.269 s for the open of 40 treedbs, 577 ns for the audit record and 61,740 TCP round trips per second. 7.30.0, pinned to one CPU, adds a point to every panel: 430,594 appends per second, 79.7 ms for the master open, 12.7 ms for the tm query, 1.14 us in memory, 4.11 us saved, 4.70 us link or unlink, 0.253 s for the open of 40 treedbs, 567 ns for the audit record, 148.9 K event loop echoes and 64,160 TCP round trips per second. 7.31.0 adds a point to every panel: 411,868 appends per second, 83.0 ms for the master open, 13.7 ms for the tm query, 1.17 us in memory, 4.27 us saved, 4.71 us link or unlink, 0.310 s for the open of 40 treedbs, 605 ns for the audit record, 142.0 K event loop echoes and 61,380 TCP round trips per second (its A/B measured 7.30.0 again at 418,900 appends and 61,320 TCP round trips per second: the machine moved, not the code).
+:alt: Ten small charts, one per figure, each from 7.25.4 through 7.25.5, 7.25.20, 7.25.21, 7.25.22, 7.26.0, 7.26.9, 7.27.0, 7.27.5, 7.27.7, 7.27.10, 7.27.11, 7.28.0, 7.28.2 and 7.28.4: appends per second 220,120, 221,588, 226,720, 225,883, 224,185, 223,864, 223,770, 229,502, 226,311, 232,605, 225,186, 228,739, 422,850, 434,385, 422,318; open of a store as master 92.5, 80.8, 78.2, 81.9, 79.6, 81.9, 79.9, 82.2, 81.1, 78.8, 79.3, 79.0, 77.4, 76.5, 81.8 ms; a tm query of one minute 12.7, 7.4, 7.35, 7.66, 7.47, 12.8, 12.5, 12.8, 13.2, 12.9, 13.2, 12.9, 12.9, 13.0, 13.4 ms (from 7.26.0 every row is read: no tm markers); a treedb update in memory 3.92, 2.92, 2.32, 2.32, 2.41, 2.49, 2.29, 2.46, 2.36, 2.36, 2.37, 2.43, 1.14, 1.14, 1.22 us; a saved treedb update 11.75, 10.81, 7.66, 7.77, 7.75, 7.80, 7.48, 7.84, 7.62, 7.59, 7.70, 7.90, 4.05, 4.07, 4.25 us; link or unlink 11.27, 11.09, 8.65, 8.71, 8.63, 8.65, 7.54, 7.76, 7.48, 7.38, 7.58, 7.94, 4.59, 4.61, 4.81 us; the open of 40 treedbs with an unchanged schema 1.84, 0.649, 0.318, 0.340, 0.333, 0.335, 0.359, 0.383, 0.374, 0.331, 0.344, 0.357, 0.256, 0.253, 0.325 s; one agent audit record 6194, 554, 572, 593, 568, 570, 579, 578, 573, 572, 559, 564, 564, 558, 603 ns; the event loop echo 152.2, 150.5, 150.1, 147.1, 150.5, 149.0, 146.5, 144.9, 143.1, 148.3, 145.3, 147.1, 151.4, 147.6, 143.2 K messages per second; the gobj TCP echo 38,706, 39,344, 38,191, 39,715, 38,292, 39,511, 39,034, 38,744, 38,301, 39,107, 38,877, 39,035, 63,478, 62,915, 58,567 round trips per second. 7.28.5, a short study, adds a point only to the panels of the treedb: 1.16 us in memory, 4.10 us saved, 4.70 us link or unlink, and 0.266 s for the open of 40 treedbs. 7.29.0 adds a point to every panel but the event loop echo: 430,866 appends per second, 78.5 ms for the master open, 12.9 ms for the tm query, 1.18 us in memory, 4.19 us saved, 4.59 us link or unlink, 0.267 s for the open of 40 treedbs, 567 ns for the audit record and 61,798 TCP round trips per second. 7.29.2 adds a point to the same panels: 429,111 appends per second, 76.0 ms for the master open, 12.9 ms for the tm query, 1.17 us in memory, 4.27 us saved, 4.72 us link or unlink, 0.272 s for the open of 40 treedbs, 571 ns for the audit record and 60,964 TCP round trips per second. 7.29.3 adds a point to the same panels: 419,306 appends per second, 77.1 ms for the master open, 12.6 ms for the tm query, 1.18 us in memory, 4.36 us saved, 4.78 us link or unlink, 0.269 s for the open of 40 treedbs, 577 ns for the audit record and 61,740 TCP round trips per second. 7.30.0, pinned to one CPU, adds a point to every panel: 430,594 appends per second, 79.7 ms for the master open, 12.7 ms for the tm query, 1.14 us in memory, 4.11 us saved, 4.70 us link or unlink, 0.253 s for the open of 40 treedbs, 567 ns for the audit record, 148.9 K event loop echoes and 64,160 TCP round trips per second. 7.31.0 adds a point to every panel: 411,868 appends per second, 83.0 ms for the master open, 13.7 ms for the tm query, 1.17 us in memory, 4.27 us saved, 4.71 us link or unlink, 0.310 s for the open of 40 treedbs, 605 ns for the audit record, 142.0 K event loop echoes and 61,380 TCP round trips per second (its A/B measured 7.30.0 again at 418,900 appends and 61,320 TCP round trips per second: the machine moved, not the code). 7.31.1 adds a point to every panel: 428,805 appends per second, 81.2 ms for the master open, 12.6 ms for the tm query, 1.13 us in memory, 4.17 us saved, 4.59 us link or unlink, 0.266 s for the open of 40 treedbs, 579 ns for the audit record, 146.3 K event loop echoes and 63,330 TCP round trips per second (its A/B measured 7.31.0 again at 430,444 appends and 63,179 TCP round trips per second, with the machine at rest).
 :width: 100%
 
 The main A/B figures, one panel each, on their own scale from zero. The first
@@ -71,23 +72,23 @@ earlier run) and 7.25.5 as shipped (the tag-time run). Every other point of the
 table comes from one alternated A/B run. Each point is the figure its own
 report measured, so two neighbouring points come from two runs, days apart:
 the A/B of 7.25.20 measured 7.25.5 again, the A/B of 7.25.21 measured
-7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, the A/B of 7.26.0 measured 7.25.22 again, the A/B of 7.26.9 measured 7.26.0 again (7.26.1 to 7.26.8 shipped no report; it was redone after the release), the A/B of 7.27.0 measured 7.26.9 again, the A/B of 7.27.5 measured 7.27.0 again (7.27.1 to 7.27.4 shipped no report; 7.27.5's was written the day after the release), the A/B of 7.27.7 measured 7.27.5 again, with 7.27.6 (no report) in the same rotation, the A/B of 7.27.10 measured 7.27.7 again (7.27.8 and 7.27.9 changed no measured code), the A/B of 7.27.11 measured 7.27.10 again, the A/B of 7.28.0 measured 7.27.11 again (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter, are inside it), the A/B of 7.28.2 measured 7.28.0 again (7.28.1, the agents' pid file, is inside it), the A/B of 7.28.4 measured 7.28.2 again (7.28.3, the stop of the agent, is inside it), the short A/B of 7.28.5 measured 7.28.4 again, only the figures of the treedb and of the inter-yuno events, and the short A/B of 7.28.8 measured 7.28.5 again, only the inter-yuno events (7.28.6 and 7.28.7 changed no measured code), the A/B of 7.29.0 measured 7.28.8 again (7.28.9 to 7.28.11 shipped no study and are inside it), the A/B of 7.29.2 measured 7.29.0 again (7.29.1 changed no C of the libraries or yunos, only a comment in `helpers.c` and a new test), the A/B of 7.29.3 measured 7.29.2 again, the A/B of 7.30.0 measured 7.29.3 again, pinned to one CPU for the first time, and the A/B of 7.31.0 measured 7.30.0 again (7.30.1 to 7.30.26 shipped no study and are inside it); their figures are in the sections below. Between two such
+7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, the A/B of 7.26.0 measured 7.25.22 again, the A/B of 7.26.9 measured 7.26.0 again (7.26.1 to 7.26.8 shipped no report; it was redone after the release), the A/B of 7.27.0 measured 7.26.9 again, the A/B of 7.27.5 measured 7.27.0 again (7.27.1 to 7.27.4 shipped no report; 7.27.5's was written the day after the release), the A/B of 7.27.7 measured 7.27.5 again, with 7.27.6 (no report) in the same rotation, the A/B of 7.27.10 measured 7.27.7 again (7.27.8 and 7.27.9 changed no measured code), the A/B of 7.27.11 measured 7.27.10 again, the A/B of 7.28.0 measured 7.27.11 again (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter, are inside it), the A/B of 7.28.2 measured 7.28.0 again (7.28.1, the agents' pid file, is inside it), the A/B of 7.28.4 measured 7.28.2 again (7.28.3, the stop of the agent, is inside it), the short A/B of 7.28.5 measured 7.28.4 again, only the figures of the treedb and of the inter-yuno events, and the short A/B of 7.28.8 measured 7.28.5 again, only the inter-yuno events (7.28.6 and 7.28.7 changed no measured code), the A/B of 7.29.0 measured 7.28.8 again (7.28.9 to 7.28.11 shipped no study and are inside it), the A/B of 7.29.2 measured 7.29.0 again (7.29.1 changed no C of the libraries or yunos, only a comment in `helpers.c` and a new test), the A/B of 7.29.3 measured 7.29.2 again, the A/B of 7.30.0 measured 7.29.3 again, pinned to one CPU for the first time, the A/B of 7.31.0 measured 7.30.0 again (7.30.1 to 7.30.26 shipped no study and are inside it), and the A/B of 7.31.1 measured 7.31.0 again; their figures are in the sections below. Between two such
 reports a figure can move by a few percent with no change of the code (the
 master open of 7.25.20 measured 78.2 ms in its own report and 82.4 ms in the
 A/B of 7.25.21, another day): read a trend against the A/B of its report.
 
-| Figure | Unit | 7.25.4 | 7.25.5 | 7.25.20 | 7.25.21 | 7.25.22 | 7.26.0 | 7.26.9 | 7.27.0 | 7.27.5 | 7.27.7 | 7.27.10 | 7.27.11 | 7.28.0 | 7.28.2 | 7.28.4 | 7.28.5 | 7.29.0 | 7.29.2 | 7.29.3 | 7.30.0 | 7.31.0 |
-|--------|------|--------|--------|---------|---------|---------|--------|--------|--------|--------|--------|---------|---------|--------|--------|--------|--------|--------|--------|--------|--------|
-| Appends per second (`test_topic_pkey_integer`, 4 link layouts) | appends/s | 220,120 | 221,588 | 226,720 | 225,883 | 224,185 | 223,864 | 223,770 | 229,502 | 226,311 | 232,605 | 225,186 | 228,739 | 422,850 | 434,385 | 422,318 | - | 430,866 | 429,111 | 419,306 | 430,594 | 411,868 |
-| Open a store as master, 20 000 md2 files (`perf_timeranger2`) | ms | 92.5 | 80.8 | 78.2 | 81.9 | 79.6 | 81.9 | 79.9 | 82.2 | 81.1 | 78.8 | 79.3 | 79.0 | 77.4 | 76.5 | 81.8 | - | 78.5 | 76.0 | 77.1 | 79.7 | 83.0 |
-| A tm query of one minute of a key | ms | 12.7 | 7.4 (migrated) | 7.35 | 7.66 | 7.47 | 12.8 (every row) | 12.5 | 12.8 | 13.2 | 12.9 | 13.2 | 12.9 | 12.9 | 13.0 | 13.4 | - | 12.9 | 12.9 | 12.6 | 12.7 | 13.7 |
-| treedb: update a node in memory (`perf_tr_treedb`) | us | 3.92 | 2.92 | 2.32 | 2.32 | 2.41 | 2.49 | 2.29 | 2.46 | 2.36 | 2.36 | 2.37 | 2.43 | 1.14 | 1.14 | 1.22 | 1.16 | 1.18 | 1.17 | 1.18 | 1.14 | 1.17 |
-| treedb: update a node and save it | us | 11.75 | 10.81 | 7.66 | 7.77 | 7.75 | 7.80 | 7.48 | 7.84 | 7.62 | 7.59 | 7.70 | 7.90 | 4.05 | 4.07 | 4.25 | 4.10 | 4.19 | 4.27 | 4.36 | 4.11 | 4.27 |
-| treedb: link or unlink two nodes | us | 11.27 | 11.09 | 8.65 | 8.71 | 8.63 | 8.65 | 7.54 | 7.76 | 7.48 | 7.38 | 7.58 | 7.94 | 4.59 | 4.61 | 4.81 | 4.70 | 4.59 | 4.72 | 4.78 | 4.70 | 4.71 |
-| C_TREEDB: open 40 treedbs whose schema did not change (`perf_c_treedb`) | s | 1.84 | 0.649 | 0.318 | 0.340 | 0.333 | 0.335 | 0.359 | 0.383 | 0.374 | 0.331 | 0.344 | 0.357 | 0.256 | 0.253 | 0.325 | 0.266 | 0.267 | 0.272 | 0.269 | 0.253 | 0.310 |
-| One agent audit record of 300 bytes (`perf_rotatory`) | ns | 6,194 | 554 | 572 | 593 | 568 | 570 | 579 | 578 | 573 | 572 | 559 | 564 | 564 | 558 | 603 | - | 567 | 571 | 577 | 567 | 605 |
-| Event loop echo, 1 KB messages (`perf_yev_ping_pong`) | K msg/s | 152.2 | 150.5 | 150.1 | 147.1 | 150.5 | 149.0 | 146.5 | 144.9 | 143.1 | 148.3 | 145.3 | 147.1 | 151.4 | 147.6 | 143.2 | - | - | - | - | 148.9 | 142.0 |
-| TCP echo through the gobj stack (`perf_tcp_test4`) | round trips/s | 38,706 | 39,344 | 38,191 | 39,715 | 38,292 | 39,511 | 39,034 | 38,744 | 38,301 | 39,107 | 38,877 | 39,035 | 63,478 | 62,915 | 58,567 | - | 61,798 | 60,964 | 61,740 | 64,160 | 61,380 |
+| Figure | Unit | 7.25.4 | 7.25.5 | 7.25.20 | 7.25.21 | 7.25.22 | 7.26.0 | 7.26.9 | 7.27.0 | 7.27.5 | 7.27.7 | 7.27.10 | 7.27.11 | 7.28.0 | 7.28.2 | 7.28.4 | 7.28.5 | 7.29.0 | 7.29.2 | 7.29.3 | 7.30.0 | 7.31.0 | 7.31.1 |
+|--------|------|--------|--------|---------|---------|---------|--------|--------|--------|--------|--------|---------|---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| Appends per second (`test_topic_pkey_integer`, 4 link layouts) | appends/s | 220,120 | 221,588 | 226,720 | 225,883 | 224,185 | 223,864 | 223,770 | 229,502 | 226,311 | 232,605 | 225,186 | 228,739 | 422,850 | 434,385 | 422,318 | - | 430,866 | 429,111 | 419,306 | 430,594 | 411,868 | 428,805 |
+| Open a store as master, 20 000 md2 files (`perf_timeranger2`) | ms | 92.5 | 80.8 | 78.2 | 81.9 | 79.6 | 81.9 | 79.9 | 82.2 | 81.1 | 78.8 | 79.3 | 79.0 | 77.4 | 76.5 | 81.8 | - | 78.5 | 76.0 | 77.1 | 79.7 | 83.0 | 81.2 |
+| A tm query of one minute of a key | ms | 12.7 | 7.4 (migrated) | 7.35 | 7.66 | 7.47 | 12.8 (every row) | 12.5 | 12.8 | 13.2 | 12.9 | 13.2 | 12.9 | 12.9 | 13.0 | 13.4 | - | 12.9 | 12.9 | 12.6 | 12.7 | 13.7 | 12.6 |
+| treedb: update a node in memory (`perf_tr_treedb`) | us | 3.92 | 2.92 | 2.32 | 2.32 | 2.41 | 2.49 | 2.29 | 2.46 | 2.36 | 2.36 | 2.37 | 2.43 | 1.14 | 1.14 | 1.22 | 1.16 | 1.18 | 1.17 | 1.18 | 1.14 | 1.17 | 1.13 |
+| treedb: update a node and save it | us | 11.75 | 10.81 | 7.66 | 7.77 | 7.75 | 7.80 | 7.48 | 7.84 | 7.62 | 7.59 | 7.70 | 7.90 | 4.05 | 4.07 | 4.25 | 4.10 | 4.19 | 4.27 | 4.36 | 4.11 | 4.27 | 4.17 |
+| treedb: link or unlink two nodes | us | 11.27 | 11.09 | 8.65 | 8.71 | 8.63 | 8.65 | 7.54 | 7.76 | 7.48 | 7.38 | 7.58 | 7.94 | 4.59 | 4.61 | 4.81 | 4.70 | 4.59 | 4.72 | 4.78 | 4.70 | 4.71 | 4.59 |
+| C_TREEDB: open 40 treedbs whose schema did not change (`perf_c_treedb`) | s | 1.84 | 0.649 | 0.318 | 0.340 | 0.333 | 0.335 | 0.359 | 0.383 | 0.374 | 0.331 | 0.344 | 0.357 | 0.256 | 0.253 | 0.325 | 0.266 | 0.267 | 0.272 | 0.269 | 0.253 | 0.310 | 0.266 |
+| One agent audit record of 300 bytes (`perf_rotatory`) | ns | 6,194 | 554 | 572 | 593 | 568 | 570 | 579 | 578 | 573 | 572 | 559 | 564 | 564 | 558 | 603 | - | 567 | 571 | 577 | 567 | 605 | 579 |
+| Event loop echo, 1 KB messages (`perf_yev_ping_pong`) | K msg/s | 152.2 | 150.5 | 150.1 | 147.1 | 150.5 | 149.0 | 146.5 | 144.9 | 143.1 | 148.3 | 145.3 | 147.1 | 151.4 | 147.6 | 143.2 | - | - | - | - | 148.9 | 142.0 | 146.3 |
+| TCP echo through the gobj stack (`perf_tcp_test4`) | round trips/s | 38,706 | 39,344 | 38,191 | 39,715 | 38,292 | 39,511 | 39,034 | 38,744 | 38,301 | 39,107 | 38,877 | 39,035 | 63,478 | 62,915 | 58,567 | - | 61,798 | 60,964 | 61,740 | 64,160 | 61,380 | 63,330 |
 
 A `-` in the 7.28.5 column is a figure its short study did not measure: no code
 of 7.28.5 is on its path, and its last measure is the column of 7.28.4. The
@@ -130,6 +131,48 @@ and reads every row of the key (a topic 7.25.22 had not marked took 402 ms).
 | Parse of an HTTP request | `ghttp_parser` alone, with one read or with reads of 16 bytes, and one huge header: what a peer can make the event loop do. From 7.30.0 on. |
 | Secret masking | What a dump or a trace pays to mask its credentials. Only with a trace on. From 7.30.0 on. |
 | Binary size | Each yuno is one fully static executable. The size includes OpenSSL and the whole framework. |
+
+## 7.31.1 against 7.31.0
+
+7.31.1 takes llhttp 9.4.4, the HTTP parser vendored in gobj-c: in the lenient
+header mode, which `ghttp_parser.c` turns on, a header value goes back to the
+fast scanner after a byte that only that mode accepts (nodejs/llhttp#882). It
+is the only C change, and `llhttp.c.o` is the only object of the SDK with
+other machine code; the stripped binaries keep the size of 7.31.0. Measured
+against 7.31.0, the last release with a study, before the tag (main at
+`3c53c9075`; the release commit after it changes no `.c` file): 10 rounds,
+each binary pinned to one CPU, the machine at rest. The same 66 figures as
+7.31.0, its figures here and in its `.json`, with no report page of its own.
+
+```{figure} ./_static/perf/perf_change_7.31.1.svg
+:alt: The change of the time one operation takes, 7.31.1 against 7.31.0. All 66 figures inside their noise: the two that left it in the first ten rounds, both faster (the C_TREEDB open of a newer literal and the parse of a 1 MB header), were measured again and are inside it.
+:width: 100%
+
+The change of the time one operation takes, left of zero is faster. Grey is
+within the noise of its rounds: every figure of this release.
+```
+
+```{figure} ./_static/perf/perf_throughput_7.31.1.svg
+:alt: Operations per second on one core in 7.31.1: 428,805 appends, 347,796 appends with a live reader, 562,754 records read, 406,467 records read page by page, 146,266 event loop echoes, 97,034 with an append, 63,330 TCP echoes, 47,531 with an append, 45,998 TLS echoes, 36,212 with an append, 11,687 BFF logins, 26,721 inter-yuno event round trips, 36,500 MQTT QoS 0 round trips and 74,718 HTTP round trips.
+:width: 100%
+
+Operations per second on one core, as each benchmark counts them.
+```
+
+No price, and no gain to claim. Two figures left their noise in the first ten
+rounds, both faster, and were measured again with ten more rounds of their two
+benchmarks:
+
+| Figure | First 10 rounds | 10 more rounds | The 20 together | Why |
+|--------|-----------------|----------------|-----------------|-----|
+| C_TREEDB: open a newer literal (`perf_c_treedb`) | -6.12% (t = -3.27) | +1.59% (t = 0.69) | -2.32% (t = -1.48) | Code that did not change: C_TREEDB runs none of llhttp. Placement. |
+| Parse a request header of 1 MB (`perf_micro`) | -2.0% (t = -3.02) | -0.62% (t = -0.47) | -1.32% (t = -1.79) | Inside its noise. |
+
+The two request parsers, on the code that did change, measured about 1%
+faster in both runs (a whole request -0.81%, t = -1.49, and a request in
+pieces -1.08%, t = -2.01, over the 20 rounds): inside their noise, too little
+to claim. The HTTP round trips through `C_PROT_HTTP_SR` moved -0.9%
+(t = -0.53).
 
 ## 7.31.0 against 7.30.0
 
@@ -1179,7 +1222,7 @@ The prices of 7.25.5, and what each one buys:
 | The agent audit record, built | +2-3% | Names are judged with their JSON escapes decoded, and a write-attr is looked for in every string: no secret reaches the audit file. |
 
 Every A/B of 7.25.5, change by change, with its rounds and spread, is in
-[`performance/c/README.md`](https://github.com/artgins/yunetas/blob/7.31.0/performance/c/README.md)
+[`performance/c/README.md`](https://github.com/artgins/yunetas/blob/7.31.1/performance/c/README.md)
 and in the [CHANGELOG](CHANGELOG.md) ("Performance, against 7.25.4").
 
 ## What one machine does with 7.25.5

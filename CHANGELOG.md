@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## v7.31.1 (2026-11-13)
+
+llhttp 9.4.4, the HTTP parser every yuno that speaks HTTP runs, and two
+faults of the tests that made the parallel suite fail by chance. A full
+release: `gobj-c` changes, and every yuno links it.
+
+- **Performance**, against 7.31.0 (the last release with a study): all 66
+  figures inside their noise, no price. `llhttp.c.o` is the only object with
+  other machine code; the stripped binaries keep their size. The two figures
+  that left their noise in the first 10 rounds, both faster, are inside it
+  measured again; the request parsers measured about 1% faster in both runs,
+  too little to claim
+  ([performance](https://doc.yuneta.io/performance),
+  [raw figures](performance/reports/7.31.1.json)).
+- **Test suite**, on the dev machine only (`ulimit -Sn 1024`): after a clean
+  SDK rebuild, 464 of 465, `test_c_udp_tx_refused` killed by its own 10 s
+  limit (below); with the fixes of the tests, 465 of 465.
+- **External libraries**: every one of `linux-ext-libs` checked against its
+  upstream before the release; none has a newer version (OpenSSL on 3.6).
+
 ### Changed
 
 - **llhttp 9.4.4** (vendored, `kernel/c/gobj-c/src/llhttp*`). No security
