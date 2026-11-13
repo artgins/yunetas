@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- **JS: gobj-ui 7.31.0 and its consumers on i18next 27.** The `kernel/js/gobj-ui`
+  submodule moves to 7.31.0 (npm): the number of SDK 7.31 and the peer floors
+  raised, among them **`i18next` `^27.1.1` (BREAKING for a consumer on i18next
+  26: raise both in one change)** and `vanilla-jsoneditor` `^3.13.1`, whose
+  lockfiles carry `fast-uri` 3.1.9, out of its advisory. i18next 27 changes
+  defaults no Yuneta app relies on (`fallbackLng` false instead of `dev`, an
+  empty translation falls back, canonical casing of the language code); no
+  change of code. `yunos/js` moves to gui_agent 1.3.10 and gui_treedb 1.2.9 on
+  it, and the `gui/` of the project templates takes the same ranges.
+  `kernel/js/gobj-js` moves to its development tooling (vite 8.3.8, vitest 5.1,
+  jsdom 31); nothing published changes, the package stays 7.30.0.
+
 ## v7.31.1 (2026-11-13)
 
 llhttp 9.4.4, the HTTP parser every yuno that speaks HTTP runs, and two
