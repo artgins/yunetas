@@ -26,6 +26,20 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
+- **The control center refuses a knocking node that presents another key,
+  and says nothing** (`c_controlcenter.c`, seen 2026-11-14 at the node uuid
+  change of 7.31.3). A node uuid that knocked once with a key keeps that key
+  in its `knocking` record; when the same uuid comes back with another key
+  (its agent made a new pair), the record is not updated (`last_seen` stops)
+  and the identity card is refused with no log line on either side: the
+  agent only says *"EV_ON_OPEN_ERROR: cannot open connection"*, the control
+  center nothing. An operator who checks the knocking key before
+  `accept-node` (as the docs say) sees the old one. Proposed: update the
+  knocking record with the key presented (it is what the operator compares),
+  and log the refusal once per transition (WARNING, `node_id`,
+  `presented_spki`); the agent logs the comment of a refused identity card.
+  Propose before touching (consolidated).
+
 - **`test_c_fs` stalled once in a full `-j8` suite on a staging node** (7.27.7
   release suite, 2026-10-22; once already in the first 7.27.6 run, whose log
   was lost). Phase 0 passed; right after the test replaces the two inotify
