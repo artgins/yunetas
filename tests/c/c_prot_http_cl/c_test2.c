@@ -53,6 +53,11 @@
  *             is dropped and closes later, when the write ends. A request
  *             sent in between is refused (-1), with ONE warning of its own.
  *
+ *          The server has ONE channel, so a step that ends on the close of
+ *          its client starts the next one only when the server has seen
+ *          that close too. On a loaded machine (ctest -j8 on riscv64) the
+ *          next client came first and was refused ("no free child tree").
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -160,6 +165,8 @@ typedef struct _PRIVATE_DATA {
     int messages_ended;         // the last EV_ON_MESSAGE of a raw response
     gbuffer_t *received;        // the bytes the server got in this step
     BOOL step_done;
+    int server_channels;        // connections the server has open
+    BOOL step_waits_server;     // the next step waits for the server to see the close
     char *expected_form;
 } PRIVATE_DATA;
 
@@ -796,7 +803,11 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_stop(priv->gobj_client);
     }
     set_timeout(priv->timer, 10*priv->timeout);
-    start_step(gobj);
+    if(priv->server_channels > 0) {
+        priv->step_waits_server = TRUE;
+    } else {
+        start_step(gobj);
+    }
 
     JSON_DECREF(kw)
     return 0;
@@ -809,7 +820,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->gobj_client) {
+    if(src == priv->gobj_input_side) {
+        priv->server_channels++;
+
+    } else if(src == priv->gobj_client) {
         if(priv->step == STEP_FORMS) {
             send_forms(gobj);
 
@@ -1026,7 +1040,14 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->gobj_client && priv->step != STEP_FORMS && priv->step != STEP_SLOW &&
+    if(src == priv->gobj_input_side) {
+        priv->server_channels--;
+        if(priv->step_waits_server && priv->server_channels == 0) {
+            priv->step_waits_server = FALSE;
+            start_step(gobj);
+        }
+
+    } else if(src == priv->gobj_client && priv->step != STEP_FORMS && priv->step != STEP_SLOW &&
             priv->step < STEP_END && !priv->step_done) {
         priv->step_done = TRUE;
         int expected = 1;
