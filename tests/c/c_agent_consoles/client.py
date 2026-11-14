@@ -584,7 +584,7 @@ async def joiner_not_read(op):
     routes = ((await consoles(op)).get("paced") or {}).get("routes") or {}
     check("slow joiner: the session that does not read is off the console: %s" % list(routes),
         len(routes) == 1)
-    got_n = await drain(n, 30)
+    got_n = await drain(n, 90)     # a budget too: 30 s did not read its whole backlog on a riscv64 board
     check("slow joiner: its backlog ends with the close of the console for it: %s" % (
             [f.get("event") for f in got_n[-1:]]),
         bool(got_n) and got_n[-1].get("event") == "EV_TTY_CLOSE" and
