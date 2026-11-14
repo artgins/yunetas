@@ -415,9 +415,13 @@ async def joiner_near_the_deadline(op):
     the deadline it had (before the fix the console was closed, and its
     process killed, at that deadline). The agent's console timer has a
     grain of 1 s: a deadline fires up to 1 s late, so the console is
-    looked for 4.3 s after the join (the old deadline fired by then), and
-    the close is expected from 5 s to 7.2 s after it (a period restarted at
-    the old deadline, not at the join, ends 7.5 s after it or later)"""
+    looked for 4.3 s after the join (the old deadline fired by then). Its
+    pause_deadline then says when its period started: 4.6 to 6 s after the
+    join (a period from the join, the join taken up to 1 s late), not 7.5 s
+    or later (a period restarted at the old deadline). Read from the
+    agent's state, not timed from the close: under ctest -j8 the timer fired
+    1.5 s late and the close came 8.7 s after the join. The close comes
+    after that deadline, at most 3 s after it."""
     o = await session()
     j = await session()
     if o is None or j is None:
@@ -432,6 +436,7 @@ async def joiner_near_the_deadline(op):
         if len(routes) == 1 and deadlines and deadlines[0]:
             left = deadlines[0] / 1000.0 - time.monotonic()
             if 2.5 <= left <= 3.0:
+                opener_route = list(routes)[0]
                 break
         left = None
         await asyncio.sleep(0.05)
@@ -462,14 +467,20 @@ async def joiner_near_the_deadline(op):
             " the console lives, with both sessions: %s" % (
             time.monotonic() - t_join, time.monotonic() - t_join - left, list(routes)),
         len(routes) == 2 and not t_close)
+    deadline = (routes.get(opener_route) or {}).get("pause_deadline")
+    new_deadline = deadline / 1000.0 - t_join if deadline else None
+    check("joiner near the deadline: the period of the opener that does not read starts at the join:"
+            " its deadline %s s after it" % (
+            "%.1f" % new_deadline if new_deadline is not None else "?"),
+        new_deadline is not None and 4.6 <= new_deadline <= 6.0)
     try:
         await asyncio.wait_for(task, 10)
     except asyncio.TimeoutError:
         pass
     after = t_close[0] - t_join if t_close else -1
-    check("joiner near the deadline: the opener that does not read is taken off a whole"
-            " console_pause_timeout (5 s) after the join: %.1f s" % after,
-        4.6 <= after <= 7.2)
+    check("joiner near the deadline: the opener that does not read is taken off at that deadline:"
+            " %.1f s after the join" % after,
+        new_deadline is not None and new_deadline - 0.1 <= after <= new_deadline + 3.0)
     check("joiner near the deadline: and the console is closed", await wait_for(
         lambda: _absent(op, "near"), 5))
     o.close()
@@ -570,7 +581,10 @@ async def joiner_not_read(op):
     data = bytearray()
     end = time.monotonic() + 180    # a budget, not a bound: 2.3 M of 3 M lines in 60 s on a riscv64 board
     while time.monotonic() < end:
-        iev = await r.recv(10)
+        #   Nothing comes while the joiner holds the console paused, up to
+        #   console_pause_timeout and the grain of the agent's timer, later
+        #   on a loaded machine: 10 s ended the output early under ctest -j8
+        iev = await r.recv(30)
         if iev is None:
             break
         if iev.get("event") == "EV_TTY_DATA":
