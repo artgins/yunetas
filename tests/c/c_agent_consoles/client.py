@@ -361,7 +361,7 @@ async def flood_not_read(op, pid):
         "flood" in await consoles(op))
     n_bytes = 0
     closed = False
-    end = time.monotonic() + 20
+    end = time.monotonic() + 60     # a budget, not a bound: 12 MB in 20 s on a riscv64 board
     while time.monotonic() < end and n_bytes <= 20000000 and not closed:
         iev = await n.recv(end - time.monotonic())
         if iev is None:
@@ -568,7 +568,7 @@ async def joiner_not_read(op):
     await r.frames(1)
     write_tty(r, "paced", SEQ_COMMAND)
     data = bytearray()
-    end = time.monotonic() + 60
+    end = time.monotonic() + 180    # a budget, not a bound: 2.3 M of 3 M lines in 60 s on a riscv64 board
     while time.monotonic() < end:
         iev = await r.recv(10)
         if iev is None:

@@ -6528,7 +6528,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  fired (drops_timer_armed back to false), checked at each 100 ms
      *  tick, at most PAR_WAIT_MS / DROPS_WAIT_MS: a stall of the loop
      *  delays them, it does not reorder them; a timer that never fires
-     *  fails, loudly.
+     *  fails, loudly. Phase 17 waits for the rate tick that measures the
+     *  3 messages of phase 16, at most two ticks: a fixed window of one
+     *  tick held two of them on a slow machine, and the second read 0.
      */
     if(priv->phase == 2) {
         json_t *in_flight = par_run_in_flight(gobj, priv->client1);
@@ -6555,6 +6557,18 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->result += fail(gobj, "the drops timer did not fire in time",
                 priv->phase == 14? "phase 14" : "phase 15");
             priv->phase = 18;
+        }
+    }
+
+    if(priv->phase == 17) {
+        if(gobj_read_integer_attr(priv->cc, "txMsgsec") == 0 ||
+                gobj_read_integer_attr(priv->cc, "rxMsgsec") == 0) {
+            if(!test_msectimer(priv->t_wait)) {
+                set_timeout(priv->timer, 100);
+                KW_DECREF(kw)
+                return 0;
+            }
+            // test_stop_outside_shutdown() says it
         }
     }
 
@@ -6657,7 +6671,8 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         case 16:
             priv->result += test_rates_read(gobj);
-            set_timeout(priv->timer, RATES_TICK_MS + 500);  // a tick with the 3 messages
+            priv->t_wait = start_msectimer(2*RATES_TICK_MS + 500);  // a tick with the 3 messages
+            set_timeout(priv->timer, 100);
             KW_DECREF(kw)
             return 0;
         case 17:

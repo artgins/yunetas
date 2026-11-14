@@ -609,11 +609,20 @@ async def console_while_the_link_is_down(op, in_session):
     await link_frames_until(lambda: flood_bytes.get("t6"), 5)
     cc_reading.clear()
     w.write(cc_command("open-console", {"name": "tj", "process": "yes", "cwd": "/yuneta"}))
-    await asyncio.sleep(1)      # the link holds t6 paused, and joined tj
+    #   The link holds t6 paused (its queue fills while the control center
+    #   does not read), and joined tj. Waited for, not slept: under ctest -j8
+    #   one second was not always enough for yes to fill the queue
+    await asyncio.sleep(1)
+    end = time.monotonic() + 10
+    paused_before = []
+    while True:
+        r = (await op.ask("list-consoles")) or {}
+        paused_before = [n for n, rt in (((r.get("data") or {}).get("t6") or {}).get("routes") or {}).items()
+            if rt.get("pause")]
+        if paused_before or time.monotonic() >= end:
+            break
+        await asyncio.sleep(0.2)
     tj_before = await console_routes(op, "tj")
-    r = (await op.ask("list-consoles")) or {}
-    paused_before = [n for n, rt in (((r.get("data") or {}).get("t6") or {}).get("routes") or {}).items()
-        if rt.get("pause")]
     in_session.clear()
     n_links = len(cc_writer)
     w.close()

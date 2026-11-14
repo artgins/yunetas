@@ -19,7 +19,10 @@
  *                 grows less than 12 MB (about the bound and one read each).
  *                 The transport of each, whose write in flight the peer
  *                 never takes, says its own abort at timeout_stop_tx (3 s
- *                 here, after all the drops).
+ *                 here, after all the drops). The kernel aborts at its
+ *                 first probe past it: some seconds later (7 s measured on
+ *                 x86, 16 s on the riscv64 kernel of an Orange Pi), so the
+ *                 guard of each case is PHASE_GUARD_MS, not 20 s.
  *              2. One connection subscribes 100 filters (granted), then
  *                 sends SUBSCRIBEs of 16000 filters, refused by the protocol
  *                 past max_subscriptions_per_client: each is answered by a
@@ -56,6 +59,7 @@
 #define GATE_PORT           18122
 
 #define N_CONN              50
+#define PHASE_GUARD_MS      40000       // the drop, then the abort at timeout_stop_tx: 3 s ask for 16 s on a riscv64 kernel
 #define FLOOD_PINGREQ       10000       // the bound of packets before: never checked
 #define MAX_GROWTH_1        (12*1024*1024)
 
@@ -486,7 +490,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             flush_raw_clients(gobj);
             set_timeout_periodic(priv->timer_mem, 20);
-            set_timeout(priv->timer, 20000);
+            set_timeout(priv->timer, PHASE_GUARD_MS);
             break;
 
         case 1:
@@ -515,7 +519,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             flush_raw_clients(gobj);
             set_timeout_periodic(priv->timer_mem, 20);
-            set_timeout(priv->timer, 20000);
+            set_timeout(priv->timer, PHASE_GUARD_MS);
             break;
 
         case 2:

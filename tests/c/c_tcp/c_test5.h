@@ -29,6 +29,7 @@ GOBJ_DECLARE_GCLASS(C_TEST5);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_DROP_SEEN);     // posted at the drop of phase 2: it ends a turn later
 
 /***************************************************************
  *              Prototypes

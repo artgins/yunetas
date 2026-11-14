@@ -32,4 +32,4 @@ add_test(
         ${YUNETAS_BASE}/yunos/c/yuno_agent/build/yuneta_agent
         ${YUNETAS_BASE}/outputs/yunos/logcenter
 )
-set_tests_properties(${PROJECT_NAME} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+set_tests_properties(${PROJECT_NAME} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 660)

@@ -45,9 +45,15 @@
  *              2. 500 ms later: their EV_TX_READY must have come, once
  *                 each, and the second must still be disconnected ->
  *                 the other writes above
- *              3. 1 s later: the connection must have been dropped
- *                 (EV_DISCONNECTED) once, by the last; the C_TCP is stopped
- *              4. 1 s later: the C_TCP must be in ST_STOPPED
+ *              3. the connection must be dropped (EV_DISCONNECTED) by
+ *                 the last, within 5 s: the phase ends at the drop, a
+ *                 turn later (EV_DROP_SEEN, posted, off the publish of the
+ *                 C_TCP), or at the deadline; the C_TCP is stopped. Not a
+ *                 fixed window: under ctest -j8 the stack trace of the
+ *                 ERROR of the refused write took 1.6 s to print, and the
+ *                 window of 1 s ended before the drop was said
+ *              4. 1 s later: the C_TCP must be in ST_STOPPED, dropped
+ *                 once
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -70,6 +76,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void end_phase_of_the_drop(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -355,6 +362,21 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->disconnected++;
+    if(priv->phase == 2 && priv->disconnected == 1) {
+        clear_timeout(priv->timer);
+        gobj_post_event(gobj, EV_DROP_SEEN, 0, gobj);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The drop of phase 2 was said: the phase ends now
+ ***************************************************************************/
+PRIVATE int ac_drop_seen(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    end_phase_of_the_drop(gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -400,6 +422,23 @@ PRIVATE int ac_transport_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  Phase 2 ends: at the drop, or at its deadline without it
+ ***************************************************************************/
+PRIVATE void end_phase_of_the_drop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->disconnected != 1) {
+        test_fail(gobj, "TEST: a write that did not start did not drop the connection");
+    }
+    if(gobj_is_running(priv->gobj_tcp)) {
+        gobj_stop(priv->gobj_tcp);
+    }
+    priv->phase = 3;
+    set_timeout(priv->timer, 1000);
+}
+
+/***************************************************************************
  *  The phases
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -435,21 +474,23 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
             send_bad_writes(gobj);
             priv->phase = 2;
-            set_timeout(priv->timer, 1000);
+            set_timeout(priv->timer, 5000);     // the deadline of the drop
             break;
 
         case 2:
-            if(priv->disconnected != 1) {
-                test_fail(gobj, "TEST: a write that did not start did not drop the connection");
-            }
-            if(gobj_is_running(priv->gobj_tcp)) {
-                gobj_stop(priv->gobj_tcp);
-            }
-            priv->phase = 3;
-            set_timeout(priv->timer, 1000);
+            end_phase_of_the_drop(gobj);
             break;
 
         default:
+            if(priv->disconnected != 1) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL,
+                    "msg",          "%s", "TEST: the connection was not dropped once",
+                    "disconnected", "%d", priv->disconnected,
+                    NULL
+                );
+            }
             if(!gobj_in_this_state(priv->gobj_tcp, ST_STOPPED)) {
                 test_fail(gobj, "TEST: the stop of the C_TCP did not end (ST_WAIT_STOPPED for ever)");
             } else {
@@ -502,6 +543,7 @@ GOBJ_DEFINE_GCLASS(C_TEST5);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_DROP_SEEN);
 
 /***************************************************************************
  *
@@ -530,6 +572,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            ac_stopped,         0},
         {EV_RX_DATA,            ac_transport_event, 0},
         {EV_TX_READY,           ac_tx_ready,        0},
+        {EV_DROP_SEEN,          ac_drop_seen,       0},
         {0, 0, 0}
     };
 
@@ -545,6 +588,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            0},
         {EV_RX_DATA,            0},
         {EV_TX_READY,           0},
+        {EV_DROP_SEEN,          0},
         {0, 0}
     };
 

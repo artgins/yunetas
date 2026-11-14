@@ -105,6 +105,7 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger2;
     int step;
     uint64_t step_timeout;
+    int polls_past_timeout;
     char base[PATH_MAX];
     char store[PATH_MAX];
     char archive[PATH_MAX];
@@ -690,6 +691,7 @@ PRIVATE void next_step(hgobj gobj)
 
     priv->step++;
     priv->step_timeout = start_msectimer(STEP_TIMEOUT_MS);
+    priv->polls_past_timeout = 0;
 }
 
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -815,7 +817,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             break;
     }
 
-    if(priv->step > 0 && test_msectimer(priv->step_timeout)) {
+    /*
+     *  Failed at the SECOND poll past the deadline: the keeper's fsync()s
+     *  block the loop (33 s on a hard disk under ctest -j8), and the first
+     *  poll after them runs before the answers already in the sockets
+     */
+    if(priv->step > 0 && test_msectimer(priv->step_timeout) &&
+            ++priv->polls_past_timeout >= 2) {
         char detail[256];
         snprintf(detail, sizeof(detail),
             "step %d: shipped %d stored %d already %d refused %d, rsync shipped %d dropped %d failed %d",

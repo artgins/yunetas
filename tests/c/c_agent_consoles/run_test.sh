@@ -68,7 +68,7 @@ cp "$HERE/client.py" "$HERE/agent.json" "$WORK/"
 printf 'yuneta:x:0:0:yuneta:/yuneta:/bin/bash\n' > "$WORK/passwd"
 printf 'yuneta:x:0:yuneta\n' > "$WORK/group"
 
-timeout 240 unshare -rmn --pid --fork --mount-proc bash -c "
+timeout 600 unshare -rmn --pid --fork --mount-proc bash -c "
     ip link set lo up || exit 1
     mount -t tmpfs none /yuneta || exit 1
     mount --bind '$WORK/passwd' /etc/passwd || exit 1
