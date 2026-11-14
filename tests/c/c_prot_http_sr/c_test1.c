@@ -146,7 +146,7 @@
 #define STALL2_NOT_AFTER    (STALL2 + 2000)
 #define STALL2_MARGIN       1500        // the test looks every 5 ms, on a loaded machine; the drop of a wait measured from the look, 2 x STALL2, stays out
 #define STALL2_BEFORE       100         // the server may see a write before the test does
-#define STEP_LONG_WATCH     20000       // steps 14, 15, milliseconds: 10000 answers on a loaded board (14 needed 10.5 s at -j8 on riscv64); 15 measures its drop, not its watchdog
+#define STEP_WATCH          60000       // milliseconds: a step not ended by then fails. A guard only, no step is measured with it (15 measures its drop); at -j8 on riscv64 step 14 took 10.5 s and 16 about 25 s
 #define WINDOW_REQUESTS     30000       // step 16: over the max_tx_queue of its server, and that over MAX_POSTED_EVENTS
 #define FILL_REQUESTS       (MAX_TX_QUEUE + 1)  // answered in one turn: one in flight, max_tx_queue waiting
 #define SMALL_SOCKET_BUFFER 4096        // step 17: the buffers of its connection, both ends
@@ -544,7 +544,6 @@ PRIVATE void start_step(hgobj gobj)
         for(int i = 0; i < ASYNC_TOTAL; i++) {
             gbuffer_printf(priv->pipeline, "GET /async/%d HTTP/1.1\r\nHost: x\r\n\r\n", i);
         }
-        set_timeout(priv->timer, STEP_LONG_WATCH);
         set_timeout_periodic0(priv->timer_tick, 5);
 
     } else {
@@ -559,9 +558,6 @@ PRIVATE void start_step(hgobj gobj)
             ),
             gobj
         );
-        if(priv->step == STEP_ASYNC) {
-            set_timeout(priv->timer, STEP_LONG_WATCH);
-        }
         gobj_start(priv->gobj_client);
     }
 }
@@ -951,7 +947,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         do_tick(gobj);
     } else if(priv->step == 0) {
         start_step(gobj);
-        set_timeout(priv->timer, 10*priv->timeout);
+        set_timeout(priv->timer, STEP_WATCH);
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1144,7 +1140,7 @@ PRIVATE int ac_next_step(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->gobj_client = 0;
         gobj_stop(client);
     }
-    set_timeout(priv->timer, 10*priv->timeout);
+    set_timeout(priv->timer, STEP_WATCH);
     start_step(gobj);
 
     JSON_DECREF(kw)
