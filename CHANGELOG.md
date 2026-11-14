@@ -1,6 +1,14 @@
 # **Changelog**
 
-## Unreleased
+## v7.31.2 (2026-11-14)
+
+Nine MQTT defects found by running Mosquitto's own broker test suite against
+`mqtt_broker`, and a node uuid that two servers can no longer share. A LITE
+release: the `.c` changes are all in the MQTT module (`c_mqtt_broker.c`,
+`c_prot_mqtt2.c`), linked only by `mqtt_broker` and the MQTT gates, so only
+those are deployed, with `yuneta-node-uuid`. The suite ran on the dev
+machine only; no performance study was made for this release (its C changes
+touch no hot path of timeranger2, treedb or the event loop).
 
 ### Fixed
 
