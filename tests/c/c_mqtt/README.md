@@ -268,6 +268,10 @@ reading of each is paused, and each is dropped when nothing more is written
 for `timeout_close`, with one WARNING; the memory grows less than 12 MB
 (measured: 6.5-6.8 MB, the bound and one read each, and the clients' own
 buffers); then the transport of each says its abort at `timeout_stop_tx`.
+The kernel aborts at its first probe past that timeout, some seconds later
+(7 s measured on x86, 16 s on the riscv64 kernel of an Orange Pi), so each
+case has a guard of 40 s (`PHASE_GUARD_MS`; it was 20 s, and the Orange Pi
+failed it on every run).
 2. One connection subscribes 100 filters (granted), then sends SUBSCRIBEs of
 16000 times the filter `a`, refused past `max_subscriptions_per_client`, each
 answered by a SUBACK of 16 KB: paused, dropped, the memory growing less than

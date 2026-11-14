@@ -64,13 +64,16 @@ with no flow control would be taken off soon.
    session opens `near` (`yes`) and reads nothing: it waits alone, its
    pause renewed each period. Another session joins it 2.5 to 3 s before
    the deadline of that pause (read from `list-consoles`). 4.3 s after the
-   join the console must still be there with both routes, and the opener is
-   taken off (ONE WARNING, the console closed) 4.6 to 7.2 s after the join:
-   a whole `console_pause_timeout` (5 s) from the join, with the 1 s grain
-   of the agent's timer. Before the fix the console was closed, and its
-   process killed, at the deadline the opener had before the join; a period
-   restarted at that deadline instead of at the join ends 7.5 s after it or
-   later.
+   join the console must still be there with both routes, and the opener's
+   `pause_deadline` (from `list-consoles`) must be 4.6 to 6 s after the
+   join: a whole `console_pause_timeout` (5 s) from the join, the join taken
+   up to 1 s late. The opener is then taken off (ONE WARNING, the console
+   closed) from that deadline to 3 s after it. Before the fix the console
+   was closed, and its process killed, at the deadline the opener had
+   before the join; a period restarted at that deadline instead of at the
+   join puts it 7.5 s after the join or later. The deadline is read from
+   the agent, not timed from the close: under ctest -j8 the agent's timer
+   fired 1.5 s late, and the close came 8.7 s after the join.
 8. **A request padded with 1 MB.** A session opens `padmd` (`yes`) with a
    key of its own of 1 MB in `__md_iev__`, and reads nothing for 6 s: the
    agent grows less than 25 MB, and when it reads, the console goes on in
