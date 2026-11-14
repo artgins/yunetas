@@ -144,7 +144,7 @@ should_run() {
 # Startup
 # =============================================================================
 if [[ ! -f "${MQTT_CLI_JAR}" ]]; then
-    die "mqtt-cli.jar not found at ${MQTT_CLI_JAR}"
+    die "mqtt-cli.jar not found at ${MQTT_CLI_JAR} (run ${SCRIPT_DIR}/get_mqtt_cli.sh)"
 fi
 
 if ! java -version &>/dev/null; then

@@ -82,6 +82,12 @@
   `run_all.sh` runs it through a stand-in for the `mosquitto` binary and prints
   every test whose result changed against `baseline.txt`). README with what the
   stand-in translates, the classes of the failures and how to debug one test.
+- `yunos/c/mqtt_broker/tests/` is one directory per battery: `hivemq/` (with
+  `get_mqtt_cli.sh`, which downloads `mqtt-cli.jar` 4.57.0 and checks its
+  sha256; `run_hivemq_tests.sh` calls it when the jar is missing),
+  `connect_disconnect/` (its wrapper ran `python`, absent where only `python3`
+  is installed) and `mosquitto/`; `mqtt_broker.json` and an index README stay
+  at the top.
 - `c_mqtt/client_noqueue` step 7 expects DISCONNECT `0x95`; `c_mqtt/broker_sessions`
   cases 13 and 14 expect the server to close A at `timeout_close` after its
   DISCONNECT with Session Expiry 0 (one WARNING each), and B to find no session:

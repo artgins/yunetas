@@ -600,7 +600,29 @@ listed the delivered messages of that QoS too, a backlog that did not exist.
 Enable with
 `ycommand command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=<G> set=1 level=<L>`.
 
-## Conformance: Mosquitto's test suite
+## Tests
+
+Three batteries in
+[`yunos/c/mqtt_broker/tests/`](https://github.com/artgins/yunetas/tree/main/yunos/c/mqtt_broker/tests),
+one per directory; `tests/mqtt_broker.json` is the broker configuration of all three:
+
+| Directory | What it is | Result |
+|-----------|------------|--------|
+| `hivemq/` | HiveMQ MQTT CLI: its spec compliance checks (MQTT 3.1.1 and 5.0), functional tests and performance | 25 of 25 |
+| `connect_disconnect/` | Raw-packet CONNECT / DISCONNECT edge cases (Python) | 22 of 22 |
+| `mosquitto/` | Eclipse Mosquitto's own broker test suite (below) | 83 pass |
+
+```bash
+cd yunos/c/mqtt_broker/tests
+rm -rf /tmp/mqtt_broker_test
+mqtt_broker --config-file=mqtt_broker.json &         # listens on 1810
+
+(cd hivemq && ./run_hivemq_tests.sh)                 # downloads mqtt-cli.jar if missing (Java 11+)
+(cd connect_disconnect && ./test_connect_disconnect.sh)
+kill -INT %1
+```
+
+### Conformance: Mosquitto's test suite
 
 Eclipse Mosquitto's own broker tests (about 270, in Python) run against
 `mqtt_broker` through a stand-in for the `mosquitto` binary. The scripts, the

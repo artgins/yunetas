@@ -261,11 +261,11 @@ MQTT broker supporting v3.1, v3.1.1, and v5.0. Uses the `C_MQTT_BROKER` GClass f
 
 **Default deny list:** `test/nosubscribe`
 
-**Test suite** (in `tests/`):
-- `mqtt_connect_disconnect_test.py` — Connect/disconnect test with paho-mqtt
-- `mqtt_benchmark.py` — Throughput benchmark
-- `run_hivemq_tests.sh` — HiveMQ MQTT CLI conformance tests
-- `mqtt_broker.json` — Sample broker configuration
+**Tests** (in `tests/`, index in `tests/README.md`):
+- `hivemq/` — HiveMQ MQTT CLI battery: spec compliance, functional and performance (25 tests); `run_hivemq_tests.sh` downloads `mqtt-cli.jar` if missing
+- `connect_disconnect/` — raw-packet CONNECT / DISCONNECT edge cases (Python, 22 rows)
+- `mosquitto/` — Eclipse Mosquitto's broker test suite through a stand-in (`setup.sh`, `run_all.sh`)
+- `mqtt_broker.json` — broker configuration of the three
 
 ### emailsender
 

@@ -12,7 +12,7 @@
 # Prerequisites:
 #   - mqtt_broker must be running on BROKER_HOST:BROKER_PORT
 #   - Java 11+ must be installed
-#   - mqtt-cli.jar must be in the same directory
+#   - mqtt-cli.jar in the same directory (downloaded by get_mqtt_cli.sh if missing)
 #
 # Environment:
 #   BROKER_HOST  - Broker hostname (default: 127.0.0.1)
@@ -58,9 +58,11 @@ check_prerequisites() {
     fi
 
     if [[ ! -f "${SCRIPT_DIR}/mqtt-cli.jar" ]]; then
-        log_err "mqtt-cli.jar not found in ${SCRIPT_DIR}/"
-        log_err "Download from: https://github.com/hivemq/mqtt-cli/releases"
-        ok=0
+        log_warn "mqtt-cli.jar not found in ${SCRIPT_DIR}/, downloading it"
+        if ! bash "${SCRIPT_DIR}/get_mqtt_cli.sh"; then
+            log_err "Cannot download mqtt-cli.jar (see get_mqtt_cli.sh)"
+            ok=0
+        fi
     fi
 
     [[ ${ok} -eq 1 ]] || exit 1
