@@ -134,16 +134,14 @@ application's gate (one application).
   spawning yunos, `/var/crash`). An OCI image as the build environment is the
   portable form of the matrix option. Not urgent while every node is ours.
 
-- **The node uuid** (`yuneta-node-uuid`, after 7.29.1; after 7.31.1 only a
-  chip identifier is an identity, any other machine gets a random uuid known
-  by its fingerprint). The cases left as they are:
-    - two machines that got the same uuid from a shared DMI up to 7.31.x
-      keep it shared: a 7.31 file is its own fingerprint, and the DMI is all
-      it has until its first `ensure` of the new script records the interfaces.
-      `set` gives one of them its own (done on the one pair found);
-    - a machine whose network cards are ALL replaced at once looks like
-      another machine to its fingerprint and gets a new uuid (the warning
-      says how to `set` the old one back);
+- **The node uuid** (`yuneta-node-uuid`, after 7.29.1; since 7.31.3 a
+  function of the machine: the chip, or the DMI uuid + the lowest on-board
+  MAC). The cases left as they are:
+    - a card added with a LOWER MAC than the on-board ones changes the uuid
+      (warned): the uuid follows the hardware, and telling an on-board
+      interface from an added one portably has no answer in `/sys`;
+    - two VMs cloned with the same MAC AND the same DMI uuid share it: no
+      identifier tells them apart;
     - the packages restart only the agents when the uuid changes: the yunos
       that run keep the old one until restarted (documented, not done);
     - containers that already hold a host-DMI uuid keep it (no uuid a node

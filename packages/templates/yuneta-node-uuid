@@ -11,26 +11,21 @@
 #     - a disk image taken after the agent ran carries uuid.json inside, so
 #       every box written from it claims the SAME uuid.
 #
-#   This script gives the node a uuid that two machines never share, and
-#   keeps it while the machine is the same. Two kinds of machine, two rules:
+#   This script makes the uuid a FUNCTION OF THE MACHINE: the same box
+#   gives the same uuid after any reinstall, two boxes never give the same,
+#   and a clone gives its own on its first boot. The stored file is only the
+#   answer written down, for node_uuid() to read.
 #
 #     - a box with an identifier burned into its CHIP (an Arm board: the SoC
 #       serial number, a devicetree serial-number) takes its uuid from it.
-#       The same box gives the same uuid after any reinstall, and a clone
-#       gives its own on its first boot: a field box is known by it (a label
-#       printed with it, a controller declared with it survive a new card);
-#     - any other machine (an x86 server, a VM) gets a RANDOM uuid at its
-#       first start, stored. Its DMI uuid and its MACs are no identity: they
-#       are whatever the vendor or the hypervisor wrote, and two Supermicro
-#       boards of one batch gave the same DMI product_uuid
-#       (00000000-0000-0000-0000-45d44083cb04), so up to 7.31.x two servers
-#       got the same node uuid. They are its FINGERPRINT instead, recorded
-#       with the uuid and used for one thing only: to tell that the disk is
-#       now in OTHER hardware (a cloned disk or image), which then gets a uuid
-#       of its own. The fingerprint does not have to be unique in the world,
-#       only to tell this machine from the one a copy runs on. A reinstall
-#       that removes /yuneta/store gives a new uuid: the agent's key is new
-#       then too, and the node is accepted again anyway.
+#       A field box is known by it: a label printed with it, a controller
+#       declared with it survive a new card;
+#     - any other machine (an x86 server, a VM) takes it from its DMI uuid
+#       AND its lowest permanent on-board MAC, together. Neither is enough
+#       alone: two Supermicro boards of one batch gave the same DMI
+#       product_uuid (00000000-0000-0000-0000-45d44083cb04), so up to 7.31.1
+#       two servers got the same node uuid; and a cloned VM may keep its MAC
+#       while the hypervisor gives it a new DMI uuid.
 #
 #   It is /usr/libexec/yuneta/yuneta-node-uuid, root's, outside
 #   /yuneta (which belongs to yuneta), and the package's postinst / %post,
@@ -42,58 +37,41 @@
 #   to yuneta (setpriv), in yuneta's own directory: root never opens a path
 #   that yuneta can turn into a link.
 #
-#   The identity, first available wins (the one already recorded wins over
-#   the other, so a kernel that starts exposing another does not move it):
+#   Sources, first available wins:
 #
 #     devicetree-serial   /sys/firmware/devicetree/base/serial-number
 #                         (Raspberry Pi compute modules, many Arm boards)
 #     soc-serial          /sys/devices/soc0/serial_number (NXP i.MX, the
 #                         SpacemiT K1 of an Orange Pi RV2, others)
-#     random              none of them: any other machine
+#     machine             "dmi=<DMI product_uuid>,mac=<lowest MAC>": the DMI
+#                         uuid of /sys/class/dmi/id/product_uuid (x86, VMs)
+#                         and the lowest permanent MAC of an on-board wired
+#                         interface (not USB, not wireless, not a random or
+#                         set MAC), either part empty when there is none
+#     random              none of the above: a reinstall changes it (warned)
 #
-#   The fingerprint of a machine with no chip identifier:
+#   The uuid is a version 8 uuid (RFC 9562) made from the first 122 bits of
+#   sha256("yuneta-node-uuid:<source>:<value>"): it does not reveal the serial
+#   number or the MAC it comes from. The formula never changes. The file
+#   also records, made the same way, the DMI uuid ("dmi_id"), the MAC the
+#   uuid was made from ("mac_id") and every on-board MAC ("ethernet_ids").
 #
-#     "dmi_id"            /sys/class/dmi/id/product_uuid (x86, VMs)
-#     "ethernet_ids"      every permanent MAC of an on-board wired interface
-#                         (not USB, not wireless, not a random or set MAC)
+#   The stored uuid is REPLACED by the one this hardware gives whenever they
+#   differ, with a copy of the old file and a warning: a disk in other
+#   hardware, a card added with a LOWER MAC (the uuid follows the hardware:
+#   the same change would give the new uuid at the next reinstall anyway),
+#   a uuid of 7.29.1-7.31.2 (from the DMI alone, a MAC alone, or random), a
+#   uuid made from a placeholder. A value this script takes for a
+#   placeholder is no identity: every box of the model gives it (the
+#   devicetree serial-number of an Orange Pi RV2 is "0123456789ABCDEF" on
+#   every board). It is KEPT only when something is MISSING at a start and
+#   nothing else is here:
 #
-#   A uuid made from a value is a version 8 uuid (RFC 9562) made from the
-#   first 122 bits of sha256("yuneta-node-uuid:<source>:<value>"): it does
-#   not reveal the serial number or the MAC it comes from. The fingerprint is
-#   recorded the same way, as such uuids, never as the values. The formula
-#   never changes: the field boxes hold uuids made with it, and the nodes of
-#   7.29.1 to 7.31.x hold uuids it made from their DMI ("dmi-product-uuid")
-#   or a MAC ("ethernet-mac"), which they keep (below).
-#
-#   A uuid already stored is KEPT while the machine is the same:
-#
-#     - a uuid of the chip: while the chip gives the value it was made
-#       from. A chip that gives no value at a start (a driver that did not
-#       load) keeps it too, with a warning; one that gives another value is
-#       OTHER hardware (a cloned card) and gets its own. A value this script
-#       takes for a placeholder is no identity: every box of the model gives
-#       it (the devicetree serial-number of an Orange Pi RV2 is
-#       "0123456789ABCDEF" on every board), so two boxes, cloned or installed
-#       apart, would claim the same uuid. A uuid made from one (of the chip,
-#       or of the DMI up to 7.31.x) is REPLACED, with a copy of the old file
-#       and a warning: by the chip's when the box has a real one, by a random
-#       one otherwise;
-#     - a random uuid, and one that 7.29.1-7.31.x made from the DMI or a
-#       MAC: while the fingerprint says this is the same machine. Where the
-#       recorded machine and this one both have on-board interfaces, it is
-#       the same when ANY recorded interface is here (a card added, one
-#       missing at a boot: kept); where one of them has none, when the DMI
-#       uuid is the same; with nothing to compare, it is kept. The interfaces
-#       seen are added to it. Otherwise this is OTHER hardware (a cloned
-#       disk) and it gets a uuid of its own: the same box with all its cards
-#       replaced at once looks the same, and `set` gives it its old uuid
-#       back. A file of 7.29.1-7.31.x is its own fingerprint: its uuid IS the
-#       one of the DMI or of a MAC it was made from, and the first `ensure`
-#       records the rest. Two machines that shared a DMI uuid up to 7.31.x
-#       keep it shared, until `set` gives one of them its own;
-#     - a random is replaced by the chip's uuid when a chip identifier
-#       appears, so a system installed where /sys was not the box's own (an
-#       image built in a chroot) gets the box's uuid on its first boot;
+#     - the chip gives no value (a driver that did not load);
+#     - the interface the machine uuid was made from is missing, the DMI uuid
+#       is the recorded one, and the lowest interface here is a recorded one
+#       (no new card); or no interface and no DMI is read at all;
+#     - a random, while there is no identifier at all;
 #     - in a container (Docker, Podman, LXC, systemd-nspawn, containerd, a
 #       BuildKit `RUN` step: anything out of the initial pid namespace) /sys
 #       is the host's, the same for every container of it: no hardware is
@@ -153,7 +131,8 @@
 #   uuid of its own when there is none.
 #
 #   A uuid written with `set` is MANUAL and never touched: the way to keep an
-#   identity that something already uses as a key.
+#   identity that something already uses as a key. `unset` goes back to the
+#   uuid of the hardware (a copy of the file is kept).
 #
 #   The agents and the yunos read the uuid once, when they start
 #   (node_uuid() keeps it in memory). After a change -- by `ensure` on other
@@ -172,6 +151,7 @@
 #                                     gives (as root; without root it says
 #                                     which sources it could not read)
 #       yuneta-node-uuid set <uuid>   fix the uuid by hand (as root)
+#       yuneta-node-uuid unset        back to the uuid of the hardware
 #
 #   The previous file is kept as uuid.json.replaced-<UTC time>[.<n>] whenever
 #   the uuid changes, one per change. Environment, for tests:
@@ -635,9 +615,9 @@ keep_a_copy() {
     cp -p "$UUID_FILE" "$name"
 }
 
-write_uuid_file() {    # uuid source ethernet_ids(lines) dmi_id created keep_copy(0|1) [container hostname]
-    local uuid="$1" source="$2" ids="$3" dmi_id="$4" created="$5" keep="$6" container="${7:-}" host="${8:-}"
-    local tmp ids_line="" dmi_line="" container_lines=""
+write_uuid_file() {    # uuid source ethernet_ids(lines) dmi_id mac_id created keep_copy(0|1) [container hostname]
+    local uuid="$1" source="$2" ids="$3" dmi_id="$4" mac_id="$5" created="$6" keep="$7" container="${8:-}" host="${9:-}"
+    local tmp ids_line="" dmi_line="" mac_line="" container_lines=""
     if ! mkdir -p "$UUID_DIR"; then
         log_error "cannot create $UUID_DIR"
         return 1
@@ -657,6 +637,9 @@ write_uuid_file() {    # uuid source ethernet_ids(lines) dmi_id created keep_cop
     if [ -n "$dmi_id" ]; then
         dmi_line="    \"dmi_id\": \"${dmi_id}\","$'\n'
     fi
+    if [ -n "$mac_id" ]; then
+        mac_line="    \"mac_id\": \"${mac_id}\","$'\n'
+    fi
     if [ -n "$container" ]; then
         # "hostname" always, "" when there is none: a random of no hostname
         container_lines="    \"container\": \"${container}\","$'\n'"    \"hostname\": \"${host}\","$'\n'
@@ -665,8 +648,8 @@ write_uuid_file() {    # uuid source ethernet_ids(lines) dmi_id created keep_cop
         log_error "cannot create a temporary file in $UUID_DIR"
         return 1
     fi
-    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n%s%s%s    "created": "%s"\n}\n' \
-            "$uuid" "$source" "$ids_line" "$dmi_line" "$container_lines" \
+    if ! printf '{\n    "uuid": "%s",\n    "source": "%s",\n%s%s%s%s    "created": "%s"\n}\n' \
+            "$uuid" "$source" "$ids_line" "$dmi_line" "$mac_line" "$container_lines" \
             "${created:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" > "$tmp"; then
         log_error "cannot write $tmp"
         rm -f "$tmp"
@@ -808,8 +791,42 @@ pick_chip() {
 }
 
 #
-#   The fingerprint entry of the DMI uuid, nothing when there is none (or it
-#   is a placeholder)
+#   The machine identifier of a box with no chip identifier: "dmi=<DMI
+#   uuid>,mac=<lowest permanent on-board MAC>", either part empty when it is
+#   missing (or a placeholder), nothing when both are. The two together: two
+#   boards of one batch that repeat the DMI uuid differ in their MACs, and a
+#   cloned VM that keeps its MAC gets a new DMI uuid.
+#
+machine_value() {
+    local dmi mac
+    dmi="$(hw_values dmi-product-uuid | head -n 1)"
+    mac="$(hw_values ethernet-mac | head -n 1)"
+    if [ -z "$dmi" ] && [ -z "$mac" ]; then
+        return 1
+    fi
+    printf 'dmi=%s,mac=%s' "$dmi" "$mac"
+}
+
+#
+#   The uuid this hardware gives: "<source> <uuid>", the chip first, then the
+#   machine identifier; nothing when there is neither
+#
+expected_identity() {
+    local picked v
+    if picked="$(pick_chip "$1")"; then
+        printf '%s %s' "${picked%% *}" "$(derive_uuid "${picked%% *}" "${picked#* }")"
+        return 0
+    fi
+    if v="$(machine_value)"; then
+        printf 'machine %s' "$(derive_uuid machine "$v")"
+        return 0
+    fi
+    return 1
+}
+
+#
+#   The fingerprint entries: the DMI uuid, the lowest MAC (the one the
+#   machine identifier was made from) and every MAC, as uuids
 #
 dmi_id_now() {
     local v
@@ -819,38 +836,11 @@ dmi_id_now() {
     fi
 }
 
-#
-#   Is this the machine a fingerprint was recorded on?
-#   ids_recorded dmi_recorded ids_now dmi_now. The interfaces decide where
-#   both have them (any one recorded here is enough), the DMI uuid where one
-#   of them has none; with nothing to compare, nothing says it is not.
-#
-same_machine() {
-    local ids_rec="$1" dmi_rec="$2" ids_now="$3" dmi_now="$4"
-    if [ -n "$ids_rec" ] && [ -n "$ids_now" ]; then
-        if known_interface_present "$ids_now" "$ids_rec"; then
-            return 0
-        fi
-        return 1
-    fi
-    if [ -n "$dmi_rec" ] && [ -n "$dmi_now" ]; then
-        if [ "$dmi_rec" = "$dmi_now" ]; then
-            return 0
-        fi
-        return 1
-    fi
-    return 0
-}
-
-#
-#   What tells the recorded machine from this one, for a message
-#
-fingerprint_difference() {    # ids_recorded ids_now
-    if [ -n "$1" ] && [ -n "$2" ]; then
-        printf 'none of its %s recorded network interfaces is here' \
-            "$(printf '%s\n' "$1" | sed '/^$/d' | wc -l)"
-    else
-        printf 'its DMI uuid is another'
+mac_id_now() {
+    local v
+    v="$(hw_values ethernet-mac | head -n 1)"
+    if [ -n "$v" ]; then
+        derive_uuid ethernet-mac "$v"
     fi
 }
 
@@ -859,6 +849,35 @@ fingerprint_difference() {    # ids_recorded ids_now
 #
 sorted_ids() {
     printf '%s\n' "$@" | sed '/^$/d' | sort -u
+}
+
+#
+#   A machine uuid that this hardware no longer gives because something is
+#   MISSING at this start, not because something else is here: the DMI uuid
+#   is the recorded one (or there is none on both sides), the interface it
+#   was made from is not here, and the lowest one here is a recorded one (no
+#   new card with a lower MAC). No interface at all is missing too.
+#
+machine_part_missing() {    # stored_dmi stored_mac stored_ids dmi_now ids_now mac_now
+    local sdmi="$1" smac="$2" sids="$3" dmi_now="$4" ids_now="$5" mac_now="$6"
+    if [ "$sdmi" != "$dmi_now" ]; then
+        if [ -n "$dmi_now" ] || [ -z "$sdmi" ]; then
+            return 1
+        fi
+    fi
+    if [ -z "$smac" ]; then
+        return 1
+    fi
+    if printf '%s\n' "$ids_now" | grep -qx "$smac"; then
+        return 1
+    fi
+    if [ -z "$mac_now" ]; then
+        return 0
+    fi
+    if printf '%s\n' "$sids" | grep -qx "$mac_now"; then
+        return 0
+    fi
+    return 1
 }
 
 random_uuid() {
@@ -900,6 +919,25 @@ random_is_ours() {    # host_now container_now pidns_now
     return 1
 }
 
+#
+#   Why the stored uuid is not the one this hardware gives, for a message
+#
+why_replaced() {    # stored_uuid stored_source expected_source
+    local uuid="$1" source="$2" src="$3"
+    if [ "$source" = "random" ] && random_made_in_a_container; then
+        printf 'it was made in %s, hostname %s, and this is no container (a system written from a copy of it: an image built there, a `docker export`)' \
+            "$(where_this_is "$(stored_field container)")" "$(stored_field hostname)"
+    elif is_hw_source "$source" && hardware_gives "$uuid" "$source" && ! identity_gives "$uuid" "$source"; then
+        printf 'it came from a placeholder %s that every box of this model gives (no identity: copies and other boxes claim it too)' "$source"
+    elif [ "$source" = "$src" ] && [ "$src" = "machine" ]; then
+        printf 'the DMI uuid or the lowest on-board network interface of this machine is another (OTHER hardware, a cloned disk, or a card with a lower MAC added; the uuid is a function of the hardware)'
+    elif [ "$source" = "$src" ]; then
+        printf 'its %s gives another value (OTHER hardware, a cloned card)' "$src"
+    else
+        printf 'the uuid of this node is now made from its hardware (%s), the same after any reinstall' "$src"
+    fi
+}
+
 RESTART_NOTE="the agents and the yunos running keep the old one until they restart: restart both agents, then every yuno (kill-yuno, run-yuno). Its control centers know the node by its uuid and its key, and the agents' start makes a new pair (yuneta-agent-cert: the key made for the old uuid is removed): accept the node again in each (accept-node node_id=<this uuid> spki_sha256=<its new key>)"
 
 #
@@ -907,9 +945,8 @@ RESTART_NOTE="the agents and the yunos running keep the old one until they resta
 #
 cmd_ensure() {    # installing(0|1)
     local installing="$1"
-    local stored_uuid stored_source stored_ids stored_dmi stored_created stored_host stored_container
-    local container host_now pidns_now ids_now dmi_now fp_ids fp_dmi keep_ids keep_dmi
-    local picked src val new why="" detail=""
+    local stored_uuid stored_source stored_created stored_ids stored_dmi stored_mac stored_host
+    local container host_now pidns_now ids_now dmi_now mac_now expected src new why
     container="$(hw_values container)"
     host_now="$(hw_values hostname)"
     pidns_now="$(hw_values pidns)"
@@ -918,15 +955,11 @@ cmd_ensure() {    # installing(0|1)
     stored_created="$(stored_field created)"
     stored_ids="$(stored_ethernet_ids)"
     stored_dmi="$(stored_field dmi_id)"
+    stored_mac="$(stored_field mac_id)"
     if [ -n "$stored_uuid" ] && ! [[ "$stored_uuid" =~ $UUID_RE ]]; then
         log_warning "$UUID_FILE holds no valid uuid ('$stored_uuid'), replacing it"
         stored_uuid=""
         stored_source=""
-        stored_ids=""
-        stored_dmi=""
-    fi
-    if ! [[ "$stored_dmi" =~ $UUID_RE ]]; then
-        stored_dmi=""
     fi
 
     if [ "$stored_source" = "manual" ] && [ -n "$stored_uuid" ]; then
@@ -957,7 +990,7 @@ cmd_ensure() {    # installing(0|1)
             stored_host="$(stored_field hostname)"
         fi
         new="$(random_uuid)" || return 1
-        write_uuid_file "$new" "random" "" "" "" 1 "$container" "$host_now" || return 1
+        write_uuid_file "$new" "random" "" "" "" "" 1 "$container" "$host_now" || return 1
         if [ -n "$stored_uuid" ]; then
             log_warning "node uuid was $stored_uuid, made in a container of hostname ${stored_host:-(none)} (an image built with it, or a copy of that container), this is ${host_now}: now $new; $RESTART_NOTE"
         elif [ -z "$host_now" ]; then
@@ -969,105 +1002,95 @@ cmd_ensure() {    # installing(0|1)
     fi
 
     #
-    #   The stored uuid: kept while this is the machine it was made on
+    #   On a box: the uuid is the one its hardware gives
     #
     ids_now="$(ethernet_ids_now)"
     dmi_now="$(dmi_id_now)"
+    mac_now="$(mac_id_now)"
+    if expected="$(expected_identity "$stored_source")"; then
+        src="${expected%% *}"
+        new="${expected#* }"
+    else
+        src=""
+        new=""
+    fi
+
     if [ -n "$stored_uuid" ]; then
-        if is_chip_source "$stored_source"; then
-            if identity_gives "$stored_uuid" "$stored_source"; then
-                return 0
-            fi
-            if hardware_gives "$stored_uuid" "$stored_source"; then
-                why="placeholder"
-            elif [ -z "$(hw_values "$stored_source")$(hw_values "placeholder:${stored_source}")" ]; then
-                log_warning "node uuid $stored_uuid kept, but its $stored_source gives no value at this start: if this box is not the one it was made on, give it its own (yuneta-node-uuid set <uuid>)"
-                return 0
-            else
-                why="other-hardware"
-                detail="its $stored_source gives another value"
-            fi
-        elif [ "$stored_source" = "dmi-product-uuid" ] &&
-                hardware_gives "$stored_uuid" "$stored_source" &&
-                ! identity_gives "$stored_uuid" "$stored_source"; then
-            why="placeholder"
-        elif [ "$stored_source" = "random" ] && ! random_is_ours "$host_now" "" "$pidns_now"; then
-            why="container-copy"
-            stored_container="$(stored_field container)"
-            stored_host="$(stored_field hostname)"
-            detail="$(where_this_is "${stored_container:-container}"), hostname ${stored_host:-(none)}"
-        elif ! is_hw_source "$stored_source" && pick_chip "" >/dev/null; then
-            why="random-to-chip"
-        else
-            #   random, a legacy file with no source, or a uuid that
-            #   7.29.1-7.31.x made from the DMI or a MAC: its own fingerprint
-            fp_ids="$stored_ids"
-            fp_dmi="$stored_dmi"
-            if [ "$stored_source" = "ethernet-mac" ] && [ -z "$fp_ids" ]; then
-                fp_ids="$stored_uuid"
-            fi
-            if [ "$stored_source" = "dmi-product-uuid" ] && [ -z "$fp_dmi" ]; then
-                fp_dmi="$stored_uuid"
-            fi
-            if same_machine "$fp_ids" "$fp_dmi" "$ids_now" "$dmi_now"; then
-                if [ -n "$fp_ids" ] && [ -n "$ids_now" ] && ! hardware_gives "$stored_uuid" "$stored_source" &&
-                        [ "$stored_source" = "ethernet-mac" ]; then
-                    log_info "node uuid $stored_uuid kept: the interface it came from is missing, other interfaces of this box are present"
+        if [ "$stored_uuid" = "$new" ] && [ "$stored_source" = "$src" ]; then
+            if [ "$src" = "machine" ]; then
+                if [ "$(sorted_ids "$stored_ids" "$ids_now")" != "$(sorted_ids "$stored_ids")" ] ||
+                        [ "$stored_dmi" != "$dmi_now" ] || [ "$stored_mac" != "$mac_now" ]; then
+                    write_uuid_file "$stored_uuid" "machine" "$(sorted_ids "$stored_ids" "$ids_now")" \
+                        "$dmi_now" "$mac_now" "$stored_created" 0 || return 1
                 fi
-                keep_ids="$(sorted_ids "$fp_ids" "$ids_now")"
-                keep_dmi="${dmi_now:-$fp_dmi}"
-                if [ "$keep_ids" != "$(sorted_ids "$stored_ids")" ] || [ "$keep_dmi" != "$stored_dmi" ] ||
-                        [ -z "$stored_source" ]; then
-                    stored_container="$(stored_field container)"
-                    stored_host="$(stored_field hostname)"
-                    write_uuid_file "$stored_uuid" "${stored_source:-random}" "$keep_ids" "$keep_dmi" \
-                        "$stored_created" 0 "$stored_container" "$stored_host" || return 1
+            fi
+            return 0
+        fi
+        if [ "$stored_uuid" = "$new" ]; then
+            #   The same uuid recorded under another name (a file of 7.29.1
+            #   with no source)
+            write_uuid_file "$new" "$src" "" "" "" "$stored_created" 0 || return 1
+            return 0
+        fi
+        #   Something MISSING at this start, not something else here: kept
+        if is_chip_source "$stored_source" && identity_gives "$stored_uuid" "$stored_source"; then
+            return 0
+        fi
+        if is_chip_source "$stored_source" &&
+                [ -z "$(hw_values "$stored_source")$(hw_values "placeholder:${stored_source}")" ] &&
+                ! pick_chip "" >/dev/null; then
+            log_warning "node uuid $stored_uuid kept, but its $stored_source gives no value at this start: if this box is not the one it was made on, give it its own (yuneta-node-uuid set <uuid>)"
+            return 0
+        fi
+        if [ "$stored_source" = "machine" ] &&
+                machine_part_missing "$stored_dmi" "$stored_mac" "$stored_ids" "$dmi_now" "$ids_now" "$mac_now"; then
+            log_warning "node uuid $stored_uuid kept: the network interface it was made from is missing at this start, and no other card is here"
+            return 0
+        fi
+        #   No hardware identifier: a random stays (unless a container's
+        #   copied out of it); one of the hardware stays while nothing
+        #   says it is other hardware
+        if [ -z "$new" ]; then
+            if [ "$stored_source" = "random" ] || [ -z "$stored_source" ]; then
+                if random_is_ours "$host_now" "" "$pidns_now"; then
+                    return 0
                 fi
+            elif ! { is_hw_source "$stored_source" && hardware_gives "$stored_uuid" "$stored_source"; }; then
+                log_warning "node uuid $stored_uuid ($stored_source) kept: this box gives no hardware identifier at this start"
                 return 0
             fi
-            why="other-hardware"
-            detail="$(fingerprint_difference "$fp_ids" "$ids_now")"
         fi
     fi
 
     #
-    #   A new uuid: the chip's, or a random one known by its fingerprint
+    #   The uuid of this hardware, or a random one when there is none
     #
-    if picked="$(pick_chip "$stored_source")"; then
-        src="${picked%% *}"
-        val="${picked#* }"
-        new="$(derive_uuid "$src" "$val")"
-        write_uuid_file "$new" "$src" "" "" "" 1 || return 1
+    why=""
+    if [ -n "$stored_uuid" ]; then
+        why="$(why_replaced "$stored_uuid" "$stored_source" "${src:-random}")"
+    fi
+    if [ -n "$new" ]; then
+        if [ "$src" = "machine" ]; then
+            write_uuid_file "$new" "machine" "$ids_now" "$dmi_now" "$mac_now" "" 1 || return 1
+        else
+            write_uuid_file "$new" "$src" "" "" "" "" 1 || return 1
+        fi
     else
         src="random"
         new="$(random_uuid)" || return 1
-        write_uuid_file "$new" "random" "$ids_now" "$dmi_now" "" 1 || return 1
+        write_uuid_file "$new" "random" "" "" "" "" 1 || return 1
     fi
-    case "$why" in
-        "")
-            if [ "$src" = "random" ]; then
-                log_info "node uuid $new, random: this machine has no identifier burned into a chip; its DMI uuid and network interfaces are recorded as its fingerprint, to tell a copy of its disk in other hardware. A reinstall that removes $UUID_DIR gives it a new uuid"
-            else
-                log_info "node uuid $new, from $src"
-            fi
-            ;;
-        placeholder)
-            log_warning "node uuid was $stored_uuid, from a placeholder $stored_source that every box of this model gives (no identity: copies and other boxes claim it too): now $new from $src; $RESTART_NOTE"
-            ;;
-        other-hardware)
-            log_warning "node uuid was $stored_uuid (${stored_source:-random}), and this is OTHER hardware, ${detail} (a cloned disk or image): now $new from $src. If it is the same machine with all its network cards replaced, give it its uuid back (yuneta-node-uuid set $stored_uuid); $RESTART_NOTE"
-            ;;
-        container-copy)
-            log_warning "node uuid was $stored_uuid, made in ${detail}, and this is no container (a system written from a copy of it: an image built there, a \`docker export\`): now $new from $src; $RESTART_NOTE"
-            ;;
-        random-to-chip)
-            log_warning "node uuid was $stored_uuid (${stored_source:-random}), now $new from $src; $RESTART_NOTE"
-            ;;
-    esac
+    if [ -n "$stored_uuid" ]; then
+        log_warning "node uuid was $stored_uuid (${stored_source:-random}), now $new from $src: ${why}; $RESTART_NOTE"
+    elif [ "$src" = "random" ]; then
+        log_warning "node uuid $new is RANDOM: no hardware identifier found, a reinstall will change it"
+    else
+        log_info "node uuid $new, from $src"
+    fi
 }
 
 cmd_show() {
-    local stored_uuid stored_source stored_host stored_ids stored_dmi fp_ids fp_dmi dmi_said picked unreadable
+    local stored_uuid stored_source stored_host expected unreadable
     stored_uuid="$(stored_field uuid)"
     stored_source="$(stored_field source)"
     echo "file:     $UUID_FILE"
@@ -1093,64 +1116,36 @@ cmd_show() {
         echo "hardware: $unreadable not readable: run as root for the answer"
         return 0
     fi
+    if ! expected="$(expected_identity "$stored_source")"; then
+        expected=""
+    fi
+    if [ -n "$expected" ]; then
+        echo "hardware: ${expected%% *} -> ${expected#* }"
+    fi
     if [ "$stored_source" = "manual" ] && [ -n "$stored_uuid" ]; then
-        echo "hardware: not looked at, the uuid was set by hand"
+        if [ -n "$expected" ] && [ "${expected#* }" != "$stored_uuid" ]; then
+            echo "status:   set by hand, the hardware gives another: 'yuneta-node-uuid unset' goes back to it"
+        else
+            echo "status:   set by hand"
+        fi
         return 0
     fi
     if [ -z "$stored_uuid" ]; then
-        if picked="$(pick_chip "")"; then
-            echo "hardware: ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
-        else
-            echo "hardware: no identifier burned into a chip: ensure makes a random uuid, and records the fingerprint of this machine"
+        if [ -z "$expected" ]; then
+            echo "hardware: no identifier found: ensure makes a random uuid, which a reinstall changes"
         fi
         return 0
     fi
-    if { is_chip_source "$stored_source" || [ "$stored_source" = "dmi-product-uuid" ]; } &&
-            hardware_gives "$stored_uuid" "$stored_source" &&
-            ! identity_gives "$stored_uuid" "$stored_source"; then
-        if picked="$(pick_chip "")"; then
-            echo "hardware: $stored_source gives the stored uuid from a placeholder, no identity: ensure replaces it with ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }")"
-        else
-            echo "hardware: $stored_source gives the stored uuid from a placeholder, no identity: ensure replaces it with a random uuid"
-        fi
-        return 0
-    fi
-    if is_chip_source "$stored_source"; then
-        if identity_gives "$stored_uuid" "$stored_source"; then
-            echo "hardware: $stored_source of this box gives the stored uuid"
-        elif [ -z "$(hw_values "$stored_source")" ]; then
-            echo "hardware: $stored_source gives no value at this start: kept"
-        else
-            echo "hardware: $stored_source gives another value, OTHER hardware: ensure makes a new uuid"
-        fi
-        return 0
-    fi
-    if [ "$stored_source" = "random" ] && ! random_is_ours "$(hw_values hostname)" "" "$(hw_values pidns)"; then
-        echo "hardware: the uuid was made in a container and this is no container: ensure makes a new one"
-        return 0
-    fi
-    if ! is_hw_source "$stored_source" && picked="$(pick_chip "")"; then
-        echo "hardware: ${picked%% *} -> $(derive_uuid "${picked%% *}" "${picked#* }"): ensure replaces the random uuid with it"
-        return 0
-    fi
-    stored_ids="$(stored_ethernet_ids)"
-    stored_dmi="$(stored_field dmi_id)"
-    fp_ids="$stored_ids"
-    fp_dmi="$stored_dmi"
-    if [ "$stored_source" = "ethernet-mac" ] && [ -z "$fp_ids" ]; then
-        fp_ids="$stored_uuid"
-    fi
-    if [ "$stored_source" = "dmi-product-uuid" ] && [ -z "$fp_dmi" ]; then
-        fp_dmi="$stored_uuid"
-    fi
-    if same_machine "$fp_ids" "$fp_dmi" "$(ethernet_ids_now)" "$(dmi_id_now)"; then
-        dmi_said="recorded"
-        if [ -z "$fp_dmi" ]; then
-            dmi_said="none"
-        fi
-        echo "hardware: no identifier burned into a chip; the fingerprint is this machine's ($(sorted_ids "$fp_ids" | wc -l) network interfaces recorded, DMI uuid ${dmi_said}): kept"
+    if [ -n "$expected" ] && [ "${expected#* }" = "$stored_uuid" ]; then
+        echo "status:   the stored uuid is the one this hardware gives"
+    elif [ -z "$expected" ] && [ "$stored_source" = "random" ] && ! random_is_ours "$(hw_values hostname)" "" "$(hw_values pidns)"; then
+        echo "status:   the uuid was made in a container and this is no container: ensure makes a new one"
+    elif [ -z "$expected" ]; then
+        echo "hardware: no identifier found"
+    elif is_hw_source "$stored_source" && hardware_gives "$stored_uuid" "$stored_source" && ! identity_gives "$stored_uuid" "$stored_source"; then
+        echo "status:   $stored_source gives the stored uuid from a placeholder, no identity: ensure replaces it with ${expected%% *} -> ${expected#* }"
     else
-        echo "hardware: OTHER hardware, $(fingerprint_difference "$fp_ids" "$(ethernet_ids_now)"): ensure makes a new uuid"
+        echo "status:   ensure replaces the stored uuid with ${expected#* }: $(why_replaced "$stored_uuid" "$stored_source" "${expected%% *}")"
     fi
 }
 
@@ -1169,12 +1164,35 @@ cmd_set() {
             return 0
         fi
         # The same uuid: no copy, nothing for the agents and yunos to follow
-        write_uuid_file "$uuid" "manual" "" "" "$(stored_field created)" 0 || return 1
+        write_uuid_file "$uuid" "manual" "" "" "" "$(stored_field created)" 0 || return 1
         log_info "node uuid $uuid, the one it had, is now set by hand: the hardware will not change it"
         return 0
     fi
-    write_uuid_file "$uuid" "manual" "" "" "" 1 || return 1
+    write_uuid_file "$uuid" "manual" "" "" "" "" 1 || return 1
     log_info "node uuid set by hand to $uuid; the hardware will not change it; $RESTART_NOTE"
+}
+
+#
+#   Back from a uuid set by hand to the one this hardware gives: the file is
+#   kept as a copy, then ensure makes it
+#
+cmd_unset() {
+    local old
+    old="$(stored_field uuid)"
+    if [ "$(stored_field source)" != "manual" ]; then
+        log_info "node uuid ${old:-(none)} was not set by hand: nothing to do"
+        return 0
+    fi
+    if ! keep_a_copy; then
+        log_error "cannot keep a copy of $UUID_FILE, not removing it"
+        return 1
+    fi
+    if ! rm -f "$UUID_FILE"; then
+        log_error "cannot remove $UUID_FILE"
+        return 1
+    fi
+    log_info "node uuid $old, set by hand, removed (a copy kept): this hardware gives the uuid now"
+    cmd_ensure 0
 }
 
 #
@@ -1182,7 +1200,7 @@ cmd_set() {
 #
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 CMD="${1:-ensure}"
-USAGE="usage: yuneta-node-uuid [ensure [--installing]|show|set <uuid>]"
+USAGE="usage: yuneta-node-uuid [ensure [--installing]|show|set <uuid>|unset]"
 INSTALLING=0
 case "$CMD" in
     ensure)
@@ -1198,7 +1216,7 @@ case "$CMD" in
                 ;;
         esac
         ;;
-    show|set)
+    show|set|unset)
         ;;
     *)
         echo "$USAGE" >&2
@@ -1263,5 +1281,9 @@ case "$CMD" in
     set)
         take_lock
         cmd_set "${2:-}"
+        ;;
+    unset)
+        take_lock
+        cmd_unset
         ;;
 esac

@@ -4,11 +4,11 @@ Miscellaneous helpers that do not fit anywhere else: byte-order conversion, base
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c)
 
 (get_hostname)=
-## [`get_hostname()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L10457)
+## [`get_hostname()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L10457)
 
 Retrieves the hostname of the current system. On Linux, it reads from `/etc/hostname`, while on ESP32, it returns a default value.
 
@@ -33,7 +33,7 @@ The returned string is statically allocated and must not be modified or freed by
 ---
 
 (node_uuid)=
-## [`node_uuid()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L10608)
+## [`node_uuid()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L10608)
 
 The `node_uuid()` function retrieves a unique identifier for the current machine. On Linux, it reads or generates a UUID stored in `/yuneta/store/agent/uuid/uuid.json`. On ESP32, it derives the UUID from the device's MAC address.
 
@@ -55,7 +55,7 @@ Returns a pointer to a string containing the unique node UUID.
 
 The returned UUID is generated once and stored persistently. On ESP32, the UUID is derived from the MAC address.
 
-On a Linux node installed from the `.deb` or `.rpm`, the file is written by `/usr/libexec/yuneta/yuneta-node-uuid`, which the package and both agent units run as root before an agent reads it. Two machines must never share the UUID, and it is given by the kind of machine. A box with an identifier burned into its chip (the devicetree `serial-number`, `/sys/devices/soc0/serial_number`) takes its UUID from it, so a reinstall keeps it and a cloned card gets its own on its first boot. Any other machine (x86, a VM) gets a RANDOM UUID at its first start: its DMI `product_uuid` and its MACs are what the vendor or the hypervisor wrote (two servers of one batch gave the same DMI UUID), so they are recorded as its fingerprint (`dmi_id`, `ethernet_ids`), never as its identity. The fingerprint tells a disk now in other hardware: no recorded interface present (or, with no interfaces on one side, another DMI UUID) gives a new UUID, with a copy of the old file and a warning; a card added, or one missing at a boot, does not. A UUID made from a value is a version 8 UUID made from a SHA-256 of the source and its value, so it does not reveal the serial number or the MAC; the fingerprint is recorded the same way. A value known as a placeholder is no identity, because every box of the model gives it (the devicetree `serial-number` of an Orange Pi RV2 is `0123456789ABCDEF` on every board): a UUID made from one is replaced, with a copy of the old file and a warning, by the chip's when the box has a real identifier and by a random one otherwise. A UUID that 7.29.1-7.31.1 made from the DMI or a MAC is kept: it is the first entry of its own fingerprint. In a container (Docker, Podman, LXC, systemd-nspawn, containerd, a BuildKit `RUN` step: anything out of the initial pid namespace, marker file or not) `/sys` is the host's and the same for every container of it, so no hardware is read: the UUID is random and belongs to the container's hostname, which the file records (`""` when the container has none). A restart of the container keeps it; a container with another hostname makes its own, so a UUID baked into an image is not shared by the containers made from it that have other hostnames. **The limit:** nothing inside a container tells a copy of it from the same container re-created over its kept store, so two containers with the same hostname and the same `uuid.json` (an image committed from a container that has one, run twice with the same `--hostname`) share the UUID: delete `uuid.json` before a `docker commit` or `docker export`, or `set` a UUID in each copy. A board written from a `docker export` is not a container (it boots its own init in the initial pid namespace, so the `/.dockerenv` it keeps does not count, nor the `/run/systemd/container` of an Ubuntu image when `/run` is no tmpfs, nor the `docker` that `systemd-detect-virt` reads from them; there only what this boot made counts): its hardware gives its own UUID, and with no hardware identifier it gets a new random UUID, not the container's, keeping a copy of the old file. A container run with `--pid=host` (Toolbx and distrobox run theirs so) is in the initial pid namespace, and its `/` tells it: it is not the root of PID 1. Where PID 1's root cannot be looked at (Docker's root has no `CAP_SYS_PTRACE`, rootless Podman's is in a user namespace, and a security module or the runtime can refuse any root), the mount on `/` is compared instead, from `/proc/1/mountinfo`, which anybody may read: another one is a container, the same one is the system; where `/proc/1/mountinfo` cannot be read either, a root in a user namespace or without `CAP_SYS_PTRACE` is a container. So a root started without `CAP_SYS_PTRACE` on the box itself (a SysV start, an `ensure` by hand, a trimmed provisioning agent) reads the hardware. The package's install stores nothing in a container (`ensure --installing`) and, without systemd, does not start the agents there: their first start in the container makes the UUID. An image built in a chroot (over an exported or a debootstrapped rootfs) is treated the same way: `/` is not the root of PID 1 (what `systemd-detect-virt --chroot` asks), or there is no `/proc`, so the install stores nothing there, and a random UUID made there all the same is not taken by a board written from the image. A random UUID stored by 7.29.2, which records no container, is kept. `yuneta-node-uuid show` tells what is stored and where it came from; `yuneta-node-uuid set <uuid>` fixes it by hand, and the hardware never changes a UUID set that way.
+On a Linux node installed from the `.deb` or `.rpm`, the file is written by `/usr/libexec/yuneta/yuneta-node-uuid`, which the package and both agent units run as root before an agent reads it. The UUID is a function of the machine: a reinstall gives the same UUID, two machines never give the same, and a cloned disk gets its own on its first boot. A box with an identifier burned into its chip (the devicetree `serial-number`, `/sys/devices/soc0/serial_number`) takes its UUID from it. Any other machine (x86, a VM) takes it from its DMI `product_uuid` AND its lowest permanent on-board MAC together (`source: machine`): two servers of one batch gave the same DMI UUID, and a cloned VM may keep its MAC. A random UUID only when no identifier is readable. The UUID is a version 8 UUID made from a SHA-256 of the source and its value, so it does not reveal the serial number or the MAC. The stored file is only the answer written down: when the hardware gives another UUID (a disk in other hardware, a card with a lower MAC added, a UUID of an older release), it is replaced, with a copy of the old file and a warning; it is kept only when something is missing at a start and nothing new is here (a chip that gives no value, the interface it was made from missing with the same DMI UUID and no new card). A value known as a placeholder is no identity, because every box of the model gives it (the devicetree `serial-number` of an Orange Pi RV2 is `0123456789ABCDEF` on every board). In a container (Docker, Podman, LXC, systemd-nspawn, containerd, a BuildKit `RUN` step: anything out of the initial pid namespace, marker file or not) `/sys` is the host's and the same for every container of it, so no hardware is read: the UUID is random and belongs to the container's hostname, which the file records (`""` when the container has none). A restart of the container keeps it; a container with another hostname makes its own, so a UUID baked into an image is not shared by the containers made from it that have other hostnames. **The limit:** nothing inside a container tells a copy of it from the same container re-created over its kept store, so two containers with the same hostname and the same `uuid.json` (an image committed from a container that has one, run twice with the same `--hostname`) share the UUID: delete `uuid.json` before a `docker commit` or `docker export`, or `set` a UUID in each copy. A board written from a `docker export` is not a container (it boots its own init in the initial pid namespace, so the `/.dockerenv` it keeps does not count, nor the `/run/systemd/container` of an Ubuntu image when `/run` is no tmpfs, nor the `docker` that `systemd-detect-virt` reads from them; there only what this boot made counts): its hardware gives its own UUID, and with no hardware identifier it gets a new random UUID, not the container's, keeping a copy of the old file. A container run with `--pid=host` (Toolbx and distrobox run theirs so) is in the initial pid namespace, and its `/` tells it: it is not the root of PID 1. Where PID 1's root cannot be looked at (Docker's root has no `CAP_SYS_PTRACE`, rootless Podman's is in a user namespace, and a security module or the runtime can refuse any root), the mount on `/` is compared instead, from `/proc/1/mountinfo`, which anybody may read: another one is a container, the same one is the system; where `/proc/1/mountinfo` cannot be read either, a root in a user namespace or without `CAP_SYS_PTRACE` is a container. So a root started without `CAP_SYS_PTRACE` on the box itself (a SysV start, an `ensure` by hand, a trimmed provisioning agent) reads the hardware. The package's install stores nothing in a container (`ensure --installing`) and, without systemd, does not start the agents there: their first start in the container makes the UUID. An image built in a chroot (over an exported or a debootstrapped rootfs) is treated the same way: `/` is not the root of PID 1 (what `systemd-detect-virt --chroot` asks), or there is no `/proc`, so the install stores nothing there, and a random UUID made there all the same is not taken by a board written from the image. A random UUID stored by 7.29.2, which records no container, is kept. `yuneta-node-uuid show` tells what is stored and where it came from; `yuneta-node-uuid set <uuid>` fixes it by hand, and the hardware never changes a UUID set that way; `yuneta-node-uuid unset` goes back to the UUID of the hardware.
 
 `node_uuid()` reads the file once per process and keeps the value in memory. When the UUID changes (a disk moved to other hardware, or `set`), the agents and the yunos that are running keep the old one: restart both agents, then every yuno (`kill-yuno`, `run-yuno`). The package restarts the agents only.
 
@@ -102,7 +102,7 @@ eventually makes an unrelated daemon fail to watch anything.
 ---
 
 (check_open_fds)=
-## [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12022)
+## [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12022)
 
 Returns the number of currently open file descriptors in the process. On Linux, reads from `/proc/self/fd`. On other systems, returns 0.
 
@@ -123,7 +123,7 @@ The number of open file descriptors in the calling process. Returns 0 on non-Lin
 ---
 
 (cpu_usage)=
-## [`cpu_usage()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L9823)
+## [`cpu_usage()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L9823)
 
 Returns the accumulated CPU time of the current process in jiffies (scheduler clock ticks). On Linux, reads from `/proc/self/stat`. On other systems, returns 0.
 
@@ -144,7 +144,7 @@ The sum of user time (utime) and system time (stime) in jiffies. Returns 0 on no
 ---
 
 (cpu_usage_percent)=
-## [`cpu_usage_percent()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L9859)
+## [`cpu_usage_percent()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L9859)
 
 Calculates the CPU usage percentage of the current process over an elapsed time interval. Must be called repeatedly to track CPU usage over time.
 
@@ -169,7 +169,7 @@ CPU usage percentage as a double ranging from 0.0 to 100.0+. Returns 0.0 on the 
 ---
 
 (create_random_uuid)=
-## [`create_random_uuid()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L10483)
+## [`create_random_uuid()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L10483)
 
 Generates a cryptographically secure random UUID (version 4) and formats it as a string.
 
@@ -194,7 +194,7 @@ Returns 0 on success. Returns -1 if the buffer is too small or if random number 
 ---
 
 (free_ram_in_kb)=
-## [`free_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L11504)
+## [`free_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L11504)
 
 Returns the amount of free RAM available in the system in kilobytes. On Linux, reads from `/proc/meminfo`. On other systems, returns 0.
 
@@ -215,7 +215,7 @@ The amount of free RAM in kilobytes.
 ---
 
 (get_name_from_nn_table)=
-## [`get_name_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12718)
+## [`get_name_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12718)
 
 Looks up a name string in a number-to-name lookup table by matching a numeric value.
 
@@ -240,7 +240,7 @@ A pointer to the name string corresponding to the given number, or NULL if not f
 ---
 
 (get_number_from_nn_table)=
-## [`get_number_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12697)
+## [`get_number_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12697)
 
 Looks up a numeric value in a number-to-name lookup table by matching a name string.
 
@@ -265,7 +265,7 @@ The numeric value corresponding to the given name, or -1 if not found.
 ---
 
 (get_yunetas_base)=
-## [`get_yunetas_base()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12556)
+## [`get_yunetas_base()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12556)
 
 Resolves the Yunetas base directory path. The environment variable `YUNETAS_BASE` takes priority, followed by standard paths.
 
@@ -286,7 +286,7 @@ A pointer to a static string containing the Yunetas base directory path.
 ---
 
 (is_yuneta_user)=
-## [`is_yuneta_user()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12488)
+## [`is_yuneta_user()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12488)
 
 Checks whether a given username belongs to the "yuneta" group or is exactly the "yuneta" user.
 
@@ -309,7 +309,7 @@ Returns TRUE if the user is "yuneta" or belongs to the "yuneta" group. Returns F
 ---
 
 (print_open_fds)=
-## [`print_open_fds()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12058)
+## [`print_open_fds()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12058)
 
 Logs information about all currently open file descriptors in the process using a formatted prefix string.
 
@@ -334,7 +334,7 @@ The number of open file descriptors found and logged.
 ---
 
 (sha256_digest)=
-## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L13152)
+## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L13152)
 
 Computes the SHA-256 (FIPS 180-4) of a buffer. Standalone: no TLS backend is involved, so it works in any yuno, whatever `.config` selects.
 
@@ -371,7 +371,7 @@ sha256_digest("abc", 3, digest);
 ---
 
 (sha256_hex)=
-## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L13194)
+## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L13194)
 
 The SHA-256 of a buffer as 64 lowercase hex characters plus the terminating nul — the form a content address or a checksum field stores. It is [`sha256_digest()`](#sha256_digest), written out.
 
@@ -411,7 +411,7 @@ if(sha256_hex("abc", 3, hex, sizeof(hex)) == 0) {
 ---
 
 (sha256_init)=
-## [`sha256_init()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L13075)
+## [`sha256_init()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L13075)
 
 Starts the SHA-256 of bytes that come in parts: a file read a chunk at a time, data that arrives in frames. Give each part to [`sha256_update()`](#sha256_update) and end with [`sha256_final()`](#sha256_final) or [`sha256_final_hex()`](#sha256_final_hex): the digest is the one of [`sha256_digest()`](#sha256_digest) over all the parts joined. The context holds no memory, so there is nothing to free; it can be a local variable, or live in a struct for as long as the parts keep coming.
 
@@ -457,7 +457,7 @@ sha256_final_hex(&ctx, hex, sizeof(hex));
 ---
 
 (sha256_update)=
-## [`sha256_update()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L13089)
+## [`sha256_update()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L13089)
 
 Adds one part of the bytes to a SHA-256 started with [`sha256_init()`](#sha256_init). The parts can have any size, `0` included; how the bytes are cut does not change the digest.
 
@@ -498,7 +498,7 @@ sha256_final_hex(&ctx, hex, sizeof(hex));
 ---
 
 (sha256_final)=
-## [`sha256_final()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L13123)
+## [`sha256_final()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L13123)
 
 Ends a SHA-256 started with [`sha256_init()`](#sha256_init) and writes the 32 raw bytes of the digest. After it the context is spent: init it again to hash something else.
 
@@ -535,7 +535,7 @@ sha256_final(&ctx, digest);
 ---
 
 (sha256_final_hex)=
-## [`sha256_final_hex()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L13208)
+## [`sha256_final_hex()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L13208)
 
 [`sha256_final()`](#sha256_final), written out as [`sha256_hex()`](#sha256_hex) writes it: 64 lowercase hex characters and the terminating nul.
 
@@ -575,7 +575,7 @@ if(sha256_final_hex(&ctx, hex, sizeof(hex)) == 0) {
 ---
 
 (source2base64_for_yunetas)=
-## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12589)
+## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12589)
 
 Converts a file to base64-encoded format, finding the file in either the current path or relative to the Yunetas base directory.
 
@@ -602,7 +602,7 @@ A `gbuffer_t` pointer containing the base64-encoded file content, or NULL if the
 ---
 
 (total_ram_in_kb)=
-## [`total_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L11551)
+## [`total_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L11551)
 
 Returns the total amount of RAM installed in the system in kilobytes. On Linux, reads from `/proc/meminfo`.
 
@@ -623,7 +623,7 @@ The total RAM in kilobytes.
 ---
 
 (yuneta_getgrnam)=
-## [`yuneta_getgrnam()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12462)
+## [`yuneta_getgrnam()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12462)
 
 Portable wrapper around `getgrnam()` that looks up group information by name. Uses static implementations when `CONFIG_FULLY_STATIC` is defined.
 
@@ -646,7 +646,7 @@ A pointer to a `struct group`, or NULL if the group is not found.
 ---
 
 (yuneta_getgrouplist)=
-## [`yuneta_getgrouplist()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12471)
+## [`yuneta_getgrouplist()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12471)
 
 Portable wrapper around `getgrouplist()` that retrieves all groups a user belongs to.
 
@@ -675,7 +675,7 @@ The number of groups on success. Returns -1 if the array is too small.
 ---
 
 (yuneta_getpwnam)=
-## [`yuneta_getpwnam()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12453)
+## [`yuneta_getpwnam()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12453)
 
 Portable wrapper around `getpwnam()` that looks up user information by username.
 
@@ -698,7 +698,7 @@ A pointer to a `struct passwd`, or NULL if the username is not found.
 ---
 
 (yuneta_getpwuid)=
-## [`yuneta_getpwuid()`](https://github.com/artgins/yunetas/blob/7.31.2/kernel/c/gobj-c/src/helpers.c#L12444)
+## [`yuneta_getpwuid()`](https://github.com/artgins/yunetas/blob/7.31.3/kernel/c/gobj-c/src/helpers.c#L12444)
 
 Portable wrapper around `getpwuid()` that looks up user information by user ID.
 

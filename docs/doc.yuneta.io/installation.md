@@ -99,7 +99,7 @@ resolves the archives with no message. The binary then corrupts its heap at run
 time. You get a SIGABRT inside `malloc` some seconds after the start. There is
 no framework error before it, and the stack shows unrelated code. This is the
 same fault that
-[`libc_guard.cmake`](https://github.com/artgins/yunetas/blob/7.31.2/tools/cmake/libc_guard.cmake)
+[`libc_guard.cmake`](https://github.com/artgins/yunetas/blob/7.31.3/tools/cmake/libc_guard.cmake)
 catches at configure time.
 
 You can install the package on such a node. But it must be a decision:
@@ -239,7 +239,7 @@ sudo dnf -y install ./yuneta-agent-<version>-<release>.x86_64.rpm
 You can also build the package yourself, for a different architecture or with
 different options. First [build from source](#build-from-source). Then run
 `packages/deb/<ARCH>.sh` or `packages/rpm/<arch>.sh`. See
-[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.31.2/packages).
+[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.31.3/packages).
 
 The package installs the agent, the CLI tools and the bundled openresty under
 `/yuneta/`. It creates the `yuneta` system user. It applies the kernel tuning
@@ -251,7 +251,7 @@ and the build `.config` (`outputs/`, `outputs_ext/`, `tools/` and `.config`,
 with no sources). This base path is the SAME path as a full source checkout.
 Your projects thus compile against the published runtime with no source tree
 and with no difference of layout. The full inventory is in
-[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.31.2/packages).
+[`packages/README.md`](https://github.com/artgins/yunetas/tree/7.31.3/packages).
 
 > 🔴 **The sparse SDK compiles only on the glibc that built the package.** The
 > `outputs/lib/*.a` files of the package are static archives. They reference
@@ -369,7 +369,7 @@ and with no difference of layout. The full inventory is in
 > ℹ️ **You can build the `.deb` yourself** and not use the published asset.
 > See `packages/README.md` for the four wrapper scripts, one for each
 > architecture
-> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.31.2/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.31.2/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.31.2/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.31.2/packages/deb/RISCV64.sh)). The SDK must be built
+> ([`AMD64.sh`](https://github.com/artgins/yunetas/blob/7.31.3/packages/deb/AMD64.sh), [`ARM32.sh`](https://github.com/artgins/yunetas/blob/7.31.3/packages/deb/ARM32.sh), [`ARMhf.sh`](https://github.com/artgins/yunetas/blob/7.31.3/packages/deb/ARMhf.sh), [`RISCV64.sh`](https://github.com/artgins/yunetas/blob/7.31.3/packages/deb/RISCV64.sh)). The SDK must be built
 > first (next section). On riscv64 the package has no openresty, because its
 > LuaJIT does not support that architecture. `configure-libs.sh` skips it
 > with a warning, and the node serves with nginx (the default).
@@ -397,58 +397,55 @@ sudo -u yuneta yunetas --help
 # 5. Core dumps land where the debugger looks for them
 cat /proc/sys/kernel/core_pattern      # -> /var/crash/core.%e
 
-# 6. The node uuid: from the chip on a field box, random on a server
-sudo /usr/libexec/yuneta/yuneta-node-uuid show
+# 6. The node uuid comes from the hardware, not from chance
+sudo /usr/libexec/yuneta/yuneta-node-uuid show   # source: not "random"
 
 # 7. The agent's certificate is this node's own (7.30.6+)
 sudo /usr/libexec/yuneta/yuneta-agent-cert show  # state: own
 ```
 
-Two machines must never share a node uuid: the control center knows a node
-by it. The script gives it in two ways, by the kind of machine:
+The node uuid is a function of the machine. A reinstall gives the same
+uuid, two machines never give the same uuid, and a cloned disk gets its own
+uuid on its first start. The control center knows a node by it.
 
 - **A box with an identifier burned into its chip** (an Arm board: the SoC
   serial number, or the devicetree `serial-number`) takes its uuid from it.
-  A reinstall keeps the uuid, and a cloned card gets its own on its first
-  start. `show` says `source: soc-serial` (or `devicetree-serial`).
-- **Any other machine** (an x86 server, a VM) gets a **random** uuid at its
-  first start (`source: random`), and the script records its DMI uuid and
-  its on-board network interfaces as its **fingerprint** (`dmi_id`,
-  `ethernet_ids`). The DMI uuid and the MACs are not an identity: they are
-  what the vendor or the hypervisor wrote. Two Supermicro servers of one
-  batch gave the same DMI uuid, `00000000-0000-0000-0000-45d44083cb04`, and
-  up to 7.31.1 they got the same node uuid. The fingerprint only tells that
-  the disk is now in other hardware (a cloned disk or image). A reinstall
-  that removes `/yuneta/store` gives a new uuid; the agent's key is new then
-  too, so you accept the node again in any case.
+  `show` says `source: soc-serial` (or `devicetree-serial`).
+- **Any other machine** (an x86 server, a VM) takes it from its DMI uuid
+  **and** its lowest permanent on-board MAC, together (`source: machine`).
+  One of them is not enough. Two Supermicro servers of one batch gave the
+  same DMI uuid, `00000000-0000-0000-0000-45d44083cb04`, and up to 7.31.2
+  they got the same node uuid. A cloned VM can keep its MAC, but it gets a
+  new DMI uuid.
+- `random` means that no identifier was readable: the node works, but a
+  reinstall gives it a new identity (`ensure` logs a warning).
 
-A uuid already stored is kept while the machine is the same. On a machine
-with a fingerprint, it is the same machine when any recorded network
-interface is present (a card added, or one missing at one start, does not
-move the uuid). If one side has no interfaces, the DMI uuid must be the
-same. If no recorded interface is present, this is other hardware: the
-script makes a new uuid, keeps a copy of the old file and logs a warning.
-The same machine with all its cards replaced at once looks like other
-hardware too; give it its old uuid back with `set`:
+The stored file is only the answer written down. When the hardware gives
+another uuid, `ensure` replaces the stored uuid, keeps a copy of the old
+file and logs a warning: a disk in other hardware, a card added with a
+lower MAC, or a uuid made by an older release. The uuid is kept only when
+something is missing at one start and nothing new is here: the chip gives
+no value, or the interface the uuid was made from is missing while the DMI
+uuid is the same and no new card is present.
 
 ```bash
 sudo /usr/libexec/yuneta/yuneta-node-uuid show
-# hardware: OTHER hardware, none of its 2 recorded network interfaces is here: ensure makes a new uuid
-sudo /usr/libexec/yuneta/yuneta-node-uuid set 3c86c4e5-95c2-8905-9fcf-1f9f5213bfe0   # the same box, new cards
+# hardware: machine -> 8eebab45-a352-8300-9516-fe077f8e0995
+# status:   the stored uuid is the one this hardware gives
 ```
 
-A node installed with 7.29.1 to 7.31.1 keeps its uuid. If it came from the
-DMI (`source: dmi-product-uuid`) or from a MAC (`ethernet-mac`), that uuid
-is also the first entry of its fingerprint, and the first `ensure` of the
-new script records the rest. Two machines that already share a uuid from a
-shared DMI keep it: give one of them its own with `set`.
+A node installed with 7.29.1 to 7.31.2 gets the uuid of its hardware at its
+first `ensure` of 7.31.3 (a new uuid, and its agent key changes too):
+restart both agents and every yuno, and accept the node again in each
+control center (see below). A uuid set by hand is never changed;
+`yuneta-node-uuid unset` goes back to the uuid of the hardware.
 
 A value that the script knows as a placeholder is not an identity, because
 all the boxes of the model give it. Example: the devicetree `serial-number`
 of an Orange Pi RV2 is `0123456789ABCDEF` on every board, so up to 7.30.2 two
 of these boards got the same uuid. A uuid made from a placeholder is
-replaced: by the uuid of the chip when the box has a real identifier (here
-the SoC serial), and by a random uuid when it has none. `ensure` keeps a copy
+replaced by the uuid of this hardware (here the SoC serial), or by a random
+uuid when the box has nothing else. `ensure` keeps a copy
 of the old file and logs a warning. Restart both agents and every yuno after
 that (see below).
 
@@ -492,8 +489,9 @@ init in the initial pid namespace. Thus the `/.dockerenv` that it keeps does
 not count. The `/run/systemd/container` of an Ubuntu image (it contains
 `docker`) does not count either, if `/run` is not a tmpfs. The random uuid
 of the container is not the uuid of the board, also with the same hostname:
-on its first start the board gets the uuid of its chip, or a new random uuid
-with its fingerprint, keeps a copy of the old file and logs a warning.
+on its first start the board gets the uuid of its hardware (or a new random
+uuid if it has no identifier), keeps a copy of the old file and logs a
+warning.
 
 The script finds a container from the pid namespace first. A system that
 starts on its own runs in the initial pid namespace, and a container does
@@ -519,7 +517,7 @@ PID 1 (`/proc/1/root`), as `systemd-detect-virt --chroot` does:
   that you build in a chroot, over an exported or a debootstrapped rootfs.
   The script treats a chroot as a container: the install stores no uuid
   there. A board that you write from that image is not a chroot: it reads
-  its hardware, and with no chip identifier it gets a new random uuid.
+  its hardware, and with no identifier it gets a new random uuid.
 - If there is no `/proc` at all, no system started there: this is also a
   chroot.
 - If the script cannot look at the root of PID 1, it compares the mount on
@@ -587,7 +585,7 @@ bound to the node uuid (see [the agent's own certificate](#agent-own-certificate
 
 The agents and the yunos read the uuid when they start. If the uuid changes
 (a disk moved to other hardware, `yuneta-node-uuid set <uuid>`, a random uuid
-replaced by the uuid of a chip, or a uuid made from a placeholder replaced),
+replaced by the uuid of the hardware, or a uuid made by an older release),
 restart both agents and then every yuno: the package
 restarts the agents only.
 
@@ -856,7 +854,7 @@ sudo nft list table inet f2b-table     # or: sudo iptables -L f2b-yuneta-nginx-p
 > `restorecon -R /yuneta/bin/nginx/logs`.
 
 The full detail is in
-[`packages/deb/README.md`](https://github.com/artgins/yunetas/blob/7.31.2/packages/deb/README.md).
+[`packages/deb/README.md`](https://github.com/artgins/yunetas/blob/7.31.3/packages/deb/README.md).
 
 ---
 
@@ -1099,7 +1097,7 @@ cd /yuneta/development/yunetas
 source yunetas-env.sh
 ```
 
-[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.31.2/yunetas-env.sh) exports four variables. It also puts `/yuneta/bin` and
+[`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.31.3/yunetas-env.sh) exports four variables. It also puts `/yuneta/bin` and
 `$YUNETAS_BASE/scripts` at the start of `PATH`:
 
 | Variable              | Value                                       |
@@ -1118,7 +1116,7 @@ source yunetas-env.sh
 > Register them with `yunetas register-project` (below).
 
 > ⚠️ **Source the file again in each shell.** A new SSH session, a cron job
-> and CI must source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.31.2/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch), [`ycommand`](#util-ycommand)
+> and CI must source [`yunetas-env.sh`](https://github.com/artgins/yunetas/blob/7.31.3/yunetas-env.sh) again. Without it, [`ybatch`](#util-ybatch), [`ycommand`](#util-ycommand)
 > and [`yshutdown`](#util-yshutdown) are not on `PATH`. The deploy scripts then
 > fail with "command not found".
 
@@ -1176,7 +1174,7 @@ writes `.config`, and the build needs that file.
 ```
 ~~~~
 
-> ⚠️ **Save `.config`, or the build fails.** If you change the compiler, run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.31.2/set_compiler.sh) again. It builds the external
+> ⚠️ **Save `.config`, or the build fails.** If you change the compiler, run [`./set_compiler.sh`](https://github.com/artgins/yunetas/blob/7.31.3/set_compiler.sh) again. It builds the external
 > libraries with the correct toolchain.
 
 ### 7. Build and test

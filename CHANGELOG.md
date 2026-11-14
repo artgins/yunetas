@@ -1,5 +1,35 @@
 # **Changelog**
 
+## v7.31.3 (2026-11-14)
+
+The node uuid is a function of the machine, the same after any reinstall. A
+LITE release: only `yuneta-node-uuid` changes (no `.c`); its tests and
+`yuneta-agent-cert`'s ran on the dev machine.
+
+### Fixed
+
+- **The node uuid of a server is the same after a reinstall**
+  (`yuneta-node-uuid`). 7.31.2 gave any machine with no chip identifier a
+  RANDOM uuid, which a reinstall that removes `/yuneta/store` changes: the
+  problem of 7.31.1 put off to the next reinstall. Now such a machine (x86,
+  a VM) takes its uuid from its DMI uuid AND its lowest permanent on-board
+  MAC, together (`source: machine`): two Supermicro servers of one batch gave
+  the same DMI uuid, and a cloned VM may keep its MAC. A box with a chip
+  identifier (SoC serial, devicetree `serial-number`) takes it from the chip,
+  as before. The stored file is only the answer written down: a uuid the
+  hardware no longer gives is replaced, with a copy and a warning, unless
+  something is only missing at that start (a chip that gives no value, the
+  interface the uuid was made from missing with the same DMI uuid and no new
+  card).
+    - BREAKING (an operator): **every node with no chip identifier gets a new
+      uuid** at its first `ensure` (the uuids of 7.29.1-7.31.2 came from the
+      DMI alone, a MAC alone, or chance). Its agent key changes with it:
+      restart both agents and every yuno, and accept the node again in each
+      control center. A uuid set by hand is kept; the new `unset` goes back
+      to the uuid of the hardware.
+    - A card added with a LOWER MAC than the on-board ones changes the uuid
+      (warned): the uuid follows the hardware.
+
 ## v7.31.2 (2026-11-14)
 
 Nine MQTT defects found by running Mosquitto's own broker test suite against

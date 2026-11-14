@@ -22,7 +22,7 @@ packages/
 └── rpm/            <- RPM packaging (x86_64/aarch64/riscv64 wrappers)
 ```
 
-`templates/yuneta-node-uuid` writes the node uuid, from the chip or random (see its
+`templates/yuneta-node-uuid` writes the node uuid from the hardware (see its
 header); `tests/test-yuneta-node-uuid.sh` checks it against a fake `/sys`.
 `install-yuneta-node-uuid.sh` installs it by hand on a node that builds from
 source and does not take the package (idempotent: run it again to check).
