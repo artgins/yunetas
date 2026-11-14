@@ -9,11 +9,15 @@
  *          max_unwritten_bytes. The clients are RAW plain sockets of this
  *          driver, with the default buffers of the kernel: each sends a
  *          CONNECT of MQTT 3.1.1 and then PINGREQ without end, keeping up
- *          to 512 KB of them (262144) not yet answered, and reads
+ *          to 64 KB of them (32768) not yet answered, and reads
  *          everything it gets, every 20 ms. The window bounds the drain at
  *          the end (the kernel's buffers alone take some MB of PINGREQ),
- *          and is far more than one read of the gate, so its reading is
- *          paused with more to read every time.
+ *          and is far more than one read of the gate (4096 bytes, 16 of
+ *          them) and than its pause (about 331 answers), so its reading is
+ *          paused with more to read every time. It was 512 KB up to
+ *          2026-11-14: a loaded board (riscv64, ctest -j8) answers about
+ *          17 KB/s, the run filled the windows of all 20 readers, and
+ *          their 10.5 MB did not drain in 300 s (5.56 MB had come).
  *
  *              20 connections for 20 s. The reading of each is paused by the
  *              bound on its answers again and again, and resumed when they
@@ -32,7 +36,7 @@
  *          one, and under ASan at a quarter of one. A reading not resumed
  *          (an EV_RX_RESUME lost) waits for the look of timeout_close, 3 s,
  *          or for ever: red in about 1 s, though the other readers go on.
- *          The drain (about 17 s here) fails too when it is not over in
+ *          The drain (about 2 s here) fails too when it is not over in
  *          300 s: a drain that is slow but goes on is not a failure. Up to
  *          the first version of this test the drain had 60 s in all and
  *          failed under ASan; up to the second it failed only when NO
@@ -69,7 +73,7 @@
 
 #define N_CONN              20
 #define RUN_MSEC            20000
-#define WINDOW              (512*1024)  // PINGREQ bytes not yet answered, at most
+#define WINDOW              (64*1024)   // PINGREQ bytes not yet answered, at most: 20 of them drain in ~75 s at 17 KB/s
 #define READER_STALL_MSEC   1000        // a reader owed answers that gets no byte for so long fails,
 #define READER_STALL_LOOKS  10          // and in so many looks (a margin for a late look after a pause)
 #define DRAIN_MAX_MSEC      300000      // the drain fails when it is not over by then

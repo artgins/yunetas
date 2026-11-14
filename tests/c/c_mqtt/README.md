@@ -282,13 +282,14 @@ second time, *"Timeout waiting mqtt disconnected"*.
 `test_mqtt_gate_reader` (`main_gate_reader.c` + `c_gate_reader.c`) is the
 bound on the answers against peers that pipeline AND read, over REAL sockets
 (port 18125): 20 raw plain sockets with the kernel's default buffers, each
-sending a CONNECT and then PINGREQ without end (up to 512 KB of them not yet
-answered) and reading everything every 20 ms, for 20 s. The reading of each
+sending a CONNECT and then PINGREQ without end (up to 64 KB of them not yet
+answered: 16 reads of the gate, and it bounds the drain, which with 512 KB did
+not end in 300 s on a loaded riscv64 board) and reading everything every 20 ms, for 20 s. The reading of each
 is paused by the bound again and again and resumed when its answers are
 written: none is dropped, each gets its CONNACK and one PINGRESP per PINGREQ,
 in order (checked byte by byte), and the memory grows less than 5 MB
 (measured: 2.6 MB, the bound and one read each; about 11 million PINGRESP in
-the run). Then the clients stop, get the PINGRESP still owed to them, and
+the run with the old 512 KB window). Then the clients stop, get the PINGRESP still owed to them, and
 close. No WARNING.
 
 What fails, in the run and in the drain alike: **a reader that is owed

@@ -146,7 +146,7 @@
 #define STALL2_NOT_AFTER    (STALL2 + 2000)
 #define STALL2_MARGIN       1500        // the test looks every 5 ms, on a loaded machine; the drop of a wait measured from the look, 2 x STALL2, stays out
 #define STALL2_BEFORE       100         // the server may see a write before the test does
-#define STEP_LONG_WATCH     20000       // step 15, milliseconds: its drop is measured, not its watchdog
+#define STEP_LONG_WATCH     20000       // steps 14, 15, milliseconds: 10000 answers on a loaded board (14 needed 10.5 s at -j8 on riscv64); 15 measures its drop, not its watchdog
 #define WINDOW_REQUESTS     30000       // step 16: over the max_tx_queue of its server, and that over MAX_POSTED_EVENTS
 #define FILL_REQUESTS       (MAX_TX_QUEUE + 1)  // answered in one turn: one in flight, max_tx_queue waiting
 #define SMALL_SOCKET_BUFFER 4096        // step 17: the buffers of its connection, both ends
@@ -559,6 +559,9 @@ PRIVATE void start_step(hgobj gobj)
             ),
             gobj
         );
+        if(priv->step == STEP_ASYNC) {
+            set_timeout(priv->timer, STEP_LONG_WATCH);
+        }
         gobj_start(priv->gobj_client);
     }
 }
