@@ -397,34 +397,70 @@ sudo -u yuneta yunetas --help
 # 5. Core dumps land where the debugger looks for them
 cat /proc/sys/kernel/core_pattern      # -> /var/crash/core.%e
 
-# 6. The node uuid comes from the hardware, not from chance
-sudo /usr/libexec/yuneta/yuneta-node-uuid show   # source: not "random"
+# 6. The node uuid: from the chip on a field box, random on a server
+sudo /usr/libexec/yuneta/yuneta-node-uuid show
 
 # 7. The agent's certificate is this node's own (7.30.6+)
 sudo /usr/libexec/yuneta/yuneta-agent-cert show  # state: own
 ```
 
-The node uuid is written from the hardware (the SoC serial number, DMI or
-the on-board MAC), so a reinstall keeps it and a cloned disk gets its own on
-its first boot. `random` means that no identifier was readable: the node
-works, but a reinstall gives it a new identity. A uuid already stored is
-kept while the hardware still gives it (a network card added later does not
-move it). See [`node_uuid()`](api/helpers/misc.md#node_uuid).
+Two machines must never share a node uuid: the control center knows a node
+by it. The script gives it in two ways, by the kind of machine:
+
+- **A box with an identifier burned into its chip** (an Arm board: the SoC
+  serial number, or the devicetree `serial-number`) takes its uuid from it.
+  A reinstall keeps the uuid, and a cloned card gets its own on its first
+  start. `show` says `source: soc-serial` (or `devicetree-serial`).
+- **Any other machine** (an x86 server, a VM) gets a **random** uuid at its
+  first start (`source: random`), and the script records its DMI uuid and
+  its on-board network interfaces as its **fingerprint** (`dmi_id`,
+  `ethernet_ids`). The DMI uuid and the MACs are not an identity: they are
+  what the vendor or the hypervisor wrote. Two Supermicro servers of one
+  batch gave the same DMI uuid, `00000000-0000-0000-0000-45d44083cb04`, and
+  up to 7.31.1 they got the same node uuid. The fingerprint only tells that
+  the disk is now in other hardware (a cloned disk or image). A reinstall
+  that removes `/yuneta/store` gives a new uuid; the agent's key is new then
+  too, so you accept the node again in any case.
+
+A uuid already stored is kept while the machine is the same. On a machine
+with a fingerprint, it is the same machine when any recorded network
+interface is present (a card added, or one missing at one start, does not
+move the uuid). If one side has no interfaces, the DMI uuid must be the
+same. If no recorded interface is present, this is other hardware: the
+script makes a new uuid, keeps a copy of the old file and logs a warning.
+The same machine with all its cards replaced at once looks like other
+hardware too; give it its old uuid back with `set`:
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-node-uuid show
+# hardware: OTHER hardware, none of its 2 recorded network interfaces is here: ensure makes a new uuid
+sudo /usr/libexec/yuneta/yuneta-node-uuid set 3c86c4e5-95c2-8905-9fcf-1f9f5213bfe0   # the same box, new cards
+```
+
+A node installed with 7.29.1 to 7.31.1 keeps its uuid. If it came from the
+DMI (`source: dmi-product-uuid`) or from a MAC (`ethernet-mac`), that uuid
+is also the first entry of its fingerprint, and the first `ensure` of the
+new script records the rest. Two machines that already share a uuid from a
+shared DMI keep it: give one of them its own with `set`.
 
 A value that the script knows as a placeholder is not an identity, because
 all the boxes of the model give it. Example: the devicetree `serial-number`
 of an Orange Pi RV2 is `0123456789ABCDEF` on every board, so up to 7.30.2 two
-of these boards got the same uuid. A uuid made from a placeholder is replaced
-when the box has a real identifier (here the SoC serial): `ensure` keeps a
-copy of the old file and logs a warning. Restart both agents and every yuno
-after that (see below). If the box has no other identifier, the uuid is kept
-and `ensure` logs a warning at each start.
+of these boards got the same uuid. A uuid made from a placeholder is
+replaced: by the uuid of the chip when the box has a real identifier (here
+the SoC serial), and by a random uuid when it has none. `ensure` keeps a copy
+of the old file and logs a warning. Restart both agents and every yuno after
+that (see below).
 
 ```bash
 sudo /usr/libexec/yuneta/yuneta-node-uuid show
 # hardware: devicetree-serial gives the stored uuid from a placeholder, no identity: ensure replaces it with soc-serial -> c9936647-...
 sudo /usr/libexec/yuneta/yuneta-node-uuid ensure
 ```
+
+If the chip gives no value at one start (a driver that did not load), the
+uuid is kept and `ensure` logs a warning. If it gives another value, this is
+other hardware (a cloned card), and the box gets the uuid of its own chip.
 
 In a container `random` is correct: its `/sys` is the host's, so no hardware
 is read there. The uuid belongs to the container's hostname, which the file
@@ -454,11 +490,10 @@ sudo rm -f /yuneta/store/agent/uuid/uuid.json    # in the container, before the 
 A board written from a `docker export` is not a container: it starts its own
 init in the initial pid namespace. Thus the `/.dockerenv` that it keeps does
 not count. The `/run/systemd/container` of an Ubuntu image (it contains
-`docker`) does not count either, if `/run` is not a tmpfs. The hardware of
-the board gives its own uuid on the first start. If the
-board has no hardware identifier, the random uuid of the container is not
-its uuid either, also with the same hostname: the board gets a new random
-uuid, keeps a copy of the old file and logs a warning.
+`docker`) does not count either, if `/run` is not a tmpfs. The random uuid
+of the container is not the uuid of the board, also with the same hostname:
+on its first start the board gets the uuid of its chip, or a new random uuid
+with its fingerprint, keeps a copy of the old file and logs a warning.
 
 The script finds a container from the pid namespace first. A system that
 starts on its own runs in the initial pid namespace, and a container does
@@ -484,7 +519,7 @@ PID 1 (`/proc/1/root`), as `systemd-detect-virt --chroot` does:
   that you build in a chroot, over an exported or a debootstrapped rootfs.
   The script treats a chroot as a container: the install stores no uuid
   there. A board that you write from that image is not a chroot: it reads
-  its hardware, and with no identifier it gets a new random uuid.
+  its hardware, and with no chip identifier it gets a new random uuid.
 - If there is no `/proc` at all, no system started there: this is also a
   chroot.
 - If the script cannot look at the root of PID 1, it compares the mount on
@@ -552,8 +587,8 @@ bound to the node uuid (see [the agent's own certificate](#agent-own-certificate
 
 The agents and the yunos read the uuid when they start. If the uuid changes
 (a disk moved to other hardware, `yuneta-node-uuid set <uuid>`, a random uuid
-replaced by the hardware's, or a uuid made from a placeholder replaced by a
-real identifier), restart both agents and then every yuno: the package
+replaced by the uuid of a chip, or a uuid made from a placeholder replaced),
+restart both agents and then every yuno: the package
 restarts the agents only.
 
 ```bash

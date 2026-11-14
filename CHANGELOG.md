@@ -74,8 +74,41 @@
       and was tried again with a new packet id each time. BREAKING (a client
       of `C_PROT_MQTT2`, a log watcher): the client's DISCONNECT is `0x95` too.
 
+- **Two servers no longer get the same node uuid** (`yuneta-node-uuid`). Only
+  an identifier burned into the chip is an identity now: a box with a SoC
+  serial or a devicetree `serial-number` (the field boxes) takes its uuid from
+  it, as before. Any other machine (x86, a VM) gets a RANDOM uuid at its first
+  start. Its DMI uuid and its on-board MACs are recorded as its FINGERPRINT
+  (`dmi_id`, `ethernet_ids` in `uuid.json`, as uuids made from them, not the
+  values), used only to tell a disk now in other hardware: no recorded
+  interface present (or, with no interfaces on one side, another DMI uuid)
+  gives a new uuid, a copy of the old file and a warning. Up to 7.31.1 the
+  uuid of such a machine came from its DMI, and two Supermicro servers of one
+  batch gave the same DMI uuid (`00000000-0000-0000-0000-45d44083cb04`): the
+  control center refused the second (*"its node key is not the one
+  accepted"*).
+    - **No node changes its uuid**: a uuid that 7.29.1-7.31.1 made from the
+      DMI or a MAC is kept and is the first entry of its own fingerprint;
+      the first `ensure` records the rest. Checked on every node of the fleet
+      against a copy of its `uuid.json`. Two machines that already share a
+      uuid keep it until `set`.
+    - A uuid made from a placeholder is now always replaced (by the chip's,
+      or by a random one); it was kept, with a warning, on a box with no
+      other identifier.
+    - A chip that gives no value at one start keeps the uuid, with a warning;
+      it was taken for other hardware.
+    - A machine that sees none of its interfaces at one start keeps its
+      uuid; an ethernet-mac node with a DMI switched to the DMI and changed.
+    - Costs: a server reinstalled with `/yuneta/store` removed gets a new
+      uuid (its agent key was new already, so it was accepted again anyway),
+      and a server with ALL its network cards replaced at once looks like
+      other hardware (the warning says how to `set` the old uuid back).
+
 ### Tests
 
+- `packages/tests/test-yuneta-node-uuid.sh` follows the new rule (212
+  checks): twin DMI boxes, a 7.31 file in a twin box before and after its
+  first `ensure`, a chip that gives no value or another one.
 - **Mosquitto's broker test suite can be run against `mqtt_broker` from the
   repository**: `yunos/c/mqtt_broker/tests/mosquitto/` (`setup.sh` fetches the
   suite's `test/` at a pinned commit and patches its packet comparison;

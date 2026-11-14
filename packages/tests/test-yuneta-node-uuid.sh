@@ -112,28 +112,85 @@ run() {
     "$SCRIPT" "$@" >/dev/null 2>&1
 }
 
+derive() {    # source value
+    bash -c 'source <(sed -n "/^derive_uuid()/,/^}/p" "$1"); derive_uuid "$2" "$3"' _ "$SCRIPT" "$1" "$2"
+}
+
+ids_count() {
+    sed -n 's/.*"ethernet_ids"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$FILE" | tr ',' '\n' | grep -c .
+}
+
 #
-#   The derivation never changes: every node already deployed holds a uuid
-#   made by it, and a new formula would move them all
+#   The derivation never changes: the field boxes hold uuids made by it, and
+#   the nodes of 7.29.1-7.31.x hold uuids it made from their DMI or MAC
+#
+first="$(derive dmi-product-uuid deadbeef-1234-5678-9abc-def000004e32)"
+check "the formula of 7.29.1" "$first" "ab81a85f-a234-8d07-9345-928dbac002e6"
+check "the formula of 7.29.1, a MAC" "$(derive ethernet-mac aa:bb:cc:00:00:01)" "0a0b2a12-f785-832a-99d3-758caac6dfdd"
+
+#
+#   A machine with no chip identifier (x86, a VM): a RANDOM uuid, its DMI
+#   and its on-board interfaces recorded as its fingerprint, not as its
+#   identity
+#
+reset
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
+add_nic eth0 "aa:bb:cc:00:00:01" 0
+out="$("$SCRIPT" ensure 2>&1)"
+x86="$(field uuid)"
+check "x86: source" "$(field source)" "random"
+check "x86: not the uuid of its DMI" "$( [ -n "$x86" ] && [ "$x86" != "$first" ] && echo random)" "random"
+check "x86: the DMI in the fingerprint" "$(field dmi_id)" "$first"
+check "x86: the interface in the fingerprint" "$(grep -c "\"$(derive ethernet-mac aa:bb:cc:00:00:01)\"" "$FILE")" "1"
+check "x86: says it is random, no warning" "$(echo "$out" | grep -c 'random: this machine has no identifier burned into a chip')" "1"
+check "x86: show says the fingerprint is this machine's" "$("$SCRIPT" show 2>&1 | grep -c "the fingerprint is this machine's")" "1"
+run ensure
+check "x86: kept" "$(field uuid)" "$x86"
+check "x86: no copy" "$(backups)" "0"
+rm -rf "$YUNETA_NODE_UUID_DIR"
+run ensure
+check "x86, reinstall that removes the store: a new uuid" "$( [ -n "$(field uuid)" ] && [ "$(field uuid)" != "$x86" ] && echo new)" "new"
+
+#
+#   Two boards of one batch that give the SAME DMI uuid (two Supermicro
+#   servers gave 00000000-0000-0000-0000-45d44083cb04): each its own uuid,
+#   and the disk of one in the other is told by its interfaces
+#
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_nic eno1 "0c:c4:7a:00:00:01" 0
+run ensure
+twin_a="$(field uuid)"
+cp -p "$FILE" "${WORK}/twin_a.json"
+del_nic eno1
+add_nic eno1 "0c:c4:7a:00:00:99" 0
+rm -rf "$YUNETA_NODE_UUID_DIR"
+run ensure
+twin_b="$(field uuid)"
+check "twin DMI: two uuids" "$( [ -n "$twin_a" ] && [ -n "$twin_b" ] && [ "$twin_a" != "$twin_b" ] && echo two)" "two"
+cp -p "${WORK}/twin_a.json" "$FILE"
+check "twin DMI, the disk of A in B: show says other hardware" "$("$SCRIPT" show 2>&1 | grep -c 'OTHER hardware, none of its 1 recorded network interfaces is here')" "1"
+out="$("$SCRIPT" ensure 2>&1)"
+check "twin DMI, the disk of A in B: its own uuid" "$( [ "$(field uuid)" != "$twin_a" ] && echo changed)" "changed"
+check "twin DMI, the disk of A in B: copy of A's" "$(backups)" "1"
+check "twin DMI, the disk of A in B: says it" "$(echo "$out" | grep -c 'OTHER hardware, none of its 1 recorded network interfaces is here')" "1"
+check "twin DMI, the disk of A in B: says how to give it back" "$(echo "$out" | grep -c "set $twin_a")" "1"
+check "twin DMI, the disk of A in B: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
+
+#
+#   No interfaces on one side: the DMI uuid tells. A disk cloned to other
+#   hardware gets its own uuid, keeps a copy, and says that the yunos
+#   running keep the old one until they restart
 #
 reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
-first="$(field uuid)"
-check "dmi: source" "$(field source)" "dmi-product-uuid"
-check "dmi: the formula of 7.29.1" "$first" "ab81a85f-a234-8d07-9345-928dbac002e6"
-rm -rf "$YUNETA_NODE_UUID_DIR"
-run ensure
-check "reinstall: same uuid" "$(field uuid)" "$first"
-
-#
-#   A disk cloned to other hardware gets its own uuid, keeps a copy, and
-#   says that the yunos running keep the old one until they restart
-#
+dmibox="$(field uuid)"
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E33"
 out="$("$SCRIPT" ensure 2>&1)"
-check "clone: uuid changes" "$( [ "$(field uuid)" != "$first" ] && echo changed)" "changed"
+check "clone: uuid changes" "$( [ "$(field uuid)" != "$dmibox" ] && echo changed)" "changed"
 check "clone: old file kept" "$(backups)" "1"
+check "clone: says the DMI" "$(echo "$out" | grep -c 'its DMI uuid is another')" "1"
 check "clone: says the yunos keep the old uuid" "$(echo "$out" | grep -c 'yunos')" "1"
 check "clone: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
 
@@ -147,36 +204,86 @@ run ensure
 check "clone: one copy per replacement" "$(backups)" "3"
 
 #
-#   A legacy random uuid (no source) is replaced by the hardware one
+#   A uuid of 7.29.1-7.31.x made from the DMI is its own fingerprint: kept,
+#   no copy, its interfaces added. The recorded source stays, and a chip
+#   identifier that appears later does not move it
+#
+reset
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
+add_nic eth0 "aa:bb:cc:00:00:01" 0
+write_file "$first" "dmi-product-uuid"
+check "dmi 7.31 file: show says it is kept" "$("$SCRIPT" show 2>&1 | grep -c "the fingerprint is this machine's")" "1"
+run ensure
+check "dmi 7.31 file: uuid kept" "$(field uuid)" "$first"
+check "dmi 7.31 file: source kept" "$(field source)" "dmi-product-uuid"
+check "dmi 7.31 file: the DMI recorded" "$(field dmi_id)" "$first"
+check "dmi 7.31 file: the interface recorded" "$(ids_count)" "1"
+check "dmi 7.31 file: no copy" "$(backups)" "0"
+set_soc_serial "00A1B2C3D4E5F607"
+run ensure
+check "dmi 7.31 file: a chip identifier appears, uuid kept" "$(field uuid)" "$first"
+rm -rf "${YUNETA_NODE_UUID_SYSROOT}/sys/devices/soc0"
+
+#
+#   ... and once its interfaces are recorded, the disk in a twin box (the
+#   same DMI, other interfaces) is OTHER hardware
+#
+del_nic eth0
+add_nic eth0 "aa:bb:cc:00:00:77" 0
+run ensure
+check "dmi 7.31 file in a twin box: its own uuid" "$( [ "$(field uuid)" != "$first" ] && echo changed)" "changed"
+check "dmi 7.31 file in a twin box: random" "$(field source)" "random"
+check "dmi 7.31 file in a twin box: copy" "$(backups)" "1"
+
+#
+#   THE LIMIT: a 7.31 file copied to a twin box before its first ensure of
+#   this script has only the DMI to tell, and the DMI is the same: kept
+#
+reset
+set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
+add_nic eth0 "aa:bb:cc:00:00:77" 0
+write_file "$first" "dmi-product-uuid"
+run ensure
+check "dmi 7.31 file never ensured, in a twin box: kept (the limit)" "$(field uuid)" "$first"
+
+#
+#   A legacy random uuid (no source): a random, its fingerprint recorded;
+#   replaced by the uuid of a chip identifier
 #
 reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 mkdir -p "$YUNETA_NODE_UUID_DIR"
 echo '{"uuid": "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"}' > "$FILE"
 run ensure
-check "legacy: replaced by hardware" "$(field uuid)" "$first"
+check "legacy: kept" "$(field uuid)" "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"
+check "legacy: a random" "$(field source)" "random"
+check "legacy: the DMI recorded" "$(field dmi_id)" "$first"
+reset
+set_soc_serial "00A1B2C3D4E5F607"
+mkdir -p "$YUNETA_NODE_UUID_DIR"
+echo '{"uuid": "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230"}' > "$FILE"
+run ensure
+check "legacy, a chip identifier: replaced by it" "$(field uuid)" "$(derive soc-serial 00a1b2c3d4e5f607)"
 
 #
-#   Placeholder DMI is not an identity: falls through to the MAC. Both forms
-#   of the known placeholder (SMBIOS 2.6+ and the byte-swapped older one)
+#   Placeholder DMI is not in the fingerprint. Both forms of the known
+#   placeholder (SMBIOS 2.6+ and the byte-swapped older one)
 #
 for ph in 03000200-0400-0500-0006-000700080009 00020003-0004-0005-0006-000700080009; do
     reset
     set_dmi "$ph"
     add_nic eth0 "aa:bb:cc:00:00:01" 0
     run ensure
-    check "placeholder dmi $ph: source" "$(field source)" "ethernet-mac"
-    check "placeholder dmi $ph: from the MAC" "$(field uuid)" "0a0b2a12-f785-832a-99d3-758caac6dfdd"
+    check "placeholder dmi $ph: random" "$(field source)" "random"
+    check "placeholder dmi $ph: not in the fingerprint" "$(grep -c '"dmi_id"' "$FILE")" "0"
+    check "placeholder dmi $ph: the interface is" "$(ids_count)" "1"
 done
 
 #
 #   A uuid a node already derived from a placeholder is no identity: every
-#   box of the model gives it. Replaced when the box has a real identifier,
-#   with a copy and a warning ...
+#   box of the model gives it. Replaced, with a copy and a warning: by a
+#   random one when the box has no chip identifier ...
 #
-derive() {    # source value
-    bash -c 'source <(sed -n "/^derive_uuid()/,/^}/p" "$1"); derive_uuid "$2" "$3"' _ "$SCRIPT" "$1" "$2"
-}
 reset
 set_dmi "00020003-0004-0005-0006-000700080009"
 add_nic eth0 "aa:bb:cc:00:00:01" 0
@@ -185,21 +292,21 @@ write_file "$old_ph" "dmi-product-uuid"
 check "placeholder already used: show says ensure replaces it" \
     "$("$SCRIPT" show 2>&1 | grep -c 'placeholder, no identity: ensure replaces it')" "1"
 out="$("$SCRIPT" ensure 2>&1)"
-check "placeholder already used, a MAC: replaced" "$(field uuid)" "0a0b2a12-f785-832a-99d3-758caac6dfdd"
-check "placeholder already used, a MAC: source" "$(field source)" "ethernet-mac"
-check "placeholder already used, a MAC: old file kept" "$(backups)" "1"
-check "placeholder already used, a MAC: says it" "$(echo "$out" | grep -c 'from a placeholder')" "1"
+check "placeholder already used: replaced" "$( [ "$(field uuid)" != "$old_ph" ] && echo changed)" "changed"
+check "placeholder already used: random" "$(field source)" "random"
+check "placeholder already used: old file kept" "$(backups)" "1"
+check "placeholder already used: says it" "$(echo "$out" | grep -c 'from a placeholder')" "1"
 
 #
-#   ... and kept, with a warning, when it has none
+#   ... also when there is nothing to recognise the box by
 #
 reset
 set_dmi "00020003-0004-0005-0006-000700080009"
 write_file "$old_ph" "dmi-product-uuid"
 out="$("$SCRIPT" ensure 2>&1)"
-check "placeholder already used, nothing else: kept" "$(field uuid)" "$old_ph"
-check "placeholder already used, nothing else: no copy" "$(backups)" "0"
-check "placeholder already used, nothing else: warns" "$(echo "$out" | grep -c 'other boxes of this model')" "1"
+check "placeholder already used, nothing else: replaced" "$( [ "$(field uuid)" != "$old_ph" ] && echo changed)" "changed"
+check "placeholder already used, nothing else: old file kept" "$(backups)" "1"
+check "placeholder already used, nothing else: says it" "$(echo "$out" | grep -c 'from a placeholder')" "1"
 
 #
 #   Orange Pi RV2: the devicetree serial-number is "0123456789ABCDEF" on
@@ -223,7 +330,8 @@ run ensure
 check "rv2, first start: source" "$(field source)" "soc-serial"
 
 #
-#   The MAC: the lowest permanent on-board one
+#   The fingerprint takes every permanent on-board interface, not USB, not
+#   one whose MAC is random or set by software
 #
 reset
 set_dmi "03000200-0400-0500-0006-000700080009"
@@ -232,51 +340,59 @@ add_nic eth0 "aa:bb:cc:00:00:01" 0
 add_nic wlan0 "aa:bb:cc:00:00:00" 0 usb
 add_nic eth9 "02:11:22:33:44:55" 1
 run ensure
-check "mac: source" "$(field source)" "ethernet-mac"
-mac_uuid="$(field uuid)"
-check "mac: lowest permanent on-board one" "$mac_uuid" "0a0b2a12-f785-832a-99d3-758caac6dfdd"
+macbox="$(field uuid)"
+check "interfaces: random" "$(field source)" "random"
+check "interfaces: the two on-board permanent ones" "$(ids_count)" "2"
 
 #
-#   The recorded source wins over a better one that appears later
-#
-set_dt_serial "10000000abcdef01"
-run ensure
-check "recorded source kept" "$(field source)" "ethernet-mac"
-check "recorded source: uuid kept" "$(field uuid)" "$mac_uuid"
-
-#
-#   A new card with a lower MAC does not move the node
+#   A new card does not move the node, nor one missing at a boot
 #
 add_nic eth5 "aa:bb:cc:00:00:00" 0
 run ensure
-check "mac: a lower MAC added, uuid kept" "$(field uuid)" "$mac_uuid"
-
-#
-#   The interface it came from missing at a boot, another of the same box
-#   present: kept, and still kept when it is back
-#
+check "interfaces: a card added, uuid kept" "$(field uuid)" "$macbox"
+check "interfaces: a card added, recorded" "$(ids_count)" "3"
 del_nic eth0
+del_nic eth1
 run ensure
-check "mac: its interface missing, uuid kept" "$(field uuid)" "$mac_uuid"
+check "interfaces: two missing, one here: uuid kept" "$(field uuid)" "$macbox"
+del_nic eth5
+run ensure
+check "interfaces: none at this boot: uuid kept" "$(field uuid)" "$macbox"
 add_nic eth0 "aa:bb:cc:00:00:01" 0
 run ensure
-check "mac: its interface back, uuid kept" "$(field uuid)" "$mac_uuid"
-check "mac: no copy, nothing was replaced" "$(backups)" "0"
+check "interfaces: back, uuid kept" "$(field uuid)" "$macbox"
+check "interfaces: no copy, nothing was replaced" "$(backups)" "0"
 
 #
-#   A file of 7.29.1 (no list of the box's interfaces) gets it, uuid kept
+#   A random is replaced by the uuid of a chip identifier that appears
 #
+set_dt_serial "10000000abcdef01"
+run ensure
+check "random, a chip identifier appears: its uuid" "$(field uuid)" "$(derive devicetree-serial 10000000abcdef01)"
+check "random, a chip identifier appears: source" "$(field source)" "devicetree-serial"
+
+#
+#   A file of 7.29.1 made from a MAC (no list of the box's interfaces) is
+#   its own fingerprint: kept, the interfaces recorded. Its recorded source
+#   wins over a chip identifier that appears later
+#
+mac_uuid="$(derive ethernet-mac aa:bb:cc:00:00:01)"
 reset
 add_nic eth0 "aa:bb:cc:00:00:01" 0
 add_nic eth1 "aa:bb:cc:00:00:02" 0
 write_file "$mac_uuid" "ethernet-mac"
 run ensure
 check "mac 7.29.1 file: uuid kept" "$(field uuid)" "$mac_uuid"
-check "mac 7.29.1 file: the interfaces recorded" "$(grep -c '"ethernet_ids"' "$FILE")" "1"
+check "mac 7.29.1 file: source kept" "$(field source)" "ethernet-mac"
+check "mac 7.29.1 file: the interfaces recorded" "$(ids_count)" "2"
 check "mac 7.29.1 file: no copy" "$(backups)" "0"
 del_nic eth0
 run ensure
 check "mac 7.29.1 file: its interface missing, uuid kept" "$(field uuid)" "$mac_uuid"
+set_dt_serial "10000000abcdef01"
+run ensure
+check "mac 7.29.1 file: a chip identifier appears, uuid kept" "$(field uuid)" "$mac_uuid"
+rm -rf "${YUNETA_NODE_UUID_SYSROOT}/sys/firmware"
 
 #
 #   A disk cloned to a box with none of these interfaces: its own uuid
@@ -295,9 +411,8 @@ run ensure
 check "devicetree: source" "$(field source)" "devicetree-serial"
 
 #
-#   Nothing readable: random once, then kept while there is no identifier;
-#   an identifier that appears later replaces it (an image made where /sys
-#   was not the box's own gets the box's uuid on its first boot)
+#   Nothing readable: random once, then kept; a DMI that appears later is
+#   recorded as its fingerprint, the uuid kept
 #
 reset
 run ensure
@@ -307,7 +422,27 @@ run ensure
 check "random: kept" "$(field uuid)" "$rnd"
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
-check "random: replaced by the hardware that appears" "$(field uuid)" "$first"
+check "random: a DMI appears, uuid kept" "$(field uuid)" "$rnd"
+check "random: a DMI appears, recorded" "$(field dmi_id)" "$first"
+check "random: no copy" "$(backups)" "0"
+
+#
+#   A uuid of the chip whose source gives no value at a start (a driver that
+#   did not load) is kept, with a warning; another value is other hardware
+#
+reset
+set_soc_serial "00A1B2C3D4E5F607"
+run ensure
+chip="$(field uuid)"
+rm -rf "${YUNETA_NODE_UUID_SYSROOT}/sys/devices/soc0"
+out="$("$SCRIPT" ensure 2>&1)"
+check "chip gives no value: kept" "$(field uuid)" "$chip"
+check "chip gives no value: warns" "$(echo "$out" | grep -c 'gives no value at this start')" "1"
+set_soc_serial "00F7E6D5C4B3A291"
+out="$("$SCRIPT" ensure 2>&1)"
+check "chip gives another value: its uuid" "$(field uuid)" "$(derive soc-serial 00f7e6d5c4b3a291)"
+check "chip gives another value: says other hardware" "$(echo "$out" | grep -c 'OTHER hardware, its soc-serial gives another value')" "1"
+check "chip gives another value: copy" "$(backups)" "1"
 
 #
 #   In a container the hardware is the host's, shared by every container
@@ -363,8 +498,9 @@ check "image build: no more copies" "$(backups)" "1"
 set_pidns 4026531836
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
-check "docker export on a board, same hostname: the hardware read" "$(field source)" "dmi-product-uuid"
-check "docker export on a board, same hostname: its own uuid" "$(field uuid)" "$first"
+check "docker export on a board, same hostname: the hardware read" "$(field dmi_id)" "$first"
+check "docker export on a board, same hostname: its own uuid" "$( [ -n "$(field uuid)" ] && [ "$(field uuid)" != "$one" ] && echo changed)" "changed"
+check "docker export on a board, same hostname: no container recorded" "$(grep -c '"container"' "$FILE")" "0"
 check "docker export on a board: copy of the container's" "$(backups)" "2"
 out="$("$SCRIPT" show 2>&1)"
 check "docker export on a board: show reads the hardware" "$(echo "$out" | grep -c 'container')" "0"
@@ -425,7 +561,7 @@ for v in docker podman; do
     set_pidns 4026531836
     fake_virt "$v"
     YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
-    check "systemd-detect-virt '$v' in the initial pid namespace: the hardware" "$(field source)" "dmi-product-uuid"
+    check "systemd-detect-virt '$v' in the initial pid namespace: the hardware" "$(field dmi_id)" "$first"
     reset
     set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
     set_pidns 4026532512
@@ -512,7 +648,7 @@ mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/run"
 touch "${YUNETA_NODE_UUID_SYSROOT}/run/.containerenv"
 set_pidns 4026531836
 run ensure
-check "/run/.containerenv in the initial pid namespace: the hardware" "$(field source)" "dmi-product-uuid"
+check "/run/.containerenv in the initial pid namespace: the hardware" "$(field dmi_id)" "$first"
 
 #
 #   In the initial pid namespace only what this boot made counts. An Ubuntu
@@ -545,21 +681,22 @@ board ""
 touch "${YUNETA_NODE_UUID_SYSROOT}/.dockerenv"
 set_marker run/systemd/container docker
 run ensure
-check "Ubuntu image on a board, /run on the root fs: the hardware" "$(field source)" "dmi-product-uuid"
+check "Ubuntu image on a board, /run on the root fs: the hardware" "$(field dmi_id)" "$first"
 fake_virt docker
+rm -f "$FILE"
 YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
-check "Ubuntu image on a board, detect-virt 'docker': the hardware" "$(field source)" "dmi-product-uuid"
+check "Ubuntu image on a board, detect-virt 'docker': the hardware" "$(field dmi_id)" "$first"
 for fs in "" ext4 overlay; do
     board "$fs"
     set_marker run/systemd/container lxc
     fake_virt lxc
     YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
-    check "stale run/systemd/container 'lxc', /run '${fs:-not mounted}': the hardware" "$(field source)" "dmi-product-uuid"
+    check "stale run/systemd/container 'lxc', /run '${fs:-not mounted}': the hardware" "$(field dmi_id)" "$first"
     board "$fs"
     set_marker run/host/container-manager systemd-nspawn
     fake_virt systemd-nspawn
     YUNETA_NODE_UUID_DETECT_VIRT="$FAKE_VIRT" run ensure
-    check "stale run/host/container-manager, /run '${fs:-not mounted}': the hardware" "$(field source)" "dmi-product-uuid"
+    check "stale run/host/container-manager, /run '${fs:-not mounted}': the hardware" "$(field dmi_id)" "$first"
 done
 board tmpfs
 set_marker run/systemd/container lxc
@@ -627,7 +764,7 @@ check "debootstrap chroot (no marker), install: nothing stored" "$( [ -e "$FILE"
 board ""
 set_pid1_root same
 run ensure
-check "/ is the root of PID 1: the hardware" "$(field source)" "dmi-product-uuid"
+check "/ is the root of PID 1: the hardware" "$(field dmi_id)" "$first"
 
 #
 #   PID 1's root cannot be looked at (a root without CAP_SYS_PTRACE, in a
@@ -660,12 +797,12 @@ hidden_board() {    # an Ubuntu image on a board, /run on its root fs
 hidden_board
 set_pid1_mount '1 0 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw'
 check "PID 1's root hidden, the same mount on /, install: the hardware" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
-check "PID 1's root hidden, the same mount on /: the hardware" "$(field source)" "dmi-product-uuid"
+check "PID 1's root hidden, the same mount on /: the hardware" "$(field dmi_id)" "$first"
 check "PID 1's root hidden, the same mount on /: no container recorded" "$(grep -c '"container"' "$FILE")" "0"
 hidden_board
 set_pid1_mount '7 0 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw'
 run ensure
-check "PID 1's root hidden, the same mount on / of another id (unshare -m): the hardware" "$(field source)" "dmi-product-uuid"
+check "PID 1's root hidden, the same mount on / of another id (unshare -m): the hardware" "$(field dmi_id)" "$first"
 hidden_board
 set_pid1_mount '1 0 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw'
 check "PID 1's root hidden, another mount on /, install: exit 3" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "3"
@@ -688,11 +825,11 @@ check "PID 1's root hidden, no mount on this / (a chroot into a directory): a co
 hidden_board
 set_pid1_mount ""
 run ensure
-check "PID 1's root hidden, no / in PID 1's mountinfo: as the system" "$(field source)" "dmi-product-uuid"
+check "PID 1's root hidden, no / in PID 1's mountinfo: as the system" "$(field dmi_id)" "$first"
 hidden_board
 rm -f "${YUNETA_NODE_UUID_SYSROOT}/proc/1/mountinfo"
 run ensure
-check "PID 1's root hidden, PID 1's mountinfo unreadable, no root: as the system" "$(field source)" "dmi-product-uuid"
+check "PID 1's root hidden, PID 1's mountinfo unreadable, no root: as the system" "$(field dmi_id)" "$first"
 
 #
 #   The same against the real kernel, as a normal user. The root of a user
@@ -831,7 +968,7 @@ if command -v python3 >/dev/null 2>&1; then
         "${YUNETA_NODE_UUID_SYSROOT}/proc/1/environ"
     check "PID 1's environment cannot be opened: nothing on stderr" \
         "$("$SCRIPT" ensure 2>&1 >/dev/null | wc -l)" "0"
-    check "PID 1's environment cannot be opened: the hardware" "$(field source)" "dmi-product-uuid"
+    check "PID 1's environment cannot be opened: the hardware" "$(field dmi_id)" "$first"
 else
     echo "skip - no python3 to make a socket: no unopenable environment"
 fi
@@ -843,6 +980,7 @@ fi
 #
 reset
 add_nic eth0 "aa:bb:cc:00:00:01" 0
+write_file "$(derive ethernet-mac aa:bb:cc:00:00:01)" "ethernet-mac"
 run ensure
 macnode="$(field uuid)"
 check "ethernet-mac node: source" "$(field source)" "ethernet-mac"
@@ -874,7 +1012,7 @@ check "install in a container, a uuid stored: exit 0" "$("$SCRIPT" ensure --inst
 reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 check "install on a box: exit 0" "$("$SCRIPT" ensure --installing >/dev/null 2>&1; echo $?)" "0"
-check "install on a box: stored" "$(field uuid)" "$first"
+check "install on a box: stored" "$(field dmi_id)" "$first"
 
 #
 #   A container with no hostname (empty, or the kernel's "(none)"): its
@@ -968,7 +1106,7 @@ reset
 set_dmi "DEADBEEF-1234-5678-9ABC-DEF000004E32"
 run ensure
 created_first="$(field created)"
-run set "$first"
+run set "$(field uuid)"
 check "set, the uuid it had: manual" "$(field source)" "manual"
 check "set, the uuid it had: no copy" "$(backups)" "0"
 check "set, the uuid it had: created kept" "$(field created)" "$created_first"

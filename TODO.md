@@ -134,21 +134,16 @@ application's gate (one application).
   spawning yunos, `/var/crash`). An OCI image as the build environment is the
   portable form of the matrix option. Not urgent while every node is ours.
 
-- **The node uuid when its recorded source disappears** (`yuneta-node-uuid`,
-  after 7.29.1). The cases left as they are:
-    - a box whose only identifier is a placeholder (7.30.3: a uuid made from
-      one is replaced when the box has a real identifier) keeps the uuid of
-      the placeholder, with a warning at each `ensure`: every box of its
-      model with no other identifier claims the same one, until `set`;
-    - a node whose recorded source is missing while another is present (an
-      ethernet-mac node that sees no NIC at one boot but has DMI or a
-      devicetree; a disk imaged from a box with real DMI onto one whose DMI
-      is a placeholder) switches source, and its uuid changes. Keeping it
-      would stop the first case moving, and make clones keep a shared uuid
-      in the second;
-    - a 7.29.1 ethernet-mac file whose interface is missing at its very
-      first `ensure` of the new script (before `ethernet_ids` exists) is
-      replaced: nothing tells this box from a clone yet;
+- **The node uuid** (`yuneta-node-uuid`, after 7.29.1; after 7.31.1 only a
+  chip identifier is an identity, any other machine gets a random uuid known
+  by its fingerprint). The cases left as they are:
+    - two machines that got the same uuid from a shared DMI up to 7.31.x
+      keep it shared: a 7.31 file is its own fingerprint, and the DMI is all
+      it has until its first `ensure` of the new script records the interfaces.
+      `set` gives one of them its own (done on the one pair found);
+    - a machine whose network cards are ALL replaced at once looks like
+      another machine to its fingerprint and gets a new uuid (the warning
+      says how to `set` the old one back);
     - the packages restart only the agents when the uuid changes: the yunos
       that run keep the old one until restarted (documented, not done);
     - containers that already hold a host-DMI uuid keep it (no uuid a node
