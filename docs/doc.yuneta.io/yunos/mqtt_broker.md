@@ -599,3 +599,25 @@ listed the delivered messages of that QoS too, a backlog that did not exist.
 
 Enable with
 `ycommand command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=<G> set=1 level=<L>`.
+
+## Conformance: Mosquitto's test suite
+
+Eclipse Mosquitto's own broker tests (about 270, in Python) run against
+`mqtt_broker` through a stand-in for the `mosquitto` binary. The scripts, the
+stand-in and the reference results are in
+[`yunos/c/mqtt_broker/tests/mosquitto/`](https://github.com/artgins/yunetas/tree/main/yunos/c/mqtt_broker/tests/mosquitto);
+the suite itself is fetched at a pinned commit, not copied into the repository.
+
+```bash
+cd yunos/c/mqtt_broker/tests/mosquitto
+./setup.sh          # once: fetch Mosquitto's test/ and patch it
+./run_all.sh        # every test, one at a time; prints changes against baseline.txt
+./run_all.sh 05-session-expiry-v5.py    # one test
+```
+
+With Mosquitto 2.1.2, 83 of the 270 tests pass. 105 are skipped because they test a
+feature this broker does not have (TLS, websockets, plugins, bridges...), and most of
+the other failures are of the same kind. The 10 left expect a choice the spec leaves
+to the server, such as the SUBACK before the retained messages (MQTT-3.8.4). The
+README of the directory lists them, with what the stand-in translates and how to
+debug one test.

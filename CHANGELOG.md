@@ -76,6 +76,12 @@
 
 ### Tests
 
+- **Mosquitto's broker test suite can be run against `mqtt_broker` from the
+  repository**: `yunos/c/mqtt_broker/tests/mosquitto/` (`setup.sh` fetches the
+  suite's `test/` at a pinned commit and patches its packet comparison;
+  `run_all.sh` runs it through a stand-in for the `mosquitto` binary and prints
+  every test whose result changed against `baseline.txt`). README with what the
+  stand-in translates, the classes of the failures and how to debug one test.
 - `c_mqtt/client_noqueue` step 7 expects DISCONNECT `0x95`; `c_mqtt/broker_sessions`
   cases 13 and 14 expect the server to close A at `timeout_close` after its
   DISCONNECT with Session Expiry 0 (one WARNING each), and B to find no session:

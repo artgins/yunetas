@@ -1,0 +1,221 @@
+Patch to test/mosq_test.py of Eclipse Mosquitto (github.com/eclipse-mosquitto/mosquitto,
+commit fda14f2c196d9d2fcdd07d6c5d31a673524f7368), applied by setup.sh.
+Mosquitto is dual licensed EPL-2.0 OR BSD-3-Clause (Eclipse Distribution License 1.0);
+this modification is offered under the same terms.
+
+What it changes (only the comparison of what the broker sends; no test changes):
+- expect_packet() reads whole MQTT packets (fixed header + remaining length) instead
+  of len(expected) bytes, so a packet of another allowed length does not eat the next.
+- packet_matches() accepts the encodings the spec allows for the same content:
+  MQTT 5 properties in any order (MQTT-2.2.2), and the Reason Code / Property Length
+  a sender may omit (PUBACK..PUBCOMP, DISCONNECT, AUTH). It prints STANDIN-NOTE.
+- STANDIN_SUBACK_REORDER=1: what-if pass that keeps a PUBLISH received before the
+  SUBACK for the next expect_packet() (MQTT-3.8.4 lets a server send it first).
+
+--- a/test/mosq_test.py
++++ b/test/mosq_test.py
+@@ -284,7 +284,72 @@
+     return sock
+ 
+ 
++_STASH = {}
++
++def _recv_exact(sock, n, name):
++    data = b""
++    while len(data) < n:
++        d = sock.recv(n - len(data))
++        if len(d) == 0:
++            try:
++                s = f"when reading {name} from {sock.getpeername()}"
++            except OSError:
++                s = f"when reading {name} from {sock}"
++            raise BrokenPipeError(s)
++        data += d
++    return data
++
++def _recv_frame(sock, name):
++    pkt = _recv_exact(sock, 1, name)
++    while True:
++        b = _recv_exact(sock, 1, name)
++        pkt += b
++        if not (b[0] & 0x80) or len(pkt) > 5:
++            break
++    rl, _ = _varint(pkt, 1)
++    return pkt + _recv_exact(sock, rl, name)
++
+ def expect_packet(sock, name, expected):
++    #
++    #   STANDIN harness: read whole MQTT packets (as many as `expected`
++    #   holds) instead of len(expected) bytes, so a packet of another
++    #   length (an encoding the spec allows) does not eat the next one.
++    #
++    try:
++        n_frames = len(_split_frames(expected)) if len(expected) > 0 else 0
++    except (ValueError, IndexError):
++        n_frames = 0
++    if n_frames == 0:
++        return _expect_packet_orig(sock, name, expected)
++
++    packet_recvd = b""
++    reorder = os.environ.get('STANDIN_SUBACK_REORDER') is not None
++    stash = _STASH.setdefault(id(sock), [])
++    try:
++        for _ in range(n_frames):
++            if stash:
++                packet_recvd += stash.pop(0)
++                continue
++            f = _recv_frame(sock, name)
++            # what-if pass: a PUBLISH sent before the SUBACK expected is kept
++            # for the next expect_packet (MQTT-3.8.4 lets a server do it)
++            while reorder and (expected[0] & 0xF0) == 0x90 and (f[0] & 0xF0) == 0x30:
++                print("STANDIN-REORDER: %s: PUBLISH before SUBACK kept for later" % name)
++                stash.append(f)
++                f = _recv_frame(sock, name)
++            packet_recvd += f
++    except socket.timeout:
++        pass
++    except BrokenPipeError:
++        if len(packet_recvd) == 0:
++            raise
++    if packet_matches(name, packet_recvd, expected):
++        return True
++    else:
++        raise TestError
++
++
++def _expect_packet_orig(sock, name, expected):
+     if len(expected) > 0:
+         rlen = len(expected)
+     else:
+@@ -310,7 +375,131 @@
+         raise TestError
+ 
+ 
++#
++#   STANDIN harness: MQTT 5 does not fix the order of the properties
++#   (MQTT-2.2.2), so two packets that differ only in that order match.
++#
++_PROP_TYPES = {
++    1:'b', 2:'4', 3:'s', 8:'s', 9:'s', 11:'v', 17:'4', 18:'s', 19:'2', 21:'s',
++    22:'s', 23:'b', 24:'4', 25:'b', 26:'s', 28:'s', 31:'s', 33:'2', 34:'2',
++    35:'2', 36:'b', 37:'b', 38:'p', 39:'4', 40:'b', 41:'b', 42:'b',
++}
++
++def _varint(buf, i):
++    mult = 1
++    val = 0
++    while True:
++        if i >= len(buf):
++            raise ValueError
++        b = buf[i]
++        i += 1
++        val += (b & 127) * mult
++        mult *= 128
++        if not (b & 128):
++            return val, i
++
++def _split_props(buf, i):
++    plen, j = _varint(buf, i)
++    end = j + plen
++    if end > len(buf):
++        raise ValueError
++    props = []
++    while j < end:
++        start = j
++        ident, j = _varint(buf, j)
++        t = _PROP_TYPES.get(ident)
++        if t is None:
++            raise ValueError
++        if t == 'b':
++            j += 1
++        elif t == '2':
++            j += 2
++        elif t == '4':
++            j += 4
++        elif t == 'v':
++            _, j = _varint(buf, j)
++        elif t == 's':
++            j += 2 + int.from_bytes(buf[j:j+2], 'big')
++        elif t == 'p':
++            j += 2 + int.from_bytes(buf[j:j+2], 'big')
++            j += 2 + int.from_bytes(buf[j:j+2], 'big')
++        props.append(bytes(buf[start:j]))
++    if j != end:
++        raise ValueError
++    return buf[:i], sorted(props), buf[end:]
++
++def _props_offsets(pkt):
++    t = pkt[0] & 0xF0
++    _, i = _varint(pkt, 1)
++    if t == 0x20:                       # CONNACK
++        return [i + 2]
++    if t in (0x40, 0x50, 0x60, 0x70):   # PUBACK..PUBCOMP
++        return [i + 3]
++    if t in (0xE0, 0xF0):               # DISCONNECT, AUTH
++        return [i + 1]
++    if t in (0x90, 0xB0):               # SUBACK, UNSUBACK
++        return [i + 2]
++    if t == 0x30:                       # PUBLISH
++        tl = int.from_bytes(pkt[i:i+2], 'big')
++        j = i + 2 + tl
++        if (pkt[0] & 0x06):
++            j += 2
++        return [j]
++    return []
++
++def _split_frames(buf):
++    frames = []
++    i = 0
++    while i < len(buf):
++        rl, j = _varint(buf, i+1)
++        if j + rl > len(buf):
++            raise ValueError
++        frames.append(bytes(buf[i:j+rl]))
++        i = j + rl
++    return frames
++
++def _canonical(pkt):
++    """
++    One MQTT packet as a comparable value where the encodings the spec
++    allows for the same content are equal: properties in any order
++    (MQTT-2.2.2), and the Reason Code / Property Length that MQTT 5 lets
++    a sender omit (3.4.2.1-3.7.2.1 PUBACK..PUBCOMP, 3.14.2.1 DISCONNECT,
++    3.15.2.1 AUTH).
++    """
++    t = pkt[0] & 0xF0
++    rl, i = _varint(pkt, 1)
++    body = pkt[i:i+rl]
++    if t in (0x40, 0x50, 0x60, 0x70) and len(body) >= 2:
++        mid = body[:2]
++        rc = body[2] if len(body) > 2 else 0
++        props = _split_props(body, 3)[1] if len(body) > 3 else []
++        return (pkt[0], mid, rc, tuple(props))
++    if t in (0xE0, 0xF0):
++        rc = body[0] if len(body) > 0 else 0
++        props = _split_props(body, 1)[1] if len(body) > 1 else []
++        return (pkt[0], rc, tuple(props))
++    for off in _props_offsets(pkt):
++        head, props, tail = _split_props(pkt, off)
++        return (bytes(head[:1]), bytes(head[i:]), tuple(props), bytes(tail))
++    return bytes(pkt)
++
++def _same_but_encoding(recvd, expected):
++    try:
++        r = _split_frames(recvd)
++        e = _split_frames(expected)
++        if len(r) != len(e):
++            return False
++        for x, y in zip(r, e):
++            if x != y and _canonical(x) != _canonical(y):
++                return False
++        return True
++    except (ValueError, IndexError):
++        return False
++
+ def packet_matches(name, recvd, expected):
++    if recvd != expected and _same_but_encoding(recvd, expected):
++        print("STANDIN-NOTE: %s matched in another encoding the spec allows (property order / omitted reason code or property length)" % name)
++        return True
+     if recvd != expected:
+         print("FAIL: Received incorrect "+name+".")
+         try:

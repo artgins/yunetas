@@ -2,6 +2,9 @@
 
 Tests for the yuneta MQTT broker covering MQTT v3.1.1 and v5.0 protocol compliance, functional behavior, and performance.
 
+Mosquitto's own broker test suite (about 270 tests) runs against `mqtt_broker` too:
+see [`mosquitto/README.md`](mosquitto/README.md).
+
 ## Prerequisites
 
 - **Java 11+** (`java -version`)
