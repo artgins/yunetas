@@ -1,5 +1,18 @@
 # **Changelog**
 
+## Unreleased
+
+### Fixed
+
+- **JS: gobj-ui 7.31.1, a table's footer wraps when it does not fit.** Tabulator
+  puts `white-space: nowrap` on `.tabulator-footer`, so on a phone the
+  paginator of a treedb topic table (552px in a 410px view) ran out of the
+  view and its last buttons could not be reached. `src/tabulator.css` lets the
+  footer wrap (`flex-wrap: wrap`) and keeps each paginator control on one
+  line. The `kernel/js/gobj-ui` submodule moves to 7.31.1 (npm) and the docs
+  links to it are repinned. `yunos/js` and the project templates keep
+  `^7.31.0`, which takes 7.31.1 at their next lockfile refresh.
+
 ## v7.31.3 (2026-11-14)
 
 The node uuid is a function of the machine, the same after any reinstall. A
