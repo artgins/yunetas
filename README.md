@@ -13,7 +13,7 @@
 An Asynchronous Development Framework
 
 <!-- yuneta-intro-start: also the introduction of doc.yuneta.io (get_started.md includes it) -->
-`Yuneta Simplified` is a **development framework** focused on **messaging** and **services**, built on the
+`Yuneta Simplified` is a _open source_ **development framework** focused on **messaging** and **services**, built on the
 [event-driven](https://en.wikipedia.org/wiki/Event-driven_programming),
 [automata-based](https://en.wikipedia.org/wiki/Automata-based_programming)
 and [object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming)
