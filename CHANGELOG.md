@@ -33,6 +33,12 @@
   schema graph always carries a minimap, and the treedb graph shows its own
   from 10 nodes (`minimap_min_nodes`, was 30). The `kernel/js/gobj-ui`
   submodule moves to 7.31.2 (npm) and the docs links to it are repinned.
+- **JS: gobj-ui 7.31.3, an edge is easier to click** in the schema and treedb
+  graphs: it takes a click 7px either side of its line
+  (`increasedLineWidthForHitTesting`) and is drawn wider (2px; 4px lit). Its
+  `deploy-round` reads back `insecure_urls` with `curl -k`, so a box served by
+  IP with its own self-signed certificate (the Orange Pi controllers) is in the
+  round. The submodule moves to 7.31.3 and the docs links are repinned.
 
 ## v7.31.3 (2026-11-14)
 
