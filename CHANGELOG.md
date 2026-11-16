@@ -42,6 +42,11 @@
 - **JS: gobj-ui 7.31.4**: the treedb graph draws its edges at their width
   before 7.31.3 (1.6px, 2px tree, 3px lit) and keeps only the wider click
   area; the schema graph keeps its 2px. Submodule and docs links at 7.31.4.
+- **JS: gobj-ui 7.31.5, the JSON graph (`C_YUI_JSON_GRAPH`) lights an edge on
+  a click** (the line, its two cards and the parent's row it leaves from), has
+  a minimap from `minimap_min_nodes` cards (default 10), and zooms out to 2%
+  (10% before, where a large document did not fit). Submodule and docs links
+  at 7.31.5.
 
 ## v7.31.3 (2026-11-14)
 
