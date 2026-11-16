@@ -566,6 +566,76 @@ static void test_null_safety(void)
 }
 
 /***************************************************************************
+ *  A key in error is never used (backport of upstream cd9f46d,
+ *  GHSA-4jp4-6w6j-ff4q). Two kinds of key are in error: one that failed to
+ *  load (no key object), and one that loaded and was then flagged (here an
+ *  "alg" that is not a string: the octets are good, and before the backport
+ *  this key signed and verified tokens). Both must be refused by
+ *  jwt_checker_setkey() and jwt_builder_setkey(), with the cause, and so at
+ *  load time in c_authz instead of on every token.
+ ***************************************************************************/
+static void expect_setkey_refused(jwk_item_t *item, jwt_alg_t alg,
+    const char *label)
+{
+    jwt_checker_t *checker = jwt_checker_new();
+    int ret = jwt_checker_setkey(checker, alg, item);
+    const char *msg = jwt_checker_error_msg(checker);
+    check(ret != 0 && msg && strstr(msg, "Key is in error") != NULL, label);
+    if(ret == 0) {
+        /* Before the backport the setkey succeeded: show what it let through */
+        jwt_checker_error_clear(checker);
+        check(jwt_checker_verify(checker, LEGIT_HS256) != 0,
+            "    ...and a token does not verify with it");
+    }
+    jwt_checker_free(checker);
+}
+
+static void test_key_in_error(void)
+{
+    printf("Key in error (GHSA-4jp4 backport):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+
+    /* Failed to load: an RSA JWK with no modulus, a valid alg */
+    jwk_item_t *no_n = load_jwk(keyring,
+        "{\"kty\":\"RSA\",\"kid\":\"no-n\",\"alg\":\"RS256\",\"e\":\"AQAB\"}");
+    if(no_n && jwks_item_error(no_n)) {
+        expect_setkey_refused(no_n, JWT_ALG_RS256,
+            "checker refuses an RSA key that failed to load");
+    } else {
+        check(0, "an RSA JWK with no n is in error");
+    }
+
+    /* Flagged after it loaded: good octets, "alg" not a string */
+    jwk_item_t *bad_alg = load_jwk(keyring,
+        "{\"kty\":\"oct\",\"kid\":\"bad-alg\",\"alg\":256,"
+        "\"k\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"}");
+    if(bad_alg && jwks_item_error(bad_alg)) {
+        expect_setkey_refused(bad_alg, JWT_ALG_HS256,
+            "checker refuses a loaded key flagged in error");
+
+        jwt_builder_t *builder = jwt_builder_new();
+        int ret = jwt_builder_setkey(builder, JWT_ALG_HS256, bad_alg);
+        const char *msg = jwt_builder_error_msg(builder);
+        check(ret != 0 && msg && strstr(msg, "Key is in error") != NULL,
+            "builder refuses a loaded key flagged in error");
+        jwt_builder_free(builder);
+    } else {
+        check(0, "an oct JWK with a non-string alg is in error");
+    }
+
+    /* Positive control: the same octets with a string alg still verify */
+    jwk_item_t *good = load_jwk(keyring, OCT_JWK);
+    jwt_checker_t *checker = jwt_checker_new();
+    check(good && jwt_checker_setkey(checker, JWT_ALG_HS256, good) == 0 &&
+        jwt_checker_verify(checker, LEGIT_HS256) == 0,
+        "a good key with the same octets still verifies (positive control)");
+    jwt_checker_free(checker);
+
+    jwks_free(keyring);
+}
+
+/***************************************************************************
  *  Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -585,6 +655,7 @@ int main(int argc, char *argv[])
     test_malformed_tokens();
     test_crit_header();
     test_null_safety();
+    test_key_in_error();
 
     if(failed) {
         printf("RESULT: FAILED (%d)\n", failed);

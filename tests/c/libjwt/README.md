@@ -30,11 +30,11 @@ Plus:
 | OCT-key checker, verify a genuinely HMAC-signed `HS256` token | accepted — HMAC path still works |
 | (above) verified payload | carries the expected `sub` claim |
 
-**Verify contract (footgun).** `jwt_checker_verify2()` *always* returns the
-parsed claims (incref'd) — success/failure is signalled only by
-`jwt_checker_error()`. Checking the return pointer alone would accept the
-forgery. The test (and `c_authz`: `if(!jwt_checker->error) validated = TRUE;`)
-key off the error flag.
+**Verify contract.** `jwt_checker_verify2()` fails closed (since 7.6.0): it
+returns the claims only for a token that passed every check, and `NULL` on any
+failure, with the cause in `jwt_checker_error_msg()`. Up to 7.5.x it returned
+the claims of a failed token too, so a caller that looked at the pointer
+accepted the forgery. `test_verify2_fail_closed` pins the new contract.
 
 ### Robustness cases (ported from upstream `tests/jwt_security.c`)
 
@@ -46,6 +46,7 @@ parser degrades gracefully rather than crashing or silently accepting:
 | Malformed JWKs | non-string `alg` (int/null/bool); missing `kty`/unknown `kty`; missing RSA `n`/`e`; missing EC `x`/`crv`; missing OKP `x`; non-string `n`/`e`; deeply-nested `n`; bad-base64 `oct` `k`; empty string | handled — rejected via `jwks_item_error()`, or (non-string `alg`) handled without the `alg_str` NULL-deref |
 | Malformed tokens | `NULL`/empty; no/one/many dots; empty header; header-not-JSON; header missing `alg`; invalid `alg`; `alg` as integer; `alg:none` + bad-base64 payload | rejected by a real-key checker, no crash |
 | `jwt_checker_*` NULL-safety | `verify`/`error`/`error_msg`/`setkey` on a NULL checker | no crash, reports failure |
+| Key in error (upstream GHSA-4jp4, `cd9f46d`) | an RSA JWK with no `n` (failed to load); an `oct` JWK with good `k` and `"alg": 256` (loaded, then flagged) | `jwt_checker_setkey()` and `jwt_builder_setkey()` refuse both with *"Key is in error and cannot be used"*; the same octets with a string `alg` still verify. Up to 7.31.3 the flagged key was accepted and verified tokens |
 | `jwks_*` NULL-safety | `item_get`/`item_free`/`item_free_all`/`error`/`error_any`/`error_msg`/`error_clear`/`free`/`item_count`/`find_bykid`/`item_add`/`item_free_bad` on a NULL set; `find_bykid` with a NULL kid, `item_add` of a NULL item | no crash; getters answer NULL or 0, `error`/`error_any` answer 1, `item_add` fails |
 
 The `jwks_*` keyring API is asserted NULL-safe too (`jwks_item_get`,

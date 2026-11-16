@@ -163,6 +163,26 @@ void jwt_builder_error_clear(jwt_builder_t *builder);
 int jwt_builder_setkey(jwt_builder_t *builder, const jwt_alg_t alg, const jwk_item_t *key);
 ```
 
+Sets the key and the algorithm that the builder signs with. Returns `0`, or `1`
+with the cause in `jwt_builder_error_msg()`. It refuses a key **in error**
+(`jwks_item_error()`, *"Key is in error and cannot be used"*, backport of
+upstream GHSA-4jp4), a key that is not private (*"Signing requires a private
+key"*), and the same type and algorithm mismatches as
+[`jwt_checker_setkey()`](#jwt_checker_setkey).
+
+```C
+const jwk_item_t *key = jwks_item_get(jwk_set, 0);
+if(jwt_builder_setkey(builder, JWT_ALG_ES256, key) != 0) {
+    gobj_log_error(gobj, 0,
+        "function", "%s", __FUNCTION__,
+        "msgset",   "%s", MSGSET_CONFIGURATION,
+        "msg",      "%s", "Cannot sign with the assertion key",
+        "serror",   "%s", jwt_builder_error_msg(builder),
+        NULL
+    );
+}
+```
+
 ---
 
 (jwt_builder_enable_iat)=
@@ -316,6 +336,30 @@ void jwt_checker_error_clear(jwt_checker_t *checker);
 
 ```C
 int jwt_checker_setkey(jwt_checker_t *checker, const jwt_alg_t alg, const jwk_item_t *key);
+```
+
+Sets the key and the algorithm that the checker verifies with. Returns `0`, or
+`1` with the cause in `jwt_checker_error_msg()`. It refuses:
+
+- a key **in error** (`jwks_item_error()`): a JWK that failed to load, or one
+  that loaded and was then flagged (an `"alg"` that is not a string) --
+  *"Key is in error and cannot be used"*. Backport of upstream GHSA-4jp4.
+- a key whose type does not match `alg` (an RSA key for `HS256`) --
+  *"Key type does not match algorithm"*. GHSA-q843.
+- an `alg` that is not the `"alg"` of the key -- *"Alg mismatch"*.
+
+```C
+jwk_item_t *item = jwk_process_one(jwks, jn_jwk);
+jwks_item_add(jwks, item);
+if(jwt_checker_setkey(checker, JWT_ALG_RS256, item) != 0) {
+    gobj_log_error(gobj, 0,
+        "function", "%s", __FUNCTION__,
+        "msgset",   "%s", MSGSET_CONFIGURATION,
+        "msg",      "%s", "jwt_checker_setkey() FAILED",
+        "serror",   "%s", jwt_checker_error_msg(checker),
+        NULL
+    );
+}
 ```
 
 ---

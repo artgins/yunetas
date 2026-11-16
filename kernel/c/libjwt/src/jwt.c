@@ -265,9 +265,33 @@ int jwt_base64uri_encode(char **_dst, const char *plain, int plain_len)
 	return i;
 }
 
+/* Backport of upstream cd9f46d (GHSA-4jp4-6w6j-ff4q), the last line of
+ * defence: a key that is missing or in error (jwks_item_error()) never
+ * reaches a backend. Every signing and verifying operation runs
+ * __check_hmac() or __check_key_bits() first.
+ * ArtGins: upstream also refuses a NULL provider_data. Not here: the
+ * MbedTLS backend of this tree keeps its key in item->pem and never sets
+ * provider_data. A key with no key object has bits == 0, which the size
+ * checks below already refuse. */
+static int __check_key_error(jwt_t *jwt)
+{
+	if (jwt->key == NULL || jwt->key->error) {
+		jwt_write_error(jwt, "Key is in error and cannot be used");
+		return 1;
+	}
+
+	return 0;
+}
+
 static int __check_hmac(jwt_t *jwt)
 {
-	int key_bits = jwt->key->bits;
+	int key_bits;
+
+	if (__check_key_error(jwt)) {
+		return 1;
+	}
+
+	key_bits = jwt->key->bits;
 
 	/* Defensive backstop: an HMAC algorithm requires an octet key. Without
 	 * this, an RSA/EC/OKP key reaches the HMAC routine, which reads
@@ -312,7 +336,13 @@ static int __check_hmac(jwt_t *jwt)
 
 static int __check_key_bits(jwt_t *jwt)
 {
-	int key_bits = jwt->key->bits;
+	int key_bits;
+
+	if (__check_key_error(jwt)) {
+		return 1;
+	}
+
+	key_bits = jwt->key->bits;
 
 	switch (jwt->alg) {
 	case JWT_ALG_RS256:

@@ -36,13 +36,14 @@ on a per-commit basis when they're worth the integration cost.
 > 3.x branch, not 1.x.
 
 A security review of this vendored copy against upstream was done on
-**2026-06-05**, re-run against **v3.4.0** on **2026-06-15**, and re-run again
-against **v3.6.1** on **2026-06-28**.
+**2026-06-05**, re-run against **v3.4.0** on **2026-06-15**, re-run again
+against **v3.6.1** on **2026-06-28**, and against **v3.6.3** on **2026-11-16**.
 
 - **Vendored base:** upstream commit `375e539`
   (`v3.2.1`+2, 2025-06-04 — "jwt: Use long long for json integers").
-- **Analyzed up to:** upstream commit `197ac58` (**v3.6.1**, 2026-06-28).
-  The prior pass stopped at `6ea3b6b` (**v3.4.0**, 2026-06-15).
+- **Analyzed up to:** upstream commit `a01e74b` (**v3.6.3**, 2026-11-16).
+  The prior passes stopped at `197ac58` (**v3.6.1**, 2026-06-28) and
+  `6ea3b6b` (**v3.4.0**, 2026-06-15).
 - **Gap:** v3.4.0 is a large feature release (full JWE, `crit` header, `jti`
   callbacks, PEM→JWK public API). Almost none of it touches Yuneta's compiled
   subset: JWE, `jwks-curl.c`, the `gnutls`/`json-c` backends are all excluded
@@ -115,6 +116,24 @@ against **v3.6.1** on **2026-06-28**.
   jwks_free(NULL);    /* no-op */
   ```
 
+- **`cd9f46d` — a key in error is never used (GHSA-4jp4-6w6j-ff4q, v3.6.3;
+  backported 2026-11-16).** `__setkey_check` (`jwt-checker.c` +
+  `jwt-builder.c`) refuses a key that `jwks_item_error()` flags, with *"Key is
+  in error and cannot be used"*, and a static `__check_key_error()` runs first
+  in `__check_hmac()`/`__check_key_bits()` (`jwt.c`). Before it, a key that
+  loaded and was then flagged (an `"alg"` that is not a string) signed and
+  verified tokens, and a key that failed to load was accepted by setkey and
+  failed every token later with a misleading *"Key too short"*. **Not taken
+  from upstream:** its `provider_data == NULL` test in `__check_key_error()`
+  (this tree's MbedTLS backend keeps the key in `item->pem` and never sets
+  `provider_data`, so the test would refuse every MbedTLS key; a key with no
+  key object has `bits == 0` here, and the size checks refuse it), and the
+  `key_required = 2` latch (this tree has no `key_required`; `C_AUTHZ` frees a
+  checker whose setkey failed, and the controlcenter stops). The upstream NULL
+  dereference (a key that MbedTLS failed to load, verified under OpenSSL)
+  cannot happen here: one backend is active, and both of ours set `bits` only
+  after the key is good. Covered by `test_key_in_error`.
+
 #### v3.4.0 re-review (2026-06-15)
 
 - **`18133e4` (L17) — reject duplicate JSON members on the token parse
@@ -181,6 +200,34 @@ security fix lands on compiled, reachable code; nothing was backported.**
   overflow), `590beb2` / `6903450` (`jwk-export.c`, tools), gnutls.** In
   `jwks-curl.c` / files **not compiled** here (JWKS is loaded from a config attr).
   N/A — re-classify only if the curl backend is ever enabled.
+
+#### v3.6.2 / v3.6.3 re-review (2026-11-16) — one backport
+
+The v3.6.1→v3.6.3 gap (`197ac58..a01e74b`) carries seven advisories. One
+touches compiled code and is backported (`cd9f46d`, above). The others need a
+feature that this tree does not have:
+
+- **GHSA-v7q9-pwfj-qmf5 (`0f0bbed`)** — NUL in an unencoded detached payload.
+  No `b64=false` here, and every `crit` is rejected.
+- **GHSA-6gm4-gxx5-93hq (`9f54614`, `e308446`)** — a `"b64"` header that
+  turned off the claim checks; the builder's `"b64"`/`"crit"` headers. No
+  `b64`, no `jwt_builder_setcrit`.
+- **GHSA-mhc9-xvg5-qg29 (`4f09bc3`, `b3582f2`) + `f0115c4`** — Compact verify
+  against a keyring; a verify callback that removes the checker's key. No
+  `jwt_checker_setkeyring` here, and `C_AUTHZ` sets no callback.
+- **GHSA-vmf4-mvgm-7vpv (`a4b6351`, `2143cf3`)** — a private OKP/AKP JWK whose
+  `"d"` is not the key of its `"x"`; a private key in the `"jwk"` header. Both
+  are reached through embedded-JWK verification and RFC 7638 thumbprints,
+  which this tree does not have. Our OKP keys come from the config (trusted),
+  and the controlcenter signs with EC, which the advisory says is not
+  affected.
+- **GHSA-4jp4-6w6j-ff4q, rest (`1329901`, `d927851`)** — the `"x5c"` leaf;
+  private members on export. No `x5c`, no `jwk-export.c`.
+- **GHSA-g7xw-4cjw-2247** — the `jwt-verify` CLI tool. `tools/` is not
+  compiled.
+- The other commits are json-c parity (we build on Jansson), the JWS JSON
+  path, the `jwt-verify`/`jwt-generate` tools, docs and tests. v3.6.2 also
+  ships our exact-alg pin (#340, `c948840`).
 
 ### N/A in this tree (v3.4.0 batch, after reachability analysis)
 
@@ -252,10 +299,11 @@ v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
   (`followup-collapse-dead-branch.diff` in the workspace). The **vendored copy
   here carries the same redundant branch** (`src/jwt-verify.c`) and could take
   the same neutral cleanup.
-  Patch, issue text, and PR description live in the security-review workspace
-  `/yuneta/development/projects/libjwt-review/` (a machine-local, durable
-  directory alongside the upstream clone `../libjwt.original`; outside both git
-  trees on purpose).
+  Patch, issue text, and PR description lived in the security-review workspace
+  `/yuneta/development/projects/libjwt-review/` (machine-local, outside both git
+  trees on purpose). It was not on the machine of the 2026-11-16 review, so
+  the follow-up diff may be lost: it is small enough to redo from the
+  description above.
 - **mbedTLS v4.0/PSA backend — now moot.** Per Ben, upstream moved to the
   MbedTLS **PSA** API in **v3.5.0** (works with 3.x and 4.1), so our PSA rewrite
   is no longer a differentiator and is immune-by-construction to `5fada81` the
@@ -269,20 +317,21 @@ v3.5.0) *could* one day replace our `jwk_process_one`/`jwks_item_add`/
   disabled in CMakeLists; JWKS is loaded from a config attr, not libjwt's curl
   path). Re-classify if the curl backend is ever enabled.
 - **Periodic re-vendor from upstream** rather than growing the backport list —
-  procedure below. The security-review workspace
-  `/yuneta/development/projects/libjwt-review/` (machine-local, durable) holds
-  the drift analysis and upstream-PR artifacts.
+  procedure below.
 
 ### Re-vendor procedure
 
-The upstream clone lives at `/yuneta/development/projects/libjwt.original`
-(OpenSSL+Jansson subset only — this tree does not compile gnutls/mbedtls or
-`jwks-curl.c`). To re-check drift and pull fixes:
+The upstream clone is machine-local (`/yuneta/development/projects/libjwt.original`
+on the machine of the first reviews); clone it where it is missing. This tree
+compiles the OpenSSL and MbedTLS backends on Jansson, not gnutls, json-c or
+`jwks-curl.c`. To re-check drift and pull fixes:
 
 ```bash
-# 1. Refresh upstream and re-derive the gap from the recorded base.
-cd /yuneta/development/projects/libjwt.original && git pull
-git log --oneline 375e539..HEAD        # base is upstream 375e539 (v3.2.1+2)
+# 1. Refresh upstream and re-derive the gap from the last analyzed commit.
+git clone https://github.com/benmcollins/libjwt.git libjwt.original  # if absent
+cd libjwt.original && git pull
+git log --oneline a01e74b..HEAD        # last analyzed: a01e74b (v3.6.3)
+                                       # vendored base: 375e539 (v3.2.1+2)
 
 # 2. For each new commit, classify: SEC / BUG / N-A (file not in our subset).
 #    Map hunks carefully — the vendored copy SPLIT jwt-common.c into

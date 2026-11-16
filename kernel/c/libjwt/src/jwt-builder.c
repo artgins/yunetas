@@ -56,6 +56,14 @@ static int __setkey_check(jwt_builder_t *__cmd, const jwt_alg_t alg,
     if(__cmd == NULL)
         return 1;
 
+    /* Backport of upstream cd9f46d (GHSA-4jp4-6w6j-ff4q): a key in error
+     * (jwks_item_error()) failed to load, or was flagged after it loaded.
+     * It is never used. Checked first: a failed load says nothing reliable
+     * about the key, not even whether it is private. */
+    if(key && key->error) {
+        jwt_write_error(__cmd, "Key is in error and cannot be used");
+        return 1;
+    }
 
     if(key && !key->is_private_key) {
         jwt_write_error(__cmd, "Signing requires a private key");

@@ -4,6 +4,24 @@
 
 ### Fixed
 
+- **libjwt: a key in error is never used** (backport of upstream libjwt
+  3.6.3 `cd9f46d`, GHSA-4jp4-6w6j-ff4q). `jwt_checker_setkey()` and
+  `jwt_builder_setkey()` accepted a JWK that `jwks_item_error()` flags: one
+  that failed to load, or one that loaded and was then flagged (an `"alg"`
+  that is not a string), and that second kind signed and verified tokens.
+  Both now refuse it with *"Key is in error and cannot be used"*, and
+  `__check_hmac()`/`__check_key_bits()` refuse it again before any backend.
+  Not reachable from a peer: `C_AUTHZ` takes its keys from its config and
+  from `add-jwk`, and refuses a non-string `alg` itself. What changes for an
+  operator: a JWK that does not load (an RSA key with a corrupt `n`) is now
+  refused ONCE when it is loaded, with the cause (`jwt_checker_setkey()
+  FAILED`), instead of failing every login of its issuer with *"Key too short
+  for RSA algs: 0 bits"*. Upstream's `provider_data` test is left out: this
+  tree's MbedTLS backend never sets it. Test `test_key_in_error` in
+  `tests/c/libjwt/test_jwt_alg_confusion.c`. The rest of libjwt 3.6.2 and
+  3.6.3 (six more advisories) is N/A here: the review is in
+  `kernel/c/libjwt/README.md`.
+
 - **JS: gobj-js 7.31.0, a command or stats asked out of session is answered
   at once with a failure**, as the C transport does since 7.30.27.
   `C_IEVENT_CLI`'s `mt_command` / `mt_stats` returned `null` outside

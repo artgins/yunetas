@@ -55,6 +55,16 @@ static int __setkey_check(jwt_checker_t *__cmd, const jwt_alg_t alg,
 {
     if(__cmd == NULL)
         return 1;
+
+    /* Backport of upstream cd9f46d (GHSA-4jp4-6w6j-ff4q): a key in error
+     * (jwks_item_error()) failed to load, or was flagged after it loaded.
+     * It is never used. Checked first: a failed load says nothing reliable
+     * about the key. */
+    if(key && key->error) {
+        jwt_write_error(__cmd, "Key is in error and cannot be used");
+        return 1;
+    }
+
     if(key == NULL) {
         if(alg == JWT_ALG_NONE)
             return 0;
