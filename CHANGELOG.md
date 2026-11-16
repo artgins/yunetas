@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- **JS: gobj-js 7.31.0, a command or stats asked out of session is answered
+  at once with a failure**, as the C transport does since 7.30.27.
+  `C_IEVENT_CLI`'s `mt_command` / `mt_stats` returned `null` outside
+  `ST_SESSION` after an ERROR, and `null` is "the answer will come": none
+  came, and a view waiting for it waited for ever. They now return a command
+  response with `result: -1` ("`<role>^<name>`: service '`<transport>`' not
+  in session"), send nothing, and log one WARNING naming the command, masked.
+  Test `tests/ievent_out_of_session.test.js` in gobj-js. The
+  `kernel/js/gobj-js` submodule moves to 7.31.0 (npm), the docs links to it
+  are repinned, and `api/gclass/ievent.md` says the browser side with an
+  example.
 - **JS: gobj-ui 7.31.1, a table's footer wraps when it does not fit.** Tabulator
   puts `white-space: nowrap` on `.tabulator-footer`, so on a phone the
   paginator of a treedb topic table (552px in a 410px view) ran out of the

@@ -670,6 +670,28 @@ ycommand -c 'stats-agent service=controlcenter'
 yuneta_agent^node1: service 'controlcenter' not in session
 ```
 
+**In the browser** (`@yuneta/gobj-js` 7.31.0+), `C_IEVENT_CLI` answers a
+command or a stats asked out of session the same way: `gobj_command()` /
+`gobj_stats()` return a command response with `result: -1` and the comment
+*"`<role>^<name>`: service '`<transport>`' not in session"*, nothing is sent,
+and one WARNING names the command, never its parameters. Up to gobj-js 7.30.0
+they returned `null` -- *"the answer will come"* -- after an ERROR, and a view
+waiting for that answer waited for ever. A non-null return is the failure, so
+the guard every view writes is enough:
+
+```js
+const ret = gobj_command(remote, "list-devices", {}, gobj);
+if(ret) {
+    // {result: -1, comment: "myapp^gui: service '__remote_service__' not in session", ...}
+    set_status(gobj, "backend not connected", ret.comment || "");
+    return -1;
+}
+// null: sent, the answer comes as EV_MT_COMMAND_ANSWER
+```
+
+A request already sent when the socket drops is still never answered: that
+one is the view's to handle, on the transport's `EV_ON_CLOSE`.
+
 **A peer that is closing.** A WebSocket Close of the peer (or a protocol error
 of its frames) puts `C_WEBSOCKET` in `ST_DISCONNECTED` at once, and so does
 the close of `C_PROT_TCP4H`; the channel leaves `ST_SESSION` only at its
