@@ -24,6 +24,16 @@
   links to it are repinned. `yunos/js` and the project templates keep
   `^7.31.0`, which takes 7.31.1 at their next lockfile refresh.
 
+### Added
+
+- **JS: gobj-ui 7.31.2, a click on an edge lights it and its two ends**, in
+  the schema graph (`C_YUI_TREEDB_SCHEMA`, also the hook and fkey rows it
+  joins) and in the treedb graph (`C_G6_NODES_TREE`, not in edition, where a
+  click selects the edge); a second click or a canvas click puts it out. The
+  schema graph always carries a minimap, and the treedb graph shows its own
+  from 10 nodes (`minimap_min_nodes`, was 30). The `kernel/js/gobj-ui`
+  submodule moves to 7.31.2 (npm) and the docs links to it are repinned.
+
 ## v7.31.3 (2026-11-14)
 
 The node uuid is a function of the machine, the same after any reinstall. A
