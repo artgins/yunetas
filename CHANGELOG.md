@@ -1,6 +1,13 @@
 # **Changelog**
 
-## Unreleased
+## v7.31.4 (2026-11-16)
+
+libjwt brought up to upstream 3.6.3: a key in error is never used. A LITE
+release: the `.c` change is in libjwt, and only what loads keys and signs
+(the agents and the control center) is deployed; `test_jwt_alg_confusion`
+and the full suite (465/465) ran on the dev machine, no performance study.
+The gobj-js 7.31.0 and gobj-ui 7.31.1-7.31.5 entries below were published
+on npm before this tag.
 
 ### Fixed
 

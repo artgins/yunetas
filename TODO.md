@@ -689,7 +689,7 @@ be weighed again, not as settled.
   gates — no batch carries it yet.
 - **Vendored libjwt: periodic re-vendor** from upstream (procedure in
   `kernel/c/libjwt/README.md`, § Re-vendor procedure). Vendored base
-  `375e539`, analysed up to upstream v3.6.1, plus local NULL-safety
-  backports (2026-09).
+  `375e539`, analysed up to upstream v3.6.3 (2026-11-16), plus local
+  backports (NULL-safety 2026-09, key in error 7.31.4).
 - **Memory-safety review not done yet**: `modules/postgres` (libpq wrapper;
   delegated to libpq, lower priority).
