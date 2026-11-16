@@ -118,6 +118,25 @@ Security bumps made before the deploy of SDK 7.27.x (2026-10-15):
 `1.31.1.1` (checked 2026-10-15), so its nginx 1.31.1 core is exposed to the
 CVEs of 1.31.2 to 1.31.7. Track upstream openresty.
 
+### mbedtls 4.3.0 (configure-libs.sh v1.29)
+
+`TAG_MBEDTLS` moves from `v4.2.0` to `v4.3.0`, which fixes 22 security
+advisories: TLS 1.3 handshakes (a client that completes one without keying
+material, CVE-2026-115490; a HelloRetryRequest that changes the SNI,
+CVE-2026-116375), session resumption (a 1.3 ticket accepted by a 1.2 server
+with an all-zero master secret, CVE-2026-93831; cross-SNI resumption,
+CVE-2026-93776), 1.2 renegotiation (use-after-free, CVE-2026-93844; memory
+disclosure, CVE-2026-115488), X.509 (a URI matched against DNS wildcards,
+CVE-2026-90470), and Spectre-PHT hardening of AES, GCM, ECDSA and PSA ECC.
+
+mbedtls is linked only into a build with `CONFIG_HAVE_MBEDTLS=y`. That is
+off by default (Kconfig), on every node and in the `.deb`/`.rpm`, so no
+deployed binary carries it (`nm` finds no `mbedtls_*` symbol). A build with
+it on must be redone. Checked against 4.3.0 in a tree with both backends on
+(`CONFIG_HAVE_MBEDTLS=y`): the kernel libraries build with no warning, and
+`tests/c/ytls` (11, seven of them on the mbedTLS backend), `tests/c/c_tcps`
+(19, the mbedTLS transport among them) and `test_jwt_alg_confusion` pass.
+
 ### openresty is skipped where LuaJIT cannot run (configure-libs.sh v1.28)
 
 openresty is built on LuaJIT, and LuaJIT supports a fixed set of

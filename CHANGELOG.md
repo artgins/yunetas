@@ -1,5 +1,32 @@
 # **Changelog**
 
+## v7.31.5 (2026-11-16)
+
+mbedTLS 4.3.0, which fixes 22 security advisories. A LITE release with
+NOTHING to deploy: mbedTLS is linked only into a build with
+`CONFIG_HAVE_MBEDTLS=y`, which is off by default, on every node and in the
+`.deb`/`.rpm`. The tests that use it ran on the dev machine, in a tree with
+both TLS backends on; no performance study.
+
+### Security
+
+- **mbedTLS 4.3.0** (was 4.2.0; `configure-libs.sh` 1.29). It fixes 22
+  advisories, most in TLS: a client that completes a TLS 1.3 handshake with
+  no keying material (CVE-2026-115490), a TLS 1.3 ticket resumed by a TLS 1.2
+  server with an all-zero master secret (CVE-2026-93831), a
+  HelloRetryRequest or a resumption that crosses SNI hosts and skips client
+  authentication (CVE-2026-116375, CVE-2026-93776), a use-after-free and a
+  memory disclosure in TLS 1.2 renegotiation (CVE-2026-93844,
+  CVE-2026-115488), a URI matched against DNS wildcards in X.509
+  (CVE-2026-90470), and Spectre-PHT hardening of AES, GCM, ECDSA and PSA ECC.
+  No deployed binary carries mbedTLS (`nm` finds no `mbedtls_*` symbol): it
+  matters to an SDK user who builds with `CONFIG_HAVE_MBEDTLS=y`, who must
+  rebuild. Checked in a tree with both backends on: the kernel libraries
+  build against 4.3.0 with no warning; `tests/c/ytls` (11, seven on the
+  mbedTLS backend), `tests/c/c_tcps` (19) and `test_jwt_alg_confusion` pass.
+  A node that builds from source runs `./extrae.sh && ./configure-libs.sh`
+  at its next SDK rebuild; nothing it runs today needs it.
+
 ## v7.31.4 (2026-11-16)
 
 libjwt brought up to upstream 3.6.3: a key in error is never used. A LITE

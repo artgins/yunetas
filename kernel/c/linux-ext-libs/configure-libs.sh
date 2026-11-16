@@ -306,7 +306,19 @@
 #       the same way. Same libraries and binaries on every other target:
 #       nothing to rebuild there.
 
-VERSION="1.28"
+#   version 1.29
+#       upgrade to mbedtls v4.3.0 (was v4.2.0): 22 security advisories, most
+#       of them in TLS 1.2/1.3 handshakes, session resumption and X.509
+#       (CVE-2026-115490: a TLS client finishing a 1.3 handshake without
+#       keying material; CVE-2026-93831: a 1.3 ticket resumed as 1.2 with an
+#       all-zero master secret; CVE-2026-93844: use-after-free in 1.2
+#       renegotiation), plus Spectre-PHT hardening. mbedtls is linked only
+#       with CONFIG_HAVE_MBEDTLS, which is off by default and on every node:
+#       no deployed binary carries it. A build with it on must be redone;
+#       every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.29"
 
 
 source ./repos2clone.sh

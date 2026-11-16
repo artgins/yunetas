@@ -10,7 +10,7 @@ declare -A REPOS
 # series on master, pinned by its annotated tag (see HACKS.md)
 TAG_JANSSON="2.15.1-yuneta.1"
 TAG_LIBURING="liburing-2.15"
-TAG_MBEDTLS="v4.2.0"
+TAG_MBEDTLS="v4.3.0"
 TAG_OPENSSL="openssl-3.6.5"
 TAG_PCRE2="pcre2-10.49"
 TAG_ARGP_STANDALONE="v1.1.5"
