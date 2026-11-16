@@ -39,6 +39,9 @@
   `deploy-round` reads back `insecure_urls` with `curl -k`, so a box served by
   IP with its own self-signed certificate (the Orange Pi controllers) is in the
   round. The submodule moves to 7.31.3 and the docs links are repinned.
+- **JS: gobj-ui 7.31.4**: the treedb graph draws its edges at their width
+  before 7.31.3 (1.6px, 2px tree, 3px lit) and keeps only the wider click
+  area; the schema graph keeps its 2px. Submodule and docs links at 7.31.4.
 
 ## v7.31.3 (2026-11-14)
 
