@@ -132,7 +132,9 @@ CVE-2026-90470), and Spectre-PHT hardening of AES, GCM, ECDSA and PSA ECC.
 mbedtls is linked only into a build with `CONFIG_HAVE_MBEDTLS=y`. That is
 off by default (Kconfig), on every node and in the `.deb`/`.rpm`, so no
 deployed binary carries it (`nm` finds no `mbedtls_*` symbol). A build with
-it on must be redone. Checked against 4.3.0 in a tree with both backends on
+it on must be redone. Every node that builds from source still reruns
+`./extrae.sh && ./configure-libs.sh`: `yunetas build` refuses to build while
+the installed version is not 1.29. Checked against 4.3.0 in a tree with both backends on
 (`CONFIG_HAVE_MBEDTLS=y`): the kernel libraries build with no warning, and
 `tests/c/ytls` (11, seven of them on the mbedTLS backend), `tests/c/c_tcps`
 (19, the mbedTLS transport among them) and `test_jwt_alg_confusion` pass.

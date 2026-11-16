@@ -2,11 +2,12 @@
 
 ## v7.31.5 (2026-11-16)
 
-mbedTLS 4.3.0, which fixes 22 security advisories. A LITE release with
-NOTHING to deploy: mbedTLS is linked only into a build with
+mbedTLS 4.3.0, which fixes 22 security advisories. A LITE release with no
+BINARY to deploy: mbedTLS is linked only into a build with
 `CONFIG_HAVE_MBEDTLS=y`, which is off by default, on every node and in the
-`.deb`/`.rpm`. The tests that use it ran on the dev machine, in a tree with
-both TLS backends on; no performance study.
+`.deb`/`.rpm`. But every node that builds from source has to rebuild its
+external libraries (see below). The tests that use it ran on the dev
+machine, in a tree with both TLS backends on; no performance study.
 
 ### Security
 
@@ -24,8 +25,12 @@ both TLS backends on; no performance study.
   rebuild. Checked in a tree with both backends on: the kernel libraries
   build against 4.3.0 with no warning; `tests/c/ytls` (11, seven on the
   mbedTLS backend), `tests/c/c_tcps` (19) and `test_jwt_alg_confusion` pass.
-  A node that builds from source runs `./extrae.sh && ./configure-libs.sh`
-  at its next SDK rebuild; nothing it runs today needs it.
+    - A node that builds from source CANNOT build (`yunetas build`, the SDK
+      and every project) until it runs `./extrae.sh && ./configure-libs.sh`:
+      the CLI refuses while `VERSION_INSTALLED.txt` (1.28) is not the
+      `VERSION` of `configure-libs.sh` (1.29). Done on every source node the
+      day of the release; the running nginx/openresty is not restarted and
+      its conf is kept.
 
 ## v7.31.4 (2026-11-16)
 
