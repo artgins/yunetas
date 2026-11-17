@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v7.31.10 (2026-11-17)
+
+Lite release: deploy the `controlcenter` (1996/1997) only.
+
+### Changed
+
+- **`controlcenter`: `list-nodes` answers with a schema**, so ycli shows it
+  as a table: node uuid (whole, to copy it into `accept-node`), hostname,
+  state, connected, address and last seen. The keys, 64 characters, stay in
+  the form view (`*list-nodes`). A knocking node gives its `knocks`; its
+  internal `seq` is no longer shown.
+- **`controlcenter`: a node that goes on knocking is said again.** The
+  WARNING *"A node knocking"* came once per node and per start of the
+  control center, so it was lost in the scroll while the agent kept saying
+  its refusal every 11 s. It is now said again every
+  `knocking_warning_period` (new attribute, 600 s; `0`: only the first) while
+  the node goes on knocking, with `knocks` and `first_seen`. Not one per
+  knock: anyone who reaches the port can knock.
+
 ## v7.31.9 (2026-11-17)
 
 A fix of 7.31.8, which was never deployed: deploy this one instead. Lite

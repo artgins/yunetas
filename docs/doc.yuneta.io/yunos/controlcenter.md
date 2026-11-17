@@ -123,7 +123,7 @@ When an agent opens its session, the control center checks it as follows:
 
 | The agent presents | The node is | Result |
 |--------------------|-------------|--------|
-| a key | never seen | recorded `pending`, WARNING *"A node to accept"*; with `enforce_node_keys` refused, and not recorded: kept `knocking`, WARNING *"A node knocking"* (once per node: it asks an operator for `accept-node`) |
+| a key | never seen | recorded `pending`, WARNING *"A node to accept"*; with `enforce_node_keys` refused, and not recorded: kept `knocking`, WARNING *"A node knocking"* (the first time, then every `knocking_warning_period` while it goes on knocking, with `knocks`: it asks an operator for `accept-node`) |
 | its accepted key | `accepted` | let in |
 | another key, or none | `accepted` | WARNING; refused if `enforce_node_keys` |
 | anything | `refused` | refused if `enforce_node_keys` |
@@ -147,6 +147,7 @@ after it logged an ERROR with a stack.
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
 | `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`; a new one evicts the one that knocked least recently. |
+| `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+); `0`: only the first. Not one per knock: anyone who reaches the port can knock. |
 
 The three are read-only at run time: set them in the `kw` of the
 `controlcenter` service in its realm config, and restart it. For example, once
@@ -229,9 +230,10 @@ agent presents a key that is not accepted and sends no token, the control
 center refuses it. Because that agent is not authenticated, nothing of it goes
 to the store. The control center keeps it in memory (at most
 `max_knocking_nodes`, 256: a new one evicts the one that knocked least
-recently; the first key of a uuid is kept), logs one INFO (*"A node
-knocking"*), and `list-nodes` shows it with the state `knocking`. What it says
-there (its hostname) is not authenticated: it is only a hint. A new box
+recently; the first key of a uuid is kept), logs a WARNING (*"A node
+knocking"*) the first time and again every `knocking_warning_period` (600 s)
+while it goes on knocking, with the count of its `knocks`, and `list-nodes`
+shows it with the state `knocking`. What it says there (its hostname) is not authenticated: it is only a hint. A new box
 therefore connects with nothing but its key, and an operator accepts it with
 the key read on the box. `accept-node` creates the record of a node that has
 none, whether it is knocking or not. When the key is
@@ -1387,6 +1389,9 @@ never armed: all six read 0.
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
+| `list-nodes` | The nodes and the keys of their agents, each with `connected` (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). ycli shows a table: node uuid, hostname, state, connected, address, last seen. The keys (64 characters) are in its form view: `*list-nodes state=pending` |
+| `accept-node` | Pin a node's uuid to the key read on the node (`node_id`, `spki_sha256`; permission `manage-nodes`) |
+| `refuse-node` | Refuse a node; its sessions are dropped (`node_id`; permission `manage-nodes`) |
 | `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
 | `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |
 | `scenarios` | List the scenarios, or one (`scenario_id`) |

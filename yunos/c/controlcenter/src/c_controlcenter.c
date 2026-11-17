@@ -140,7 +140,8 @@
  *  `agent:<node uuid>` reaching this service only, with no token; a key not
  *  accepted with no token is refused, and nothing of it is written: it is
  *  kept in memory (`knocking`, capped by max_knocking_nodes, the first key of
- *  a uuid kept) for list-nodes. Anything else is C_AUTHZ's.
+ *  a uuid kept) for list-nodes, with a WARNING every knocking_warning_period
+ *  while it goes on knocking. Anything else is C_AUTHZ's.
  *
  *  OPERATOR ASSERTIONS (7.30.9+). What it forwards to an agent says who
  *  asks in `__username__`, which the agent believes -- unless it verifies
@@ -564,6 +565,7 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
 SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently"),
+SDATA (DTP_INTEGER,     "knocking_warning_period",SDF_RD,   "600",      "Seconds between the WARNINGs 'A node knocking' of a node that goes on knocking; 0: said once"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
 SDATA (DTP_STRING,      "operator_assertion_issuer",SDF_RD, "controlcenter","iss of the operator assertions: the kid of their public key in the agents' C_AUTHZ assertion_jwks"),
@@ -1854,6 +1856,8 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         const char *node_id; json_t *jn_knock;
         json_object_foreach(priv->knocking, node_id, jn_knock) {
             json_t *jn = json_deep_copy(jn_knock);
+            json_object_del(jn, "seq");
+            json_object_del(jn, "next_warning");
             json_object_set_new(jn, "id", json_string(node_id));
             json_object_set_new(jn, "state", json_string("knocking"));
             json_object_set_new(jn, "connected", json_false());
@@ -1861,11 +1865,26 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         }
     }
 
+    /*
+     *  The columns of a table view (ycli): the uuid whole, to copy it into
+     *  accept-node; the keys, 64 characters, are read in the form view
+     */
+    json_t *jn_schema = json_pack("[{s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
+        " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
+        " {s:s, s:s, s:s, s:i}]",
+        "id", "id",         "header", "Node",       "type", "string",   "fillspace", 36,
+        "id", "hostname",   "header", "Hostname",   "type", "string",   "fillspace", 20,
+        "id", "state",      "header", "State",      "type", "string",   "fillspace", 9,
+        "id", "connected",  "header", "Connected",  "type", "boolean",  "fillspace", 9,
+        "id", "peername",   "header", "Address",    "type", "string",   "fillspace", 21,
+        "id", "last_seen",  "header", "Last Seen",  "type", "time",     "fillspace", 24
+    );
+
     return msg_iev_build_response(
         gobj,
         0,
         0,
-        0,
+        jn_schema, // owned
         jn_data, // owned
         kw  // owned
     );
@@ -4044,7 +4063,9 @@ PRIVATE BOOL same_address(const char *a, const char *b)
  *  An agent that presents a key not accepted and no token: not
  *  authenticated, so nothing of it goes to the store. It is kept in memory
  *  (`knocking`, the first key of a uuid kept: a later one does not replace
- *  it), said once per uuid (INFO), and shown by list-nodes. At most
+ *  it), said with a WARNING the first time and again every
+ *  `knocking_warning_period` while it goes on knocking (a WARNING per knock
+ *  would let anyone flood the log), and shown by list-nodes. At most
  *  `max_knocking_nodes`: a new one evicts the one knocked least recently, so
  *  a flood cannot keep the table full of its own (and accept-node does not
  *  depend on it). Returns, for the uuid of a node in the store that is not
@@ -4084,6 +4105,7 @@ PRIVATE const char *note_knocking_node(
     }
 
     json_int_t now = (json_int_t)time(NULL);
+    json_int_t period = gobj_read_integer_attr(gobj, "knocking_warning_period");
     json_t *entry = json_object_get(priv->knocking, node_id);
     if(entry) {
         if(strcmp(kw_get_str(gobj, entry, "spki_sha256", "", 0), spki)==0) {
@@ -4091,6 +4113,24 @@ PRIVATE const char *note_knocking_node(
             json_object_set_new(entry, "seq", json_integer(++priv->knock_seq));
         } else {
             json_object_set_new(entry, "other_keys", json_true());
+        }
+        json_int_t knocks = kw_get_int(gobj, entry, "knocks", 0, 0) + 1;
+        json_object_set_new(entry, "knocks", json_integer(knocks));
+        if(period > 0 && test_msectimer((uint64_t)kw_get_int(gobj, entry, "next_warning", 0, 0))) {
+            json_object_set_new(entry, "next_warning",
+                json_integer((json_int_t)start_msectimer((uint64_t)period * 1000)));
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)",
+                "node",         "%s", node_id,
+                "hostname",     "%s", kw_get_str(gobj, entry, "hostname", "", 0),
+                "peername",     "%s", peername? peername : "",
+                "spki_sha256",  "%s", kw_get_str(gobj, entry, "spki_sha256", "", 0),
+                "knocks",       "%lld", (long long)knocks,
+                "first_seen",   "%lld", (long long)kw_get_int(gobj, entry, "first_seen", 0, 0),
+                NULL
+            );
         }
         return NULL;
     }
@@ -4114,13 +4154,15 @@ PRIVATE const char *note_knocking_node(
         }
         json_object_del(priv->knocking, oldest);
     }
-    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I}",
+    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I}",
         "spki_sha256", spki,
         "hostname", hostname? hostname : "",
         "peername", peername? peername : "",
         "first_seen", now,
         "last_seen", now,
-        "seq", ++priv->knock_seq
+        "knocks", (json_int_t)1,
+        "seq", ++priv->knock_seq,
+        "next_warning", (json_int_t)(period > 0? start_msectimer((uint64_t)period * 1000) : 0)
     ));
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,

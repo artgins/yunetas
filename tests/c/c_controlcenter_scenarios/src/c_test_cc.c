@@ -2992,6 +2992,31 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     JSON_DECREF(auth)
     ret += check_node_field(gobj, client, "uuid-new", "spki_sha256", KEY_B,
         "a second key of a knocking node does not replace the first");
+    {
+        /*  The knocks are counted; the order and the timer of the WARNING are not shown  */
+        json_t *node = node_record(gobj, client, "uuid-new");
+        if(!node || kw_get_int(gobj, node, "knocks", 0, 0) != 2 ||
+                kw_has_key(node, "seq") || kw_has_key(node, "next_warning")) {
+            char *dump = node? json_dumps(node, JSON_COMPACT) : 0;
+            ret += fail(gobj, "list-nodes counts the knocks of a knocking node, and nothing internal",
+                dump? dump : "(no record)");
+            if(dump) {
+                gbmem_free(dump);
+            }
+        }
+        JSON_DECREF(node)
+
+        /*  A table view: the schema names the columns, the uuid whole  */
+        json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
+        json_t *schema = kw_get_list(gobj, response, "schema", 0, 0);
+        json_t *col0 = json_array_get(schema, 0);
+        if(json_array_size(schema) != 6 ||
+                strcmp(kw_get_str(gobj, col0, "id", "", 0), "id")!=0 ||
+                kw_get_int(gobj, col0, "fillspace", 0, 0) < 36) {
+            ret += fail(gobj, "list-nodes answers with the schema of its table view", "");
+        }
+        JSON_DECREF(response)
+    }
     kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "node_id", json_string("uuid-new"));
     json_object_set_new(kw, "spki_sha256", json_string(KEY_G));
