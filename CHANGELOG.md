@@ -1,5 +1,17 @@
 # **Changelog**
 
+## Unreleased
+
+- **JS: gobj-ui 7.31.6, the treedb views show a topic by its own name,
+  untranslated** (the tab, the card and the info title of
+  `C_YUI_TREEDB_TOPICS`; the linked-topic choice dialog and the parent-filter
+  chip of `C_YUI_TREEDB_TOPIC_WITH_FORM`). Those five places passed the name
+  through `t()` while the card relations, window titles and graph showed it
+  raw, so a locale with `places: "sitios"` showed a tab `sitios` next to a
+  topic called `sites`. Submodule and docs links at 7.31.6; `yunos/js`
+  (gui_agent 1.4.4, gui_treedb 1.3.4) and the project `gui/` template take
+  `^7.31.6`.
+
 ## v7.31.5 (2026-11-16)
 
 mbedTLS 4.3.0, which fixes 22 security advisories. A LITE release with no
