@@ -318,7 +318,18 @@
 #       every node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.29"
+#   version 1.30
+#       jansson 2.15.1-yuneta.2 (was -yuneta.1): stream_get() shows the
+#       compiler that a UTF-8 sequence is at most 4 bytes, so GCC 14/15 at
+#       -O3 -DNDEBUG no longer warn -Wstringop-overflow in load.c. No
+#       answer changes (differential test with -a, the same allocations).
+#       clones and submodule updates retry after 30, 90, 180 s
+#       (git_with_retry) and never wait for a username
+#       (GIT_TERMINAL_PROMPT=0). Every node that builds from source must
+#       run `./extrae.sh && ./configure-libs.sh` again, then rebuild the SDK
+#       and every yuno (jansson is linked into every binary).
+
+VERSION="1.30"
 
 
 source ./repos2clone.sh

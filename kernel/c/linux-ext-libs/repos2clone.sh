@@ -8,7 +8,8 @@ declare -A REPOS
 #--------------------------------------------------------------------------
 # jansson is Yuneta's own (artgins/jansson): upstream v2.15.1 with Yuneta's
 # series on master, pinned by its annotated tag (see HACKS.md)
-TAG_JANSSON="2.15.1-yuneta.1"
+# -yuneta.2: no -Wstringop-overflow at -O3 in stream_get() (same code paths)
+TAG_JANSSON="2.15.1-yuneta.2"
 TAG_LIBURING="liburing-2.15"
 TAG_MBEDTLS="v4.3.0"
 TAG_OPENSSL="openssl-3.6.5"

@@ -72,7 +72,7 @@ Yuneta's own: `https://github.com/artgins/jansson`. It is upstream jansson
 `master`: the upstream release it sits on (tag `v2.15.1`) and the series on
 top, linear, one commit per change. `master` is rewritten by each rebase, so
 nothing builds from it: each state pinned here is an annotated tag
-(`2.15.1-yuneta.1`), and `TAG_JANSSON` in `repos2clone.sh` names it. On each
+(`2.15.1-yuneta.2`), and `TAG_JANSSON` in `repos2clone.sh` names it. On each
 upstream release the series is rebased onto it, and upstream's security
 fixes are always brought in. Upstream's code is not reformatted; the code of
 the series braces every block. The rules of the repo are in its `CLAUDE.md`.
@@ -82,7 +82,7 @@ jansson repo: the same results, errors and positions, and the same bytes of
 every dump as the commit pinned before, also under AddressSanitizer and
 UndefinedBehaviorSanitizer.
 
-What the series of `2.15.1-yuneta.1` changes:
+What the series of `2.15.1-yuneta.2` changes:
 
 - **The lexer stops when a save of the token text fails** (it was
   `patches/jansson/0001-load-stop-the-lexer-when-a-save-fails.patch`,
@@ -118,6 +118,11 @@ What the series of `2.15.1-yuneta.1` changes:
   instruction each. `jansson_config.h` changes, so every yuno is rebuilt,
   not only relinked. **A project that adds threads sharing json must turn
   it ON again**: nothing else warns.
+- **No `-Wstringop-overflow` in `stream_get()`** (`-yuneta.2`). GCC 14/15
+  at `-O3 -DNDEBUG` warned four times that the read of a UTF-8 sequence
+  could write past `char buffer[5]`: with the `assert` gone it could not
+  see that `utf8_check_first()` answers at most 4. The bound is now a test
+  against the buffer's own size, a branch never taken; no answer changes.
 
 What a caller can see besides the speed: what a custom allocator is asked
 (fewer and other blocks), and a dump callback that fails once fails the

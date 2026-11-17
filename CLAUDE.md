@@ -288,7 +288,7 @@ nodes of a treedb, the configurations). Since 7.28.0 it is Yuneta's own:
 upstream `akheron/jansson` plus a series of Yuneta's commits on its one
 branch, `master` (the upstream release and the series on top, linear,
 force-pushed by each rebase), each state pinned by an annotated tag
-(`2.15.1-yuneta.1`) that `TAG_JANSSON` in
+(`2.15.1-yuneta.2`) that `TAG_JANSSON` in
 `kernel/c/linux-ext-libs/repos2clone.sh` names. It is not a submodule:
 linux-ext-libs clones it and links it statically into every binary. Its own
 `CLAUDE.md` carries the detail; in short:

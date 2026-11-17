@@ -169,12 +169,13 @@ changes on the other targets.
 
 openresty stays `1.31.1.1` (no newer release, checked 2026-10-22).
 
-### jansson: Yuneta's own, `artgins/jansson` (configure-libs.sh v1.26)
+### jansson: Yuneta's own, `artgins/jansson` (configure-libs.sh v1.26, v1.30)
 
-jansson comes from `artgins/jansson` at the tag `2.15.1-yuneta.1`: upstream
+jansson comes from `artgins/jansson` at the tag `2.15.1-yuneta.2`: upstream
 v2.15.1 with Yuneta's series (the lexer fix that was
 `patches/jansson/0001`, the speed changes of the performance round of
-7.28.0, a dump that fails on a key it cannot dump), built with
+7.28.0, a dump that fails on a key it cannot dump; since v1.30 no
+`-Wstringop-overflow` warning at `-O3`), built with
 `JANSSON_THREAD_SAFE_REFCOUNT=OFF`. See `HACKS.md`. Every node that builds
 from source must run `./extrae.sh && ./configure-libs.sh` again, and then
 rebuild the SDK and every yuno (`jansson_config.h` changed).

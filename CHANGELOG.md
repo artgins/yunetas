@@ -15,9 +15,16 @@
   waiting for a username on the terminal, and every clone and submodule
   update is retried after 30, 90 and 180 s (`git_with_retry`, in
   `repos2clone.sh`): the 401 clears within minutes, while git's own retry of
-  a submodule is immediate. `VERSION` of `configure-libs.sh` stays at 1.29
-  by decision: the libraries come out identical, and a bump would block
-  `yunetas build` on every source node until it rebuilds them.
+  a submodule is immediate.
+- **jansson `2.15.1-yuneta.2`** (was `-yuneta.1`; `configure-libs.sh`
+  VERSION 1.30): GCC 14/15 at `-O3 -DNDEBUG` no longer warn
+  `-Wstringop-overflow` in `stream_get()` (`load.c`). The compiler could not
+  see that a UTF-8 sequence is at most 4 bytes; the bound is now a test
+  against the buffer's size, never taken. No answer changes: the
+  differential test with `-a` gives the same results, errors, dump bytes
+  and allocations as `-yuneta.1`. **Every node that builds from source must
+  run `./extrae.sh && ./configure-libs.sh` before its next `yunetas build`**
+  (the VERSION gate blocks it), then rebuild the SDK and every yuno.
 
 ### Security
 
