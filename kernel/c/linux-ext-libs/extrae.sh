@@ -21,6 +21,12 @@ fi
 # To restore
 #sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target
 
+#  A clone never waits for a username: GitHub answers 401 to anonymous
+#  clones of public repos when it is loaded (several nodes cloning at once),
+#  and git then asks on the terminal, which hangs an unattended run.
+#  Fail instead, with the error.
+export GIT_TERMINAL_PROMPT=0
+
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 

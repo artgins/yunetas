@@ -9,6 +9,12 @@
   the `.rpm` (Rocky 9: 2.97.0). The `.deb` lists it in `Suggests`. Not the
   snap: GitHub publishes none, and the snap called `gh` is a third party's
   build with classic confinement.
+- **`extrae.sh` and `configure-libs.sh` set `GIT_TERMINAL_PROMPT=0`**: a
+  clone or submodule update that GitHub answers with 401 (it does so to
+  anonymous clones when it is loaded) fails with git's error instead of
+  waiting for a username on the terminal. `VERSION` of `configure-libs.sh`
+  stays at 1.29 by decision: the libraries come out identical, and a bump
+  would block `yunetas build` on every source node until it rebuilds them.
 
 ### Security
 
