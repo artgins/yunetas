@@ -395,7 +395,7 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 | `remove-yuneta-service.sh` | `/yuneta/agent/service/` | Disable and stop both agents' units and the web server's, stop the SysV service and remove its runlevel symlinks (the init script stays: it is a conffile) |
 | `restart-yuneta` | `/yuneta/bin/` | Restart the Yuneta stack (prefers `service`, falls back to `yshutdown` + direct start) |
 | `install-certbot.sh` | `/yuneta/bin/` | Install certbot via snap; symlink to `/usr/bin/certbot` |
-| `install-yuneta-dev-deps.sh` | `/yuneta/bin/` | Install full build toolchain (gcc, cmake, libs, pipx packages) |
+| `install-yuneta-dev-deps.sh` | `/yuneta/bin/` | Install full build toolchain (gcc, cmake, libs, gh, pipx packages) |
 | `check-certs-validity.sh` | `/yuneta/bin/` | Scan `*.crt` files and show expiry status |
 | `copy-certs.sh` | `/yuneta/store/certs/` | Copy Let's Encrypt certificates from `/etc/letsencrypt/live/` to `/yuneta/store/certs/` |
 | `colas2.sh` | `/yuneta/bin/` | Scan and list two-level message queue directories |

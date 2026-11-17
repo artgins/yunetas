@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Packaging
+
+- **`install-yuneta-dev-deps.sh` also installs `gh`, the GitHub CLI**, from
+  the distribution: apt on the `.deb` (Debian 13: 2.46.0), dnf from EPEL on
+  the `.rpm` (Rocky 9: 2.97.0). The `.deb` lists it in `Suggests`. Not the
+  snap: GitHub publishes none, and the snap called `gh` is a third party's
+  build with classic confinement.
+
 ### Security
 
 - **libjwt: a token of `INT_MAX` bytes or more is refused before it is

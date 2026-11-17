@@ -905,7 +905,7 @@ sudo apt -y install --no-install-recommends \
   perl dos2unix tree curl wget \
   postgresql-server-dev-all libpq-dev \
   kconfig-frontends telnet pipx \
-  patch gettext fail2ban rsync \
+  patch gettext fail2ban rsync gh \
   build-essential pkg-config ca-certificates linux-libc-dev
 
 pipx install kconfiglib
@@ -915,7 +915,7 @@ pipx install kconfiglib
 
 :::{tab-item} RHEL / Rocky / Alma / Fedora
 
-Some packages are in **EPEL**: mercurial, ninja-build, telnet, pipx, fail2ban
+Some packages are in **EPEL**: mercurial, ninja-build, telnet, pipx, fail2ban, gh
 and python3-wheel. One package is in **CRB (CodeReady Builder)**:
 liburing-devel. Enable the two repos first. Fedora has neither repo, thus omit
 this step on Fedora:
@@ -939,7 +939,7 @@ sudo dnf -y install \
   perl dos2unix tree wget \
   libpq-devel \
   telnet pipx \
-  patch gettext fail2ban rsync \
+  patch gettext fail2ban rsync gh \
   pkgconf-pkg-config ca-certificates glibc-devel kernel-headers \
   glibc-static libstdc++-static libxcrypt-static
 
@@ -1018,6 +1018,7 @@ only for the dynamic link of nginx and openresty.
 - `pipx kconfiglib`                   — yunetas configuration tool
 - `kconfig-frontends`                 — alternative configuration tool (Debian only)
 - `telnet`                            — required by tests
+- `gh`                                — GitHub CLI, to work with the repositories (releases, issues, pull requests)
 ```
 
 ### 3. Install the `yunetas` CLI

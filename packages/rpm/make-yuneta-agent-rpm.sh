@@ -1597,7 +1597,7 @@ PKGS=(
     perl dos2unix tree wget
     libpq-devel
     telnet pipx
-    patch gettext fail2ban rsync
+    patch gettext fail2ban rsync gh
     pkgconf-pkg-config ca-certificates glibc-devel kernel-headers
     glibc-static libstdc++-static libxcrypt-static
 )
