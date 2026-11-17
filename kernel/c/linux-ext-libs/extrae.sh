@@ -51,7 +51,7 @@ for REPO_URL in "${!REPOS[@]}"; do
     # Clone the repository with the specified version
     echo ""
     echo "===================> Cloning $REPO_NAME from $REPO_URL"
-    git clone "$REPO_URL"
+    git_with_retry clone "$REPO_URL"
 
     # Optional: Print a message after each repository is cloned
     echo "<=================== Finished cloning $REPO_NAME"

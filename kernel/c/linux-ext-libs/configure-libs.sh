@@ -454,7 +454,7 @@ echo "===================== MBEDTLS ======================="
 cd build/mbedtls
 
 git checkout "$TAG_MBEDTLS"
-git submodule update --init --recursive
+git_with_retry submodule update --init --recursive
 
 VENV_DIR=".venv"
 # Create venv if it doesn't exist
@@ -495,7 +495,7 @@ echo "===================== OPENSSL ======================="
 cd build/openssl
 
 git checkout "$TAG_OPENSSL"
-git submodule update --init
+git_with_retry submodule update --init
 
 #    --openssldir=/yuneta/bin/ssl3 \
 
@@ -520,7 +520,7 @@ echo "===================== PCRE2 ======================="
 cd build/pcre2
 
 git checkout "$TAG_PCRE2"
-git submodule update --init
+git_with_retry submodule update --init
 
 mkdir -p build
 cd build

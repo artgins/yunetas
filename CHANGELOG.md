@@ -12,9 +12,12 @@
 - **`extrae.sh` and `configure-libs.sh` set `GIT_TERMINAL_PROMPT=0`**: a
   clone or submodule update that GitHub answers with 401 (it does so to
   anonymous clones when it is loaded) fails with git's error instead of
-  waiting for a username on the terminal. `VERSION` of `configure-libs.sh`
-  stays at 1.29 by decision: the libraries come out identical, and a bump
-  would block `yunetas build` on every source node until it rebuilds them.
+  waiting for a username on the terminal, and every clone and submodule
+  update is retried after 30, 90 and 180 s (`git_with_retry`, in
+  `repos2clone.sh`): the 401 clears within minutes, while git's own retry of
+  a submodule is immediate. `VERSION` of `configure-libs.sh` stays at 1.29
+  by decision: the libraries come out identical, and a bump would block
+  `yunetas build` on every source node until it rebuilds them.
 
 ### Security
 

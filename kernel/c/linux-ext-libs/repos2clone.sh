@@ -38,3 +38,29 @@ REPOS["https://github.com/ianlancetaylor/libbacktrace"]=""
 REPOS["https://github.com/artgins/argp-standalone.git"]="$TAG_ARGP_STANDALONE"
 REPOS["https://github.com/mirror/ncurses.git"]="$TAG_NCURSES"
 REPOS["https://github.com/nginx/nginx.git"]="$TAG_NGINX"
+
+#------------------------------------------
+#   git_with_retry
+#------------------------------------------
+# GitHub answers 401 to anonymous clones of public repos when one address
+# pulls too much at once (a whole extrae.sh, several nodes together); it
+# clears within minutes. git's own retry of a submodule is immediate and hits
+# the same limit, so wait between tries. A failed clone removes its directory
+# and a submodule update resumes, so the same command is simply run again.
+#   git_with_retry <git arguments...>
+git_with_retry() {
+    local waits=(30 90 180)
+    local n=0
+    while true; do
+        if git "$@"; then
+            return 0
+        fi
+        if [ "$n" -ge "${#waits[@]}" ]; then
+            echo "[!] 'git $*' failed $((n + 1)) times; giving up." >&2
+            return 1
+        fi
+        echo "[!] 'git $*' failed (try $((n + 1))); retrying in ${waits[$n]}s..." >&2
+        sleep "${waits[$n]}"
+        n=$((n + 1))
+    done
+}
