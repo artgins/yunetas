@@ -53,7 +53,8 @@ PRIVATE const jwk_item_t  *s_hs256_key = NULL;
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE char *make_signed_token(const char *username, const char *email, int ttl, int pad);
+PRIVATE char *make_signed_token(const char *username, const char *email, int ttl, int pad,
+    const char *iss);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -66,6 +67,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_INTEGER,     "return_status",    SDF_RD, "200",  "HTTP status code to return for token requests"),
 SDATA (DTP_STRING,      "username",         SDF_RD, "mockuser", "preferred_username claim embedded in the access_token"),
 SDATA (DTP_STRING,      "email",            SDF_RD, "mockuser@example.com", "email claim embedded in the access_token"),
+SDATA (DTP_STRING,      "issuer_claim",     SDF_RD, "",     "If non-empty, the `iss` claim of the access_token and the refresh_token (the IdP of a session: a BFF with `issuers` routes a refresh by it)"),
 SDATA (DTP_INTEGER,     "access_token_ttl", SDF_RD, "300",  "seconds: exp - iat for access_token"),
 SDATA (DTP_INTEGER,     "refresh_token_ttl",SDF_RD, "1800", "seconds: exp - iat for refresh_token"),
 SDATA (DTP_INTEGER,     "access_token_pad", SDF_RD, "0",    "If > 0, the access_token carries a `pad` claim of that many bytes (the token of a user with many roles)"),
@@ -490,9 +492,10 @@ PRIVATE json_t *build_token_envelope(hgobj gobj)
     int at_pad           = (int)gobj_read_integer_attr(gobj, "access_token_pad");
     int at_len           = (int)gobj_read_integer_attr(gobj, "access_token_len");
     int rt_len           = (int)gobj_read_integer_attr(gobj, "refresh_token_len");
+    const char *iss      = gobj_read_str_attr(gobj, "issuer_claim");
 
-    char *access  = stretch_token(gobj, make_signed_token(username, email, at_ttl, at_pad), at_len);
-    char *refresh = stretch_token(gobj, make_signed_token(username, email, rt_ttl, 0), rt_len);
+    char *access  = stretch_token(gobj, make_signed_token(username, email, at_ttl, at_pad, iss), at_len);
+    char *refresh = stretch_token(gobj, make_signed_token(username, email, rt_ttl, 0, iss), rt_len);
 
     json_t *jn = json_pack("{s:s, s:s, s:i, s:i, s:s, s:s}",
         "access_token",         access  ? access  : "",
@@ -600,7 +603,8 @@ PUBLIC void mock_keycloak_end_jwk(void)
  *  GBMEM_FREE, NOT system free().  libjwt's allocator was rewired to
  *  gbmem in mock_keycloak_init_jwk().
  ***************************************************************************/
-PRIVATE char *make_signed_token(const char *username, const char *email, int ttl, int pad)
+PRIVATE char *make_signed_token(const char *username, const char *email, int ttl, int pad,
+    const char *iss)
 {
     if(!s_hs256_key) {
         gobj_log_error(0, 0,
@@ -642,6 +646,11 @@ PRIVATE char *make_signed_token(const char *username, const char *email, int ttl
 
     jwt_set_SET_STR(&jval, "email", email ? email : "");
     jwt_builder_claim_set(b, &jval);
+
+    if(iss && *iss) {
+        jwt_set_SET_STR(&jval, "iss", iss);
+        jwt_builder_claim_set(b, &jval);
+    }
 
     jwt_set_SET_INT(&jval, "iat", (jwt_long_t)now);
     jwt_builder_claim_set(b, &jval);
@@ -832,6 +841,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                               : (status == 401) ? "401 Unauthorized"
                               : (status == 429) ? "429 Too Many Requests"
                               : (status == 500) ? "500 Internal Server Error"
+                              : (status == 502) ? "502 Bad Gateway"
+                              : (status == 503) ? "503 Service Unavailable"
+                              : (status == 504) ? "504 Gateway Timeout"
                                                 : "200 OK";
 
         const char *raw_content_type = gobj_read_str_attr(gobj, "raw_content_type");

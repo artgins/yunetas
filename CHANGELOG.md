@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **`C_AUTH_BFF`: failover between IdPs (`issuers`).** A BFF can name two or
+  more issuers of the same realm on different IdPs (the realm imported, with
+  its keys). Example: `"issuers": ["https://auth.artgins.com/realms/artgins/",
+  "https://auth.artgins.es/realms/artgins/"]`. Each IdP has its own outbound
+  connection, and the BFF discovers it the first time a request needs it.
+    - **A login** goes to the first IdP that is up. It goes to the next IdP
+      when the IdP does not connect within `idp_failover_connect_ms` (new,
+      4000), fails its discovery, or answers `502`/`503`/`504` before
+      Keycloak takes the login. A login that reached Keycloak is never sent
+      again.
+    - **A refresh and a logout** go to the IdP named by the `iss` of the
+      refresh token. The BFF does not move them: the other IdP refuses the
+      token (`invalid_grant`, "Invalid token issuer", checked against the
+      two artgins IdPs).
+    - **Down and up:** the logins skip an IdP that failed one for
+      `idp_down_retry_ms` (new, 60000), with no timer. The IdP is up again
+      when its connection opens or when it answers. The BFF logs a WARNING
+      when an IdP goes down and an INFO when it is up, with more than one
+      IdP only.
+    - **Observability:** `view-status` lists the IdPs (`idps`), and a new
+      stat `idp_failovers` counts the logins that went to the next IdP.
+    - **No change with one IdP:** a BFF with `issuer` (or explicit
+      endpoints) works as before; the 30 tests of `c_auth_bff` pass
+      unchanged. New test `test32_idp_failover`. The mock Keycloak of the
+      tests gets `issuer_claim` and answers `502`/`503`/`504`.
+- **JS: a session whose IdP is down ends once its access token is dead**
+  (gui_agent, gui_treedb). Its refresh token belongs to that IdP, so no other
+  IdP can refresh it. The SPA keeps the session while the access token lives.
+  Then it ends the session at the third refresh that the BFF answers with
+  `auth_service_unavailable` or `auth_timeout`, and shows the login form,
+  whose login goes to an IdP that answers. Only the BFF's own code counts: a
+  `502` page of a proxy, or no answer, is still retried for ever.
+
 - **JS: gobj-ui 7.31.6, the treedb views show a topic by its own name,
   untranslated** (the tab, the card and the info title of
   `C_YUI_TREEDB_TOPICS`; the linked-topic choice dialog and the parent-filter

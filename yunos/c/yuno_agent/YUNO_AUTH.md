@@ -247,6 +247,7 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the I
 | Attribute              | Status              | Purpose                                              |
 |------------------------|---------------------|------------------------------------------------------|
 | `issuer`               | preferred           | OIDC issuer URL, for example `https://auth.example.com/realms/foo/`. Triggers discovery via `/.well-known/openid-configuration`. |
+| `issuers`              | failover            | Issuer URLs of the same realm on two or more IdPs, in order of preference. Replaces `issuer`. See §2.7. |
 | `token_endpoint`       | explicit override   | Bypass discovery. force the token URL.               |
 | `end_session_endpoint` | explicit override   | Same, for logout.                                    |
 | `client_id`            | required            | OAuth2 client id. Also the value the JWT's `azp` claim must match. |
@@ -258,6 +259,8 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the I
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
 | `idp_logout_timeout_ms` | default `10000`    | Bounds the **whole of a logout**. See §2.6.           |
+| `idp_failover_connect_ms` | default `4000`   | With `issuers`: the wait to connect before a login goes to the next IdP. See §2.7. |
+| `idp_down_retry_ms`    | default `60000`     | With `issuers`: the time the logins skip an IdP that failed one. See §2.7. |
 
 Discovery requires BOTH endpoints in the issuer's document: without
 `end_session_endpoint` it fails. Auth0 does not publish one (it has its own
@@ -342,7 +345,52 @@ session**, never log the user out. Reading `data.success` while ignoring the
 HTTP status is the mistake that turns a node reboot into a forced re-login for
 everyone.
 
-### 2.7 Per-host runtime configuration
+
+### 2.7 Failover between IdPs (`issuers`)
+
+A realm can be served by two IdPs: the second has the realm imported from
+the first, with the same keys. Every `C_AUTHZ` accepts the tokens of both
+(one `Authz.jwks` entry per issuer). The BFF then names both IdPs, in order
+of preference:
+
+```json
+"kw": {
+    "issuers": [
+        "https://auth.artgins.com/realms/artgins/",
+        "https://auth.artgins.es/realms/artgins/"
+    ],
+    "client_id": "app.example.com"
+}
+```
+
+The two IdPs do not share sessions. A refresh token presented to the IdP
+that did not issue it is refused (`invalid_grant`, "Invalid token issuer";
+verified against the two artgins IdPs on 2026-11-17). So the IdP of a
+request depends on the request:
+
+| Request | IdP | When that IdP fails |
+|---------|-----|---------------------|
+| `/auth/login` | The first IdP that is up | The login goes to the next IdP if this one does not connect within `idp_failover_connect_ms`, fails its discovery, or answers `502`/`503`/`504` before Keycloak takes the login. A login that reached Keycloak is never sent again. |
+| `/auth/refresh`, `/auth/logout` | The `iss` of the refresh token (a JWT, read and not verified, only to choose) | The request fails as with one IdP: the session cannot move. |
+| `/auth/callback` | The first IdP | As with one IdP. |
+
+An IdP that failed a login is **down**:
+- The logins skip it for `idp_down_retry_ms`. The first login after that
+  time tries it again, so there is no timer.
+- It is up again when its connection opens (if it could not connect), or
+  when it answers anything except a 5xx.
+
+The BFF logs a WARNING when an IdP goes down and an INFO when it is up
+again. `view-status` shows each IdP and its state, and the `idp_failovers`
+stat counts the logins that went to the next IdP.
+
+The SPA keeps a session whose IdP is down while its access token lives.
+After that, at the third `auth_service_unavailable` or `auth_timeout` of
+its refresh, it ends the session with that code. The login form then
+opens a new session at the IdP that answers. Test:
+`tests/c/c_auth_bff/test32_idp_failover`.
+
+### 2.8 Per-host runtime configuration
 
 `yunos/c/auth_bff/batches/<host>/auth_bff.<port>.json`. The shape is
 illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:55-58`):
@@ -357,7 +405,7 @@ illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:
 In a production deployment, those four values come from the client of the
 project's Keycloak realm. See §7 for the project conventions.
 
-### 2.8 Diagnose a failure of the IdP
+### 2.9 Diagnose a failure of the IdP
 
 The browser never sees the cause: the BFF maps every IdP failure to a stable
 code of its own catalog (`c_auth_bff.h`). The log carries the cause.
@@ -382,7 +430,7 @@ The four specific mappings (`invalid_credentials`, `session_expired`,
 travel on the single line of `send_error_response` and add nothing more. A
 wrong password is not a diagnosis problem.
 
-### 2.9 Pending bugs
+### 2.10 Pending bugs
 
 Two issues are known and not fixed:
 
@@ -1515,7 +1563,7 @@ The convention from
    - **Direct Access Grants: On.** `/auth/login` uses `grant_type=password`,
      the flow of the in-repo SPAs. A client without it refuses every login:
      Keycloak answers `unauthorized_client`, the browser gets the generic
-     `auth_unexpected_error`, and the log line of §2.8 names the cause.
+     `auth_unexpected_error`, and the log line of §2.9 names the cause.
    - Public client (no client_secret), or confidential (with the secret in
      the BFF config).
    - Only if the BFF also serves `/auth/callback`: Standard Flow On, PKCE

@@ -407,6 +407,7 @@ crash or leak cannot mask neighbours.
 | **`test29_tls_origin`** | A BFF that ends TLS itself, with no `allowed_origin`: `Origin: http://` and the `Host` is `403`, `https://` is `200`. A logout whose `end_session_endpoint` is not a URL is answered `500 auth_config_error`, the cookies cleared: it used to get no answer at all. |
 | **`test30_logout_bound`** | A logout answers within `idp_logout_timeout_ms` (10000 by default), both cookies cleared, before a SPA gives up at 15 s, with an IdP mute, unreachable, or behind a discovery that does not end. |
 | **`test31_no_idp`** | A BFF with no IdP configured answers a logout with a cookie and a login at once, `500 auth_config_error` each (the logout with its cookies cleared). Up to 7.30.14 both waited for ever. |
+| **`test32_idp_failover`** | The failover between the IdPs of `issuers`, with two mock IdPs whose tokens carry their `iss`, and a third IdP that cannot be reached. A login goes to the next IdP when its IdP answers `502`, cannot connect within `idp_failover_connect_ms`, or fails its discovery. The next login goes straight to the next IdP while the first is down, and goes back after `idp_down_retry_ms`. A refresh goes to the IdP of its session and never to another one, also when that IdP answers `502`. A login that reached an IdP (a `401`, a connection cut after the send) is never sent to another IdP. Each step checks the `/token` requests at each IdP and `idp_failovers`. |
 
 **Source:** `tests/c/c_auth_bff/` (includes `c_mock_keycloak`, `test_helpers`).
 

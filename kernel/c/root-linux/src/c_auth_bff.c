@@ -128,6 +128,40 @@
  *    OPTIONS *
  *      CORS preflight response.
  *
+ *  Failover between IdPs (`issuers`):
+ *  ========================================
+ *    Two IdPs that serve the same realm (one imported from the other,
+ *    with its keys) issue tokens every c_authz of the yunos accepts, but
+ *    each keeps its own sessions: a code, and a refresh_token, can only
+ *    be used at the IdP that issued them (the other answers invalid_grant,
+ *    "Invalid token issuer"). So the IdP of a request depends on the
+ *    request:
+ *
+ *    /auth/login     the first IdP of `issuers` that is up (or whose
+ *                    idp_down_retry_ms has passed). It passes to the next
+ *                    one when this one cannot be reached within
+ *                    idp_failover_connect_ms, fails its OIDC discovery, or
+ *                    answers 502/503/504 (a proxy whose Keycloak is down):
+ *                    in all three the IdP never took it. Once a login has
+ *                    been sent to an IdP that took it, it is never sent to
+ *                    another. The last IdP it tries waits
+ *                    idp_connect_timeout_ms, and answers as with one IdP.
+ *    /auth/refresh   the IdP that issued the session: the `iss` of the
+ *    /auth/logout    refresh_token (a JWT; read, not verified, only to
+ *                    choose where it goes). When that IdP is down they
+ *                    fail as with one IdP: the session cannot be moved.
+ *    /auth/callback  the first IdP (the SPA sent the browser to it).
+ *
+ *    Each IdP has its own outbound connection ("<bff>-idp", "-idp2"...),
+ *    and is discovered the first time a request needs it (only the first
+ *    one at mt_start). An IdP that fails a login is DOWN: the logins skip
+ *    it for idp_down_retry_ms, and the next one after that tries it again
+ *    -- no timer, no polling. One that could not be reached is up again
+ *    as soon as its connection opens; any answer of its own (not a 5xx)
+ *    puts it up too. Its transitions are a WARNING and an INFO, with more
+ *    than one IdP only. view-status lists the IdPs and their state, and
+ *    the `idp_failovers` stat counts the logins passed to the next one.
+ *
  *  Architecture:
  *  - Uses C_PROT_HTTP_SR as the lower transport layer.
  *  - For outbound IdP calls uses C_PROT_HTTP_CL + C_TASK
@@ -238,6 +272,12 @@
 #define BFF_DISCOVERY_SENDS_MAX 2
 
 /*
+ *  The most IdPs a BFF fails over between (`issuers`): its tried ones are
+ *  a bit mask in the request (`_tried`)
+ */
+#define BFF_IDPS_MAX            4
+
+/*
  *  The Max-Age of a cookie whose token has no lifetime from the IdP: the
  *  cookie is written with no Max-Age, a cookie of the browser session.
  *  An IdP says "no expiry" with a lifetime of 0 (Keycloak answers
@@ -279,12 +319,38 @@ typedef struct _PENDING_AUTH {
     json_t      *answer;                /* an answer built, waiting for its turn (see send_json_response); NULL: a request for the IdP */
 } PENDING_AUTH;
 
+/*
+ *  One IdP of the BFF: its issuer, its endpoints and its own outbound
+ *  connection. A BFF with `issuers` has one per entry; with `issuer` or
+ *  explicit endpoints, one. See "Failover between IdPs" in the header.
+ */
+typedef struct _IDP_SLOT {
+    int     idx;                        /* its position in `issuers` */
+    char    name[NAME_MAX];             /* name of its gobjs (outbound, tasks) */
+    char    issuer[512];                /* "" with explicit endpoints */
+    char    token_url[PATH_MAX];        /* full URL — empty until discovery resolves it */
+    char    end_session_url[PATH_MAX];  /* full URL — empty until discovery resolves it */
+    BOOL    discovery_done;             /* TRUE once endpoints are usable */
+    hgobj   gobj_idprovider;            /* C_PROT_HTTP_CL */
+
+    BOOL        down;                   /* a login does not go to it, until down_retry */
+    BOOL        down_by_connect;        /* it could not be reached: up again when it connects */
+    uint64_t    down_retry;             /* msectimer: a login tries it again after it */
+    char        down_cause[128];
+    time_t      down_since;
+} IDP_SLOT;
+
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
 PRIVATE BOOL stats_match(const char *stats, const char *name);
 PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
+PRIVATE void create_idp_outbound(hgobj gobj, IDP_SLOT *slot, const char *http_url);
+PRIVATE int find_idp_by_issuer(hgobj gobj, const char *issuer);
+PRIVATE BOOL login_can_fail_over(hgobj gobj, json_t *request, int idx);
+PRIVATE void mark_idp_down(hgobj gobj, IDP_SLOT *slot, BOOL by_connect, const char *cause);
+PRIVATE void mark_idp_up(hgobj gobj, IDP_SLOT *slot);
 PRIVATE void arm_connect_watchdog(hgobj gobj);
 PRIVATE void clear_logout_timeout(hgobj gobj);
 PRIVATE void flush_pending_with_error(hgobj gobj, int status_code,
@@ -368,7 +434,10 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----default-description*/
-SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration"),
+SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration. Ignored when `issuers` is set"),
+SDATA (DTP_LIST,        "issuers",              SDF_RD, "[]",   "OIDC issuer URLs of the same realm, in order of preference (at most 4): a login goes to the first that answers, and passes to the next when one cannot be reached, fails its discovery or answers 502/503/504 before Keycloak takes it; a refresh and a logout go to the issuer of the session (the `iss` of its refresh_token). Each one is discovered the first time a request needs it. Not with token_endpoint/end_session_endpoint"),
+SDATA (DTP_INTEGER,     "idp_failover_connect_ms",SDF_RD,           "4000", "With `issuers`: how long a login waits for an IdP to CONNECT before it passes to the next one (the last one it tries waits idp_connect_timeout_ms). Keep the sum under the time a SPA waits (15 s). 0 or less: idp_connect_timeout_ms"),
+SDATA (DTP_INTEGER,     "idp_down_retry_ms",    SDF_RD,             "60000","With `issuers`: an IdP that failed a login is skipped by the logins for this long; the next login after it tries it again. An IdP that could not be reached is back as soon as its connection opens"),
 SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
@@ -421,11 +490,8 @@ typedef struct _PRIVATE_DATA {
     int             q_answers;          /* entries of dl_pending that are an answer waiting for its turn */
     BOOL            answer_in_turn;     /* the request being read is answered after the ones before it */
 
-    char            idp_name[NAME_MAX]; /* Name for idp gobjs */
-
     /* Current outbound Identity Provider connection */
     BOOL            processing;
-    hgobj           gobj_idprovider;    /* C_PROT_HTTP_CL */
     hgobj           gobj_task;          /* C_TASK */
     hgobj           gobj_timer;         /* C_TIMER: watchdog over the task in flight */
     hgobj           gobj_logout_timer;  /* C_TIMER: the time of the logout at the head, armed once (arm_logout_timeout) */
@@ -446,17 +512,21 @@ typedef struct _PRIVATE_DATA {
     BOOL            task_valid;
 
     /*
-     *  OIDC endpoints (full URLs).  Resolved in mt_create from one of:
-     *    1. Explicit token_endpoint + end_session_endpoint attrs
-     *    2. OIDC discovery (<issuer>/.well-known/openid-configuration)
+     *  The IdPs, and the one of what is in flight (`cur`: a task or a
+     *  discovery, never both). Their endpoints are resolved in mt_create
+     *  from one of:
+     *    1. Explicit token_endpoint + end_session_endpoint attrs (one IdP)
+     *    2. OIDC discovery (<issuer>/.well-known/openid-configuration),
+     *       of each issuer the first time a request needs it
      *  process_next gates on discovery_done so requests queue while
-     *  discovery is in flight.
+     *  discovery is in flight. `cur` always points to a slot: with no IdP
+     *  configured (n_idps 0) to an empty one.
      */
-    char    issuer[512];                /* copy of attr; "" if not configured */
-    char    token_url[PATH_MAX];        /* full URL — empty until discovery resolves it */
-    char    end_session_url[PATH_MAX];  /* full URL — empty until discovery resolves it */
-    BOOL    discovery_done;             /* TRUE once endpoints are usable */
-    hgobj   gobj_discovery_task;        /* one-shot OIDC discovery task; NULL when idle */
+    IDP_SLOT    idps[BFF_IDPS_MAX];
+    int         n_idps;
+    IDP_SLOT   *cur;
+    BOOL        can_fail_over;          /* what is in flight is a login another IdP can take */
+    hgobj       gobj_discovery_task;    /* one-shot OIDC discovery task; NULL when idle */
 
     /*
      *  What the connect watchdog saw when it ended the task in flight
@@ -483,9 +553,11 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
     uint64_t        st_responses_dropped; /* IdP replies dropped because browser closed */
     uint64_t        st_idp_timeouts;     /* an IdP task ended by timeout (request or discovery) */
+    uint64_t        st_idp_failovers;    /* logins passed to the next IdP */
 } PRIVATE_DATA;
 
 PRIVATE BOOL no_refresh_token_said = FALSE;    /* the WARNING of a login with no refresh_token, once per process */
+PRIVATE BOOL unknown_issuer_said = FALSE;      /* the WARNING of a refresh_token of no issuer of `issuers`, once per process */
 
 
 
@@ -541,83 +613,104 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*
-     *  Name for idp gobjs
+     *  The IdPs. OIDC endpoint resolution priority:
+     *    1. `issuers`                                         -> one slot per entry,
+     *                                                            each discovered when needed
+     *    2. Explicit token_endpoint + end_session_endpoint    -> one slot, used directly
+     *    3. issuer                                            -> one slot, discovered at startup
+     *    4. None                                              -> error, BFF unusable
      */
-    snprintf(priv->idp_name, sizeof(priv->idp_name), "%s-idp", gobj_name(gobj));
+    priv->cur = &priv->idps[0];
 
-    /*
-     *  OIDC endpoint resolution priority:
-     *    1. Explicit token_endpoint + end_session_endpoint    -> use directly
-     *    2. issuer                                            -> discover at startup
-     *    3. None                                              -> error, BFF unusable
-     *
-     *  http_url is the URL passed to C_PROT_HTTP_CL/C_TCP for the
-     *  outbound connection (only host/port matter; the path of each
-     *  request is set per-call via the `resource` field).
-     */
+    json_t *jn_issuers               = gobj_read_json_attr(gobj, "issuers");
     const char *token_endpoint       = gobj_read_str_attr(gobj, "token_endpoint");
     const char *end_session_endpoint = gobj_read_str_attr(gobj, "end_session_endpoint");
     const char *issuer               = gobj_read_str_attr(gobj, "issuer");
 
-    const char *http_url = NULL;
-
-    if(!empty_string(token_endpoint) && !empty_string(end_session_endpoint)) {
-        snprintf(priv->token_url, sizeof(priv->token_url), "%s",
+    if(json_array_size(jn_issuers) > 0) {
+        if(!empty_string(token_endpoint) || !empty_string(end_session_endpoint)) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_PARAMETER,
+                "msg",      "%s", "👤BFF no IdP configured: set 'issuers' or "
+                                  "'token_endpoint'+'end_session_endpoint', not both",
+                NULL
+            );
+        } else {
+            if(!empty_string(issuer)) {
+                gobj_log_warning(gobj, 0,
+                    "function", "%s", __FUNCTION__,
+                    "msgset",   "%s", MSGSET_PARAMETER,
+                    "msg",      "%s", "👤BFF 'issuer' ignored: 'issuers' is set",
+                    "issuer",   "%s", issuer,
+                    NULL
+                );
+            }
+            size_t idx;
+            json_t *jn_issuer;
+            json_array_foreach(jn_issuers, idx, jn_issuer) {
+                const char *iss = json_string_value(jn_issuer);
+                if(empty_string(iss) || !strstr(iss, "://") ||
+                        strlen(iss) >= sizeof(priv->idps[0].issuer)) {
+                    gobj_log_error(gobj, 0,
+                        "function", "%s", __FUNCTION__,
+                        "msgset",   "%s", MSGSET_PARAMETER,
+                        "msg",      "%s", "👤BFF an entry of 'issuers' is not an issuer URL, ignored",
+                        "index",    "%d", (int)idx,
+                        NULL
+                    );
+                    continue;
+                }
+                if(find_idp_by_issuer(gobj, iss) >= 0) {
+                    gobj_log_error(gobj, 0,
+                        "function", "%s", __FUNCTION__,
+                        "msgset",   "%s", MSGSET_PARAMETER,
+                        "msg",      "%s", "👤BFF an issuer is twice in 'issuers', ignored",
+                        "issuer",   "%s", iss,
+                        NULL
+                    );
+                    continue;
+                }
+                if(priv->n_idps >= BFF_IDPS_MAX) {
+                    gobj_log_error(gobj, 0,
+                        "function", "%s", __FUNCTION__,
+                        "msgset",   "%s", MSGSET_PARAMETER,
+                        "msg",      "%s", "👤BFF too many 'issuers', the rest ignored",
+                        "max",      "%d", BFF_IDPS_MAX,
+                        "issuer",   "%s", iss,
+                        NULL
+                    );
+                    break;
+                }
+                IDP_SLOT *slot = &priv->idps[priv->n_idps];
+                slot->idx = priv->n_idps;
+                priv->n_idps++;
+                snprintf(slot->issuer, sizeof(slot->issuer), "%s", iss);
+                slot->discovery_done = FALSE;
+                create_idp_outbound(gobj, slot, slot->issuer);
+            }
+        }
+    } else if(!empty_string(token_endpoint) && !empty_string(end_session_endpoint)) {
+        IDP_SLOT *slot = &priv->idps[0];
+        priv->n_idps = 1;
+        snprintf(slot->token_url, sizeof(slot->token_url), "%s",
             token_endpoint);
-        snprintf(priv->end_session_url, sizeof(priv->end_session_url), "%s",
+        snprintf(slot->end_session_url, sizeof(slot->end_session_url), "%s",
             end_session_endpoint);
-        priv->discovery_done = TRUE;
-        http_url = token_endpoint;
+        slot->discovery_done = TRUE;
+        create_idp_outbound(gobj, slot, token_endpoint);
     } else if(!empty_string(issuer)) {
-        snprintf(priv->issuer, sizeof(priv->issuer), "%s", issuer);
-        priv->discovery_done = FALSE;
-        http_url = issuer;
+        IDP_SLOT *slot = &priv->idps[0];
+        priv->n_idps = 1;
+        snprintf(slot->issuer, sizeof(slot->issuer), "%s", issuer);
+        slot->discovery_done = FALSE;
+        create_idp_outbound(gobj, slot, issuer);
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_PARAMETER,
             "msg",      "%s", "👤BFF no IdP configured: set 'issuer' or 'token_endpoint'+'end_session_endpoint'",
             NULL
-        );
-        priv->discovery_done = FALSE;
-    }
-
-    if(http_url) {
-        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-
-        priv->gobj_idprovider = gobj_create(
-            priv->idp_name,
-            C_PROT_HTTP_CL,
-            json_pack("{s:s, s:i}",
-                "url", http_url,
-                "max_body_size", BFF_IDP_BODY_MAX
-            ),
-            gobj
-        );
-        gobj_unsubscribe_event(priv->gobj_idprovider, NULL, NULL, gobj);
-        gobj_subscribe_event(priv->gobj_idprovider, EV_ON_OPEN, NULL, gobj);
-        gobj_subscribe_event(priv->gobj_idprovider, EV_ON_CLOSE, NULL, gobj);
-        gobj_set_manual_start(priv->gobj_idprovider, TRUE);
-
-        gobj_set_bottom_gobj(
-            priv->gobj_idprovider,
-            gobj_create_pure_child(
-                priv->idp_name,
-                C_TCP,
-                json_pack("{s:s, s:O, s:i, s:i}",
-                    "url", http_url,
-                    "crypto", jn_crypto,
-                    /*
-                     *  Fast first retry (100 ms) for a transient IdP blip, but
-                     *  back off exponentially up to 30 s so a persistent failure
-                     *  (e.g. an IdP cert that won't verify) does not flood the
-                     *  log at the base cadence.
-                     */
-                    "timeout_between_connections", 100,
-                    "timeout_between_connections_max", 30000
-                ),
-                priv->gobj_idprovider
-            )
         );
     }
 
@@ -680,10 +773,10 @@ PRIVATE void arm_connect_watchdog(hgobj gobj)
     priv->connect_was_connected = FALSE;
     priv->connect_tcp_state = NULL;
 
-    if(!priv->gobj_idprovider) {
+    if(!priv->cur->gobj_idprovider) {
         return;
     }
-    if(gobj_read_bool_attr(priv->gobj_idprovider, "connected")) {
+    if(gobj_read_bool_attr(priv->cur->gobj_idprovider, "connected")) {
         return;
     }
 
@@ -695,13 +788,21 @@ PRIVATE void arm_connect_watchdog(hgobj gobj)
      *  gives up first. EV_CONNECT in ST_DISCONNECTED is c_tcp's own
      *  on-demand reconnection entry point.
      */
-    hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
+    hgobj tcp = gobj_bottom_gobj(priv->cur->gobj_idprovider);
     if(tcp && gobj_current_state(tcp) == ST_DISCONNECTED) {
         gobj_send_event(tcp, EV_CONNECT, 0, gobj);
     }
 
+    /*
+     *  A login another IdP can take waits less: the SPA gives up after 15 s
+     */
     json_int_t connect_timeout_ms =
         gobj_read_integer_attr(gobj, "idp_connect_timeout_ms");
+    json_int_t failover_ms =
+        gobj_read_integer_attr(gobj, "idp_failover_connect_ms");
+    if(priv->can_fail_over && failover_ms > 0) {
+        connect_timeout_ms = failover_ms;
+    }
     if(connect_timeout_ms <= 0) {
         return;     /* explicitly disabled */
     }
@@ -716,13 +817,13 @@ PRIVATE BOOL start_oidc_discovery(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->discovery_done) {
+    if(priv->cur->discovery_done) {
         return FALSE;
     }
     if(priv->gobj_discovery_task) {
         return TRUE;        /* already in flight */
     }
-    if(empty_string(priv->issuer) || !priv->gobj_idprovider) {
+    if(empty_string(priv->cur->issuer) || !priv->cur->gobj_idprovider) {
         return FALSE;
     }
 
@@ -737,7 +838,7 @@ PRIVATE BOOL start_oidc_discovery(hgobj gobj)
                 "{s:s, s:s, s:I}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->cur->gobj_idprovider),
             "output_data",  json_object(),
             "jobs",
                 "exec_action",  "discover_oidc",
@@ -746,13 +847,13 @@ PRIVATE BOOL start_oidc_discovery(hgobj gobj)
         );
 
         priv->gobj_discovery_task = gobj_create(
-            priv->idp_name, C_TASK, kw_task, gobj);
+            priv->cur->name, C_TASK, kw_task, gobj);
         gobj_subscribe_event(priv->gobj_discovery_task, EV_END_TASK, NULL, gobj);
         gobj_set_volatil(priv->gobj_discovery_task, TRUE);
 
         gobj_start(priv->gobj_discovery_task);
-        if(!gobj_is_running(priv->gobj_idprovider)) {
-            gobj_start(priv->gobj_idprovider);
+        if(!gobj_is_running(priv->cur->gobj_idprovider)) {
+            gobj_start(priv->cur->gobj_idprovider);
         }
 
         /*
@@ -763,7 +864,7 @@ PRIVATE BOOL start_oidc_discovery(hgobj gobj)
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
                 "👤BFF OIDC discovery started: issuer=%s",
-                priv->issuer);
+                priv->cur->issuer);
         }
     }
     return TRUE;
@@ -783,11 +884,16 @@ PRIVATE int mt_start(hgobj gobj)
      *  endpoints explicitly), fetch /.well-known/openid-configuration
      *  before serving any browser request.  Browser requests that arrive
      *  before discovery completes queue in dl_pending; process_next gates
-     *  on priv->discovery_done so they're held until the endpoints are
+     *  on priv->cur->discovery_done so they're held until the endpoints are
      *  cached.
      *
      *  A failure here is NOT terminal: see start_oidc_discovery.
+     *
+     *  With `issuers`, only the first is discovered now: the others are
+     *  the first time a request needs them.
      */
+    priv->cur = &priv->idps[0];
+    priv->can_fail_over = FALSE;
     start_oidc_discovery(gobj);
     return 0;
 }
@@ -825,8 +931,11 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     priv->processing = FALSE;
 
-    if(priv->gobj_idprovider && gobj_is_running(priv->gobj_idprovider)) {
-        gobj_stop(priv->gobj_idprovider);
+    for(int i = 0; i < priv->n_idps; i++) {
+        hgobj idprovider = priv->idps[i].gobj_idprovider;
+        if(idprovider && gobj_is_running(idprovider)) {
+            gobj_stop(idprovider);
+        }
     }
 
     return 0;
@@ -869,6 +978,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         priv->st_bff_errors         = 0;
         priv->st_responses_dropped  = 0;
         priv->st_idp_timeouts        = 0;
+        priv->st_idp_failovers       = 0;
         stats = "";  /* fall through and return the (now zeroed) snapshot */
     }
 
@@ -894,6 +1004,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     STAT_INT("bff_errors",          priv->st_bff_errors);
     STAT_INT("responses_dropped",   priv->st_responses_dropped);
     STAT_INT("idp_timeouts",         priv->st_idp_timeouts);
+    STAT_INT("idp_failovers",        priv->st_idp_failovers);
 
 #undef STAT_INT
 
@@ -968,19 +1079,36 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_array_append_new(jn_queue, jn_entry);
     }
 
-    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:I, s:i, s:o, s:b, s:s, s:s, s:s}",
+    json_t *jn_idps = json_array();
+    for(int i = 0; i < priv->n_idps; i++) {
+        IDP_SLOT *slot = &priv->idps[i];
+        json_array_append_new(jn_idps, json_pack("{s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:s, s:I}",
+            "name",                 slot->name,
+            "issuer",               slot->issuer,
+            "token_endpoint",       slot->token_url,
+            "end_session_endpoint", slot->end_session_url,
+            "discovery_done",       slot->discovery_done? 1:0,
+            "connected",            gobj_read_bool_attr(slot->gobj_idprovider, "connected")? 1:0,
+            "down",                 slot->down? 1:0,
+            "down_cause",           slot->down? slot->down_cause : "",
+            "down_since",           (json_int_t)(slot->down? slot->down_since : 0)
+        ));
+    }
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:I, s:i, s:o, s:b, s:s, s:s, s:s, s:o}",
         "name",                 gobj_name(gobj),
         "full_name",            gobj_short_name(gobj),
         "processing",           priv->processing ? 1 : 0,
-        "has_active_http",      priv->gobj_idprovider ? 1 : 0,
-        "active_http",          priv->gobj_idprovider ? gobj_short_name(priv->gobj_idprovider) : "",
+        "has_active_http",      priv->cur->gobj_idprovider ? 1 : 0,
+        "active_http",          priv->cur->gobj_idprovider ? gobj_short_name(priv->cur->gobj_idprovider) : "",
         "q_count",              (json_int_t)dl_size(&priv->dl_pending),
         "q_max",                priv->queue_size_max,
         "queue",                jn_queue,
-        "discovery_done",       priv->discovery_done ? 1 : 0,
-        "issuer",               priv->issuer,
-        "token_endpoint",       priv->token_url,
-        "end_session_endpoint", priv->end_session_url
+        "discovery_done",       priv->cur->discovery_done ? 1 : 0,
+        "issuer",               priv->cur->issuer,
+        "token_endpoint",       priv->cur->token_url,
+        "end_session_endpoint", priv->cur->end_session_url,
+        "idps",                 jn_idps
     );
 
     return msg_iev_build_response(
@@ -2379,6 +2507,33 @@ PRIVATE json_t *send_token_to_browser(
         }
     }
 
+    {
+        /*
+         *  A login answered 502/503/504 by what stands in front of the IdP
+         *  (a proxy whose Keycloak is down) was not taken: another IdP of
+         *  `issuers` takes it (ac_end_task). Any other answer is the IdP's.
+         */
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(action == BFF_LOGIN && (status == 502 || status == 503 || status == 504) &&
+                login_can_fail_over(gobj, output_data, priv->cur->idx)) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "👤BFF IdP failed a login, it goes to the next IdP",
+                "issuer",       "%s", priv->cur->issuer,
+                "idp_status",   "%d", status,
+                NULL
+            );
+            mark_idp_down(gobj, priv->cur, FALSE, "a login answered 502/503/504");
+            json_object_set_new(output_data, "_failover", json_true());
+            KW_DECREF(kw)
+            STOP_TASK()
+        }
+        if(status > 0 && status < 500) {
+            mark_idp_up(gobj, priv->cur);
+        }
+    }
+
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
@@ -2883,7 +3038,7 @@ PRIVATE json_t *get_token_from_idp(
     {
         char ep_schema[32], ep_host[256], ep_port[16];
         if(parse_url(gobj,
-                priv->token_url,
+                priv->cur->token_url,
                 ep_schema, sizeof(ep_schema),
                 ep_host,   sizeof(ep_host),
                 ep_port,   sizeof(ep_port),
@@ -2894,7 +3049,7 @@ PRIVATE json_t *get_token_from_idp(
                 "function",  "%s", __FUNCTION__,
                 "msgset",    "%s", MSGSET_PROTOCOL,
                 "msg",       "%s", "👤BFF invalid token_endpoint URL",
-                "token_url", "%s", priv->token_url,
+                "token_url", "%s", priv->cur->token_url,
                 NULL
             );
             if(priv->task_valid) {
@@ -2980,7 +3135,7 @@ PRIVATE json_t *get_token_from_idp(
         "headers",  jn_headers,
         "data",     jn_data
     );
-    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->cur->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -3037,7 +3192,7 @@ PRIVATE json_t *get_logout_from_idp(
     {
         char ep_schema[32], ep_host[256], ep_port[16];
         if(parse_url(gobj,
-                priv->end_session_url,
+                priv->cur->end_session_url,
                 ep_schema, sizeof(ep_schema),
                 ep_host,   sizeof(ep_host),
                 ep_port,   sizeof(ep_port),
@@ -3048,7 +3203,7 @@ PRIVATE json_t *get_logout_from_idp(
                 "function",        "%s", __FUNCTION__,
                 "msgset",          "%s", MSGSET_PROTOCOL,
                 "msg",             "%s", "👤BFF invalid end_session_endpoint URL",
-                "end_session_url", "%s", priv->end_session_url,
+                "end_session_url", "%s", priv->cur->end_session_url,
                 NULL
             );
             if(priv->task_valid) {
@@ -3089,7 +3244,7 @@ PRIVATE json_t *get_logout_from_idp(
         "headers",  jn_headers,
         "data",     jn_data
     );
-    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->cur->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -3247,6 +3402,9 @@ PRIVATE json_t *send_logout_to_browser(
         } else {
             priv->st_idp_errors++;
         }
+        if(status > 0 && status < 500) {
+            mark_idp_up(gobj, priv->cur);
+        }
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -3346,7 +3504,7 @@ PRIVATE json_t *discover_oidc(
             "msgset",   "%s", MSGSET_PROTOCOL,
             "msg",      "%s", "👤BFF IdP closed the connection before answering the OIDC discovery",
             "sends",    "%d", sends,
-            "issuer",   "%s", priv->issuer,
+            "issuer",   "%s", priv->cur->issuer,
             NULL
         );
         KW_DECREF(kw)
@@ -3356,7 +3514,7 @@ PRIVATE json_t *discover_oidc(
 
     char ep_schema[32], ep_host[256], ep_port[16], ep_path[1024];
     if(parse_url(gobj,
-            priv->issuer,
+            priv->cur->issuer,
             ep_schema, sizeof(ep_schema),
             ep_host,   sizeof(ep_host),
             ep_port,   sizeof(ep_port),
@@ -3367,7 +3525,7 @@ PRIVATE json_t *discover_oidc(
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_PROTOCOL,
             "msg",      "%s", "👤BFF discovery: invalid issuer URL",
-            "issuer",   "%s", priv->issuer,
+            "issuer",   "%s", priv->cur->issuer,
             NULL
         );
         KW_DECREF(kw)
@@ -3397,7 +3555,7 @@ PRIVATE json_t *discover_oidc(
         gobj_trace_msg(gobj, "👤BFF ⏩ discovery: GET %s", resource);
     }
 
-    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->cur->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -3423,7 +3581,7 @@ PRIVATE json_t *save_oidc_discovery(
             "msgset",   "%s", MSGSET_PROTOCOL,
             "msg",      "%s", "👤BFF OIDC discovery failed",
             "status",   "%d", status,
-            "issuer",   "%s", priv->issuer,
+            "issuer",   "%s", priv->cur->issuer,
             NULL
         );
         KW_DECREF(kw)
@@ -3442,7 +3600,7 @@ PRIVATE json_t *save_oidc_discovery(
             "msgset",           "%s", MSGSET_PROTOCOL,
             "msg",              "%s", "👤BFF OIDC discovery failed: answer refused",
             "refused",          "%s", refused,
-            "issuer",           "%s", priv->issuer,
+            "issuer",           "%s", priv->cur->issuer,
             NULL
         );
         KW_DECREF(kw)
@@ -3471,8 +3629,8 @@ PRIVATE json_t *save_oidc_discovery(
      *  kept for the life of the BFF
      */
     if(!strstr(token_ep, "://") || !strstr(end_session_ep, "://") ||
-            strlen(token_ep) >= sizeof(priv->token_url) ||
-            strlen(end_session_ep) >= sizeof(priv->end_session_url)) {
+            strlen(token_ep) >= sizeof(priv->cur->token_url) ||
+            strlen(end_session_ep) >= sizeof(priv->cur->end_session_url)) {
         gobj_log_warning(gobj, 0,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_PROTOCOL,
@@ -3485,14 +3643,15 @@ PRIVATE json_t *save_oidc_discovery(
         STOP_TASK()
     }
 
-    snprintf(priv->token_url, sizeof(priv->token_url), "%s", token_ep);
-    snprintf(priv->end_session_url, sizeof(priv->end_session_url), "%s", end_session_ep);
-    priv->discovery_done = TRUE;
+    snprintf(priv->cur->token_url, sizeof(priv->cur->token_url), "%s", token_ep);
+    snprintf(priv->cur->end_session_url, sizeof(priv->cur->end_session_url), "%s", end_session_ep);
+    priv->cur->discovery_done = TRUE;
+    mark_idp_up(gobj, priv->cur);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
             "👤BFF ⏪ discovery OK: token=%s end_session=%s",
-            priv->token_url, priv->end_session_url);
+            priv->cur->token_url, priv->cur->end_session_url);
     }
 
     KW_DECREF(kw)
@@ -3535,6 +3694,303 @@ PRIVATE void clear_logout_timeout(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The outbound of an IdP: C_PROT_HTTP_CL over C_TCP, started on demand.
+ *  `http_url` is the URL of the connection (only host/port matter; the
+ *  path of each request is set per call via its `resource`). The first
+ *  IdP keeps the name of the BFF's only one ("<bff>-idp"), the others are
+ *  "<bff>-idp2", "<bff>-idp3"...
+ ***************************************************************************/
+PRIVATE void create_idp_outbound(hgobj gobj, IDP_SLOT *slot, const char *http_url)
+{
+    if(slot->idx == 0) {
+        snprintf(slot->name, sizeof(slot->name), "%s-idp", gobj_name(gobj));
+    } else {
+        snprintf(slot->name, sizeof(slot->name), "%s-idp%d", gobj_name(gobj), slot->idx + 1);
+    }
+
+    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+
+    slot->gobj_idprovider = gobj_create(
+        slot->name,
+        C_PROT_HTTP_CL,
+        json_pack("{s:s, s:i}",
+            "url", http_url,
+            "max_body_size", BFF_IDP_BODY_MAX
+        ),
+        gobj
+    );
+    gobj_unsubscribe_event(slot->gobj_idprovider, NULL, NULL, gobj);
+    gobj_subscribe_event(slot->gobj_idprovider, EV_ON_OPEN, NULL, gobj);
+    gobj_subscribe_event(slot->gobj_idprovider, EV_ON_CLOSE, NULL, gobj);
+    gobj_set_manual_start(slot->gobj_idprovider, TRUE);
+
+    gobj_set_bottom_gobj(
+        slot->gobj_idprovider,
+        gobj_create_pure_child(
+            slot->name,
+            C_TCP,
+            json_pack("{s:s, s:O, s:i, s:i}",
+                "url", http_url,
+                "crypto", jn_crypto,
+                /*
+                 *  Fast first retry (100 ms) for a transient IdP blip, but
+                 *  back off exponentially up to 30 s so a persistent failure
+                 *  (e.g. an IdP cert that won't verify) does not flood the
+                 *  log at the base cadence.
+                 */
+                "timeout_between_connections", 100,
+                "timeout_between_connections_max", 30000
+            ),
+            slot->gobj_idprovider
+        )
+    );
+}
+
+/***************************************************************************
+ *  The slot of an issuer, -1 if none. An issuer is compared without the
+ *  '/' at its end: the config writes it, Keycloak's `iss` does not.
+ ***************************************************************************/
+PRIVATE int find_idp_by_issuer(hgobj gobj, const char *issuer)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(empty_string(issuer)) {
+        return -1;
+    }
+    size_t len = strlen(issuer);
+    while(len > 0 && issuer[len-1] == '/') {
+        len--;
+    }
+    for(int i = 0; i < priv->n_idps; i++) {
+        const char *own = priv->idps[i].issuer;
+        size_t own_len = strlen(own);
+        while(own_len > 0 && own[own_len-1] == '/') {
+            own_len--;
+        }
+        if(own_len == len && own_len > 0 && strncmp(own, issuer, len) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  The slot of the IdP that issued a refresh_token: the `iss` of its
+ *  payload, a JWT (Keycloak's refresh_token is one). Only to choose where
+ *  the token goes: its signature is not checked, the IdP checks it, and a
+ *  token whose `iss` was changed goes to an IdP that refuses it.
+ *  With one IdP it is not read. A token that is not a JWT, or whose
+ *  issuer is none of `issuers`, goes to the first (a WARNING, once per
+ *  process).
+ ***************************************************************************/
+PRIVATE int idp_of_refresh_token(hgobj gobj, const char *token)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->n_idps <= 1) {
+        return 0;
+    }
+
+    char iss[256] = "";
+    const char *p1 = strchr(token, '.');
+    const char *p2 = p1? strchr(p1 + 1, '.') : NULL;
+    size_t len = (p1 && p2)? (size_t)(p2 - p1 - 1) : 0;
+    char b64[BFF_TOKEN_MAX + 4];
+    if(len > 0 && len % 4 != 1 && len < sizeof(b64) - 4) {
+        /*
+         *  base64url to base64: the decoder knows only the second
+         */
+        size_t n = 0;
+        for(const char *c = p1 + 1; c < p2; c++) {
+            b64[n++] = (*c == '-')? '+' : (*c == '_')? '/' : *c;
+        }
+        while(n % 4) {
+            b64[n++] = '=';
+        }
+        b64[n] = '\0';
+
+        gbuffer_t *gbuf = gbuffer_base64_to_binary_from_peer(gobj, b64, n);
+        if(gbuf) {
+            json_t *jn_payload = gbuf2json_from_peer(gobj, gbuf, gobj_bottom_gobj(gobj));
+            if(jn_payload) {
+                snprintf(iss, sizeof(iss), "%s", peer_json_str(jn_payload, "iss"));
+                JSON_DECREF(jn_payload)
+            }
+        }
+    }
+
+    int idx = find_idp_by_issuer(gobj, iss);
+    if(idx < 0) {
+        if(!unknown_issuer_said) {
+            unknown_issuer_said = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_PROTOCOL,
+                "msg",      "%s", "👤BFF a refresh_token of no issuer of 'issuers' "
+                                  "(or not a JWT): it goes to the first; said once",
+                "iss",      "%.128s", iss,
+                NULL
+            );
+        }
+        return 0;
+    }
+    return idx;
+}
+
+/***************************************************************************
+ *  Can a login whose IdP `idx` failed go to another one: one it has not
+ *  tried (`_tried`, a bit mask of slots)
+ ***************************************************************************/
+PRIVATE BOOL login_can_fail_over(hgobj gobj, json_t *request, int idx)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kw_get_int(gobj, request, "_action", BFF_CALLBACK, 0) != BFF_LOGIN) {
+        return FALSE;
+    }
+    json_int_t tried = kw_get_int(gobj, request, "_tried", 0, 0);
+    for(int i = 0; i < priv->n_idps; i++) {
+        if(i != idx && !(tried & (1 << i))) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  The IdP of a login: the first it has not tried that is up, or whose
+ *  idp_down_retry_ms has passed; when all of them are down, the first it
+ *  has not tried (a down IdP may be back). -1: it tried them all.
+ ***************************************************************************/
+PRIVATE int idp_for_login(hgobj gobj, json_t *request)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t tried = kw_get_int(gobj, request, "_tried", 0, 0);
+    for(int i = 0; i < priv->n_idps; i++) {
+        IDP_SLOT *slot = &priv->idps[i];
+        if(!(tried & (1 << i)) && (!slot->down || test_msectimer(slot->down_retry))) {
+            return i;
+        }
+    }
+    for(int i = 0; i < priv->n_idps; i++) {
+        if(!(tried & (1 << i))) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/***************************************************************************
+ *  An IdP failed: the logins skip it for idp_down_retry_ms. Said once, on
+ *  the transition, and only with more than one IdP: with one there is
+ *  nowhere else to go, and the failure itself is said where it happened.
+ ***************************************************************************/
+PRIVATE void mark_idp_down(hgobj gobj, IDP_SLOT *slot, BOOL by_connect, const char *cause)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t retry_ms = gobj_read_integer_attr(gobj, "idp_down_retry_ms");
+    if(retry_ms <= 0) {
+        retry_ms = 60000;
+    }
+    slot->down_retry = start_msectimer((uint64_t)retry_ms);
+    slot->down_by_connect = by_connect;
+    if(slot->down) {
+        return;
+    }
+    slot->down = TRUE;
+    slot->down_since = time(NULL);
+    snprintf(slot->down_cause, sizeof(slot->down_cause), "%s", cause);
+
+    if(priv->n_idps > 1) {
+        gobj_log_warning(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PROTOCOL,
+            "msg",      "%s", "👤BFF IdP down, the logins go to the next IdP",
+            "issuer",   "%s", slot->issuer,
+            "cause",    "%s", cause,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  An IdP answered, or could be reached again after it could not
+ ***************************************************************************/
+PRIVATE void mark_idp_up(hgobj gobj, IDP_SLOT *slot)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!slot->down) {
+        return;
+    }
+    slot->down = FALSE;
+    slot->down_by_connect = FALSE;
+    if(priv->n_idps > 1) {
+        gobj_log_info(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_PROTOCOL,
+            "msg",      "%s", "👤BFF IdP up again",
+            "issuer",   "%s", slot->issuer,
+            "down_s",   "%d", (int)(time(NULL) - slot->down_since),
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
+ *  The slot whose outbound is `src`, NULL if none
+ ***************************************************************************/
+PRIVATE IDP_SLOT *idp_of_outbound(hgobj gobj, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    for(int i = 0; i < priv->n_idps; i++) {
+        if(priv->idps[i].gobj_idprovider == src) {
+            return &priv->idps[i];
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  A login its IdP did not take goes back to the head of the queue, for
+ *  the next IdP: it was at the head when it was taken, and the answers of
+ *  the requests behind it wait for its own. Takes a copy of `request`.
+ ***************************************************************************/
+PRIVATE void requeue_login_for_next_idp(hgobj gobj, json_t *request)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    PENDING_AUTH *entry = GBMEM_MALLOC(sizeof(*entry));
+    if(!entry) {
+        // Error already logged
+        answer_request_failed(gobj, gobj_bottom_gobj(gobj), request, 500,
+            "internal_error", "Cannot keep the request for the IdP");
+        return;
+    }
+    json_t *jn_request = json_deep_copy(request);
+    int idx = (int)kw_get_int(gobj, jn_request, "_idp", 0, 0);
+    json_int_t tried = kw_get_int(gobj, jn_request, "_tried", 0, 0);
+    json_object_set_new(jn_request, "_tried", json_integer(tried | (1 << idx)));
+    json_object_del(jn_request, "_idp");
+    json_object_del(jn_request, "_sent");
+    json_object_del(jn_request, "_failover");
+
+    entry->action = BFF_LOGIN;
+    entry->jn_request = jn_request;
+    entry->answer = NULL;
+    dl_insert(&priv->dl_pending, entry);
+    priv->st_idp_failovers++;
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "👤BFF login passed to the next IdP: failed=%s",
+            priv->idps[idx].issuer);
+    }
+}
+
+/***************************************************************************
  *  Start processing the next pending auth request.
  ***************************************************************************/
 PRIVATE void process_next(hgobj gobj)
@@ -3549,7 +4005,7 @@ PRIVATE void process_next(hgobj gobj)
         return;
     }
     arm_logout_timeout(gobj);
-    if(!priv->gobj_idprovider) {
+    if(priv->n_idps == 0) {
         /*
          *  No IdP configured (the ERROR of mt_create): nothing will serve
          *  the queue, so it is answered now, a logout with its cookies
@@ -3560,7 +4016,48 @@ PRIVATE void process_next(hgobj gobj)
             500, "auth_config_error", "Authentication configuration error: no IdP configured");
         return;
     }
-    if(!priv->discovery_done) {
+    if(priv->gobj_discovery_task) {
+        /*
+         *  The discovery of an IdP is in flight (`cur` is its IdP): the
+         *  head waits for it, and is routed when it ends
+         */
+        return;
+    }
+
+    /*
+     *  The IdP of the request at the head: a refresh and a logout carry
+     *  the one of their session (read_request), a login is given one here
+     *  and keeps it while it waits for its discovery.
+     */
+    json_t *head_request = ((PENDING_AUTH *)dl_first(&priv->dl_pending))->jn_request;
+    int idx = (int)kw_get_int(gobj, head_request, "_idp", -1, 0);
+    if(idx < 0) {
+        idx = idp_for_login(gobj, head_request);
+        if(idx < 0) {
+            gobj_log_error(gobj, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_INTERNAL,
+                "msg",      "%s", "👤BFF a login has tried every IdP, and is still queued",
+                NULL
+            );
+            idx = 0;
+        }
+        json_object_set_new(head_request, "_idp", json_integer(idx));
+    }
+    if(idx >= priv->n_idps) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL,
+            "msg",      "%s", "👤BFF a request bound to an IdP that does not exist, sent to the first",
+            "idp",      "%d", idx,
+            NULL
+        );
+        idx = 0;
+    }
+    priv->cur = &priv->idps[idx];
+    priv->can_fail_over = login_can_fail_over(gobj, head_request, idx);
+
+    if(!priv->cur->discovery_done) {
         /*
          *  OIDC endpoints not yet resolved.  Keep the request queued and
          *  make sure a discovery task is actually running: the one fired
@@ -3589,7 +4086,7 @@ PRIVATE void process_next(hgobj gobj)
     priv->task_valid = TRUE;
 
     const char *target_url =
-        (pa->action == BFF_LOGOUT) ? priv->end_session_url : priv->token_url;
+        (pa->action == BFF_LOGOUT) ? priv->cur->end_session_url : priv->cur->token_url;
 
     priv->st_idp_calls++;
 
@@ -3637,7 +4134,7 @@ PRIVATE void process_next(hgobj gobj)
                 "{s:s, s:s, s:I}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->cur->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
                 "exec_action",  "get_token_from_idp",
@@ -3651,7 +4148,7 @@ PRIVATE void process_next(hgobj gobj)
                 "{s:s, s:s, s:I}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->cur->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
                 "exec_action",  "get_logout_from_idp",
@@ -3668,13 +4165,13 @@ PRIVATE void process_next(hgobj gobj)
             NULL
         );
     }
-    priv->gobj_task = gobj_create(priv->idp_name, C_TASK, kw_task, gobj);
+    priv->gobj_task = gobj_create(priv->cur->name, C_TASK, kw_task, gobj);
     gobj_subscribe_event(priv->gobj_task, EV_END_TASK, NULL, gobj);
     gobj_set_volatil(priv->gobj_task, TRUE);
 
     gobj_start(priv->gobj_task);
-    if(!gobj_is_running(priv->gobj_idprovider)) {
-        gobj_start(priv->gobj_idprovider);
+    if(!gobj_is_running(priv->cur->gobj_idprovider)) {
+        gobj_start(priv->cur->gobj_idprovider);
     }
 
     /*
@@ -3705,10 +4202,20 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  The connect gap is over, so the watchdog hands the deadline to
          *  C_TASK: execute_action runs now and arms its own exec_timeout.
          *  Keeping ours armed would double-time the same round-trip and
-         *  report a reachable-but-silent IdP as unreachable.
+         *  report a reachable-but-silent IdP as unreachable. Only the
+         *  connection of the IdP in flight: another one that opens (a down
+         *  IdP reconnecting by itself) has no task to time.
+         *
+         *  An IdP that could not be reached is up again when it connects.
          */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        clear_timeout(priv->gobj_timer);
+        if(src == priv->cur->gobj_idprovider) {
+            clear_timeout(priv->gobj_timer);
+        }
+        IDP_SLOT *slot = idp_of_outbound(gobj, src);
+        if(slot && slot->down && slot->down_by_connect) {
+            mark_idp_up(gobj, slot);
+        }
 
     } else if(gclass_src_name == C_PROT_HTTP_SR) {
         /*
@@ -3752,8 +4259,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  ac_on_close fires the idprovider may already be stopping.
          */
         if(!gobj_read_bool_attr(gobj_bottom_gobj(gobj), "connected") &&
-                gobj_is_running(priv->gobj_idprovider)) {
-            gobj_stop(priv->gobj_idprovider);
+                gobj_is_running(src)) {
+            gobj_stop(src);
         }
 
     } else if(gclass_src_name == C_PROT_HTTP_SR) {
@@ -3793,8 +4300,8 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *  Close the upstream so the IdP observes the abandon and
              *  cancels its pending slot.
              */
-            if(gobj_is_running(priv->gobj_idprovider)) {
-                gobj_stop(priv->gobj_idprovider);
+            if(gobj_is_running(priv->cur->gobj_idprovider)) {
+                gobj_stop(priv->cur->gobj_idprovider);
             }
 
             /*
@@ -3975,10 +4482,11 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
         }
 
         pa.action = BFF_CALLBACK;
-        pa.jn_request = json_pack("{s:s, s:s, s:s}",
+        pa.jn_request = json_pack("{s:s, s:s, s:s, s:i}",
             "_code",            code,
             "_code_verifier",   cv,
-            "_redirect_uri",    ruri
+            "_redirect_uri",    ruri,
+            "_idp",             0   /* the first IdP: the SPA sent the browser to it */
         );
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
@@ -4048,7 +4556,10 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
             return 0;
         }
         pa.action = BFF_REFRESH;
-        pa.jn_request = json_pack("{s:s}", "_refresh_token", rt);
+        pa.jn_request = json_pack("{s:s, s:i}",
+            "_refresh_token",   rt,
+            "_idp",             idp_of_refresh_token(gobj, rt)
+        );
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj, "👤BFF /auth/refresh: rt_len=%zu", strlen(rt));
         }
@@ -4078,7 +4589,10 @@ PRIVATE int read_request(hgobj gobj, json_t *kw, hgobj src)
             return 0;
         }
         pa.action = BFF_LOGOUT;
-        pa.jn_request = json_pack("{s:s}", "_refresh_token", rt);
+        pa.jn_request = json_pack("{s:s, s:i}",
+            "_refresh_token",   rt,
+            "_idp",             idp_of_refresh_token(gobj, rt)
+        );
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj, "👤BFF /auth/logout: rt_len=%zu", strlen(rt));
         }
@@ -4241,7 +4755,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
+    hgobj tcp = gobj_bottom_gobj(priv->cur->gobj_idprovider);
 
     /*
      *  Said by the end of the task (ac_end_task), which comes on the next
@@ -4249,7 +4763,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     priv->logout_timed_out = src == priv->gobj_logout_timer;
     priv->connect_timed_out = TRUE;
-    priv->connect_was_connected = gobj_read_bool_attr(priv->gobj_idprovider, "connected");
+    priv->connect_was_connected = gobj_read_bool_attr(priv->cur->gobj_idprovider, "connected");
     priv->connect_tcp_state = tcp? gobj_current_state(tcp) : "?";
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj, "👤BFF IdP unreachable, task watchdog fired: task=%s, tcp_state=%s",
@@ -4340,12 +4854,14 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  What the outbound is now, as the connect watchdog says what it
          *  saw: the task ended by itself, the outbound is not stopped yet
          */
-        hgobj tcp = gobj_bottom_gobj(priv->gobj_idprovider);
-        was_connected = gobj_read_bool_attr(priv->gobj_idprovider, "connected");
+        hgobj tcp = gobj_bottom_gobj(priv->cur->gobj_idprovider);
+        was_connected = gobj_read_bool_attr(priv->cur->gobj_idprovider, "connected");
         tcp_state = tcp? gobj_current_state(tcp) : "?";
     }
     const char *timeout_cause = connect_timed_out?
-        "idp_connect_timeout_ms: the IdP could not be reached" :
+        (priv->can_fail_over?
+            "idp_failover_connect_ms: the IdP could not be reached" :
+            "idp_connect_timeout_ms: the IdP could not be reached") :
         "idp_timeout_ms: the IdP did not answer";
     if(priv->logout_timed_out) {
         timeout_cause = "idp_logout_timeout_ms: the logout did not end in its time";
@@ -4358,7 +4874,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
                 "👤BFF discovery task ended (result=%d, discovery_done=%d)",
-                discovery_result, priv->discovery_done ? 1 : 0
+                discovery_result, priv->cur->discovery_done ? 1 : 0
             );
         }
         KW_DECREF(kw)
@@ -4378,25 +4894,28 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "connected",    "%d", was_connected? 1:0,
                 "tcp_state",    "%s", tcp_state,
                 "queued",       "%d", (int)dl_size(&priv->dl_pending),
-                "issuer",       "%s", priv->issuer,
+                "issuer",       "%s", priv->cur->issuer,
                 NULL
             );
         }
-        if(priv->discovery_done) {
+        if(priv->cur->discovery_done) {
             process_next(gobj);
             return 0;
         }
         clear_logout_timeout(gobj);     /* the queue is answered below */
 
         /*
-         *  Discovery FAILED.  Anything already queued cannot be served —
+         *  Discovery FAILED.  What is queued for this IdP cannot be served —
          *  there are no endpoints — so answer it instead of leaving the
-         *  browser waiting on a socket that will never produce bytes.
+         *  browser waiting on a socket that will never produce bytes. A
+         *  login another IdP can take goes to it instead (`issuers`).
          *
-         *  The queue is drained, not retried in place: the retry belongs
-         *  to the NEXT request (process_next re-arms discovery), and a
-         *  browser that got an explicit error can decide to try again,
-         *  which is precisely what re-arms it.
+         *  The queue is answered from its head, in order, up to the first
+         *  request another IdP serves; with one IdP that is all of it. It
+         *  is not retried in place: the retry belongs to the NEXT request
+         *  (process_next re-arms discovery), and a browser that got an
+         *  explicit error can decide to try again, which is precisely what
+         *  re-arms it.
          *
          *  502, not 503: c_auth_bff.h pins auth_service_unavailable to
          *  502 ("IdP unreachable or 5xx"), which is exactly this case,
@@ -4404,23 +4923,60 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  code must not answer with two statuses — the GUI branches on
          *  both.
          */
-        if(dl_size(&priv->dl_pending) > 0) {
-            /*
-             *  The cause is already said (one ERROR), and each request
-             *  answered says its 502 (send_error_response): this is only
-             *  how many.
-             */
-            gobj_log_info(gobj, 0,
-                "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_PROTOCOL,
-                "msg",      "%s", "👤BFF OIDC discovery failed, draining queue",
-                "queued",   "%d", (int)dl_size(&priv->dl_pending),
-                "issuer",   "%s", priv->issuer,
-                NULL
-            );
-            flush_pending_with_error(gobj,
+        IDP_SLOT *failed = priv->cur;
+        mark_idp_down(gobj, failed, connect_timed_out && !was_connected,
+            "the OIDC discovery failed");
+
+        BOOL draining_said = FALSE;
+        PENDING_AUTH *pa;
+        while(TRUE) {
+            send_answers_in_turn(gobj);
+            pa = dl_first(&priv->dl_pending);
+            if(!pa) {
+                break;
+            }
+            json_t *request = pa->jn_request;
+            int idx = (int)kw_get_int(gobj, request, "_idp", -1, 0);
+            if(login_can_fail_over(gobj, request, failed->idx)) {
+                /*
+                 *  Not to this IdP again, given to it or not yet
+                 */
+                json_int_t tried = kw_get_int(gobj, request, "_tried", 0, 0);
+                json_object_set_new(request, "_tried",
+                    json_integer(tried | (1 << failed->idx)));
+                if(idx == failed->idx) {
+                    json_object_del(request, "_idp");
+                    priv->st_idp_failovers++;
+                }
+                break;
+            }
+            if(idx >= 0 && idx != failed->idx) {
+                break;  /* the request of another IdP */
+            }
+            if(!draining_said) {
+                /*
+                 *  The cause is already said (one ERROR), and each request
+                 *  answered says its 502 (send_error_response): this is
+                 *  only how many.
+                 */
+                draining_said = TRUE;
+                gobj_log_info(gobj, 0,
+                    "function", "%s", __FUNCTION__,
+                    "msgset",   "%s", MSGSET_PROTOCOL,
+                    "msg",      "%s", "👤BFF OIDC discovery failed, draining queue",
+                    "queued",   "%d", (int)dl_size(&priv->dl_pending),
+                    "issuer",   "%s", failed->issuer,
+                    NULL
+                );
+            }
+            dequeue(gobj);
+            answer_request_failed(gobj, gobj_bottom_gobj(gobj), request,
                 502, "auth_service_unavailable",
                 "Authentication service is not reachable yet");
+            free_pending(pa);
+        }
+        if(dl_size(&priv->dl_pending) > 0) {
+            process_next(gobj);
         }
         return 0;
     }
@@ -4430,6 +4986,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     clear_logout_timeout(gobj);
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+    json_t *output_data = kw_get_dict(gobj, kw, "output_data", NULL, 0);
 
     if(result == -2) {
         priv->st_idp_timeouts++;
@@ -4451,19 +5008,38 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  already flushed in ac_on_close and the outbound torn down;
          *  any "reply" to whoever is on the socket now would be noise.
          */
+        BOOL unreachable = connect_timed_out && !was_connected;
+        if(unreachable) {
+            mark_idp_down(gobj, priv->cur, TRUE, timeout_cause);
+        }
         if(priv->task_valid) {
-            json_t *output_data = kw_get_dict(gobj, kw, "output_data", NULL, 0);
-            answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 504,
-                "auth_timeout", "Authentication service did not respond in time");
+            if(unreachable && output_data &&
+                    login_can_fail_over(gobj, output_data, priv->cur->idx)) {
+                /*
+                 *  The login never left: another IdP takes it
+                 */
+                requeue_login_for_next_idp(gobj, output_data);
+            } else {
+                answer_request_failed(gobj, gobj_bottom_gobj(gobj), output_data, 504,
+                    "auth_timeout", "Authentication service did not respond in time");
+            }
         }
 
         /*
          *  Drop the outbound to the IdP — we've abandoned this round-trip,
          *  so the upstream server should observe the close.
          */
-        if(gobj_read_bool_attr(priv->gobj_idprovider, "connected")) {
-            gobj_stop(priv->gobj_idprovider);
+        if(gobj_read_bool_attr(priv->cur->gobj_idprovider, "connected")) {
+            gobj_stop(priv->cur->gobj_idprovider);
         }
+
+    } else if(result == -1 && priv->task_valid && output_data &&
+            kw_get_bool(gobj, output_data, "_failover", FALSE, 0)) {
+        /*
+         *  A login answered 502/503/504 before the IdP took it
+         *  (send_token_to_browser): another IdP takes it
+         */
+        requeue_login_for_next_idp(gobj, output_data);
     }
 
     priv->task_valid = FALSE;

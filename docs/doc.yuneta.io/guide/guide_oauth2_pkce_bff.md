@@ -752,7 +752,10 @@ that fits is taken whole.
 
 | Attr | Default | Purpose |
 |------|---------|---------|
-| `issuer` | — (required) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
+| `issuer` | — (required, or `issuers`) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
+| `issuers` | `[]` | Two or more issuer URLs of the same realm, one on each IdP, in order of preference: `"issuers": ["https://auth.example.com/realms/foo/", "https://auth2.example.com/realms/foo/"]`. Replaces `issuer`. A login goes to the first IdP that answers; a refresh or a logout goes to the IdP of its session. See [Failover between IdPs](#bff-idp-failover). |
+| `idp_failover_connect_ms` | `4000` | With `issuers`: the time a login waits for an IdP to connect before it goes to the next IdP. |
+| `idp_down_retry_ms` | `60000` | With `issuers`: the time the logins skip an IdP that failed a login. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for a public client). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Written only when the request `Host` is this domain or a subdomain of it; otherwise omitted, with a WARNING. Empty: never written (host-only cookies). |
 | `allowed_origin` | `""` | The origin of the SPA: the CORS origin, the one `Origin` served for login, callback, refresh, logout and token (else `403`), and the origin `/auth/token` is pinned to. It is what pins the scheme. Empty: no cross-origin access, the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS), and `/auth/token` is refused. |
@@ -763,6 +766,31 @@ that fits is taken whole.
 | `idp_timeout_ms` | `30000` (0 or less: the default, 30000) | Bounds the IdP round-trip once connected. On expiry the browser gets `504`. It cannot be turned off: a round-trip is always bounded, `"idp_timeout_ms": 0` is `30000`. |
 | `idp_connect_timeout_ms` | `30000` (0 disables) | Bounds the wait to connect to the IdP. See [`YUNO_AUTH.md` §2.6](../../../yunos/c/yuno_agent/YUNO_AUTH.md). |
 | `idp_logout_timeout_ms` | `10000` (0: only the two above bound a logout) | Bounds the whole of a logout: the wait for the discovery and the connection, the end-session and its resend. When it passes the logout is answered with both cookies cleared. Keep it under the time the SPA waits (15 s), or the answer comes to nobody and the cookies stay. Accuracy of a second (`C_TIMER`). |
+
+(bff-idp-failover)=
+### Failover between IdPs
+
+When the realm is served by two IdPs (one imported from the other, with its
+keys), set `issuers` instead of `issuer`. Every `C_AUTHZ` of the backend
+yunos must accept both issuers. The BFF cannot move a session from one IdP to
+the other: a refresh token presented to the other IdP is refused with
+`invalid_grant`, "Invalid token issuer". So:
+
+- **A login** goes to the first IdP that is up. It goes to the next IdP when
+  the IdP does not connect within `idp_failover_connect_ms`, when its OIDC
+  discovery fails, or when it answers `502`, `503` or `504` (nginx up,
+  Keycloak down). A login that reached Keycloak is never sent again.
+- **A refresh and a logout** go to the IdP named by the `iss` of the
+  refresh token. When that IdP is down, the refresh fails with
+  `502 auth_service_unavailable`, as it does with one IdP.
+- **The SPA** keeps such a session while its access token lives. After that
+  it ends the session at the third such answer and shows the login form; the
+  new login goes to the IdP that answers.
+
+An IdP that failed a login is skipped by the logins for
+`idp_down_retry_ms`; the first login after that time tries it again. The BFF
+logs the change of state once (WARNING down, INFO up). The `idp_failovers`
+stat counts the logins that went to the next IdP.
 
 ### BFF internals (operator knobs)
 

@@ -39,9 +39,16 @@
  *       BFF GETs <issuer>/.well-known/openid-configuration and caches
  *       the resolved endpoints.  Standard OIDC, IdP-agnostic.
  *
+ *    3. Failover — set `issuers` to two or more issuer URLs of the SAME
+ *       realm (one served by each IdP), in order of preference.  A login
+ *       goes to the first that answers; a refresh and a logout go to the
+ *       IdP of their session.  See "Failover between IdPs" in
+ *       c_auth_bff.c.
+ *
  *  The `iss` claim of every JWT validated by c_authz must match the
  *  `issuer` value returned by the discovery document (or the issuer of
- *  the IdP backing the explicit endpoints).
+ *  the IdP backing the explicit endpoints) -- with `issuers`, c_authz
+ *  must accept every one of them.
  *
  *  Copyright (c) 2026, ArtGins.
  *  All Rights Reserved.
