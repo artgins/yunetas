@@ -133,6 +133,7 @@ typedef struct _PRIVATE_DATA {
                             // they will send in resend_subscriptions
     BOOL closing_logged;    // "Transport closing" was logged in this session
     BOOL play_pause_refusal_logged; // a play/pause of the yuno was refused in this session
+    char *id_refusal;       // why the remote refused the identity card, said at the close
 
 } PRIVATE_DATA;
 
@@ -253,6 +254,9 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    GBMEM_FREE(priv->id_refusal)
 }
 
 /***************************************************************************
@@ -1231,15 +1235,35 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  forever, and without this line a misconfigured backend
          *  would be silent in the operational logs.
          */
-        gobj_log_warning(gobj, 0,
-            "msgset",               "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",                  "%s", "EV_ON_OPEN_ERROR: cannot open connection",
-            "remote_yuno_name",     "%s", gobj_read_str_attr(gobj, "remote_yuno_name"),
-            "remote_yuno_role",     "%s", gobj_read_str_attr(gobj, "remote_yuno_role"),
-            "remote_yuno_service",  "%s", gobj_read_str_attr(gobj, "remote_yuno_service"),
-            "url",                  "%s", gobj_read_str_attr(gobj, "url"),
-            NULL
-        );
+        if(priv->id_refusal) {
+            /*
+             *  The remote answered and refused us: its reason says what
+             *  to do (e.g. accept-node in the control center), and a
+             *  bare "cannot open connection" sends the reader to the
+             *  network instead.
+             */
+            gobj_log_warning(gobj, 0,
+                "msgset",               "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",                  "%s", "EV_ON_OPEN_ERROR: the remote yuno REFUSED this one, the reason in 'refusal'",
+                "refusal",              "%s", priv->id_refusal,
+                "remote_yuno_name",     "%s", gobj_read_str_attr(gobj, "remote_yuno_name"),
+                "remote_yuno_role",     "%s", gobj_read_str_attr(gobj, "remote_yuno_role"),
+                "remote_yuno_service",  "%s", gobj_read_str_attr(gobj, "remote_yuno_service"),
+                "url",                  "%s", gobj_read_str_attr(gobj, "url"),
+                NULL
+            );
+            GBMEM_FREE(priv->id_refusal)
+        } else {
+            gobj_log_warning(gobj, 0,
+                "msgset",               "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",                  "%s", "EV_ON_OPEN_ERROR: cannot open connection",
+                "remote_yuno_name",     "%s", gobj_read_str_attr(gobj, "remote_yuno_name"),
+                "remote_yuno_role",     "%s", gobj_read_str_attr(gobj, "remote_yuno_role"),
+                "remote_yuno_service",  "%s", gobj_read_str_attr(gobj, "remote_yuno_service"),
+                "url",                  "%s", gobj_read_str_attr(gobj, "url"),
+                NULL
+            );
+        }
 
         json_t *kw_on_open_error = json_pack("{s:s, s:s, s:s}",
             "remote_yuno_name", gobj_read_str_attr(gobj, "remote_yuno_name"),
@@ -1300,6 +1324,15 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     // WARNING comprueba result, ahora puede venir negativo
     int result = kw_get_int(gobj, kw, "result", -1, 0);
     if(result < 0) {
+        /*
+         *  The reason is the peer's text, logged at every retry: capped
+         */
+        const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
+        GBMEM_FREE(priv->id_refusal)
+        priv->id_refusal = gbmem_strndup(
+            empty_string(comment)? "the remote gave no reason" : comment,
+            256
+        );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
         gobj_publish_event(gobj, EV_ON_ID_NAK, kw_incref(kw));

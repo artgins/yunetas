@@ -11,12 +11,15 @@
  *          next fault; the client closes the channel, connects again and
  *          sends its card again:
  *
- *              0. a session event (EV_MT_STATS) before the session
- *              1. the ACK, then a frame whose dst_role is another's
- *              2. the ACK, then a frame whose dst_yuno is another's
- *              3. the ACK, then a subscription (__subscribing__)
- *              4. the ACK, then an unsubscription (__unsubscribing__)
- *              5. the ACK: the session opens; then, in the session,
+ *              0. the card refused (an ACK with result -1 and a
+ *                 comment): the client publishes EV_ON_ID_NAK with it,
+ *                 and its EV_ON_OPEN_ERROR warning names the reason
+ *              1. a session event (EV_MT_STATS) before the session
+ *              2. the ACK, then a frame whose dst_role is another's
+ *              3. the ACK, then a frame whose dst_yuno is another's
+ *              4. the ACK, then a subscription (__subscribing__)
+ *              5. the ACK, then an unsubscription (__unsubscribing__)
+ *              6. the ACK: the session opens; then, in the session,
  *                 EV_ON_OPEN and EV_ON_CLOSE (events of the transport
  *                 itself, which C_PROT_HTTP_SR declares public), the ACK
  *                 again, a stats and a command request for a service that
@@ -65,7 +68,8 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define LAST_STEP   5
+#define LAST_STEP   6
+#define TEST_REFUSAL "The key of this node is not accepted (accept-node)"
 
 /***************************************************************************
  *              Structures
@@ -114,6 +118,7 @@ typedef struct _PRIVATE_DATA {
     int step;               // the next fault, one per identity card
     int client_opens;       // sessions of the client
     int client_closes;
+    int client_naks;        // identity cards refused, with the reason
     int forwarded;          // EV_TREEDB_NODE_UPDATED published by the client
 } PRIVATE_DATA;
 
@@ -267,6 +272,14 @@ PRIVATE int answer_card(hgobj gobj, hgobj channel, int step)
     const char *role = gobj_yuno_role();
 
     if(step == 0) {
+        json_t *kw_nak = frame_kw("__answer__", "", role, "cli");
+        json_object_set_new(kw_nak, "result", json_integer(-1));
+        json_object_set_new(kw_nak, "comment", json_string(TEST_REFUSAL));
+        return send_frame(gobj, channel, EV_IDENTITY_CARD_ACK, kw_nak);
+    }
+    step--;
+
+    if(step == 0) {
         return send_frame(gobj, channel, EV_MT_STATS,
             frame_kw("__stats__", "", role, "cli")
         );
@@ -401,9 +414,29 @@ PRIVATE int ac_forwarded(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             check(gobj, "each fault closed the channel, and the transport's own events were not heard",
                 priv->client_closes == LAST_STEP);
             check(gobj, "a session opened for each ACK, and the transport's own events were not heard",
-                priv->client_opens == LAST_STEP);
+                priv->client_opens == LAST_STEP - 1);
+            check(gobj, "the refusal was heard, with its reason", priv->client_naks == 1);
             set_yuno_must_die();
         }
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  The server refused the client's identity card: the reason reaches the
+ *  subscriber as it was sent (and the client's EV_ON_OPEN_ERROR warning
+ *  names it)
+ ***************************************************************************/
+PRIVATE int ac_on_id_nak(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_cli) {
+        priv->client_naks++;
+        check(gobj, "the refusal carries its reason",
+            strcmp(kw_get_str(gobj, kw, "comment", "", 0), TEST_REFUSAL)==0);
     }
 
     KW_DECREF(kw)
@@ -517,6 +550,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                ac_on_open,                 0},
         {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_ON_OPEN_ERROR,          ac_on_close,                0},
+        {EV_ON_ID_NAK,              ac_on_id_nak,               0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
         {EV_TREEDB_NODE_UPDATED,    ac_forwarded,               0},
         {EV_STOPPED,                ac_stopped,                 0},
@@ -532,6 +566,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
         {EV_ON_OPEN_ERROR,          0},
+        {EV_ON_ID_NAK,              0},
         {EV_ON_MESSAGE,             0},
         {EV_TREEDB_NODE_UPDATED,    0},
         {EV_STOPPED,                0},

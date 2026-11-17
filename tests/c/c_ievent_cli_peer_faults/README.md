@@ -11,12 +11,18 @@ that is not a yuno, or a broken one, would. Each identity card of the client
 is answered with the next fault; the client closes the channel, connects
 again and sends its card again:
 
-0. a session event (`EV_MT_STATS`) before the session;
-1. `EV_IDENTITY_CARD_ACK`, then a frame for another `dst_role`;
-2. the ACK, then a frame for another `dst_yuno`;
-3. the ACK, then a subscription (`__subscribing__`);
-4. the ACK, then an unsubscription (`__unsubscribing__`);
-5. the ACK: the session opens; then, in it, `EV_ON_OPEN` and `EV_ON_CLOSE`
+0. the card refused: `EV_IDENTITY_CARD_ACK` with `result` -1 and a `comment`
+   (what a control center answers to a node whose key is not accepted). The
+   client publishes `EV_ON_ID_NAK` with it, and its warning is *"EV_ON_OPEN_ERROR:
+   the remote yuno REFUSED this one, the reason in 'refusal'"*, the reason
+   (capped at 256 bytes) in `refusal`. Up to 7.31.7 it was the bare
+   *"cannot open connection"*, which sends the reader to the network;
+1. a session event (`EV_MT_STATS`) before the session;
+2. `EV_IDENTITY_CARD_ACK`, then a frame for another `dst_role`;
+3. the ACK, then a frame for another `dst_yuno`;
+4. the ACK, then a subscription (`__subscribing__`);
+5. the ACK, then an unsubscription (`__unsubscribing__`);
+6. the ACK: the session opens; then, in it, `EV_ON_OPEN` and `EV_ON_CLOSE`
    (events of the transport itself, which `C_PROT_HTTP_SR` declares public),
    the ACK again, an `EV_MT_STATS` and an `EV_MT_COMMAND` whose `service` is
    no service, and `EV_TREEDB_NODE_UPDATED` five times: with a
@@ -49,7 +55,7 @@ credential reaches the log (`main.c` counts the lines of each, their priority,
 and looks for the credentials in every line). A fault before the session also
 gives the client's own warning, *"EV_ON_OPEN_ERROR: cannot open connection"*.
 
-The faults of cases 0, 1 and 2 are also traced (`trace_inter_event()`, a
+The faults of cases 1, 2 and 3 are also traced (`trace_inter_event()`, a
 DEBUG line with the frame's routing, masked), traces on or off; each such
 line carries its `msg`. Up to 7.30.14 that `msg` was a prefix the client
 filled only when its traces were on: bytes of the stack, which the log

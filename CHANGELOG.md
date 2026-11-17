@@ -2,8 +2,30 @@
 
 ## Unreleased
 
+## v7.31.8 (2026-11-17)
+
+A lite release for the control center and the agent: a node that waits for
+`accept-node` now says so in a WARNING on both sides. Only `controlcenter`
+(1996/1997) is deployed with it. The tests the change touches ran on the dev
+machine (`ievent_cli`, `identity_card`, `controlcenter`, 9 of them), and the
+whole suite (467) before them, with jansson `-yuneta.2`. No performance
+study: the only change in a hot path is jansson's, a test inside the
+multi-byte branch of `stream_get()` that is never taken, and the jansson
+differential test shows the same allocations; the last study is still
+7.31.1.
+
 ### Changed
 
+- **`C_IEVENT_CLI`: a refused identity card names its reason.** When the
+  remote answers the card with `result` -1, the warning of the close that
+  follows is *"EV_ON_OPEN_ERROR: the remote yuno REFUSED this one, the
+  reason in 'refusal'"*, with the remote's `comment` in `refusal` (capped at
+  256 bytes: it is the peer's text, logged at every retry). It was the
+  bare *"cannot open connection"*, the same as a port closed or a bad
+  certificate, so an agent whose key the control center has not accepted
+  sent its operator to the network instead of to `accept-node`. A close
+  with no refusal keeps the old message. Test `c_ievent_cli_peer_faults`
+  has a new first step: the card refused.
 - **controlcenter: a node whose key waits for `accept-node` is a WARNING**,
   not an INFO: *"A node knocking"* (with `enforce_node_keys`) and *"A node
   to accept"* (without it). Both ask an operator to act, and as an INFO

@@ -257,7 +257,8 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         /*  Strict FIFO of the warnings and errors: one warning per fault  */
-        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+            "msg", "EV_ON_OPEN_ERROR: the remote yuno REFUSED this one, the reason in 'refusal'",  // card refused
             "msg", "event UNKNOWN in not-session state",
             "msg", "EV_ON_OPEN_ERROR: cannot open connection",  // the client's own: no session yet
             "msg", "It's not my role",
