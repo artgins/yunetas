@@ -37,13 +37,14 @@ on a per-commit basis when they're worth the integration cost.
 
 A security review of this vendored copy against upstream was done on
 **2026-06-05**, re-run against **v3.4.0** on **2026-06-15**, re-run again
-against **v3.6.1** on **2026-06-28**, and against **v3.6.3** on **2026-11-16**.
+against **v3.6.1** on **2026-06-28**, against **v3.6.3** on **2026-11-16**, and
+against **v3.6.4** on **2026-11-17**.
 
 - **Vendored base:** upstream commit `375e539`
   (`v3.2.1`+2, 2025-06-04 — "jwt: Use long long for json integers").
-- **Analyzed up to:** upstream commit `a01e74b` (**v3.6.3**, 2026-11-16).
-  The prior passes stopped at `197ac58` (**v3.6.1**, 2026-06-28) and
-  `6ea3b6b` (**v3.4.0**, 2026-06-15).
+- **Analyzed up to:** upstream commit `0081a8d` (**v3.6.4**, 2026-11-17).
+  The prior passes stopped at `a01e74b` (**v3.6.3**, 2026-11-16), `197ac58`
+  (**v3.6.1**, 2026-06-28) and `6ea3b6b` (**v3.4.0**, 2026-06-15).
 - **Gap:** v3.4.0 is a large feature release (full JWE, `crit` header, `jti`
   callbacks, PEM→JWK public API). Almost none of it touches Yuneta's compiled
   subset: JWE, `jwks-curl.c`, the `gnutls`/`json-c` backends are all excluded
@@ -133,6 +134,18 @@ against **v3.6.1** on **2026-06-28**, and against **v3.6.3** on **2026-11-16**.
   dereference (a key that MbedTLS failed to load, verified under OpenSSL)
   cannot happen here: one backend is active, and both of ours set `bits` only
   after the key is good. Covered by `test_key_in_error`.
+- **`521af8f` — a token of `INT_MAX` bytes or more is refused (GHSA-75c8-gwgm-cvfm,
+  v3.6.4; backported 2026-11-17).** `jwt_checker_verify()` and the ArtGins
+  `jwt_checker_verify2()` (`jwt-checker.c`) answer *"Token too large"* before
+  `jwt_parse()`. Its lengths, and those of `jwt_base64uri_decode()`, are
+  `int`, so a token that long wraps them and sizes a buffer too small. This
+  tree has the same code but **not the reachability**: the token reaches
+  `C_AUTHZ` from a frame or an HTTP header, a frame cannot pass the yuno's
+  maximum block (1 GiB at most, 200 MB in the agent), and a websocket frame
+  bigger than it closes the connection (1009). It is kept as defense in
+  depth. Upstream's JWS JSON path (the out-of-bounds write of the advisory)
+  and `jwt_checker_verify_detached()` do not exist here. Not covered by a
+  test: like upstream (`LCOV_EXCL`), a 2 GiB token is not built in the suite.
 
 #### v3.4.0 re-review (2026-06-15)
 
@@ -200,6 +213,20 @@ security fix lands on compiled, reachable code; nothing was backported.**
   overflow), `590beb2` / `6903450` (`jwk-export.c`, tools), gnutls.** In
   `jwks-curl.c` / files **not compiled** here (JWKS is loaded from a config attr).
   N/A — re-classify only if the curl backend is ever enabled.
+
+#### v3.6.4 re-review (2026-11-17) — one backport
+
+The v3.6.3→v3.6.4 gap (`a01e74b..0081a8d`, 9 commits) carries one
+advisory, GHSA-75c8-gwgm-cvfm, backported (`521af8f`, above). The rest:
+
+- **`f7f3e03`** — the Jansson backend leaves the input excerpt (`" near
+  '...'"`) out of its parse errors. This tree has no JSON backend layer:
+  `jwks_process()` writes Jansson's text as it is. N/A in practice: it
+  parses only JWKs from the configuration or an operator (public keys), and
+  a token is parsed with no error text (`json_loads(..., NULL)`), so no
+  bytes of a peer reach a message.
+- **`1de5385`** — the `jwt-verify` tool escapes C1 controls. `tools/` is not
+  compiled.
 
 #### v3.6.2 / v3.6.3 re-review (2026-11-16) — one backport
 

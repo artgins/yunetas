@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Security
+
+- **libjwt: a token of `INT_MAX` bytes or more is refused before it is
+  parsed** (backport of upstream v3.6.4 `521af8f`, GHSA-75c8-gwgm-cvfm).
+  `jwt_checker_verify()` and `jwt_checker_verify2()` answer *"Token too
+  large"*. The lengths of `jwt_parse()` and `jwt_base64uri_decode()` are
+  `int`, and a token that long wraps them. **Not reachable in Yuneta**: a
+  token reaches `C_AUTHZ` from a frame or an HTTP header, and no frame
+  passes the yuno's maximum block (1 GiB at most). So it is defense in depth,
+  with nothing to deploy on its own. The rest of v3.6.4 is N/A here (the
+  review is in `kernel/c/libjwt/README.md`).
+
 ## v7.31.7 (2026-11-17)
 
 A fix of the failover of 7.31.6: the second IdP of `issuers` failed its TLS

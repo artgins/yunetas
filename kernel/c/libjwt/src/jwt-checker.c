@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include "jwt.h"
 
@@ -302,6 +303,14 @@ int jwt_checker_verify(jwt_checker_t *__cmd, const char *token)
         return 1;
     }
 
+    /* A token of INT_MAX bytes or more does not fit the int lengths of
+     * jwt_parse() and jwt_base64uri_decode(): rejected before it is parsed.
+     * Backport of upstream 521af8f (GHSA-75c8-gwgm-cvfm, v3.6.4). */
+    if(strlen(token) >= INT_MAX) {
+        jwt_write_error(__cmd, "Token too large");
+        return 1;
+    }
+
     jwt = jwt_new();
     if(jwt == NULL) {
         jwt_write_error(__cmd, "Could not allocate JWT object");
@@ -359,6 +368,14 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
 
     if(token == NULL || !strlen(token)) {
         jwt_write_error(__cmd, "Must pass a token");
+        return NULL;
+    }
+
+    /* A token of INT_MAX bytes or more does not fit the int lengths of
+     * jwt_parse() and jwt_base64uri_decode(): rejected before it is parsed.
+     * Backport of upstream 521af8f (GHSA-75c8-gwgm-cvfm, v3.6.4). */
+    if(strlen(token) >= INT_MAX) {
+        jwt_write_error(__cmd, "Token too large");
         return NULL;
     }
 
