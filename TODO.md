@@ -38,19 +38,17 @@ Severity in parentheses where one was assigned.
   with the server name, and never write the attr. Check first whether
   anything reads `ssl_server_name` back from a `C_TCP`'s `crypto`.
 
-- **The control center refuses a knocking node that presents another key,
-  and says nothing** (`c_controlcenter.c`, seen 2026-11-14 at the node uuid
-  change of 7.31.3). A node uuid that knocked once with a key keeps that key
-  in its `knocking` record; when the same uuid comes back with another key
-  (its agent made a new pair), the record is not updated (`last_seen` stops)
-  and the identity card is refused with no log line on either side: the
-  agent only says *"EV_ON_OPEN_ERROR: cannot open connection"*, the control
-  center nothing. An operator who checks the knocking key before
-  `accept-node` (as the docs say) sees the old one. Proposed: update the
-  knocking record with the key presented (it is what the operator compares),
-  and log the refusal once per transition (WARNING, `node_id`,
-  `presented_spki`); the agent logs the comment of a refused identity card.
-  Propose before touching (consolidated).
+- **A knocking node that comes back with another key: the control center
+  keeps the first one** (`c_controlcenter.c`, seen 2026-11-14 at the node
+  uuid change of 7.31.3). Done since: the agent logs the comment of a
+  refused card (7.31.9), the WARNING *"A node knocking"* is repeated every
+  `knocking_warning_period` (7.31.10), `list-nodes` gives the `key` presented
+  and the mark `other_keys`, and `accept-node presented=<start>` refuses a
+  uuid that knocked with two keys (7.31.13). Still open: the knocking record
+  keeps the FIRST key (a later one only sets `other_keys`, `last_seen`
+  stops), and no log line says that a second key came. Proposed: a WARNING
+  once per new key (`node_id`, both keys), and decide whether the record
+  should show the last key. Propose before touching (consolidated).
 
 - **`test_c_fs` stalled once in a full `-j8` suite on a staging node** (7.27.7
   release suite, 2026-10-22; once already in the first 7.27.6 run, whose log
