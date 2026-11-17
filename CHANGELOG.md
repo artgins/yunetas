@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v7.31.6 (2026-11-17)
+
+The BFF fails over between IdPs. The only C change is `C_AUTH_BFF`, so the
+only yuno to deploy is `auth_bff` (its version follows the SDK), with its
+configuration moved from `issuer` to `issuers`. The suite ran on the dev
+machine. No performance study: no benchmark measures `C_AUTH_BFF`, so the last
+studied release is still 7.31.1.
+
 - **`C_AUTH_BFF`: failover between IdPs (`issuers`).** A BFF can name two or
   more issuers of the same realm on different IdPs (the realm imported, with
   its keys). Example: `"issuers": ["https://auth.artgins.com/realms/artgins/",
@@ -28,7 +36,8 @@
       unchanged. New test `test32_idp_failover`. The mock Keycloak of the
       tests gets `issuer_claim` and answers `502`/`503`/`504`.
 - **JS: a session whose IdP is down ends once its access token is dead**
-  (gui_agent, gui_treedb). Its refresh token belongs to that IdP, so no other
+  (gui_agent 1.4.5, gui_treedb 1.3.5, with gobj-js `^7.31.0`; the
+  applications' logins too). Its refresh token belongs to that IdP, so no other
   IdP can refresh it. The SPA keeps the session while the access token lives.
   Then it ends the session at the third refresh that the BFF answers with
   `auth_service_unavailable` or `auth_timeout`, and shows the login form,

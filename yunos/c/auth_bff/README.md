@@ -211,7 +211,24 @@ and query in it (visible ASCII, no `\`, no `#`, no `.` or `..` segment,
 nor with `%2e`): `https://<host>.evil.com/` and `https://<host>@evil/`
 never pass `https://<host>/`. Empty: not checked. The full attribute list
 (`crypto`, `pending_queue_size`, `idp_timeout_ms`, `idp_connect_timeout_ms`,
-`expose_access_token`) is the `attrs_table` of `c_auth_bff.c`.
+`expose_access_token`, `idp_failover_connect_ms`, `idp_down_retry_ms`) is the
+`attrs_table` of `c_auth_bff.c`.
+
+When the realm is served by two or more IdPs (the realm imported with its
+keys), name them all in `issuers`, in order of preference. It replaces
+`issuer`:
+
+```json
+"issuers": [
+    "https://auth.example.com/realms/<realm>/",
+    "https://auth2.example.com/realms/<realm>/"
+],
+```
+
+A login goes to the first IdP that answers. A refresh and a logout go to the
+IdP of their session (the `iss` of the refresh token): the other IdP refuses
+that token. See "Failover between IdPs" in the `C_AUTH_BFF` reference, and
+`YUNO_AUTH.md` §2.7.
 
 The IdP client must allow the password grant ("Direct Access Grants" in
 Keycloak) for `/auth/login`, and the standard flow with PKCE S256 for
