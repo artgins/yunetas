@@ -4122,7 +4122,7 @@ PRIVATE const char *note_knocking_node(
         "last_seen", now,
         "seq", ++priv->knock_seq
     ));
-    gobj_log_info(gobj, 0,
+    gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH,
         "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)",
@@ -4216,7 +4216,7 @@ PRIVATE const char *record_node_key(
         json_object_set_new(update, "first_seen", json_integer(now));
         json_object_set_new(update, "presented_spki", json_string(spki));
         if(!empty_string(spki)) {
-            gobj_log_info(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "A node to accept: its agent presents a key never accepted (accept-node)",

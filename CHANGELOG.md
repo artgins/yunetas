@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Changed
+
+- **controlcenter: a node whose key waits for `accept-node` is a WARNING**,
+  not an INFO: *"A node knocking"* (with `enforce_node_keys`) and *"A node
+  to accept"* (without it). Both ask an operator to act, and as an INFO
+  they were lost in the scroll while the node stayed out (a new node,
+  wattyzer2, looked like a uuid problem). Still once per node: an agent
+  that knocks again with the same key only moves `last_seen`.
+
 ### Packaging
 
 - **`install-yuneta-dev-deps.sh` also installs `gh`, the GitHub CLI**, from

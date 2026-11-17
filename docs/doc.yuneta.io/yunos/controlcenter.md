@@ -123,7 +123,7 @@ When an agent opens its session, the control center checks it as follows:
 
 | The agent presents | The node is | Result |
 |--------------------|-------------|--------|
-| a key | never seen | recorded `pending`, INFO *"A node to accept"*; with `enforce_node_keys` refused, and not recorded: kept `knocking`, INFO *"A node knocking"* |
+| a key | never seen | recorded `pending`, WARNING *"A node to accept"*; with `enforce_node_keys` refused, and not recorded: kept `knocking`, WARNING *"A node knocking"* (once per node: it asks an operator for `accept-node`) |
 | its accepted key | `accepted` | let in |
 | another key, or none | `accepted` | WARNING; refused if `enforce_node_keys` |
 | anything | `refused` | refused if `enforce_node_keys` |
