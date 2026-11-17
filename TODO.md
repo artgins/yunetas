@@ -26,6 +26,18 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
+- **`C_TCP` writes `ssl_server_name` into a `crypto` dict it may share with
+  its creator** (`c_tcp.c`, the TLS set-up of a client connect). A dict
+  attr is held by reference, so a gclass that gives the same `crypto` json
+  to two TLS clients of different hosts gets the second one verified against
+  the name of the first ("hostname mismatch"), and its own `crypto` attr
+  written too. Seen 2026-11-17 in `C_AUTH_BFF` with two IdPs (7.31.6,
+  auth.artgins.es checked as auth.artgins.com); fixed there in 7.31.7 by
+  giving each outbound its own copy (`tests/c/c_auth_bff/test33_idp_tls_names`).
+  The cause is `C_TCP`: proposed, build the dict for `ytls_init()` as a copy
+  with the server name, and never write the attr. Check first whether
+  anything reads `ssl_server_name` back from a `C_TCP`'s `crypto`.
+
 - **The control center refuses a knocking node that presents another key,
   and says nothing** (`c_controlcenter.c`, seen 2026-11-14 at the node uuid
   change of 7.31.3). A node uuid that knocked once with a key keeps that key

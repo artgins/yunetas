@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v7.31.7 (2026-11-17)
+
+A fix of the failover of 7.31.6: the second IdP of `issuers` failed its TLS
+check. Only `auth_bff` to deploy. The suite ran on the dev machine; no
+performance study (same reason as 7.31.6).
+
+### Fixed
+
+- **`C_AUTH_BFF`: each IdP of `issuers` is verified against its own name.**
+  In 7.31.6 the outbounds of the IdPs shared the BFF's `crypto` dict. A dict
+  attr is held by reference, and `C_TCP` writes the `ssl_server_name` of its
+  url into the `crypto` it is given. So the second IdP was verified against
+  the name of the first: on app.wattyzer.com, auth.artgins.es was checked as
+  auth.artgins.com ("hostname mismatch"). A refresh of a session of the
+  second IdP answered `502`, and a login could not fail over to it. The first
+  IdP was not affected. Each outbound now gets its own copy. New test
+  `test33_idp_tls_names` (it fails on 7.31.6). The cause in `C_TCP` (it writes
+  into a dict it may share) is in `TODO.md`.
+
 ## v7.31.6 (2026-11-17)
 
 The BFF fails over between IdPs. The only C change is `C_AUTH_BFF`, so the

@@ -3708,7 +3708,16 @@ PRIVATE void create_idp_outbound(hgobj gobj, IDP_SLOT *slot, const char *http_ur
         snprintf(slot->name, sizeof(slot->name), "%s-idp%d", gobj_name(gobj), slot->idx + 1);
     }
 
-    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+    /*
+     *  Each outbound gets its OWN copy of `crypto`: C_TCP writes the
+     *  ssl_server_name of its url into the crypto dict it is given, and a
+     *  dict attr is held by reference, so one dict shared by the IdPs
+     *  verified the second IdP against the name of the first.
+     */
+    json_t *jn_crypto = json_deep_copy(gobj_read_json_attr(gobj, "crypto"));
+    if(!jn_crypto) {
+        jn_crypto = json_object();  /* not a dict: json2item logged it */
+    }
 
     slot->gobj_idprovider = gobj_create(
         slot->name,
@@ -3729,7 +3738,7 @@ PRIVATE void create_idp_outbound(hgobj gobj, IDP_SLOT *slot, const char *http_ur
         gobj_create_pure_child(
             slot->name,
             C_TCP,
-            json_pack("{s:s, s:O, s:i, s:i}",
+            json_pack("{s:s, s:o, s:i, s:i}",
                 "url", http_url,
                 "crypto", jn_crypto,
                 /*
