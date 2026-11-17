@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v7.31.11 (2026-11-17)
+
+A fix of the table of 7.31.10. Lite release: deploy the `controlcenter`
+(1996/1997) only; `ycommand` is the local one.
+
+### Fixed
+
+- **`controlcenter`: the columns of `list-nodes` are 2 wider.** ycli and
+  ycommand paint a string as json, between its quotes, so the node uuid of
+  7.31.10 lost its last character (and the hostname and address theirs).
+- **`ycommand` paints a column of type `time` as a date**, as ycli does: the
+  `Last Seen` of `list-nodes` was an epoch number.
+
 ## v7.31.10 (2026-11-17)
 
 Lite release: deploy the `controlcenter` (1996/1997) only.

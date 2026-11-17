@@ -3012,7 +3012,7 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         json_t *col0 = json_array_get(schema, 0);
         if(json_array_size(schema) != 6 ||
                 strcmp(kw_get_str(gobj, col0, "id", "", 0), "id")!=0 ||
-                kw_get_int(gobj, col0, "fillspace", 0, 0) < 36) {
+                kw_get_int(gobj, col0, "fillspace", 0, 0) < 38) {
             ret += fail(gobj, "list-nodes answers with the schema of its table view", "");
         }
         JSON_DECREF(response)

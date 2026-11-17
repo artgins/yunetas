@@ -1867,16 +1867,17 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     /*
      *  The columns of a table view (ycli): the uuid whole, to copy it into
-     *  accept-node; the keys, 64 characters, are read in the form view
+     *  accept-node; the keys, 64 characters, are read in the form view.
+     *  A string is painted as json, between quotes: 2 columns more
      */
     json_t *jn_schema = json_pack("[{s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
         " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
         " {s:s, s:s, s:s, s:i}]",
-        "id", "id",         "header", "Node",       "type", "string",   "fillspace", 36,
-        "id", "hostname",   "header", "Hostname",   "type", "string",   "fillspace", 20,
-        "id", "state",      "header", "State",      "type", "string",   "fillspace", 9,
+        "id", "id",         "header", "Node",       "type", "string",   "fillspace", 38,
+        "id", "hostname",   "header", "Hostname",   "type", "string",   "fillspace", 24,
+        "id", "state",      "header", "State",      "type", "string",   "fillspace", 10,
         "id", "connected",  "header", "Connected",  "type", "boolean",  "fillspace", 9,
-        "id", "peername",   "header", "Address",    "type", "string",   "fillspace", 21,
+        "id", "peername",   "header", "Address",    "type", "string",   "fillspace", 23,
         "id", "last_seen",  "header", "Last Seen",  "type", "time",     "fillspace", 24
     );
 
