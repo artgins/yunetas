@@ -1325,14 +1325,14 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     int result = kw_get_int(gobj, kw, "result", -1, 0);
     if(result < 0) {
         /*
-         *  The reason is the peer's text, logged at every retry: capped
+         *  The reason is the peer's text, logged at every retry: capped.
+         *  gbmem_strndup() copies exactly n bytes (it is not libc's
+         *  strndup), so n is the length of the text, at most the cap.
          */
         const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
+        const char *reason = empty_string(comment)? "the remote gave no reason" : comment;
         GBMEM_FREE(priv->id_refusal)
-        priv->id_refusal = gbmem_strndup(
-            empty_string(comment)? "the remote gave no reason" : comment,
-            256
-        );
+        priv->id_refusal = gbmem_strndup(reason, strnlen(reason, 256));
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
         gobj_publish_event(gobj, EV_ON_ID_NAK, kw_incref(kw));

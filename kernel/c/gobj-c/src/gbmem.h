@@ -87,6 +87,11 @@ PUBLIC void *gbmem_malloc(size_t size);
 PUBLIC void  gbmem_free(void *ptr);
 PUBLIC void *gbmem_realloc(void *ptr, size_t size);
 PUBLIC void *gbmem_calloc(size_t n, size_t size);
+/*
+ *  gbmem_strndup() copies EXACTLY `size` bytes of `str` and adds a NUL: it
+ *  does not stop at a NUL as libc's strndup() does. To cap a string, pass
+ *  strnlen(str, cap), never the cap itself (it reads past a shorter string).
+ */
 PUBLIC char *gbmem_strndup(const char *str, size_t size);
 PUBLIC char *gbmem_strdup(const char *str);
 

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v7.31.9 (2026-11-17)
+
+A fix of 7.31.8, which was never deployed: deploy this one instead. Lite
+release; the same deploy (`controlcenter` 1996/1997).
+
+### Fixed
+
+- **`C_IEVENT_CLI`: the reason of a refused card is copied by its length.**
+  7.31.8 capped it with `gbmem_strndup(reason, 256)`, and `gbmem_strndup()`
+  copies exactly the bytes it is told (it is not libc's `strndup()`): a
+  reason shorter than 256 bytes was read past its end, from the heap or from
+  a literal, and that went into the log. It is now
+  `gbmem_strndup(reason, strnlen(reason, 256))`. Found by a security review
+  of the 7.31.8 commit. `gbmem.h` and the API page of `gbmem_strndup()` say
+  it now: the page said *"copies at most `size` characters"*, which is what
+  led to the mistake.
+
 ## v7.31.8 (2026-11-17)
 
 A lite release for the control center and the agent: a node that waits for
