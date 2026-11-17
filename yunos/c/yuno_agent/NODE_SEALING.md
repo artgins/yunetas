@@ -275,14 +275,14 @@ Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
 - Fleet: `replicate-node`, `upgrade-node` — note these replicate **realms'
   yunos**, they are *not* an OS package upgrade.
 - Certs: `cert-sync-now`, `cert-sync-status`.
-- **Accepting a new node in its control center** (2026-11-17, 7.31.12). The
+- **Accepting a new node in its control center** (2026-11-17, 7.31.12/13). The
   control center pins a node's uuid to its key (`accept-node`), and until
   7.31.11 the key could only be read on the node, by SSH (`openssl x509 …
   | sha256sum`). Now it needs no SSH: the install prints it
   (`[postinst] This node for its control center: node_id=… spki_sha256=…`,
   from `yuneta-agent-cert key`), `list-nodes` shows the start of the key
-  each node presented, and `accept-node node_id=… presented=1` pins the
-  presented key once the operator compared the two. A node not accepted
+  each node presented, and `accept-node node_id=… presented=<start>` pins
+  the presented key when it starts as the operator compared (7.31.13). A node not accepted
   yet is not reachable through the control center, so the install output
   is the out-of-band channel; keep it with the provisioning record.
 

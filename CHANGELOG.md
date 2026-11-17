@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## v7.31.13 (2026-11-17)
+
+A fix of 7.31.12, deployed for an hour: deploy this one. Lite release; the
+same deploy (`controlcenter` 1996/1997).
+
+### Security
+
+- **`controlcenter`: `accept-node` pins the key the operator compared, not
+  the one presented at the moment.** In 7.31.12 `presented=1` pinned
+  whatever the node was presenting when the command arrived: on a `pending`
+  record the key presented changes with each session, so another key under
+  the uuid between the operator's `list-nodes` and `accept-node` was the one
+  accepted; flooding the knocking table reset the mark of a uuid that came
+  with two keys; and an accepted node could be re-keyed to the last key
+  presented. Now `presented=<start>` takes the start the operator compared
+  (at least 16 lowercase hex, as `list-nodes` and the install show it), and
+  the key presented is pinned only if it starts so, in the same call; if
+  not, it is refused with a WARNING (*"Node not accepted: the key it
+  presents is not the one compared"*). Also refused for a node already
+  accepted (its key changes with `spki_sha256` whole) and together with
+  `spki_sha256`.
+
 ## v7.31.12 (2026-11-17)
 
 Lite release: deploy the `controlcenter` (1996/1997). The packages carry the
@@ -17,7 +39,7 @@ new `yuneta-agent-cert key`; a node already installed needs no update.
     - The install (`.deb` postinst, `.rpm` `%post`) prints that line:
       `[postinst] This node for its control center: node_id=… spki_sha256=…`.
     - `controlcenter`: `accept-node node_id=… presented=1` pins the key the
-      node presented (the first a knocking uuid came with, or the last one
+      node presented (replaced in 7.31.13 by `presented=<start>`: see there) (the first a knocking uuid came with, or the last one
       presented to its record), once the operator compared it with the one
       the node gives. Refused when the uuid knocked with more than one key,
       when the node presented none, and when a `spki_sha256` given with it

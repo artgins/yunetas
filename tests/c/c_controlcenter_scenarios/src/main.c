@@ -301,7 +301,8 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 22: accept uuid-new
     "Node key decided",                                                             // 22: accept uuid-unseen
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-pres
-    "Node key decided",                                                             // 22: accept uuid-pres, presented=1
+    "Node not accepted: the key it presents is not the one compared||||WARNING",   // 22: uuid-pres, presented= of another key
+    "Node key decided",                                                             // 22: accept uuid-pres, presented=<start>
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k3

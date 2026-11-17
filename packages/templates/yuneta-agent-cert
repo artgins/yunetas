@@ -59,7 +59,7 @@
 #                                     -- what accept-node takes, or what to
 #                                     compare with the key the node
 #                                     presented (list-nodes) before
-#                                     accept-node presented=1
+#                                     accept-node presented=<its start>
 #
 #   The agents read the pair when they start: after a new one, restart them
 #   (and whatever else serves the files). The old files are kept as

@@ -179,21 +179,27 @@ it (7.31.12+), and `yuneta-agent-cert key` on the node prints it again:
 
 # through the control center: the column Key is the start of the key presented
 list-nodes state=knocking
-accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b presented=1
+# the start you compared with the node's key, at least 16 hex
+accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b presented=6548740338383c0d
 # or, with the key given whole
 accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b spki_sha256=<the key the node gives>
 refuse-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b
 ```
 
-`accept-node` pins the key you give in `spki_sha256`, or with `presented=1`
-the key the node presented: the first key a knocking uuid came with, or the
-last one presented to its record. The control center never pins a key by
-itself, because anyone who reaches the port can make a key and knock with the
-uuid of a node: `presented=1` is the operator saying *"I compared it"*. It is
-refused when the uuid knocked with more than one key (give the key whole),
-when the node presented none, and when it is given together with a
-`spki_sha256` that is not the one presented. Each decision is an INFO,
-*"Node key decided"*.
+`accept-node` pins the key you give in `spki_sha256`, or, with
+`presented=<start>`, the key the node presented (the first key a knocking
+uuid came with, or the last one presented to its record) when it starts with
+the start you give: at least 16 lowercase hex, the ones you compared with the
+key the node gives (7.31.13+). The control center never pins a key by itself,
+because anyone who reaches the port can make a key and knock with the uuid of
+a node, and the start ties the decision to the key you compared: if another
+key knocks under the uuid between your `list-nodes` and your `accept-node`,
+it does not start the same, and the control center refuses it with a WARNING
+(*"Node not accepted: the key it presents is not the one compared"*).
+`presented=` is also refused when the uuid knocked with more than one key,
+when the node presented none, for a node already accepted (its key changes
+only with `spki_sha256` whole), and together with `spki_sha256`. Each decision
+is an INFO, *"Node key decided"*.
 
 **One key, one node.** `accept-node` refuses a key that is accepted for
 another node, with a WARNING (*"Node not accepted: its key is accepted for
@@ -1401,7 +1407,7 @@ never armed: all six read 0.
 | `stats-agent` | Fetch stats from a node |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
 | `list-nodes` | The nodes and the keys of their agents, each with `connected`, and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). ycli shows a table: node uuid, hostname, state, connected, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
-| `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented=1`: the one it presented; permission `manage-nodes`) |
+| `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so; permission `manage-nodes`) |
 | `refuse-node` | Refuse a node; its sessions are dropped (`node_id`; permission `manage-nodes`) |
 | `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
 | `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |

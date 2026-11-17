@@ -40,7 +40,7 @@ will/keepalive).
 ## Persistence
 
 The broker keeps its state in a TreeDB
-(`treedb_mqtt_broker`, schema [`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.31.12/modules/c/mqtt/src/treedb_schema_mqtt_broker.c)) plus TimeRanger2
+(`treedb_mqtt_broker`, schema [`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.31.13/modules/c/mqtt/src/treedb_schema_mqtt_broker.c)) plus TimeRanger2
 queues:
 
 - **clients / sessions / subscriptions** — TreeDB nodes.
@@ -425,7 +425,7 @@ see [Authentication, authorization, and TLS](../../../yunos/c/yuno_agent/YUNO_AU
 The model (model A — group-based ACL in the treedb):
 
 - The `client_groups` topic
-  ([`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.31.12/modules/c/mqtt/src/treedb_schema_mqtt_broker.c))
+  ([`treedb_schema_mqtt_broker.c`](https://github.com/artgins/yunetas/blob/7.31.13/modules/c/mqtt/src/treedb_schema_mqtt_broker.c))
   carries two array columns: **`publish_acl`** and **`subscribe_acl`**, each a
   list of MQTT topic-filter patterns (`+` / `#` wildcards).
 - A `clients` row fkeys to one or more `client_groups`. A client is allowed an
@@ -508,7 +508,7 @@ ycommand -c 'command-yuno id=<yuno> service=<mqtt_service> command=link-nodes \
 A group with empty `publish_acl`/`subscribe_acl` keeps allow-all for that access
 (useful for an unrestricted `g_open` group while others are constrained).
 
-Regression test: [`tests/c/c_mqtt/acl`](https://github.com/artgins/yunetas/blob/7.31.12/tests/c/c_mqtt/acl)
+Regression test: [`tests/c/c_mqtt/acl`](https://github.com/artgins/yunetas/blob/7.31.13/tests/c/c_mqtt/acl)
 (`main_acl.c` + `c_acl.c`) drives `EV_MQTT_ACL_CHECK` at an embedded broker —
 the exact path the protocol gate uses — across matching/non-matching publish and
 subscribe, `#` wildcard (incl. the parent level), the two allow-all fallbacks,
@@ -603,7 +603,7 @@ Enable with
 ## Tests
 
 Three batteries in
-[`yunos/c/mqtt_broker/tests/`](https://github.com/artgins/yunetas/tree/7.31.12/yunos/c/mqtt_broker/tests),
+[`yunos/c/mqtt_broker/tests/`](https://github.com/artgins/yunetas/tree/7.31.13/yunos/c/mqtt_broker/tests),
 one per directory; `tests/mqtt_broker.json` is the broker configuration of all three:
 
 | Directory | What it is | Result |
@@ -627,7 +627,7 @@ kill -INT %1
 Eclipse Mosquitto's own broker tests (about 270, in Python) run against
 `mqtt_broker` through a stand-in for the `mosquitto` binary. The scripts, the
 stand-in and the reference results are in
-[`yunos/c/mqtt_broker/tests/mosquitto/`](https://github.com/artgins/yunetas/tree/7.31.12/yunos/c/mqtt_broker/tests/mosquitto);
+[`yunos/c/mqtt_broker/tests/mosquitto/`](https://github.com/artgins/yunetas/tree/7.31.13/yunos/c/mqtt_broker/tests/mosquitto);
 the suite itself is fetched at a pinned commit, not copied into the repository.
 
 ```bash
