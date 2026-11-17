@@ -2302,6 +2302,12 @@ fi
 if [ -x /usr/libexec/yuneta/yuneta-agent-cert ] && [ "$UUID_DEFERRED" != "1" ]; then
     /usr/libexec/yuneta/yuneta-agent-cert ensure \
         || warn "yuneta-agent-cert failed: the agent keeps the certificate it had"
+    # The key its control center will see (7.31.12+): to compare with the key
+    # the node presents there (list-nodes) before accept-node, with no SSH.
+    _node_key="$(/usr/libexec/yuneta/yuneta-agent-cert key 2>/dev/null)" || _node_key=""
+    if [ -n "$_node_key" ]; then
+        info "This node for its control center: $_node_key"
+    fi
 fi
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true

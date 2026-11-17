@@ -258,6 +258,9 @@ check "box B: the key is the certificate's" \
     "$( [ "$("$OPENSSL" x509 -in "$CRT" -noout -pubkey)" = "$("$OPENSSL" pkey -in "$KEY" -pubout 2>/dev/null)" ] && echo yes)" "yes"
 check "box B: a WARNING that says it" "$(echo "$out" | grep -c 'WARNING: .*made for node uuid')" "1"
 check "box B: bound to its own uuid" "$(cat "$UUID_MARK" 2>/dev/null)" "$uuid_b"
+check "box B: key says the uuid and the key, for accept-node" \
+    "$(run key)" "node_id=$uuid_b spki_sha256=$(spki)"
+check "box B: show says the key" "$(run show | grep -c "^key:     $(spki)\$")" "1"
 check "box B: the old certificate kept" \
     "$(ls -A "$YUNETA_AGENT_CERT_DIR" | grep -c '^yuneta_agent\.crt\.replaced-')" "1"
 check "box B: the old key NOT kept" \
@@ -794,6 +797,8 @@ fi
 #   Usage
 #
 check "an unknown command: refused" "$("$SCRIPT" nonsense >/dev/null 2>&1; echo $?)" "2"
+reset
+check "key with no certificate: refused" "$(run key >/dev/null 2>&1; echo $?)" "1"
 
 if [ "$FAILED" -ne 0 ]; then
     echo "FAILED"

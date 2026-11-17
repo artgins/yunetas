@@ -3010,13 +3010,19 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
         json_t *schema = kw_get_list(gobj, response, "schema", 0, 0);
         json_t *col0 = json_array_get(schema, 0);
-        if(json_array_size(schema) != 6 ||
+        if(json_array_size(schema) != 7 ||
                 strcmp(kw_get_str(gobj, col0, "id", "", 0), "id")!=0 ||
                 kw_get_int(gobj, col0, "fillspace", 0, 0) < 38) {
             ret += fail(gobj, "list-nodes answers with the schema of its table view", "");
         }
         JSON_DECREF(response)
     }
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-new"));
+    json_object_set_new(kw, "presented", json_true());
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "knocked with more than one key",
+        "accept-node presented=1 of a uuid that knocked with two keys is refused");
     kw = client_kw(gobj_name(client));
     json_object_set_new(kw, "node_id", json_string("uuid-new"));
     json_object_set_new(kw, "spki_sha256", json_string(KEY_G));
@@ -3044,6 +3050,43 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         0, "node 'uuid-unseen' accepted", "accept-node of a node never seen");
     ret += check_node_field(gobj, client, "uuid-unseen", "spki_sha256", KEY_B,
         "accept-node of a node never seen pins the key given");
+
+    /*
+     *  accept-node presented=1: the key the node presented, which the
+     *  operator compared with the one the node gives (yuneta-agent-cert key)
+     */
+#define KEY_P   "9999999999999999999999999999999999999999999999999999999999999999"
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-ghost"));
+    json_object_set_new(kw, "presented", json_true());
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "has presented no key", "accept-node presented=1 of a node never seen is refused");
+    auth = authenticate_by_key(gobj, "auth-p", "uuid-pres", "preshost", KEY_P,
+        username, sizeof(username));
+    JSON_DECREF(auth)
+    ret += check_node_field(gobj, client, "uuid-pres", "key", KEY_P,
+        "list-nodes gives the key a knocking node presented");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-pres"));
+    json_object_set_new(kw, "presented", json_true());
+    json_object_set_new(kw, "spki_sha256", json_string(KEY_A));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "is not the one it presented", "accept-node presented=1 with another key is refused");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-pres"));
+    json_object_set_new(kw, "presented", json_true());
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        0, "node 'uuid-pres' accepted", "accept-node presented=1");
+    ret += check_node_field(gobj, client, "uuid-pres", "spki_sha256", KEY_P,
+        "accept-node presented=1 pins the key presented");
+    ret += check_node_field(gobj, client, "uuid-pres", "key", KEY_P,
+        "list-nodes gives the key accepted");
+    auth = authenticate_by_key(gobj, "auth-p2", "uuid-pres", "preshost", KEY_P,
+        username, sizeof(username));
+    if(kw_get_int(gobj, auth, "result", -1, 0) != 0) {
+        ret += fail(gobj, "a node accepted with the key it presented logs in by it", username);
+    }
+    JSON_DECREF(auth)
 
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
     const char *flood[] = {"uuid-k1", "uuid-k2", "uuid-k3", 0};

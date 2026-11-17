@@ -462,7 +462,8 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_accept_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
-SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to pin, read on the node itself (sha256 of its SPKI, 64 lowercase hex). Required: never the key presented"),
+SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to pin, read on the node itself (sha256 of its SPKI, 64 lowercase hex; on the node: yuneta-agent-cert key)"),
+SDATAPM (DTP_BOOLEAN,   "presented",    0,              0,          "Pin the key the node presented (list-nodes), compared first with the one read on the node: refused if its uuid knocked with more than one key"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_refuse_node[] = {
@@ -532,7 +533,7 @@ SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              
 SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
 SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused"),
-SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node)"),
+SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node), or to the one it presented (presented=1)"),
 SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
 
 SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
@@ -1851,6 +1852,9 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_array_foreach(jn_data, idx, jn_node) {
         hgobj agent = agent_channel_of_uuid(gobj, kw_get_str(gobj, jn_node, "id", "", 0));
         json_object_set_new(jn_node, "connected", json_boolean(agent? TRUE : FALSE));
+        BOOL accepted = strcmp(kw_get_str(gobj, jn_node, "state", "", 0), "accepted")==0;
+        json_object_set_new(jn_node, "key", json_string(kw_get_str(gobj, jn_node,
+            accepted? "spki_sha256" : "presented_spki", "", 0)));
     }
     if(empty_string(state) || strcmp(state, "knocking")==0) {
         const char *node_id; json_t *jn_knock;
@@ -1860,6 +1864,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_object_del(jn, "next_warning");
             json_object_set_new(jn, "id", json_string(node_id));
             json_object_set_new(jn, "state", json_string("knocking"));
+            json_object_set_new(jn, "key", json_string(kw_get_str(gobj, jn_knock, "spki_sha256", "", 0)));
             json_object_set_new(jn, "connected", json_false());
             json_array_append_new(jn_data, jn);
         }
@@ -1867,18 +1872,20 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     /*
      *  The columns of a table view (ycli): the uuid whole, to copy it into
-     *  accept-node; the keys, 64 characters, are read in the form view.
+     *  accept-node; of the key (the accepted one, else the one presented),
+     *  the start, to compare with the node's: whole in the form view.
      *  A string is painted as json, between quotes: 2 columns more
      */
     json_t *jn_schema = json_pack("[{s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
         " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
-        " {s:s, s:s, s:s, s:i}]",
+        " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}]",
         "id", "id",         "header", "Node",       "type", "string",   "fillspace", 38,
         "id", "hostname",   "header", "Hostname",   "type", "string",   "fillspace", 24,
         "id", "state",      "header", "State",      "type", "string",   "fillspace", 10,
         "id", "connected",  "header", "Connected",  "type", "boolean",  "fillspace", 9,
         "id", "peername",   "header", "Address",    "type", "string",   "fillspace", 23,
-        "id", "last_seen",  "header", "Last Seen",  "type", "time",     "fillspace", 24
+        "id", "last_seen",  "header", "Last Seen",  "type", "time",     "fillspace", 24,
+        "id", "key",        "header", "Key",        "type", "string",   "fillspace", 18
     );
 
     return msg_iev_build_response(
@@ -1940,8 +1947,10 @@ PRIVATE json_t *decide_node(
     );
     if(strcmp(state, "accepted")==0) {
         /*
-         *  The key is the operator's, read on the node itself: never the
-         *  one presented, which anyone who reaches the port can make
+         *  The key is the operator's: read on the node, or the one it
+         *  presented when the operator says so (cmd_accept_node(),
+         *  presented=1). Never taken by itself: anyone who reaches the port
+         *  can make one
          */
         size_t len = strlen(spki);
         BOOL hex = (len == 64);
@@ -1950,7 +1959,8 @@ PRIVATE json_t *decide_node(
         }
         if(!hex) {
             *comment = json_sprintf("%s: node '%s': what key? spki_sha256= the key read on the "
-                "node (64 lowercase hex)", gobj_yuno_role_plus_name(), node_id);
+                "node (64 lowercase hex; on the node: yuneta-agent-cert key), or presented=1 "
+                "for the one it presented (list-nodes)", gobj_yuno_role_plus_name(), node_id);
             JSON_DECREF(update)
             JSON_DECREF(node)
             return NULL;
@@ -2053,11 +2063,14 @@ PRIVATE json_t *decide_node(
 }
 
 /***************************************************************************
- *  Accept a node: pin its uuid to the key its agent presented, or to the
- *  one given. An agent refused before connects again by itself.
+ *  Accept a node: pin its uuid to the key given, or, with presented=1, to
+ *  the one its agent presented. An agent refused before connects again by
+ *  itself.
  ***************************************************************************/
 PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *permission = "manage-nodes";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         return msg_iev_build_response(
@@ -2070,12 +2083,75 @@ PRIVATE json_t *cmd_accept_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    const char *spki = kw_get_str(gobj, kw, "spki_sha256", "", 0);
+    char presented[80] = "";
+    if(kw_get_bool(gobj, kw, "presented", 0, 0) && !empty_string(node_id)) {
+        /*
+         *  The key the node presented, pinned by an operator who compared
+         *  it with the one the node gives (yuneta-agent-cert key, printed by
+         *  the install): the first key a knocking uuid came with, or the
+         *  last one its record was presented
+         */
+        json_t *knock = json_object_get(priv->knocking, node_id);
+        if(knock && kw_get_bool(gobj, knock, "other_keys", 0, 0)) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: node '%s' knocked with more than one key: which is it? "
+                    "give spki_sha256= the key read on the node (yuneta-agent-cert key)",
+                    gobj_yuno_role_plus_name(), node_id),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        if(knock) {
+            snprintf(presented, sizeof(presented), "%s",
+                kw_get_str(gobj, knock, "spki_sha256", "", 0));
+        } else if(priv->gobj_treedb_controlcenter) {
+            json_t *node = gobj_get_node(
+                priv->gobj_treedb_controlcenter,
+                "nodes",
+                json_pack("{s:s}", "id", node_id),
+                0,
+                gobj
+            );
+            snprintf(presented, sizeof(presented), "%s",
+                node? kw_get_str(gobj, node, "presented_spki", "", 0) : "");
+            JSON_DECREF(node)
+        }
+        if(empty_string(presented)) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: node '%s' has presented no key to accept",
+                    gobj_yuno_role_plus_name(), node_id),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        if(!empty_string(spki) && strcmp(spki, presented)!=0) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: node '%s': the key given is not the one it presented (%s)",
+                    gobj_yuno_role_plus_name(), node_id, presented),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        spki = presented;
+    }
+
     json_t *comment = NULL;
     json_t *written = decide_node(
         gobj,
-        kw_get_str(gobj, kw, "node_id", "", 0),
+        node_id,
         "accepted",
-        kw_get_str(gobj, kw, "spki_sha256", "", 0),
+        spki,
         kw,
         src,
         &comment
@@ -4123,7 +4199,7 @@ PRIVATE const char *note_knocking_node(
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)",
+                "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)",
                 "node",         "%s", node_id,
                 "hostname",     "%s", kw_get_str(gobj, entry, "hostname", "", 0),
                 "peername",     "%s", peername? peername : "",
@@ -4168,7 +4244,7 @@ PRIVATE const char *note_knocking_node(
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH,
-        "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)",
+        "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)",
         "node",         "%s", node_id,
         "hostname",     "%s", hostname? hostname : "",
         "peername",     "%s", peername? peername : "",

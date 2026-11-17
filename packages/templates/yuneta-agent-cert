@@ -50,8 +50,16 @@
 #       yuneta-agent-cert [ensure]    make the pair when it is missing or the
 #                                     public one; else keep it
 #       yuneta-agent-cert show        what is there, whether it is the
-#                                     public pair, and the node uuid it is
-#                                     bound to
+#                                     public pair, the node uuid it is
+#                                     bound to, and its key
+#       yuneta-agent-cert key         the node's key as its control center
+#                                     knows it (sha256 of the SPKI), on one
+#                                     line with the node uuid:
+#                                     node_id=<uuid> spki_sha256=<key>
+#                                     -- what accept-node takes, or what to
+#                                     compare with the key the node
+#                                     presented (list-nodes) before
+#                                     accept-node presented=1
 #
 #   The agents read the pair when they start: after a new one, restart them
 #   (and whatever else serves the files). The old files are kept as
@@ -72,6 +80,8 @@ NODE_UUID_DIR="${YUNETA_NODE_UUID_DIR:-/yuneta/store/agent/uuid}"
 NODE_UUID=""
 OWNER="yuneta"
 NAME="yuneta_agent.yuneta.io"
+#   sha256 of nothing: what a pipe with no key in it gives
+EMPTY_SHA256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 #   sha256 of the public key (SPKI, DER) of the keys published with Yuneta:
 #   the agent's up to 7.30.5, and the test key yunos/c/yuno_agent/certs/localhost.key
 PUBLIC_SPKIS="ba2ee88ae21907f48710e8bcc3b376e7d333774833bdd912c1c6cc3f0c6eeefc 89e7f3e744aa67949802f14616ecd46bdd1af70e0e213342608af8ad289e5d79"
@@ -350,6 +360,25 @@ cmd_ensure() {
     return 0
 }
 
+node_key() {
+    "$OPENSSL" x509 -in "$CRT" -noout -pubkey 2>/dev/null \
+        | "$OPENSSL" pkey -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
+cmd_key() {
+    if [ ! -s "$CRT" ]; then
+        log_error "no certificate $CRT: run 'ensure'"
+        return 1
+    fi
+    local key
+    key="$(node_key)"
+    if [ "${#key}" != "64" ] || [ "$key" = "$EMPTY_SHA256" ]; then
+        log_error "cannot read the key of $CRT"
+        return 1
+    fi
+    echo "node_id=${NODE_UUID:-(no node uuid yet)} spki_sha256=$key"
+}
+
 cmd_show() {
     local state
     state="$(pair_state)"
@@ -358,6 +387,7 @@ cmd_show() {
     echo "node:    ${NODE_UUID:-(no node uuid yet)}"
     echo "bound:   $(head -n 1 "$UUID_MARK" 2>/dev/null || echo '(none)')"
     if [ -s "$CRT" ]; then
+        echo "key:     $(node_key)"
         "$OPENSSL" x509 -in "$CRT" -noout -subject -dates -fingerprint -sha256 2>/dev/null \
             | sed 's/^/         /'
     fi
@@ -373,10 +403,10 @@ cmd_show() {
 #   Main
 #
 case "$CMD" in
-    ensure|show)
+    ensure|show|key)
         ;;
     *)
-        echo "usage: $0 [ensure|show]" >&2
+        echo "usage: $0 [ensure|show|key]" >&2
         exit 2
         ;;
 esac
@@ -422,5 +452,9 @@ case "$CMD" in
         ;;
     show)
         cmd_show
+        ;;
+    key)
+        cmd_key
+        exit $?
         ;;
 esac

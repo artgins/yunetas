@@ -289,20 +289,22 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 22: accept-node
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)", // 22: KEY_B, recording
     "Agent refused: its node key is not the one accepted",                          // 22: KEY_B, enforcing
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-stranger, refused: not written
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-stranger, refused: not written
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-stranger, pending
     "Node key decided",                                                             // 22: refuse-node
     "A session of the node dropped: its key is not accepted now",                   // 22: refuse-node drops it
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-auth, refused: not written
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-auth, refused: not written
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-auth, pending
     "Node key decided",                                                             // 22: accept uuid-auth
     "Agent not authenticated: its node key is not the one accepted",                // 22: uuid-auth, KEY_B
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-new
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-new
     "Node key decided",                                                             // 22: accept uuid-new
     "Node key decided",                                                             // 22: accept uuid-unseen
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k1
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k2
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 22: uuid-k3
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-pres
+    "Node key decided",                                                             // 22: accept uuid-pres, presented=1
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k1
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k2
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k3
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: A
     "Node key decided",                                                             // 23: accept A
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: B
@@ -341,7 +343,7 @@ PRIVATE const char *expected_msgs[] = {
     "write-tty: the agent_id names more than one node, nothing written",           // 32
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 33: B13
     "Node key decided",                                                             // 33: accept B13
-    "A node knocking: its agent presents a key not accepted (accept-node with the key read on the node)", // 33: a token with a key, refused: not written
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 33: a token with a key, refused: not written
     "Agent refused: its node key is not the one accepted|||The node is not accepted (pending)|WARNING", // 33
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 37: B
     "Node key decided",                                                             // 37: accept B

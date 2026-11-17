@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v7.31.12 (2026-11-17)
+
+Lite release: deploy the `controlcenter` (1996/1997). The packages carry the
+new `yuneta-agent-cert key`; a node already installed needs no update.
+
+### Changed
+
+- **A node is accepted with no SSH.** Until now the key `accept-node` asks
+  for could only be read on the node, by SSH (`openssl x509 … | sha256sum`).
+    - `yuneta-agent-cert key` prints the node's key, on one line with its
+      uuid: `node_id=<uuid> spki_sha256=<key>`, what `accept-node` takes.
+      `yuneta-agent-cert show` says it too.
+    - The install (`.deb` postinst, `.rpm` `%post`) prints that line:
+      `[postinst] This node for its control center: node_id=… spki_sha256=…`.
+    - `controlcenter`: `accept-node node_id=… presented=1` pins the key the
+      node presented (the first a knocking uuid came with, or the last one
+      presented to its record), once the operator compared it with the one
+      the node gives. Refused when the uuid knocked with more than one key,
+      when the node presented none, and when a `spki_sha256` given with it
+      is not the one presented. The control center still never pins a key
+      by itself.
+    - `controlcenter`: `list-nodes` gives each node's `key` (the accepted
+      one, else the one presented), and its table shows the start of it.
+    - The WARNING *"A node knocking"* says where the key is:
+      *"(accept-node, compare its key with the one the node gives:
+      yuneta-agent-cert key)"*.
+    - `NODE_SEALING.md` §5.4: accepting a new node leaves the SSH ledger.
+
 ## v7.31.11 (2026-11-17)
 
 A fix of the table of 7.31.10. Lite release: deploy the `controlcenter`
