@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## v7.31.17 (2026-11-18)
+
+Lite release: only the web server. nginx is a separate binary linked against
+the system's libraries, so no yuno is rebuilt and no agent is restarted. Every
+node that builds from source reruns `./extrae.sh && ./configure-libs.sh`
+(`linux-ext-libs` 1.31) and restarts its nginx; the package nodes take the
+`.deb`/`.rpm` of this tag.
+
+### Security
+
+- **nginx `release-1.31.8` -> `release-1.31.9`** (the standalone binary,
+  `linux-ext-libs` 1.31). nginx 1.31.9 fixes ten CVEs. With the modules
+  built here and the configurations of the nodes, four can be reached:
+  CVE-2026-123007 (memory corruption in HTTP/2 flow control) and
+  CVE-2026-118899 (infinite loop reading a request body over TLS 1.3), both
+  rated major and reachable without authentication; CVE-2026-123633
+  (use-after-free in HTTP/2) and CVE-2026-123634 (use-after-free in the
+  resolver). The other six need HTTP/3, the mail proxy or `ssl_preread`
+  (not built), client certificates in `stream`, PROXY protocol v2, or
+  `alias` with `try_files` (not used).
+- **openresty is NOT covered**: it stays `1.31.8.1` (nginx 1.31.8 core),
+  still the latest openresty release on 2026-11-18. A node that serves with
+  openresty is exposed to the same CVEs until openresty publishes a release
+  based on nginx 1.31.9.
+
 ## v7.31.16 (2026-11-18)
 
 A fix of 7.31.15, never deployed: deploy this one. Lite release; the same
