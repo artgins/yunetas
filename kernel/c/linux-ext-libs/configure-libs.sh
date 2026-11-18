@@ -329,7 +329,22 @@
 #       run `./extrae.sh && ./configure-libs.sh` again, then rebuild the SDK
 #       and every yuno (jansson is linked into every binary).
 
-VERSION="1.30"
+#   version 1.31
+#       upgrade to nginx release-1.31.9 (was release-1.31.8): ten CVEs. With
+#       the modules built here (http_v2, ssl, stream, stream_ssl; no http_v3,
+#       no mail, no ssl_preread) and the nginx.conf of the nodes (http2 on,
+#       TLSv1.3, a resolver; no PROXY protocol, no alias with try_files, no
+#       stream{} block), four can be reached: CVE-2026-123007 (memory
+#       corruption in HTTP/2 flow control, major), CVE-2026-118899 (infinite
+#       loop reading a request body over TLS 1.3, major), CVE-2026-123633
+#       (use-after-free in HTTP/2) and CVE-2026-123634 (use-after-free in
+#       the resolver). A separate binary linked against the system's libs:
+#       no yuno needs a relink. openresty stays 1.31.8.1 (nginx 1.31.8 core,
+#       no newer upstream release on 2026-11-18): it is still exposed. Every
+#       node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.31"
 
 
 source ./repos2clone.sh

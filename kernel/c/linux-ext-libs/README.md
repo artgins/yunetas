@@ -169,6 +169,20 @@ changes on the other targets.
 
 openresty stays `1.31.1.1` (no newer release, checked 2026-10-22).
 
+### nginx 1.31.9: ten CVEs (configure-libs.sh v1.31)
+
+- **nginx** `release-1.31.8` -> `release-1.31.9` (2026-11-18). Ten CVEs; with
+  the modules built here and the configurations of the nodes, four can be
+  reached: CVE-2026-123007 (memory corruption in HTTP/2 flow control) and
+  CVE-2026-118899 (infinite loop reading a request body over TLS 1.3), both
+  major; CVE-2026-123633 (use-after-free in HTTP/2) and CVE-2026-123634
+  (use-after-free in the resolver). The other six need HTTP/3, the mail
+  proxy or `ssl_preread` (not built), client certificates in `stream`, PROXY
+  protocol v2, or `alias` with `try_files` (not used).
+
+⚠️ **openresty is NOT covered**: `1.31.8.1` (nginx 1.31.8 core) is still the
+latest release (checked 2026-11-18). Track upstream openresty.
+
 ### jansson: Yuneta's own, `artgins/jansson` (configure-libs.sh v1.26, v1.30)
 
 jansson comes from `artgins/jansson` at the tag `2.15.1-yuneta.2`: upstream

@@ -24,7 +24,7 @@ TAG_OPENRESTY="1.31.8.1"    # nginx 1.31.8 core (was 1.31.1.1 / nginx 1.31.1); w
 #   curl -sSL https://openresty.org/download/openresty-<tag>.tar.gz | sha256sum
 SHA256_OPENRESTY="b569c63b420f80a4ac8466f2deffe73ed93ab760026532e039c3658409a997f4"
 TAG_NCURSES="v6.4"
-TAG_NGINX="release-1.31.8"  # bug fixes, no CVE (was release-1.31.7); mainline branch
+TAG_NGINX="release-1.31.9"  # ten CVEs fixed (was release-1.31.8); mainline branch
 
 #------------------------------------------
 #   REPOS
