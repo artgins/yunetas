@@ -3154,6 +3154,7 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
 #define KEY_ED1 "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
 #define KEY_ED2 "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
 #define KEY_EE   "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+#define KEY_EF   "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"
 #define KEY_EN8 "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
 
 /*  The agent of `uuid` presents `spki`: it logged in (by the key) or not  */
@@ -3294,14 +3295,39 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
         0, "the enrollment is not open", "the enrollment closes at its max_nodes");
 
     /*
-     *  A flood of knocks does not wipe the mark of a uuid that came with two
-     *  keys: a full table evicts it last, and the enrollment still refuses it
+     *  close-enrollment; and closed when its minutes are over (its timer)
      */
-    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        0, "enrollment open", "open-enrollment again");
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "enrollment closed, 0 nodes accepted", "close-enrollment");
+    if(logs_in_by_key(gobj, "en-8b", "uuid-en8", KEY_EN8)) {
+        ret += fail(gobj, "a closed enrollment accepts", "");
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        0, "enrollment open", "open-enrollment");
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 2, 5),
+        0, "enrollment open again", "open-enrollment while open starts it again");
+    hgobj timer = gobj_child_by_name(priv->cc, "enrollment_timer");
+    if(!timer) {
+        ret += fail(gobj, "the control center has an enrollment_timer", "");
+    } else {
+        gobj_send_event(priv->cc, EV_TIMEOUT, json_object(), timer);
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "the enrollment is not open", "the enrollment closes when its minutes are over");
+
+    /*
+     *  A flood of knocks of one key does not wipe the mark of a uuid that
+     *  came with two keys: a full table evicts it last, and the enrollment
+     *  still refuses it
+     */
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 4);
     logs_in_by_key(gobj, "ec-1", "uuid-ec", KEY_EC1);
     logs_in_by_key(gobj, "ec-2", "uuid-ec", KEY_EC2);
     logs_in_by_key(gobj, "ed-1", "uuid-ed1", KEY_ED1);
     logs_in_by_key(gobj, "ed-2", "uuid-ed2", KEY_ED2);
+    logs_in_by_key(gobj, "ed-3", "uuid-ed3", KEY_ED2);
     ret += check_node_field(gobj, client, "uuid-ec", "state", "knocking",
         "a full knocking table evicts a uuid that came with two keys last");
     {
@@ -3311,28 +3337,30 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
         }
         JSON_DECREF(evicted)
     }
-    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
-
-    /*
-     *  close-enrollment; and closed when its minutes are over (its timer)
-     */
     ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
-        0, "enrollment open", "open-enrollment again");
+        0, "enrollment open", "open-enrollment after a flood that evicted no mark");
     if(logs_in_by_key(gobj, "ec-3", "uuid-ec", KEY_EC2)) {
         ret += fail(gobj, "the enrollment accepts a uuid that came with two keys, after a flood", "");
     }
-    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
-        0, "enrollment closed, 0 nodes accepted", "close-enrollment");
-    if(logs_in_by_key(gobj, "en-8b", "uuid-en8", KEY_EN8)) {
-        ret += fail(gobj, "a closed enrollment accepts", "");
-    }
 
     /*
-     *  But uuids of two keys keep their place only while they are half the
-     *  table at most. A table of 4 full of them: a node of one key gets in,
-     *  and the next one evicts the oldest uuid of two keys, not that node
+     *  A mark evicted all the same closes the open enrollment (a node let in
+     *  with no key knocks, refused by the enrollment, into a table of 1)
      */
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 1);
+    hgobj old2 = open_keyed_session(gobj, "en-old2", "uuid-en-old2", "old2", NULL);
+    close_session(old2);
+    if(logs_in_by_key(gobj, "ef-1", "uuid-en-old2", KEY_EF)) {
+        ret += fail(gobj, "the enrollment accepts a key for a node let in with no key", "");
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "the enrollment is not open", "a mark evicted closes the open enrollment");
+
+    /*
+     *  Uuids of two keys keep their place only while they are half the table
+     *  at most. A table of 4 full of them: a node of one key gets in, and the
+     *  next one evicts the oldest uuid of two keys, not that node
+     */
     logs_in_by_key(gobj, "ca-1", "uuid-ca", KEY_EC1);  // the table: uuid-ca only
     logs_in_by_key(gobj, "ca-2", "uuid-ca", KEY_EC2);
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 4);
@@ -3357,18 +3385,11 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     }
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
 
+    /*
+     *  After a mark is evicted no enrollment opens for an hour
+     */
     ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
-        0, "enrollment open", "open-enrollment");
-    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 2, 5),
-        0, "enrollment open again", "open-enrollment while open starts it again");
-    hgobj timer = gobj_child_by_name(priv->cc, "enrollment_timer");
-    if(!timer) {
-        ret += fail(gobj, "the control center has an enrollment_timer", "");
-    } else {
-        gobj_send_event(priv->cc, EV_TIMEOUT, json_object(), timer);
-    }
-    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
-        0, "the enrollment is not open", "the enrollment closes when its minutes are over");
+        -1, "no enrollment opens for", "open-enrollment after a mark was evicted is refused");
 
     return ret;
 }

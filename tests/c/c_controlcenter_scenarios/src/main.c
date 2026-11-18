@@ -325,22 +325,27 @@ PRIVATE const char *expected_msgs[] = {
     "Node accepted by the enrollment",                                              // 22b: uuid-en7
     "Node enrollment closed",                                                       // 22b: max_nodes
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en8
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
+    "Node enrollment closed",                                                       // 22b: close-enrollment
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: again
+    "Node enrollment closed",                                                       // 22b: its minutes
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ec, its first key
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ed1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ed2
-    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ed3
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: after a flood that evicted no mark
     "Node not accepted by the enrollment|||it knocked with another key|WARNING",    // 22b: uuid-ec, after the flood
-    "Node enrollment closed",                                                       // 22b: close-enrollment
-    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en8 again: the flood evicted it
+    "Node not accepted by the enrollment|||the node was let in with no key (accept-node, with the key read on it)|WARNING", // 22b: uuid-en-old2
+    "A uuid that came with two keys evicted from the knocking table: no enrollment opens for an hour||||WARNING", // 22b
+    "Node enrollment closed",                                                       // 22b: a mark evicted
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en-old2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ca
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cb
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cc
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cd
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-s1, in a table full of uuids of two keys
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-s2
-    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
-    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: again
-    "Node enrollment closed",                                                       // 22b: its minutes
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: A
     "Node key decided",                                                             // 23: accept A
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: B

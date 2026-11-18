@@ -154,8 +154,9 @@
  *  somebody else's), never a uuid that came with two keys (which one is
  *  the node's?), never a key accepted for another node. A full knocking
  *  table evicts a uuid that came with two keys last (while such uuids hold
- *  half the table at most), so a flood of knocks does not wipe that mark
- *  easily.
+ *  half the table at most), and when one is evicted all the same (a flood
+ *  of knocks) an open enrollment closes and none opens for an hour, a
+ *  WARNING: a flood can keep the enrollment shut, never slip a key in.
  *  It closes when its minutes (1-60) are over, when it has accepted
  *  max_nodes (1-256), with `close-enrollment`, or when the control center
  *  pauses: it lives in memory only, a restart does not open it again. Each
@@ -222,6 +223,10 @@
 #define MAX_ENROLLMENT_MINUTES  60
 #define MAX_ENROLLMENT_NODES    256
 
+/*  After a uuid that came with two keys is evicted from the knocking table,
+ *  no enrollment opens for this long, in ms  */
+#define MARK_EVICTED_QUARANTINE (3600*1000)
+
 /*  An open with nothing else changed writes the last_seen of its node
  *  only when it is this old, in seconds: a link that comes and goes does
  *  not append a record at every open  */
@@ -279,6 +284,7 @@ PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_close_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *enrollment_status(hgobj gobj);
 PRIVATE void close_enrollment(hgobj gobj, const char *why);
+PRIVATE void mark_evicted(hgobj gobj, const char *node_id);
 PRIVATE BOOL enroll_node(
     hgobj gobj,
     const char *node_id,
@@ -727,6 +733,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t knock_seq;           // order of the last knock of each entry, for the eviction
     hgobj enrollment_timer;         // closes the open enrollment when its minutes are over
     json_t *enrollment;             // the open enrollment {opened_by, opened_at, until, max_nodes, accepted: [uuid]}, or NULL: in memory only
+    uint64_t mark_evicted_until;    // msectimer: a uuid of two keys was evicted from the knocking table, no enrollment opens before it (0: none)
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -2375,6 +2382,21 @@ PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgo
         );
     }
 
+    if(priv->mark_evicted_until && !test_msectimer(priv->mark_evicted_until)) {
+        uint64_t now_ms = time_in_milliseconds_monotonic();
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: a uuid that came with two keys was evicted from the knocking "
+                "table (a flood of knocks?): no enrollment opens for %llu more minutes; accept "
+                "the nodes with accept-node", gobj_yuno_role_plus_name(),
+                (unsigned long long)((priv->mark_evicted_until - now_ms) / 60000 + 1)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     const char *opened_by = username_of(gobj, kw, src);
     json_int_t now = (json_int_t)time(NULL);
     BOOL again = priv->enrollment? TRUE : FALSE;
@@ -2500,6 +2522,34 @@ PRIVATE void close_enrollment(hgobj gobj, const char *why)
         gbmem_free(accepted);
     }
     JSON_DECREF(priv->enrollment)
+}
+
+/***************************************************************************
+ *  A uuid that came with two keys leaves the knocking table (a full table:
+ *  note_knocking_node()). Its mark is what keeps an enrollment from
+ *  accepting either key, and a flood of knocks can push it out, so its loss
+ *  is not silent: an open enrollment closes, and none opens for
+ *  MARK_EVICTED_QUARANTINE. A WARNING, once per quarantine.
+ ***************************************************************************/
+PRIVATE void mark_evicted(hgobj gobj, const char *node_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    BOOL said = priv->mark_evicted_until && !test_msectimer(priv->mark_evicted_until);
+    priv->mark_evicted_until = start_msectimer(MARK_EVICTED_QUARANTINE);
+    if(!said) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "A uuid that came with two keys evicted from the knocking table: no enrollment opens for an hour",
+            "node",         "%s", node_id,
+            "max_knocking_nodes", "%lld", (long long)gobj_read_integer_attr(gobj, "max_knocking_nodes"),
+            NULL
+        );
+    }
+    if(priv->enrollment) {
+        close_enrollment(gobj, "a uuid that came with two keys was evicted from the knocking table");
+    }
 }
 
 /***************************************************************************
@@ -4673,6 +4723,9 @@ PRIVATE const char *note_knocking_node(
         }
         if(!oldest) {
             break;
+        }
+        if(kw_get_bool(gobj, json_object_get(priv->knocking, oldest), "other_keys", 0, 0)) {
+            mark_evicted(gobj, oldest);
         }
         json_object_del(priv->knocking, oldest);
     }

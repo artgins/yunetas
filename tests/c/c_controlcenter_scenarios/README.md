@@ -279,6 +279,9 @@ still reported and fails the test.
       opened after still refuses it; but only while such uuids are half the
       table at most: in a table of 4 full of them, a uuid of one key gets
       in, and the next one evicts the oldest uuid of two keys, not it;
+    - a uuid of two keys evicted all the same (a node let in with no key
+      knocks into a table of 1) closes the open enrollment, and
+      `open-enrollment` is refused after it (no enrollment for an hour);
     - `close-enrollment` closes it, and so does its timer (the test sends
       the `EV_TIMEOUT` of `enrollment_timer`); opening it while open starts
       it again.
