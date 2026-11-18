@@ -3153,6 +3153,7 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
 #define KEY_EC2 "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"
 #define KEY_ED1 "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
 #define KEY_ED2 "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
+#define KEY_EE   "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
 #define KEY_EN8 "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
 
 /*  The agent of `uuid` presents `spki`: it logged in (by the key) or not  */
@@ -3325,6 +3326,36 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     if(logs_in_by_key(gobj, "en-8b", "uuid-en8", KEY_EN8)) {
         ret += fail(gobj, "a closed enrollment accepts", "");
     }
+
+    /*
+     *  But uuids of two keys keep their place only while they are half the
+     *  table at most. A table of 4 full of them: a node of one key gets in,
+     *  and the next one evicts the oldest uuid of two keys, not that node
+     */
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 1);
+    logs_in_by_key(gobj, "ca-1", "uuid-ca", KEY_EC1);  // the table: uuid-ca only
+    logs_in_by_key(gobj, "ca-2", "uuid-ca", KEY_EC2);
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 4);
+    const char *two_keys[] = {"uuid-cb", "uuid-cc", "uuid-cd", 0};
+    for(int i=0; two_keys[i]; i++) {
+        char name[NAME_MAX];
+        snprintf(name, sizeof(name), "c%d-1", i);
+        logs_in_by_key(gobj, name, two_keys[i], KEY_EC1);
+        snprintf(name, sizeof(name), "c%d-2", i);
+        logs_in_by_key(gobj, name, two_keys[i], KEY_EC2);
+    }
+    logs_in_by_key(gobj, "s-1", "uuid-s1", KEY_EE);
+    logs_in_by_key(gobj, "s-2", "uuid-s2", KEY_EE);
+    ret += check_node_field(gobj, client, "uuid-s1", "state", "knocking",
+        "a table full of uuids of two keys keeps the nodes of one key that get in");
+    {
+        json_t *evicted = node_record(gobj, client, "uuid-cb");
+        if(evicted) {
+            ret += fail(gobj, "a table full of uuids of two keys evicts the oldest of them", "");
+        }
+        JSON_DECREF(evicted)
+    }
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
 
     ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
         0, "enrollment open", "open-enrollment");

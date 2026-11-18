@@ -153,8 +153,9 @@
  *  (an agent of before, which presents none: a key under its uuid is
  *  somebody else's), never a uuid that came with two keys (which one is
  *  the node's?), never a key accepted for another node. A full knocking
- *  table evicts a uuid that came with two keys last, so a flood of knocks
- *  does not wipe that mark easily.
+ *  table evicts a uuid that came with two keys last (while such uuids hold
+ *  half the table at most), so a flood of knocks does not wipe that mark
+ *  easily.
  *  It closes when its minutes (1-60) are over, when it has accepted
  *  max_nodes (1-256), with `close-enrollment`, or when the control center
  *  pauses: it lives in memory only, a restart does not open it again. Each
@@ -617,7 +618,7 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
-SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently, one that came with two keys last"),
+SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently, one that came with two keys last while those are half the table at most"),
 SDATA (DTP_INTEGER,     "knocking_warning_period",SDF_RD,   "600",      "Seconds between the WARNINGs 'A node knocking' of a node that goes on knocking; 0: said once"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
@@ -4644,20 +4645,30 @@ PRIVATE const char *note_knocking_node(
     while((json_int_t)json_object_size(priv->knocking) >= max_knocking) {
         /*
          *  A uuid that came with two keys goes last: that mark is what keeps
-         *  an open enrollment from accepting either key (enroll_node())
+         *  an open enrollment from accepting either key (enroll_node()). But
+         *  only while such uuids hold half the table at most: anyone can
+         *  knock with two keys, and a table full of them would leave one
+         *  place to the nodes that knock with one
          */
-        const char *oldest = NULL;
-        json_int_t oldest_seq = 0;
-        BOOL oldest_contested = FALSE;
+        json_int_t contested_count = 0;
         const char *key; json_t *jn;
         json_object_foreach(priv->knocking, key, jn) {
+            if(kw_get_bool(gobj, jn, "other_keys", 0, 0)) {
+                contested_count++;
+            }
+        }
+        BOOL keep_contested = contested_count * 2 <= max_knocking;
+        const char *oldest = NULL;
+        json_int_t oldest_seq = 0;
+        BOOL oldest_kept = FALSE;
+        json_object_foreach(priv->knocking, key, jn) {
             json_int_t seq = kw_get_int(gobj, jn, "seq", 0, 0);
-            BOOL contested = kw_get_bool(gobj, jn, "other_keys", 0, 0);
-            if(!oldest || (oldest_contested && !contested) ||
-                    (contested == oldest_contested && seq < oldest_seq)) {
+            BOOL kept = keep_contested && kw_get_bool(gobj, jn, "other_keys", 0, 0);
+            if(!oldest || (oldest_kept && !kept) ||
+                    (kept == oldest_kept && seq < oldest_seq)) {
                 oldest = key;
                 oldest_seq = seq;
-                oldest_contested = contested;
+                oldest_kept = kept;
             }
         }
         if(!oldest) {

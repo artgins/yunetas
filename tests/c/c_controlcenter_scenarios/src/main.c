@@ -332,6 +332,12 @@ PRIVATE const char *expected_msgs[] = {
     "Node not accepted by the enrollment|||it knocked with another key|WARNING",    // 22b: uuid-ec, after the flood
     "Node enrollment closed",                                                       // 22b: close-enrollment
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en8 again: the flood evicted it
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ca
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cb
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cc
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cd
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-s1, in a table full of uuids of two keys
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-s2
     "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
     "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: again
     "Node enrollment closed",                                                       // 22b: its minutes
