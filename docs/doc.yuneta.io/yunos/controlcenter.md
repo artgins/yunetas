@@ -190,8 +190,8 @@ refuse-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b
 `presented=<start>`, the key the node presented (the first key a knocking
 uuid came with, or the last one presented to its record) when it starts with
 the start you give: at least 16 lowercase hex, the ones you compared with the
-key the node gives (7.31.13+). The control center never pins a key by itself,
-because anyone who reaches the port can make a key and knock with the uuid of
+key the node gives (7.31.13+). The control center never pins a key by itself
+(except while you hold an enrollment open, below), because anyone who reaches the port can make a key and knock with the uuid of
 a node, and the start ties the decision to the key you compared: if another
 key knocks under the uuid between your `list-nodes` and your `accept-node`,
 it does not start the same, and the control center refuses it with a WARNING
@@ -200,6 +200,44 @@ it does not start the same, and the control center refuses it with a WARNING
 when the node presented none, for a node already accepted (its key changes
 only with `spki_sha256` whole), and together with `spki_sha256`. Each decision
 is an INFO, *"Node key decided"*.
+
+**Open enrollment (7.31.15+).** When many nodes must be accepted at once (a
+migration of the control center, a batch of new boxes), open an enrollment
+for some minutes instead of accepting each node. While it is open, the
+control center accepts BY ITSELF the key that the agent of a node with no key
+accepted presents at its login, and the agent logs in with it at once:
+
+```bash
+# 10 minutes, at most 20 nodes (the defaults); minutes 1-60, max_nodes 1-256
+open-enrollment minutes=10 max_nodes=20
+list-nodes                  # its comment says: enrollment OPEN by '<you>': 540 s left, 7 of 20 nodes accepted
+close-enrollment            # close it now; it answers the nodes it accepted
+```
+
+The enrollment does NOT accept:
+
+- a node that is accepted with another key (that is taking the node);
+- a refused node;
+- a uuid that came with another key before (knocking, or in its record):
+  which of the two is the node's?
+- a key that is accepted for another node (one key, one node).
+
+Each of these is a WARNING (*"Node not accepted by the enrollment"*, the reason
+in `refusal`), and the agent stays knocking.
+
+The enrollment closes when its minutes are over, when it has accepted
+`max_nodes`, with `close-enrollment`, or when the control center pauses. It
+lives in memory only: a restart never opens it again. The opening is a
+WARNING (*"Node enrollment open"*), each node accepted an INFO (*"Node
+accepted by the enrollment"*, with its address and hostname, after *"Node key
+decided"*), and the closing an INFO (*"Node enrollment closed"*, with why and
+the nodes accepted). The record of a node accepted so says `decided_by:
+enrollment:<who opened it>`. Both commands need `manage-nodes`.
+
+While it is open, ANYBODY who reaches the port with a uuid that has no key
+accepted is accepted, so keep it open only for the minutes you need. Check
+`list-nodes` after you close it: refuse with `refuse-node` a node you do not
+know.
 
 **One key, one node.** `accept-node` refuses a key that is accepted for
 another node, with a WARNING (*"Node not accepted: its key is accepted for

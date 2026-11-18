@@ -1255,7 +1255,9 @@ Points found so far (verified this session unless noted):
    **Since 7.30.10 the CC knows each node by its agent's own key** (client
    certificate of the link, pinned per node uuid by an operator,
    `accept-node`), and since 7.30.11 that key is the agent's login: no token
-   of the IdP. The token every agent of before shares opens an agent's
+   of the IdP. Since 7.31.15 an operator can also open an enrollment for some
+   minutes (`open-enrollment`): the CC then accepts by itself the key of a
+   node with no key accepted, never one that replaces an accepted key. The token every agent of before shares opens an agent's
    session only (role `agent`, no command).
    **Since 7.30.9 a node verifies the operator itself**: the CC signs an
    operator assertion for each command it forwards

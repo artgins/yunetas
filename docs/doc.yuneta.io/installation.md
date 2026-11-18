@@ -614,6 +614,12 @@ accept-node node_id=<its uuid> spki_sha256=<the sha256 read on the node>
 The script's warning says the same: *"... accept the node again in each
 (accept-node node_id=<this uuid> spki_sha256=<its new key>)"*.
 
+When many nodes must be accepted at once, an operator can open an enrollment
+in each control center for some minutes instead (7.31.15+,
+`open-enrollment minutes=10 max_nodes=20`). It accepts a node with no key
+accepted, never a node accepted with another key, so a node whose key
+changed still needs `accept-node`.
+
 A node that builds from source does not install the package, so it keeps the
 random uuid until it is given the script by hand, from its checkout:
 

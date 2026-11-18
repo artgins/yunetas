@@ -143,6 +143,23 @@
  *  a uuid kept) for list-nodes, with a WARNING every knocking_warning_period
  *  while it goes on knocking. Anything else is C_AUTHZ's.
  *
+ *  NODE ENROLLMENT (7.31.15+). `open-enrollment minutes= max_nodes=`
+ *  (permission `manage-nodes`) opens a window in which the key that the
+ *  agent of a node presents is accepted BY ITSELF at its authentication,
+ *  with no token: for a migration of the control center, or a batch of new
+ *  boxes, where accepting each key read on its node is the slow part. Only
+ *  a uuid with no key accepted: never one accepted with another key (that
+ *  is taking a node), never a refused one, never a uuid that came with two
+ *  keys (which one is the node's?), never a key accepted for another node.
+ *  It closes when its minutes (1-60) are over, when it has accepted
+ *  max_nodes (1-256), with `close-enrollment`, or when the control center
+ *  pauses: it lives in memory only, a restart does not open it again. Each
+ *  node it accepts is decided by `enrollment:<who opened it>` and said with
+ *  an INFO (its address and hostname); the opening is a WARNING, the
+ *  closing an INFO with why. `list-nodes` says in its comment that it is
+ *  open. While it is open, anybody who reaches the port with a uuid never
+ *  accepted is accepted: open it only for the minutes it is needed.
+ *
  *  OPERATOR ASSERTIONS (7.30.9+). What it forwards to an agent says who
  *  asks in `__username__`, which the agent believes -- unless it verifies
  *  it (C_IEVENT_CLI `verify_operator`). For that, with
@@ -195,6 +212,10 @@
 
 /*  The longest node uuid: what node_uuid() holds (its buffer of 64)  */
 #define NODE_ID_MAX     63
+
+/*  The longest open enrollment, in minutes, and the most nodes it accepts  */
+#define MAX_ENROLLMENT_MINUTES  60
+#define MAX_ENROLLMENT_NODES    256
 
 /*  An open with nothing else changed writes the last_seen of its node
  *  only when it is this old, in seconds: a link that comes and goes does
@@ -249,6 +270,17 @@ PRIVATE json_t *presented_key_compared(
     size_t presented_size
 );
 PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_close_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *enrollment_status(hgobj gobj);
+PRIVATE void close_enrollment(hgobj gobj, const char *why);
+PRIVATE BOOL enroll_node(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki
+);
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
 PRIVATE BOOL node_id_shaped(json_t *jn_id);
 PRIVATE void drop_sessions_not_accepted(
@@ -474,6 +506,12 @@ SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to 
 SDATAPM (DTP_STRING,    "presented",    0,              0,          "The start of the key the node presented (list-nodes), at least 16 lowercase hex, as compared with the one the node gives (yuneta-agent-cert key): the whole key presented is pinned only if it starts so"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_open_enrollment[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_INTEGER,   "minutes",      0,              "10",       "Minutes the enrollment stays open, 1 to 60"),
+SDATAPM (DTP_INTEGER,   "max_nodes",    0,              "20",       "Most nodes it accepts, 1 to 256: it closes when it has accepted them"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_refuse_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
@@ -543,6 +581,8 @@ SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              
 SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused"),
 SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node), or to the one it presented that starts as compared (presented=<start>)"),
 SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
+SDATACM2 (DTP_SCHEMA,   "open-enrollment",  0,                  0,              pm_open_enrollment,cmd_open_enrollment,"For some minutes, accept by itself the key that the agent of a node with no key accepted presents (a migration, a batch of new boxes); in memory only"),
+SDATACM2 (DTP_SCHEMA,   "close-enrollment", 0,                  0,              0,              cmd_close_enrollment,"Close the open enrollment now"),
 
 SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
 
@@ -680,6 +720,8 @@ typedef struct _PRIVATE_DATA {
     json_t *stops_rearmed;          // scenario id -> epoch seconds: a stop given up, saved: only the tries after it count
     json_t *knocking;               // node uuid -> {spki_sha256, hostname, peername, first_seen, last_seen, seq}: not authenticated, in memory only
     json_int_t knock_seq;           // order of the last knock of each entry, for the eviction
+    hgobj enrollment_timer;         // closes the open enrollment when its minutes are over
+    json_t *enrollment;             // the open enrollment {opened_by, opened_at, until, max_nodes, accepted: [uuid]}, or NULL: in memory only
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -724,6 +766,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->stops_given_up = json_object();
     priv->stops_rearmed = json_object();
     priv->knocking = json_object();
+    priv->enrollment_timer = gobj_create_pure_child("enrollment_timer", C_TIMER, 0, gobj);
     priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER0, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
 
@@ -830,6 +873,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->stops_given_up)
     JSON_DECREF(priv->stops_rearmed)
     JSON_DECREF(priv->knocking)
+    JSON_DECREF(priv->enrollment)
 }
 
 /***************************************************************************
@@ -911,6 +955,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             strcmp(kw_get_str(gobj, node, "state", "", 0), "accepted")==0 &&
             strcmp(kw_get_str(gobj, node, "spki_sha256", "", 0), spki)==0;
         JSON_DECREF(node)
+
+        if(!accepted && priv->enrollment) {
+            accepted = enroll_node(gobj, node_id, hostname, peername, spki);
+        }
 
         if(accepted) {
             char username[NAME_MAX];
@@ -1014,6 +1062,7 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_write_bool_attr(gobj, "drops_timer_armed", FALSE);
     clear_timeout(priv->run_timer);
     clear_timeout(priv->stop_timer);
+    clear_timeout(priv->enrollment_timer);
     clear_timeout0(priv->rates_timer);
     if(gobj_is_running(priv->rates_timer)) {
         gobj_stop(priv->rates_timer);
@@ -1234,6 +1283,9 @@ PRIVATE int mt_pause(hgobj gobj)
     }
     clear_timeout(priv->stop_timer);
     json_object_clear(priv->auto_stops);  // rebuilt from the runs at play
+    if(priv->enrollment) {
+        close_enrollment(gobj, "the control center pauses");
+    }
     json_object_clear(priv->stops_given_up);
     json_object_clear(priv->stops_rearmed);
 
@@ -1884,6 +1936,18 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  the start, to compare with the node's: whole in the form view.
      *  A string is painted as json, between quotes: 2 columns more
      */
+    json_t *jn_comment = NULL;
+    if(priv->enrollment) {
+        json_int_t left = kw_get_int(gobj, priv->enrollment, "until", 0, 0) - (json_int_t)time(NULL);
+        jn_comment = json_sprintf("%s: enrollment OPEN by '%s': %lld s left, %d of %lld nodes "
+            "accepted (close-enrollment)",
+            gobj_yuno_role_plus_name(),
+            kw_get_str(gobj, priv->enrollment, "opened_by", "", 0),
+            (long long)(left > 0? left : 0),
+            (int)json_array_size(json_object_get(priv->enrollment, "accepted")),
+            (long long)kw_get_int(gobj, priv->enrollment, "max_nodes", 0, 0));
+    }
+
     json_t *jn_schema = json_pack("[{s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
         " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
         " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}]",
@@ -1899,7 +1963,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         0,
-        0,
+        jn_comment,
         jn_schema, // owned
         jn_data, // owned
         kw  // owned
@@ -2250,6 +2314,300 @@ PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         written? json_pack("[o]", written) : 0,
         kw  // owned
     );
+}
+
+/***************************************************************************
+ *  Open the enrollment: for `minutes`, the key that the agent of a node
+ *  with no key accepted presents is accepted by itself (enroll_node()), up
+ *  to `max_nodes`. Opening it again while it is open starts it again.
+ ***************************************************************************/
+PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *permission = "manage-nodes";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the treedb is not open", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_int_t minutes = kw_get_int(gobj, kw, "minutes", 10, 0);
+    json_int_t max_nodes = kw_get_int(gobj, kw, "max_nodes", 20, 0);
+    if(minutes < 1 || minutes > MAX_ENROLLMENT_MINUTES) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: minutes= 1 to %d", gobj_yuno_role_plus_name(), MAX_ENROLLMENT_MINUTES),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(max_nodes < 1 || max_nodes > MAX_ENROLLMENT_NODES) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: max_nodes= 1 to %d", gobj_yuno_role_plus_name(), MAX_ENROLLMENT_NODES),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *opened_by = username_of(gobj, kw, src);
+    json_int_t now = (json_int_t)time(NULL);
+    BOOL again = priv->enrollment? TRUE : FALSE;
+    JSON_DECREF(priv->enrollment)
+    priv->enrollment = json_pack("{s:s, s:I, s:I, s:I, s:[]}",
+        "opened_by", opened_by,
+        "opened_at", now,
+        "until", now + minutes * 60,
+        "max_nodes", max_nodes,
+        "accepted"
+    );
+    clear_timeout(priv->enrollment_timer);
+    set_timeout(priv->enrollment_timer, minutes * 60 * 1000);
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself",
+        "opened_by",    "%s", opened_by,
+        "minutes",      "%lld", (long long)minutes,
+        "max_nodes",    "%lld", (long long)max_nodes,
+        NULL
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("%s: enrollment %s for %lld minutes, up to %lld nodes",
+            gobj_yuno_role_plus_name(), again? "open again" : "open",
+            (long long)minutes, (long long)max_nodes),
+        0,
+        enrollment_status(gobj),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Close the open enrollment now.
+ ***************************************************************************/
+PRIVATE json_t *cmd_close_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *permission = "manage-nodes";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!priv->enrollment) {
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("%s: the enrollment is not open", gobj_yuno_role_plus_name()),
+            0,
+            enrollment_status(gobj),
+            kw  // owned
+        );
+    }
+
+    json_t *jn_accepted = json_incref(json_object_get(priv->enrollment, "accepted"));
+    char why[NAME_MAX];
+    snprintf(why, sizeof(why), "closed by '%s'", username_of(gobj, kw, src));
+    close_enrollment(gobj, why);
+
+    json_t *jn_comment = json_sprintf("%s: enrollment closed, %d nodes accepted by it",
+        gobj_yuno_role_plus_name(), (int)json_array_size(jn_accepted));
+    json_t *jn_data = enrollment_status(gobj);
+    json_object_set_new(jn_data, "accepted", jn_accepted);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_comment,
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  The enrollment as the commands answer it: {open, and while it is open
+ *  opened_by, opened_at, until, seconds_left, max_nodes, accepted}. Yours.
+ ***************************************************************************/
+PRIVATE json_t *enrollment_status(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->enrollment) {
+        return json_pack("{s:b}", "open", 0);
+    }
+    json_t *jn = json_deep_copy(priv->enrollment);
+    json_int_t left = kw_get_int(gobj, jn, "until", 0, 0) - (json_int_t)time(NULL);
+    json_object_set_new(jn, "open", json_true());
+    json_object_set_new(jn, "seconds_left", json_integer(left > 0? left : 0));
+    return jn;
+}
+
+/***************************************************************************
+ *  Close the open enrollment, saying why and what it accepted.
+ ***************************************************************************/
+PRIVATE void close_enrollment(hgobj gobj, const char *why)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->enrollment_timer);
+    json_t *jn_accepted = json_object_get(priv->enrollment, "accepted");
+    char *accepted = jn_accepted? json_dumps(jn_accepted, JSON_COMPACT) : NULL;
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Node enrollment closed",
+        "why",          "%s", why,
+        "opened_by",    "%s", kw_get_str(gobj, priv->enrollment, "opened_by", "", 0),
+        "accepted",     "%s", accepted? accepted : "[]",
+        NULL
+    );
+    if(accepted) {
+        gbmem_free(accepted);
+    }
+    JSON_DECREF(priv->enrollment)
+}
+
+/***************************************************************************
+ *  While the enrollment is open: accept the key that the agent of
+ *  `node_id` presents, at its authentication (mt_authenticate()), if the
+ *  node has no key accepted. Not a node accepted with another key (taking
+ *  it), nor a refused one, nor a uuid that came with another key (in its
+ *  record, or knocking: which one is the node's?), nor a key accepted for
+ *  another node (decide_node()). TRUE: accepted, its agent logs in by it.
+ ***************************************************************************/
+PRIVATE BOOL enroll_node(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_treedb_controlcenter) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "An enrollment open with the treedb closed",
+            "node",         "%s", node_id,
+            NULL
+        );
+        return FALSE;
+    }
+    json_t *node = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s}", "id", node_id),
+        0,
+        gobj
+    );
+    const char *refusal = NULL;
+    if(node) {
+        const char *state = kw_get_str(gobj, node, "state", "", 0);
+        const char *recorded = kw_get_str(gobj, node, "presented_spki", "", 0);
+        if(strcmp(state, "accepted")==0) {
+            refusal = "the node is accepted with another key";
+        } else if(strcmp(state, "refused")==0) {
+            refusal = "the node is refused";
+        } else if(!empty_string(recorded) && strcmp(recorded, spki)!=0) {
+            refusal = "its record holds another key presented";
+        }
+    }
+    JSON_DECREF(node)
+    json_t *knock = json_object_get(priv->knocking, node_id);
+    if(!refusal && knock && (kw_get_bool(gobj, knock, "other_keys", 0, 0) ||
+            strcmp(kw_get_str(gobj, knock, "spki_sha256", "", 0), spki)!=0)) {
+        refusal = "it knocked with another key";
+    }
+    if(refusal) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Node not accepted by the enrollment",
+            "refusal",      "%s", refusal,
+            "node",         "%s", node_id,
+            "hostname",     "%s", hostname,
+            "peername",     "%s", peername? peername : "",
+            "spki_sha256",  "%s", spki,
+            NULL
+        );
+        return FALSE;
+    }
+
+    char decided_by[NAME_MAX];
+    snprintf(decided_by, sizeof(decided_by), "enrollment:%s",
+        kw_get_str(gobj, priv->enrollment, "opened_by", "", 0));
+    json_t *kw_who = json_pack("{s:s}", "__username__", decided_by);
+    json_t *comment = NULL;
+    json_t *written = decide_node(gobj, node_id, "accepted", spki, kw_who, NULL, &comment);
+    JSON_DECREF(kw_who)
+    if(!written) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Node not accepted by the enrollment",
+            "refusal",      "%s", comment? json_string_value(comment) : "",
+            "node",         "%s", node_id,
+            "hostname",     "%s", hostname,
+            "peername",     "%s", peername? peername : "",
+            "spki_sha256",  "%s", spki,
+            NULL
+        );
+        JSON_DECREF(comment)
+        return FALSE;
+    }
+    JSON_DECREF(comment)
+    JSON_DECREF(written)
+
+    json_t *jn_accepted = json_object_get(priv->enrollment, "accepted");
+    json_array_append_new(jn_accepted, json_string(node_id));
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Node accepted by the enrollment",
+        "node",         "%s", node_id,
+        "hostname",     "%s", hostname,
+        "peername",     "%s", peername? peername : "",
+        "spki_sha256",  "%s", spki,
+        "decided_by",   "%s", decided_by,
+        NULL
+    );
+    if((json_int_t)json_array_size(jn_accepted) >=
+            kw_get_int(gobj, priv->enrollment, "max_nodes", 0, 0)) {
+        close_enrollment(gobj, "it has accepted max_nodes");
+    }
+    return TRUE;
 }
 
 /***************************************************************************
@@ -7443,6 +7801,13 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src == priv->stop_timer) {
         KW_DECREF(kw);
         return stop_due_scenario(gobj);
+    }
+    if(src == priv->enrollment_timer) {
+        if(priv->enrollment) {
+            close_enrollment(gobj, "its minutes are over");
+        }
+        KW_DECREF(kw);
+        return 0;
     }
     if(src == priv->drops_timer) {
         priv->drops_timer_armed = FALSE;    // it fired: a one-shot is not armed

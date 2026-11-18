@@ -71,6 +71,18 @@ node's sessions that it no longer lets in: a new key drops the session of the
 old one, and `refuse-node` drops the node's agent. Without
 `enforce_node_keys` only a session that logged in by its key is dropped.
 
+To accept many nodes at once (a migration, a batch of new boxes), open an
+enrollment for some minutes (7.31.15+). While it is open, the key that the
+agent of a node with no key accepted presents is accepted by itself; never a
+node accepted with another key, a refused one, a uuid that came with two
+keys, or a key of another node. It closes after its minutes, at `max_nodes`,
+with `close-enrollment`, or when the control center pauses; in memory only.
+
+```text
+open-enrollment minutes=10 max_nodes=20
+close-enrollment
+```
+
 Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".
 
 ## A node is reached by its uuid

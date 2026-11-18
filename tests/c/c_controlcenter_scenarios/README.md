@@ -262,6 +262,21 @@ still reported and fails the test.
     - `refuse-node` drops the agent in session with an INFO (*"A session of
       the node dropped"*).
 
+22b. The node enrollment (7.31.15). `open-enrollment` and `close-enrollment`
+    need `manage-nodes`; `minutes` out of 1-60 and `max_nodes` out of 1-256
+    are refused. With it closed a node never seen knocks, as always. Open for
+    3 nodes, `list-nodes` says so in its comment, and:
+    - a node that knocked before with the key it presents now, and a node
+      never seen, are accepted by themselves (`decided_by:
+      enrollment:alice`) and log in by the key;
+    - a node accepted with another key keeps its key and is not let in; a
+      uuid that knocked with two keys and a key accepted for another node
+      are not accepted (a WARNING each);
+    - the third node accepted closes it, and the next one knocks;
+    - `close-enrollment` closes it, and so does its timer (the test sends
+      the `EV_TIMEOUT` of `enrollment_timer`); opening it while open starts
+      it again.
+
 23. A node is reached by its uuid, and by a hostname only when one node has
     it. Nodes A and B are accepted with their keys, `enforce_node_keys` on:
     - A gives B's hostname, its channel first: two nodes have that name (a

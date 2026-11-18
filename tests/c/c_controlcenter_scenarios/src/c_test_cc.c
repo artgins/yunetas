@@ -3137,6 +3137,174 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     return ret;
 }
 
+/***************************************************************************
+ *  22b. The node enrollment (NODE ENROLLMENT of c_controlcenter.c): for some
+ *  minutes the key that an agent of a node with no key accepted presents is
+ *  accepted at its authentication, by itself
+ ***************************************************************************/
+#define KEY_EN1 "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+#define KEY_EN2 "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+#define KEY_EN3 "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+#define KEY_EN4 "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+#define KEY_EN5 "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+#define KEY_EN7 "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+#define KEY_EN8 "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
+
+/*  The agent of `uuid` presents `spki`: it logged in (by the key) or not  */
+PRIVATE BOOL logs_in_by_key(hgobj gobj, const char *name, const char *uuid, const char *spki)
+{
+    char username[NAME_MAX];
+    json_t *auth = authenticate_by_key(gobj, name, uuid, "enrolled", spki, username, sizeof(username));
+    char expected[NAME_MAX];
+    snprintf(expected, sizeof(expected), "agent:%s", uuid);
+    BOOL in = kw_get_int(gobj, auth, "result", -1, 0) == 0 && strcmp(username, expected)==0;
+    JSON_DECREF(auth)
+    return in;
+}
+
+/*  An enrollment command of `client` (as alice), with its parameters  */
+PRIVATE json_t *enrollment_command(hgobj gobj, hgobj client, const char *command,
+    json_int_t minutes, json_int_t max_nodes)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    if(minutes) {
+        json_object_set_new(kw, "minutes", json_integer(minutes));
+    }
+    if(max_nodes) {
+        json_object_set_new(kw, "max_nodes", json_integer(max_nodes));
+    }
+    return gobj_command(priv->cc, command, kw, client);
+}
+
+PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    /*
+     *  Closed: a node never seen is knocking, as always. uuid-en4 knocks
+     *  with two keys
+     */
+    if(logs_in_by_key(gobj, "en-0", "uuid-en1", KEY_EN1)) {
+        ret += fail(gobj, "a node never seen logs in with the enrollment closed", "");
+    }
+    ret += check_node_field(gobj, client, "uuid-en1", "state", "knocking",
+        "with the enrollment closed a node never seen is knocking");
+    logs_in_by_key(gobj, "en-4a", "uuid-en4", KEY_EN4);
+    logs_in_by_key(gobj, "en-4b", "uuid-en4", KEY_EN5);
+
+    /*
+     *  Who may open it, and in which range
+     */
+    json_t *kw = viewer_kw(client);
+    ret += check_response(gobj, gobj_command(priv->cc, "open-enrollment", kw, client),
+        -1, "No permission to 'manage-nodes'", "open-enrollment needs manage-nodes");
+    kw = viewer_kw(client);
+    ret += check_response(gobj, gobj_command(priv->cc, "close-enrollment", kw, client),
+        -1, "No permission to 'manage-nodes'", "close-enrollment needs manage-nodes");
+    struct {
+        json_int_t minutes;
+        json_int_t max_nodes;
+        const char *comment;
+    } out_of_range[] = {
+        {-1, 0, "minutes= 1 to 60"},
+        {61, 0, "minutes= 1 to 60"},
+        {5, -1, "max_nodes= 1 to 256"},
+        {5, 257, "max_nodes= 1 to 256"},
+        {0}
+    };
+    for(int i=0; out_of_range[i].comment; i++) {
+        ret += check_response(gobj,
+            enrollment_command(gobj, client, "open-enrollment",
+                out_of_range[i].minutes, out_of_range[i].max_nodes),
+            -1, out_of_range[i].comment, "open-enrollment out of range is refused");
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "the enrollment is not open", "close-enrollment of no enrollment");
+
+    /*
+     *  Open, for 3 nodes: list-nodes says so
+     */
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 5, 3),
+        0, "enrollment open for 5 minutes, up to 3 nodes", "open-enrollment");
+    {
+        json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
+        ret += check_response(gobj, response, 0, "enrollment OPEN by 'alice'",
+            "list-nodes says that the enrollment is open");
+    }
+
+    /*
+     *  A node that knocked with the key it presents now, and one never seen:
+     *  accepted by the enrollment, and logged in by the key
+     */
+    if(!logs_in_by_key(gobj, "en-1", "uuid-en1", KEY_EN1)) {
+        ret += fail(gobj, "the enrollment accepts a node that knocked with the same key", "");
+    }
+    ret += check_node_field(gobj, client, "uuid-en1", "spki_sha256", KEY_EN1,
+        "the enrollment pins the key presented");
+    ret += check_node_field(gobj, client, "uuid-en1", "decided_by", "enrollment:alice",
+        "a node accepted by the enrollment is decided by who opened it");
+    if(!logs_in_by_key(gobj, "en-2", "uuid-en2", KEY_EN2)) {
+        ret += fail(gobj, "the enrollment accepts a node never seen", "");
+    }
+
+    /*
+     *  Never: a node accepted with another key, a uuid that knocked with
+     *  two keys, a key accepted for another node
+     */
+    if(logs_in_by_key(gobj, "en-3", "uuid-auth", KEY_EN3)) {
+        ret += fail(gobj, "the enrollment takes a node accepted with another key", "");
+    }
+    ret += check_node_field(gobj, client, "uuid-auth", "spki_sha256", KEY_A,
+        "the enrollment does not change the key of an accepted node");
+    if(logs_in_by_key(gobj, "en-4c", "uuid-en4", KEY_EN4)) {
+        ret += fail(gobj, "the enrollment accepts a uuid that knocked with two keys", "");
+    }
+    if(logs_in_by_key(gobj, "en-6", "uuid-en6", KEY_EN1)) {
+        ret += fail(gobj, "the enrollment accepts a key accepted for another node", "");
+    }
+
+    /*
+     *  The third closes it; the next one knocks
+     */
+    if(!logs_in_by_key(gobj, "en-7", "uuid-en7", KEY_EN7)) {
+        ret += fail(gobj, "the enrollment accepts up to its max_nodes", "");
+    }
+    if(logs_in_by_key(gobj, "en-8", "uuid-en8", KEY_EN8)) {
+        ret += fail(gobj, "the enrollment accepts more than its max_nodes", "");
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "the enrollment is not open", "the enrollment closes at its max_nodes");
+
+    /*
+     *  close-enrollment; and closed when its minutes are over (its timer)
+     */
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        0, "enrollment open", "open-enrollment again");
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "enrollment closed, 0 nodes accepted", "close-enrollment");
+    if(logs_in_by_key(gobj, "en-8b", "uuid-en8", KEY_EN8)) {
+        ret += fail(gobj, "a closed enrollment accepts", "");
+    }
+
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        0, "enrollment open", "open-enrollment");
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 2, 5),
+        0, "enrollment open again", "open-enrollment while open starts it again");
+    hgobj timer = gobj_child_by_name(priv->cc, "enrollment_timer");
+    if(!timer) {
+        ret += fail(gobj, "the control center has an enrollment_timer", "");
+    } else {
+        gobj_send_event(priv->cc, EV_TIMEOUT, json_object(), timer);
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "the enrollment is not open", "the enrollment closes when its minutes are over");
+
+    return ret;
+}
+
 /*  The wire below the C_IEVENT_SRV of an agent's `channel`  */
 PRIVATE hgobj wire_of(hgobj channel)
 {
@@ -6479,6 +6647,7 @@ PRIVATE int run_tests(hgobj gobj)
     }
 
     result += test_node_keys(gobj, client1);
+    result += test_node_enrollment(gobj, client1);
     result += test_node_names(gobj, client1);
     result += test_one_key_one_node(gobj, client1);
     result += test_card_checked(gobj, client1);

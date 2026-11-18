@@ -306,6 +306,28 @@ PRIVATE const char *expected_msgs[] = {
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k3
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en1, closed
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en4, its first key (the second is not said)
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
+    "Node key decided",                                                             // 22b: uuid-en1
+    "Node accepted by the enrollment",                                              // 22b: uuid-en1
+    "Node key decided",                                                             // 22b: uuid-en2
+    "Node accepted by the enrollment",                                              // 22b: uuid-en2
+    "Node not accepted by the enrollment|||the node is accepted with another key|WARNING", // 22b: uuid-auth
+    "Agent not authenticated: its node key is not the one accepted|||The agent of an accepted node presents another key|WARNING", // 22b: uuid-auth
+    "Node not accepted by the enrollment|||it knocked with another key|WARNING",    // 22b: uuid-en4
+    "Node not accepted: its key is accepted for another node||||WARNING",          // 22b: uuid-en6
+    "Node not accepted by the enrollment||||WARNING",                               // 22b: uuid-en6
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en6
+    "Node key decided",                                                             // 22b: uuid-en7
+    "Node accepted by the enrollment",                                              // 22b: uuid-en7
+    "Node enrollment closed",                                                       // 22b: max_nodes
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en8
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
+    "Node enrollment closed",                                                       // 22b: close-enrollment
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: again
+    "Node enrollment closed",                                                       // 22b: its minutes
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: A
     "Node key decided",                                                             // 23: accept A
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 23: B

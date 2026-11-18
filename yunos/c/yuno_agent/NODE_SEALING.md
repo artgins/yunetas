@@ -284,7 +284,10 @@ Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
   each node presented, and `accept-node node_id=… presented=<start>` pins
   the presented key when it starts as the operator compared (7.31.13). A node not accepted
   yet is not reachable through the control center, so the install output
-  is the out-of-band channel; keep it with the provisioning record.
+  is the out-of-band channel; keep it with the provisioning record. For a
+  batch of nodes (a migration of the control center) an operator opens an
+  enrollment for some minutes (7.31.15, `open-enrollment`), which accepts
+  the key of each node with no key accepted.
 
 The deploy tooling already lives in this tier: `sync_binaries`, `sync_configs`
 and `set_start_priorities` (`yunetas.agent_tools.*`) drive a remote `wss://`
