@@ -2,7 +2,7 @@
 # `yunetas sync-configs`
 
 Operator tool of the [`yunetas` CLI](../yunetas-cli.md) (module
-`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/1.0.3/yunetas/agent_tools/sync_configs.py)) that
+`yunetas.agent_tools.sync_configs`, [source](https://github.com/artgins/tui_yunetas.py/blob/1.0.7/yunetas/agent_tools/sync_configs.py)) that
 reconciles the yuno
 **configs in a directory** with what the local `yuneta_agent` already has
 installed, and — after confirmation — pushes the differences via `create-config`
@@ -18,6 +18,9 @@ binaries are:
   directory, so the tool **drives from one directory**. The CLI walks the
   registered projects and runs it once for each `batches/<host>/` directory
   whose name is a realm of the agent (or the one given with `--host`).
+  Configs outside a project (an operations repository with `batches/<host>/`
+  at its root) are given with `--batches-dir <dir>` (CLI 1.0.7+), with no
+  project registered.
 
 ## Identity and matching
 
@@ -128,6 +131,7 @@ yunetas sync-configs --show-uptodate       # also list in-sync and agent-only co
 yunetas sync-configs -r                    # push AND restart the yunos of an UPDATE
 yunetas sync-configs --host my.host.com    # only that batches/<host>/ directory
 yunetas sync-configs -p myproject          # only that registered project
+yunetas sync-configs --batches-dir ~/ops    # configs of ~/ops/batches/<host>/, no project
 yunetas sync-configs -n --node prod        # a registered node
 ```
 

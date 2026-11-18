@@ -186,6 +186,18 @@ lets `yunetas build` compile it after the SDK and lets `yunetas sync-configs`
 find its `yunos/batches/<host>/` directories. The registry is machine-local
 (`~/.yuneta/projects.json`), never committed.
 
+Configs kept outside a project, such as an operations repository with
+`batches/<host>/` at its root, need no registration. Give the directory with
+`--batches-dir` (CLI 1.0.7+) on `sync-configs` or `sync`. The tool accepts the
+directory itself, or its `batches/` or `yunos/batches/`. It matches the
+`<host>/` directories against the realms of the agent, as it does for a
+project:
+
+```bash
+yunetas sync-configs --batches-dir /path/to/ops-repo -n
+yunetas sync-configs --batches-dir /path/to/ops-repo -r
+```
+
 ## Which recipe do I need?
 
 | What changed | Recipe | Commands |
@@ -775,6 +787,7 @@ compared too.
 | `... already exists` answers during a re-run | A prior interrupted run already pushed that artifact | Nothing. It prints `ALREADY PRESENT (idempotent)` and continues. Finish with `upgrade-yunos` |
 | `INSTALLED` rows, "pending promote" | New versions staged but a snap / missing promote pins the old primary | `yunetas upgrade-yunos` |
 | `sync-configs`: *Skipping \<project\>: no batches for host* | `batches/<dir>` name does not match any realm_id of the local agent | Name the directory after the realm_id (deploy FQDN), or pass `--host <dir>` |
+| `sync-configs`: *No projects registered: nothing to take configs from* | The configs are not in a registered project (for example an operations repository) | Pass `--batches-dir <dir>`, or `yunetas register-project <path>` |
 | `sync-configs`: *no `__version__` field, skipped* | The JSON is not a deployable config under the agent contract | Add `"__version__": "<n>"` (and `__description__`) to the file |
 | Config pushed but behavior unchanged | A yuno reads config only at (re)start | Re-run with `-r`, or `kill-yuno` + `run-yuno` + `play-yuno` the affected ids |
 | *ERROR: '\*list-binaries' did not return JSON. Is the agent up?* | No agent listening at the url | Check the agent, or pass `-u` (remote: see the wss/OAuth2 section) |
