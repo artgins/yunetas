@@ -211,7 +211,8 @@ and query in it (visible ASCII, no `\`, no `#`, no `.` or `..` segment,
 nor with `%2e`): `https://<host>.evil.com/` and `https://<host>@evil/`
 never pass `https://<host>/`. Empty: not checked. The full attribute list
 (`crypto`, `pending_queue_size`, `idp_timeout_ms`, `idp_connect_timeout_ms`,
-`expose_access_token`, `idp_failover_connect_ms`, `idp_down_retry_ms`) is the
+`expose_access_token`, `idp_failover_connect_ms`, `idp_failover_response_ms`,
+`idp_down_retry_ms`) is the
 `attrs_table` of `c_auth_bff.c`.
 
 When the realm is served by two or more IdPs (the realm imported with its

@@ -442,6 +442,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `idp_timeout_ms` | `integer` | Round-trip limit of an IdP call (default 30000; 0 or less is that default, a round-trip is always bounded). |
 | `idp_connect_timeout_ms` | `integer` | Connect limit of an IdP call (default 30000). |
 | `idp_failover_connect_ms` | `integer` | With `issuers`: how long a login waits for an IdP to connect before it passes to the next one (default 4000). The last IdP it tries waits `idp_connect_timeout_ms`. |
+| `idp_failover_response_ms` | `integer` | With `issuers`: how long a login waits for the answer of an IdP, once sent, before it passes to the next one (default 5000). Only when the next IdP is up: a login to an IdP whose others are down, and the last IdP it tries, wait `idp_timeout_ms`. 0 or less: `idp_timeout_ms`. |
 | `idp_down_retry_ms` | `integer` | With `issuers`: how long the logins skip an IdP that failed one (default 60000). The next login after it tries it again; an IdP that could not be reached is back as soon as its connection opens. |
 | `idp_logout_timeout_ms` | `integer` | Limit of a whole logout, the wait for the discovery and the connection and the resend included (default 10000; 0: only the two above). A logout answers within it, cookies cleared, so the answer reaches a SPA that waits 15 s. |
 
@@ -470,7 +471,7 @@ the IdP that can serve it:
 
 | Request | IdP | Passes to the next IdP when |
 |---------|-----|-----------------------------|
-| `/auth/login` | The first IdP of `issuers` that is up. | The IdP does not connect within `idp_failover_connect_ms`, its OIDC discovery fails, or it answers `502`, `503` or `504` (a proxy whose Keycloak is down). In these three cases the IdP did not take the login. When a login reached an IdP, the BFF never sends it to another one: a `401` is the answer, and so is a connection cut after the login was sent. |
+| `/auth/login` | The first IdP of `issuers` that is up. | The IdP does not connect within `idp_failover_connect_ms`, its OIDC discovery fails, or it answers `502`, `503` or `504` (a proxy whose Keycloak is down). In these three cases the IdP did not take the login. Also when the IdP does not answer within `idp_failover_response_ms` and another IdP is up (see below). Any other login that reached an IdP is never sent to another one: a `401` is the answer, and so is a connection cut after the login was sent. |
 | `/auth/refresh`, `/auth/logout` | The IdP that issued the session: the `iss` of the refresh token. The BFF reads this JWT claim only to choose the IdP and does not check the signature (the IdP checks it). | Never. When this IdP is down, the request fails as it does with one IdP. A token that is not a JWT, or whose issuer is not in `issuers`, goes to the first IdP (one WARNING per process). |
 | `/auth/callback` | The first IdP. | Never. |
 
@@ -485,9 +486,21 @@ A BFF of the realm `artgins` served by two IdPs:
     "client_id": "app.example.com",
     "allowed_origin": "https://app.example.com",
     "idp_failover_connect_ms": 4000,
+    "idp_failover_response_ms": 5000,
     "idp_down_retry_ms": 60000
 }
 ```
+
+**An IdP that dies with the connection open.** The BFF keeps its connection
+to an IdP open between requests (keep-alive). A host that dies closes
+nothing, so the next request goes on that connection and gets no answer. A
+login waits `idp_failover_response_ms` for the answer, then passes to the
+next IdP: without this limit it waits `idp_timeout_ms` (30 s) and the SPA
+gives up at 15 s. An IdP that was only slow keeps a session that nobody
+uses. This limit applies only when another IdP is up. When the other IdPs
+are down, every login goes to this IdP, and that is when it is slow: the
+login waits `idp_timeout_ms`. A refresh and a logout always wait
+`idp_timeout_ms`, because no other IdP can take them.
 
 Each IdP has its own outbound connection (`<bff>-idp`, `<bff>-idp2`, …).
 At start, the BFF discovers only the first IdP. It discovers each of the
@@ -497,7 +510,8 @@ An IdP that fails a login is marked **down**:
 - The logins skip it for `idp_down_retry_ms`. The first login after that
   time tries it again. There is no timer and no polling.
 - An IdP marked down because it did not connect is up again as soon as its
-  connection opens.
+  connection opens. An IdP marked down because it did not answer a login
+  stays down until it answers or `idp_down_retry_ms` passes.
 - An IdP that answers (any answer except a 5xx) is up again.
 
 The BFF logs each change of state once: a WARNING *"IdP down, the logins go

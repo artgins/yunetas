@@ -260,6 +260,7 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the I
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
 | `idp_logout_timeout_ms` | default `10000`    | Bounds the **whole of a logout**. See §2.6.           |
 | `idp_failover_connect_ms` | default `4000`   | With `issuers`: the wait to connect before a login goes to the next IdP. See §2.7. |
+| `idp_failover_response_ms` | default `5000`  | With `issuers`: the wait for the answer before a login goes to the next IdP, when that IdP is up. See §2.7. |
 | `idp_down_retry_ms`    | default `60000`     | With `issuers`: the time the logins skip an IdP that failed one. See §2.7. |
 
 Discovery requires BOTH endpoints in the issuer's document: without
@@ -370,7 +371,7 @@ request depends on the request:
 
 | Request | IdP | When that IdP fails |
 |---------|-----|---------------------|
-| `/auth/login` | The first IdP that is up | The login goes to the next IdP if this one does not connect within `idp_failover_connect_ms`, fails its discovery, or answers `502`/`503`/`504` before Keycloak takes the login. A login that reached Keycloak is never sent again. |
+| `/auth/login` | The first IdP that is up | The login goes to the next IdP if this one does not connect within `idp_failover_connect_ms`, fails its discovery, or answers `502`/`503`/`504` before Keycloak takes the login. It also goes there if this one does not answer within `idp_failover_response_ms` and the next IdP is up: an IdP that dies with the keep-alive connection open is only silent. Any other login that reached Keycloak is never sent again. |
 | `/auth/refresh`, `/auth/logout` | The `iss` of the refresh token (a JWT, read and not verified, only to choose) | The request fails as with one IdP: the session cannot move. |
 | `/auth/callback` | The first IdP | As with one IdP. |
 
@@ -378,7 +379,12 @@ An IdP that failed a login is **down**:
 - The logins skip it for `idp_down_retry_ms`. The first login after that
   time tries it again, so there is no timer.
 - It is up again when its connection opens (if it could not connect), or
-  when it answers anything except a 5xx.
+  when it answers anything except a 5xx. One that did not answer a login
+  stays down until it answers or `idp_down_retry_ms` passes.
+- A login waits only `idp_failover_response_ms` for an answer while another
+  IdP is up. When the others are down it waits `idp_timeout_ms`: every login
+  goes to this IdP, and that is when it is slow. Refreshes and logouts always
+  wait `idp_timeout_ms`.
 
 The BFF logs a WARNING when an IdP goes down and an INFO when it is up
 again. `view-status` shows each IdP and its state, and the `idp_failovers`

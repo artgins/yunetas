@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`C_AUTH_BFF`: a login passes to the next IdP when its IdP is silent on
+  an open connection.** The BFF keeps its connection to an IdP open between
+  requests (keep-alive). When the host of the IdP dies, nothing closes that
+  connection, so the next login went on it, got no answer, waited
+  `idp_timeout_ms` (30 s) and was answered `504`. The SPA had already given
+  up at 15 s. Only the login after it passed to the next IdP. Found in a live
+  test of the two artgins IdPs (`auth.artgins.com` cut by a firewall rule on
+  the staging node, with the connection open). New attribute
+  `idp_failover_response_ms` (default 5000): with `issuers`, a login waits
+  that long for the answer, then passes to the next IdP and marks the
+  silent one down (until it answers, or for `idp_down_retry_ms`). It applies
+  only when the next IdP is up: when the others are down every login goes
+  to this IdP, which is when it is slow, so the login waits
+  `idp_timeout_ms`. A refresh and a logout always wait `idp_timeout_ms`
+  (no other IdP can take them). An IdP that was only slow keeps a session
+  that nobody uses. Test `test34_idp_silent` (red before the fix: `504`
+  after `idp_timeout_ms`).
+
 ## v7.31.13 (2026-11-17)
 
 A fix of 7.31.12, deployed for an hour: deploy this one. Lite release; the

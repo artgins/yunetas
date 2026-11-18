@@ -142,10 +142,20 @@
  *                    one when this one cannot be reached within
  *                    idp_failover_connect_ms, fails its OIDC discovery, or
  *                    answers 502/503/504 (a proxy whose Keycloak is down):
- *                    in all three the IdP never took it. Once a login has
- *                    been sent to an IdP that took it, it is never sent to
- *                    another. The last IdP it tries waits
- *                    idp_connect_timeout_ms, and answers as with one IdP.
+ *                    in all three the IdP never took it. And it passes when
+ *                    the IdP does not answer it within
+ *                    idp_failover_response_ms while another IdP is up: the
+ *                    IdP that dies with the connection to it open (the
+ *                    keep-alive of an earlier request) is only silent, and
+ *                    a host that dies closes nothing. A silent IdP that was
+ *                    only slow keeps a session nobody uses; one that is
+ *                    slow while the others are down is waited for
+ *                    (idp_timeout_ms): all the logins went to it, and that
+ *                    is when it is slow. Any other login an IdP took is
+ *                    never sent to another (a connection dropped after it
+ *                    was sent: 502). The last IdP it tries waits
+ *                    idp_connect_timeout_ms and idp_timeout_ms, and
+ *                    answers as with one IdP.
  *    /auth/refresh   the IdP that issued the session: the `iss` of the
  *    /auth/logout    refresh_token (a JWT; read, not verified, only to
  *                    choose where it goes). When that IdP is down they
@@ -349,6 +359,7 @@ PRIVATE void process_next(hgobj gobj);
 PRIVATE void create_idp_outbound(hgobj gobj, IDP_SLOT *slot, const char *http_url);
 PRIVATE int find_idp_by_issuer(hgobj gobj, const char *issuer);
 PRIVATE BOOL login_can_fail_over(hgobj gobj, json_t *request, int idx);
+PRIVATE BOOL login_has_idp_up_to_go(hgobj gobj, json_t *request, int idx);
 PRIVATE void mark_idp_down(hgobj gobj, IDP_SLOT *slot, BOOL by_connect, const char *cause);
 PRIVATE void mark_idp_up(hgobj gobj, IDP_SLOT *slot);
 PRIVATE void arm_connect_watchdog(hgobj gobj);
@@ -435,8 +446,9 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----default-description*/
 SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration. Ignored when `issuers` is set"),
-SDATA (DTP_LIST,        "issuers",              SDF_RD, "[]",   "OIDC issuer URLs of the same realm, in order of preference (at most 4): a login goes to the first that answers, and passes to the next when one cannot be reached, fails its discovery or answers 502/503/504 before Keycloak takes it; a refresh and a logout go to the issuer of the session (the `iss` of its refresh_token). Each one is discovered the first time a request needs it. Not with token_endpoint/end_session_endpoint"),
+SDATA (DTP_LIST,        "issuers",              SDF_RD, "[]",   "OIDC issuer URLs of the same realm, in order of preference (at most 4): a login goes to the first that answers, and passes to the next when one cannot be reached, fails its discovery, answers 502/503/504 before Keycloak takes it, or does not answer within idp_failover_response_ms while the next is up; a refresh and a logout go to the issuer of the session (the `iss` of its refresh_token). Each one is discovered the first time a request needs it. Not with token_endpoint/end_session_endpoint"),
 SDATA (DTP_INTEGER,     "idp_failover_connect_ms",SDF_RD,           "4000", "With `issuers`: how long a login waits for an IdP to CONNECT before it passes to the next one (the last one it tries waits idp_connect_timeout_ms). Keep the sum under the time a SPA waits (15 s). 0 or less: idp_connect_timeout_ms"),
+SDATA (DTP_INTEGER,     "idp_failover_response_ms",SDF_RD,          "5000", "With `issuers`: how long a login waits for the ANSWER of an IdP, once sent, before it passes to the next one -- only when the next one is up, so a slow IdP is not left for a down one (that and the last IdP wait idp_timeout_ms). It is the IdP that dies with the connection to it open: nothing says it is gone. Keep idp_failover_connect_ms plus this under the time a SPA waits (15 s). 0 or less: idp_timeout_ms"),
 SDATA (DTP_INTEGER,     "idp_down_retry_ms",    SDF_RD,             "60000","With `issuers`: an IdP that failed a login is skipped by the logins for this long; the next login after it tries it again. An IdP that could not be reached is back as soon as its connection opens"),
 SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
@@ -526,6 +538,7 @@ typedef struct _PRIVATE_DATA {
     int         n_idps;
     IDP_SLOT   *cur;
     BOOL        can_fail_over;          /* what is in flight is a login another IdP can take */
+    BOOL        answer_can_fail_over;   /* ...and its IdP has idp_failover_response_ms to answer it */
     hgobj       gobj_discovery_task;    /* one-shot OIDC discovery task; NULL when idle */
 
     /*
@@ -3867,6 +3880,25 @@ PRIVATE BOOL login_can_fail_over(hgobj gobj, json_t *request, int idx)
 }
 
 /***************************************************************************
+ *  Has a login whose IdP is `idx` another one to go to that is up (or
+ *  whose idp_down_retry_ms has passed): one it has not tried
+ ***************************************************************************/
+PRIVATE BOOL login_has_idp_up_to_go(hgobj gobj, json_t *request, int idx)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t tried = kw_get_int(gobj, request, "_tried", 0, 0);
+    for(int i = 0; i < priv->n_idps; i++) {
+        IDP_SLOT *slot = &priv->idps[i];
+        if(i != idx && !(tried & (1 << i)) &&
+                (!slot->down || test_msectimer(slot->down_retry))) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *  The IdP of a login: the first it has not tried that is up, or whose
  *  idp_down_retry_ms has passed; when all of them are down, the first it
  *  has not tried (a down IdP may be back). -1: it tried them all.
@@ -4065,6 +4097,7 @@ PRIVATE void process_next(hgobj gobj)
     }
     priv->cur = &priv->idps[idx];
     priv->can_fail_over = login_can_fail_over(gobj, head_request, idx);
+    priv->answer_can_fail_over = FALSE;
 
     if(!priv->cur->discovery_done) {
         /*
@@ -4127,6 +4160,19 @@ PRIVATE void process_next(hgobj gobj)
     json_int_t idp_timeout_ms = gobj_read_integer_attr(gobj, "idp_timeout_ms");
     if(idp_timeout_ms <= 0) {
         idp_timeout_ms = 30000;
+    }
+
+    /*
+     *  A login waits less for the answer when another IdP that is up can
+     *  take it: an IdP that died with the connection open is only silent
+     */
+    if(action == BFF_LOGIN && priv->can_fail_over &&
+            login_has_idp_up_to_go(gobj, kw_output, priv->cur->idx)) {
+        json_int_t answer_ms = gobj_read_integer_attr(gobj, "idp_failover_response_ms");
+        if(answer_ms > 0 && answer_ms < idp_timeout_ms) {
+            idp_timeout_ms = answer_ms;
+            priv->answer_can_fail_over = TRUE;
+        }
     }
 
     /*
@@ -4854,7 +4900,9 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     BOOL connect_timed_out = priv->connect_timed_out;
     BOOL was_connected = priv->connect_was_connected;
+    BOOL answer_can_fail_over = priv->answer_can_fail_over;
     const char *tcp_state = priv->connect_tcp_state? priv->connect_tcp_state : "";
+    priv->answer_can_fail_over = FALSE;
     priv->connect_timed_out = FALSE;
     priv->connect_was_connected = FALSE;
     priv->connect_tcp_state = NULL;
@@ -4871,7 +4919,9 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         (priv->can_fail_over?
             "idp_failover_connect_ms: the IdP could not be reached" :
             "idp_connect_timeout_ms: the IdP could not be reached") :
-        "idp_timeout_ms: the IdP did not answer";
+        (answer_can_fail_over?
+            "idp_failover_response_ms: the IdP did not answer a login" :
+            "idp_timeout_ms: the IdP did not answer");
     if(priv->logout_timed_out) {
         timeout_cause = "idp_logout_timeout_ms: the logout did not end in its time";
         priv->logout_timed_out = FALSE;
@@ -5018,14 +5068,23 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  any "reply" to whoever is on the socket now would be noise.
          */
         BOOL unreachable = connect_timed_out && !was_connected;
+        BOOL silent = !connect_timed_out && answer_can_fail_over;
         if(unreachable) {
             mark_idp_down(gobj, priv->cur, TRUE, timeout_cause);
+        } else if(silent) {
+            /*
+             *  Down until an answer of its own or idp_down_retry_ms: its
+             *  connection opening says nothing, it was open
+             */
+            mark_idp_down(gobj, priv->cur, FALSE, timeout_cause);
         }
         if(priv->task_valid) {
-            if(unreachable && output_data &&
+            if((unreachable || silent) && output_data &&
                     login_can_fail_over(gobj, output_data, priv->cur->idx)) {
                 /*
-                 *  The login never left: another IdP takes it
+                 *  The login never left, or its IdP is silent: another
+                 *  IdP takes it (a silent one that was only slow keeps a
+                 *  session nobody uses)
                  */
                 requeue_login_for_next_idp(gobj, output_data);
             } else {

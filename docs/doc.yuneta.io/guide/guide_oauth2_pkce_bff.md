@@ -755,6 +755,7 @@ that fits is taken whole.
 | `issuer` | — (required, or `issuers`) | OIDC issuer URL (for example `https://auth.example.com/realms/foo/`). Triggers discovery via `/.well-known/openid-configuration`. Use `token_endpoint` + `end_session_endpoint` instead to bypass discovery. |
 | `issuers` | `[]` | Two or more issuer URLs of the same realm, one on each IdP, in order of preference: `"issuers": ["https://auth.example.com/realms/foo/", "https://auth2.example.com/realms/foo/"]`. Replaces `issuer`. A login goes to the first IdP that answers; a refresh or a logout goes to the IdP of its session. See [Failover between IdPs](#bff-idp-failover). |
 | `idp_failover_connect_ms` | `4000` | With `issuers`: the time a login waits for an IdP to connect before it goes to the next IdP. |
+| `idp_failover_response_ms` | `5000` | With `issuers`: the time a login waits for the answer of an IdP before it goes to the next IdP, when the next IdP is up. Example: `"idp_failover_response_ms": 5000`. |
 | `idp_down_retry_ms` | `60000` | With `issuers`: the time the logins skip an IdP that failed a login. |
 | `client_id`, `client_secret` | — | OAuth2 client credentials (leave `client_secret` empty for a public client). |
 | `cookie_domain` | `""` | `Domain=` attribute on the cookies. Written only when the request `Host` is this domain or a subdomain of it; otherwise omitted, with a WARNING. Empty: never written (host-only cookies). |
@@ -779,7 +780,12 @@ the other: a refresh token presented to the other IdP is refused with
 - **A login** goes to the first IdP that is up. It goes to the next IdP when
   the IdP does not connect within `idp_failover_connect_ms`, when its OIDC
   discovery fails, or when it answers `502`, `503` or `504` (nginx up,
-  Keycloak down). A login that reached Keycloak is never sent again.
+  Keycloak down). It also goes to the next IdP when the IdP does not answer
+  within `idp_failover_response_ms` and the next IdP is up. This is the IdP
+  whose host died while the BFF had a connection open to it: nothing closes
+  that connection, and without this limit the login waits `idp_timeout_ms`
+  and the SPA gives up first. Any other login that reached Keycloak is never
+  sent again.
 - **A refresh and a logout** go to the IdP named by the `iss` of the
   refresh token. When that IdP is down, the refresh fails with
   `502 auth_service_unavailable`, as it does with one IdP.
