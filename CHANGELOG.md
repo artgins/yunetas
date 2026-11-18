@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v7.31.14 (2026-11-18)
+
+The failover of `issuers` for an IdP whose host dies while the BFF has a
+connection open to it. Only `auth_bff` to deploy. The suite ran on the dev
+machine (468/468); no performance study, as for 7.31.6 and 7.31.7: no
+benchmark measures `C_AUTH_BFF`, and the change is in its failover path only.
+
 ### Fixed
 
 - **`C_AUTH_BFF`: a login passes to the next IdP when its IdP is silent on
