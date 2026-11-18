@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+## v7.31.15 (2026-11-18)
+
+Lite release: only `controlcenter` to deploy (1996/1997). Tests run: the
+control center's (`test_c_controlcenter_scenarios`,
+`test_c_agent_controlcenter_link`) on the dev machine; no performance study,
+no benchmark measures the control center.
+
+### Added
+
+- **`controlcenter`: `open-enrollment`, the nodes accepted by themselves for
+  some minutes.** Accepting each node with the key read on it is the slow
+  part of a migration of the control center (on 2026-11-18 every node came
+  back `knocking`) or of a batch of new boxes. `open-enrollment minutes=10
+  max_nodes=20` (permission `manage-nodes`) opens a window in which the key
+  that the agent of a node with no key accepted presents is accepted at its
+  login, and the agent logs in by it at once.
+
+  ```bash
+  open-enrollment minutes=10 max_nodes=20
+  list-nodes          # its comment: enrollment OPEN by '<you>': 540 s left, 7 of 20 nodes accepted
+  close-enrollment
+  ```
+
+    - Never a node accepted with another key (that is taking it), a refused
+      node, a node let in with no key (an agent of before: it never presents
+      one, so a key under its uuid is somebody else's), a uuid that came
+      with another key (knocking or in its record), or a key accepted for
+      another node: a WARNING *"Node not accepted by the enrollment"*, and
+      the agent stays knocking.
+    - A full knocking table (`max_knocking_nodes`) evicts a uuid that came
+      with two keys last, so a flood of knocks does not wipe the mark that
+      keeps the enrollment from accepting either key.
+    - It closes when its minutes (1-60) are over, at `max_nodes` (1-256),
+      with `close-enrollment`, or when the control center pauses. In memory
+      only: a restart does not open it again.
+    - The opening is a WARNING, each node accepted an INFO with its address
+      and hostname (its record says `decided_by: enrollment:<who opened
+      it>`), the closing an INFO with why and the nodes accepted.
+    - While it is open, anybody who reaches the port with a uuid that has no
+      key accepted is accepted: keep it open only for the minutes needed,
+      and check `list-nodes` after.
+
 ## v7.31.14 (2026-11-18)
 
 The failover of `issuers` for an IdP whose host dies while the BFF has a
