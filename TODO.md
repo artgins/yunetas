@@ -44,7 +44,10 @@ Severity in parentheses where one was assigned.
   refused card (7.31.9), the WARNING *"A node knocking"* is repeated every
   `knocking_warning_period` (7.31.10), `list-nodes` gives the `key` presented
   and the mark `other_keys`, and `accept-node presented=<start>` refuses a
-  uuid that knocked with two keys (7.31.13). Still open: the knocking record
+  uuid that knocked with two keys (7.31.13); `open-enrollment` refuses such a
+  uuid, a full knocking table evicts it last (while those are half the table
+  at most), and evicting one closes the enrollment and keeps it shut for an
+  hour (7.31.15/7.31.16). Still open: the knocking record
   keeps the FIRST key (a later one only sets `other_keys`, `last_seen`
   stops), and no log line says that a second key came. Proposed: a WARNING
   once per new key (`node_id`, both keys), and decide whether the record
