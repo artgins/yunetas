@@ -270,9 +270,13 @@ still reported and fails the test.
       never seen, are accepted by themselves (`decided_by:
       enrollment:alice`) and log in by the key;
     - a node accepted with another key keeps its key and is not let in; a
-      uuid that knocked with two keys and a key accepted for another node
-      are not accepted (a WARNING each);
+      node let in with no key (pending, an agent of before), a uuid that
+      knocked with two keys and a key accepted for another node are not
+      accepted (a WARNING each);
     - the third node accepted closes it, and the next one knocks;
+    - with `max_knocking_nodes` 2, knocks of other uuids evict a uuid of
+      one key and keep the one that came with two keys, and the enrollment
+      opened after still refuses it;
     - `close-enrollment` closes it, and so does its timer (the test sends
       the `EV_TIMEOUT` of `enrollment_timer`); opening it while open starts
       it again.

@@ -3148,6 +3148,11 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
 #define KEY_EN4 "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
 #define KEY_EN5 "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
 #define KEY_EN7 "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+#define KEY_EN9 "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+#define KEY_EC1 "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+#define KEY_EC2 "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"
+#define KEY_ED1 "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+#define KEY_ED2 "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
 #define KEY_EN8 "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
 
 /*  The agent of `uuid` presents `spki`: it logged in (by the key) or not  */
@@ -3194,6 +3199,10 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
         "with the enrollment closed a node never seen is knocking");
     logs_in_by_key(gobj, "en-4a", "uuid-en4", KEY_EN4);
     logs_in_by_key(gobj, "en-4b", "uuid-en4", KEY_EN5);
+    hgobj old = open_keyed_session(gobj, "en-old", "uuid-en-old", "old", NULL);
+    ret += check_node_field(gobj, client, "uuid-en-old", "state", "pending",
+        "an agent with no key is let in, pending");
+    close_session(old);
 
     /*
      *  Who may open it, and in which range
@@ -3265,6 +3274,11 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     if(logs_in_by_key(gobj, "en-6", "uuid-en6", KEY_EN1)) {
         ret += fail(gobj, "the enrollment accepts a key accepted for another node", "");
     }
+    if(logs_in_by_key(gobj, "en-9", "uuid-en-old", KEY_EN9)) {
+        ret += fail(gobj, "the enrollment accepts a key for a node let in with no key", "");
+    }
+    ret += check_node_field(gobj, client, "uuid-en-old", "state", "pending",
+        "the enrollment leaves a node let in with no key pending");
 
     /*
      *  The third closes it; the next one knocks
@@ -3279,10 +3293,33 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
         0, "the enrollment is not open", "the enrollment closes at its max_nodes");
 
     /*
+     *  A flood of knocks does not wipe the mark of a uuid that came with two
+     *  keys: a full table evicts it last, and the enrollment still refuses it
+     */
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
+    logs_in_by_key(gobj, "ec-1", "uuid-ec", KEY_EC1);
+    logs_in_by_key(gobj, "ec-2", "uuid-ec", KEY_EC2);
+    logs_in_by_key(gobj, "ed-1", "uuid-ed1", KEY_ED1);
+    logs_in_by_key(gobj, "ed-2", "uuid-ed2", KEY_ED2);
+    ret += check_node_field(gobj, client, "uuid-ec", "state", "knocking",
+        "a full knocking table evicts a uuid that came with two keys last");
+    {
+        json_t *evicted = node_record(gobj, client, "uuid-ed1");
+        if(evicted) {
+            ret += fail(gobj, "a full knocking table evicts a uuid of one key first", "");
+        }
+        JSON_DECREF(evicted)
+    }
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
+
+    /*
      *  close-enrollment; and closed when its minutes are over (its timer)
      */
     ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
         0, "enrollment open", "open-enrollment again");
+    if(logs_in_by_key(gobj, "ec-3", "uuid-ec", KEY_EC2)) {
+        ret += fail(gobj, "the enrollment accepts a uuid that came with two keys, after a flood", "");
+    }
     ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
         0, "enrollment closed, 0 nodes accepted", "close-enrollment");
     if(logs_in_by_key(gobj, "en-8b", "uuid-en8", KEY_EN8)) {

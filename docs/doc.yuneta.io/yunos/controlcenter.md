@@ -146,7 +146,7 @@ after it logged an ERROR with a stack.
 |-----------|---------|---------|
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
-| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`; a new one evicts the one that knocked least recently. |
+| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`; a new one evicts the one that knocked least recently, a uuid that came with two keys last (7.31.15+). |
 | `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+); `0`: only the first. Not one per knock: anyone who reaches the port can knock. |
 
 The three are read-only at run time: set them in the `kw` of the
@@ -218,8 +218,14 @@ The enrollment does NOT accept:
 
 - a node that is accepted with another key (that is taking the node);
 - a refused node;
+- a node let in with NO key (an agent of before 7.30.10, by
+  `allow_nodes_without_key`): such an agent never presents a key, so a key
+  under its uuid is somebody else's, and accepting it would lock the real
+  node out once `enforce_node_keys` is on. A node of before that is upgraded
+  to its own pair is accepted with `accept-node`, its key read on it;
 - a uuid that came with another key before (knocking, or in its record):
-  which of the two is the node's?
+  which of the two is the node's? A full knocking table evicts such a uuid
+  last, so a flood of knocks does not wipe that mark easily;
 - a key that is accepted for another node (one key, one node).
 
 Each of these is a WARNING (*"Node not accepted by the enrollment"*, the reason

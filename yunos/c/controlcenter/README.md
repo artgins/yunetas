@@ -74,8 +74,8 @@ old one, and `refuse-node` drops the node's agent. Without
 To accept many nodes at once (a migration, a batch of new boxes), open an
 enrollment for some minutes (7.31.15+). While it is open, the key that the
 agent of a node with no key accepted presents is accepted by itself; never a
-node accepted with another key, a refused one, a uuid that came with two
-keys, or a key of another node. It closes after its minutes, at `max_nodes`,
+node accepted with another key, a refused one, one let in with no key (an
+agent of before), a uuid that came with two keys, or a key of another node. It closes after its minutes, at `max_nodes`,
 with `close-enrollment`, or when the control center pauses; in memory only.
 
 ```text
