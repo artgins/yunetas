@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## v7.31.16 (2026-11-18)
+
+A fix of 7.31.15, never deployed: deploy this one. Lite release; the same
+deploy (`controlcenter` 1996/1997) and the same tests.
+
+### Security
+
+- **`controlcenter`: uuids that came with two keys keep their place in the
+  knocking table only while they hold half of it at most.** 7.31.15 evicts
+  such a uuid last, so a flood of knocks does not wipe the mark that keeps
+  an open enrollment from accepting either key. But anyone can knock with
+  two keys: a table full of such uuids left a single place to the nodes
+  that knock with one key, each new one evicting the last, and `list-nodes`
+  stopped showing them. Now, past half the table, the oldest entry goes,
+  whatever it is.
+- **`controlcenter`: a uuid of two keys evicted from the knocking table
+  closes the open enrollment, and none opens for an hour.** A table of
+  fixed size must evict somebody, so a flood of knocks can always push such
+  a uuid out, and with it the mark that keeps the enrollment from accepting
+  either of its keys. Its loss is not silent now: a WARNING (*"A uuid that
+  came with two keys evicted from the knocking table: no enrollment opens
+  for an hour"*), the open enrollment closed, and `open-enrollment` refused
+  for an hour (the nodes are accepted with `accept-node` meanwhile). A flood
+  can keep the enrollment shut, never slip a key in.
+
+Both found by security reviews of 7.31.15.
+
 ## v7.31.15 (2026-11-18)
 
 Lite release: only `controlcenter` to deploy (1996/1997). Tests run: the

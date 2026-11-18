@@ -225,9 +225,12 @@ The enrollment does NOT accept:
   to its own pair is accepted with `accept-node`, its key read on it;
 - a uuid that came with another key before (knocking, or in its record):
   which of the two is the node's? A full knocking table evicts such a uuid
-  last, while such uuids hold half the table at most, so a flood of knocks
-  does not wipe that mark easily, and a flood of uuids with two keys does
-  not keep the nodes of one key out of the table;
+  last, while such uuids hold half the table at most, so a flood of uuids
+  with two keys does not keep the nodes of one key out of the table. When
+  such a uuid is evicted all the same (a flood of knocks), an open
+  enrollment CLOSES and none opens for an hour, with a WARNING (*"A uuid
+  that came with two keys evicted from the knocking table"*): a flood can
+  keep the enrollment shut, never slip a key in;
 - a key that is accepted for another node (one key, one node).
 
 Each of these is a WARNING (*"Node not accepted by the enrollment"*, the reason
